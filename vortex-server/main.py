@@ -21,8 +21,6 @@ chat_stats = vortex_chat.ChatStats()  # Rust класс!
 # Ключ шифрования (в реальном проекте должен быть уникальным для каждого чата)
 ENCRYPTION_KEY = 42
 
-print("Hello World")
-
 @app.get("/")
 async def root():
     return {"message": "P2P Chat Server", "status": "running"}
