@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>P2P Чат с Rust</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+<div class="chat-container">
+    <div class="chat-header">
+        <h1>
+            💬 P2P Чат
+            <span class="rust-badge">Rust ⚡</span>
+        </h1>
+        <div class="connection-status">
+            <span id="status-text">Подключение...</span>
+            <span class="status-indicator" id="status-indicator"></span>
+        </div>
+    </div>
+
+    <div class="messages-area" id="messages">
+        <div class="message system">
+            Добро пожаловать! Все сообщения шифруются Rust-функциями
+        </div>
+    </div>
+
+    <div class="stats-panel">
+        <div class="stat-item">
+            <span>👤 ID:</span>
+            <span class="stat-value" id="client-id">...</span>
+        </div>
+        <div class="stat-item">
+            <span>🔐 Шифрование:</span>
+            <span class="stat-value">XOR (Rust)</span>
+        </div>
+        <div class="stat-item">
+            <span>⚡ Хэши:</span>
+            <span class="stat-value">BLAKE3</span>
+        </div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="message-input"
+               placeholder="Введите сообщение..."
+               onkeypress="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()" id="send-btn">Отправить</button>
+    </div>
+</div>
+
+<script src="/static/js/chat.js"></script>
+</body>
+</html>
