@@ -6,6 +6,7 @@ import time
 import vortex_chat
 from pathlib import Path
 
+
 app = FastAPI()
 
 # Подключаем статические файлы (HTML, JS).
