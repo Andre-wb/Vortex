@@ -4,7 +4,7 @@ use blake3;
 
 /// Быстрое хэширование сообщений (для проверки целостности)
 #[pyfunction]
-fn hash_message(py: Python<'_>, message: &Bound<'_, PyBytes>) -> PyResult<String> {
+fn hash_message(_py: Python<'_>, message: &Bound<'_, PyBytes>) -> PyResult<String> {
     let hash = blake3::hash(message.as_bytes());
     Ok(hash.to_hex().to_string())
 }
