@@ -3,19 +3,25 @@ from fastapi.staticfiles import StaticFiles
 import asyncio
 import json
 import time
-import vortex_chat  # твоя Rust библиотека!
+import vortex_chat
+from pathlib import Path
+
 
 app = FastAPI()
 
-# Подключаем статические файлы (HTML, JS)
-app.mount("/static", StaticFiles(directory="./static"), name="static")
+# Подключаем статические файлы (HTML, JS).
+BASE_DIR = Path(__file__).resolve().parent          # vortex-server/
+STATIC_DIR = BASE_DIR.parent / "static"             # Vortex/static/
 
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # Хранилище активных подключений
 active_connections = {}
 chat_stats = vortex_chat.ChatStats()  # Rust класс!
 
 # Ключ шифрования (в реальном проекте должен быть уникальным для каждого чата)
 ENCRYPTION_KEY = 42
+
+print("Hello World")
 
 @app.get("/")
 async def root():

@@ -4,7 +4,7 @@
 
 ### 1. Клонировать репозиторий
 ```bash
-git clone <url-репозитория>
+git clone https://github.com/Andre-wb/Vortex
 cd Vortex
 ```
 
@@ -25,14 +25,14 @@ cd ..
 
 ### 4. Установить зависимости Python
 ```bash
-cd vortex-server
+cd vortex_chat-server
 pip install -r requirements.txt
 cd ..
 ```
 
 ### 5. Запустить сервер
 ```bash
-cd vortex-server
+cd vortex_chat-server
 python main.py
 ```
 
