@@ -8,7 +8,7 @@ from pathlib import Path
 
 app = FastAPI()
 
-# Подключаем статические файлы (HTML, JS)
+# Подключаем статические файлы (HTML, JS).
 BASE_DIR = Path(__file__).resolve().parent          # vortex-server/
 STATIC_DIR = BASE_DIR.parent / "static"             # Vortex/static/
 
