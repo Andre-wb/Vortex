@@ -8,8 +8,9 @@ name = "vortex_chat"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.28.2", features = ["extension-module"] }
+pyo3 = { version = "0.23", features = ["extension-module"] }
 blake3 = "1.5"
+aes-gcm = "0.10"
 
 [profile.release]
 opt-level = 3
