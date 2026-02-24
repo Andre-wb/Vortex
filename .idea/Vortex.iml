@@ -8,6 +8,7 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/vortex_chat/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/vortex_chat/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/venv" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/vortex_chat/target" />

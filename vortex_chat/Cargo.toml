@@ -1,15 +1,16 @@
 [package]
 name = "vortex_chat"
-version = "0.1.0"
-edition = "2021"
+version = "0.1.2"
+edition = "2024"
 
 [lib]
 name = "vortex_chat"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.28.2", features = ["extension-module"] }
+pyo3 = { version = "0.23", features = ["extension-module"] }
 blake3 = "1.5"
+aes-gcm = "0.10"
 
 [profile.release]
 opt-level = 3
