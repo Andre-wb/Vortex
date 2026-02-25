@@ -1,13 +1,13 @@
 use pyo3::prelude::*;
 
-mod messages;
-use messages::ChatStats;
-use messages::hash::{hash_message, generate_key};
-use messages::crypt::{encrypt_message, decrypt_message};
+pub mod messages;
+pub use messages::ChatStats;
+pub use messages::hash::{hash_message, generate_key};
+pub use messages::crypt::{encrypt_message, decrypt_message};
 
-/// Регистрация модуля
+/// Module Registration
 #[pymodule]
-fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hash_message, m)?)?;
     m.add_function(wrap_pyfunction!(generate_key, m)?)?;
     m.add_function(wrap_pyfunction!(encrypt_message, m)?)?;

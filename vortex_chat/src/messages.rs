@@ -5,7 +5,7 @@ pub mod crypt;
 
 
 
-/// Класс для отслеживания сообщений
+/// Messages Tracking
 #[pyclass]
 pub struct ChatStats {
     message_count: u64,
@@ -15,20 +15,20 @@ pub struct ChatStats {
 #[pymethods]
 impl ChatStats {
     #[new]
-    fn new() -> Self {
+    pub fn new() -> Self {
         ChatStats {
             message_count: 0,
             bytes_processed: 0,
         }
     }
 
-    fn add_message(&mut self, size: usize) {
+    pub fn add_message(&mut self, size: usize) {
         self.message_count += 1;
         self.bytes_processed += size as u64;
     }
 
-    fn get_stats(&self) -> String {
-        format!("📊 Сообщений: {}, обработано: {} KB",
+    pub fn get_stats(&self) -> String {
+        format!("📊 Messages: {}, processed: {} KB",
                 self.message_count,
                 self.bytes_processed / 1024)
     }
