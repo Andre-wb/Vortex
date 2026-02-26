@@ -6,7 +6,8 @@ class ChatService:
     def __init__(self):
         self.active_connections = {}
         self.chat_stats = vortex_chat.ChatStats()
-        self.encryption_key = 42
+        self.encryption_key = vortex_chat.generate_key()
+        print(f"🔑 Generated encryption key: {self.encryption_key.hex()[:16]}...")
 
     async def handle_connection(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
@@ -35,31 +36,35 @@ class ChatService:
             # Crypt
             encrypted = vortex_chat.encrypt_message(text.encode(), self.encryption_key)
             msg_hash = vortex_chat.hash_message(encrypted)
+            msg_hash_hex = msg_hash.hex()
             self.chat_stats.add_message(len(text))
 
             print(f"💬 {client_id}: {text}")
-            print(f"🔒 Encrypted: {len(encrypted)} bites")
-            print(f"🔑 Hash: {msg_hash[:16]}...")
+            print(f"🔒 Encrypted: {len(encrypted)} bytes")
+            print(f"🔑 Hash: {msg_hash_hex[:16]}...")
 
-            await self.broadcast_message(client_id, encrypted, msg_hash)
+            await self.broadcast_message(client_id, encrypted, msg_hash_hex)
 
             await websocket.send_json({
                 "type": "delivery",
                 "status": "sent",
-                "hash": msg_hash[:8]
+                "hash": msg_hash_hex[:8]
             })
 
     async def broadcast_message(self, sender_id: str, encrypted: bytes, msg_hash: str):
         for conn_id, conn in self.active_connections.items():
             if conn_id != sender_id:
-                decrypted = vortex_chat.decrypt_message(encrypted, self.encryption_key)
-                await conn.send_json({
-                    "type": "message",
-                    "from": sender_id,
-                    "text": decrypted.decode(),
-                    "hash": msg_hash[:8],
-                    "encrypted_size": len(encrypted)
-                })
+                try:
+                    decrypted = vortex_chat.decrypt_message(encrypted, self.encryption_key)
+                    await conn.send_json({
+                        "type": "message",
+                        "from": sender_id,
+                        "text": decrypted.decode(),
+                        "hash": msg_hash[:8],
+                        "encrypted_size": len(encrypted)
+                    })
+                except Exception as e:
+                    print(f"❌ Failed to decrypt for {conn_id}: {e}")
 
     async def broadcast_system(self, message: str, exclude: str = None):
         for conn_id, conn in self.active_connections.items():
@@ -77,5 +82,5 @@ class ChatService:
             del self.active_connections[client_id]
             await self.broadcast_system(f"👋 {client_id} leaved")
 
-# Creat a global exemplar in other modules
+# Create a global instance for other modules
 chat_service = ChatService()
