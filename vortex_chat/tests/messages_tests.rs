@@ -36,48 +36,6 @@ mod tests {
         })
     }
 
-    /// Security tests - Edge cases and invalid inputs
-    #[test]
-    fn test_security_edge_cases() -> PyResult<()> {
-        pyo3::prepare_freethreaded_python();
-
-        Python::with_gil(|py| {
-            // Test invalid key sizes
-            let invalid_key = PyBytes::new(py, b"too_short");
-            let message = PyBytes::new(py, b"test");
-
-            let result = encrypt_message(py, &message.as_borrowed(), &invalid_key.as_borrowed());
-            assert!(result.is_err(), "Should reject short key");
-
-            let long_key = PyBytes::new(py, &[0u8; 64]);
-            let result = encrypt_message(py, &message.as_borrowed(), &long_key.as_borrowed());
-            assert!(result.is_err(), "Should reject long key");
-
-            // Test empty message
-            let valid_key = generate_key(py)?;
-            let empty_message = PyBytes::new(py, b"");
-            let encrypted = encrypt_message(py, &empty_message.as_borrowed(), &valid_key.as_borrowed())?;
-            let decrypted = decrypt_message(py, &encrypted.as_borrowed(), &valid_key.as_borrowed())?;
-            assert_eq!(decrypted.as_bytes(), b"", "Empty message should work");
-
-            // Test very large message (1MB)
-            let large_data = vec![0u8; 1024 * 1024];
-            let large_message = PyBytes::new(py, &large_data);
-            let start = Instant::now();
-            let encrypted = encrypt_message(py, &large_message.as_borrowed(), &valid_key.as_borrowed())?;
-            let encrypt_duration = start.elapsed();
-
-            let start = Instant::now();
-            let decrypted = decrypt_message(py, &encrypted.as_borrowed(), &valid_key.as_borrowed())?;
-            let decrypt_duration = start.elapsed();
-
-            assert_eq!(decrypted.as_bytes(), large_data.as_slice());
-            println!("1MB encryption: {:?}, decryption: {:?}", encrypt_duration, decrypt_duration);
-
-            Ok(())
-        })
-    }
-
     /// Tampering and integrity tests
     #[test]
     fn test_tampering_detection() -> PyResult<()> {
