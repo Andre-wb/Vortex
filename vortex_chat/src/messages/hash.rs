@@ -9,14 +9,14 @@ use aes_gcm::{
     Aes256Gcm,
 };
 
-/// Хэширование сообщений
+/// Hashing messages
 #[pyfunction]
 pub fn hash_message<'py>(py: Python<'py>, message: &Bound<'_, PyBytes>) -> PyResult<Bound<'py, PyBytes>> {
     let hash = blake3::hash(message.as_bytes());
     Ok(PyBytes::new(py, hash.as_bytes()))
 }
 
-/// Генерация случайного ключа
+/// Generating random key
 #[pyfunction]
 pub fn generate_key<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
     let key = Aes256Gcm::generate_key(&mut OsRng);
