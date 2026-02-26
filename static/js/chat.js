@@ -78,20 +78,8 @@ function addMessage(sender, text, isMine, hash = null, encryptedSize = null) {
     const content = document.createElement('div');
     content.textContent = text;
 
-    const footer = document.createElement('div');
-    footer.className = 'message-footer';
-    if (hash) {
-        footer.innerHTML = `<span class="security-badge">🔒 ${hash}</span>`;
-    }
-    if (encryptedSize) {
-        footer.innerHTML += `<span>📦 ${encryptedSize} байт</span>`;
-    }
-
     messageDiv.appendChild(header);
     messageDiv.appendChild(content);
-    if (hash || encryptedSize) {
-        messageDiv.appendChild(footer);
-    }
 
     messagesDiv.appendChild(messageDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
