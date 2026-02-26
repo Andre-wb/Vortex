@@ -11,10 +11,10 @@ class ChatService:
     async def handle_connection(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         self.active_connections[client_id] = websocket
-        print(f"✅ {client_id} подключился")
+        print(f"✅ {client_id} joined")
 
-        await self.send_system_message(websocket, f"👋 Привет, {client_id}! Чат защищен Rust-шифрованием")
-        await self.broadcast_system(f"📢 {client_id} присоединился к чату", exclude=client_id)
+        await self.send_system_message(websocket, f"👋 Hi, {client_id}!")
+        await self.broadcast_system(f"📢 {client_id} joined", exclude=client_id)
 
         try:
             while True:
@@ -22,7 +22,7 @@ class ChatService:
                 await self.process_message(client_id, websocket, data)
 
         except Exception as e:
-            print(f"❌ {client_id} отключился: {e}")
+            print(f"❌ {client_id} leaved: {e}")
         finally:
             await self.disconnect_client(client_id)
 
@@ -32,19 +32,17 @@ class ChatService:
         if message_data["type"] == "message":
             text = message_data["text"]
 
-            # Шифруем
+            # Crypt
             encrypted = vortex_chat.encrypt_message(text.encode(), self.encryption_key)
             msg_hash = vortex_chat.hash_message(encrypted)
             self.chat_stats.add_message(len(text))
 
             print(f"💬 {client_id}: {text}")
-            print(f"🔒 Зашифровано: {len(encrypted)} байт")
-            print(f"🔑 Хэш: {msg_hash[:16]}...")
+            print(f"🔒 Encrypted: {len(encrypted)} bites")
+            print(f"🔑 Hash: {msg_hash[:16]}...")
 
-            # Рассылаем всем
             await self.broadcast_message(client_id, encrypted, msg_hash)
 
-            # Подтверждение
             await websocket.send_json({
                 "type": "delivery",
                 "status": "sent",
@@ -77,7 +75,7 @@ class ChatService:
     async def disconnect_client(self, client_id: str):
         if client_id in self.active_connections:
             del self.active_connections[client_id]
-            await self.broadcast_system(f"👋 {client_id} покинул чат")
+            await self.broadcast_system(f"👋 {client_id} leaved")
 
-# Создаем глобальный экземпляр для использования в других модулях
+# Creat a global exemplar in other modules
 chat_service = ChatService()

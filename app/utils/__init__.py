@@ -1,1 +1,1 @@
-#Будущий файл для реализации фич по безопасности
+# File for future secure features
