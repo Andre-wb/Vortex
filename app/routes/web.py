@@ -4,7 +4,6 @@ from pathlib import Path
 
 router = APIRouter()
 
-# Настраиваем шаблоны
 templates_path = Path(__file__).parent.parent.parent / "templates"
 templates = Jinja2Templates(directory=str(templates_path))
 
@@ -19,16 +18,16 @@ async def get_stats():
     import hashlib
     import vortex_chat
 
-    # Тест скорости Rust vs Python
+    # Speed test rust vs python
     test_message = b"x" * 1000
 
-    # Python хэш
+    # Python hash
     start = time.time()
     for _ in range(10000):
         hashlib.sha256(test_message).hexdigest()
     py_time = time.time() - start
 
-    # Rust хэш
+    # Rust hash
     start = time.time()
     for _ in range(10000):
         vortex_chat.hash_message(test_message)
@@ -37,8 +36,8 @@ async def get_stats():
     return {
         "chat_stats": chat_service.chat_stats.get_stats(),
         "benchmark": {
-            "python_hash_10000": f"{py_time:.3f} сек",
-            "rust_hash_10000": f"{rust_time:.3f} сек",
+            "python_hash_10000": f"{py_time:.3f} sec",
+            "rust_hash_10000": f"{rust_time:.3f} sec",
             "speedup": f"{py_time/rust_time:.1f}x"
         },
         "version": vortex_chat.VERSION

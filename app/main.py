@@ -4,8 +4,8 @@ import uvicorn
 app = create_app()
 
 if __name__ == "__main__":
-    print("🚀 Чат-сервер запускается...")
-    print(f"🔐 Ключ шифрования: 42")
+    print("🚀 Chat-server running...")
+    print(f"🔐 Key: 42")
     import vortex_chat
-    print(f"⚡ Rust версия: {vortex_chat.VERSION}")
+    print(f"⚡ Rust version: {vortex_chat.VERSION}")
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

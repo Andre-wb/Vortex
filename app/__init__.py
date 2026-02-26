@@ -8,11 +8,11 @@ from app.routes import web, websocket
 def create_app() -> FastAPI:
     app = FastAPI(title="Vortex Chat", version=vortex_chat.VERSION)
 
-    # Подключаем статику
+    # Statics
     static_path = Path(__file__).parent.parent / "static"
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
-    # Подключаем роуты
+    # Routes
     app.include_router(web.router)
     app.include_router(websocket.router)
 

@@ -3,7 +3,7 @@ from app.services.chat_service import ChatService
 
 router = APIRouter()
 
-# Создаем экземпляр сервиса
+# Create server example
 chat_service = ChatService()
 
 @router.websocket("/ws/{client_id}")
