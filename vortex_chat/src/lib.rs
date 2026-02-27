@@ -1,9 +1,20 @@
 use pyo3::prelude::*;
 
-pub mod messages;
-pub use messages::ChatStats;
-pub use messages::hash::{hash_message, generate_key};
-pub use messages::crypt::{encrypt_message, decrypt_message};
+mod messages;
+pub use messages::{
+    hash::{hash_message, generate_key},
+    crypt::{encrypt_message, decrypt_message},
+    ChatStats
+};
+
+mod auth;
+use auth::{
+    passwords::{hash_password, verify_password},
+    tokens::{hash_token, verify_token},
+};
+
+mod udp_broadcast;
+
 
 /// Module Registration
 #[pymodule]
@@ -12,11 +23,13 @@ pub fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(generate_key, m)?)?;
     m.add_function(wrap_pyfunction!(encrypt_message, m)?)?;
     m.add_function(wrap_pyfunction!(decrypt_message, m)?)?;
+    m.add_function(wrap_pyfunction!(hash_password, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_password, m)?)?;
+    m.add_function(wrap_pyfunction!(hash_token, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_token, m)?)?;
     m.add_class::<ChatStats>()?;
     m.add("VERSION", env!("CARGO_PKG_VERSION"))?;
     m.add("KEY_SIZE", 32)?;
     m.add("NONCE_SIZE", 12)?;
     Ok(())
 }
-
-mod udp_broadcast;
