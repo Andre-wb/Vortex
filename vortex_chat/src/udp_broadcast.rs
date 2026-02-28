@@ -3,6 +3,11 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use tokio::time;
+use once_cell::sync::Lazy;
+use std::sync::{Mutex, Arc};
+
+pub static GLOBAL_STATE: Lazy<Mutex<Option<Arc<tokio::sync::Mutex<AppState>>>>> =
+    Lazy::new(|| Mutex::new(None));
 
 pub mod discovery;
 

@@ -14,6 +14,12 @@ use auth::{
 };
 
 mod udp_broadcast;
+use udp_broadcast::discovery::get_peers;
+
+mod crypto;
+use crypto::handshake::{
+    derive_session_key, generate_keypair
+};
 
 
 /// Module Registration
@@ -27,6 +33,9 @@ pub fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(verify_password, m)?)?;
     m.add_function(wrap_pyfunction!(hash_token, m)?)?;
     m.add_function(wrap_pyfunction!(verify_token, m)?)?;
+    m.add_function(wrap_pyfunction!(get_peers, m)?)?;
+    m.add_function(wrap_pyfunction!(generate_keypair, m)?);
+    m.add_function(wrap_pyfunction!(derive_session_key, m)?)?;
     m.add_class::<ChatStats>()?;
     m.add("VERSION", env!("CARGO_PKG_VERSION"))?;
     m.add("KEY_SIZE", 32)?;
