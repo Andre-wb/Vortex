@@ -1,7 +1,9 @@
 import json
 import base64
-from fastapi import WebSocket
+from fastapi import APIRouter, WebSocket
 from vortex_chat import decrypt_message, encrypt_message, generate_keypair, derive_session_key
+
+router = APIRouter()
 
 class SecureClient:
     def __init__(self, websocket: WebSocket):
@@ -13,18 +15,17 @@ class SecureClient:
 
 clients = {}
 
+@router.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await websocket.accept()
 
     client = SecureClient(websocket)
     clients[client_id] = client
 
-    # Generate ephemeral keypair
     priv, pub = generate_keypair()
     client.private_key = priv
     client.public_key = pub
 
-    # Send hello
     await websocket.send_json({
         "type": "hello",
         "public_key": base64.b64encode(pub).decode()
@@ -35,7 +36,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             data = await websocket.receive_text()
             message = json.loads(data)
 
-            # --- HANDSHAKE ---
             if message["type"] == "hello":
                 peer_pub = base64.b64decode(message["public_key"])
                 session_key = derive_session_key(client.private_key, peer_pub)
@@ -46,7 +46,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     "type": "handshake_complete"
                 })
 
-            # --- ENCRYPTED MESSAGE ---
             elif message["type"] == "message":
 
                 if not client.handshake_complete:
@@ -59,7 +58,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 plaintext = message["text"].encode()
                 nonce, ciphertext = encrypt_message(client.session_key, plaintext)
 
-                # echo encrypted -> decrypt before sending
                 decrypted = decrypt_message(client.session_key, nonce, ciphertext)
 
                 await websocket.send_json({
