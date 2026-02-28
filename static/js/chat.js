@@ -1,57 +1,86 @@
-// Генерируем уникальный ID
 const clientId = 'user_' + Math.random().toString(36).substr(2, 8);
 document.getElementById('client-id').textContent = clientId;
 
 let ws = null;
+let selectedPeer = null;
+let handshakeComplete = false;
+
 const messagesDiv = document.getElementById('messages');
 const statusText = document.getElementById('status-text');
 const statusIndicator = document.getElementById('status-indicator');
 const sendBtn = document.getElementById('send-btn');
+const peerSelect = document.getElementById('peer-select');
+
+sendBtn.disabled = true;
+
+// ------------------- LOAD PEERS -------------------
+
+async function loadPeers() {
+    const res = await fetch('/peers');
+    const peers = await res.json();
+
+    peerSelect.innerHTML = '';
+
+    peers.forEach(peer => {
+        const option = document.createElement('option');
+        option.value = peer[0];
+        option.textContent = `${peer[0]}:${peer[1]}`;
+        peerSelect.appendChild(option);
+    });
+}
+
+// ------------------- CONNECT -------------------
 
 function connect() {
-    ws = new WebSocket(`ws://${window.location.host}/ws/${clientId}`);
+    if (!selectedPeer) {
+        alert("Select peer first!");
+        return;
+    }
+
+    ws = new WebSocket(`ws://${selectedPeer}:9000/ws/${clientId}`);
 
     ws.onopen = () => {
-        statusText.textContent = 'В сети';
-        statusIndicator.className = 'status-indicator connected';
-        sendBtn.disabled = false;
-        addSystemMessage('✅ Подключено к защищенному чату');
-    };
-
-    ws.onclose = () => {
-        statusText.textContent = 'Отключено';
-        statusIndicator.className = 'status-indicator';
-        sendBtn.disabled = true;
-        addSystemMessage('❌ Потеряно соединение... Переподключение...');
-        setTimeout(connect, 2000);
+        addSystemMessage("🔐 Establishing secure channel...");
     };
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
-        switch(data.type) {
-            case 'message':
-                addMessage(data.from, data.text, false, data.hash, data.encrypted_size);
-                break;
-            case 'system':
-                addSystemMessage(data.message);
-                break;
-            case 'delivery':
-                const lastMsg = messagesDiv.lastChild;
-                if (lastMsg && lastMsg.classList.contains('my-message')) {
-                    const footer = lastMsg.querySelector('.message-footer');
-                    if (footer) {
-                        footer.innerHTML += ' ✓';
-                    }
-                }
-                break;
+        if (data.type === "handshake_complete") {
+            handshakeComplete = true;
+            statusText.textContent = 'Secure';
+            statusIndicator.className = 'status-indicator connected';
+            sendBtn.disabled = false;
+            addSystemMessage("✅ Secure session established");
+        }
+
+        if (data.type === "message") {
+            addMessage(data.from, data.text, false);
+        }
+
+        if (data.type === "error") {
+            addSystemMessage("❌ " + data.message);
         }
     };
+
+    ws.onclose = () => {
+        handshakeComplete = false;
+        sendBtn.disabled = true;
+        statusText.textContent = 'Disconnected';
+        statusIndicator.className = 'status-indicator';
+    };
 }
+
+// ------------------- SEND MESSAGE -------------------
 
 function sendMessage() {
     const input = document.getElementById('message-input');
     const text = input.value.trim();
+
+    if (!handshakeComplete) {
+        alert("Secure channel not ready");
+        return;
+    }
 
     if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
 
@@ -60,38 +89,6 @@ function sendMessage() {
         text: text
     }));
 
-    addMessage('Вы', text, true);
+    addMessage('You', text, true);
     input.value = '';
 }
-
-function addMessage(sender, text, isMine, hash = null, encryptedSize = null) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isMine ? 'my-message' : 'peer-message'}`;
-
-    const header = document.createElement('div');
-    header.className = 'message-header';
-    header.innerHTML = `
-            <span>${sender}</span>
-            <span>${new Date().toLocaleTimeString()}</span>
-        `;
-
-    const content = document.createElement('div');
-    content.textContent = text;
-
-    messageDiv.appendChild(header);
-    messageDiv.appendChild(content);
-
-    messagesDiv.appendChild(messageDiv);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-function addSystemMessage(text) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message system';
-    messageDiv.textContent = text;
-    messagesDiv.appendChild(messageDiv);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-// Запускаем подключение
-connect();
