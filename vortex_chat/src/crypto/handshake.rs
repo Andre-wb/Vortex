@@ -8,7 +8,7 @@ use sha2::Sha256;
 use std::convert::TryInto;
 
 #[pyfunction]
-pub fn generate_keypair() -> PyResult<(Vec<u8>, Vec<u8>)> {
+pub fn generate_keypair<'py>(py: Python<'py>) -> PyResult<(Vec<u8>, Vec<u8>)> {
     let private = StaticSecret::random_from_rng(OsRng);
     let public = PublicKey::from(&private);
 

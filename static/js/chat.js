@@ -3,6 +3,7 @@ document.getElementById('client-id').textContent = clientId;
 
 let ws = null;
 let selectedPeer = null;
+let handshakeComplete = false;
 
 const messagesDiv = document.getElementById('messages');
 const statusText = document.getElementById('status-text');
@@ -15,22 +16,17 @@ sendBtn.disabled = true;
 // ------------------- LOAD PEERS -------------------
 
 async function loadPeers() {
-    try {
-        const res = await fetch('/peers');
-        const peers = await res.json();
+    const res = await fetch('/peers');
+    const peers = await res.json();
 
-        peerSelect.innerHTML = '';
+    peerSelect.innerHTML = '';
 
-        peers.forEach(peer => {
-            const option = document.createElement('option');
-            option.value = peer[0];  // IP
-            option.textContent = `${peer[0]}:${peer[1]}`;
-            peerSelect.appendChild(option);
-        });
-
-    } catch (err) {
-        console.error("Failed to load peers:", err);
-    }
+    peers.forEach(peer => {
+        const option = document.createElement('option');
+        option.value = peer[0];
+        option.textContent = `${peer[0]}:${peer[1]}`;
+        peerSelect.appendChild(option);
+    });
 }
 
 // ------------------- CONNECT -------------------
@@ -44,25 +40,34 @@ function connect() {
     ws = new WebSocket(`ws://${selectedPeer}:9000/ws/${clientId}`);
 
     ws.onopen = () => {
-        statusText.textContent = 'В сети';
-        statusIndicator.className = 'status-indicator connected';
-        sendBtn.disabled = false;
-        addSystemMessage('✅ Подключено к пиру');
-    };
-
-    ws.onclose = () => {
-        statusText.textContent = 'Отключено';
-        statusIndicator.className = 'status-indicator';
-        sendBtn.disabled = true;
-        addSystemMessage('❌ Соединение закрыто');
+        addSystemMessage("🔐 Establishing secure channel...");
     };
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
-        if (data.type === 'message') {
+        if (data.type === "handshake_complete") {
+            handshakeComplete = true;
+            statusText.textContent = 'Secure';
+            statusIndicator.className = 'status-indicator connected';
+            sendBtn.disabled = false;
+            addSystemMessage("✅ Secure session established");
+        }
+
+        if (data.type === "message") {
             addMessage(data.from, data.text, false);
         }
+
+        if (data.type === "error") {
+            addSystemMessage("❌ " + data.message);
+        }
+    };
+
+    ws.onclose = () => {
+        handshakeComplete = false;
+        sendBtn.disabled = true;
+        statusText.textContent = 'Disconnected';
+        statusIndicator.className = 'status-indicator';
     };
 }
 
@@ -72,6 +77,11 @@ function sendMessage() {
     const input = document.getElementById('message-input');
     const text = input.value.trim();
 
+    if (!handshakeComplete) {
+        alert("Secure channel not ready");
+        return;
+    }
+
     if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
 
     ws.send(JSON.stringify({
@@ -79,48 +89,6 @@ function sendMessage() {
         text: text
     }));
 
-    addMessage('Вы', text, true);
+    addMessage('You', text, true);
     input.value = '';
 }
-
-// ------------------- UI HELPERS -------------------
-
-function addMessage(sender, text, isMine) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isMine ? 'my-message' : 'peer-message'}`;
-
-    const header = document.createElement('div');
-    header.className = 'message-header';
-    header.innerHTML = `
-        <span>${sender}</span>
-        <span>${new Date().toLocaleTimeString()}</span>
-    `;
-
-    const content = document.createElement('div');
-    content.textContent = text;
-
-    messageDiv.appendChild(header);
-    messageDiv.appendChild(content);
-
-    messagesDiv.appendChild(messageDiv);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-function addSystemMessage(text) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message system';
-    messageDiv.textContent = text;
-    messagesDiv.appendChild(messageDiv);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-// ------------------- EVENTS -------------------
-
-peerSelect.addEventListener('change', (e) => {
-    selectedPeer = e.target.value;
-});
-
-document.getElementById('connect-btn').addEventListener('click', connect);
-
-// Initial load
-loadPeers();

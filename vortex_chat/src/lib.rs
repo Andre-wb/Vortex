@@ -24,7 +24,7 @@ use crypto::handshake::{
 
 /// Module Registration
 #[pymodule]
-pub fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hash_message, m)?)?;
     m.add_function(wrap_pyfunction!(generate_key, m)?)?;
     m.add_function(wrap_pyfunction!(encrypt_message, m)?)?;
