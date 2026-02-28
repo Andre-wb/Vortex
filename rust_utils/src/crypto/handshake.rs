@@ -16,7 +16,7 @@ pub fn generate_keypair<'py>(py: Python<'py>) -> PyResult<(Vec<u8>, Vec<u8>)> {
 }
 
 #[pyfunction]
-pub fn derive_session_key( private: Vec<u8>, peer_public: Vec<u8>) -> PyResult<Vec<u8>> {
+pub fn derive_session_key(private: Vec<u8>, peer_public: Vec<u8>) -> PyResult<Vec<u8>> {
 
     if private.len() != 32 || peer_public.len() != 32 {
         return Err(PyValueError::new_err("Invalid key length (must be 32 bytes)"));

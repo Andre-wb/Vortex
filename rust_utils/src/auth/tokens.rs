@@ -14,9 +14,9 @@ pub fn hash_token(token: &str) -> PyResult<String> {
 ///Verifying token
 /// Python using example:
 /// 
-/// import vortex_chat
-/// hashed_token = vortex_chat.hash_token("token")
-/// vortex_chat.verify_token("token", hashed_token)
+/// import rust_utils
+/// hashed_token = rust_utils.hash_token("token")
+/// rust_utils.verify_token("token", hashed_token)
 #[pyfunction]
 pub fn verify_token(token: &str, expected_hash: &str) -> PyResult<bool> {
     let computed = hash_token(token)?;
