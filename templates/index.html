@@ -1,47 +1,321 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>P2P Чат с Rust</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VORTEX — децентрализованный чат</title>
     <link rel="stylesheet" href="/static/css/main.css">
 </head>
 <body>
-<div class="chat-container">
-    <div class="chat-header">
-        <h1>
-            💬 P2P Чат
-            <span class="rust-badge">Rust ⚡</span>
-        </h1>
-        <div class="connection-status">
-            <span id="status-text">Подключение...</span>
-            <span class="status-indicator" id="status-indicator"></span>
-        </div>
-    </div>
 
-    <div class="messages-area" id="messages">
-        <div class="message system">
-            Добро пожаловать! Все сообщения шифруются Rust-функциями
+<!-- ── AUTH SCREEN ───────────────────────────────────────────────────────── -->
+<div id="auth-screen" class="screen active" style="display:flex;">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <div class="big-icon">⚡</div>
+            <h1>VORTEX</h1>
+            <p>// децентрализованный чат без интернета</p>
         </div>
-    </div>
+        <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchTab('login')">Войти</button>
+            <button class="auth-tab" onclick="switchTab('register')">Создать аккаунт</button>
+        </div>
 
-    <div class="stats-panel">
-        <div class="stat-item">
-            <span>🔐 Encryption:</span>
-            <span class="stat-value">X25519 + AES-256-GCM</span>
-        </div>
-        <div class="stat-item">
-            <span>🔑 Key Exchange:</span>
-            <span class="stat-value">Diffie-Hellman</span>
-        </div>
-    </div>
+        <div id="auth-alert" class="alert"></div>
 
-    <div class="input-area">
-        <input type="text" id="message-input"
-               placeholder="Введите сообщение..."
-               onkeypress="if(event.key==='Enter') sendMessage()">
-        <button onclick="sendMessage()" id="send-btn">Отправить</button>
+        <!-- LOGIN -->
+        <div id="login-form">
+            <div class="form-group">
+                <label class="form-label">Телефон или имя</label>
+                <input class="form-input" id="l-login" type="text" placeholder="+79001234567 или username" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Пароль</label>
+                <input class="form-input" id="l-pass" type="password" placeholder="••••••••">
+            </div>
+            <button class="btn btn-primary" onclick="doLogin()">⚡ Войти</button>
+        </div>
+
+        <!-- REGISTER -->
+        <div id="register-form" style="display:none;">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Телефон</label>
+                    <input class="form-input" id="r-phone" type="tel" placeholder="+79001234567">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Никнейм</label>
+                    <input class="form-input" id="r-username" type="text" placeholder="username">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Имя для отображения</label>
+                <input class="form-input" id="r-display" type="text" placeholder="Как вас называть?">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Пароль (мин. 8 символов)</label>
+                <input class="form-input" id="r-pass" type="password" placeholder="••••••••">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Аватар</label>
+                <div class="emoji-grid" id="emoji-picker">
+                    <button class="emoji-btn emoji-selected" data-emoji="👤" onclick="selectEmoji(this)">👤</button>
+                    <button class="emoji-btn" data-emoji="🦊" onclick="selectEmoji(this)">🦊</button>
+                    <button class="emoji-btn" data-emoji="🐺" onclick="selectEmoji(this)">🐺</button>
+                    <button class="emoji-btn" data-emoji="🦁" onclick="selectEmoji(this)">🦁</button>
+                    <button class="emoji-btn" data-emoji="🐉" onclick="selectEmoji(this)">🐉</button>
+                    <button class="emoji-btn" data-emoji="🦅" onclick="selectEmoji(this)">🦅</button>
+                    <button class="emoji-btn" data-emoji="🌙" onclick="selectEmoji(this)">🌙</button>
+                    <button class="emoji-btn" data-emoji="⚡" onclick="selectEmoji(this)">⚡</button>
+                    <button class="emoji-btn" data-emoji="🔮" onclick="selectEmoji(this)">🔮</button>
+                    <button class="emoji-btn" data-emoji="🛸" onclick="selectEmoji(this)">🛸</button>
+                    <button class="emoji-btn" data-emoji="💀" onclick="selectEmoji(this)">💀</button>
+                    <button class="emoji-btn" data-emoji="🌊" onclick="selectEmoji(this)">🌊</button>
+                    <button class="emoji-btn" data-emoji="🔥" onclick="selectEmoji(this)">🔥</button>
+                    <button class="emoji-btn" data-emoji="❄️" onclick="selectEmoji(this)">❄️</button>
+                    <button class="emoji-btn" data-emoji="🎭" onclick="selectEmoji(this)">🎭</button>
+                    <button class="emoji-btn" data-emoji="🚀" onclick="selectEmoji(this)">🚀</button>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="doRegister()">✦ Создать аккаунт</button>
+        </div>
     </div>
 </div>
 
-<script src="/static/js/chat.js"></script>
+<!-- ── MAIN APP ──────────────────────────────────────────────────────────── -->
+<div id="app" style="display:none;">
+    <!-- Sidebar -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo"><div class="logo-icon">⚡</div>VORTEX</div>
+            <div class="user-badge" onclick="showProfileModal()">
+                <div class="avatar" id="sb-avatar">👤</div>
+                <div class="user-info">
+                    <div class="user-name" id="sb-name">—</div>
+                    <div class="user-phone" id="sb-phone">—</div>
+                </div>
+                <span style="color:var(--text3);font-size:12px;">⚙</span>
+            </div>
+        </div>
+
+        <div class="net-status">
+            <div class="net-dot online" id="net-dot"></div>
+            <span id="net-label">0 устройств в сети</span>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-label">Меню</div>
+            <div class="nav-item active" onclick="showWelcome()" id="nav-welcome">
+                <span class="icon">🏠</span> Главная
+            </div>
+            <div class="nav-item" onclick="showCreateRoomModal()">
+                <span class="icon">＋</span> Новая комната
+            </div>
+            <div class="nav-item" onclick="showJoinModal()">
+                <span class="icon">🔗</span> Вступить по коду
+            </div>
+            <div class="nav-item" onclick="togglePeersPanel()">
+                <span class="icon">📡</span> Устройства в сети
+                <span class="badge" id="peers-badge">0</span>
+            </div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-label">Мои комнаты</div>
+        </div>
+        <div class="rooms-list" id="rooms-list"></div>
+
+        <div class="sidebar-footer">
+            <button class="footer-btn" onclick="loadPublicRooms()">🌐 Публичные</button>
+            <button class="footer-btn danger" onclick="doLogout()">← Выйти</button>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div id="main">
+        <!-- Welcome -->
+        <div id="welcome-screen" class="screen active">
+            <div class="welcome-icon">⚡</div>
+            <div class="welcome-title">Добро пожаловать</div>
+            <div class="welcome-sub">Выберите комнату или создайте новую. Связь работает без интернета — только локальная сеть.</div>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button class="btn btn-primary btn-sm" onclick="showCreateRoomModal()">+ Создать комнату</button>
+                <button class="btn btn-secondary btn-sm" onclick="showJoinModal()">🔗 Вступить по коду</button>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div id="chat-screen" class="screen">
+            <div id="chat-header">
+                <div style="flex:1;min-width:0;">
+                    <div class="chat-title" id="chat-room-name">—</div>
+                    <div class="chat-meta" id="chat-room-meta">—</div>
+                </div>
+                <button class="header-btn" onclick="showMembersModal()" title="Участники">👥</button>
+                <button class="header-btn" onclick="startVoiceCall()" title="Голосовой звонок" id="call-btn">📞</button>
+                <button class="header-btn" onclick="showRoomFilesModal()" title="Файлы">📁</button>
+                <button class="header-btn" onclick="togglePeersPanel()" title="Устройства">📡</button>
+                <button class="header-btn" onclick="copyInviteCode()" title="Скопировать код">🔗</button>
+            </div>
+
+            <div id="messages-container"></div>
+
+            <div class="typing-indicator" id="typing-indicator">
+                <div class="typing-dots">
+                    <span></span><span></span><span></span>
+                </div>
+                <span id="typing-text">кто-то печатает</span>
+            </div>
+
+            <div id="input-area">
+                <div class="input-row">
+                    <button class="input-btn" onclick="triggerFileUpload()" title="Прикрепить файл">📎</button>
+                    <textarea id="msg-input" rows="1" placeholder="Сообщение..."
+                              onkeydown="handleKey(event)" oninput="handleTyping()"></textarea>
+                    <button class="input-btn send" onclick="sendMessage()" title="Отправить">↑</button>
+                </div>
+                <input type="file" id="file-input" style="display:none" onchange="uploadFile(event)">
+            </div>
+        </div>
+    </div>
+
+    <!-- Peers panel -->
+    <div id="peers-panel">
+        <div class="panel-header">
+            📡 Устройства в сети
+            <span class="panel-close" onclick="togglePeersPanel()">×</span>
+        </div>
+        <div id="peers-list" style="overflow-y:auto;flex:1;"></div>
+    </div>
+</div>
+
+<!-- ── MODALS ────────────────────────────────────────────────────────────── -->
+
+<!-- Create Room -->
+<div class="modal-overlay" id="create-room-modal">
+    <div class="modal">
+        <div class="modal-title">🏠 Новая комната</div>
+        <div id="cr-alert" class="alert"></div>
+        <div class="form-group">
+            <label class="form-label">Название</label>
+            <input class="form-input" id="cr-name" placeholder="Моя комната">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Описание</label>
+            <input class="form-input" id="cr-desc" placeholder="О чём эта комната?">
+        </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" id="cr-private" style="width:18px;height:18px;accent-color:var(--accent);">
+            <label for="cr-private" style="font-size:13px;cursor:pointer;">Приватная (только по коду)</label>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('create-room-modal')">Отмена</button>
+            <button class="btn btn-primary" onclick="createRoom()">✦ Создать</button>
+        </div>
+    </div>
+</div>
+
+<!-- Join Room -->
+<div class="modal-overlay" id="join-modal">
+    <div class="modal">
+        <div class="modal-title">🔗 Вступить по коду</div>
+        <div id="join-alert" class="alert"></div>
+        <div class="form-group">
+            <label class="form-label">Invite-код (8 символов)</label>
+            <input class="form-input" id="join-code" placeholder="ABCD1234"
+                   style="text-transform:uppercase;letter-spacing:3px;font-size:18px;text-align:center;"
+                   maxlength="8" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('join-modal')">Отмена</button>
+            <button class="btn btn-primary" onclick="joinRoom()">→ Вступить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Members -->
+<div class="modal-overlay" id="members-modal">
+    <div class="modal">
+        <div class="modal-title">👥 Участники</div>
+        <div id="members-list" style="max-height:300px;overflow-y:auto;"></div>
+        <div style="margin-top:16px;padding:12px;background:var(--bg3);border-radius:var(--radius);font-family:var(--mono);font-size:12px;">
+            <div style="color:var(--text2);margin-bottom:4px;">Invite-код комнаты:</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span id="modal-invite-code" style="font-size:16px;letter-spacing:3px;font-weight:700;color:var(--accent2);">—</span>
+                <button class="btn btn-secondary btn-sm" onclick="copyInviteCode()">📋 Скопировать</button>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('members-modal')">Закрыть</button>
+            <button class="btn btn-danger" onclick="leaveRoom()">← Выйти из комнаты</button>
+        </div>
+    </div>
+</div>
+
+<!-- Public Rooms -->
+<div class="modal-overlay" id="public-modal">
+    <div class="modal" style="width:480px;">
+        <div class="modal-title">🌐 Публичные комнаты</div>
+        <div id="public-list" style="max-height:350px;overflow-y:auto;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('public-modal')">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Files -->
+<div class="modal-overlay" id="files-modal">
+    <div class="modal" style="width:460px;">
+        <div class="modal-title">📁 Файлы комнаты</div>
+        <div id="files-list" style="max-height:320px;overflow-y:auto;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('files-modal')">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Profile -->
+<div class="modal-overlay" id="profile-modal">
+    <div class="modal">
+        <div class="modal-title">⚙ Профиль</div>
+        <div style="background:var(--bg3);border-radius:var(--radius);padding:14px;margin-bottom:16px;">
+            <div style="font-size:12px;color:var(--text2);font-family:var(--mono);margin-bottom:4px;">Телефон</div>
+            <div style="font-weight:700;font-family:var(--mono);" id="prof-phone">—</div>
+            <div style="font-size:12px;color:var(--text2);font-family:var(--mono);margin-top:8px;margin-bottom:4px;">Username</div>
+            <div style="font-weight:700;" id="prof-username">—</div>
+            <div style="font-size:12px;color:var(--text2);font-family:var(--mono);margin-top:8px;margin-bottom:4px;">Зарегистрирован</div>
+            <div style="font-family:var(--mono);font-size:12px;" id="prof-created">—</div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('profile-modal')">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── CALL OVERLAY ──────────────────────────────────────────────────────── -->
+<div id="call-overlay">
+    <video id="remote-video" autoplay playsinline></video>
+    <video id="local-video"  autoplay playsinline muted></video>
+
+    <div class="call-avatar" id="call-peer-avatar">👤</div>
+    <div class="call-name"   id="call-peer-name">—</div>
+    <div class="call-status" id="call-status">Вызов...</div>
+
+    <div class="call-controls">
+        <button class="call-btn mute" id="mute-btn" onclick="toggleMute()">🎤</button>
+        <button class="call-btn mute" id="cam-btn"  onclick="toggleCam()">📷</button>
+        <button class="call-btn hangup" onclick="hangup()">📵</button>
+    </div>
+</div>
+
+<!-- Подключение JavaScript модулей (ES модули) -->
+<script type="module" src="/static/js/utils.js"></script>
+<script type="module" src="/static/js/auth.js"></script>
+<script type="module" src="/static/js/rooms.js"></script>
+<script type="module" src="/static/js/chat.js"></script>
+<script type="module" src="/static/js/peers.js"></script>
+<script type="module" src="/static/js/webrtc.js"></script>
+<script type="module" src="/static/js/ui.js"></script>
+<script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
