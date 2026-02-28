@@ -1,7 +1,7 @@
 import json
 import base64
 from fastapi import WebSocket
-from vortex_chat import decrypt_message, encrypt_message
+from vortex_chat import decrypt_message, encrypt_message, generate_keypair, derive_session_key
 
 class SecureClient:
     def __init__(self, websocket: WebSocket):

@@ -18,9 +18,9 @@ pub fn hash_password(password: &str) -> PyResult<String> {
 /// Verify password
 /// Python using example:
 ///
-/// import vortex_chat
-/// hashed = vortex_chat.hash_password("password")
-/// vortex_chat.verify_password("password", hashed)
+/// import rust_utils
+/// hashed = rust_utils.hash_password("password")
+/// rust_utils.verify_password("password", hashed)
 #[pyfunction]
 pub fn verify_password(password: &str, hash: &str) -> PyResult<bool> {
     let parsed_hash = PasswordHash::new(hash)

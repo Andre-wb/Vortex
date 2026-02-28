@@ -34,7 +34,7 @@ fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hash_token, m)?)?;
     m.add_function(wrap_pyfunction!(verify_token, m)?)?;
     m.add_function(wrap_pyfunction!(get_peers, m)?)?;
-    m.add_function(wrap_pyfunction!(generate_keypair, m)?);
+    m.add_function(wrap_pyfunction!(generate_keypair, m)?)?;
     m.add_function(wrap_pyfunction!(derive_session_key, m)?)?;
     m.add_class::<ChatStats>()?;
     m.add("VERSION", env!("CARGO_PKG_VERSION"))?;

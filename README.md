@@ -16,7 +16,7 @@ source venv/bin/activate  # для Mac/Linux
 
 ### 3. Собрать Rust библиотеку
 ```bash
-cd vortex_chat
+cd rust_utils
 pip install maturin
 maturin develop --release
 cd ..
@@ -24,14 +24,14 @@ cd ..
 
 ### 4. Установить зависимости Python
 ```bash
-cd vortex_chat-server
+cd Vortex
 pip install -r requirements.txt
 cd ..
 ```
 
 ### 5. Запустить сервер
 ```bash
-cd vortex_chat-server
+cd Vortex
 python main.py
 ```
 
