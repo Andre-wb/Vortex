@@ -101,11 +101,17 @@ async def register(body: RegisterRequest, request: Request, db: Session = Depend
     logger.info(f"✅ Username unique: {time.time()-start:.3f}s")
 
     # Валидация пароля
+    # ВАЖНО: HTTPException наследует от Exception.
+    # Если не поймать его отдельно — raise HTTPException(422) внутри try
+    # немедленно ловится except Exception и превращается в 500.
+    # Решение: except HTTPException: raise — пробрасываем 4xx как есть.
     try:
         ok, msg = validate_password_with_context(body.password, body.username)
         if not ok:
             logger.error(f"❌ Password validation failed: {msg}")
             raise HTTPException(422, msg)
+    except HTTPException:
+        raise  # пробрасываем 422 — не перехватываем как 500
     except Exception as e:
         logger.exception("❌ Exception in validate_password_with_context")
         raise HTTPException(500, "Internal server error")

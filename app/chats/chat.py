@@ -101,10 +101,20 @@ def _decrypt_msg(msg: Message, room_key: bytes) -> Optional[str]:
 @router.websocket("/ws/{room_id}")
 async def ws_chat(
         websocket: WebSocket, room_id: int,
-        token: str = Query(...),
         db: Session = Depends(get_db),
 ):
     # Аутентификация
+    # БЫЛО: token читался из query-параметра ?token=...
+    #       В JS: getCookie('access_token') возвращал null, потому что
+    #       кука установлена с httponly=True — JavaScript её не видит.
+    #       WebSocket-соединение САМО отправляет все куки в заголовке,
+    #       поэтому токен надо читать из куки на стороне сервера.
+    # СТАЛО: читаем access_token из httponly-куки websocket.cookies
+    token = websocket.cookies.get("access_token")
+    if not token:
+        # Кука отсутствует — закрываем с кодом 4401 (не авторизован)
+        await websocket.close(code=4401)
+        return
     try:
         user = await get_user_ws(token, db)
     except Exception:
@@ -375,9 +385,13 @@ async def room_files(
 @router.websocket("/ws/signal/{room_id}")
 async def signal_ws(
         websocket: WebSocket, room_id: int,
-        token: str = Query(...),
         db: Session = Depends(get_db),
 ):
+    # Токен из httponly-куки (JS не может передать его через URL)
+    token = websocket.cookies.get("access_token")
+    if not token:
+        await websocket.close(code=4401)
+        return
     try:
         user = await get_user_ws(token, db)
     except Exception:

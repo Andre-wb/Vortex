@@ -1,10 +1,6 @@
-import { $, api, esc, fmtTime, fmtDate, fmtSize, scrollToBottom, getCookie } from './utils.js';
+import { $, api, esc, fmtTime, fmtDate, fmtSize, scrollToBottom } from './utils.js';
 import { renderRoomsList, updateRoomMeta } from './rooms.js';
 import { showWelcome } from './ui.js';
-
-// ============================================================================
-// CHAT
-// ============================================================================
 
 let _lastDate = null;
 let _lastSenderId = null;
@@ -13,9 +9,8 @@ const _typers = {};
 
 export function connectWS(roomId) {
     const S = window.AppState;
-    const token = getCookie('access_token');
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const url = `${proto}://${location.host}/ws/${roomId}?token=${token}`;
+    const url = `${proto}://${location.host}/ws/${roomId}`;
     S.ws = new WebSocket(url);
 
     S.ws.onopen = () => {

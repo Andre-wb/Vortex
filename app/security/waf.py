@@ -540,27 +540,76 @@ class WAFMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope['type'] != 'http':
+            # WebSocket и другие не-HTTP соединения пропускаем без проверки
             await self.app(scope, receive, send)
             return
 
-        # Start background cleanup on first request
+        # Запускаем фоновую задачу очистки один раз при первом запросе
         if not self._cleanup_started:
             asyncio.create_task(self._cleanup_loop())
             self._cleanup_started = True
 
-        # Build request dictionary
-        request = await self._build_request(scope, receive)
+        # ── Читаем тело запроса ЗДЕСЬ, до передачи в _build_request ─────────
+        # ВАЖНО: ASGI receive() — это одноразовый генератор.
+        # Если мы его вызовем в _build_request, а потом передадим оригинальный
+        # receive дальше по стеку — BaseHTTPMiddleware (LoggingMiddleware, CSRFMiddleware
+        # и т.д.) получит пустое тело и зависнет на 10 секунд ожидая disconnect.
+        # Решение: читаем тело сами, потом создаём replay_receive — заглушку,
+        # которая всегда возвращает то же тело при вызове из downstream-обработчиков.
+        body_bytes = b''
+        method = scope.get('method', 'GET')
+
+        if method in ('POST', 'PUT', 'PATCH'):
+            more_body = True
+            while more_body:
+                message = await receive()
+                msg_type = message.get('type', '')
+                if msg_type == 'http.request':
+                    # Накапливаем тело по кускам (chunked transfer)
+                    body_bytes += message.get('body', b'')
+                    more_body = message.get('more_body', False)  # False = последний кусок
+                elif msg_type == 'http.disconnect':
+                    # Клиент отключился до конца отправки тела — прерываем
+                    break
+                else:
+                    # Неизвестный тип сообщения — прерываем чтобы не зависнуть
+                    break
+
+        # Создаём replay_receive — closure, возвращающий сохранённое тело.
+        # BaseHTTPMiddleware вызовет его один раз чтобы получить тело запроса.
+        # Все последующие вызовы (например ожидание http.disconnect) форвардируем
+        # в оригинальный receive, но только после того как тело было отдано.
+        _body_sent = False
+
+        async def replay_receive():
+            nonlocal _body_sent
+            if not _body_sent:
+                # Первый вызов: отдаём сохранённое тело
+                _body_sent = True
+                return {
+                    'type':      'http.request',
+                    'body':      body_bytes,
+                    'more_body': False,  # тело полностью, одним куском
+                }
+            # Последующие вызовы: форвардируем в оригинальный receive
+            # (например BaseHTTPMiddleware ждёт http.disconnect после отправки ответа)
+            return await receive()
+
+        # Строим словарь для анализа WAF (путь, заголовки, тело и т.д.)
+        request = self._build_request_from_scope(scope, body_bytes)
+
+        # Пути из EXCLUDED_PATHS пропускаем без проверки
         if self._is_excluded(request['path']):
-            await self.app(scope, receive, send)
+            await self.app(scope, replay_receive, send)  # ← replay_receive, не receive!
             return
 
-        # Run WAF analysis
+        # Анализируем запрос через движок WAF
         analysis = self.waf.analyze_request(request)
         if analysis['block']:
             await self._send_blocked(scope, send, analysis, request)
             return
 
-        # CAPTCHA verification if headers present
+        # Проверяем CAPTCHA если клиент передал заголовки
         if 'x-captcha-id' in request['headers'] and 'x-captcha-answer' in request['headers']:
             cid = request['headers']['x-captcha-id']
             ans = request['headers']['x-captcha-answer']
@@ -568,48 +617,44 @@ class WAFMiddleware:
                 await self._send_captcha_required(send)
                 return
 
-        # Proceed to the next application
-        await self.app(scope, receive, send)
+        # Всё чисто — передаём запрос дальше по стеку С replay_receive
+        await self.app(scope, replay_receive, send)
 
-    async def _build_request(self, scope, receive) -> Dict:
-        """Extract and normalize request data from ASGI scope."""
-        from urllib.parse import parse_qs, urlparse
+    def _build_request_from_scope(self, scope, body_bytes: bytes) -> Dict:
+        """
+        Строит словарь запроса из ASGI scope и уже прочитанных байт тела.
 
-        client_ip = self._get_client_ip(scope)
-        method = scope.get('method', 'GET')
-        path = scope.get('path', '/')
-        headers = {k.decode().lower(): v.decode() for k, v in scope.get('headers', [])}
-        qs = scope.get('query_string', b'').decode()
-        url = path + ('?' + qs if qs else '')
+        Тело читается в __call__ ДО вызова этого метода, чтобы после анализа
+        его можно было передать дальше через replay_receive.
 
-        req = {
-            'client_ip': client_ip,
-            'method': method,
-            'path': path,
-            'url': url,
-            'headers': headers,
-            'params': parse_qs(qs),
-            'content_type': headers.get('content-type', ''),
+        Раньше: async def _build_request(self, scope, receive) — читал тело сам
+        и тело терялось для downstream-обработчиков (главный баг ~10s зависания).
+
+        Теперь: синхронный метод, принимает уже прочитанные bytes.
+        """
+        from urllib.parse import parse_qs
+
+        client_ip = self._get_client_ip(scope)              # IP клиента
+        method    = scope.get('method', 'GET')              # HTTP-метод
+        path      = scope.get('path', '/')                  # URL path
+        headers   = {                                       # заголовки → dict
+            k.decode('latin-1').lower(): v.decode('latin-1')
+            for k, v in scope.get('headers', [])
         }
+        qs  = scope.get('query_string', b'').decode()       # query string
+        url = path + ('?' + qs if qs else '')               # полный URL
 
-        # Read body if applicable
-        if method in ('POST', 'PUT', 'PATCH'):
-            body_bytes = b''
-            more_body = True
-            while more_body:
-                message = await receive()
-                if message['type'] == 'http.request':
-                    body_bytes += message.get('body', b'')
-                    more_body = message.get('more_body', False)
-            req['body'] = body_bytes.decode('utf-8', errors='ignore')
-            # Note: For subsequent handlers to read the body again,
-            # the receive callable should be replaced. This is omitted here
-            # for simplicity; in production use a middleware that buffers
-            # the body into scope or uses starlette's BaseHTTPMiddleware.
-        else:
-            req['body'] = ''
-
-        return req
+        return {
+            'client_ip':    client_ip,
+            'method':       method,
+            'path':         path,
+            'url':          url,
+            'headers':      headers,
+            'params':       parse_qs(qs),                   # dict[str, list[str]]
+            'content_type': headers.get('content-type', ''),
+            # Тело уже прочитано в __call__ и передано сюда как bytes
+            'body': body_bytes.decode('utf-8', errors='ignore') if body_bytes else '',
+        }
 
     def _get_client_ip(self, scope) -> str:
         """Extract real client IP from headers or connection info."""
