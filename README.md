@@ -1,4 +1,3 @@
-```markdown
 # ⚡ VORTEX — децентрализованный мессенджер
 
 [![Rust](https://img.shields.io/badge/Rust-core-orange?logo=rust&style=flat-square)](https://www.rust-lang.org/)
@@ -184,5 +183,3 @@ Vortex состоит из трёх основных частей:
 ---
 
 VORTEX — сделано с ❤️ для свободного общения без границ.
-
-```
