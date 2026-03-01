@@ -1,46 +1,21 @@
 const clientId = 'user_' + Math.random().toString(36).substr(2, 8);
-document.getElementById('client-id').textContent = clientId;
 
 let ws = null;
-let selectedPeer = null;
 let handshakeComplete = false;
 
 const messagesDiv = document.getElementById('messages');
 const statusText = document.getElementById('status-text');
 const statusIndicator = document.getElementById('status-indicator');
 const sendBtn = document.getElementById('send-btn');
-const peerSelect = document.getElementById('peer-select');
 
 sendBtn.disabled = true;
 
-// ------------------- LOAD PEERS -------------------
-
-async function loadPeers() {
-    const res = await fetch('/peers');
-    const peers = await res.json();
-
-    peerSelect.innerHTML = '';
-
-    peers.forEach(peer => {
-        const option = document.createElement('option');
-        option.value = peer[0];
-        option.textContent = `${peer[0]}:${peer[1]}`;
-        peerSelect.appendChild(option);
-    });
-}
-
-// ------------------- CONNECT -------------------
-
 function connect() {
-    if (!selectedPeer) {
-        alert("Select peer first!");
-        return;
-    }
 
-    ws = new WebSocket(`ws://${selectedPeer}:9000/ws/${clientId}`);
+    ws = new WebSocket(`ws://${location.host}/ws/${clientId}`);
 
     ws.onopen = () => {
-        addSystemMessage("🔐 Establishing secure channel...");
+        addSystemMessage("🔐 Connecting...");
     };
 
     ws.onmessage = (event) => {
@@ -71,8 +46,6 @@ function connect() {
     };
 }
 
-// ------------------- SEND MESSAGE -------------------
-
 function sendMessage() {
     const input = document.getElementById('message-input');
     const text = input.value.trim();
@@ -92,3 +65,20 @@ function sendMessage() {
     addMessage('You', text, true);
     input.value = '';
 }
+
+function addMessage(from, text, isMine) {
+    const div = document.createElement('div');
+    div.className = isMine ? 'message my-message' : 'message peer-message';
+    div.textContent = `${from}: ${text}`;
+    messagesDiv.appendChild(div);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+function addSystemMessage(text) {
+    const div = document.createElement('div');
+    div.className = 'message system';
+    div.textContent = text;
+    messagesDiv.appendChild(div);
+}
+
+connect();

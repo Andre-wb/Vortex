@@ -2,8 +2,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import vortex_chat
-
-from app.routes import web, websocket
+from app.routes import web, websocket, web_router, websocket_router
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Vortex Chat", version=vortex_chat.VERSION)
@@ -15,5 +14,7 @@ def create_app() -> FastAPI:
     # Routes
     app.include_router(web.router)
     app.include_router(websocket.router)
+    app.include_router(web_router)
+    app.include_router(websocket_router)
 
     return app
