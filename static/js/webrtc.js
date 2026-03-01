@@ -1,17 +1,12 @@
-import { $, getCookie } from './utils.js';
-
-// ============================================================================
-// WebRTC (Audio/Video calls)
-// ============================================================================
+import { $ } from './utils.js';
 
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 function connectSignal(roomId) {
     const S = window.AppState;
     if (S.signalWs) { S.signalWs.close(); S.signalWs = null; }
-    const token = getCookie('access_token');
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    S.signalWs = new WebSocket(`${proto}://${location.host}/ws/signal/${roomId}?token=${token}`);
+    S.signalWs = new WebSocket(`${proto}://${location.host}/ws/signal/${roomId}`);
 
     S.signalWs.onmessage = async e => {
         const msg = JSON.parse(e.data);

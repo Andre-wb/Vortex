@@ -1,7 +1,3 @@
-// ============================================================================
-// UTILS
-// ============================================================================
-
 // DOM helper
 export const $ = id => document.getElementById(id);
 
@@ -48,19 +44,33 @@ export async function api(method, path, body) {
         opts.body = JSON.stringify(body);
     }
     const state = window.AppState;
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && state.csrfToken) {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && state?.csrfToken) {
         opts.headers['X-CSRF-Token'] = state.csrfToken;
     }
+
+    // AbortController для таймаута (10 секунд)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     try {
         const r = await fetch(path, { ...opts, signal: controller.signal });
         clearTimeout(timeoutId);
         const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.detail || data.error || `HTTP ${r.status}`);
+        if (!r.ok) {
+            const msg = data.detail || data.error || data.message || `Ошибка сервера (HTTP ${r.status})`;
+            throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
         return data;
     } catch (err) {
         clearTimeout(timeoutId);
+        // AbortError = таймаут 10с (или зависший сервер) — заменяем браузерное сообщение
+        if (err.name === 'AbortError') {
+            throw new Error('Сервер не отвечает (таймаут). Попробуйте ещё раз.');
+        }
+        // Ошибки сети (offline, CORS, refused)
+        if (err instanceof TypeError && err.message.toLowerCase().includes('fetch')) {
+            throw new Error('Нет соединения с сервером.');
+        }
         throw err;
     }
 }
