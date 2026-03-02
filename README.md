@@ -415,9 +415,9 @@ NODE_INITIALIZED=true
 ### E2E шифрование
 
 ```
-Alice                       Server                       Bob
-  │── pub_key ─────────────▶│── pub_key ─────────────────▶│
-  │◀─ pub_key ──────────────│◀─ pub_key ──────────────────│
+Alice                       Server                      Bob
+  │── pub_key ─────────────▶│── pub_key ────────────────▶│
+  │◀─ pub_key ──────────────│◀─ pub_key ─────────────────│
   │                         │                            │
   │  key = X25519(          │  видит только              │  key = X25519(
   │    priv_alice, pub_bob) │  зашифрованный ciphertext  │    priv_bob, pub_alice)
