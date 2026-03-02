@@ -26,141 +26,28 @@
 
 ---
 
-## Что такое VORTEX?
+## 🌀 Что такое VORTEX?
 
-VORTEX — это мессенджер, который живёт внутри твоей локальной сети. Запускаешь на двух устройствах в одной Wi-Fi сети — они находят друг друга автоматически, через секунды. Ни один байт сообщений не покидает периметр сети.
+VORTEX — это мессенджер, который живёт **внутри твоей локальной сети**. Запускаешь на двух устройствах в одной Wi-Fi сети — они находят друг друга автоматически, через секунды. Ни один байт сообщений не покидает периметр сети.
 
 Каждый участник — это **узел**. Нет центрального сервера, нет точки отказа, нет посредника, которому нужно доверять.
 
----
-
-## Быстрый старт
-
-```bash
-# 1. Клонировать
-git clone https://github.com/yourname/vortex.git
-cd vortex
-
-# 2. Окружение + зависимости
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# 3. Собрать Rust криптоядро
-maturin develop --release
-
-# 4. Запустить — при первом запуске откроется мастер настройки
-python run.py
 ```
-
-При первом запуске браузер автоматически откроет **мастер настройки узла** — там можно задать имя устройства, порт и сгенерировать SSL-сертификат. Всё через UI, никаких конфигов вручную.
-
-Повторные запуски сразу стартуют узел:
-
-```
-  ⚡ Узел: MacBook-Boris
-  🌐 https://localhost:8000
-  🔒 SSL: включён (certs/vortex.crt)
+  Ноутбук ──── Wi-Fi ──── Raspberry Pi
+     │                        │
+     └──────── вместе ────────┘
+           без интернета
 ```
 
 ---
 
-## Мастер настройки
-
-```bash
-python run.py          # первый запуск → автоматически открывает wizard
-python run.py --setup  # принудительно открыть wizard
-python run.py --status # показать статус узла
-python run.py --reset  # сбросить настройки
-
-# Или запустить wizard напрямую из его папки:
-python node_setup/run.py
-python node_setup/run.py --port 9090 --no-browser
-python node_setup/run.py --status
-```
-
-Wizard работает на временном порту `7979` и останавливается сам после завершения настройки.
-
----
-
-## SSL — бесплатно, три варианта
-
-Все варианты **бесплатны**. Выбор зависит от ситуации:
-
-| Вариант | Интернет | Предупреждения браузера | Требования |
-|---|---|---|---|
-| **Самоподписанный** | ✗ не нужен | Первый раз, потом нет¹ | `pip install cryptography` |
-| **mkcert** | ✗ не нужен | ✗ нет совсем | Установить `mkcert` |
-| **Let's Encrypt** | ✓ нужен | ✗ нет совсем | Домен + открытый порт 80 |
-
-> ¹ Wizard автоматически устанавливает CA в системное хранилище доверия (`security` на macOS, `certutil` на Windows, `update-ca-certificates` на Linux). После этого браузер считает сертификат доверенным.
-
-HTTPS обязателен для корректной работы WebRTC-звонков, микрофона и камеры в браузере.
-
----
-
-## Архитектура
-
-```
-┌─────────────────────── VORTEX NODE ────────────────────────┐
-│                                                             │
-│   Browser Client          FastAPI Server       SQLite WAL  │
-│   ┌───────────┐    WS     ┌────────────┐      ┌─────────┐  │
-│   │ JS (ESM)  │◀────────▶│  Uvicorn   │─────▶│  vortex │  │
-│   │ WebRTC    │   HTTPS   │  + WAF     │      │  .db    │  │
-│   └───────────┘           └─────┬──────┘      └─────────┘  │
-│                                 │                           │
-│                          ┌──────▼──────┐                   │
-│                          │  Rust Core  │                   │
-│                          │  vortex_chat│                   │
-│                          └─────────────┘                   │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ UDP broadcast :4200
-              ┌────────────────┼────────────────┐
-              │                │                │
-         Node A            Node B            Node C
-       (ноутбук)         (Raspberry Pi)     (телефон)
-```
-
-### Как работает E2E шифрование
-
-Сервер не может прочитать сообщения — ни технически, ни теоретически:
-
-```
-Alice                          Server                         Bob
-  │                              │                              │
-  │── pub_key_alice ────────────▶│── pub_key_alice ────────────▶│
-  │◀─ pub_key_bob ───────────────│◀─ pub_key_bob ───────────────│
-  │                              │                              │
-  │  session_key =               │   видит только:              │  session_key =
-  │  X25519(priv_alice,          │   зашифрованный              │  X25519(priv_bob,
-  │         pub_bob)             │   ciphertext                 │         pub_alice)
-  │                              │                              │
-  │══ AES-256-GCM(msg) ═════════▶│══ AES-256-GCM(msg) ═════════▶│
-```
-
-Ключи никогда не покидают устройства. Сервер — только ретранслятор зашифрованного трафика.
-
----
-
-## P2P обнаружение узлов
-
-При запуске каждый узел начинает слать UDP-broadcast каждые 2 секунды:
-
-```json
-{ "name": "MacBook-Boris", "port": 8000 }
-```
-
-Соседние узлы в сети отвечают и появляются на вкладке «📡 Устройства в сети». Никакого центрального реестра, никакого DNS — чистый broadcast на `192.168.X.255:4200`.
-
----
-
-## Возможности
+## ⚡ Возможности
 
 ```
 📡  Авто-обнаружение    UDP broadcast, работает без интернета
 🔐  E2E шифрование      X25519 + HKDF + AES-256-GCM для каждой сессии
 🏠  Комнаты             Публичные и приватные, до 200 участников
-📁  Файлы               До 100 МБ, зашифрованы, SHA-256 проверка
+📁  Файлы               До 100 МБ, зашифрованы, SHA-256 проверка целостности
 🎙️  Звонки              WebRTC голос и видео, прямые P2P-каналы
 🛡️  WAF                 SQLi, XSS, path traversal, rate limiting
 🦀  Rust крипто         Argon2id, BLAKE3, AES-GCM, X25519
@@ -169,104 +56,389 @@ Alice                          Server                         Bob
 
 ---
 
-## Стек
+## 📋 Содержание
 
-| Слой | Технологии |
-|---|---|
-| **Клиент** | HTML5, CSS3, JavaScript ES-модули, WebSocket, WebRTC |
-| **Сервер** | Python 3.10+, FastAPI, Uvicorn, SQLite WAL |
-| **Криптография** | Rust / PyO3 — X25519, AES-256-GCM, Argon2id, BLAKE3, HKDF |
-| **Безопасность** | JWT HS256, CSRF Double Submit Cookie, WAF middleware |
-| **P2P** | UDP broadcast discovery, HTTP direct messaging, WebRTC STUN |
-| **Setup** | FastAPI wizard, cryptography (self-signed CA), mkcert, certbot |
-
----
-
-## Структура проекта
-
-```
-Vortex/
-├── run.py                    ← точка входа: wizard при первом запуске, иначе узел
-│
-├── node_setup/               ← мастер настройки узла
-│   ├── run.py                ← автономный запуск wizard-а
-│   ├── wizard.py             ← FastAPI сервер wizard-а
-│   ├── ssl_manager.py        ← генерация SSL (self-signed / mkcert / Let's Encrypt)
-│   ├── templates/
-│   │   └── setup.html        ← UI мастера (чистый HTML)
-│   └── static/
-│       ├── css/setup.css     ← стили wizard-а
-│       └── js/setup.js       ← логика wizard-а
-│
-├── app/
-│   ├── authentication/       ← JWT, регистрация, вход
-│   ├── chats/                ← WebSocket чат, комнаты, файлы
-│   ├── peer/                 ← P2P discovery, peer registry
-│   └── security/             ← WAF, крипто, CSRF
-│
-├── static/                   ← фронтенд основного приложения
-│   ├── css/
-│   └── js/
-│
-├── templates/                ← Jinja2 шаблоны основного приложения
-├── rust_utils/                 ← Rust криптоядро (vortex_chat)
-    ├── src/
-        ├── auth/
-        ├── crypto/
-        ├── messages/
-        ├── udp_broadcast/
-        ├── auth.rs
-        ├── crypto.rs
-        ├── lib.rs
-        ├── messages.rs
-        ├── udp_broadcasts.rs
-    ├── target/
-    ├── tests/
-    ├── Cargo.lock
-    ├── Cargo.toml
-├── certs/                    ← SSL сертификаты (создаётся автоматически)
-├── keys/                     ← X25519 ключи узла (создаётся автоматически)
-├── uploads/                  ← загруженные файлы
-├── .env                      ← конфигурация (создаётся wizard-ом)
-└── requirements.txt
-```
+- [Установка зависимостей](#установка-зависимостей)
+- [Установка проекта](#установка-проекта)
+- [Запуск](#запуск)
+- [Настройка SSL](#настройка-ssl)
+- [Конфигурация](#конфигурация)
+- [Архитектура](#архитектура)
+- [API](#api)
+- [Безопасность](#безопасность)
+- [Структура проекта](#структура-проекта)
 
 ---
 
-## Конфигурация
+## 🛠 Установка зависимостей
 
-Файл `.env` создаётся автоматически через wizard. При необходимости можно редактировать вручную:
+### Git
+
+<details>
+<summary><b>Windows</b></summary>
+
+1. Скачай установщик с [git-scm.com/download/win](https://git-scm.com/download/win)
+2. Запусти `.exe`, оставь все настройки по умолчанию
+3. Проверь:
+   ```cmd
+   git --version
+   ```
+
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+brew install git
+# или через Xcode Command Line Tools:
+xcode-select --install
+```
+
+</details>
+
+<details>
+<summary><b>Linux (Ubuntu / Debian)</b></summary>
+
+```bash
+sudo apt update && sudo apt install git -y
+git --version
+```
+
+</details>
+
+---
+
+### Python 3.10+
+
+<details>
+<summary><b>Windows</b></summary>
+
+1. Скачай с [python.org/downloads](https://www.python.org/downloads/)
+2. При установке поставь галочку **"Add Python to PATH"**
+3. Проверь:
+   ```cmd
+   python --version
+   ```
+
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+brew install python@3.12
+python3 --version
+```
+
+</details>
+
+<details>
+<summary><b>Linux (Ubuntu / Debian)</b></summary>
+
+```bash
+sudo apt update && sudo apt install python3 python3-pip python3-venv -y
+python3 --version
+```
+
+</details>
+
+---
+
+### Rust + Cargo
+
+Нужен для компиляции криптоядра (X25519, AES-GCM, Argon2id).
+
+<details>
+<summary><b>macOS / Linux</b></summary>
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+rustc --version && cargo --version
+```
+
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+1. Скачай `rustup-init.exe` с [rustup.rs](https://rustup.rs/)
+2. Запусти, выбери вариант **1 (default)**
+3. Также потребуется [Build Tools for Visual Studio](https://visualstudio.microsoft.com/visual-cpp-build-tools/) — rustup предложит установить автоматически
+4. Перезапусти терминал и проверь:
+   ```cmd
+   rustc --version
+   cargo --version
+   ```
+
+</details>
+
+---
+
+### mkcert — SSL без предупреждений браузера
+
+<details>
+<summary><b>Windows</b></summary>
+
+```powershell
+# Через Chocolatey
+choco install mkcert
+
+# Через Scoop
+scoop install mkcert
+
+# Вручную:
+# 1. Скачай mkcert-v*.exe с https://github.com/FiloSottile/mkcert/releases
+# 2. Переименуй в mkcert.exe и положи в папку из PATH
+mkcert --version
+```
+
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+brew install mkcert
+brew install nss    # нужно для Firefox
+mkcert --version
+```
+
+</details>
+
+<details>
+<summary><b>Linux (Ubuntu / Debian)</b></summary>
+
+```bash
+# Через apt (Ubuntu 22.04+)
+sudo apt install mkcert -y
+
+# Или вручную
+curl -Lo mkcert https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-v1.4.4-linux-amd64
+chmod +x mkcert && sudo mv mkcert /usr/local/bin/
+mkcert --version
+```
+
+</details>
+
+---
+
+### maturin — сборщик Rust → Python
+
+```bash
+pip install maturin
+maturin --version
+```
+
+---
+
+## 📦 Установка проекта
+
+```bash
+# 1. Клонировать
+git clone https://github.com/Andre-wb/Vortex.git
+cd Vortex
+
+# 2. Создать виртуальное окружение
+python -m venv .venv
+
+# Активация:
+source .venv/bin/activate        # macOS / Linux
+.venv\Scripts\activate           # Windows CMD
+.venv\Scripts\Activate.ps1       # Windows PowerShell
+
+# 3. Установить Python зависимости
+pip install -r requirements.txt
+
+# 4. Скомпилировать Rust криптоядро
+cd rust_utils
+maturin develop --release
+cd ..
+```
+
+> **Первая компиляция Rust занимает 1–3 минуты** — это нормально, следующие пересборки гораздо быстрее.
+
+---
+
+## 🚀 Запуск
+
+```bash
+python run.py
+```
+
+**При первом запуске** браузер автоматически откроет **мастер настройки** на `http://localhost:7979`. Задай имя устройства, порт и сгенерируй SSL-сертификат. Wizard завершается сам.
+
+**При повторных запусках** узел стартует сразу:
+
+```
+  ⚡ Vortex Node — MacBook-Boris
+  🌐 https://localhost:8000
+  🔒 SSL: certs/vortex.crt
+  📡 P2P Discovery: UDP :4200
+```
+
+### Все команды
+
+```bash
+python run.py                   # запуск (wizard при первом старте)
+python run.py --setup           # принудительно открыть мастер настройки
+python run.py --status          # статус узла и список пиров в сети
+python run.py --reset           # сбросить все настройки и сертификаты
+
+# Wizard отдельно
+python node_setup/run.py
+python node_setup/run.py --port 9090 --no-browser
+
+# Прямой запуск без run.py (браузер не откроется автоматически)
+python -m uvicorn app.main:app --reload
+```
+
+### Несколько узлов на одной машине (для тестирования)
+
+```bash
+# Терминал 1
+PORT=8001 DEVICE_NAME=Node-Alice python run.py
+
+# Терминал 2
+PORT=8002 DEVICE_NAME=Node-Bob python run.py
+```
+
+Узлы обнаружат друг друга через UDP broadcast в течение ~2 секунд.
+
+---
+
+## 🔒 Настройка SSL
+
+HTTPS обязателен для WebRTC-звонков (браузер блокирует микрофон/камеру без HTTPS). Три варианта:
+
+| Вариант | Интернет | Предупреждения браузера | Сложность |
+|---|---|---|---|
+| **Самоподписанный** | ✗ не нужен | Один раз, потом исчезает | ⭐ просто |
+| **mkcert** | ✗ не нужен | ✗ нет совсем | ⭐⭐ легко |
+| **Let's Encrypt** | ✓ нужен + домен | ✗ нет совсем | ⭐⭐⭐ сложнее |
+
+### Вариант 1 — Самоподписанный (по умолчанию)
+
+Wizard генерирует сертификат автоматически и устанавливает его в системное хранилище:
+
+- **macOS** → `security add-trusted-cert`
+- **Windows** → `certutil -addstore Root`
+- **Linux** → `update-ca-certificates`
+
+После этого браузер принимает сертификат без предупреждений.
+
+### Вариант 2 — mkcert (рекомендуется)
+
+```bash
+# Установить локальный CA (один раз на устройство)
+mkcert -install
+
+# Сгенерировать сертификат
+mkcert -cert-file certs/vortex.crt -key-file certs/vortex.key \
+       localhost 127.0.0.1 ::1 $(hostname -I | awk '{print $1}')
+```
+
+### Вариант 3 — Let's Encrypt / Certbot
+
+```bash
+sudo apt install certbot -y
+sudo certbot certonly --standalone -d yourdomain.com
+
+sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem certs/vortex.crt
+sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem   certs/vortex.key
+sudo chown $USER certs/vortex.crt certs/vortex.key
+```
+
+---
+
+## ⚙️ Конфигурация
+
+`.env` создаётся wizard-ом автоматически:
 
 ```env
-# Безопасность — генерируются автоматически, не менять без необходимости
-JWT_SECRET=<hex-64>
-CSRF_SECRET=<hex-64>
+# ─── Безопасность ────────────────────────────────────────
+JWT_SECRET=<hex-64>          # генерируется автоматически
+CSRF_SECRET=<hex-64>         # генерируется автоматически
 
-# Сервер
+# ─── Сервер ──────────────────────────────────────────────
 HOST=0.0.0.0
 PORT=8000
 DEVICE_NAME=MacBook-Boris
 
-# Хранилище
+# ─── Хранилище ───────────────────────────────────────────
 DB_PATH=vortex.db
 UPLOAD_DIR=uploads
 MAX_FILE_MB=100
 
-# P2P Discovery
+# ─── P2P Discovery ───────────────────────────────────────
 UDP_PORT=4200
 UDP_INTERVAL_SEC=2
 PEER_TIMEOUT_SEC=15
 
-# WAF
+# ─── WAF ─────────────────────────────────────────────────
 WAF_RATE_LIMIT_REQUESTS=120
 WAF_BLOCK_DURATION=3600
+
+# ─── Флаг инициализации ──────────────────────────────────
+NODE_INITIALIZED=true        # удали эту строку → откроется wizard
 ```
 
 ---
 
-## API
+## 🏗 Архитектура
 
-Интерактивная документация: **https://localhost:8000/api/docs**
+```
+┌─────────────────────── VORTEX NODE ────────────────────────┐
+│                                                             │
+│   Browser Client          FastAPI Server       SQLite WAL  │
+│   ┌───────────┐    WS     ┌────────────┐      ┌─────────┐  │
+│   │ JS (ESM)  │◀────────▶│  Uvicorn   │─────▶│ vortex  │  │
+│   │ WebRTC    │   HTTPS   │  + WAF     │      │   .db   │  │
+│   └───────────┘           └─────┬──────┘      └─────────┘  │
+│                                 │                           │
+│                          ┌──────▼──────┐                    │
+│                          │  Rust Core  │                    │
+│                          │ vortex_chat │                    │
+│                          └─────────────┘                   │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ UDP broadcast :4200
+              ┌────────────────┼────────────────┐
+              │                │                │
+         Node A            Node B            Node C
+       (ноутбук)       (Raspberry Pi)      (телефон)
+```
+
+### P2P обнаружение узлов
+
+Каждые 2 секунды узел шлёт UDP broadcast:
+
+```json
+{ "name": "MacBook-Boris", "port": 8000 }
+```
+
+Соседи слушают порт `4200` и добавляют источник в реестр. Исчезнувший узел удаляется через 15 секунд. Если Rust модуль скомпилирован — использует `vortex_chat.start_discovery()`, иначе автоматически включается Python fallback.
+
+### E2E шифрование
+
+```
+Alice                       Server                       Bob
+  │── pub_key ─────────────▶│── pub_key ─────────────────▶│
+  │◀─ pub_key ──────────────│◀─ pub_key ──────────────────│
+  │                          │                             │
+  │  key = X25519(           │  видит только               │  key = X25519(
+  │    priv_alice, pub_bob)  │  зашифрованный ciphertext   │    priv_bob, pub_alice)
+  │                          │                             │
+  │══ AES-256-GCM ══════════▶│══ AES-256-GCM ══════════════▶│
+```
+
+Приватные ключи никогда не покидают устройства. Новый сессионный ключ — на каждый диалог.
+
+---
+
+## 🔌 API
+
+Интерактивная документация: **`https://localhost:8000/api/docs`**
 
 | Метод | Endpoint | Описание |
 |---|---|---|
@@ -275,39 +447,79 @@ WAF_BLOCK_DURATION=3600
 | `GET`  | `/api/authentication/me` | Текущий пользователь |
 | `POST` | `/api/rooms` | Создать комнату |
 | `GET`  | `/api/rooms/my` | Мои комнаты |
-| `POST` | `/api/rooms/join/{code}` | Вступить по коду |
+| `POST` | `/api/rooms/join/{code}` | Вступить по коду приглашения |
 | `POST` | `/api/files/upload/{room_id}` | Загрузить файл |
 | `GET`  | `/api/files/download/{file_id}` | Скачать файл |
-| `GET`  | `/api/peers` | Список узлов в сети |
-| `WS`   | `/ws/{room_id}` | Чат WebSocket |
+| `GET`  | `/api/files/peer/{file_id}` | Скачать файл с соседнего узла (P2P) |
+| `GET`  | `/api/peers` | Список активных узлов |
+| `GET`  | `/api/peers/status` | Публичный статус узла (без авторизации) |
+| `POST` | `/api/peers/receive` | Принять P2P сообщение от соседнего узла |
+| `WS`   | `/ws/{room_id}` | WebSocket чата |
 | `WS`   | `/ws/signal/{room_id}` | WebRTC сигнализация |
 
 ---
 
-## Безопасность
+## 🛡 Безопасность
 
 | Механизм | Реализация |
 |---|---|
-| **Аутентификация** | JWT HS256 + opaque refresh-токены, SHA-256 в БД |
-| **CSRF** | Double Submit Cookie — токен в cookie + заголовок |
-| **Пароли** | Argon2id (Rust) — GPU/ASIC-стойкий |
-| **Шифрование** | X25519 DH → HKDF → AES-256-GCM, новый ключ на каждую сессию |
-| **Файлы** | SHA-256 проверка целостности при скачивании |
-| **WAF** | SQLi, XSS, path traversal, null bytes, rate limiting |
-| **Заголовки** | CSP, HSTS, X-Frame-Options, Referrer-Policy |
+| **Аутентификация** | JWT HS256 + opaque refresh-токены, SHA-256 хэш в БД |
+| **CSRF** | Double Submit Cookie — токен в `HttpOnly` cookie + заголовок |
+| **Пароли** | Argon2id (Rust) — GPU/ASIC-стойкое хэширование |
+| **E2E шифрование** | X25519 DH → HKDF → AES-256-GCM, уникальный ключ на сессию |
+| **Файлы** | SHA-256 проверка целостности при каждом скачивании |
+| **WAF** | Блокировка SQLi, XSS, path traversal, null bytes |
+| **Rate limiting** | 120 req/min на IP, блокировка на 1 час при превышении |
+| **HTTP заголовки** | CSP, HSTS, X-Frame-Options, Referrer-Policy |
 
 ---
 
-## Требования
+## 📁 Структура проекта
 
-- Python **3.10+**
-- Rust + Cargo — `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- maturin — `pip install maturin`
-- *(опционально)* mkcert для SSL без предупреждений браузера
+```
+Vortex/
+├── run.py                      ← точка входа
+│
+├── node_setup/                 ← мастер настройки
+│   ├── run.py
+│   ├── wizard.py               ← FastAPI сервер wizard-а (порт 7979)
+│   ├── ssl_manager.py          ← self-signed / mkcert / certbot
+│   ├── templates/setup.html
+│   └── static/
+│       ├── css/setup.css
+│       └── js/setup.js
+│
+├── app/
+│   ├── main.py                 ← FastAPI app + WAF middleware
+│   ├── config.py               ← Config из .env
+│   ├── models.py               ← SQLAlchemy модели
+│   ├── authentication/         ← JWT, регистрация, вход
+│   ├── chats/                  ← WebSocket, комнаты, файлы
+│   ├── peer/                   ← P2P discovery, peer registry, WS manager
+│   └── security/               ← WAF, CSRF, крипто-утилиты
+│
+├── rust_utils/                 ← Rust криптоядро
+│   ├── src/
+│   │   ├── lib.rs
+│   │   ├── crypto.rs           ← X25519, AES-GCM, HKDF
+│   │   ├── auth.rs             ← Argon2id, BLAKE3
+│   │   ├── messages.rs
+│   │   └── udp_broadcasts.rs
+│   └── Cargo.toml
+│
+├── static/                     ← фронтенд
+├── templates/                  ← Jinja2 шаблоны
+│
+├── certs/                      ← SSL сертификаты (создаётся автоматически)
+├── keys/                       ← X25519 ключи узла (создаётся автоматически)
+├── uploads/                    ← загруженные файлы
+├── .env                        ← конфигурация (создаётся wizard-ом)
+└── requirements.txt
+```
 
 ---
 
-## Вклад в разработку
+## 🤝 Вклад в разработку
 
 ```bash
 git checkout -b feature/my-feature
@@ -318,7 +530,7 @@ git push origin feature/my-feature
 
 ---
 
-## Лицензия
+## 📄 Лицензия
 
 Распространяется под лицензией **Apache 2.0** — см. файл [LICENSE](LICENSE).
 
