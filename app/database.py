@@ -3,8 +3,8 @@ from __future__ import annotations
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from app.config import Config
-from app import models, models_rooms
-from app.bases.base import Base
+from app.base import Base          # <-- import Base from separate file
+from app import models, models_rooms   # keep these to register models with Base
 
 DATABASE_URL = f"sqlite:///{Config.DB_PATH}"
 
@@ -27,6 +27,7 @@ def _set_pragmas(conn, _):
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 def get_db():
     db = SessionLocal()
