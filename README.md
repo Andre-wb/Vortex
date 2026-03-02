@@ -121,7 +121,9 @@ source .venv/bin/activate          # Linux / macOS
 pip install -r requirements.txt
 
 # 4. Собери Rust криптоядро
+cd rust_utils
 maturin develop --release
+cd ..
 
 # 5. Запусти
 python run.py
