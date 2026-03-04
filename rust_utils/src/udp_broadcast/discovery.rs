@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 use tokio::time::{self, Duration};
 use crate::udp_broadcast::{AppState, PeerInfo, BROADCAST_PORT, BROADCAST_INTERVAL, GLOBAL_STATE};
 
-/// This is the function Python will call
+/// Calling next peer
 #[pyfunction]
 pub fn start_discovery(name: String, signaling_port: u16) -> PyResult<()> {
     thread::spawn(move || {
@@ -28,7 +28,7 @@ pub fn start_discovery(name: String, signaling_port: u16) -> PyResult<()> {
 
     Ok(())
 }
-/// Real async discovery logic
+/// Discovery next peer
 async fn run_discovery(
     name: String,
     signaling_port: u16,

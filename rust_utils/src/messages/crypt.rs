@@ -6,10 +6,21 @@ use aes_gcm::{
     Key,
     Nonce,
 };
+use std::string::String;
 
-/// AES-256-GCM encryption
+/// AES-256-GCM secure
+/// Python using example:
+///
+/// import vortex_chat
+/// key = vortex_chat.generate_key()
+///
+/// encrypted_message = vortex_chat.encrypt_message("message", key)
+/// decrypted_message = vortex_chat.decrypt_message(encrypted_message, key)
+
+
+/// AES-256-GCM encrypt
 #[pyfunction]
-pub fn encrypt_message(message: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
+pub fn encrypt_message(message: &str, key: Vec<u8>) -> PyResult<Vec<u8>> {
     if key.len() != 32 {
         return Err(PyValueError::new_err("Key must be 32 bytes long"));
     }
@@ -29,9 +40,9 @@ pub fn encrypt_message(message: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
     Ok(result)
 }
 
-/// AES-256-GCM decryption
+/// AES-256-GCM decrypting
 #[pyfunction]
-pub fn decrypt_message(encrypted: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
+pub fn decrypt_message(encrypted: Vec<u8>, key: Vec<u8>) -> PyResult<String> {
     if key.len() != 32 {
         return Err(PyValueError::new_err("Key must be 32 bytes long"));
     }
@@ -45,12 +56,15 @@ pub fn decrypt_message(encrypted: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
 
     let key = Key::<Aes256Gcm>::from_slice(&key);
     let cipher = Aes256Gcm::new(key);
-
-    let plaintext = cipher
+    
+    let plaintext = String::from_utf8(
+        cipher
         .decrypt(nonce, ciphertext)
         .map_err(|_| PyValueError::new_err(
             "Decryption failed or integrity check failed"
-        ))?;
+        ))?
+    ).map_err(|e| PyValueError::new_err(format!("Invalid UTF-8 sequence: {}", e)));
 
-    Ok(plaintext)
+
+    plaintext
 }

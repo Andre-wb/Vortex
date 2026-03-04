@@ -8,7 +8,7 @@
 - Управление квотами загрузок (для пользователей и IP).
 - Сохранение временных файлов с безопасными именами.
 - Функции для чтения файла по частям (chunked) с контролем размера.
-/Users/borismaltsev/RustroverProjects/Vortex/app/security/secure_upload.py
+Vortex/app/security/secure_upload.py
 """
 
 import os

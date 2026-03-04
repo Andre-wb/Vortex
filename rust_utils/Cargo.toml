@@ -25,6 +25,7 @@ sha2 = "0.10"
 subtle = "2.6.1"
 hex = "0.4.3"
 once_cell = "0.2.4"
+bytes = "1.11.1"
 
 
 [dev-dependencies]

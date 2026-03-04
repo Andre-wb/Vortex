@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use sha2::{Sha256, Digest};
 use subtle::ConstantTimeEq;
 
-/// Hashing token
+/// Token hashing
 #[pyfunction]
 pub fn hash_token(token: &str) -> PyResult<String> {
     let mut hasher = Sha256::new();
@@ -11,12 +11,12 @@ pub fn hash_token(token: &str) -> PyResult<String> {
     Ok(hex::encode(result))
 }
 
-///Verifying token
+/// Token verify
 /// Python using example:
 /// 
-/// import rust_utils
-/// hashed_token = rust_utils.hash_token("token")
-/// rust_utils.verify_token("token", hashed_token)
+/// import vortex_chat
+/// hashed_token = vortex_chat.hash_token("token")
+/// vortex_chat.verify_token("token", hashed_token)
 #[pyfunction]
 pub fn verify_token(token: &str, expected_hash: &str) -> PyResult<bool> {
     let computed = hash_token(token)?;

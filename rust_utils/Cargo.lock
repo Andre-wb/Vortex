@@ -1087,6 +1087,7 @@ dependencies = [
  "aes-gcm",
  "argon2",
  "blake3",
+ "bytes",
  "futures",
  "hex",
  "hkdf",
