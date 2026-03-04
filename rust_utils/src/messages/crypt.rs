@@ -20,7 +20,7 @@ use std::string::String;
 
 /// AES-256-GCM encrypt
 #[pyfunction]
-pub fn encrypt_message(message: &str, key: Vec<u8>) -> PyResult<Vec<u8>> {
+pub fn encrypt_message(message: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
     if key.len() != 32 {
         return Err(PyValueError::new_err("Key must be 32 bytes long"));
     }
