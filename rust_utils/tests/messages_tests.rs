@@ -1,6 +1,5 @@
 use pyo3::{
     prelude::*,
-    types::PyBytes,
 };
 use vortex_chat::{hash_message, generate_key, encrypt_message, decrypt_message, ChatStats};
 #[cfg(test)]
@@ -28,13 +27,13 @@ mod tests {
     /// Message encrypt and decrypt
     #[test]
     fn test_message_encrypting() -> PyResult<()> {
-        let message = "message";
+        let message = Vec::new();
         let key = generate_key()?;
-        let encrypted = encrypt_message(message, key.clone())?;
+        let encrypted = encrypt_message(message.clone(), key.clone())?;
         assert!(encrypted.len() > message.len(), "Encrypted data is not larger than original");
 
         let decrypted = decrypt_message(encrypted, key)?;
-        assert_eq!(decrypted, message, "Decrypted message do not match original");
+        assert_eq!(decrypted.as_bytes(), message, "Decrypted message do not match original");
 
         Ok(())
     }
@@ -42,8 +41,8 @@ mod tests {
     #[test]
     fn test_tampering_detection() -> PyResult<()> {
         let key = generate_key()?;
-        let message = "message";
-        let encrypted = encrypt_message(&message, key.clone())?;
+        let message = "message".as_bytes().to_vec();
+        let encrypted = encrypt_message(message, key.clone())?;
 
         let tampered = Vec::new();
         let result = decrypt_message(tampered, key);
@@ -60,10 +59,10 @@ mod tests {
     fn test_determinism() -> PyResult<()> {
 
         let key = generate_key()?;
-        let message = "message";
+        let message = "message".as_bytes().to_vec();
 
         // Same messages should have different encrypting
-        let encrypted1 = encrypt_message(message, key.clone())?;
+        let encrypted1 = encrypt_message(message.clone(), key.clone())?;
         let encrypted2 = encrypt_message(message, key.clone())?;
 
         assert_ne!(encrypted1, encrypted2, "Encryptions did not had different crypt");
