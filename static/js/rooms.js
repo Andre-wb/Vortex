@@ -65,7 +65,7 @@ export async function createRoom() {
             name: $('cr-name').value.trim(),
             description: $('cr-desc').value.trim(),
             is_private: $('cr-private').checked,
-            encrypted_room_key: encryptedKey,  // ← сервер хранит только зашифрованную копию
+            encrypted_room_key: encryptedKey,
         });
 
         // Сохраняем ключ комнаты локально в памяти
@@ -128,32 +128,116 @@ export async function leaveRoom() {
 }
 
 /**
- * Загружает и отображает список публичных комнат в модальном окне.
+ * Рендерит строку комнаты в списке публичных комнат.
+ * @param {Object} r - объект комнаты
+ * @param {boolean} isPeer - true если комната с другого узла в сети
+ * @returns {string} HTML строка
  */
-export async function loadPublicRooms() {
-    openModal('public-modal');
-    try {
-        const data = await api('GET', '/api/rooms/public');
-        $('public-list').innerHTML = data.rooms.length ? data.rooms.map(r => `
+function _renderPublicRoomRow(r, isPeer) {
+    const peerBadge = isPeer
+        ? `<div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px;">
+               🌐 ${esc(r.peer_name || r.peer_ip)}
+           </div>`
+        : '';
+
+    const joinHandler = isPeer
+        ? `window.joinPublicRoom(${r.id},'${r.invite_code}','${r.peer_ip}',${r.peer_port})`
+        : `window.joinPublicRoom(${r.id},'${r.invite_code}')`;
+
+    return `
       <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
         <div style="font-size:24px;">${r.is_private ? '🔒' : '💬'}</div>
         <div style="flex:1;">
           <div style="font-weight:700;">${esc(r.name)}</div>
           <div style="font-size:12px;color:var(--text2);font-family:var(--mono);">${r.member_count} участников</div>
+          ${peerBadge}
         </div>
-        <button class="btn btn-primary btn-sm" onclick="window.joinPublicRoom(${r.id},'${r.invite_code}')">Вступить</button>
+        <button class="btn btn-primary btn-sm" onclick="${joinHandler}">Вступить</button>
       </div>
-    `).join('') : '<div style="padding:24px;text-align:center;color:var(--text2);">Нет публичных комнат</div>';
-    } catch { }
+    `;
 }
 
 /**
- * Вступает в публичную комнату по её ID и коду приглашения.
- * @param {number} id - ID комнаты
- * @param {string} code - инвайт-код
+ * Загружает и отображает список публичных комнат в модальном окне.
+ * Показывает комнаты этого узла и комнаты соседних узлов в локальной сети.
  */
-export async function joinPublicRoom(id, code) {
+export async function loadPublicRooms() {
+    openModal('public-modal');
+
+    const listEl = $('public-list');
+    listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);">Загрузка…</div>';
+
     try {
+        // Запрашиваем локальные и пиринговые комнаты параллельно
+        const [localData, peerData] = await Promise.allSettled([
+            api('GET', '/api/rooms/public'),
+            api('GET', '/api/peers/public-rooms'),
+        ]);
+
+        const localRooms = localData.status === 'fulfilled' ? (localData.value.rooms || []) : [];
+        const peerRooms  = peerData.status  === 'fulfilled' ? (peerData.value.rooms  || []) : [];
+
+        if (!localRooms.length && !peerRooms.length) {
+            listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);">Нет публичных комнат</div>';
+            return;
+        }
+
+        let html = '';
+
+        if (localRooms.length) {
+            html += `<div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--text3);
+                         font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;
+                         background:var(--bg2);border-bottom:1px solid var(--border);">
+                         📍 Этот узел
+                     </div>`;
+            html += localRooms.map(r => _renderPublicRoomRow(r, false)).join('');
+        }
+
+        if (peerRooms.length) {
+            html += `<div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--text3);
+                         font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;
+                         background:var(--bg2);border-bottom:1px solid var(--border);">
+                         🌐 Другие узлы в сети (${peerData.value.peers} пиров)
+                     </div>`;
+            html += peerRooms.map(r => _renderPublicRoomRow(r, true)).join('');
+        }
+
+        listEl.innerHTML = html;
+
+    } catch (e) {
+        listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text2);">Ошибка: ${esc(e.message)}</div>`;
+    }
+}
+
+/**
+ * Вступает в публичную комнату по её коду приглашения.
+ *
+ * Если указаны peerIp и peerPort — комната находится на другом узле в сети.
+ * В этом случае запрос на вступление отправляется напрямую на тот узел.
+ *
+ * @param {number} id - ID комнаты (на узле-источнике)
+ * @param {string} code - инвайт-код
+ * @param {string} [peerIp] - IP пира (если комната не на этом узле)
+ * @param {number} [peerPort] - порт пира
+ */
+export async function joinPublicRoom(id, code, peerIp, peerPort) {
+    try {
+        if (peerIp && peerPort) {
+            // Комната на другом узле — открываем её напрямую в браузере
+            const scheme = location.protocol === 'https:' ? 'https' : 'http';
+            const peerUrl = `${scheme}://${peerIp}:${peerPort}`;
+
+            const confirmed = confirm(
+                `Комната находится на другом узле:\n${peerUrl}\n\nОткрыть этот узел в браузере?`
+            );
+            if (!confirmed) return;
+
+            // Открываем в новой вкладке с автоматическим вступлением по коду
+            window.open(`${peerUrl}/?join=${code}`, '_blank');
+            return;
+        }
+
+        // Локальная комната — вступаем как обычно
         await api('POST', `/api/rooms/join/${code}`);
         await loadMyRooms();
         closeModal('public-modal');

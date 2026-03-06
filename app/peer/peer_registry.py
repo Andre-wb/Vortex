@@ -10,22 +10,22 @@ app/peer/peer_registry.py — P2P Discovery с зашифрованным меж
      → Подслушивающий в локальной сети не видит содержимое
   3. Каждый запрос использует эфемерную пару → forward secrecy
   4. Verifier: получатель проверяет sender_pubkey через PeerRegistry
+  5. При обнаружении нового пира автоматически запрашиваются его публичные комнаты
+     → Кешируются в памяти, доступны через GET /api/peers/public-rooms
+  6. POST /api/peers/refresh-rooms — принудительное обновление кеша комнат всех пиров
 
 UDP Broadcast payload (JSON):
   {"name": "MyNode", "port": 9000, "pubkey": "a1b2c3...64 hex chars..."}
 
 P2P HTTP Request (POST /api/peers/receive) body:
   {
-    "ephemeral_pub":  "<hex>",          // эфемерный X25519 ключ отправителя
-    "ciphertext":     "<hex>",          // ECIES зашифрованный JSON payload
-    "sender_pubkey":  "<hex>"           // постоянный X25519 ключ узла-отправителя
+    "ephemeral_pub":  "<hex>",
+    "ciphertext":     "<hex>",
+    "sender_pubkey":  "<hex>"
   }
 
 Расшифрованный payload:
   {"room_id": 5, "sender": "alice", "ciphertext": "<hex msg ciphertext>", "msg_type": "text"}
-
-Важно: P2P сообщения также содержат только зашифрованный контент сообщения (ciphertext),
-сервер-получатель ретранслирует его локальным WebSocket-клиентам без расшифровки.
 """
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class PeerInfo:
     name:            str
     ip:              str
     port:            int
-    node_pubkey_hex: Optional[str] = None   # X25519 pubkey узла (hex, 64 chars)
+    node_pubkey_hex: Optional[str] = None
     last_seen:       float         = field(default_factory=time.monotonic)
 
     def alive(self) -> bool:
@@ -85,13 +85,14 @@ class PeerInfo:
             "port":       self.port,
             "age_sec":    round(time.monotonic() - self.last_seen, 1),
             "online":     self.alive(),
-            "encrypted":  self.has_encryption(),   # поддерживает E2E P2P?
+            "encrypted":  self.has_encryption(),
             "pubkey":     self.node_pubkey_hex[:16] + "..." if self.node_pubkey_hex else None,
         }
 
     @property
     def base_url(self) -> str:
-        return f"http://{self.ip}:{self.port}"
+        scheme = "https" if getattr(Config, "SSL_ENABLED", False) else "http"
+        return f"{scheme}://{self.ip}:{self.port}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -100,14 +101,23 @@ class PeerInfo:
 
 class PeerRegistry:
     def __init__(self):
-        self._peers: dict[str, PeerInfo] = {}
-        self._lock  = threading.Lock()
-        self.own_ip: str = "127.0.0.1"
+        self._peers:      dict[str, PeerInfo] = {}
+        self._lock        = threading.Lock()
+        self.own_ip:  str = "127.0.0.1"
+
+        # Кеш публичных комнат от пиров: ip → list[room_dict]
+        self._peer_rooms: dict[str, list] = {}
+        self._rooms_lock  = threading.Lock()
 
     def update(self, ip: str, name: str, port: int,
-               node_pubkey_hex: Optional[str] = None) -> None:
+               node_pubkey_hex: Optional[str] = None) -> bool:
+        """
+        Обновляет информацию о пире.
+        Возвращает True если пир новый (нужно запросить его комнаты).
+        """
         with self._lock:
-            if ip in self._peers:
+            is_new = ip not in self._peers
+            if not is_new:
                 p = self._peers[ip]
                 p.name      = name
                 p.port      = port
@@ -122,6 +132,7 @@ class PeerRegistry:
                     node_pubkey_hex = node_pubkey_hex,
                 )
                 logger.info(f"🔍 New peer: {name}@{ip}:{port} encrypted={bool(node_pubkey_hex)}")
+            return is_new
 
     def active(self) -> list[PeerInfo]:
         with self._lock:
@@ -136,6 +147,39 @@ class PeerRegistry:
             dead = [ip for ip, p in self._peers.items() if not p.alive()]
             for ip in dead:
                 del self._peers[ip]
+        with self._rooms_lock:
+            for ip in dead:
+                self._peer_rooms.pop(ip, None)
+
+    # ── Кеш комнат ───────────────────────────────────────────────────────────
+
+    def set_peer_rooms(self, ip: str, rooms: list) -> None:
+        with self._rooms_lock:
+            self._peer_rooms[ip] = rooms
+
+    def get_all_peer_rooms(self) -> list[dict]:
+        """
+        Возвращает публичные комнаты всех живых пиров.
+        Каждая комната дополнена полями peer_ip, peer_name, peer_port —
+        клиент использует их для вступления через нужный узел.
+        """
+        result     = []
+        active_ips = {p.ip for p in self.active()}
+        with self._rooms_lock:
+            for ip, rooms in self._peer_rooms.items():
+                if ip not in active_ips:
+                    continue
+                peer      = self.get(ip)
+                peer_name = peer.name if peer else ip
+                peer_port = peer.port if peer else getattr(Config, "PORT", 8000)
+                for room in rooms:
+                    result.append({
+                        **room,
+                        "peer_ip":   ip,
+                        "peer_name": peer_name,
+                        "peer_port": peer_port,
+                    })
+        return result
 
 
 registry = PeerRegistry()
@@ -183,18 +227,50 @@ def _get_node_keys():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Запрос публичных комнат от пира
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def _fetch_peer_rooms(peer: PeerInfo) -> None:
+    """
+    Запрашивает список публичных комнат у пира и сохраняет в кеш.
+    GET /api/rooms/public — не требует авторизации (специально для межузловой синхронизации).
+    """
+    try:
+        async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
+            resp = await client.get(f"{peer.base_url}/api/rooms/public")
+            if resp.status_code == 200:
+                rooms = resp.json().get("rooms", [])
+                registry.set_peer_rooms(peer.ip, rooms)
+                logger.info(f"📦 {len(rooms)} public rooms from {peer.name}@{peer.ip}")
+    except Exception as e:
+        logger.debug(f"Failed to fetch rooms from {peer.ip}: {e}")
+
+
+def _schedule_fetch_peer_rooms(peer: PeerInfo) -> None:
+    """
+    Запускает запрос комнат в текущем event loop если он работает.
+    Вызывается из UDP listener потока при обнаружении нового пира.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(_fetch_peer_rooms(peer))
+    except Exception:
+        pass
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Запуск discovery
 # ══════════════════════════════════════════════════════════════════════════════
 
 def start_discovery(device_name: str = "") -> None:
     """
     Запускает UDP discovery в фоновых потоках.
-    UDP broadcast теперь включает X25519 публичный ключ узла.
+    UDP broadcast включает X25519 публичный ключ узла.
     """
     name = device_name or socket.gethostname()
     registry.own_ip = _local_ip()
 
-    # Получаем публичный ключ этого узла для включения в broadcast
     try:
         _, node_pub = _get_node_keys()
         node_pubkey_hex = node_pub.hex() if isinstance(node_pub, bytes) else bytes(node_pub).hex()
@@ -212,8 +288,11 @@ def start_discovery(device_name: str = "") -> None:
             while True:
                 try:
                     for ip, port in _vc.get_peers():
-                        # Rust не передаёт pubkey — обновляем без него
-                        registry.update(ip, ip, port)
+                        is_new = registry.update(ip, ip, port)
+                        if is_new:
+                            peer = registry.get(ip)
+                            if peer:
+                                _schedule_fetch_peer_rooms(peer)
                 except Exception:
                     pass
                 time.sleep(3)
@@ -223,10 +302,7 @@ def start_discovery(device_name: str = "") -> None:
     except (ImportError, AttributeError):
         logger.info("Python UDP discovery fallback")
 
-    # Python fallback — с pubkey в payload
-    threading.Thread(
-        target=_py_listener, daemon=True, name="udp-listen"
-    ).start()
+    threading.Thread(target=_py_listener, daemon=True, name="udp-listen").start()
     threading.Thread(
         target=_py_sender, args=(name, node_pubkey_hex), daemon=True, name="udp-send"
     ).start()
@@ -254,22 +330,28 @@ def _py_listener():
 
             info = json.loads(data.decode())
 
-            # Извлекаем X25519 pubkey из broadcast payload
             pubkey = info.get("pubkey")
             if pubkey and len(pubkey) != 64:
-                pubkey = None  # невалидный pubkey — игнорируем
+                pubkey = None
             if pubkey:
                 try:
-                    bytes.fromhex(pubkey)  # валидируем hex
+                    bytes.fromhex(pubkey)
                 except ValueError:
                     pubkey = None
 
-            registry.update(
+            is_new = registry.update(
                 src_ip,
                 str(info.get("name", src_ip))[:64],
                 int(info.get("port", Config.PORT)),
                 pubkey,
             )
+
+            # При обнаружении нового пира — сразу запрашиваем его публичные комнаты
+            if is_new:
+                peer = registry.get(src_ip)
+                if peer:
+                    _schedule_fetch_peer_rooms(peer)
+
         except socket.timeout:
             registry.cleanup()
         except Exception as e:
@@ -290,7 +372,6 @@ def _py_sender(name: str, node_pubkey_hex: Optional[str]):
             if own_ip != registry.own_ip and not own_ip.startswith("127."):
                 registry.own_ip = own_ip
 
-            # Включаем pubkey в payload — соседние узлы узнают наш X25519 ключ
             payload_dict = {"name": name, "port": Config.PORT}
             if node_pubkey_hex:
                 payload_dict["pubkey"] = node_pubkey_hex
@@ -318,53 +399,37 @@ async def _send_to_peer_encrypted(
         peer:      PeerInfo,
         room_id:   int,
         sender:    str,
-        ciphertext_hex: str,    # уже зашифрованный клиентом текст сообщения
+        ciphertext_hex: str,
         msg_type:  str = "text",
 ) -> bool:
-    """
-    Отправляет P2P сообщение другому узлу с ECIES шифрованием транспортного уровня.
-
-    Двойное шифрование:
-      1. Содержимое сообщения (ciphertext_hex) — уже зашифровано клиентом room_key
-      2. Транспортный payload — шифруется ECIES X25519 ключом узла-получателя
-
-    Подслушивающий видит только зашифрованный транспортный payload.
-    Даже при расшифровке транспорта — содержимое сообщения остаётся зашифрованным room_key.
-    """
     node_priv, node_pub_raw = _get_node_keys()
-    node_pub = node_pub_raw if isinstance(node_pub_raw, bytes) else bytes(node_pub_raw)
-    node_priv_bytes = node_priv if isinstance(node_priv, bytes) else bytes(node_priv)
+    node_pub        = node_pub_raw if isinstance(node_pub_raw, bytes) else bytes(node_pub_raw)
+    node_priv_bytes = node_priv    if isinstance(node_priv,    bytes) else bytes(node_priv)
 
     payload_dict = {
         "room_id":    room_id,
         "sender":     sender,
-        "ciphertext": ciphertext_hex,   # зашифрованное сообщение (room_key)
+        "ciphertext": ciphertext_hex,
         "msg_type":   msg_type,
     }
 
     try:
         if peer.has_encryption():
-            # Шифруем транспортный payload X25519 ключом узла-получателя
             from app.security.key_exchange import encrypt_p2p_payload
-            encrypted = encrypt_p2p_payload(payload_dict, node_priv_bytes, peer.node_pubkey_hex)
-
+            encrypted    = encrypt_p2p_payload(payload_dict, node_priv_bytes, peer.node_pubkey_hex)
             request_body = {
                 "ephemeral_pub": encrypted["ephemeral_pub"],
                 "ciphertext":    encrypted["ciphertext"],
                 "sender_pubkey": node_pub.hex(),
             }
         else:
-            # Деградированный режим: узел не опубликовал свой X25519 ключ
-            # Отправляем незашифрованно (только внутри доверенной локальной сети)
-            logger.warning(
-                f"Peer {peer.ip} has no pubkey — P2P transport unencrypted (LAN only)"
-            )
+            logger.warning(f"Peer {peer.ip} has no pubkey — P2P transport unencrypted (LAN only)")
             request_body = {
-                "plaintext_payload": payload_dict,   # fallback без шифрования
+                "plaintext_payload": payload_dict,
                 "sender_pubkey":     node_pub.hex(),
             }
 
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        async with httpx.AsyncClient(timeout=3.0, verify=False) as client:
             response = await client.post(
                 f"{peer.base_url}/api/peers/receive",
                 json=request_body,
@@ -398,20 +463,52 @@ async def peer_status():
     _, node_pub_raw = _get_node_keys()
     node_pub = node_pub_raw if isinstance(node_pub_raw, bytes) else bytes(node_pub_raw)
     return {
-        "ok":       True,
-        "own_ip":   registry.own_ip,
-        "peers":    len(registry.active()),
-        "pubkey":   node_pub.hex(),   # X25519 pubkey узла — для инициации зашифрованного канала
+        "ok":     True,
+        "own_ip": registry.own_ip,
+        "peers":  len(registry.active()),
+        "pubkey": node_pub.hex(),
+    }
+
+
+@router.get("/public-rooms")
+async def get_peer_public_rooms(u: User = Depends(get_current_user)):
+    """
+    Возвращает публичные комнаты от всех известных пиров в локальной сети.
+
+    Каждая комната содержит дополнительные поля:
+      peer_ip   — IP адрес узла-источника
+      peer_name — имя узла-источника
+      peer_port — порт узла-источника
+
+    Клиент использует эти поля для вступления в комнату через нужный узел.
+    """
+    return {
+        "rooms": registry.get_all_peer_rooms(),
+        "peers": len(registry.active()),
+    }
+
+
+@router.post("/refresh-rooms")
+async def refresh_peer_rooms(u: User = Depends(get_current_user)):
+    """
+    Принудительно перезапрашивает публичные комнаты у всех активных пиров.
+    Полезно если список устарел без перезапуска сервера.
+    """
+    peers = registry.active()
+    await asyncio.gather(
+        *[_fetch_peer_rooms(p) for p in peers],
+        return_exceptions=True,
+    )
+    return {
+        "refreshed": len(peers),
+        "rooms":     len(registry.get_all_peer_rooms()),
     }
 
 
 class P2PReceiveRequest(BaseModel):
-    """Входящий зашифрованный P2P запрос от другого узла."""
-    # Зашифрованный режим (ECIES):
-    ephemeral_pub:     Optional[str] = None
-    ciphertext:        Optional[str] = None
-    sender_pubkey:     Optional[str] = None
-    # Fallback незашифрованный режим:
+    ephemeral_pub:     Optional[str]  = None
+    ciphertext:        Optional[str]  = None
+    sender_pubkey:     Optional[str]  = None
     plaintext_payload: Optional[dict] = None
 
 
@@ -419,19 +516,14 @@ class P2PReceiveRequest(BaseModel):
 async def receive_from_peer(body: P2PReceiveRequest, request: Request):
     """
     Принимает P2P сообщение от другого узла.
-
-    Расшифровывает ECIES payload (если зашифрован) и ретранслирует
-    зашифрованное сообщение локальным WebSocket-клиентам.
-    Содержимое сообщения (ciphertext) НЕ расшифровывается — это делает клиент.
+    Расшифровывает ECIES payload и ретранслирует зашифрованное сообщение
+    локальным WebSocket-клиентам.
     """
     src_ip = request.client.host if request.client else "unknown"
 
-    # ── Расшифровка транспортного уровня ─────────────────────────────────────
     if body.ephemeral_pub and body.ciphertext:
-        # Зашифрованный режим — используем X25519 ключ нашего узла
         node_priv_raw, _ = _get_node_keys()
         node_priv = node_priv_raw if isinstance(node_priv_raw, bytes) else bytes(node_priv_raw)
-
         try:
             from app.security.key_exchange import decrypt_p2p_payload
             msg = decrypt_p2p_payload(body.ephemeral_pub, body.ciphertext, node_priv)
@@ -440,32 +532,23 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
             raise HTTPException(400, "Не удалось расшифровать P2P сообщение")
 
     elif body.plaintext_payload:
-        # Fallback — незашифрованный режим (деградированный, только LAN)
         msg = body.plaintext_payload
         logger.debug(f"P2P plaintext from {src_ip} (unencrypted fallback)")
 
     else:
-        raise HTTPException(400, "Отсутствует payload (ни encrypted, ни plaintext)")
+        raise HTTPException(400, "Отсутствует payload")
 
-    # ── Опциональная верификация sender_pubkey ────────────────────────────────
     if body.sender_pubkey:
         peer = registry.get(src_ip)
         if peer and peer.node_pubkey_hex and peer.node_pubkey_hex != body.sender_pubkey:
-            logger.warning(
-                f"P2P pubkey mismatch from {src_ip}: "
-                f"expected={peer.node_pubkey_hex[:16]}... "
-                f"got={body.sender_pubkey[:16]}..."
-            )
-            # Не блокируем — логируем как предупреждение
+            logger.warning(f"P2P pubkey mismatch from {src_ip}")
         elif not peer:
-            # Обновляем реестр с новым пиром
             registry.update(src_ip, src_ip, Config.PORT, body.sender_pubkey)
 
-    # ── Ретрансляция зашифрованного сообщения локальным WebSocket-клиентам ───
-    room_id       = msg.get("room_id")
-    sender        = msg.get("sender", "unknown")
-    ciphertext_hex= msg.get("ciphertext", "")   # зашифровано room_key на клиенте
-    msg_type      = msg.get("msg_type", "text")
+    room_id        = msg.get("room_id")
+    sender         = msg.get("sender", "unknown")
+    ciphertext_hex = msg.get("ciphertext", "")
+    msg_type       = msg.get("msg_type", "text")
 
     if not room_id:
         raise HTTPException(400, "Отсутствует room_id в payload")
@@ -474,7 +557,7 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
         "type":       "peer_message",
         "sender":     sender,
         "sender_ip":  src_ip,
-        "ciphertext": ciphertext_hex,    # клиент расшифрует сам
+        "ciphertext": ciphertext_hex,
         "msg_type":   msg_type,
         "from_peer":  True,
     })
@@ -484,20 +567,14 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
 
 class SendReq(BaseModel):
     room_id:    int
-    ciphertext: str            # уже зашифрованное клиентом сообщение (hex)
-    msg_type:   str = "text"
+    ciphertext: str
+    msg_type:   str          = "text"
     peer_ip:    Optional[str] = None
 
 
 @router.post("/send")
 async def send_p2p(body: SendReq, u: User = Depends(get_current_user)):
-    """
-    Отправляет зашифрованное сообщение P2P-узлам.
-
-    Клиент должен передать ciphertext — сообщение, уже зашифрованное room_key.
-    Сервер не видит открытый текст: только зашифрованный payload.
-    Транспортный уровень дополнительно шифруется ECIES X25519 ключами узлов.
-    """
+    """Отправляет зашифрованное сообщение P2P-узлам."""
     if body.peer_ip:
         peer = registry.get(body.peer_ip)
         if not peer:
@@ -513,11 +590,8 @@ async def send_p2p(body: SendReq, u: User = Depends(get_current_user)):
           for p in peers],
         return_exceptions=True,
     )
-    sent_count      = sum(1 for r in results if r is True)
-    encrypted_count = sum(1 for p in peers if p.has_encryption())
-
     return {
-        "sent_to":        sent_count,
-        "total":          len(peers),
-        "encrypted_peers":encrypted_count,
+        "sent_to":         sum(1 for r in results if r is True),
+        "total":           len(peers),
+        "encrypted_peers": sum(1 for p in peers if p.has_encryption()),
     }
