@@ -20,6 +20,7 @@ import * as imageViewer from './chat/image-viewer.js';
 import {_msgTexts } from './chat/messages.js';
 window._msgTexts = _msgTexts;
 
+
 // Глобальное состояние приложения
 window.AppState = {
     user:          null,          // данные текущего пользователя
