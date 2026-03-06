@@ -14,6 +14,13 @@ app/peer/peer_registry.py — P2P Discovery с зашифрованным меж
      → Кешируются в памяти, доступны через GET /api/peers/public-rooms
   6. POST /api/peers/refresh-rooms — принудительное обновление кеша комнат всех пиров
 
+ИСПРАВЛЕНИЯ (v2):
+  - _schedule_fetch_peer_rooms: использует run_coroutine_threadsafe + сохранённый
+    главный event loop вместо asyncio.get_event_loop() (сломан в Python 3.10+
+    при вызове из фонового потока — возвращал новый незапущенный loop)
+  - _fetch_peer_rooms: пробует https → http, не полагаясь на конфиг соседнего узла
+  - start_discovery: сохраняет ссылку на главный loop в _main_loop
+
 UDP Broadcast payload (JSON):
   {"name": "MyNode", "port": 9000, "pubkey": "a1b2c3...64 hex chars..."}
 
@@ -184,6 +191,12 @@ class PeerRegistry:
 
 registry = PeerRegistry()
 
+# Ссылка на главный event loop — сохраняется в start_discovery().
+# Нужна для run_coroutine_threadsafe() из фоновых UDP-потоков.
+# asyncio.get_event_loop() в Python 3.10+ из фонового потока возвращает
+# новый незапущенный loop, поэтому используем явное сохранение.
+_main_loop: Optional[asyncio.AbstractEventLoop] = None
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Вспомогательные функции
@@ -234,29 +247,37 @@ async def _fetch_peer_rooms(peer: PeerInfo) -> None:
     """
     Запрашивает список публичных комнат у пира и сохраняет в кеш.
     GET /api/rooms/public — не требует авторизации (специально для межузловой синхронизации).
+
+    Пробует сначала https, потом http — мы не знаем конфигурацию соседнего узла.
     """
-    try:
-        async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
-            resp = await client.get(f"{peer.base_url}/api/rooms/public")
-            if resp.status_code == 200:
-                rooms = resp.json().get("rooms", [])
-                registry.set_peer_rooms(peer.ip, rooms)
-                logger.info(f"📦 {len(rooms)} public rooms from {peer.name}@{peer.ip}")
-    except Exception as e:
-        logger.debug(f"Failed to fetch rooms from {peer.ip}: {e}")
+    for scheme in ("https", "http"):
+        url = f"{scheme}://{peer.ip}:{peer.port}/api/rooms/public"
+        try:
+            async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    rooms = resp.json().get("rooms", [])
+                    registry.set_peer_rooms(peer.ip, rooms)
+                    logger.info(
+                        f"📦 {len(rooms)} public rooms from {peer.name}@{peer.ip} via {scheme}"
+                    )
+                    return   # успех — дальше не пробуем
+        except Exception as e:
+            logger.debug(f"Failed to fetch rooms from {peer.ip} via {scheme}: {e}")
 
 
 def _schedule_fetch_peer_rooms(peer: PeerInfo) -> None:
     """
-    Запускает запрос комнат в текущем event loop если он работает.
-    Вызывается из UDP listener потока при обнаружении нового пира.
+    Планирует запрос комнат в главном event loop из фонового UDP-потока.
+
+    Использует asyncio.run_coroutine_threadsafe() + явно сохранённый _main_loop.
+    В Python 3.10+ asyncio.get_event_loop() из фонового потока возвращает
+    новый незапущенный loop, из-за чего ensure_future() никогда не вызывался.
     """
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(_fetch_peer_rooms(peer))
-    except Exception:
-        pass
+    if _main_loop is not None and _main_loop.is_running():
+        asyncio.run_coroutine_threadsafe(_fetch_peer_rooms(peer), _main_loop)
+    else:
+        logger.debug(f"_main_loop not ready, skipping room fetch for {peer.ip}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -266,8 +287,16 @@ def _schedule_fetch_peer_rooms(peer: PeerInfo) -> None:
 def start_discovery(device_name: str = "") -> None:
     """
     Запускает UDP discovery в фоновых потоках.
-    UDP broadcast включает X25519 публичный ключ узла.
+    Сохраняет ссылку на главный event loop для корректной работы
+    run_coroutine_threadsafe() из UDP-потоков.
     """
+    global _main_loop
+    # Сохраняем главный loop — вызывается из lifespan (asyncio-контекст)
+    try:
+        _main_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _main_loop = asyncio.get_event_loop()
+
     name = device_name or socket.gethostname()
     registry.own_ip = _local_ip()
 
