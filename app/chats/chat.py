@@ -252,6 +252,7 @@ async def _deliver_or_request_room_key(room_id: int, user: User, db: Session) ->
         # Пользователь имеет зашифрованный ключ → отправляем для расшифровки на клиенте
         await manager.send_to_user(room_id, user.id, {
             "type":          "room_key",
+            "room_id":       room_id,
             "ephemeral_pub": enc_key.ephemeral_pub,
             "ciphertext":    enc_key.ciphertext,
         })
@@ -532,6 +533,7 @@ async def _handle_key_response(room_id: int, user: User, data: dict, db: Session
     # Доставляем ключ ожидающему участнику
     delivered = await manager.send_to_user(room_id, for_user_id, {
         "type":          "room_key",
+        "room_id":       room_id,
         "ephemeral_pub": ephemeral_pub,
         "ciphertext":    ciphertext,
     })

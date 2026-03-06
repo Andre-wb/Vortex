@@ -8,27 +8,19 @@
 // @version 1.0.1
 // =============================================================================
 
-// ─────────────────────────────────────────────────────────────────────────────
-// JSDoc типы (для документации)
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
- * @typedef {'low'|'mid'|'high'} GpuTier - Приблизительная мощность GPU
+ * @typedef {'low'|'mid'|'high'} GpuTier
  */
 
 /**
  * @typedef {Object} LiquidGlassState
- * @property {boolean}               ready       - Была ли вызвана initLiquidGlass
- * @property {boolean}               svgReady    - Вставлен ли SVG-фильтр
- * @property {boolean}               houdiniReg  - Зарегистрированы ли Houdini-свойства
- * @property {MutationObserver|null} observer    - Наблюдатель за появлением новых .lg элементов
- * @property {HTMLStyleElement|null} styleEl     - Вставленный элемент <style>
- * @property {SVGSVGElement|null}    svgEl       - Вставленный элемент <svg> с фильтром
+ * @property {boolean}               ready
+ * @property {boolean}               svgReady
+ * @property {boolean}               houdiniReg
+ * @property {MutationObserver|null} observer
+ * @property {HTMLStyleElement|null} styleEl
+ * @property {SVGSVGElement|null}    svgEl
  */
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Приватное состояние модуля
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** @type {LiquidGlassState} */
 const _state = {
@@ -41,24 +33,14 @@ const _state = {
 };
 
 /**
- * Хранит для каждого отслеживаемого .lg-элемента его обработчики pointer-событий,
- * чтобы можно было точно удалить их при уничтожении.
- *
  * @type {Map<HTMLElement, { move: (e: PointerEvent) => void, leave: () => void }>}
  */
 const _listenerMap = new Map();
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Определение уровня GPU (чтобы на слабых устройствах отключить тяжёлую анимацию)
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** @type {GpuTier|null} */
 let _gpuTierCache = null;
 
 /**
- * Определяет приблизительную мощность GPU через WebGL-контекст.
- * Создаёт контекст, читает информацию о рендерере и сразу уничтожает его.
- *
  * @returns {GpuTier}
  */
 function _detectGpuTier() {
@@ -93,12 +75,10 @@ function _detectGpuTier() {
             }
         }
 
-        // Немедленно освобождаем контекст, чтобы драйвер мог вернуть ресурсы
         gl.getExtension('WEBGL_lose_context')?.loseContext();
     } catch (_) {
         _gpuTierCache = 'low';
     } finally {
-        // Обнуляем размеры canvas, чтобы браузер мог собрать память
         canvas.width  = 0;
         canvas.height = 0;
     }
@@ -106,16 +86,6 @@ function _detectGpuTier() {
     return /** @type {GpuTier} */ (_gpuTierCache);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Регистрация Houdini Custom Properties (для плавного CSS-перехода координат)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Регистрирует CSS-свойства `--lg-mx`, `--lg-my`, `--lg-irid` как Houdini,
- * что позволяет анимировать их через CSS-переходы.
- *
- * @returns {void}
- */
 function _registerHoudini() {
     if (_state.houdiniReg || !window.CSS?.registerProperty) return;
     _state.houdiniReg = true;
@@ -128,20 +98,10 @@ function _registerHoudini() {
     ];
 
     props.forEach(p => {
-        try { CSS.registerProperty(p); } catch (_) { /* свойство уже зарегистрировано */ }
+        try { CSS.registerProperty(p); } catch (_) {}
     });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SVG-фильтр с хроматической аберрацией (или пасс-тру для слабых GPU)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Возвращает разметку фильтра с эффектом хроматической аберрации,
- * использующего feTurbulence и несколько смещённых каналов.
- *
- * @returns {string}
- */
 function _buildDistortFilter() {
     return `<defs>
         <filter id="lg-distort" x="-22%" y="-22%" width="144%" height="144%"
@@ -176,20 +136,10 @@ function _buildDistortFilter() {
     </defs>`;
 }
 
-/**
- * Возвращает пустой (пасс-тру) фильтр для слабых GPU.
- *
- * @returns {string}
- */
 function _buildPassthroughFilter() {
     return `<defs><filter id="lg-distort"><feComposite operator="atop"/></filter></defs>`;
 }
 
-/**
- * Вставляет SVG-элемент с фильтром в <body> (один раз).
- *
- * @returns {void}
- */
 function _injectSVG() {
     if (_state.svgReady) return;
     _state.svgReady = true;
@@ -209,10 +159,6 @@ function _injectSVG() {
     document.body.appendChild(svg);
     _state.svgEl = svg;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CSS-стили (вставляются один раз в <head>)
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** @type {string} */
 const _CSS = `
@@ -398,11 +344,6 @@ const _CSS = `
 }
 `;
 
-/**
- * Вставляет стили библиотеки в <head> (один раз).
- *
- * @returns {void}
- */
 function _injectCSS() {
     if (document.getElementById('liquid-glass-style')) return;
     _state.styleEl = Object.assign(document.createElement('style'), {
@@ -412,15 +353,7 @@ function _injectCSS() {
     document.head.appendChild(_state.styleEl);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Отслеживание указателя (подсветка в месте курсора)
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
- * Добавляет обработчики pointermove/pointerleave к элементу .lg,
- * чтобы CSS-переменные --lg-mx/--lg-my обновлялись в соответствии с позицией курсора.
- * Сохраняет слушатели в _listenerMap для последующего удаления.
- *
  * @param {HTMLElement} el
  * @returns {void}
  */
@@ -446,8 +379,6 @@ function _attachPointerTracking(el) {
 }
 
 /**
- * Удаляет обработчики pointer-событий с элемента и убирает его из _listenerMap.
- *
  * @param {HTMLElement} el
  * @returns {void}
  */
@@ -460,8 +391,6 @@ function _detachPointerTracking(el) {
 }
 
 /**
- * Рекурсивно проходит по поддереву и добавляет отслеживание для всех найденных .lg.
- *
  * @param {Node} node
  * @returns {void}
  */
@@ -471,16 +400,6 @@ function _attachToSubtree(node) {
     node.querySelectorAll?.('.lg').forEach(_attachPointerTracking);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MutationObserver – автоматическое подключение новых .lg элементов
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Находит все существующие .lg элементы, подключает к ним отслеживание,
- * и запускает наблюдение за добавлением/удалением элементов в DOM.
- *
- * @returns {void}
- */
 function _startObserver() {
     document.querySelectorAll('.lg').forEach(_attachPointerTracking);
 
@@ -488,7 +407,6 @@ function _startObserver() {
         for (const m of mutations) {
             m.addedNodes.forEach(_attachToSubtree);
 
-            // Удаляем слушатели с элементов, покидающих DOM (чтобы избежать утечек)
             m.removedNodes.forEach(node => {
                 if (!(node instanceof HTMLElement)) return;
                 if (node.classList.contains('lg')) _detachPointerTracking(node);
@@ -500,10 +418,6 @@ function _startObserver() {
     _state.observer.observe(document.body, { childList: true, subtree: true });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Вспомогательные константы
-// ─────────────────────────────────────────────────────────────────────────────
-
 /** @type {Readonly<Record<string, string>>} */
 const _BLOCK_DISPLAY_MAP = Object.freeze({
     'flex':        'flex',
@@ -512,17 +426,6 @@ const _BLOCK_DISPLAY_MAP = Object.freeze({
     'inline-grid': 'grid',
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Публичный API
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Инициализирует библиотеку liquid-glass.
- * Регистрирует Houdini, вставляет SVG и CSS, запускает MutationObserver.
- * Можно вызывать многократно – повторные вызовы без destroy игнорируются.
- *
- * @returns {void}
- */
 export function initLiquidGlass() {
     if (_state.ready) return;
     _state.ready = true;
@@ -538,23 +441,14 @@ export function initLiquidGlass() {
     }
 }
 
-/**
- * Полностью уничтожает библиотеку: отключает observer, удаляет стили и SVG,
- * отвязывает все обработчики указателя. После вызова можно снова вызвать init.
- *
- * @returns {void}
- */
 export function destroyLiquidGlass() {
-    // Сначала отключаем observer, чтобы удаления ниже не вызывали его повторно
     _state.observer?.disconnect();
 
-    // Удаляем все pointer-слушатели
     _listenerMap.forEach((_, el) => _detachPointerTracking(el));
 
     _state.styleEl?.remove();
     _state.svgEl?.remove();
 
-    // Сбрасываем кеш GPU, чтобы следующий init определил заново
     _gpuTierCache = null;
 
     Object.assign(_state, {
@@ -567,21 +461,7 @@ export function destroyLiquidGlass() {
     });
 }
 
-/**
- * Оборачивает элемент в контейнер `.lg-outer`, чтобы на него действовал
- * SVG-фильтр искажения. Возвращает объект с wrapper и функцией unwrap,
- * восстанавливающей исходное положение.
- *
- * @param {HTMLElement} el
- * @returns {WrapResult}
- *
- * @example
- * const { wrapper, unwrap } = wrapWithDistortion(myCard);
- * // позже...
- * unwrap(); // удаляет wrapper, возвращает myCard на место
- */
 export function wrapWithDistortion(el) {
-    // Запоминаем исходную позицию
     const parent      = el.parentNode;
     const nextSibling = el.nextSibling;
 
@@ -599,11 +479,6 @@ export function wrapWithDistortion(el) {
     parent?.insertBefore(wrapper, el);
     wrapper.appendChild(el);
 
-    /**
-     * Удаляет wrapper и возвращает el на исходную позицию.
-     *
-     * @returns {void}
-     */
     function unwrap() {
         if (!wrapper.isConnected) return;
         if (parent) {
@@ -617,26 +492,34 @@ export function wrapWithDistortion(el) {
     return { wrapper, unwrap };
 }
 
-/**
- * Создаёт и возвращает div с классом `lg-grain` – слой зернистости.
- * Его можно добавить внутрь любого `.lg` контейнера (обычно первым ребёнком).
- *
- * @returns {HTMLDivElement}
- */
 export function createGrainLayer() {
     return Object.assign(document.createElement('div'), { className: 'lg-grain' });
 }
 
 /**
+ * Определяет иконку для цитаты по содержимому и типу сообщения.
+ * @param {string} text
+ * @param {string} [msgType]
+ * @returns {string}
+ */
+function _replyIcon(text, msgType) {
+    if (msgType === 'voice' || (text && text.startsWith('voice_'))) return '🎙 ';
+    if (msgType === 'image' || /\.(jpg|jpeg|png|gif|webp)/i.test(text || '')) return '🖼 ';
+    if (msgType === 'file'  || text === 'файл') return '📄 ';
+    return '';
+}
+
+/**
  * Создаёт элемент «цитаты» (reply) для использования в сообщениях.
  *
- * @param {string}            sender        - Имя автора цитируемого сообщения.
- * @param {string}            text          - Текст цитаты.
- * @param {boolean}           [isOwn=false] - true добавляет класс `.lg-own` (фиолетовый вариант).
- * @param {(() => void)|null} [onClick=null] - Обработчик клика (обычно для перехода к сообщению).
+ * @param {string}            sender
+ * @param {string}            text
+ * @param {boolean}           [isOwn=false]
+ * @param {(() => void)|null} [onClick=null]
+ * @param {string}            [msgType='']
  * @returns {HTMLDivElement}
  */
-export function createReplyQuote(sender, text, isOwn = false, onClick = null) {
+export function createReplyQuote(sender, text, isOwn = false, onClick = null, msgType = '') {
     const el = document.createElement('div');
     el.className = `lg lg-reply lg-interactive${isOwn ? ' lg-own' : ''}`;
     el.appendChild(createGrainLayer());
@@ -645,9 +528,12 @@ export function createReplyQuote(sender, text, isOwn = false, onClick = null) {
         className:   'lg-sender',
         textContent: sender,
     });
+
+    const icon = _replyIcon(text, msgType);
+
     const textEl = Object.assign(document.createElement('span'), {
         className:   'lg-text',
-        textContent: text,
+        textContent: icon + (text || ''),
     });
 
     el.append(senderEl, textEl);

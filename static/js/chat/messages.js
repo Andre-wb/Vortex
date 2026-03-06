@@ -12,6 +12,7 @@ import { initLiquidGlass, createReplyQuote } from './liquid-glass.js';
 // Иконки для кнопки воспроизведения голоса
 const _SVG_PLAY  = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><path d="M15.5 12L10 15.5V8.5L15.5 12Z" fill="currentColor"/></svg>`;
 const _SVG_PAUSE = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="8" width="2.2" height="8" rx="1" fill="currentColor"/><rect x="12.8" y="8" width="2.2" height="8" rx="1" fill="currentColor"/></svg>`;
+const _msgTexts = new Map();
 
 // Пути к иконкам для контекстного меню
 const _ICON_REPLY  = '/static/elements/reply-svgrepo-com.svg';
@@ -246,6 +247,7 @@ export function resetMessageState() {
     _lastDate     = null;
     _lastSenderId = null;
     _msgElements.clear();
+    _msgTexts.clear();
 }
 
 /**
@@ -354,6 +356,12 @@ export function appendMessage(msg) {
 
     container.appendChild(group);
     if (msg.msg_id) _msgElements.set(msg.msg_id, group);
+    if (msg.msg_id && msg.text) {
+        _msgTexts.set(msg.msg_id, {
+            text:   msg.text,
+            sender: msg.display_name || msg.sender || '?',
+        });
+    }
 }
 
 /**
@@ -861,3 +869,5 @@ function _guessMimeFromText(text) {
     if (!m) return null;
     return _guessMimeFromName(m[1]);
 }
+
+export { _msgTexts };
