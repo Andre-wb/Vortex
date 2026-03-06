@@ -123,3 +123,25 @@ export async function checkSession() {
         // не авторизован
     }
 }
+
+export function exportPrivateKey() {
+    const key = localStorage.getItem('vortex_x25519_priv');
+    if (!key) { alert('Ключ не найден'); return; }
+    const blob = new Blob([key], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'vortex_key_backup.json';
+    a.click();
+}
+
+export async function importPrivateKey(file) {
+    const text = await file.text();
+    try {
+        JSON.parse(text);
+        localStorage.setItem('vortex_x25519_priv', text);
+        window.AppState.x25519PrivateKey = text;
+        alert('Ключ импортирован. Перезайдите в комнату.');
+    } catch {
+        alert('Неверный формат ключа');
+    }
+}

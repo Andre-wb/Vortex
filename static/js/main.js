@@ -17,6 +17,8 @@ import * as ui          from './ui.js';
 import * as chat        from './chat/chat.js';
 import * as fileUpload  from './chat/file-upload.js';
 import * as imageViewer from './chat/image-viewer.js';
+import {_msgTexts } from './chat/messages.js';
+window._msgTexts = _msgTexts;
 
 // Глобальное состояние приложения
 window.AppState = {
@@ -37,6 +39,7 @@ window.AppState = {
     nodePublicKey: null,          // публичный ключ X25519 ноды
     sessionKeys:   {},            // сессионные ключи для пиров (не используется в этих файлах)
     csrfToken:     null,          // токен для защиты от CSRF
+    x25519PrivateKey: null
 };
 
 // Экспортируем функции всех модулей в глобальную область видимости,

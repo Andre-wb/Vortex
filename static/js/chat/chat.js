@@ -7,7 +7,7 @@
 
 import { scrollToBottom } from '../utils.js';
 import { renderRoomsList, updateRoomMeta } from '../rooms.js';
-import { eciesDecrypt, getRoomKey, setRoomKey } from '../crypto.js';
+import { eciesDecrypt, eciesEncrypt, getRoomKey, setRoomKey } from '../crypto.js';
 import { showWelcome } from '../ui.js';
 import {
     appendMessage,
@@ -122,7 +122,6 @@ async function handleWsMessage(msg) {
             const roomKey = getRoomKey(roomId);
             if (!roomKey) break;
             try {
-                const { eciesEncrypt } = await import('../crypto.js');
                 const enc = await eciesEncrypt(roomKey, msg.for_pubkey);
                 S.ws.send(JSON.stringify({
                     action:        'key_response',
@@ -243,6 +242,13 @@ async function _decryptAndAppend(msg) {
             msg.text = '[🔒 зашифровано — ключ не получен]';
         }
     }
+    if (msg.reply_to_id && !msg.reply_to_text) {
+        const cached = window._msgTexts?.get(msg.reply_to_id);
+        if (cached) {
+            msg.reply_to_text   = cached.text;
+            msg.reply_to_sender = cached.sender;
+        }
+    }
     appendMessage(msg);
 }
 
@@ -351,22 +357,6 @@ export async function sendMessage() {
         const payload    = { action: 'message', ciphertext };
         if (_replyTo?.msg_id) payload.reply_to_id = _replyTo.msg_id;
         S.ws.send(JSON.stringify(payload));
-
-        // Показываем своё сообщение сразу (оптимистично)
-        appendMessage({
-            msg_id:       null,
-            sender_id:    S.user?.user_id,
-            sender:       S.user?.username,
-            display_name: S.user?.display_name || S.user?.username,
-            avatar_emoji: S.user?.avatar_emoji,
-            text,
-            msg_type:     'text',
-            created_at:   new Date().toISOString(),
-            reply_to_id:  _replyTo?.msg_id,
-            reply_to_text: _replyTo?.text,
-            reply_to_sender: _replyTo?.display_name,
-        });
-        scrollToBottom(true);
 
         _replyTo = null;
         const bar2 = document.getElementById('reply-bar');
