@@ -429,6 +429,7 @@ class TestRooms:
         }, headers=logged_user['headers'])
         assert resp.status_code in (200, 201)
 
+
     def test_room_name_too_long(self, client: SyncASGIClient, logged_user: dict):
         resp = client.post('/api/rooms', json={
             'name':          'A' * 500,
