@@ -538,10 +538,10 @@ class TestFiles:
 class TestWebSocket:
 
     def test_ws_connect_authenticated(self, client: SyncASGIClient, logged_user: dict, room: dict):
-        pytest.skip('WebSocket тест требует запущенного сервера')
+        pytest.skip('WebSocket тест требует запущенную ноду')
 
     def test_ws_connect_unauthenticated(self, client: SyncASGIClient):
-        pytest.skip('WebSocket тест требует запущенного сервера')
+        pytest.skip('WebSocket тест требует запущенную ноду')
 
     def test_ws_ping_pong(self, client: SyncASGIClient, logged_user: dict, room: dict):
         ping_msg = {'action': 'ping'}
