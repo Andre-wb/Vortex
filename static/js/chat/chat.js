@@ -1,12 +1,6 @@
 // static/js/chat/chat.js
-// =============================================================================
-// Модуль управления WebSocket-соединением чата.
-// E2E шифрование: сообщения шифруются AES-256-GCM ключом комнаты на клиенте.
-// Сервер хранит и ретранслирует только ciphertext — не видит открытый текст.
-// =============================================================================
-
 import { scrollToBottom } from '../utils.js';
-import { renderRoomsList, updateRoomMeta } from '../rooms.js';
+import { renderRoomsList } from '../rooms.js';
 import { eciesDecrypt, eciesEncrypt, getRoomKey, setRoomKey } from '../crypto.js';
 import { showWelcome } from '../ui.js';
 import {
@@ -25,17 +19,23 @@ const _fileSenders  = {};
 let _replyTo   = null;
 let _editingId = null;
 
+let _pendingHistory = null;
+
+// ─── ACK-система ──────────────────────────────────────────────────────────────
+const _pendingAcks = new Map();
+
+const ACK_TIMEOUT_MS = 4000;
+const ACK_MAX_RETRY  = 3;
+
+const _offlineQueue = [];
+
 // =============================================================================
-// E2E AES-256-GCM шифрование сообщений ключом комнаты
+// AES-256-GCM утилиты
 // =============================================================================
 
 const toHex   = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
 const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
 
-/**
- * Шифрует текст AES-256-GCM ключом комнаты.
- * @returns {string} hex(nonce(12) + ciphertext + tag(16))
- */
 async function encryptText(text, roomKeyBytes) {
     const key = await crypto.subtle.importKey(
         'raw', roomKeyBytes, { name: 'AES-GCM' }, false, ['encrypt']
@@ -49,10 +49,6 @@ async function encryptText(text, roomKeyBytes) {
     return toHex(nonce) + toHex(ct);
 }
 
-/**
- * Расшифровывает ciphertext hex AES-256-GCM ключом комнаты.
- * @returns {string} открытый текст
- */
 async function decryptText(ciphertextHex, roomKeyBytes) {
     const raw   = fromHex(ciphertextHex);
     const nonce = raw.slice(0, 12);
@@ -65,22 +61,148 @@ async function decryptText(ciphertextHex, roomKeyBytes) {
 }
 
 // =============================================================================
-// WebSocket
+// Хранение ключа комнаты в sessionStorage
+// =============================================================================
+
+function _saveRoomKeyToSession(roomId, keyBytes) {
+    try { sessionStorage.setItem(`vortex_rk_${roomId}`, toHex(keyBytes)); } catch {}
+}
+
+function _loadRoomKeyFromSession(roomId) {
+    try {
+        const hex = sessionStorage.getItem(`vortex_rk_${roomId}`);
+        return hex ? fromHex(hex) : null;
+    } catch { return null; }
+}
+
+function _clearRoomKeyFromSession(roomId) {
+    try { sessionStorage.removeItem(`vortex_rk_${roomId}`); } catch {}
+}
+
+// =============================================================================
+// ACK-система — гарантированная доставка сообщений
+// =============================================================================
+
+export function sendWithAck(payload) {
+    const msgId = crypto.randomUUID();
+    payload     = { ...payload, msg_id: msgId };
+
+    return new Promise((resolve, reject) => {
+        _pendingAcks.set(msgId, {
+            payload,
+            retries:   0,
+            timeoutId: null,
+            resolve,
+            reject,
+        });
+        _trySend(msgId);
+    });
+}
+
+function _trySend(msgId) {
+    const entry = _pendingAcks.get(msgId);
+    if (!entry) return;
+
+    const S  = window.AppState;
+    const ws = S.ws;
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        if (!_offlineQueue.find(m => m.msg_id === msgId)) {
+            _offlineQueue.push(entry.payload);
+        }
+        return;
+    }
+
+    ws.send(JSON.stringify(entry.payload));
+
+    entry.timeoutId = setTimeout(() => {
+        const e = _pendingAcks.get(msgId);
+        if (!e) return;
+
+        if (e.retries < ACK_MAX_RETRY) {
+            e.retries++;
+            console.warn(`[ACK] retry ${e.retries}/${ACK_MAX_RETRY} для ${msgId}`);
+            _trySend(msgId);
+        } else {
+            _pendingAcks.delete(msgId);
+            e.reject(new Error(`Сообщение не доставлено после ${ACK_MAX_RETRY} попыток`));
+            appendSystemMessage('⚠️ Сообщение не было доставлено. Проверьте соединение.');
+        }
+    }, ACK_TIMEOUT_MS);
+}
+
+function _handleAck(msg) {
+    const entry = _pendingAcks.get(msg.msg_id);
+    if (!entry) return;
+
+    clearTimeout(entry.timeoutId);
+    _pendingAcks.delete(msg.msg_id);
+    entry.resolve(msg.server_id ?? msg.msg_id);
+    console.debug(`[ACK] подтверждён ${msg.msg_id} → server_id=${msg.server_id}`);
+}
+
+function _cancelAllPendingAcks() {
+    for (const [msgId, entry] of _pendingAcks) {
+        clearTimeout(entry.timeoutId);
+        _pendingAcks.delete(msgId);
+        entry.reject(new Error('Соединение закрыто'));
+    }
+}
+
+function _flushOfflineQueue() {
+    const S = window.AppState;
+    if (!S.ws || S.ws.readyState !== WebSocket.OPEN) return;
+
+    while (_offlineQueue.length > 0) {
+        const payload = _offlineQueue.shift();
+        const msgId   = payload.msg_id;
+
+        if (msgId && _pendingAcks.has(msgId)) {
+            _trySend(msgId);
+        } else {
+            try { S.ws.send(JSON.stringify(payload)); } catch {}
+        }
+    }
+}
+
+// =============================================================================
+// WebSocket — управление соединением
 // =============================================================================
 
 let _msgQueue = Promise.resolve();
 
 export function connectWS(roomId) {
-    const S     = window.AppState;
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    S.ws        = new WebSocket(`${proto}://${location.host}/ws/${roomId}`);
-    _msgQueue   = Promise.resolve();
+    const S = window.AppState;
 
-    S.ws.onopen = () => console.log('WS connected, room', roomId);
+    if (S.ws) {
+        if (S.ws._ping) clearInterval(S.ws._ping);
+        S.ws.onclose = null;
+        S.ws.close();
+        S.ws = null;
+    }
+
+    _pendingHistory  = null;
+    _cancelAllPendingAcks();
+
+    const cachedKey = _loadRoomKeyFromSession(roomId);
+    if (cachedKey) {
+        setRoomKey(roomId, cachedKey);
+        console.info('🔑 Ключ комнаты восстановлен из sessionStorage для room', roomId);
+    }
+
+    const proto  = location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsPath = S.currentRoom?.is_federated ? `/ws/fed/${roomId}` : `/ws/${roomId}`;
+    S.ws      = new WebSocket(`${proto}://${location.host}${wsPath}`);
+    _msgQueue = Promise.resolve();
+
+    S.ws.onopen = () => {
+        console.log('WS connected, room', roomId);
+        _flushOfflineQueue();
+    };
 
     S.ws.onmessage = e => {
         const data = JSON.parse(e.data);
-        _msgQueue = _msgQueue
+        _msgQueue  = _msgQueue
             .then(() => handleWsMessage(data))
             .catch(err => console.error('WS msg error:', err));
     };
@@ -102,21 +224,41 @@ async function handleWsMessage(msg) {
     const S = window.AppState;
     switch (msg.type) {
 
-        // ── E2E: сервер доставляет зашифрованный ключ комнаты ─────────────
+        case 'ack':
+            _handleAck(msg);
+            break;
+
         case 'room_key': {
             const privKey = S.x25519PrivateKey;
-            const roomId  = msg.room_id ?? S.currentRoom?.id;  // ← взять room_id из самого сообщения
-            if (!privKey || !roomId) { console.warn('room_key: нет privKey или roomId'); break; }
+            const roomId  = msg.room_id ?? S.currentRoom?.id;
+            if (!roomId) { console.warn('room_key: нет roomId'); break; }
+            if (!privKey) {
+                appendSystemMessage(
+                    '🔑 Не удалось расшифровать ключ комнаты: приватный ключ не найден. ' +
+                    'Воспользуйтесь кнопкой «Импорт ключа» в профиле.'
+                );
+                break;
+            }
             try {
                 const keyBytes = await eciesDecrypt(msg.ephemeral_pub, msg.ciphertext, privKey);
                 setRoomKey(roomId, keyBytes);
+                _saveRoomKeyToSession(roomId, keyBytes);
+                console.info('🔑 Ключ комнаты получен и сохранён, room', roomId);
+
+                if (_pendingHistory) {
+                    const pendingMessages = _pendingHistory;
+                    _pendingHistory = null;
+                    resetMessageState();
+                    document.getElementById('messages-container').innerHTML = '';
+                    for (const m of pendingMessages) await _decryptAndAppend(m);
+                    scrollToBottom();
+                }
             } catch (e) {
-                console.error('Ошибка расшифровки ключа комнаты:', e);
+                appendSystemMessage('🔑 Ошибка расшифровки ключа комнаты: ' + e.message);
             }
             break;
         }
 
-        // ── E2E: нужно помочь другому участнику — re-encrypt ключ ─────────
         case 'key_request': {
             const roomId  = S.currentRoom?.id;
             const roomKey = getRoomKey(roomId);
@@ -129,10 +271,7 @@ async function handleWsMessage(msg) {
                     ephemeral_pub: enc.ephemeral_pub,
                     ciphertext:    enc.ciphertext,
                 }));
-                console.info(`🔑 Re-encrypted key for user ${msg.for_user_id}`);
-            } catch (e) {
-                console.error('Ошибка re-encryption:', e);
-            }
+            } catch (e) { console.error('Ошибка re-encryption:', e); }
             break;
         }
 
@@ -144,21 +283,57 @@ async function handleWsMessage(msg) {
             S.nodePublicKey = msg.pubkey_hex;
             break;
 
-        case 'history':
-            resetMessageState();
-            document.getElementById('messages-container').innerHTML = '';
-            // Расшифровываем все сообщения истории
-            for (const m of msg.messages) {
-                await _decryptAndAppend(m);
+        case 'history': {
+            const roomKey = getRoomKey(S.currentRoom?.id);
+            if (!roomKey && msg.messages?.length) {
+                _pendingHistory = msg.messages;
+                resetMessageState();
+                document.getElementById('messages-container').innerHTML = '';
+                appendSystemMessage('⏳ Ожидание ключа комнаты для расшифровки истории...');
+            } else {
+                _pendingHistory = null;
+                resetMessageState();
+                document.getElementById('messages-container').innerHTML = '';
+                for (const m of msg.messages) await _decryptAndAppend(m);
+                scrollToBottom();
             }
-            scrollToBottom();
+            break;
+        }
+
+        case 'signal':
+            if (typeof window.handleFederatedSignal === 'function')
+                window.handleFederatedSignal(msg);
             break;
 
         case 'message':
-        case 'peer_message':
+        case 'peer_message': {
+            // ── FIX: дедупликация — не рендерим если это наш ACK-ожидаемый
+            // client_msg_id, который уже есть в _pendingAcks (ещё не подтверждён).
+            // ACK придёт отдельно и разрешит промис. Само сообщение рендерим
+            // только когда сервер прислал его как broadcast (т.е. оно уже в БД).
+            //
+            // НО: если ACK уже обработан (_pendingAcks не содержит этот id),
+            // значит broadcast пришёл позже ACK или это чужое сообщение — рендерим.
+            //
+            // Итого: рендерим ВСЕГДА, но пропускаем если для этого client_msg_id
+            // ещё висит pending ACK (значит мы уже знаем что отправили, и
+            // рендер произойдёт когда ACK придёт и снимет ожидание... нет,
+            // без оптимистичного рендера нам нужен broadcast).
+            //
+            // Правильная логика: сервер теперь шлёт broadcast ВСЕМ включая
+            // отправителя. Отправитель получает и ACK и message. ACK — для
+            // подтверждения записи в БД. message — для рендера. Рендерим
+            // message всегда. Чтобы не было дубля — проверяем DOM.
+            if (msg.client_msg_id) {
+                const existing = document.querySelector(
+                    `[data-client-msg-id="${CSS.escape(msg.client_msg_id)}"]`
+                );
+                if (existing) break; // уже отрендерено (оптимистично или ранее)
+            }
             await _decryptAndAppend(msg);
             scrollToBottom(true);
             break;
+        }
 
         case 'file':
             appendFileMessage(msg);
@@ -193,6 +368,7 @@ async function handleWsMessage(msg) {
 
         case 'kicked':
             alert('Вы были исключены из комнаты');
+            _clearRoomKeyFromSession(S.currentRoom?.id);
             S.rooms = S.rooms.filter(r => r.id !== S.currentRoom?.id);
             renderRoomsList();
             showWelcome();
@@ -200,6 +376,7 @@ async function handleWsMessage(msg) {
 
         case 'room_deleted':
             alert('Комната была удалена');
+            _clearRoomKeyFromSession(S.currentRoom?.id);
             S.rooms = S.rooms.filter(r => r.id !== S.currentRoom?.id);
             renderRoomsList();
             showWelcome();
@@ -214,8 +391,15 @@ async function handleWsMessage(msg) {
             break;
 
         case 'message_edited':
-            // msg.ciphertext — новый зашифрованный текст
             await _decryptAndUpdateMessage(msg);
+            break;
+
+        case 'error':
+            if (msg.code !== 'rate_limited') {
+                console.warn('[WS error]', msg.message);
+            } else {
+                appendSystemMessage('⏱ Слишком быстро. Подождите немного.');
+            }
             break;
 
         case 'pong':
@@ -223,21 +407,14 @@ async function handleWsMessage(msg) {
     }
 }
 
-/**
- * Расшифровывает ciphertext в сообщении и передаёт в appendMessage.
- * Если ключа нет — показывает заглушку [зашифровано].
- */
 async function _decryptAndAppend(msg) {
     const S       = window.AppState;
     const roomKey = getRoomKey(S.currentRoom?.id);
 
     if (msg.ciphertext) {
         if (roomKey) {
-            try {
-                msg.text = await decryptText(msg.ciphertext, roomKey);
-            } catch {
-                msg.text = '[ошибка расшифровки]';
-            }
+            try { msg.text = await decryptText(msg.ciphertext, roomKey); }
+            catch { msg.text = '[ошибка расшифровки]'; }
         } else {
             msg.text = '[🔒 зашифровано — ключ не получен]';
         }
@@ -252,9 +429,6 @@ async function _decryptAndAppend(msg) {
     appendMessage(msg);
 }
 
-/**
- * Расшифровывает новый ciphertext отредактированного сообщения.
- */
 async function _decryptAndUpdateMessage(msg) {
     const S       = window.AppState;
     const roomKey = getRoomKey(S.currentRoom?.id);
@@ -268,13 +442,12 @@ async function _decryptAndUpdateMessage(msg) {
 function _updateOnlineList(users) {
     const S  = window.AppState;
     const el = document.getElementById('chat-room-meta');
-    if (el && S.currentRoom) {
+    if (el && S.currentRoom)
         el.textContent = `${S.currentRoom.member_count} участников · ${users.length} онлайн`;
-    }
 }
 
 // =============================================================================
-// Ответы и редактирование
+// Reply / Edit
 // =============================================================================
 
 window.setReplyTo = (msg) => {
@@ -325,26 +498,24 @@ window.deleteMessage = (msgId) => {
 function _truncate(str, n) { return str?.length > n ? str.slice(0, n) + '…' : str || ''; }
 
 // =============================================================================
-// Отправка сообщений (E2E: шифруем перед отправкой)
+// Отправка сообщений (с ACK)
 // =============================================================================
 
 export async function sendMessage() {
     const input   = document.getElementById('msg-input');
     const text    = input.value.trim();
     const S       = window.AppState;
-    if (!text || !S.ws || S.ws.readyState !== WebSocket.OPEN) return;
+    if (!text) return;
 
     const roomKey = getRoomKey(S.currentRoom?.id);
 
     if (_editingId) {
-        if (roomKey) {
-            const ciphertext = await encryptText(text, roomKey);
-            S.ws.send(JSON.stringify({ action: 'edit_message', msg_id: _editingId, ciphertext }));
-        } else {
-            // Fallback: нет ключа — не отправляем
+        if (!roomKey) {
             appendSystemMessage('⚠️ Нет ключа комнаты — сообщение не отправлено');
             return;
         }
+        const ciphertext = await encryptText(text, roomKey);
+        S.ws?.send(JSON.stringify({ action: 'edit_message', msg_id: _editingId, ciphertext }));
         _editingId = null;
         const bar = document.getElementById('reply-bar');
         if (bar) { bar.classList.remove('visible'); delete bar.dataset.mode; }
@@ -356,7 +527,10 @@ export async function sendMessage() {
         const ciphertext = await encryptText(text, roomKey);
         const payload    = { action: 'message', ciphertext };
         if (_replyTo?.msg_id) payload.reply_to_id = _replyTo.msg_id;
-        S.ws.send(JSON.stringify(payload));
+
+        sendWithAck(payload).catch(err => {
+            console.error('[ACK] не доставлено:', err.message);
+        });
 
         _replyTo = null;
         const bar2 = document.getElementById('reply-bar');
@@ -416,6 +590,7 @@ export async function showRoomFilesModal() {
                     <div style="flex:1;min-width:0;">
                         <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(f.file_name)}</div>
                         <div style="font-size:11px;color:var(--text2);font-family:var(--mono);">${_fmtSize(f.size_bytes)} · ${f.uploader}</div>
+                        ${f.file_hash ? `<div style="font-size:10px;color:var(--text3);font-family:var(--mono);">SHA-256: ${f.file_hash.slice(0,16)}…</div>` : ''}
                     </div>
                     ${isImage ? `<span style="cursor:pointer;font-size:16px;color:var(--accent2);"
                         onclick="closeModal('files-modal');window.openImageViewer('${f.download_url}','${safeName}')">🔍</span>` : ''}
@@ -427,7 +602,7 @@ export async function showRoomFilesModal() {
 }
 
 // =============================================================================
-// Typing / file sending indicators
+// Индикаторы набора текста и отправки файла
 // =============================================================================
 
 function _showTyping(username, isTyping) {
@@ -460,4 +635,11 @@ function _renderTypingBar() {
     } else {
         el.classList.remove('visible');
     }
+}
+
+export function getAckStats() {
+    return {
+        pending:       _pendingAcks.size,
+        offlineQueue:  _offlineQueue.length,
+    };
 }

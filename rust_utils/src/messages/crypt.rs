@@ -8,8 +8,8 @@ use aes_gcm::{
 };
 use std::string::String;
 
-/// AES-256-GCM secure
-/// Python using example:
+/// AES-256-GCM защита
+/// Пример использования на Python:
 ///
 /// import vortex_chat
 /// key = vortex_chat.generate_key()
@@ -18,11 +18,11 @@ use std::string::String;
 /// decrypted_message = vortex_chat.decrypt_message(encrypted_message, key)
 
 
-/// AES-256-GCM encrypt
+/// AES-256-GCM зашифровка
 #[pyfunction]
 pub fn encrypt_message(message: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
     if key.len() != 32 {
-        return Err(PyValueError::new_err("Key must be 32 bytes long"));
+        return Err(PyValueError::new_err("Ключ должен быть длиной в 32 бита"));
     }
 
     let key = Key::<Aes256Gcm>::from_slice(&key);
@@ -32,7 +32,7 @@ pub fn encrypt_message(message: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
 
     let ciphertext = cipher
         .encrypt(&nonce, message.as_ref())
-        .map_err(|_| PyValueError::new_err("Encryption failed"))?;
+        .map_err(|_| PyValueError::new_err("Зашифровка не удалась"))?;
 
     let mut result = nonce.to_vec();
     result.extend_from_slice(&ciphertext);
@@ -40,15 +40,15 @@ pub fn encrypt_message(message: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
     Ok(result)
 }
 
-/// AES-256-GCM decrypting
+/// AES-256-GCM расшифровка
 #[pyfunction]
 pub fn decrypt_message(encrypted: Vec<u8>, key: Vec<u8>) -> PyResult<String> {
     if key.len() != 32 {
-        return Err(PyValueError::new_err("Key must be 32 bytes long"));
+        return Err(PyValueError::new_err("Ключ должен быть длиной в 32 бита"));
     }
 
     if encrypted.len() < 12 {
-        return Err(PyValueError::new_err("Encrypted data too short"));
+        return Err(PyValueError::new_err("Шифр слишком короткий"));
     }
 
     let (nonce_bytes, ciphertext) = encrypted.split_at(12);
@@ -61,9 +61,9 @@ pub fn decrypt_message(encrypted: Vec<u8>, key: Vec<u8>) -> PyResult<String> {
         cipher
         .decrypt(nonce, ciphertext)
         .map_err(|_| PyValueError::new_err(
-            "Decryption failed or integrity check failed"
+            "Ошибка при расшифровке или при проверке интеграции"
         ))?
-    ).map_err(|e| PyValueError::new_err(format!("Invalid UTF-8 sequence: {}", e)));
+    ).map_err(|e| PyValueError::new_err(format!("Некорректная UTF-8 последовательность: {}", e)));
 
 
     plaintext

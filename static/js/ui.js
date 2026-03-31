@@ -58,7 +58,9 @@ export function openRoom(id) {
     $('chat-room-meta').textContent = `${room.member_count} участников · ${room.online_count} онлайн`;
     renderRoomsList();
     connectWS(id);
-    connectSignal(id);
+    // ✅ Федеративные комнаты всегда сигналят через виртуальный ID = -1
+    const signalId = room.is_federated ? -1 : id;
+    connectSignal(signalId);
 }
 
 /**
@@ -73,3 +75,102 @@ export function showProfileModal() {
     $('prof-created').textContent = new Date(S.user.created_at).toLocaleDateString('ru');
     window.openModal('profile-modal');
 }
+
+// Функция для управления выдвижным меню на мобильных устройствах
+function toggleMobileMenu(open) {
+    const sidebar = document.getElementById('sidebar');
+    const backButton = document.getElementById('back-button');
+
+    if (!sidebar || !backButton) return;
+
+    if (open === undefined) {
+        // Если параметр не передан, переключаем состояние
+        sidebar.classList.toggle('open');
+    } else if (open) {
+        sidebar.classList.add('open');
+    } else {
+        sidebar.classList.remove('open');
+    }
+
+    // Меняем положение кнопки в зависимости от состояния сайдбара
+    if (sidebar.classList.contains('open')) {
+        backButton.style.left = 'auto';
+        backButton.style.right = '5px';
+        backButton.style.transform = 'rotate(180deg)'; // Разворачиваем стрелку
+    } else {
+        backButton.style.left = '0';
+        backButton.style.right = 'auto';
+        backButton.style.transform = 'rotate(0deg)';
+    }
+}
+
+// Обработчик клика на кнопку "назад"
+document.getElementById('back-button').addEventListener('click', function(e) {
+    e.stopPropagation(); // Предотвращаем всплытие события
+    toggleMobileMenu();
+});
+
+// Закрываем меню при клике на любой пункт в сайдбаре
+document.querySelectorAll('#sidebar .nav-item, #sidebar .rooms-list div, #sidebar .sidebar-footer button .room-item').forEach(item => {
+    item.addEventListener('click', function() {
+        // Проверяем, что мы на мобильном устройстве (ширина экрана <= 639px)
+        if (window.innerWidth <= 639) {
+            toggleMobileMenu(false); // Закрываем меню
+        }
+    });
+});
+
+// Закрываем меню при клике вне сайдбара (на основной контент)
+document.getElementById('main').addEventListener('click', function(e) {
+    // Проверяем, что мы на мобильном устройстве и меню открыто
+    if (window.innerWidth <= 639) {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && sidebar.classList.contains('open')) {
+            // Проверяем, что клик был не по кнопке "назад" и не по сайдбару
+            if (!e.target.closest('#sidebar') && !e.target.closest('#back-button')) {
+                toggleMobileMenu(false);
+            }
+        }
+    }
+});
+
+// Обработчик изменения размера окна - закрываем меню при переходе на десктоп
+window.addEventListener('resize', function() {
+    if (window.innerWidth > 639) {
+        // На десктопе всегда показываем сайдбар и сбрасываем положение кнопки
+        const sidebar = document.getElementById('sidebar');
+        const backButton = document.getElementById('back-button');
+
+        if (sidebar) {
+            sidebar.classList.remove('open');
+        }
+
+        if (backButton) {
+            backButton.style.left = '0';
+            backButton.style.right = 'auto';
+            backButton.style.transform = 'rotate(0deg)';
+        }
+    }
+});
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Сбрасываем состояние на десктопе
+    if (window.innerWidth > 639) {
+        const sidebar = document.getElementById('sidebar');
+        const backButton = document.getElementById('back-button');
+
+        if (sidebar) {
+            sidebar.classList.remove('open');
+        }
+
+        if (backButton) {
+            backButton.style.left = '0';
+            backButton.style.right = 'auto';
+            backButton.style.transform = 'rotate(0deg)';
+        }
+    }
+});
+/*
+toggleMobileMenu(false);
+* */

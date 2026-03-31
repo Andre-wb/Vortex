@@ -28,7 +28,7 @@ impl ChatStats {
     }
 
     pub fn get_stats(&self) -> String {
-        format!("📊 Messages: {}, processed: {} KB",
+        format!("Сообщений: {}, обработано: {} KB",
                 self.message_count,
                 self.bytes_processed / 1024)
     }

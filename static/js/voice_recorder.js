@@ -287,12 +287,28 @@ function _swapInputTo(mode, data) {
     }
 }
 
+// ✅ Получаем свежий CSRF токен перед каждым запросом
+async function _freshCsrf() {
+    try {
+        const r = await fetch('/api/authentication/csrf-token', { credentials: 'include' });
+        if (r.ok) {
+            const data = await r.json();
+            // обновляем meta-тег на будущее
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta && data.csrf_token) meta.content = data.csrf_token;
+            return data.csrf_token || '';
+        }
+    } catch {}
+    // fallback на cookie/meta
+    return document.querySelector('meta[name="csrf-token"]')?.content ||
+        document.cookie.split('; ').find(r => r.startsWith('csrf_token='))?.split('=')[1] || '';
+}
+
 async function _upload(blob, name, mime) {
     const S = window.AppState;
     if (!S?.currentRoom) throw new Error('Нет активной комнаты');
 
-    const csrf = document.cookie.split('; ')
-        .find(r => r.startsWith('csrf_token='))?.split('=')[1] || '';
+    const csrf = await _freshCsrf();   // ✅ всегда свежий токен
 
     if (S.ws?.readyState === WebSocket.OPEN)
         S.ws.send(JSON.stringify({ action: 'file_sending', filename: name }));
@@ -304,9 +320,13 @@ async function _upload(blob, name, mime) {
         const res = await fetch(`/api/files/upload/${S.currentRoom.id}`, {
             method: 'POST',
             headers: { 'X-CSRF-Token': csrf },
+            credentials: 'include',
             body: fd,
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`HTTP ${res.status}: ${text}`);
+        }
     } finally {
         if (S.ws?.readyState === WebSocket.OPEN)
             S.ws.send(JSON.stringify({ action: 'stop_file_sending' }));

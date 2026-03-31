@@ -115,6 +115,10 @@ async def get_current_user(
 ) -> User:
     token = request.cookies.get("access_token")
     if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
         raise HTTPException(401, "Не авторизован")
     payload = decode_access_token(token)
     user = db.query(User).filter(

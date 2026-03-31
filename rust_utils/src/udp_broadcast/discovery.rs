@@ -7,28 +7,28 @@ use tokio::sync::Mutex;
 use tokio::time::{self, Duration};
 use crate::udp_broadcast::{AppState, PeerInfo, BROADCAST_PORT, BROADCAST_INTERVAL, GLOBAL_STATE};
 
-/// Calling next peer
+/// Сигналы соседнему узлу
 #[pyfunction]
 pub fn start_discovery(name: String, signaling_port: u16) -> PyResult<()> {
     thread::spawn(move || {
         let runtime = match tokio::runtime::Runtime::new() {
             Ok(rt) => rt,
             Err(e) => {
-                eprintln!("Failed to create Tokio runtime: {}", e);
+                eprintln!("Ошибка при создании Tokio потока: {}", e);
                 return;
             }
         };
 
         runtime.block_on(async move {
             if let Err(e) = run_discovery(name, signaling_port).await {
-                eprintln!("Discovery error: {}", e);
+                eprintln!("Ошибка при обнаружении пира: {}", e);
             }
         });
     });
 
     Ok(())
 }
-/// Discovery next peer
+/// Обнаружение соседнего узла
 async fn run_discovery(
     name: String,
     signaling_port: u16,
@@ -47,7 +47,7 @@ async fn run_discovery(
     {
         let mut global = GLOBAL_STATE
             .lock()
-            .map_err(|_| "Global state poisoned")?;
+            .map_err(|_| "Некорректная глобальная статическая переменная")?;
 
         *global = Some(state.clone());
     }
@@ -108,10 +108,10 @@ async fn run_receiver(
 pub fn get_peers() -> PyResult<Vec<(String, u16)>> {
     let global = GLOBAL_STATE
         .lock()
-        .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("Mutex poisoned"))?;
+        .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("Некорректный Mutex"))?;
 
     if let Some(state_arc) = &*global {
-        let state = state_arc.blocking_lock(); // IMPORTANT
+        let state = state_arc.blocking_lock(); 
         let peers = state.active_peers();
 
         Ok(peers

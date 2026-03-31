@@ -1,38 +1,5 @@
 """
-app/peer/peer_registry.py — P2P Discovery с зашифрованным межузловым транспортом.
-
-Ключевые изменения:
-  1. UDP broadcast теперь включает X25519 публичный ключ узла
-     → Узлы знают публичные ключи друг друга без дополнительных запросов
-  2. Все P2P HTTP-запросы (/api/peers/receive) шифруются ECIES
-     → Нода-отправитель шифрует payload pubkey ноды-получателя
-     → Нода-получатель расшифровывает своим приватным ключом
-     → Подслушивающий в локальной сети не видит содержимое
-  3. Каждый запрос использует эфемерную пару → forward secrecy
-  4. Verifier: получатель проверяет sender_pubkey через PeerRegistry
-  5. При обнаружении нового пира автоматически запрашиваются его публичные комнаты
-     → Кешируются в памяти, доступны через GET /api/peers/public-rooms
-  6. POST /api/peers/refresh-rooms — принудительное обновление кеша комнат всех пиров
-
-ИСПРАВЛЕНИЯ (v2):
-  - _schedule_fetch_peer_rooms: использует run_coroutine_threadsafe + сохранённый
-    главный event loop вместо asyncio.get_event_loop() (сломан в Python 3.10+
-    при вызове из фонового потока — возвращал новый незапущенный loop)
-  - _fetch_peer_rooms: пробует https → http, не полагаясь на конфиг соседнего узла
-  - start_discovery: сохраняет ссылку на главный loop в _main_loop
-
-UDP Broadcast payload (JSON):
-  {"name": "MyNode", "port": 9000, "pubkey": "a1b2c3...64 hex chars..."}
-
-P2P HTTP Request (POST /api/peers/receive) body:
-  {
-    "ephemeral_pub":  "<hex>",
-    "ciphertext":     "<hex>",
-    "sender_pubkey":  "<hex>"
-  }
-
-Расшифрованный payload:
-  {"room_id": 5, "sender": "alice", "ciphertext": "<hex msg ciphertext>", "msg_type": "text"}
+app/peer/peer_registry.py — P2P Discovery + Federation + Multihop
 """
 from __future__ import annotations
 
@@ -47,7 +14,6 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.config import Config
@@ -60,18 +26,11 @@ router = APIRouter(prefix="/api/peers", tags=["peers"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PeerInfo с поддержкой X25519 публичного ключа
+# PeerInfo
 # ══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class PeerInfo:
-    """
-    Информация об обнаруженном P2P узле.
-
-    node_pubkey_hex — X25519 публичный ключ узла, полученный из UDP broadcast.
-    Используется для шифрования P2P сообщений (ECIES).
-    Если None — узел работает без шифрования (деградированный режим, только локальная сеть).
-    """
     name:            str
     ip:              str
     port:            int
@@ -82,18 +41,17 @@ class PeerInfo:
         return (time.monotonic() - self.last_seen) < Config.PEER_TIMEOUT_SEC
 
     def has_encryption(self) -> bool:
-        """Узел поддерживает зашифрованный P2P транспорт."""
         return bool(self.node_pubkey_hex and len(self.node_pubkey_hex) == 64)
 
     def to_dict(self) -> dict:
         return {
-            "name":       self.name,
-            "ip":         self.ip,
-            "port":       self.port,
-            "age_sec":    round(time.monotonic() - self.last_seen, 1),
-            "online":     self.alive(),
-            "encrypted":  self.has_encryption(),
-            "pubkey":     self.node_pubkey_hex[:16] + "..." if self.node_pubkey_hex else None,
+            "name":      self.name,
+            "ip":        self.ip,
+            "port":      self.port,
+            "age_sec":   round(time.monotonic() - self.last_seen, 1),
+            "online":    self.alive(),
+            "encrypted": self.has_encryption(),
+            "pubkey":    self.node_pubkey_hex[:16] + "..." if self.node_pubkey_hex else None,
         }
 
     @property
@@ -111,17 +69,11 @@ class PeerRegistry:
         self._peers:      dict[str, PeerInfo] = {}
         self._lock        = threading.Lock()
         self.own_ip:  str = "127.0.0.1"
-
-        # Кеш публичных комнат от пиров: ip → list[room_dict]
         self._peer_rooms: dict[str, list] = {}
         self._rooms_lock  = threading.Lock()
 
     def update(self, ip: str, name: str, port: int,
                node_pubkey_hex: Optional[str] = None) -> bool:
-        """
-        Обновляет информацию о пире.
-        Возвращает True если пир новый (нужно запросить его комнаты).
-        """
         with self._lock:
             is_new = ip not in self._peers
             if not is_new:
@@ -158,18 +110,11 @@ class PeerRegistry:
             for ip in dead:
                 self._peer_rooms.pop(ip, None)
 
-    # ── Кеш комнат ───────────────────────────────────────────────────────────
-
     def set_peer_rooms(self, ip: str, rooms: list) -> None:
         with self._rooms_lock:
             self._peer_rooms[ip] = rooms
 
     def get_all_peer_rooms(self) -> list[dict]:
-        """
-        Возвращает публичные комнаты всех живых пиров.
-        Каждая комната дополнена полями peer_ip, peer_name, peer_port —
-        клиент использует их для вступления через нужный узел.
-        """
         result     = []
         active_ips = {p.ip for p in self.active()}
         with self._rooms_lock:
@@ -191,15 +136,11 @@ class PeerRegistry:
 
 registry = PeerRegistry()
 
-# Ссылка на главный event loop — сохраняется в start_discovery().
-# Нужна для run_coroutine_threadsafe() из фоновых UDP-потоков.
-# asyncio.get_event_loop() в Python 3.10+ из фонового потока возвращает
-# новый незапущенный loop, поэтому используем явное сохранение.
 _main_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Вспомогательные функции
+# Helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _local_ip() -> str:
@@ -234,22 +175,15 @@ def _subnet_broadcast(ip: str) -> str:
 
 
 def _get_node_keys():
-    """Возвращает (priv, pub) X25519 ключи этого узла."""
     from app.security.crypto import load_or_create_node_keypair
     return load_or_create_node_keypair(Config.KEYS_DIR)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Запрос публичных комнат от пира
+# Room fetching
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def _fetch_peer_rooms(peer: PeerInfo) -> None:
-    """
-    Запрашивает список публичных комнат у пира и сохраняет в кеш.
-    GET /api/rooms/public — не требует авторизации (специально для межузловой синхронизации).
-
-    Пробует сначала https, потом http — мы не знаем конфигурацию соседнего узла.
-    """
     for scheme in ("https", "http"):
         url = f"{scheme}://{peer.ip}:{peer.port}/api/rooms/public"
         try:
@@ -261,37 +195,24 @@ async def _fetch_peer_rooms(peer: PeerInfo) -> None:
                     logger.info(
                         f"📦 {len(rooms)} public rooms from {peer.name}@{peer.ip} via {scheme}"
                     )
-                    return   # успех — дальше не пробуем
+                    return
         except Exception as e:
-            logger.debug(f"Failed to fetch rooms from {peer.ip} via {scheme}: {e}")
+            logger.debug(f"Failed {scheme}://{peer.ip}: {e}")
 
 
 def _schedule_fetch_peer_rooms(peer: PeerInfo) -> None:
-    """
-    Планирует запрос комнат в главном event loop из фонового UDP-потока.
-
-    Использует asyncio.run_coroutine_threadsafe() + явно сохранённый _main_loop.
-    В Python 3.10+ asyncio.get_event_loop() из фонового потока возвращает
-    новый незапущенный loop, из-за чего ensure_future() никогда не вызывался.
-    """
     if _main_loop is not None and _main_loop.is_running():
         asyncio.run_coroutine_threadsafe(_fetch_peer_rooms(peer), _main_loop)
     else:
-        logger.debug(f"_main_loop not ready, skipping room fetch for {peer.ip}")
+        logger.debug(f"_main_loop not ready, skip room fetch for {peer.ip}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Запуск discovery
+# Discovery
 # ══════════════════════════════════════════════════════════════════════════════
 
 def start_discovery(device_name: str = "") -> None:
-    """
-    Запускает UDP discovery в фоновых потоках.
-    Сохраняет ссылку на главный event loop для корректной работы
-    run_coroutine_threadsafe() из UDP-потоков.
-    """
     global _main_loop
-    # Сохраняем главный loop — вызывается из lifespan (asyncio-контекст)
     try:
         _main_loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -304,10 +225,9 @@ def start_discovery(device_name: str = "") -> None:
         _, node_pub = _get_node_keys()
         node_pubkey_hex = node_pub.hex() if isinstance(node_pub, bytes) else bytes(node_pub).hex()
     except Exception as e:
-        logger.warning(f"Не удалось получить X25519 ключ узла: {e}")
+        logger.warning(f"Не удалось получить X25519 ключ: {e}")
         node_pubkey_hex = None
 
-    # Пробуем Rust-модуль
     try:
         import vortex_chat as _vc
         _vc.start_discovery(name, Config.PORT)
@@ -319,6 +239,12 @@ def start_discovery(device_name: str = "") -> None:
                     for ip, port in _vc.get_peers():
                         is_new = registry.update(ip, ip, port)
                         if is_new:
+                            peer = registry.get(ip)
+                            if peer:
+                                _schedule_fetch_peer_rooms(peer)
+                        else:
+                            # Пир уже известен — всё равно обновляем его комнаты,
+                            # чтобы подхватывать новые комнаты созданные после discovery.
                             peer = registry.get(ip)
                             if peer:
                                 _schedule_fetch_peer_rooms(peer)
@@ -339,7 +265,6 @@ def start_discovery(device_name: str = "") -> None:
 
 
 def _py_listener():
-    """UDP-слушатель. Парсит имя, порт и X25519 pubkey из broadcast-пакетов."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -357,8 +282,7 @@ def _py_listener():
             if src_ip == registry.own_ip or src_ip.startswith("127."):
                 continue
 
-            info = json.loads(data.decode())
-
+            info   = json.loads(data.decode())
             pubkey = info.get("pubkey")
             if pubkey and len(pubkey) != 64:
                 pubkey = None
@@ -375,10 +299,14 @@ def _py_listener():
                 pubkey,
             )
 
-            # При обнаружении нового пира — сразу запрашиваем его публичные комнаты
-            if is_new:
-                peer = registry.get(src_ip)
-                if peer:
+            peer = registry.get(src_ip)
+            if peer:
+                if is_new:
+                    # Новый пир — сразу забираем его комнаты.
+                    _schedule_fetch_peer_rooms(peer)
+                else:
+                    # Известный пир прислал heartbeat — обновляем список его комнат,
+                    # чтобы новые комнаты появлялись у соседей без перезапуска.
                     _schedule_fetch_peer_rooms(peer)
 
         except socket.timeout:
@@ -388,10 +316,6 @@ def _py_listener():
 
 
 def _py_sender(name: str, node_pubkey_hex: Optional[str]):
-    """
-    UDP-отправитель. Включает X25519 pubkey в каждый broadcast-пакет.
-    Другие узлы используют этот pubkey для шифрования P2P сообщений нам.
-    """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
@@ -407,29 +331,26 @@ def _py_sender(name: str, node_pubkey_hex: Optional[str]):
 
             payload = json.dumps(payload_dict).encode()
             bcast   = _subnet_broadcast(own_ip)
-
             sock.sendto(payload, (bcast, Config.UDP_PORT))
             try:
                 sock.sendto(payload, ("255.255.255.255", Config.UDP_PORT))
             except Exception:
                 pass
-
         except Exception as e:
             logger.debug(f"UDP send: {e}")
-
         time.sleep(Config.UDP_INTERVAL_SEC)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# P2P зашифрованная отправка сообщений
+# P2P encrypted send
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def _send_to_peer_encrypted(
-        peer:      PeerInfo,
-        room_id:   int,
-        sender:    str,
+        peer:           PeerInfo,
+        room_id:        int,
+        sender:         str,
         ciphertext_hex: str,
-        msg_type:  str = "text",
+        msg_type:       str = "text",
 ) -> bool:
     node_priv, node_pub_raw = _get_node_keys()
     node_pub        = node_pub_raw if isinstance(node_pub_raw, bytes) else bytes(node_pub_raw)
@@ -452,7 +373,7 @@ async def _send_to_peer_encrypted(
                 "sender_pubkey": node_pub.hex(),
             }
         else:
-            logger.warning(f"Peer {peer.ip} has no pubkey — P2P transport unencrypted (LAN only)")
+            logger.warning(f"Peer {peer.ip} no pubkey — P2P unencrypted")
             request_body = {
                 "plaintext_payload": payload_dict,
                 "sender_pubkey":     node_pub.hex(),
@@ -471,12 +392,11 @@ async def _send_to_peer_encrypted(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# REST API endpoints
+# REST API
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("")
 async def list_peers(u: User = Depends(get_current_user)):
-    """Список активных P2P узлов в локальной сети."""
     peers = registry.active()
     return {
         "own_ip":    registry.own_ip,
@@ -488,51 +408,259 @@ async def list_peers(u: User = Depends(get_current_user)):
 
 @router.get("/status")
 async def peer_status():
-    """Публичный endpoint — соседние узлы проверяют доступность."""
     _, node_pub_raw = _get_node_keys()
     node_pub = node_pub_raw if isinstance(node_pub_raw, bytes) else bytes(node_pub_raw)
-    return {
-        "ok":     True,
-        "own_ip": registry.own_ip,
-        "peers":  len(registry.active()),
-        "pubkey": node_pub.hex(),
-    }
+    return {"ok": True, "own_ip": registry.own_ip,
+            "peers": len(registry.active()), "pubkey": node_pub.hex()}
 
 
 @router.get("/public-rooms")
 async def get_peer_public_rooms(u: User = Depends(get_current_user)):
-    """
-    Возвращает публичные комнаты от всех известных пиров в локальной сети.
-
-    Каждая комната содержит дополнительные поля:
-      peer_ip   — IP адрес узла-источника
-      peer_name — имя узла-источника
-      peer_port — порт узла-источника
-
-    Клиент использует эти поля для вступления в комнату через нужный узел.
-    """
-    return {
-        "rooms": registry.get_all_peer_rooms(),
-        "peers": len(registry.active()),
-    }
+    return {"rooms": registry.get_all_peer_rooms(), "peers": len(registry.active())}
 
 
+# Принудительно опрашивает всех известных активных пиров и обновляет кэш комнат.
+# Вызывается клиентом перед чтением /public-rooms чтобы получить актуальный список.
 @router.post("/refresh-rooms")
 async def refresh_peer_rooms(u: User = Depends(get_current_user)):
-    """
-    Принудительно перезапрашивает публичные комнаты у всех активных пиров.
-    Полезно если список устарел без перезапуска сервера.
-    """
     peers = registry.active()
-    await asyncio.gather(
-        *[_fetch_peer_rooms(p) for p in peers],
-        return_exceptions=True,
+    await asyncio.gather(*[_fetch_peer_rooms(p) for p in peers], return_exceptions=True)
+    return {"refreshed": len(peers), "rooms": len(registry.get_all_peer_rooms())}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Federated join
+# ══════════════════════════════════════════════════════════════════════════════
+
+class FederatedJoinRequest(BaseModel):
+    invite_code: str
+    peer_ip:     str
+    peer_port:   int
+
+
+@router.post("/federated-join")
+async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_current_user)):
+    remote_base = None
+    for scheme in ("https", "http"):
+        try:
+            async with httpx.AsyncClient(timeout=4.0, verify=False) as client:
+                r = await client.get(
+                    f"{scheme}://{body.peer_ip}:{body.peer_port}/api/peers/status"
+                )
+                if r.status_code == 200:
+                    remote_base = f"{scheme}://{body.peer_ip}:{body.peer_port}"
+                    break
+        except Exception:
+            continue
+
+    if not remote_base:
+        raise HTTPException(503, f"Узел {body.peer_ip}:{body.peer_port} недоступен")
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0, verify=False) as client:
+            resp = await client.post(
+                f"{remote_base}/api/federation/guest-login",
+                json={
+                    "username":      u.username,
+                    "display_name":  u.display_name,
+                    "avatar_emoji":  u.avatar_emoji,
+                    "x25519_pubkey": u.x25519_public_key or "",
+                    "peer_port":     Config.PORT,
+                },
+            )
+    except Exception as e:
+        raise HTTPException(502, f"Ошибка подключения к узлу: {e}")
+
+    if resp.status_code == 403:
+        raise HTTPException(
+            403,
+            "Удалённый узел не распознал этот узел. "
+            "Подождите ~10 секунд (UDP discovery) и попробуйте снова."
+        )
+    if resp.status_code != 200:
+        raise HTTPException(502, f"guest-login: {resp.status_code} {resp.text[:200]}")
+
+    remote_jwt = resp.json()["access_token"]
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0, verify=False) as client:
+            join_resp = await client.post(
+                f"{remote_base}/api/rooms/join/{body.invite_code.upper()}",
+                headers={"Authorization": f"Bearer {remote_jwt}"},
+                json={},
+            )
+    except Exception as e:
+        raise HTTPException(502, f"Ошибка при вступлении: {e}")
+
+    if join_resp.status_code not in (200, 201):
+        raise HTTPException(join_resp.status_code, join_resp.text[:200])
+
+    room_info      = join_resp.json().get("room", {})
+    remote_room_id = room_info.get("id")
+    if not remote_room_id:
+        raise HTTPException(502, "Удалённый узел не вернул room_id")
+
+    from app.federation.federation import relay
+
+    virtual_room = await relay.join(
+        peer_ip        = body.peer_ip,
+        peer_port      = body.peer_port,
+        remote_room_id = remote_room_id,
+        remote_jwt     = remote_jwt,
+        room_name      = room_info.get("name", "Remote Room"),
+        invite_code    = body.invite_code.upper(),
+        is_private     = room_info.get("is_private", False),
+        member_count   = room_info.get("member_count", 0),
+        user_id        = u.id,
     )
+
+    logger.info(
+        f"🌐 {u.username} → {body.peer_ip}:{body.peer_port}/room/{remote_room_id} "
+        f"(virtual_id={virtual_room.virtual_id})"
+    )
+
     return {
-        "refreshed": len(peers),
-        "rooms":     len(registry.get_all_peer_rooms()),
+        "joined":       True,
+        "is_federated": True,
+        "ws_path":      f"/ws/fed/{virtual_room.virtual_id}",
+        "room": {
+            "id":           virtual_room.virtual_id,
+            "name":         virtual_room.room_name,
+            "description":  f"🌐 {body.peer_ip}:{body.peer_port}",
+            "is_private":   virtual_room.is_private,
+            "invite_code":  virtual_room.invite_code,
+            "member_count": virtual_room.member_count,
+            "online_count": 0,
+            "created_at":   "",
+            "is_federated": True,
+            "peer_ip":      body.peer_ip,
+            "peer_port":    body.peer_port,
+        },
     }
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Multihop join (A → B → C)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class MultihopJoinRequest(BaseModel):
+    invite_code: str
+    target_ip:   str
+    target_port: int
+    via_ip:      str
+    via_port:    int
+
+
+@router.post("/multihop-join")
+async def multihop_join(
+        body:    MultihopJoinRequest,
+        u:       User    = Depends(get_current_user),
+):
+    """
+    Мультихоп A → B → C.
+    A не может достучаться до C напрямую.
+    A авторизуется на B и просит его сделать federated-join к C.
+    Итог: два relay-соединения A↔B↔C.
+    """
+    via_base = None
+    for scheme in ("https", "http"):
+        try:
+            async with httpx.AsyncClient(timeout=4.0, verify=False) as client:
+                r = await client.get(f"{scheme}://{body.via_ip}:{body.via_port}/api/peers/status")
+                if r.status_code == 200:
+                    via_base = f"{scheme}://{body.via_ip}:{body.via_port}"
+                    break
+        except Exception:
+            continue
+
+    if not via_base:
+        raise HTTPException(503, f"Промежуточный узел {body.via_ip} недоступен")
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0, verify=False) as client:
+            gr = await client.post(
+                f"{via_base}/api/federation/guest-login",
+                json={
+                    "username":      u.username,
+                    "display_name":  u.display_name,
+                    "avatar_emoji":  u.avatar_emoji,
+                    "x25519_pubkey": u.x25519_public_key or "",
+                    "peer_port":     Config.PORT,
+                },
+            )
+    except Exception as e:
+        raise HTTPException(502, f"guest-login на B ({body.via_ip}) failed: {e}")
+
+    if gr.status_code != 200:
+        raise HTTPException(502, f"guest-login на B: {gr.status_code}")
+
+    via_jwt = gr.json()["access_token"]
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
+            hr = await client.post(
+                f"{via_base}/api/peers/federated-join",
+                headers={"Authorization": f"Bearer {via_jwt}"},
+                json={
+                    "invite_code": body.invite_code,
+                    "peer_ip":     body.target_ip,
+                    "peer_port":   body.target_port,
+                },
+            )
+    except Exception as e:
+        raise HTTPException(502, f"federated-join B→C failed: {e}")
+
+    if hr.status_code != 200:
+        raise HTTPException(502, f"B→C join: {hr.status_code} {hr.text[:200]}")
+
+    hop_data    = hr.json()
+    via_room_id = hop_data["room"]["id"]
+
+    from app.federation.federation import relay
+
+    virtual_room = await relay.join(
+        peer_ip        = body.via_ip,
+        peer_port      = body.via_port,
+        remote_room_id = via_room_id,
+        remote_jwt     = via_jwt,
+        room_name      = hop_data["room"].get("name", f"Room@{body.target_ip}"),
+        invite_code    = body.invite_code.upper(),
+        is_private     = hop_data["room"].get("is_private", True),
+        member_count   = hop_data["room"].get("member_count", 1),
+        user_id        = u.id,
+    )
+
+    logger.info(
+        f"🔀 Multihop: {u.username} → {body.via_ip} → {body.target_ip}/room/{body.invite_code} "
+        f"(virtual_id={virtual_room.virtual_id}, hops=2)"
+    )
+
+    return {
+        "joined":       True,
+        "is_federated": True,
+        "hops":         2,
+        "ws_path":      f"/ws/fed/{virtual_room.virtual_id}",
+        "room": {
+            "id":           virtual_room.virtual_id,
+            "name":         virtual_room.room_name,
+            "description":  f"🌐 {body.target_ip} via {body.via_ip}",
+            "is_private":   virtual_room.is_private,
+            "invite_code":  virtual_room.invite_code,
+            "member_count": virtual_room.member_count,
+            "online_count": 0,
+            "created_at":   "",
+            "is_federated": True,
+            "peer_ip":      body.target_ip,
+            "peer_port":    body.target_port,
+            "hop_via":      body.via_ip,
+            "hop_count":    2,
+        },
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# P2P receive / send
+# ══════════════════════════════════════════════════════════════════════════════
 
 class P2PReceiveRequest(BaseModel):
     ephemeral_pub:     Optional[str]  = None
@@ -543,11 +671,6 @@ class P2PReceiveRequest(BaseModel):
 
 @router.post("/receive")
 async def receive_from_peer(body: P2PReceiveRequest, request: Request):
-    """
-    Принимает P2P сообщение от другого узла.
-    Расшифровывает ECIES payload и ретранслирует зашифрованное сообщение
-    локальным WebSocket-клиентам.
-    """
     src_ip = request.client.host if request.client else "unknown"
 
     if body.ephemeral_pub and body.ciphertext:
@@ -559,11 +682,8 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
         except Exception as e:
             logger.warning(f"P2P decrypt failed from {src_ip}: {e}")
             raise HTTPException(400, "Не удалось расшифровать P2P сообщение")
-
     elif body.plaintext_payload:
         msg = body.plaintext_payload
-        logger.debug(f"P2P plaintext from {src_ip} (unencrypted fallback)")
-
     else:
         raise HTTPException(400, "Отсутствует payload")
 
@@ -590,20 +710,18 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
         "msg_type":   msg_type,
         "from_peer":  True,
     })
-
     return {"ok": True}
 
 
 class SendReq(BaseModel):
     room_id:    int
     ciphertext: str
-    msg_type:   str          = "text"
+    msg_type:   str           = "text"
     peer_ip:    Optional[str] = None
 
 
 @router.post("/send")
 async def send_p2p(body: SendReq, u: User = Depends(get_current_user)):
-    """Отправляет зашифрованное сообщение P2P-узлам."""
     if body.peer_ip:
         peer = registry.get(body.peer_ip)
         if not peer:

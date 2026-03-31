@@ -103,13 +103,26 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
     _SAFE_METHODS  = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
     _SKIP_PATHS    = frozenset({
+        "/api/files/upload-chunk/",
+        "/api/files/upload-init",
+        "/api/files/upload-complete/",
         "/health", "/favicon.ico", "/robots.txt",
         "/api/authentication/login", "/api/authentication/register",
         "/api/authentication/refresh",
         "/api/peers/receive",
+        "/api/peers/status",
+        "/api/peers/federated-join",
+        "/api/federation/guest-login",
         "/api/docs",
     })
-    _SKIP_PREFIXES = ("/static/", "/waf/")
+    _SKIP_PREFIXES = (
+        "/static/", "/waf/", "/api/rooms/join/",
+        "/api/files/upload-chunk/",
+        "/api/files/upload-complete/",
+        "/api/files/upload-cancel/",
+        "/api/files/upload-status/",
+        "/api/files/upload-init",
+    )
 
     async def dispatch(self, request: Request, call_next):
         if request.headers.get("upgrade", "").lower() == "websocket":

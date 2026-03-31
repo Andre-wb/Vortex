@@ -19,16 +19,16 @@ pub fn generate_keypair() -> PyResult<(Vec<u8>, Vec<u8>)> {
 pub fn derive_session_key(private: Vec<u8>, peer_public: Vec<u8>) -> PyResult<Vec<u8>> {
 
     if private.len() != 32 || peer_public.len() != 32 {
-        return Err(PyValueError::new_err("Invalid key length (must be 32 bytes)"));
+        return Err(PyValueError::new_err("Некорректная длина ключа (должно быть 32)"));
     }
 
     let private_bytes: [u8; 32] = private
         .try_into()
-        .map_err(|_| PyValueError::new_err("Invalid private key format"))?;
+        .map_err(|_| PyValueError::new_err("Некорректный формат приватного ключа"))?;
 
     let public_bytes: [u8; 32] = peer_public
         .try_into()
-        .map_err(|_| PyValueError::new_err("Invalid public key format"))?;
+        .map_err(|_| PyValueError::new_err("Некорректный формат публичного ключа"))?;
 
     let private = StaticSecret::from(private_bytes);
     let peer_public = PublicKey::from(public_bytes);
@@ -39,7 +39,7 @@ pub fn derive_session_key(private: Vec<u8>, peer_public: Vec<u8>) -> PyResult<Ve
     let mut okm = [0u8; 32];
 
     hk.expand(b"vortex-session", &mut okm)
-        .map_err(|_| PyValueError::new_err("HKDF expand failed"))?;
+        .map_err(|_| PyValueError::new_err("HKDF расширение не удалось"))?;
 
     Ok(okm.to_vec())
 }

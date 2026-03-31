@@ -75,7 +75,6 @@ html, body {
     display: flex; flex-direction: column;
     transition: transform 0.25s ease; /* для мобильной версии (выезжает) */
 }
-
 /* Шапка сайдбара с логотипом и блоком пользователя */
 .sidebar-header {
     padding: 20px 16px 14px;
@@ -325,29 +324,145 @@ html, body {
 .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
 
 /* ============================================================================
- * ШАПКА ЧАТА
+ * ШАПКА ЧАТА (БАЗОВЫЕ СТИЛИ)
  * ========================================================================== */
 #chat-header {
-    padding: 0 20px;
     height: 56px;
     border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 12px;
     background: var(--bg2);
     flex-shrink: 0;
 }
 
-.chat-title { font-weight: 800; font-size: 16px; flex: 1; }
-.chat-meta { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+.chat-title {
+    font-weight: 800;
+    font-size: 16px;
+}
+
+.chat-meta {
+    font-size: 12px;
+    color: var(--text2);
+    font-family: var(--mono);
+}
 
 .header-btn {
-    width: 34px; height: 34px; border-radius: var(--radius);
-    background: var(--bg3); border: 1px solid var(--border);
-    color: var(--text2); cursor: pointer; font-size: 16px;
-    display: flex; align-items: center; justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.12s;
 }
-.header-btn:hover { color: var(--text); border-color: var(--accent); }
 
+.header-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+}
+
+/* ============================================================================
+ * ДЕСКТОП (>=800px)
+ * ========================================================================== */
+@media (min-width: 800px) {
+    #chat-header {
+        padding: 0 20px;
+        display: flex;
+        align-items: center;
+    }
+
+    .chat-header-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+    }
+
+    .chat-header-buttons {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .chat-header-carousel {
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        width: 100%;
+    }
+}
+
+/* ============================================================================
+ * МОБИЛЬНАЯ КАРУСЕЛЬ (<800px)
+ * ========================================================================== */
+@media (max-width: 799px) {
+    #chat-header {
+        display: flex;
+        align-items: center;
+        padding-left: 40px;
+    }
+    .chat-header-carousel {
+        display: flex;
+        align-items: center;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        width: 100%;
+        height: 56px;
+        padding: 10px 5px;
+    }
+    .chat-header-element {
+        min-width: 100%;
+        height: 100%;
+        scroll-snap-align: start;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+    }
+    .chat-header-carousel::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+    }
+}
+
+@media (min-width: 640px) {
+    .back-button {
+        display: none;
+    }
+}
+@media (max-width: 639px) {
+    .back-button {
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        z-index: 51;
+    }
+}
+.back-button-icon {
+    display: flex;
+    position: relative;
+}
+.back-button {
+    position: absolute;
+    top: 5px;
+    left: 0;
+    transition: 0.2s;
+    border-radius: 50%;
+}
+.back-button:focus, .back-button:active {
+    color: var(--accent2);
+}
+/* Добавьте это в конец файла main.css */
+.back-button {
+    transition: 0.2s left, 0.2s right, 0.2s transform;
+}
+
+.back-button svg {
+    transition: transform 0.2s ease;
+}
 /* ============================================================================
  * ОБЛАСТЬ СООБЩЕНИЙ
  * ========================================================================== */
@@ -653,7 +768,7 @@ video {
  * ========================================================================== */
 @media (max-width: 640px) {
     #sidebar { position: absolute; left: 0; top: 0; bottom: 0; z-index: 50; transform: translateX(-100%);
-        width: 100vw; }
+        width: 100vw;}
     #sidebar.open { transform: translateX(0); }
     .auth-card { width: calc(100vw - 32px); padding: 24px; }
 }
@@ -686,7 +801,11 @@ video {
     padding: 4px 6px 2px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-
+#fpo-edit-photo-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 /* ============================================================================
  * ОВЕРЛЕЙ ПРЕДПРОСМОТРА ФАЙЛА (перед отправкой)
  * ========================================================================== */

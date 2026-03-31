@@ -531,7 +531,12 @@ class WAFMiddleware:
     """
     EXCLUDED_PATHS = {
         '/static/', '/health', '/favicon.ico', '/robots.txt',
-        '/waf/stats', '/waf/captcha', '/waf/test'
+        '/waf/stats', '/waf/captcha', '/waf/test',
+        '/api/files/upload-chunk/',
+        '/api/files/upload-init',
+        '/api/files/upload-complete/',
+        '/api/files/upload-cancel/',
+        '/api/files/upload-status/'
     }
 
     def __init__(self, app, waf_engine: WAFEngine):

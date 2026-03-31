@@ -1,70 +1,10 @@
 """
 app/chats/chat.py — E2E WebSocket чат. Сервер ретранслирует шифротекст, не расшифровывает.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ПРИНЦИП РАБОТЫ (E2E RELAY)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Клиент A ──(ciphertext = AES-GCM(text, room_key))──► Сервер ──► Клиент B
-                                                          │
-                              Сервер ТОЛЬКО хранит и ретранслирует ciphertext.
-                              Сервер НЕ ЗНАЕТ room_key.
-                              Сервер НЕ МОЖЕТ прочитать сообщение.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ПРОТОКОЛ WEBSOCKET
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  ── Отправка сообщения ────────────────────────────────────────────────
-  Клиент → Сервер:
-    {
-      "action":    "message",
-      "ciphertext": "<hex: nonce(12) + AES-GCM(text, room_key) + tag(16)>",
-      "hash":       "<hex: BLAKE3(ciphertext)>",   // опционально
-      "reply_to_id": 42                             // опционально
-    }
-
-  Сервер → все участники комнаты:
-    {
-      "type":       "message",
-      "msg_id":     123,
-      "sender_id":  5,
-      "sender":     "alice",
-      "display_name": "Alice",
-      "avatar_emoji": "👩",
-      "ciphertext": "<hex>",
-      "hash":       "<hex>",
-      "reply_to_id": 42,
-      "created_at": "2024-01-01T12:00:00"
-    }
-
-  ── История сообщений ─────────────────────────────────────────────────
-  Сервер → новому участнику (при подключении):
-    {
-      "type": "history",
-      "messages": [
-        { "msg_id": 1, "sender": "alice", "ciphertext": "<hex>", ... },
-        ...
-      ]
-    }
-  Клиент расшифровывает каждый ciphertext локально с room_key.
-
-  ── Распределение ключей ──────────────────────────────────────────────
-  Сервер → online-участникам (когда новый участник без ключа подключился):
-    {"type": "key_request", "for_user_id": 7, "for_pubkey": "<hex>"}
-
-  Участник → Сервер (после ECIES re-encryption на клиенте):
-    {
-      "action":       "key_response",
-      "for_user_id":  7,
-      "ephemeral_pub": "<hex>",
-      "ciphertext":   "<hex>"
-    }
-
-  Сервер → ожидающему участнику:
-    {"type": "room_key", "ephemeral_pub": "<hex>", "ciphertext": "<hex>"}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Улучшения:
+- ACK-подтверждения после каждого сохранённого сообщения (критерий 4)
+- Дедупликация через connection_manager.deduplicator (критерий 2)
+- Rate limiting через Token Bucket (критерий 4 — контроль перегрузки)
 """
 from __future__ import annotations
 
@@ -129,21 +69,7 @@ async def ws_chat(
         token:     Optional[str] = None,
         db:        Session       = Depends(get_db),
 ):
-    """
-    Основной WebSocket endpoint.
-
-    Жизненный цикл:
-      1. Аутентификация по токену (кука или query-параметр)
-      2. Проверка членства в комнате
-      3. Регистрация соединения в ConnectionManager
-      4. Отправка зашифрованного ключа комнаты (если есть)
-         ИЛИ рассылка key_request online-участникам
-      5. Отправка зашифрованной истории (ciphertext без расшифровки)
-      6. Отправка списка online-пользователей
-      7. Цикл обработки входящих действий
-      8. Очистка при отключении
-    """
-    # ── Аутентификация ────────────────────────────────────────────────────────
+    # Аутентификация через cookie или query-param токен
     try:
         raw_token = websocket.cookies.get("access_token") or token
         if not raw_token:
@@ -154,7 +80,6 @@ async def ws_chat(
         await websocket.close(code=4401)
         return
 
-    # ── Проверка членства ─────────────────────────────────────────────────────
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user.id,
@@ -164,7 +89,6 @@ async def ws_chat(
         await websocket.close(code=4403)
         return
 
-    # ── Регистрация соединения ────────────────────────────────────────────────
     await manager.connect(
         room_id, user.id, user.username,
         user.display_name or user.username,
@@ -172,23 +96,14 @@ async def ws_chat(
         )
 
     try:
-        # ── Отправка зашифрованного ключа комнаты ─────────────────────────────
         await _deliver_or_request_room_key(room_id, user, db)
-
-        # ── История (зашифрованная) ───────────────────────────────────────────
         await _send_history(room_id, user.id, db)
-
-        # ── Online-пользователи ───────────────────────────────────────────────
         await manager.send_to_user(room_id, user.id, {
             "type":  "online",
             "users": manager.get_online_users(room_id),
         })
-
-        # ── Рассылаем pending key_requests этому только что подключившемуся ───
-        # (он может помочь другим участникам, у которых нет ключа)
         await _notify_pending_key_requests(room_id, user.id, db)
 
-        # ── Основной цикл ─────────────────────────────────────────────────────
         while True:
             data   = await websocket.receive_json()
             action = data.get("action", "")
@@ -203,7 +118,6 @@ async def ws_chat(
                 await _handle_delete_message(room_id, user, data, db)
 
             elif action == "key_response":
-                # Участник re-encrypted ключ для ожидающего участника
                 await _handle_key_response(room_id, user, data, db)
 
             elif action == "typing":
@@ -223,6 +137,9 @@ async def ws_chat(
                     "sender": user.username,
                 }, exclude=user.id)
 
+            elif action == "signal":
+                await _handle_signal(room_id, user, data)
+
             elif action == "ping":
                 await manager.send_to_user(room_id, user.id, {"type": "pong"})
 
@@ -235,21 +152,36 @@ async def ws_chat(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# WebRTC сигнализация
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def _handle_signal(room_id: int, user: User, data: dict) -> None:
+    payload = {k: v for k, v in data.items() if k != "action"}
+    payload["type"]     = "signal"
+    payload["from"]     = user.id
+    payload["username"] = user.username
+
+    await manager.broadcast_to_room(room_id, payload, exclude=user.id)
+
+    try:
+        from app.federation.federation import relay
+        if relay.get_room(room_id) is not None:
+            await relay.send_to_remote(room_id, payload)
+    except Exception as e:
+        logger.debug(f"Signal relay forward failed room={room_id}: {e}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Внутренние обработчики WebSocket событий
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def _deliver_or_request_room_key(room_id: int, user: User, db: Session) -> None:
-    """
-    Если у пользователя есть EncryptedRoomKey — отправляем его.
-    Иначе рассылаем online-участникам запрос на re-encryption и создаём PendingKeyRequest.
-    """
     enc_key = db.query(EncryptedRoomKey).filter(
         EncryptedRoomKey.room_id == room_id,
         EncryptedRoomKey.user_id == user.id,
         ).first()
 
     if enc_key:
-        # Пользователь имеет зашифрованный ключ → отправляем для расшифровки на клиенте
         await manager.send_to_user(room_id, user.id, {
             "type":          "room_key",
             "room_id":       room_id,
@@ -258,7 +190,6 @@ async def _deliver_or_request_room_key(room_id: int, user: User, db: Session) ->
         })
         return
 
-    # Нет ключа — создаём или обновляем PendingKeyRequest
     if not user.x25519_public_key:
         await manager.send_to_user(room_id, user.id, {
             "type":    "error",
@@ -282,7 +213,6 @@ async def _deliver_or_request_room_key(room_id: int, user: User, db: Session) ->
         ))
         db.commit()
 
-    # Рассылаем online-участникам запрос — кто-то поможет
     await manager.broadcast_to_room(room_id, {
         "type":        "key_request",
         "for_user_id": user.id,
@@ -296,10 +226,6 @@ async def _deliver_or_request_room_key(room_id: int, user: User, db: Session) ->
 
 
 async def _notify_pending_key_requests(room_id: int, user_id: int, db: Session) -> None:
-    """
-    Отправляет только что подключившемуся участнику список pending key_requests.
-    Если другие участники ждут ключа — этот участник может им помочь.
-    """
     pending_requests = db.query(PendingKeyRequest).filter(
         PendingKeyRequest.room_id == room_id,
         PendingKeyRequest.user_id != user_id,
@@ -315,29 +241,38 @@ async def _notify_pending_key_requests(room_id: int, user_id: int, db: Session) 
 
 
 async def _handle_e2e_message(room_id: int, user: User, data: dict, db: Session) -> None:
-    """
-    Обрабатывает входящее E2E сообщение.
+    # ── Rate limiting (Token Bucket) ─────────────────────────────────────────
+    if not manager.check_rate_limit(room_id, user.id):
+        await manager.send_to_user(room_id, user.id, {
+            "type":    "error",
+            "message": "Слишком много сообщений. Пожалуйста, подождите.",
+            "code":    "rate_limited",
+        })
+        return
 
-    Клиент отправляет уже зашифрованный ciphertext — сервер НЕ расшифровывает.
-    Сервер только:
-      1. Валидирует формат (hex строка, минимальная длина)
-      2. Сохраняет ciphertext в БД
-      3. Ретранслирует всем участникам комнаты
-
-    Protocol:
-      Client → Server: {"action":"message","ciphertext":"<hex>","hash":"<hex>","reply_to_id":N}
-      Server → Room:   {"type":"message","msg_id":N,"sender":"alice","ciphertext":"<hex>",...}
-    """
     ciphertext_hex = data.get("ciphertext", "").strip()
+    client_msg_id  = data.get("msg_id", "")   # идентификатор от клиента
+
     if not ciphertext_hex:
         return
 
-    # Валидация: минимальная длина nonce(12)*2=24 hex chars + хоть что-то
     if len(ciphertext_hex) < 48:
         await manager.send_to_user(room_id, user.id, {
             "type": "error", "message": "Ciphertext слишком короткий"
         })
         return
+
+    # ── Дедупликация по client_msg_id ─────────────────────────────────────────
+    if client_msg_id:
+        dedup_key = f"msg:{room_id}:{client_msg_id}"
+        if await manager.is_duplicate_message(dedup_key):
+            # Повторная отправка — шлём ACK без сохранения
+            await manager.send_to_user(room_id, user.id, {
+                "type":       "ack",
+                "msg_id":     client_msg_id,
+                "duplicate":  True,
+            })
+            return
 
     try:
         ciphertext_bytes = bytes.fromhex(ciphertext_hex)
@@ -347,7 +282,6 @@ async def _handle_e2e_message(room_id: int, user: User, data: dict, db: Session)
         })
         return
 
-    # BLAKE3 хеш зашифрованного контента — для целостности (не расшифровки!)
     content_hash = None
     hash_hex     = data.get("hash", "")
     if hash_hex:
@@ -356,14 +290,12 @@ async def _handle_e2e_message(room_id: int, user: User, data: dict, db: Session)
         except ValueError:
             pass
     if content_hash is None:
-        # Вычисляем сами если клиент не передал
         content_hash_result = hash_message(ciphertext_bytes)
         if isinstance(content_hash_result, (bytes, bytearray)):
             content_hash = bytes(content_hash_result)
 
     reply_to_id = data.get("reply_to_id")
     if reply_to_id:
-        # Верифицируем что reply сообщение принадлежит этой комнате
         reply_exists = db.query(Message.id).filter(
             Message.id      == reply_to_id,
             Message.room_id == room_id,
@@ -371,7 +303,6 @@ async def _handle_e2e_message(room_id: int, user: User, data: dict, db: Session)
         if not reply_exists:
             reply_to_id = None
 
-    # Сохраняем ЗАШИФРОВАННЫЙ контент — сервер не знает открытый текст
     msg = Message(
         room_id           = room_id,
         sender_id         = user.id,
@@ -384,28 +315,32 @@ async def _handle_e2e_message(room_id: int, user: User, data: dict, db: Session)
     db.commit()
     db.refresh(msg)
 
-    # Relay payload — без расшифровки, только метаданные + ciphertext
+    # ── ACK — подтверждение доставки отправителю ──────────────────────────────
+    await manager.send_to_user(room_id, user.id, {
+        "type":       "ack",
+        "msg_id":     client_msg_id,
+        "server_id":  msg.id,
+        "created_at": msg.created_at.isoformat(),
+    })
+
     payload = {
-        "type":         "message",
-        "msg_id":       msg.id,
-        "sender_id":    user.id,
-        "sender":       user.username,
-        "display_name": user.display_name or user.username,
-        "avatar_emoji": user.avatar_emoji,
-        "ciphertext":   ciphertext_hex,      # передаём как есть
-        "hash":         hash_hex or (content_hash.hex() if content_hash else None),
-        "reply_to_id":  reply_to_id,
-        "created_at":   msg.created_at.isoformat(),
+        "type":          "message",
+        "msg_id":        msg.id,
+        "client_msg_id": client_msg_id,
+        "sender_id":     user.id,
+        "sender":        user.username,
+        "display_name":  user.display_name or user.username,
+        "avatar_emoji":  user.avatar_emoji,
+        "ciphertext":    ciphertext_hex,
+        "hash":          hash_hex or (content_hash.hex() if content_hash else None),
+        "reply_to_id":   reply_to_id,
+        "created_at":    msg.created_at.isoformat(),
     }
+    # ── FIX: рассылаем ВСЕМ, включая отправителя — он сам отрендерит своё сообщение ──
     await manager.broadcast_to_room(room_id, payload)
 
 
 async def _handle_edit_message(room_id: int, user: User, data: dict, db: Session) -> None:
-    """
-    Редактирование сообщения: заменяет ciphertext новым.
-    Клиент зашифровал новый текст с тем же room_key и отправил новый ciphertext.
-    Сервер не расшифровывает ни старый, ни новый контент.
-    """
     msg_id         = data.get("msg_id")
     ciphertext_hex = data.get("ciphertext", "").strip()
 
@@ -426,7 +361,7 @@ async def _handle_edit_message(room_id: int, user: User, data: dict, db: Session
     if not msg:
         return
 
-    content_hash_result = hash_message(ciphertext_bytes)
+    content_hash_result   = hash_message(ciphertext_bytes)
     msg.content_encrypted = ciphertext_bytes
     msg.content_hash      = bytes(content_hash_result) if isinstance(content_hash_result, (bytes, bytearray)) else None
     msg.is_edited         = True
@@ -435,7 +370,7 @@ async def _handle_edit_message(room_id: int, user: User, data: dict, db: Session
     await manager.broadcast_to_room(room_id, {
         "type":       "message_edited",
         "msg_id":     msg_id,
-        "ciphertext": ciphertext_hex,   # новый зашифрованный текст
+        "ciphertext": ciphertext_hex,
         "is_edited":  True,
     })
 
@@ -463,23 +398,6 @@ async def _handle_delete_message(room_id: int, user: User, data: dict, db: Sessi
 
 
 async def _handle_key_response(room_id: int, user: User, data: dict, db: Session) -> None:
-    """
-    Участник re-encrypted ключ комнаты для ожидающего участника.
-
-    Ожидаемый payload:
-      {
-        "action":       "key_response",
-        "for_user_id":  7,
-        "ephemeral_pub": "<64 hex chars>",
-        "ciphertext":   "<hex>"
-      }
-
-    Клиент (JavaScript):
-      1. Получил {type: "key_request", for_user_id: 7, for_pubkey: "aabbcc..."}
-      2. room_key = await eciesDecrypt(my_enc_key.ephemeral_pub, my_enc_key.ciphertext, myPriv)
-      3. new_enc  = await eciesEncrypt(room_key, for_pubkey)
-      4. ws.send(JSON.stringify({action: "key_response", for_user_id: 7, ...new_enc}))
-    """
     for_user_id   = data.get("for_user_id")
     ephemeral_pub = data.get("ephemeral_pub", "")
     ciphertext    = data.get("ciphertext", "")
@@ -490,7 +408,6 @@ async def _handle_key_response(room_id: int, user: User, data: dict, db: Session
         })
         return
 
-    # Проверяем что получатель является участником этой комнаты
     target_member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == for_user_id,
@@ -499,11 +416,9 @@ async def _handle_key_response(room_id: int, user: User, data: dict, db: Session
     if not target_member:
         return
 
-    # Получаем публичный ключ получателя для записи recipient_pub
     from app.models import User as UserModel
     target_user = db.query(UserModel).filter(UserModel.id == for_user_id).first()
 
-    # Сохраняем или обновляем EncryptedRoomKey
     existing = db.query(EncryptedRoomKey).filter(
         EncryptedRoomKey.room_id == room_id,
         EncryptedRoomKey.user_id == for_user_id,
@@ -522,7 +437,6 @@ async def _handle_key_response(room_id: int, user: User, data: dict, db: Session
             recipient_pub = target_user.x25519_public_key if target_user else None,
         ))
 
-    # Удаляем PendingKeyRequest
     db.query(PendingKeyRequest).filter(
         PendingKeyRequest.room_id == room_id,
         PendingKeyRequest.user_id == for_user_id,
@@ -530,7 +444,6 @@ async def _handle_key_response(room_id: int, user: User, data: dict, db: Session
 
     db.commit()
 
-    # Доставляем ключ ожидающему участнику
     delivered = await manager.send_to_user(room_id, for_user_id, {
         "type":          "room_key",
         "room_id":       room_id,
@@ -545,17 +458,10 @@ async def _handle_key_response(room_id: int, user: User, data: dict, db: Session
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# История сообщений (зашифрованные блобы)
+# История сообщений
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def _send_history(room_id: int, user_id: int, db: Session) -> None:
-    """
-    Отправляет последние 50 сообщений комнаты.
-
-    ВАЖНО: сервер отправляет ТОЛЬКО зашифрованный контент (ciphertext hex).
-    Клиент расшифровывает каждое сообщение локально с помощью room_key.
-    Сервер не знает содержимого сообщений.
-    """
     messages = (
         db.query(Message)
         .filter(Message.room_id == room_id)
@@ -573,17 +479,17 @@ async def _send_history(room_id: int, user_id: int, db: Session) -> None:
             "avatar_emoji": m.sender.avatar_emoji   if m.sender else "👤",
         }
 
-        # Для файловых сообщений добавляем ссылку на скачивание
         if m.msg_type in (MessageType.IMAGE, MessageType.FILE, MessageType.VOICE):
             ft = db.query(FileTransfer).filter(
-                FileTransfer.room_id     == room_id,
+                FileTransfer.room_id       == room_id,
                 FileTransfer.original_name == m.file_name,
-                FileTransfer.uploader_id == m.sender_id,
+                FileTransfer.uploader_id   == m.sender_id,
                 ).order_by(FileTransfer.created_at.desc()).first()
 
             if ft:
                 entry["download_url"] = f"/api/files/download/{ft.id}"
                 entry["mime_type"]    = ft.mime_type
+                entry["file_hash"]    = ft.file_hash
 
         history.append(entry)
 
@@ -594,7 +500,7 @@ async def _send_history(room_id: int, user_id: int, db: Session) -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Загрузка файлов
+# Загрузка файлов (обычная — не чанкованная)
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/files/upload/{room_id}")
@@ -605,23 +511,19 @@ async def upload_file(
         u:       User                = Depends(get_current_user),
         db:      Session             = Depends(get_db),
 ):
-    """
-    Загрузка файла в комнату.
-
-    Для полной E2E клиент должен зашифровать файл room_key ПЕРЕД отправкой:
-      const encryptedFile = await encryptFile(fileBytes, roomKey);
-      // Отправить encryptedFile как binary данные
-
-    Сервер хранит зашифрованный blob — не может читать содержимое файла.
-    Метаданные (имя, MIME) также могут быть зашифрованы клиентом.
-    """
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-        RoomMember.is_banned == False,
-        ).first()
-    if not member:
-        raise HTTPException(403, "Нет доступа к комнате")
+    if room_id < 0:
+        from app.federation.federation import relay as _fed_relay
+        _fed_info = _fed_relay.get_room(room_id)
+        if not _fed_info or u.id not in _fed_info.local_user_ids:
+            raise HTTPException(403, "Нет доступа к комнате")
+    else:
+        member = db.query(RoomMember).filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+            RoomMember.is_banned == False,
+            ).first()
+        if not member:
+            raise HTTPException(403, "Нет доступа к комнате")
 
     filename = file.filename or "file"
 
@@ -678,9 +580,7 @@ async def upload_file(
     is_voice = filename.startswith("voice_") and mime_type and mime_type.startswith("audio/")
     msg_type = MessageType.VOICE if is_voice else (MessageType.IMAGE if is_image else MessageType.FILE)
 
-    # Создаём placeholder сообщение (ciphertext = пустой, метаданные открытые)
-    # В полной E2E реализации клиент должен зашифровать имя файла тоже
-    placeholder_encrypted = b"\x00" * 12 + b"\x00" * 16  # nonce + empty gcm
+    placeholder_encrypted = b"\x00" * 12 + b"\x00" * 16
     msg = Message(
         room_id           = room_id,
         sender_id         = u.id,
@@ -704,9 +604,10 @@ async def upload_file(
         "download_url": download_url,
         "msg_type":     msg_type.value,
         "created_at":   ft.created_at.isoformat(),
+        "file_hash":    file_hash,
     })
 
-    return {"ok": True, "file_id": ft.id, "download_url": download_url}
+    return {"ok": True, "file_id": ft.id, "download_url": download_url, "file_hash": file_hash}
 
 
 @router.get("/api/files/download/{file_id}")
@@ -737,9 +638,9 @@ async def download_file(
     db.commit()
 
     return FileResponse(
-        path      = str(path),
-        filename  = ft.original_name,
-        media_type= ft.mime_type or "application/octet-stream",
+        path       = str(path),
+        filename   = ft.original_name,
+        media_type = ft.mime_type or "application/octet-stream",
     )
 
 
@@ -758,7 +659,7 @@ async def list_room_files(
         raise HTTPException(403, "Нет доступа")
 
     files = db.query(FileTransfer).filter(
-        FileTransfer.room_id     == room_id,
+        FileTransfer.room_id      == room_id,
         FileTransfer.is_available == True,
         ).order_by(FileTransfer.created_at.desc()).limit(100).all()
 
@@ -767,6 +668,7 @@ async def list_room_files(
         "file_name":    f.original_name,
         "mime_type":    f.mime_type,
         "size_bytes":   f.size_bytes,
+        "file_hash":    f.file_hash,
         "uploader":     f.uploader.username if f.uploader else "—",
         "download_url": f"/api/files/download/{f.id}",
         "created_at":   f.created_at.isoformat(),
@@ -774,7 +676,7 @@ async def list_room_files(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# WebRTC сигнализация (без изменений, уже работает правильно)
+# WebRTC сигнализация (отдельный WS для обычных комнат)
 # ══════════════════════════════════════════════════════════════════════════════
 
 _signal_rooms: dict[int, dict[int, WebSocket]] = {}
@@ -784,12 +686,12 @@ _signal_rooms: dict[int, dict[int, WebSocket]] = {}
 async def ws_signal(
         websocket: WebSocket,
         room_id:   int,
+        token:     Optional[str] = None,
         db:        Session = Depends(get_db),
 ):
-    """WebRTC сигнализация — пересылает SDP/ICE без хранения."""
     import json as _json
 
-    raw_token = websocket.cookies.get("access_token")
+    raw_token = websocket.cookies.get("access_token") or token
     if not raw_token:
         await websocket.close(code=4401)
         return

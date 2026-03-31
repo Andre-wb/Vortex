@@ -63,8 +63,21 @@ export async function doLogin() {
         });
         window.AppState.user = data;
         const saved = loadPrivateKey();
-        if (saved) window.AppState.x25519PrivateKey = saved;
-        else console.warn('⚠️ Приватный ключ не найден');
+        if (saved) {
+            window.AppState.x25519PrivateKey = saved;
+            if (!window.AppState.user.x25519_public_key) {
+                try {
+                    const jwk = JSON.parse(saved);
+                    if (jwk.x) {
+                        const b64 = jwk.x.replace(/-/g, '+').replace(/_/g, '/');
+                        const binary = atob(b64);
+                        window.AppState.user.x25519_public_key = Array.from(
+                            binary, c => c.charCodeAt(0).toString(16).padStart(2, '0')
+                        ).join('');
+                    }
+                } catch {}
+            }
+        } else console.warn('⚠️ Приватный ключ не найден');
         window.bootApp();
     } catch (e) {
         showAlert('auth-alert', e.message);
@@ -72,12 +85,10 @@ export async function doLogin() {
 }
 
 export async function doRegister() {
-    // Блокируем кнопку чтобы не отправить дважды
     const btn = document.querySelector('#register-form .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Создание...'; }
 
     try {
-        // Генерируем keypair ДО запроса к серверу
         const { publicKeyHex, privateKeyJwk } = await generateX25519Keypair();
 
         const data = await api('POST', '/api/authentication/register', {
@@ -86,13 +97,13 @@ export async function doRegister() {
             password:          $('r-pass').value,
             display_name:      $('r-display').value.trim(),
             avatar_emoji:      window.AppState.selectedEmoji,
-            x25519_public_key: publicKeyHex,  // только публичный ключ на сервер
+            x25519_public_key: publicKeyHex,
         });
 
-        // Приватный ключ — только локально, сервер никогда не видит
         savePrivateKey(privateKeyJwk);
         window.AppState.x25519PrivateKey = privateKeyJwk;
         window.AppState.user = data;
+        window.AppState.user.x25519_public_key = publicKeyHex;
         console.info('🔑 X25519 keypair создан, приватный ключ сохранён в localStorage');
         window.bootApp();
     } catch (e) {
@@ -117,7 +128,22 @@ export async function checkSession() {
         const data = await api('GET', '/api/authentication/me');
         window.AppState.user = data;
         const saved = loadPrivateKey();
-        if (saved) window.AppState.x25519PrivateKey = saved;
+        if (saved) {
+            window.AppState.x25519PrivateKey = saved;
+            // Восстанавливаем x25519_public_key из JWK если сервер его не вернул
+            if (!window.AppState.user.x25519_public_key) {
+                try {
+                    const jwk = JSON.parse(saved);
+                    if (jwk.x) {
+                        const b64 = jwk.x.replace(/-/g, '+').replace(/_/g, '/');
+                        const binary = atob(b64);
+                        window.AppState.user.x25519_public_key = Array.from(
+                            binary, c => c.charCodeAt(0).toString(16).padStart(2, '0')
+                        ).join('');
+                    }
+                } catch {}
+            }
+        }
         window.bootApp();
     } catch {
         // не авторизован

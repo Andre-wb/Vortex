@@ -3,12 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0a0a12">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="VORTEX">
+
+    <!-- iOS иконки (Safari не читает manifest) -->
+    <link rel="apple-touch-icon" sizes="152x152" href="/static/icons/icon-152.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192.png">
+
+    <!-- Фавиконка -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="/static/icons/icon-96.png">
+
+    <!-- Splash screen для iOS -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>VORTEX — децентрализованный чат</title>
     <link rel="stylesheet" href="/static/css/main.css">
     <link rel="stylesheet" href="/static/css/menu.css">
+    <meta name="csrf-token" content="{{ csrf_token }}">
 </head>
 <body>
-
+<div class="back-button" id="back-button">
+    <svg  xmlns="http://www.w3.org/2000/svg" width="48" height="48" class="back-button-icon"
+          fill="currentColor" viewBox="0 0 24 24" >
+        <path d="m14.76 6.09-6.11 5.35c-.34.3-.34.83 0 1.13l6.11 5.35c.48.42 1.24.08 1.24-.56V6.65c0-.64-.76-.99-1.24-.56"></path>
+    </svg>
+</div>
 <div id="auth-screen" class="screen active" style="display:flex;">
     <div class="auth-card">
         <div class="auth-logo">
@@ -31,7 +55,7 @@
                 <label class="form-label">Пароль</label>
                 <input class="form-input" id="l-pass" type="password" placeholder="••••••••">
             </div>
-            <button class="btn btn-primary" onclick="doLogin()">⚡ Войти</button>
+            <button class="btn btn-primary" onclick="doLogin()">Войти</button>
         </div>
 
         <div id="register-form" style="display:none;">
@@ -187,11 +211,11 @@
         <div id="chat-screen" class="screen">
             <div id="chat-header">
                 <div class="chat-header-carousel">
-                    <div style="flex:1;min-width:0;" class="chat-header-info">
+                    <div class="chat-header-info chat-header-element">
                         <div class="chat-title" id="chat-room-name">—</div>
                         <div class="chat-meta" id="chat-room-meta">—</div>
                     </div>
-                    <section class="chat-header-buttons">
+                    <section class="chat-header-buttons chat-header-element">
 
                         <button class="header-btn" onclick="showMembersModal()" title="Участники">
                             <svg  xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -326,7 +350,7 @@
         </div>
         <div class="modal-actions">
             <button class="btn btn-secondary" onclick="closeModal('create-room-modal')">Отмена</button>
-            <button class="btn btn-primary" onclick="createRoom()">✦ Создать</button>
+            <button class="btn btn-primary" onclick="createRoom()">Создать</button>
         </div>
     </div>
 </div>
@@ -405,15 +429,6 @@
         <div id="public-list" style="max-height:350px;overflow-y:auto;"></div>
         <div class="modal-actions">
             <button class="btn btn-secondary" onclick="closeModal('public-modal')">Закрыть</button>
-            <button class="btn btn-secondary danger" onclick="doLogout()">
-                <svg  xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                      fill="currentColor" viewBox="0 0 24 24" >
-                    <path d="m6 12 6 5v-4h6v-2h-6V7z"></path>
-                </svg>
-                <div>
-                    Выйти
-                </div>
-            </button>
         </div>
     </div>
 </div>
@@ -439,13 +454,7 @@
 <div class="modal-overlay" id="profile-modal">
     <div class="modal">
         <div class="modal-title">
-            <svg  xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                  fill="currentColor" viewBox="0 0 24 24" >
-                <path d="M12 2C6.49 2 2 6.49 2 12c0 2.12.68 4.19 1.93 5.9l-1.75 2.53c-.21.31-.24.7-.06 1.03.17.33.51.54.89.54h9c5.51 0 10-4.49 10-10S17.51 2 12 2m0 18H4.91L6 18.43c.26-.37.23-.88-.06-1.22A7.98 7.98 0 0 1 4.01 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8Z"></path>
-            </svg>
-            <div>
-                Профиль
-            </div>
+            Профиль
         </div>
         <div style="background:var(--bg3);border-radius:var(--radius);padding:14px;margin-bottom:16px;">
             <div style="font-size:12px;color:var(--text2);font-family:var(--mono);margin-bottom:4px;">Телефон</div>
@@ -457,6 +466,13 @@
         </div>
         <div class="modal-actions">
             <button class="btn btn-secondary" onclick="closeModal('profile-modal')">Закрыть</button>
+            <button class="btn btn-secondary danger" onclick="doLogout()">
+                <svg  xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                      fill="currentColor" viewBox="0 0 24 24" >
+                    <path d="m6 12 6 5v-4h6v-2h-6V7z"></path>
+                </svg>
+                Выйти
+            </button>
         </div>
     </div>
 </div>
@@ -471,8 +487,8 @@
         <button class="call-btn mute" id="mute-btn" onclick="toggleMute()">
             <svg  xmlns="http://www.w3.org/2000/svg" width="30" height="30"
                   fill="currentColor" viewBox="0 0 24 24" >
-            <path d="M16 12V6c0-2.21-1.79-4-4-4S8 3.79 8 6v6c0 2.21 1.79 4 4 4s4-1.79 4-4m-6 0V6c0-1.1.9-2 2-2s2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2"></path><path d="M18 12c0 3.31-2.69 6-6 6s-6-2.69-6-6H4c0 4.07 3.06 7.44 7 7.93V22h2v-2.07c3.94-.49 7-3.86 7-7.93z"></path>
-        </svg>
+                <path d="M16 12V6c0-2.21-1.79-4-4-4S8 3.79 8 6v6c0 2.21 1.79 4 4 4s4-1.79 4-4m-6 0V6c0-1.1.9-2 2-2s2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2"></path><path d="M18 12c0 3.31-2.69 6-6 6s-6-2.69-6-6H4c0 4.07 3.06 7.44 7 7.93V22h2v-2.07c3.94-.49 7-3.86 7-7.93z"></path>
+            </svg>
         </button>
         <button class="call-btn mute" id="cam-btn"  onclick="toggleCam()">
             <svg  xmlns="http://www.w3.org/2000/svg" width="30" height="30"
@@ -551,9 +567,9 @@
             <button class="fpo-send-btn" id="fpo-send-btn"
                     onclick="sendPendingFile()">
                 <svg  xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                                                      fill="currentColor" viewBox="0 0 24 24" >
-                <path d="M12 2C6.49 2 2 6.49 2 12c0 2.12.68 4.19 1.93 5.9l-1.75 2.53c-.21.31-.24.7-.06 1.03.17.33.51.54.89.54h9c5.51 0 10-4.49 10-10S17.51 2 12 2m0 18H4.91L6 18.43c.26-.37.23-.88-.06-1.22A7.98 7.98 0 0 1 4.01 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8Z"></path>
-            </svg>
+                      fill="currentColor" viewBox="0 0 24 24" >
+                    <path d="M12 2C6.49 2 2 6.49 2 12c0 2.12.68 4.19 1.93 5.9l-1.75 2.53c-.21.31-.24.7-.06 1.03.17.33.51.54.89.54h9c5.51 0 10-4.49 10-10S17.51 2 12 2m0 18H4.91L6 18.43c.26-.37.23-.88-.06-1.22A7.98 7.98 0 0 1 4.01 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8Z"></path>
+                </svg>
                 Отправить
             </button>
         </div>

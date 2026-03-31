@@ -6,6 +6,7 @@
 
 import { $, loadCsrfToken, api, openModal, closeModal } from './utils.js';
 import { checkSession }    from './auth.js';
+import { initPWA, showMessageNotification, requestNotificationPermission } from './pwa.js';
 import { startPeerPolling } from './peers.js';
 import { showWelcome }     from './ui.js';
 
@@ -48,6 +49,8 @@ window.AppState = {
 Object.assign(window, auth, rooms, chat, peers, webrtc, ui, fileUpload, imageViewer);
 window.openModal  = openModal;
 window.closeModal = closeModal;
+window.showMessageNotification = showMessageNotification;
+window.requestNotificationPermission = requestNotificationPermission;
 
 /**
  * Запускает приложение после успешной аутентификации.
@@ -63,6 +66,9 @@ window.bootApp = async function bootApp() {
     $('sb-avatar').textContent = AppState.user.avatar_emoji || '👤';
     $('sb-name').textContent   = AppState.user.display_name || AppState.user.username;
     $('sb-phone').textContent  = AppState.user.phone;
+
+    // PWA: регистрация SW, промпт установки, shortcuts
+    initPWA();
 
     // Загружаем CSRF-токен и обновляем его каждые 10 минут
     await loadCsrfToken();
