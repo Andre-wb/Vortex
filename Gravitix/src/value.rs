@@ -46,6 +46,15 @@ pub enum BotOutput {
     /// Mute a user (Feature 9)
     #[allow(dead_code)]
     MuteUser { room_id: i64, user_id: i64, duration_ms: Option<u64> },
+    /// Ban a user from a room
+    #[allow(dead_code)]
+    BanUser { room_id: i64, user_id: i64, reason: Option<String> },
+    /// Kick a user from a room
+    #[allow(dead_code)]
+    KickUser { room_id: i64, user_id: i64 },
+    /// Set slow mode for a room (seconds, 0 to disable)
+    #[allow(dead_code)]
+    SetSlowMode { room_id: i64, seconds: u64 },
     /// Embed mini-app widget (Feature 7)
     #[allow(dead_code)]
     Embed { room_id: i64, html: Option<String>, url: Option<String>, height: i64, title: String },
@@ -78,6 +87,8 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     Float(f64),
+    /// Complex number (re, im)
+    Complex(f64, f64),
     Str(Rc<String>),
     List(Rc<RefCell<Vec<Value>>>),
     Map(Rc<RefCell<HashMap<String, Value>>>),
@@ -96,6 +107,10 @@ impl PartialEq for Value {
             (Value::Float(a),Value::Float(b))=> a == b,
             (Value::Int(a),  Value::Float(b))=> (*a as f64) == *b,
             (Value::Float(a),Value::Int(b))  => *a == (*b as f64),
+            (Value::Complex(ar, ai), Value::Complex(br, bi)) => ar == br && ai == bi,
+            (Value::Complex(r, i), Value::Float(f)) | (Value::Float(f), Value::Complex(r, i)) => *i == 0.0 && r == f,
+            (Value::Complex(r, i), Value::Int(n))   => *i == 0.0 && *r == (*n as f64),
+            (Value::Int(n), Value::Complex(r, i))   => *i == 0.0 && (*n as f64) == *r,
             (Value::Str(a),  Value::Str(b))  => a == b,
             _ => false,
         }
@@ -109,6 +124,12 @@ impl PartialOrd for Value {
             (Value::Float(a), Value::Float(b))=> a.partial_cmp(b),
             (Value::Int(a),   Value::Float(b))=> (*a as f64).partial_cmp(b),
             (Value::Float(a), Value::Int(b))  => a.partial_cmp(&(*b as f64)),
+            // Complex is only orderable when imaginary part is 0
+            (Value::Complex(r, i), Value::Complex(r2, i2)) if *i == 0.0 && *i2 == 0.0 => r.partial_cmp(r2),
+            (Value::Complex(r, i), Value::Float(f)) if *i == 0.0 => r.partial_cmp(f),
+            (Value::Float(f), Value::Complex(r, i)) if *i == 0.0 => f.partial_cmp(r),
+            (Value::Complex(r, i), Value::Int(n)) if *i == 0.0 => r.partial_cmp(&(*n as f64)),
+            (Value::Int(n), Value::Complex(r, i)) if *i == 0.0 => (*n as f64).partial_cmp(r),
             (Value::Str(a),   Value::Str(b))  => a.as_str().partial_cmp(b.as_str()),
             _ => None,
         }
@@ -122,6 +143,19 @@ impl fmt::Display for Value {
             Value::Bool(b)     => write!(f, "{b}"),
             Value::Int(n)      => write!(f, "{n}"),
             Value::Float(x)    => write!(f, "{x}"),
+            Value::Complex(re, im) => {
+                if *re == 0.0 && *im == 0.0 {
+                    write!(f, "0")
+                } else if *re == 0.0 {
+                    write!(f, "{im}i")
+                } else if *im == 0.0 {
+                    write!(f, "{re}")
+                } else if *im < 0.0 {
+                    write!(f, "{re}{im}i")
+                } else {
+                    write!(f, "{re}+{im}i")
+                }
+            }
             Value::Str(s)      => write!(f, "{s}"),
             Value::List(list)  => {
                 let l = list.borrow();
@@ -150,28 +184,30 @@ impl fmt::Display for Value {
 impl Value {
     pub fn type_name(&self) -> &'static str {
         match self {
-            Value::Null    => "null",
-            Value::Bool(_) => "bool",
-            Value::Int(_)  => "int",
-            Value::Float(_ )=> "float",
-            Value::Str(_)  => "str",
-            Value::List(_) => "list",
-            Value::Map(_)  => "map",
-            Value::Fn(_)   => "fn",
-            Value::Ctx(_)  => "ctx",
+            Value::Null       => "null",
+            Value::Bool(_)    => "bool",
+            Value::Int(_)     => "int",
+            Value::Float(_)   => "float",
+            Value::Complex(..)=> "complex",
+            Value::Str(_)     => "str",
+            Value::List(_)    => "list",
+            Value::Map(_)     => "map",
+            Value::Fn(_)      => "fn",
+            Value::Ctx(_)     => "ctx",
         }
     }
 
     pub fn is_truthy(&self) -> bool {
         match self {
-            Value::Null        => false,
-            Value::Bool(b)     => *b,
-            Value::Int(n)      => *n != 0,
-            Value::Float(x)    => *x != 0.0,
-            Value::Str(s)      => !s.is_empty(),
-            Value::List(l)     => !l.borrow().is_empty(),
-            Value::Map(m)      => !m.borrow().is_empty(),
-            _                  => true,
+            Value::Null           => false,
+            Value::Bool(b)        => *b,
+            Value::Int(n)         => *n != 0,
+            Value::Float(x)       => *x != 0.0,
+            Value::Complex(r, i)  => *r != 0.0 || *i != 0.0,
+            Value::Str(s)         => !s.is_empty(),
+            Value::List(l)        => !l.borrow().is_empty(),
+            Value::Map(m)         => !m.borrow().is_empty(),
+            _                     => true,
         }
     }
 
@@ -183,6 +219,7 @@ impl Value {
         match self {
             Value::Int(n)   => Some(*n),
             Value::Float(f) => Some(*f as i64),
+            Value::Complex(r, i) if *i == 0.0 => Some(*r as i64),
             _ => None,
         }
     }
@@ -191,8 +228,22 @@ impl Value {
         match self {
             Value::Int(n)   => Some(*n as f64),
             Value::Float(f) => Some(*f),
+            Value::Complex(r, i) if *i == 0.0 => Some(*r),
             _ => None,
         }
+    }
+
+    pub fn as_complex(&self) -> Option<(f64, f64)> {
+        match self {
+            Value::Complex(r, i) => Some((*r, *i)),
+            Value::Int(n)        => Some((*n as f64, 0.0)),
+            Value::Float(f)      => Some((*f, 0.0)),
+            _ => None,
+        }
+    }
+
+    pub fn make_complex(re: f64, im: f64) -> Self {
+        Value::Complex(re, im)
     }
 
     pub fn make_str(s: impl Into<String>) -> Self {
@@ -364,35 +415,88 @@ impl BotCtx {
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub fn apply_binop(op: BinOp, lhs: Value, rhs: Value) -> GravResult<Value> {
+    // Helper: promote operands to complex if either side is Complex
+    fn try_complex(lhs: &Value, rhs: &Value) -> Option<((f64, f64), (f64, f64))> {
+        match (lhs, rhs) {
+            (Value::Complex(..), _) | (_, Value::Complex(..)) => {
+                Some((lhs.as_complex()?, rhs.as_complex()?))
+            }
+            _ => None,
+        }
+    }
+
     match op {
-        BinOp::Add => match (&lhs, &rhs) {
-            (Value::Int(a),   Value::Int(b))   => Ok(Value::Int(a + b)),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
-            (Value::Int(a),   Value::Float(b)) => Ok(Value::Float(*a as f64 + b)),
-            (Value::Float(a), Value::Int(b))   => Ok(Value::Float(a + *b as f64)),
-            (Value::Str(a),   Value::Str(b))   => Ok(Value::make_str(format!("{a}{b}"))),
-            (Value::Str(a),   _)               => Ok(Value::make_str(format!("{a}{rhs}"))),
-            (_,               Value::Str(b))   => Ok(Value::make_str(format!("{lhs}{b}"))),
-            _ => Err(GravError::Runtime(format!("cannot add {} and {}", lhs.type_name(), rhs.type_name()))),
+        BinOp::Add => {
+            if let Some(((ar, ai), (br, bi))) = try_complex(&lhs, &rhs) {
+                return Ok(Value::Complex(ar + br, ai + bi));
+            }
+            match (&lhs, &rhs) {
+                (Value::Int(a),   Value::Int(b))   => Ok(Value::Int(a + b)),
+                (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
+                (Value::Int(a),   Value::Float(b)) => Ok(Value::Float(*a as f64 + b)),
+                (Value::Float(a), Value::Int(b))   => Ok(Value::Float(a + *b as f64)),
+                (Value::Str(a),   Value::Str(b))   => Ok(Value::make_str(format!("{a}{b}"))),
+                (Value::Str(a),   _)               => Ok(Value::make_str(format!("{a}{rhs}"))),
+                (_,               Value::Str(b))   => Ok(Value::make_str(format!("{lhs}{b}"))),
+                _ => Err(GravError::Runtime(format!("cannot add {} and {}", lhs.type_name(), rhs.type_name()))),
+            }
         },
-        BinOp::Sub => numeric_op(op, lhs, rhs),
-        BinOp::Mul => match (&lhs, &rhs) {
-            (Value::Int(a),   Value::Int(b))   => Ok(Value::Int(a * b)),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
-            (Value::Int(a),   Value::Float(b)) => Ok(Value::Float(*a as f64 * b)),
-            (Value::Float(a), Value::Int(b))   => Ok(Value::Float(a * *b as f64)),
-            (Value::Str(s),   Value::Int(n)) | (Value::Int(n), Value::Str(s)) =>
-                Ok(Value::make_str(s.as_str().repeat(*n as usize))),
-            _ => Err(GravError::Runtime(format!("cannot multiply {} and {}", lhs.type_name(), rhs.type_name()))),
+        BinOp::Sub => {
+            if let Some(((ar, ai), (br, bi))) = try_complex(&lhs, &rhs) {
+                return Ok(Value::Complex(ar - br, ai - bi));
+            }
+            numeric_op(op, lhs, rhs)
         },
-        BinOp::Div => numeric_op(op, lhs, rhs),
+        BinOp::Mul => {
+            // Complex: (a+bi)(c+di) = (ac-bd) + (ad+bc)i
+            if let Some(((a, b), (c, d))) = try_complex(&lhs, &rhs) {
+                return Ok(Value::Complex(a * c - b * d, a * d + b * c));
+            }
+            match (&lhs, &rhs) {
+                (Value::Int(a),   Value::Int(b))   => Ok(Value::Int(a * b)),
+                (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
+                (Value::Int(a),   Value::Float(b)) => Ok(Value::Float(*a as f64 * b)),
+                (Value::Float(a), Value::Int(b))   => Ok(Value::Float(a * *b as f64)),
+                (Value::Str(s),   Value::Int(n)) | (Value::Int(n), Value::Str(s)) =>
+                    Ok(Value::make_str(s.as_str().repeat(*n as usize))),
+                _ => Err(GravError::Runtime(format!("cannot multiply {} and {}", lhs.type_name(), rhs.type_name()))),
+            }
+        },
+        BinOp::Div => {
+            // Complex: (a+bi)/(c+di) = ((ac+bd) + (bc-ad)i) / (c^2+d^2)
+            if let Some(((a, b), (c, d))) = try_complex(&lhs, &rhs) {
+                let denom = c * c + d * d;
+                if denom == 0.0 {
+                    return Err(GravError::Runtime("complex division by zero".into()));
+                }
+                return Ok(Value::Complex((a * c + b * d) / denom, (b * c - a * d) / denom));
+            }
+            numeric_op(op, lhs, rhs)
+        },
         BinOp::Rem => numeric_op(op, lhs, rhs),
-        BinOp::Pow => match (&lhs, &rhs) {
-            (Value::Int(a),   Value::Int(b))   => Ok(Value::Int(a.pow(*b as u32))),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a.powf(*b))),
-            (Value::Int(a),   Value::Float(b)) => Ok(Value::Float((*a as f64).powf(*b))),
-            (Value::Float(a), Value::Int(b))   => Ok(Value::Float(a.powi(*b as i32))),
-            _ => Err(GravError::Runtime(format!("cannot pow {} and {}", lhs.type_name(), rhs.type_name()))),
+        BinOp::Pow => {
+            // Complex power using polar form: z^w = exp(w * ln(z))
+            if let Some(((a, b), (c, d))) = try_complex(&lhs, &rhs) {
+                let r = (a * a + b * b).sqrt();
+                if r == 0.0 {
+                    return Ok(Value::Complex(0.0, 0.0));
+                }
+                let theta = b.atan2(a);
+                let ln_r = r.ln();
+                // w * ln(z) = (c+di)(ln_r + theta*i)
+                //            = (c*ln_r - d*theta) + (d*ln_r + c*theta)i
+                let exp_re = c * ln_r - d * theta;
+                let exp_im = d * ln_r + c * theta;
+                let mag = exp_re.exp();
+                return Ok(Value::Complex(mag * exp_im.cos(), mag * exp_im.sin()));
+            }
+            match (&lhs, &rhs) {
+                (Value::Int(a),   Value::Int(b))   => Ok(Value::Int(a.pow(*b as u32))),
+                (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a.powf(*b))),
+                (Value::Int(a),   Value::Float(b)) => Ok(Value::Float((*a as f64).powf(*b))),
+                (Value::Float(a), Value::Int(b))   => Ok(Value::Float(a.powi(*b as i32))),
+                _ => Err(GravError::Runtime(format!("cannot pow {} and {}", lhs.type_name(), rhs.type_name()))),
+            }
         },
         BinOp::Eq  => Ok(Value::Bool(lhs == rhs)),
         BinOp::Ne  => Ok(Value::Bool(lhs != rhs)),
@@ -412,6 +516,27 @@ pub fn apply_binop(op: BinOp, lhs: Value, rhs: Value) -> GravResult<Value> {
         },
         BinOp::NullCoalesce => {
             if matches!(lhs, Value::Null) { Ok(rhs) } else { Ok(lhs) }
+        },
+        // Bitwise operators — integer only
+        BinOp::BitAnd => match (&lhs, &rhs) {
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a & b)),
+            _ => Err(GravError::Runtime(format!("bitwise AND requires integers, got {} and {}", lhs.type_name(), rhs.type_name()))),
+        },
+        BinOp::BitOr => match (&lhs, &rhs) {
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a | b)),
+            _ => Err(GravError::Runtime(format!("bitwise OR requires integers, got {} and {}", lhs.type_name(), rhs.type_name()))),
+        },
+        BinOp::BitXor => match (&lhs, &rhs) {
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a ^ b)),
+            _ => Err(GravError::Runtime(format!("bitwise XOR requires integers, got {} and {}", lhs.type_name(), rhs.type_name()))),
+        },
+        BinOp::Shl => match (&lhs, &rhs) {
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a << b)),
+            _ => Err(GravError::Runtime(format!("left shift requires integers, got {} and {}", lhs.type_name(), rhs.type_name()))),
+        },
+        BinOp::Shr => match (&lhs, &rhs) {
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a >> b)),
+            _ => Err(GravError::Runtime(format!("right shift requires integers, got {} and {}", lhs.type_name(), rhs.type_name()))),
         },
     }
 }

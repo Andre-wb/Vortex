@@ -1,0 +1,71 @@
+<div class="modal-overlay" id="payment-modal" role="dialog" aria-modal="true" aria-label="Запрос оплаты">
+    <div class="modal" style="width:420px;">
+        <div class="modal-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
+            </svg>
+            <div data-i18n="payment.createInvoice">Выставить счёт</div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" data-i18n="payment.invoiceTitle">Заголовок счёта</label>
+            <input class="form-input" id="pay-title" maxlength="60" placeholder="Счёт за услуги..." data-i18n-placeholder="payment.invoiceTitlePlaceholder">
+        </div>
+
+        <div style="display:flex;gap:8px;">
+            <div class="form-group" style="flex:1;">
+                <label class="form-label" data-i18n="payment.amount">Сумма</label>
+                <input class="form-input" id="pay-amount" type="number" min="0" step="any" placeholder="0.00" style="font-size:18px;font-weight:700;">
+            </div>
+            <div class="form-group" style="width:100px;">
+                <label class="form-label" data-i18n="payment.currency">Валюта</label>
+                <select class="form-input" id="pay-currency" onchange="window._onPayCurrencyChange()">
+                    <option value="USDT">USDT</option>
+                    <option value="BTC">BTC</option>
+                    <option value="ETH">ETH</option>
+                    <option value="TON">TON</option>
+                    <option value="RUB">₽ RUB</option>
+                    <option value="USD">$ USD</option>
+                    <option value="EUR">€ EUR</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group" id="pay-network-group">
+            <label class="form-label" data-i18n="payment.network">Сеть</label>
+            <select class="form-input" id="pay-network">
+                <option value="TRC20">TRC20 (Tron)</option>
+                <option value="ERC20">ERC20 (Ethereum)</option>
+                <option value="BEP20">BEP20 (BSC)</option>
+                <option value="Lightning">Lightning Network</option>
+                <option value="TON">TON</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="pay-address-group">
+            <label class="form-label" id="pay-address-label" data-i18n="payment.details">Реквизиты</label>
+            <input class="form-input" id="pay-address" placeholder="0x... / T... / bc1...">
+        </div>
+
+        <div style="display:flex;gap:8px;">
+            <div class="form-group" style="flex:1;">
+                <label class="form-label" data-i18n="payment.recipient">Получатель</label>
+                <input class="form-input" id="pay-recipient" maxlength="60" placeholder="Иванов И.И.">
+            </div>
+            <div class="form-group" style="width:140px;">
+                <label class="form-label" data-i18n="payment.dueDate">Оплатить до</label>
+                <input class="form-input" id="pay-due-date" type="date">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" data-i18n="payment.description">Описание</label>
+            <textarea class="form-input" id="pay-description" maxlength="300" rows="2" style="resize:vertical;"></textarea>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('payment-modal')" data-i18n="app.cancel">Отмена</button>
+            <button class="btn btn-primary" onclick="window.sendPaymentRequest()" style="background:linear-gradient(135deg,var(--green),#059669);" data-i18n="payment.createInvoice">Выставить счёт</button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,45 @@
+<!-- Profile Modal (SRP: user profile display) -->
+<div class="modal-overlay" id="profile-modal" role="dialog" aria-modal="true" aria-label="Профиль">
+    <div class="modal">
+        <div class="modal-title" data-i18n="profile.title">
+            Профиль
+        </div>
+        <!-- Мультиаккаунт: список аккаунтов -->
+        <div id="accounts-list" class="ma-accounts-list"></div>
+        <div style="background:var(--bg3);border-radius:var(--radius);padding:14px;margin-bottom:16px;">
+            <div style="font-size:12px;color:var(--text2);font-family:var(--mono);margin-bottom:4px;" data-i18n="auth.phone">Телефон</div>
+            <div style="font-weight:700;font-family:var(--mono);" id="prof-phone">—</div>
+            <div style="font-size:12px;color:var(--text2);font-family:var(--mono);margin-top:8px;margin-bottom:4px;">Username</div>
+            <div style="font-weight:700;" id="prof-username">—</div>
+            <div style="font-size:12px;color:var(--text2);font-family:var(--mono);margin-top:8px;margin-bottom:4px;" data-i18n="profile.registered">Зарегистрирован</div>
+            <div style="font-family:var(--mono);font-size:12px;" id="prof-created">—</div>
+        </div>
+        <!-- Rich Status in profile -->
+        <div style="background:var(--bg3);border-radius:var(--radius);padding:12px;margin-bottom:16px;display:flex;align-items:center;gap:10px;cursor:pointer;border:1px solid var(--border);transition:border-color 0.15s;"
+             onclick="closeModal('profile-modal');openStatusEditor()" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
+            <div id="prof-status-dot" class="status-dot online" style="position:static;border:none;width:10px;height:10px;flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+                <div id="prof-status-text" style="font-size:12px;color:var(--text2);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" data-i18n="status.setStatus">Set Status</div>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+        </div>
+        <!-- Moderation status -->
+        <div id="prof-moderation" style="display:none;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius);padding:12px;margin-bottom:16px;">
+            <div style="font-size:13px;font-weight:700;color:#ef4444;margin-bottom:6px;" id="prof-mod-title"></div>
+            <div style="font-size:12px;color:var(--text2);" id="prof-mod-detail"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary btn-sm" onclick="copyProfileLink()" title="Скопировать ссылку на профиль" data-i18n="profile.share">Поделиться профилем</button>
+            <button class="btn btn-secondary" onclick="closeModal('profile-modal')" data-i18n="app.close">Закрыть</button>
+            <button class="btn btn-secondary danger" onclick="doLogout()">
+                <svg  xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                      fill="currentColor" viewBox="0 0 24 24" >
+                    <path d="m6 12 6 5v-4h6v-2h-6V7z"></path>
+                </svg>
+                <span data-i18n="profile.logout">Выйти</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Rich Status Editor Modal -->

@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import secrets
 import socket
 import subprocess
 import sys
@@ -189,7 +190,7 @@ def cmd_status() -> None:
     _p(f"  Статус:          {'✓ Настроен' if done else '✗ Не настроен'}",
        "green" if done else "red")
     if done:
-        port  = env.get("PORT", "8000")
+        port  = env.get("PORT", "9000")
         proto = "https" if ssl else "http"
         _p(f"  Имя устройства:  {env.get('DEVICE_NAME', 'не задано')}")
         _p(f"  Адрес:           {proto}://localhost:{port}", "cyan")
@@ -221,7 +222,187 @@ def cmd_reset() -> None:
     _p("  Запустите 'python run.py' для повторной настройки.\n", "cyan")
 
 
-# ── Мастер настройки ──────────────────────────────────────────────────────────
+# ── --generate-worker ─────────────────────────────────────────────────────────
+
+def cmd_generate_worker(backend_url: str) -> None:
+    """Генерация файлов Cloudflare Worker для CDN relay."""
+    import secrets
+
+    if not backend_url:
+        env = _read_env()
+        port = env.get("PORT", "9000")
+        _p("⚠  Не указан --backend. Укажите URL вашего Vortex-сервера:", "yellow")
+        _p(f"   python run.py --generate-worker --backend https://your-server.com:{port}", "cyan")
+        sys.exit(1)
+
+    relay_secret = secrets.token_hex(32)
+
+    from app.transport.cdn_relay import generate_worker_files
+    output_dir = generate_worker_files(backend_url, relay_secret)
+
+    _p(f"\n✓ Cloudflare Worker сгенерирован в {output_dir}/", "green")
+    _p(f"  Секрет:  {relay_secret}", "cyan")
+    _p(f"  Бэкенд: {backend_url}", "cyan")
+    _p("\n  Следующие шаги:", "dim")
+    _p("  1. npm install -g wrangler", "dim")
+    _p("  2. wrangler login", "dim")
+    _p(f"  3. cd {output_dir} && wrangler deploy", "dim")
+    _p("\n  Добавьте в .env на клиенте:", "yellow")
+    _p(f"  CDN_RELAY_URL=https://vortex-relay.<username>.workers.dev", "cyan")
+    _p(f"  CDN_RELAY_SECRET={relay_secret}\n", "cyan")
+
+
+# ── Первый запуск (интерактивный) ─────────────────────────────────────────────
+
+def cmd_first_launch() -> None:
+    """Интерактивная настройка при первом запуске — прямо в консоли."""
+    _p(BANNER, "cyan")
+    _p("  ⚡ Первый запуск — настройка узла\n", "cyan")
+
+    # ── 1. Имя устройства ────────────────────────────────────────────────
+    default_name = platform.node()
+    name = input(f"  Имя устройства [{default_name}]: ").strip() or default_name
+
+    # ── 2. Порт ──────────────────────────────────────────────────────────
+    port = input("  Порт [9000]: ").strip() or "9000"
+
+    # ── 3. Режим сети ────────────────────────────────────────────────────
+    _p("\n  Режим сети:", "cyan")
+    _p("    1) 📡 Локальный — Wi-Fi / LAN (без интернета)")
+    _p("    2) 🌍 Глобальный — через интернет (Cloudflare Tunnel + обфускация)\n")
+
+    mode_choice = input("  Выберите (1/2) [1]: ").strip()
+    network_mode = "global" if mode_choice == "2" else "local"
+
+    # ── 4. Для глобального — проверяем cloudflared ───────────────────────
+    if network_mode == "global":
+        if not _has_cloudflared():
+            _p("\n  ⚠ cloudflared не установлен!", "yellow")
+            _p("  Установите: brew install cloudflared  (macOS)", "dim")
+            _p("              sudo apt install cloudflared  (Linux)", "dim")
+            _p("              Или: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/\n", "dim")
+
+            cont = input("  Продолжить без Cloudflare Tunnel? (y/n) [y]: ").strip().lower()
+            if cont == "n":
+                _p("  Установите cloudflared и запустите python run.py снова.", "dim")
+                sys.exit(0)
+        else:
+            _p("  ✓ cloudflared найден — туннель запустится автоматически", "green")
+
+    # ── 5. SSL ───────────────────────────────────────────────────────────
+    ssl_generated = False
+    if not (CERT_FILE.exists() and KEY_FILE.exists()):
+        _p("\n  SSL сертификат:", "cyan")
+        _p("    1) Сгенерировать самоподписанный (быстро, браузер покажет предупреждение)")
+        _p("    2) Пропустить (без HTTPS — звонки не будут работать)\n")
+
+        ssl_choice = input("  Выберите (1/2) [1]: ").strip()
+        if ssl_choice != "2":
+            try:
+                _generate_self_signed_cert()
+                ssl_generated = True
+                _p("  ✓ SSL сертификат создан", "green")
+            except Exception as e:
+                _p(f"  ⚠ Ошибка генерации SSL: {e}", "yellow")
+    else:
+        _p("\n  ✓ SSL сертификат уже существует", "green")
+
+    # ── 6. Регистрация (инвайт) ──────────────────────────────────────────
+    _p("\n  Режим регистрации:", "cyan")
+    _p("    1) Открытая — все могут зарегистрироваться")
+    _p("    2) По инвайт-коду — только по вашему приглашению")
+    _p("    3) Закрытая — регистрация отключена\n")
+
+    reg_choice = input("  Выберите (1/2/3) [1]: ").strip()
+    reg_mode = "invite" if reg_choice == "2" else ("closed" if reg_choice == "3" else "open")
+
+    invite_code = ""
+    if reg_mode == "invite":
+        invite_code = secrets.token_hex(8).upper()
+        _p(f"\n  ╔══════════════════════════════════╗", "green")
+        _p(f"  ║  Инвайт-код: {invite_code:<18s} ║", "cyan")
+        _p(f"  ╚══════════════════════════════════╝", "green")
+        _p(f"  Отправьте этот код тем кому разрешаете регистрацию.", "dim")
+
+    # ── 7. Записываем .env ───────────────────────────────────────────────
+    env_lines = [
+        f"DEVICE_NAME={name}",
+        f"PORT={port}",
+        f"HOST=0.0.0.0",
+        f"NETWORK_MODE={network_mode}",
+        f"REGISTRATION_MODE={reg_mode}",
+        f"NODE_INITIALIZED=true",
+    ]
+    if invite_code:
+        env_lines.append(f"INVITE_CODE_NODE={invite_code}")
+    if network_mode == "global":
+        env_lines.append("OBFUSCATION_ENABLED=true")
+
+    # Дописываем к существующему .env (секреты уже там)
+    with open(ENV_FILE, "a") as f:
+        f.write("\n" + "\n".join(env_lines) + "\n")
+
+    try:
+        os.chmod(ENV_FILE, 0o600)
+    except OSError:
+        pass
+
+    _p(f"\n  ✓ Настройка завершена!", "green")
+    _p(f"  Запускаем узел...\n", "cyan")
+    time.sleep(1)
+
+
+def _generate_self_signed_cert() -> None:
+    """Генерирует самоподписанный SSL сертификат."""
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    import ipaddress as _ipa
+
+    CERT_DIR.mkdir(parents=True, exist_ok=True)
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    ip = _local_ip()
+    subject = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, "Vortex Node"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Vortex"),
+    ])
+
+    san_list = [
+        x509.DNSName("localhost"),
+        x509.IPAddress(_ipa.IPv4Address("127.0.0.1")),
+    ]
+    if ip != "127.0.0.1":
+        try:
+            san_list.append(x509.IPAddress(_ipa.IPv4Address(ip)))
+        except ValueError:
+            pass
+
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(_dt.now(_tz.utc))
+        .not_valid_after(_dt.now(_tz.utc) + _td(days=365))
+        .add_extension(x509.SubjectAlternativeName(san_list), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+
+    KEY_FILE.write_bytes(key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption(),
+    ))
+    CERT_FILE.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    os.chmod(KEY_FILE, 0o600)
+
+
+# ── Мастер настройки (legacy) ────────────────────────────────────────────────
 
 def cmd_setup(wizard_port: int, no_browser: bool) -> None:
     _p(BANNER, "cyan")
@@ -275,25 +456,119 @@ def cmd_setup(wizard_port: int, no_browser: bool) -> None:
         sys.exit(0)
 
 
+# ── Cloudflare Tunnel ─────────────────────────────────────────────────────────
+
+def _has_cloudflared() -> bool:
+    """Проверяет установлен ли cloudflared."""
+    try:
+        subprocess.run(["cloudflared", "--version"], capture_output=True, timeout=5)
+        return True
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
+    """
+    Запускает Cloudflare Tunnel в фоне.
+    Возвращает процесс или None если cloudflared не установлен.
+    """
+    if not _has_cloudflared():
+        return None
+
+    env = _read_env()
+    mode = env.get("NETWORK_MODE", "local")
+
+    # В локальном режиме туннель не нужен
+    if mode != "global":
+        return None
+
+    _p("  🌐 Запуск Cloudflare Tunnel...", "cyan")
+
+    def _run_tunnel_with_reconnect():
+        """Запускает cloudflared с автоматическим перезапуском при падении."""
+        import re as _re
+
+        while True:
+            try:
+                proc = subprocess.Popen(
+                    ["cloudflared", "tunnel", "--url", f"{proto}://localhost:{port}", "--no-autoupdate"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
+
+                url_found = False
+                for line in proc.stdout:
+                    line = line.strip()
+                    if not url_found and ("trycloudflare.com" in line or "cfargotunnel.com" in line):
+                        urls = _re.findall(r'https://[a-zA-Z0-9\-]+\.(?:trycloudflare\.com|cfargotunnel\.com)', line)
+                        if urls:
+                            url_found = True
+                            _p(f"\n  ╔══════════════════════════════════════════════════════╗", "green")
+                            _p(f"  ║  🌍 Публичная ссылка:                                ║", "green")
+                            _p(f"  ║  {urls[0]:<52s} ║", "cyan")
+                            _p(f"  ╚══════════════════════════════════════════════════════╝", "green")
+                            _p(f"  Отправьте эту ссылку пользователям.\n", "dim")
+
+                # cloudflared завершился (сон Mac, обрыв сети)
+                exit_code = proc.wait()
+                _p(f"\n  ⚠ Cloudflare Tunnel отключился (код {exit_code}). Перезапуск через 5 сек...", "yellow")
+                time.sleep(5)
+                _p(f"  🌐 Перезапуск Cloudflare Tunnel...", "cyan")
+
+            except Exception as e:
+                _p(f"  ⚠ Cloudflare Tunnel ошибка: {e}. Повтор через 10 сек...", "yellow")
+                time.sleep(10)
+
+    try:
+        tunnel_thread = threading.Thread(target=_run_tunnel_with_reconnect, daemon=True)
+        tunnel_thread.start()
+        return tunnel_thread
+
+    except Exception as e:
+        _p(f"  ⚠ Cloudflare Tunnel не запустился: {e}", "yellow")
+        _p(f"  Установите: brew install cloudflared\n", "dim")
+        return None
+
+
 # ── Основной узел ─────────────────────────────────────────────────────────────
 
 def cmd_run() -> None:
     _p(BANNER, "cyan")
 
     env     = _read_env()
-    host    = env.get("HOST", "0.0.0.0")
-    port    = int(env.get("PORT", "8000"))
+    host    = "0.0.0.0"
+    port    = int(env.get("PORT", "9000"))
     name    = env.get("DEVICE_NAME", platform.node())
+    mode    = env.get("NETWORK_MODE", "local")
     ssl     = CERT_FILE.exists() and KEY_FILE.exists()
     proto   = "https" if ssl else "http"
     ip      = _local_ip()
 
     _p(f"  ⚡ Узел: {name}", "cyan")
+    _p(f"  🔒 Режим: {'🌍 Глобальный' if mode == 'global' else '📡 Локальный'}")
     _p(f"  🌐 {proto}://localhost:{port}", "green")
     if ip != "127.0.0.1":
-        _p(f"  📱 {proto}://{ip}:{port}  ← другие устройства в сети", "cyan")
+        _p(f"  📱 {proto}://{ip}:{port}  ← устройства в сети", "cyan")
     _p(f"  🔒 SSL: {'включён (' + str(CERT_FILE) + ')' if ssl else 'отключён'}")
-    _p("  📌 Нажмите Ctrl+C для остановки\n", "dim")
+
+    # Инвайт-режим
+    invite = env.get("REGISTRATION_MODE", "open")
+    if invite == "invite":
+        code = env.get("INVITE_CODE_NODE", "")
+        _p(f"  🔑 Регистрация: по инвайту ({code})", "yellow")
+    elif invite == "closed":
+        _p(f"  🔑 Регистрация: закрыта", "red")
+
+    # Cloudflare Tunnel (автоматически в global mode)
+    tunnel_proc = _start_cloudflare_tunnel(port, proto)
+    if mode == "global" and not tunnel_proc:
+        if not _has_cloudflared():
+            _p("  ⚠ cloudflared не установлен — туннель не запущен", "yellow")
+            _p("  Установите: brew install cloudflared", "dim")
+        _p("")
+    elif mode == "local":
+        _p("  📌 Нажмите Ctrl+C для остановки\n", "dim")
 
     try:
         import uvicorn
@@ -318,6 +593,50 @@ def cmd_run() -> None:
         sys.exit(1)
     except KeyboardInterrupt:
         _p("\n\n  ⛔ Узел остановлен.", "yellow")
+    finally:
+        if tunnel_proc:
+            _p("  ⛔ Останавливаем Cloudflare Tunnel...", "dim")
+            # Убиваем все процессы cloudflared (включая перезапущенные)
+            try:
+                subprocess.run(["pkill", "-f", "cloudflared tunnel"], timeout=5,
+                               capture_output=True)
+            except Exception:
+                pass
+
+
+# ── --invite ──────────────────────────────────────────────────────────────────
+
+def cmd_invite() -> None:
+    """Включает режим инвайт-кодов и генерирует/показывает код."""
+    import secrets as _sec
+    env = _read_env()
+    code = env.get("INVITE_CODE_NODE")
+    mode = env.get("REGISTRATION_MODE", "open")
+
+    if code and mode == "invite":
+        _p(f"\n  Инвайт-код уже настроен:", "green")
+        _p(f"  ╔══════════════════════════════╗")
+        _p(f"  ║  {code}  ║", "cyan")
+        _p(f"  ╚══════════════════════════════╝")
+        _p(f"\n  Режим: {mode}", "dim")
+        _p(f"  Отправьте этот код тем кому разрешаете регистрацию.\n", "dim")
+        return
+
+    code = _sec.token_hex(8).upper()
+
+    # Записываем в .env
+    with open(ENV_FILE, "a") as f:
+        f.write(f"\nREGISTRATION_MODE=invite\n")
+        f.write(f"INVITE_CODE_NODE={code}\n")
+
+    _p(f"\n  ✓ Режим инвайтов включён!", "green")
+    _p(f"  ╔══════════════════════════════╗")
+    _p(f"  ║  Инвайт-код: {code}  ║", "cyan")
+    _p(f"  ╚══════════════════════════════╝")
+    _p(f"\n  Без этого кода никто не сможет зарегистрироваться.", "dim")
+    _p(f"  Отправьте код только тем кому доверяете.\n", "dim")
+    _p(f"  Чтобы вернуть открытую регистрацию:", "dim")
+    _p(f"  Измените в .env: REGISTRATION_MODE=open\n", "dim")
 
 
 # ── Точка входа ───────────────────────────────────────────────────────────────
@@ -336,9 +655,21 @@ def main() -> None:
     parser.add_argument("--no-browser",   action="store_true", help="Не открывать браузер автоматически")
     parser.add_argument("--wizard-port",  type=int, default=7979, metavar="PORT",
                         help="Порт мастера настройки (по умолчанию: 7979)")
+    parser.add_argument("--generate-worker", action="store_true",
+                        help="Сгенерировать Cloudflare Worker для CDN relay")
+    parser.add_argument("--backend",     type=str, default="", metavar="URL",
+                        help="URL бэкенда для CDN Worker (например: https://your-server.com:8000)")
+    parser.add_argument("--invite",      action="store_true",
+                        help="Включить режим инвайтов и показать/сгенерировать код")
     args = parser.parse_args()
 
-    if args.status:
+    if args.invite:
+        cmd_invite()
+
+    elif args.generate_worker:
+        cmd_generate_worker(args.backend)
+
+    elif args.status:
         cmd_status()
 
     elif args.reset:
@@ -346,7 +677,6 @@ def main() -> None:
 
     elif args.setup or not _is_initialized():
         cmd_setup(wizard_port=args.wizard_port, no_browser=args.no_browser)
-        # После wizard-а — сразу запускаем узел
         if _is_initialized():
             _p("\n✓ Настройка завершена! Запускаем узел...\n", "green")
             time.sleep(1)

@@ -1,0 +1,683 @@
+/* ============================================================================
+   Fingerprint Verification Modal  (.fp-*)
+   ============================================================================ */
+
+/* ── Overlay ──────────────────────────────────────────────────────────────── */
+
+.fp-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity .24s ease;
+}
+.fp-overlay.fp-visible { opacity: 1; }
+
+/* ── Panel ────────────────────────────────────────────────────────────────── */
+
+.fp-panel {
+    position: relative;
+    width: min(400px, 92vw);
+    max-height: 90vh;
+    background: var(--bg2, #111115);
+    border-radius: 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow:
+        0 24px 80px rgba(0,0,0,.7),
+        0 0 0 1px rgba(255,255,255,.06),
+        inset 0 1px 0 rgba(255,255,255,.04);
+    transform: translateY(16px) scale(.97);
+    transition: transform .28s cubic-bezier(.34,1.56,.64,1);
+}
+.fp-overlay.fp-visible .fp-panel {
+    transform: translateY(0) scale(1);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.fp-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.fp-header-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent, #7c3aed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.fp-header-text { flex: 1; min-width: 0; }
+
+.fp-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text, #e4e4e7);
+    letter-spacing: -0.2px;
+}
+
+.fp-subtitle {
+    font-size: 13px;
+    color: var(--text2, #71717a);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fp-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,.06);
+    color: var(--text2, #71717a);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background .15s, color .15s;
+}
+.fp-close-btn:hover { background: rgba(255,255,255,.12); color: var(--text); }
+
+/* ── Key change warning ───────────────────────────────────────────────────── */
+
+.fp-key-warning {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 12px 20px;
+    background: rgba(239,68,68,.08);
+    border-bottom: 1px solid rgba(239,68,68,.15);
+    color: #f87171;
+    font-size: 13px;
+    font-weight: 500;
+}
+.fp-key-warning svg { flex-shrink: 0; color: #ef4444; }
+
+/* ── Body ─────────────────────────────────────────────────────────────────── */
+
+.fp-body {
+    padding: 16px 20px 8px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.fp-username {
+    font-size: 12px;
+    color: var(--text3, #52525b);
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+/* ── Emoji fingerprint card (primary) ─────────────────────────────────────── */
+
+.fp-emoji-card {
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+}
+
+.fp-emoji-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3, #52525b);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 14px;
+    justify-content: center;
+}
+.fp-emoji-label svg { opacity: .6; }
+
+.fp-emoji-container {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 0 12px;
+}
+
+.fp-emoji-cell {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px;
+    transition: transform .15s, box-shadow .15s;
+    user-select: none;
+}
+.fp-emoji-cell:hover {
+    transform: scale(1.12);
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+}
+
+.fp-emoji-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text3, #52525b);
+    line-height: 1.5;
+    text-align: left;
+}
+.fp-emoji-hint svg { flex-shrink: 0; margin-top: 1px; opacity: .5; }
+
+/* ── Toggle hex key button ────────────────────────────────────────────────── */
+
+.fp-toggle-hex-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 9px 14px;
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 10px;
+    background: none;
+    color: var(--text3, #52525b);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: background .14s, color .14s;
+    margin-bottom: 14px;
+}
+.fp-toggle-hex-btn:hover {
+    background: rgba(255,255,255,.04);
+    color: var(--text2, #71717a);
+}
+.fp-toggle-hex-btn svg { opacity: .5; }
+.fp-toggle-chevron {
+    margin-left: auto;
+    transition: transform .2s;
+}
+.fp-toggle-hex-btn[data-expanded="1"] .fp-toggle-chevron {
+    transform: rotate(180deg);
+}
+
+/* ── Hex fingerprint (secondary, expandable) ──────────────────────────────── */
+
+.fp-hex-section {
+    background: rgba(255,255,255,.02);
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+
+.fp-fingerprint-block {
+    font-family: var(--mono, 'Space Mono', monospace);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 1.2px;
+    line-height: 1.9;
+    color: var(--text2, #71717a);
+    text-align: center;
+    word-break: break-all;
+    user-select: all;
+    padding: 2px 0;
+}
+
+
+/* ── Verified badge ───────────────────────────────────────────────────────── */
+
+.fp-verified-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: rgba(34,197,94,.08);
+    border: 1px solid rgba(34,197,94,.2);
+    border-radius: 12px;
+    color: #4ade80;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+/* ── Actions ──────────────────────────────────────────────────────────────── */
+
+.fp-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px 20px;
+    border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.fp-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 11px 14px;
+    border-radius: 12px;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: background .15s, transform .1s, box-shadow .15s;
+}
+.fp-btn:active { transform: scale(.97); }
+
+.fp-btn-secondary {
+    background: rgba(255,255,255,.06);
+    color: var(--text2, #71717a);
+    border: 1px solid rgba(255,255,255,.08);
+}
+.fp-btn-secondary:hover {
+    background: rgba(255,255,255,.1);
+    color: var(--text);
+}
+
+.fp-btn-primary {
+    background: var(--accent, #7c3aed);
+    color: #fff;
+}
+.fp-btn-primary:hover {
+    background: color-mix(in srgb, var(--accent) 85%, #fff);
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.fp-btn-danger {
+    background: rgba(239,68,68,.1);
+    color: #f87171;
+    border: 1px solid rgba(239,68,68,.15);
+}
+.fp-btn-danger:hover {
+    background: rgba(239,68,68,.18);
+}
+
+.fp-btn-label {
+    white-space: nowrap;
+}
+
+/* ── QR code panel ───────────────────────────────────────────────────────── */
+
+.fp-qr-panel {
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+    text-align: center;
+}
+
+.fp-qr-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3, #52525b);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 14px;
+    justify-content: center;
+}
+.fp-qr-label svg { opacity: .6; }
+
+.fp-qr-canvas-wrap {
+    padding: 12px 0;
+}
+.fp-qr-canvas-wrap canvas {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 100%;
+}
+
+.fp-qr-close-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 7px 14px;
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 8px;
+    background: none;
+    color: var(--text3, #52525b);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: background .14s, color .14s;
+}
+.fp-qr-close-btn:hover {
+    background: rgba(255,255,255,.04);
+    color: var(--text2, #71717a);
+}
+
+/* ── QR Camera Scanner Overlay ───────────────────────────────────────────── */
+
+.fp-scan-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9600;
+    display: flex;
+    flex-direction: column;
+    background: rgba(0,0,0,.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.fp-scan-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.fp-scan-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text, #e4e4e7);
+}
+
+.fp-scan-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.fp-scan-viewfinder {
+    position: relative;
+    width: min(340px, 80vw);
+    aspect-ratio: 1;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.fp-scan-viewfinder video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 20px;
+}
+
+.fp-scan-frame {
+    position: absolute;
+    inset: 20px;
+    border: 2px solid rgba(255,255,255,.35);
+    border-radius: 14px;
+    pointer-events: none;
+    box-shadow: 0 0 0 2000px rgba(0,0,0,.4);
+}
+
+.fp-scan-frame::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    background: var(--accent, #7c3aed);
+    opacity: .7;
+    animation: fp-scan-line 2s ease-in-out infinite;
+}
+
+@keyframes fp-scan-line {
+    0%, 100% { top: 20%; }
+    50%      { top: 80%; }
+}
+
+.fp-scan-footer {
+    padding: 20px;
+    text-align: center;
+}
+
+.fp-scan-status {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text2, #71717a);
+    padding: 12px 20px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.06);
+    transition: background .2s, color .2s;
+}
+
+.fp-scan-status.fp-scan-success {
+    background: rgba(34,197,94,.12);
+    color: #4ade80;
+}
+
+.fp-scan-status.fp-scan-fail {
+    background: rgba(239,68,68,.12);
+    color: #f87171;
+}
+
+/* ── Device verification panel ───────────────────────────────────────────── */
+
+.fp-devices-panel {
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 14px;
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+
+.fp-devices-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.fp-devices-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text, #e4e4e7);
+}
+.fp-devices-title svg { color: var(--text3, #52525b); }
+
+.fp-devices-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,.06);
+    color: var(--text3, #52525b);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, color .15s;
+}
+.fp-devices-close:hover {
+    background: rgba(255,255,255,.12);
+    color: var(--text);
+}
+
+.fp-devices-list {
+    padding: 6px 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 13px;
+    color: var(--text2, #71717a);
+}
+
+.fp-device-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 6px;
+    border-radius: 10px;
+    transition: background .14s;
+}
+.fp-device-row:hover { background: rgba(255,255,255,.04); }
+
+.fp-device-row + .fp-device-row {
+    border-top: 1px solid rgba(255,255,255,.04);
+}
+
+.fp-device-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.06);
+    color: var(--text3, #52525b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.fp-device-info { flex: 1; min-width: 0; }
+
+.fp-device-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text, #e4e4e7);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fp-device-current {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent, #7c3aed);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    padding: 2px 7px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.fp-device-meta {
+    font-size: 11px;
+    color: var(--text3, #52525b);
+    margin-top: 2px;
+}
+
+/* ── Actions secondary row ───────────────────────────────────────────────── */
+
+.fp-actions-secondary {
+    padding-top: 0;
+    border-top: none;
+}
+
+.fp-btn-full { flex: unset; width: 100%; }
+
+/* ── Chat header shield icon ──────────────────────────────────────────────── */
+
+.fp-shield-btn {
+    display: none;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: none;
+    border-radius: 50%;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, color .15s, transform .12s;
+    padding: 0;
+    margin-right: 2px;
+}
+.fp-shield-btn:hover {
+    background: rgba(255,255,255,.08);
+    transform: scale(1.1);
+}
+
+.fp-shield-verified {
+    color: var(--green, #22c55e);
+}
+.fp-shield-unverified {
+    color: var(--text3, #52525b);
+}
+.fp-shield-warning {
+    color: var(--yellow, #eab308) !important;
+    animation: fp-shield-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes fp-shield-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .5; }
+}
+
+/* ── User profile modal fingerprint section ───────────────────────────────── */
+
+.upm-fp-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .14s;
+    margin-top: 4px;
+}
+.upm-fp-row:hover { background: rgba(255,255,255,.04); }
+
+.upm-fp-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.upm-fp-icon.fp-ok {
+    background: rgba(34,197,94,.1);
+    color: #4ade80;
+}
+.upm-fp-icon.fp-pending {
+    background: rgba(255,255,255,.06);
+    color: var(--text3, #52525b);
+}
+
+.upm-fp-info { flex: 1; min-width: 0; }
+
+.upm-fp-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text, #e4e4e7);
+}
+
+.upm-fp-status {
+    font-size: 11px;
+    color: var(--text3, #52525b);
+    margin-top: 1px;
+}
+.upm-fp-status.verified { color: #4ade80; }
+
+.upm-fp-arrow {
+    color: rgba(255,255,255,.2);
+    flex-shrink: 0;
+}

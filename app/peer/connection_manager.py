@@ -125,7 +125,6 @@ class ConnectedUser:
 
     Дополнения:
         rate_limiter — индивидуальный Token Bucket для защиты от флуда.
-        msg_ack_queue — очередь сообщений, ожидающих ACK (для повторной отправки).
     """
     user_id:      int
     username:     str
@@ -136,6 +135,89 @@ class ConnectedUser:
     connected_at: datetime    = field(default_factory=lambda: datetime.now(timezone.utc))
     is_typing:    bool        = False
     rate_limiter: TokenBucket = field(default_factory=lambda: TokenBucket(capacity=30, rate=10))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Pending Delivery Queue — серверная очередь недоставленных сообщений
+# ══════════════════════════════════════════════════════════════════════════════
+
+class PendingDeliveryQueue:
+    """
+    In-memory очередь сообщений для офлайн-пользователей.
+
+    Когда broadcast не может доставить сообщение (пользователь не в комнате),
+    оно сохраняется здесь. При реконнекте — flush_pending() отдаёт накопленные.
+
+    Лимиты:
+    - max_per_user_room: 200 сообщений на (user_id, room_id) — предотвращает OOM
+    - ttl_sec: 3600 (1 час) — старые сообщения удаляются
+    """
+
+    def __init__(self, max_per_user_room: int = 200, ttl_sec: float = 3600.0):
+        self._max    = max_per_user_room
+        self._ttl    = ttl_sec
+        # (room_id, user_id) → deque[(timestamp, payload)]
+        self._queues: dict[tuple[int, int], deque] = defaultdict(deque)
+        self._lock   = asyncio.Lock()
+
+    async def enqueue(self, room_id: int, user_id: int, payload: dict) -> None:
+        """Добавить сообщение в очередь для офлайн-пользователя."""
+        async with self._lock:
+            key = (room_id, user_id)
+            q = self._queues[key]
+            q.append((time.monotonic(), payload))
+            # Обрезаем по лимиту — удаляем самые старые
+            while len(q) > self._max:
+                q.popleft()
+
+    async def flush_pending(self, room_id: int, user_id: int, ws: WebSocket) -> int:
+        """Отправить все накопленные сообщения пользователю. Возвращает количество."""
+        async with self._lock:
+            key = (room_id, user_id)
+            q = self._queues.pop(key, deque())
+
+        if not q:
+            return 0
+
+        now = time.monotonic()
+        sent = 0
+        for ts, payload in q:
+            # Пропускаем устаревшие (> TTL)
+            if now - ts > self._ttl:
+                continue
+            try:
+                payload["_pending"] = True  # маркер для клиента
+                await ws.send_json(payload)
+                sent += 1
+            except Exception:
+                break
+        return sent
+
+    async def cleanup(self) -> int:
+        """Удалить устаревшие записи. Вызывать периодически."""
+        async with self._lock:
+            now = time.monotonic()
+            removed = 0
+            empty_keys = []
+            for key, q in self._queues.items():
+                while q and (now - q[0][0]) > self._ttl:
+                    q.popleft()
+                    removed += 1
+                if not q:
+                    empty_keys.append(key)
+            for key in empty_keys:
+                del self._queues[key]
+            return removed
+
+    def stats(self) -> dict:
+        return {
+            "queues": len(self._queues),
+            "total_pending": sum(len(q) for q in self._queues.values()),
+        }
+
+
+# Глобальный экземпляр pending delivery queue
+pending_queue = PendingDeliveryQueue()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -153,8 +235,10 @@ class ConnectionManager:
     """
 
     def __init__(self):
-        self._rooms: dict[int, dict[int, ConnectedUser]] = defaultdict(dict)
-        self._lock  = asyncio.Lock()
+        self._rooms:      dict[int, dict[int, ConnectedUser]] = defaultdict(dict)
+        self._global_ws:  dict[int, WebSocket] = {}
+        self._sse_queues: dict[str, asyncio.Queue] = {}
+        self._lock        = asyncio.Lock()
 
     async def connect(
             self,
@@ -176,6 +260,11 @@ class ConnectionManager:
                 room_id      = room_id,
             )
         logger.info(f"WS+ {username}({user_id}) → room {room_id}")
+
+        # Flush pending messages accumulated while user was offline
+        flushed = await pending_queue.flush_pending(room_id, user_id, ws)
+        if flushed > 0:
+            logger.info(f"Flushed {flushed} pending messages to {username}({user_id}) in room {room_id}")
 
         await self.broadcast_to_room(
             room_id,
@@ -213,18 +302,43 @@ class ConnectionManager:
             room_id: int,
             payload: dict[str, Any],
             exclude: int | None = None,
+            member_ids: list[int] | None = None,
     ) -> None:
         dead = []
+        delivered_uids: set[int] = set()
         for uid, conn in dict(self._rooms.get(room_id, {})).items():
             if uid == exclude:
+                delivered_uids.add(uid)  # отправитель считается доставленным
                 continue
             try:
                 await conn.websocket.send_json(payload)
-            except Exception:
+                delivered_uids.add(uid)
+            except Exception as e:
+                logger.debug("Broadcast: dead WS for user %s room %s: %s", uid, room_id, e)
                 dead.append(uid)
 
         for uid in dead:
             await self.disconnect(room_id, uid)
+
+        # Доставка в SSE-подписчиков (альтернативный транспорт)
+        if self._sse_queues:
+            prefix = f"sse:{room_id}:"
+            for key, queue in list(self._sse_queues.items()):
+                if key.startswith(prefix):
+                    uid_str = key.split(":")[-1]
+                    if exclude and uid_str == str(exclude):
+                        continue
+                    try:
+                        await queue.put(payload)
+                        delivered_uids.add(int(uid_str))
+                    except Exception:
+                        pass
+
+        # Enqueue pending delivery for offline room members (only for messages)
+        if member_ids and payload.get("type") in ("message", "thread_message"):
+            for uid in member_ids:
+                if uid not in delivered_uids and uid != exclude:
+                    await pending_queue.enqueue(room_id, uid, payload)
 
     async def send_to_user(self, room_id: int, user_id: int, payload: dict) -> bool:
         conn = self._rooms.get(room_id, {}).get(user_id)
@@ -272,6 +386,31 @@ class ConnectionManager:
             return False
         return await deduplicator.is_duplicate(msg_id)
 
+    # ── Глобальный WebSocket для уведомлений ────────────────────────────────
+
+    async def connect_global(self, user_id: int, ws: WebSocket) -> None:
+        """Подключает глобальный WS для уведомлений пользователя."""
+        await ws.accept()
+        self._global_ws[user_id] = ws
+        logger.info(f"Global WS+ user {user_id}")
+
+    def disconnect_global(self, user_id: int) -> None:
+        """Отключает глобальный WS пользователя."""
+        self._global_ws.pop(user_id, None)
+        logger.info(f"Global WS- user {user_id}")
+
+    async def notify_user(self, user_id: int, payload: dict) -> bool:
+        """Отправляет уведомление через глобальный WS. Возвращает True если доставлено."""
+        ws = self._global_ws.get(user_id)
+        if not ws:
+            return False
+        try:
+            await ws.send_json(payload)
+            return True
+        except Exception:
+            self._global_ws.pop(user_id, None)
+            return False
+
     def get_online_users(self, room_id: int) -> list[dict]:
         return [
             {
@@ -287,15 +426,34 @@ class ConnectionManager:
     def is_online(self, room_id: int, user_id: int) -> bool:
         return user_id in self._rooms.get(room_id, {})
 
+    def is_online_any_room(self, user_id: int) -> bool:
+        """Check if user is connected in any room or has a global WS."""
+        if user_id in self._global_ws:
+            return True
+        return any(user_id in users for users in self._rooms.values())
+
     def total_connections(self) -> int:
         return sum(len(v) for v in self._rooms.values())
 
+    async def close_all(self) -> None:
+        """Gracefully close all active WebSocket connections."""
+        async with self._lock:
+            for room_id, users in list(self._rooms.items()):
+                for user_id, entry in list(users.items()):
+                    try:
+                        await entry.ws.close(code=1001, reason="Server shutting down")
+                    except Exception:
+                        pass
+            self._rooms.clear()
+        logger.info("All WebSocket connections closed")
+
     def dedup_stats(self) -> dict:
-        """Возвращает статистику дедупликатора для мониторинга."""
+        """Возвращает статистику дедупликатора и pending queue для мониторинга."""
         return {
-            "seen_msg_ids": deduplicator.seen_count(),
-            "rooms":        len(self._rooms),
-            "connections":  self.total_connections(),
+            "seen_msg_ids":  deduplicator.seen_count(),
+            "rooms":         len(self._rooms),
+            "connections":   self.total_connections(),
+            "pending_queue": pending_queue.stats(),
         }
 
 

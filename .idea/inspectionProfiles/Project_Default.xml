@@ -21,6 +21,15 @@
           <option value="httpx" />
           <option value="python-magic" />
           <option value="Pillow" />
+          <option value="psycopg2-binary" />
+          <option value="asyncpg" />
+          <option value="curl_cffi" />
+          <option value="pywebpush" />
+          <option value="redis" />
+          <option value="sentry-sdk" />
+          <option value="ruff" />
+          <option value="bandit" />
+          <option value="pre-commit" />
         </list>
       </option>
     </inspection_tool>

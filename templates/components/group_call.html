@@ -1,0 +1,93 @@
+{# templates/components/group_call.html — Group Call overlay, PIP, incoming banner, add-modal #}
+
+<!-- ── Group Call Overlay ─────────────────────────────────────────────── -->
+<div id="gc-overlay" class="gc-overlay">
+    <div class="gc-header">
+        <button class="gc-minimize-btn" onclick="minimizeGroupCall()" title="Свернуть" data-i18n-title="call.calling">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+        </button>
+        <div class="gc-header-info">
+            <div class="gc-room-name" id="gc-room-name"></div>
+            <div class="gc-status" id="gc-status" data-i18n="call.inCall">Звонок...</div>
+        </div>
+        <div class="gc-timer" id="gc-timer">0:00</div>
+        <button class="gc-add-btn" onclick="showGcAddModal()" title="Добавить участника" data-i18n-title="rooms.members">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        </button>
+    </div>
+
+    <div class="gc-grid" id="gc-grid">
+        <!-- JS: dynamic video tiles -->
+    </div>
+
+    <div class="gc-controls">
+        <button class="gc-ctrl-btn" id="gc-mute-btn" onclick="toggleGroupMute()" title="Микрофон" data-i18n-title="call.muteMic">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+        </button>
+        <button class="gc-ctrl-btn" id="gc-cam-btn" onclick="toggleGroupVideo()" title="Камера" data-i18n-title="call.noCameraAccess">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="1" y="6" rx="2" ry="2"/></svg>
+        </button>
+        <button class="gc-ctrl-btn" id="gc-screen-btn" onclick="toggleGroupScreenShare()" title="Демонстрация экрана" data-i18n-title="call.screenShare">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </button>
+        <button class="gc-ctrl-btn gc-hangup" onclick="leaveGroupCall()" title="Завершить" data-i18n-title="notifications.decline">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 2.59 3.4Z" transform="rotate(135 12 12)"/></svg>
+        </button>
+    </div>
+</div>
+
+<!-- ── Group Call PIP (minimized) ─────────────────────────────────────── -->
+<div id="gc-pip" class="gc-pip">
+    <div class="gc-pip-avatar" id="gc-pip-avatar"></div>
+    <div class="gc-pip-info">
+        <div class="gc-pip-name" id="gc-pip-name"></div>
+        <div class="gc-pip-timer" id="gc-pip-timer">0:00</div>
+        <div class="gc-pip-count" id="gc-pip-count"></div>
+    </div>
+    <button class="gc-pip-btn" onclick="toggleGroupMute()" title="Микрофон" data-i18n-title="call.muteMic">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+    </button>
+    <button class="gc-pip-btn gc-pip-expand" onclick="expandGroupCall()" title="Развернуть" data-i18n-title="call.stats">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+    </button>
+    <button class="gc-pip-btn gc-pip-hangup" onclick="leaveGroupCall()" title="Завершить" data-i18n-title="notifications.decline">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 2.59 3.4Z" transform="rotate(135 12 12)"/></svg>
+    </button>
+</div>
+
+<!-- ── Incoming Group Call Banner ──────────────────────────────────────── -->
+<div id="gc-incoming" class="gc-incoming">
+    <div class="gc-incoming-caller">
+        <div class="gc-incoming-avatar" id="gc-incoming-avatar"></div>
+        <div class="gc-incoming-info">
+            <div class="gc-incoming-name" id="gc-incoming-name"></div>
+            <div class="gc-incoming-label" data-i18n="calls.groupCall">Групповой звонок</div>
+        </div>
+    </div>
+    <div class="gc-incoming-actions">
+        <button class="gc-incoming-btn gc-incoming-decline" id="gc-incoming-decline" title="Отклонить" data-i18n-title="notifications.decline">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <button class="gc-incoming-btn gc-incoming-accept" id="gc-incoming-accept" title="Принять" data-i18n-title="notifications.answer">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 2.59 3.4Z"/></svg>
+        </button>
+    </div>
+</div>
+
+<!-- ── Add Participant Modal ──────────────────────────────────────────── -->
+<div id="gc-add-modal" class="gc-add-modal">
+    <div class="gc-add-content">
+        <div class="gc-add-header">
+            <span data-i18n="rooms.members">Добавить участника</span>
+            <button class="gc-add-close" onclick="hideGcAddModal()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="gc-add-list" id="gc-add-list">
+            <!-- JS: member rows -->
+        </div>
+    </div>
+</div>
+
+<!-- Audio container for remote streams -->
+<div id="gc-audio-container" style="display:none"></div>

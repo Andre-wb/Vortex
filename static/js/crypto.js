@@ -35,7 +35,7 @@ export async function eciesEncrypt(roomKeyBytes, recipientPubHex) {
     // HKDF-SHA256(shared, salt=ephPub, info="ecies-room-key") → ключ AES
     const hkdfKey = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
     const encKey  = await crypto.subtle.deriveKey(
-        { name: 'HKDF', hash: 'SHA-256', salt: ephPubRaw, info: new TextEncoder().encode('ecies-room-key') },
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode('vortex-session') },
         hkdfKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
     );
 
@@ -77,7 +77,7 @@ export async function eciesDecrypt(ephemeralPubHex, ciphertextHex, ourPrivKeyJwk
     // HKDF → ключ AES
     const hkdfKey = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
     const encKey  = await crypto.subtle.deriveKey(
-        { name: 'HKDF', hash: 'SHA-256', salt: ephPubRaw, info: new TextEncoder().encode('ecies-room-key') },
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode('vortex-session') },
         hkdfKey, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
     );
 
@@ -97,3 +97,198 @@ const _roomKeys = {};
 
 export function getRoomKey(roomId)           { return _roomKeys[roomId] || null; }
 export function setRoomKey(roomId, keyBytes) { _roomKeys[roomId] = keyBytes; }
+
+// ============================================================================
+// E2E File Encryption — шифрование файлов ключом комнаты
+// ============================================================================
+
+/**
+ * Шифрует файл ключом комнаты (AES-256-GCM).
+ * @param {ArrayBuffer} fileData — содержимое файла
+ * @param {Uint8Array} roomKeyBytes — 32-байтный ключ комнаты
+ * @returns {Promise<ArrayBuffer>} — nonce(12) + ciphertext
+ */
+export async function encryptFile(fileData, roomKeyBytes) {
+    const key = await crypto.subtle.importKey(
+        'raw', roomKeyBytes, { name: 'AES-GCM' }, false, ['encrypt']
+    );
+    const nonce = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: nonce }, key, fileData
+    );
+    // nonce(12) + encrypted data
+    const result = new Uint8Array(12 + ct.byteLength);
+    result.set(nonce, 0);
+    result.set(new Uint8Array(ct), 12);
+    return result.buffer;
+}
+
+/**
+ * Расшифровывает файл ключом комнаты.
+ * @param {ArrayBuffer} encryptedData — nonce(12) + ciphertext
+ * @param {Uint8Array} roomKeyBytes — 32-байтный ключ комнаты
+ * @returns {Promise<ArrayBuffer>} — расшифрованное содержимое
+ */
+export async function decryptFile(encryptedData, roomKeyBytes) {
+    const data = new Uint8Array(encryptedData);
+    const nonce = data.slice(0, 12);
+    const ct = data.slice(12);
+    const key = await crypto.subtle.importKey(
+        'raw', roomKeyBytes, { name: 'AES-GCM' }, false, ['decrypt']
+    );
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ct);
+}
+
+// ============================================================================
+// Message Ratchet — KDF chain для forward secrecy
+// ============================================================================
+
+// Каждый отправитель в комнате имеет свой chain.
+// При каждом сообщении:
+//   message_key = HKDF(chain_key, info="msg-key")
+//   next_chain  = HKDF(chain_key, info="chain-advance")
+// Старый chain_key удаляется → forward secrecy.
+
+const _ratchetChains = {};  // roomId:senderId → { chainKey: Uint8Array, counter: number }
+
+export function initRatchet(roomId, senderId, roomKeyBytes) {
+    const key = `${roomId}:${senderId}`;
+    _ratchetChains[key] = {
+        chainKey: new Uint8Array(roomKeyBytes),
+        counter: 0,
+    };
+}
+
+export async function ratchetEncrypt(text, roomId, senderId, roomKeyBytes) {
+    const key = `${roomId}:${senderId}`;
+    if (!_ratchetChains[key]) {
+        initRatchet(roomId, senderId, roomKeyBytes);
+    }
+
+    const chain = _ratchetChains[key];
+
+    // Derive message key from current chain key
+    const msgKey = await _deriveKey(chain.chainKey, 'msg-key');
+
+    // Advance chain (old chain key is overwritten → forward secrecy)
+    chain.chainKey = await _deriveRaw(chain.chainKey, 'chain-advance');
+    const counter = chain.counter++;
+
+    // Encrypt with message key
+    const aesKey = await crypto.subtle.importKey('raw', msgKey, { name: 'AES-GCM' }, false, ['encrypt']);
+    const nonce  = crypto.getRandomValues(new Uint8Array(12));
+    const ct     = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, aesKey, new TextEncoder().encode(text));
+
+    // Format: counter(4 bytes BE) + nonce(12) + ciphertext
+    const counterBytes = new Uint8Array(4);
+    new DataView(counterBytes.buffer).setUint32(0, counter);
+
+    const result = new Uint8Array(4 + 12 + ct.byteLength);
+    result.set(counterBytes, 0);
+    result.set(nonce, 4);
+    result.set(new Uint8Array(ct), 16);
+
+    return Array.from(result, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function ratchetDecrypt(ciphertextHex, roomId, senderId, roomKeyBytes) {
+    const raw = Uint8Array.from(ciphertextHex.match(/.{2}/g).map(b => parseInt(b, 16)));
+
+    if (raw.length < 20) {
+        return _legacyDecrypt(ciphertextHex, roomKeyBytes);
+    }
+
+    const counter = new DataView(raw.buffer, raw.byteOffset, 4).getUint32(0);
+
+    // Если counter слишком большой — это скорее всего legacy формат (первые 4 байта = часть nonce)
+    if (counter > 100000) {
+        return _legacyDecrypt(ciphertextHex, roomKeyBytes);
+    }
+
+    const nonce = raw.slice(4, 16);
+    const ct    = raw.slice(16);
+
+    const key = `${roomId}:${senderId}`;
+    if (!_ratchetChains[key]) {
+        initRatchet(roomId, senderId, roomKeyBytes);
+    }
+
+    let chain = _ratchetChains[key];
+
+    // Если counter меньше текущей позиции цепочки — отправитель перезагрузил страницу
+    // и рачет сбросился. Переинициализируем цепочку с нуля.
+    if (counter < chain.counter) {
+        initRatchet(roomId, senderId, roomKeyBytes);
+        chain = _ratchetChains[key];
+    }
+
+    // Сохраняем состояние на случай ошибки (чтобы не сломать chain)
+    const savedChainKey = new Uint8Array(chain.chainKey);
+    const savedCounter  = chain.counter;
+
+    try {
+        // Advance chain to the right counter
+        while (chain.counter < counter) {
+            chain.chainKey = await _deriveRaw(chain.chainKey, 'chain-advance');
+            chain.counter++;
+        }
+
+        const msgKey = await _deriveKey(chain.chainKey, 'msg-key');
+        chain.chainKey = await _deriveRaw(chain.chainKey, 'chain-advance');
+        chain.counter++;
+
+        const aesKey = await crypto.subtle.importKey('raw', msgKey, { name: 'AES-GCM' }, false, ['decrypt']);
+        const plain  = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, aesKey, ct);
+        return new TextDecoder().decode(plain);
+    } catch {
+        // Ratchet decrypt не удался — пробуем переинициализировать цепочку
+        initRatchet(roomId, senderId, roomKeyBytes);
+        chain = _ratchetChains[key];
+        try {
+            while (chain.counter < counter) {
+                chain.chainKey = await _deriveRaw(chain.chainKey, 'chain-advance');
+                chain.counter++;
+            }
+            const msgKey = await _deriveKey(chain.chainKey, 'msg-key');
+            chain.chainKey = await _deriveRaw(chain.chainKey, 'chain-advance');
+            chain.counter++;
+            const aesKey = await crypto.subtle.importKey('raw', msgKey, { name: 'AES-GCM' }, false, ['decrypt']);
+            const plain  = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, aesKey, ct);
+            return new TextDecoder().decode(plain);
+        } catch {
+            // Всё ещё не получилось — пробуем legacy
+            chain.chainKey = savedChainKey;
+            chain.counter  = savedCounter;
+            return _legacyDecrypt(ciphertextHex, roomKeyBytes);
+        }
+    }
+}
+
+async function _deriveRaw(keyBytes, info) {
+    const hkdfKey = await crypto.subtle.importKey('raw', keyBytes, 'HKDF', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new TextEncoder().encode(info) },
+        hkdfKey, 256
+    );
+    return new Uint8Array(bits);
+}
+
+async function _deriveKey(keyBytes, info) {
+    return _deriveRaw(keyBytes, info);
+}
+
+async function _legacyDecrypt(ciphertextHex, roomKeyBytes) {
+    const raw   = Uint8Array.from(ciphertextHex.match(/.{2}/g).map(b => parseInt(b, 16)));
+    const nonce = raw.slice(0, 12);
+    const ct    = raw.slice(12);
+    const key   = await crypto.subtle.importKey('raw', roomKeyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ct);
+    return new TextDecoder().decode(plain);
+}
+
+export function clearRatchet(roomId) {
+    const prefix = `${roomId}:`;
+    for (const key of Object.keys(_ratchetChains)) {
+        if (key.startsWith(prefix)) delete _ratchetChains[key];
+    }
+}

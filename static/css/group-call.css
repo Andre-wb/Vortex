@@ -1,0 +1,656 @@
+/* static/css/group-call.css — Group Call overlay, video grid, PIP, incoming banner */
+
+/* ── Overlay ──────────────────────────────────────────────────────────── */
+
+.gc-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.96);
+    display: none;
+    flex-direction: column;
+}
+.gc-overlay.show {
+    display: flex;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.gc-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border);
+}
+
+.gc-minimize-btn,
+.gc-add-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+.gc-minimize-btn:hover,
+.gc-add-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text);
+    border-color: var(--accent);
+}
+
+.gc-header-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.gc-room-name {
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gc-status {
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 2px;
+}
+
+.gc-timer {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text2);
+    letter-spacing: 0.5px;
+}
+
+/* ── Video Grid ───────────────────────────────────────────────────────── */
+
+.gc-grid {
+    flex: 1;
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    overflow: hidden;
+}
+
+/* Adaptive layouts based on participant count */
+.gc-grid[data-count="1"] { grid-template-columns: 1fr; }
+.gc-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
+.gc-grid[data-count="3"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.gc-grid[data-count="3"] .gc-tile:first-child { grid-column: 1 / -1; }
+.gc-grid[data-count="4"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.gc-grid[data-count="5"],
+.gc-grid[data-count="6"] { grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; }
+.gc-grid[data-count="7"],
+.gc-grid[data-count="8"],
+.gc-grid[data-count="9"] { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+.gc-grid[data-count="10"] { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); }
+
+/* ── Tile ─────────────────────────────────────────────────────────────── */
+
+.gc-tile {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg2);
+    border: 2px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    min-height: 0;
+}
+
+.gc-tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.gc-tile.speaking {
+    border-color: var(--green);
+    box-shadow: 0 0 0 1px var(--green), 0 0 16px rgba(34, 197, 94, 0.25);
+}
+
+.gc-tile.dominant {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 20px rgba(124, 58, 237, 0.35);
+}
+
+/* Avatar fallback (no video) */
+.gc-tile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+/* Name label at bottom of tile */
+.gc-tile-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 24px 12px 8px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+}
+
+.gc-tile-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Mute badge in tile corner */
+.gc-tile-mute {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #fff;
+    pointer-events: none;
+}
+.gc-tile.muted .gc-tile-mute {
+    display: flex;
+}
+
+/* Screen share indicator */
+.gc-tile.screen-sharing {
+    grid-column: 1 / -1;
+    grid-row: 1 / 3;
+}
+
+/* "You" label */
+.gc-tile-you {
+    font-size: 11px;
+    color: var(--accent2);
+    margin-left: 4px;
+}
+
+/* ── Controls Bar ─────────────────────────────────────────────────────── */
+
+.gc-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border-top: 1px solid var(--border);
+}
+
+.gc-ctrl-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    position: relative;
+}
+.gc-ctrl-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+.gc-ctrl-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+.gc-ctrl-btn.active:hover {
+    background: var(--accent2);
+}
+
+.gc-hangup {
+    background: var(--red) !important;
+    border-color: var(--red) !important;
+    color: #fff !important;
+}
+.gc-hangup:hover {
+    background: #dc2626 !important;
+    transform: scale(1.08);
+}
+
+/* ── PIP (Picture-in-Picture) ─────────────────────────────────────────── */
+
+.gc-pip {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 9999;
+    background: rgba(14, 14, 24, 0.92);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 12px 16px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+.gc-pip.show {
+    display: flex;
+    animation: gcPipSlide 0.3s cubic-bezier(0.25, 1.1, 0.5, 1);
+}
+
+.gc-pip-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.gc-pip-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.gc-pip-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+.gc-pip-timer {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+}
+.gc-pip-count {
+    font-size: 11px;
+    color: var(--accent2);
+}
+
+.gc-pip-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.7);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.13s, transform 0.1s;
+    flex-shrink: 0;
+}
+.gc-pip-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    transform: scale(1.1);
+}
+.gc-pip-hangup {
+    color: var(--red);
+}
+.gc-pip-hangup:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--red);
+}
+
+/* ── Incoming Call Banner ─────────────────────────────────────────────── */
+
+.gc-incoming {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    background: rgba(14, 14, 24, 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px 20px;
+    display: none;
+    align-items: center;
+    gap: 20px;
+    min-width: 340px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+.gc-incoming.show {
+    display: flex;
+    animation: gcBannerSlide 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.gc-incoming-caller {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.gc-incoming-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.gc-incoming-info {
+    min-width: 0;
+}
+.gc-incoming-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.gc-incoming-label {
+    font-size: 12px;
+    color: var(--accent2);
+    margin-top: 2px;
+}
+
+.gc-incoming-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.gc-incoming-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    color: #fff;
+}
+.gc-incoming-accept {
+    background: var(--green);
+}
+.gc-incoming-accept:hover {
+    background: #16a34a;
+    transform: scale(1.1);
+}
+.gc-incoming-decline {
+    background: var(--red);
+}
+.gc-incoming-decline:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+}
+
+/* Pulsing ring animation on accept */
+.gc-incoming-accept::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid var(--green);
+    animation: gcRingPulse 1.5s ease-out infinite;
+    pointer-events: none;
+}
+
+/* ── Add Participant Modal ────────────────────────────────────────────── */
+
+.gc-add-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 250;
+    background: rgba(0, 0, 0, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.gc-add-modal.show {
+    display: flex;
+    animation: gcModalFade 0.2s ease;
+}
+
+.gc-add-content {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 360px;
+    max-height: 60vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.gc-add-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.gc-add-close {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+.gc-add-close:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text);
+}
+
+.gc-add-list {
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.gc-add-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    transition: background 0.12s;
+}
+.gc-add-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.gc-add-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.gc-add-name {
+    flex: 1;
+    font-size: 14px;
+    color: var(--text);
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gc-add-invite {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+.gc-add-invite:hover {
+    background: var(--accent);
+    color: #fff;
+}
+.gc-add-invite:disabled {
+    opacity: 0.4;
+    cursor: default;
+    border-color: var(--text3);
+    color: var(--text3);
+}
+
+/* ── Animations ───────────────────────────────────────────────────────── */
+
+@keyframes gcPipSlide {
+    from { transform: translateY(20px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes gcBannerSlide {
+    from { transform: translateX(-50%) translateY(-30px); opacity: 0; }
+    to   { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+@keyframes gcModalFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes gcRingPulse {
+    0%   { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes gcSpeakingPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3); }
+    50%      { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .gc-grid {
+        padding: 8px;
+        gap: 6px;
+    }
+    .gc-grid[data-count="3"],
+    .gc-grid[data-count="4"],
+    .gc-grid[data-count="5"],
+    .gc-grid[data-count="6"],
+    .gc-grid[data-count="7"],
+    .gc-grid[data-count="8"],
+    .gc-grid[data-count="9"],
+    .gc-grid[data-count="10"] {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto;
+    }
+    .gc-grid[data-count="3"] .gc-tile:first-child {
+        grid-column: 1 / -1;
+    }
+    .gc-tile.screen-sharing {
+        grid-column: 1 / -1;
+        grid-row: auto;
+    }
+
+    .gc-controls {
+        gap: 12px;
+        padding: 14px;
+    }
+    .gc-ctrl-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    .gc-header {
+        padding: 12px 14px;
+        gap: 10px;
+    }
+
+    .gc-pip {
+        bottom: 12px;
+        left: 12px;
+    }
+
+    .gc-incoming {
+        min-width: 0;
+        left: 12px;
+        right: 12px;
+        transform: none;
+        width: auto;
+    }
+    .gc-incoming.show {
+        animation-name: gcBannerSlideMobile;
+    }
+    @keyframes gcBannerSlideMobile {
+        from { transform: translateY(-30px); opacity: 0; }
+        to   { transform: translateY(0); opacity: 1; }
+    }
+
+    .gc-add-content {
+        width: calc(100vw - 32px);
+        max-width: 360px;
+    }
+}

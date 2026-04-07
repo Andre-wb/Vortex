@@ -1,0 +1,216 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Prometheus Alert Rules — Vortex Chat
+# ══════════════════════════════════════════════════════════════════════════════
+
+groups:
+  - name: vortex_availability
+    rules:
+      # ── Instance down ─────────────────────────────────────────────────────
+      - alert: VortexDown
+        expr: up{job="vortex"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Vortex instance is down"
+          description: "Vortex node {{ $labels.instance }} has been unreachable for more than 1 minute."
+
+  - name: vortex_latency
+    rules:
+      # ── High p99 latency (> 2s) ───────────────────────────────────────────
+      - alert: HighLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            rate(vortex_http_request_duration_seconds_bucket[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p99 latency (> 2s)"
+          description: "p99 request latency is {{ $value | humanizeDuration }} on {{ $labels.instance }}."
+
+      # ── High p95 latency (> 1s) ───────────────────────────────────────────
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            rate(vortex_http_request_duration_seconds_bucket[5m])
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency (> 1s)"
+          description: "p95 request latency is {{ $value | humanizeDuration }} on {{ $labels.instance }}."
+
+      # ── Slow average response time (> 500ms) ──────────────────────────────
+      - alert: SlowAverageResponse
+        expr: |
+          rate(vortex_http_request_duration_seconds_sum[5m])
+          /
+          rate(vortex_http_request_duration_seconds_count[5m])
+          > 0.5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Slow average response time (> 500ms)"
+          description: "Average response time is {{ $value | humanizeDuration }} on {{ $labels.instance }}."
+
+  - name: vortex_errors
+    rules:
+      # ── Error rate > 5% ───────────────────────────────────────────────────
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(vortex_http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(vortex_http_requests_total[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate above 5%"
+          description: "{{ $value | humanizePercentage }} of requests are returning 5xx errors."
+
+      # ── Error rate > 1% ───────────────────────────────────────────────────
+      - alert: ElevatedErrorRate
+        expr: |
+          sum(rate(vortex_http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(vortex_http_requests_total[5m]))
+          > 0.01
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Error rate above 1%"
+          description: "{{ $value | humanizePercentage }} of requests are returning 5xx errors."
+
+      # ── Database errors spike ──────────────────────────────────────────────
+      - alert: DatabaseErrors
+        expr: rate(vortex_db_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database errors detected"
+          description: "Database errors at {{ $value }}/s on {{ $labels.instance }}."
+
+  - name: vortex_connections
+    rules:
+      # ── WebSocket connections high ─────────────────────────────────────────
+      - alert: HighWebSocketConnections
+        expr: vortex_ws_connections_active > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High WebSocket connection count"
+          description: "{{ $value }} active WebSocket connections on {{ $labels.instance }}."
+
+      # ── No active peers ────────────────────────────────────────────────────
+      - alert: NoPeersActive
+        expr: vortex_peers_active == 0
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "No active P2P peers"
+          description: "No peers have been seen for 10 minutes on {{ $labels.instance }}."
+
+  - name: vortex_throughput
+    rules:
+      # ── Request rate spike (> 500 RPS) ─────────────────────────────────────
+      - alert: HighRequestRate
+        expr: sum(rate(vortex_http_requests_total[1m])) > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request rate (> 500 RPS)"
+          description: "Request rate is {{ $value | humanize }}/s."
+
+      # ── Zero traffic ──────────────────────────────────────────────────────
+      - alert: ZeroTraffic
+        expr: sum(rate(vortex_http_requests_total[5m])) == 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "No HTTP traffic for 15 minutes"
+          description: "Vortex has received zero requests in the last 15 minutes."
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SLA Monitoring — 99.9% uptime target (8.76h downtime/year max)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: vortex_sla
+    rules:
+      # ── SLA: availability below 99.9% over 30 days ────────────────────────
+      - alert: SLAAvailabilityBreach
+        expr: |
+          (1 - avg_over_time(up{job="vortex"}[30d])) > 0.001
+        labels:
+          severity: critical
+        annotations:
+          summary: "SLA breach: availability below 99.9%"
+          description: "Vortex uptime over 30 days is {{ $value | humanizePercentage }} (target: 99.9%)."
+
+      # ── SLA: error budget consumed > 50% ──────────────────────────────────
+      - alert: SLAErrorBudgetHalf
+        expr: |
+          (1 - avg_over_time(up{job="vortex"}[30d])) > 0.0005
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "SLA error budget > 50% consumed"
+          description: "Error budget is {{ $value | humanizePercentage }} of allowed 0.1% downtime."
+
+      # ── SLA: success rate below 99.9% ─────────────────────────────────────
+      - alert: SLASuccessRateBreach
+        expr: |
+          sum(rate(vortex_http_requests_total{status=~"2.."}[1h]))
+          /
+          sum(rate(vortex_http_requests_total[1h]))
+          < 0.999
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SLA breach: success rate below 99.9%"
+          description: "HTTP success rate is {{ $value | humanizePercentage }} over the last hour."
+
+      # ── SLA: p99 latency above 2s for 1 hour ─────────────────────────────
+      - alert: SLALatencyBreach
+        expr: |
+          histogram_quantile(0.99,
+            rate(vortex_http_request_duration_seconds_bucket[1h])
+          ) > 2
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "SLA breach: p99 latency above 2s for 1 hour"
+          description: "p99 latency is {{ $value | humanizeDuration }}."
+
+      # ── SLA: Redis down (scaling degraded) ────────────────────────────────
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis is down — horizontal scaling degraded"
+          description: "Redis has been unreachable for 2 minutes. WebSocket pub/sub falling back to single-node."
+
+      # ── SLA: PostgreSQL replication lag ────────────────────────────────────
+      - alert: PostgresReplicationLag
+        expr: pg_replication_lag > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL replication lag > 30 seconds"
+          description: "Streaming replication lag is {{ $value }}s. Data durability at risk."

@@ -1,0 +1,19 @@
+# Chaos Mesh — Pod kill experiment
+# Randomly kills 1 Vortex pod every 2 minutes for 10 minutes
+# Tests: auto-recovery, HPA scaling, Redis pub/sub failover
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: vortex-pod-kill
+  namespace: vortex
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - vortex
+    labelSelectors:
+      app: vortex
+  scheduler:
+    cron: "*/2 * * * *"
+  duration: "10m"

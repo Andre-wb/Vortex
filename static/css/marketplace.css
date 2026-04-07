@@ -1,0 +1,648 @@
+/* ==========================================================================
+ * BOT MARKETPLACE
+ * ========================================================================== */
+
+#marketplace-modal .modal {
+    width: 560px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.marketplace-search {
+    position: relative;
+    margin-bottom: 12px;
+}
+.marketplace-search input {
+    width: 100%;
+    padding: 10px 12px 10px 36px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+.marketplace-search input:focus {
+    border-color: var(--accent);
+}
+.marketplace-search .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3);
+    pointer-events: none;
+}
+
+.marketplace-categories {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    scrollbar-width: thin;
+}
+.marketplace-categories::-webkit-scrollbar {
+    height: 3px;
+}
+.marketplace-categories::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+}
+.marketplace-cat-pill {
+    flex-shrink: 0;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.marketplace-cat-pill:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.marketplace-cat-pill.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+.marketplace-cat-pill .cat-count {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-left: 4px;
+}
+
+.marketplace-sort {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+.marketplace-sort-btn {
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text3);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.marketplace-sort-btn:hover {
+    color: var(--text);
+    border-color: var(--text3);
+}
+.marketplace-sort-btn.active {
+    background: var(--bg3);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.marketplace-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 4px;
+    min-height: 0;
+}
+.marketplace-grid::-webkit-scrollbar {
+    width: 4px;
+}
+.marketplace-grid::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+}
+
+.marketplace-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.marketplace-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.marketplace-card-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.marketplace-card-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--bg2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.marketplace-card-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.marketplace-card-info {
+    flex: 1;
+    min-width: 0;
+}
+.marketplace-card-name {
+    font-weight: 700;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.marketplace-card-desc {
+    font-size: 11px;
+    color: var(--text3);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.3;
+}
+.marketplace-card-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+.marketplace-card-cat {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg2);
+    color: var(--text3);
+    text-transform: capitalize;
+}
+.marketplace-card-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text3);
+}
+.marketplace-card-stats .stat-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.marketplace-stars {
+    display: inline-flex;
+    gap: 1px;
+    color: var(--text3);
+}
+.marketplace-stars .star-filled {
+    color: #f59e0b;
+}
+.marketplace-stars .star-half {
+    color: #f59e0b;
+}
+.marketplace-star-input {
+    display: inline-flex;
+    gap: 2px;
+    cursor: pointer;
+}
+.marketplace-star-input .star {
+    font-size: 20px;
+    color: var(--text3);
+    cursor: pointer;
+    transition: color 0.1s, transform 0.1s;
+}
+.marketplace-star-input .star:hover,
+.marketplace-star-input .star.active {
+    color: #f59e0b;
+    transform: scale(1.15);
+}
+
+/* ─── Marketplace Detail View ─── */
+.marketplace-detail {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+.marketplace-detail-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.marketplace-detail-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    background: var(--bg3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.marketplace-detail-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.marketplace-detail-info {
+    flex: 1;
+    min-width: 0;
+}
+.marketplace-detail-name {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 2px;
+}
+.marketplace-detail-owner {
+    font-size: 12px;
+    color: var(--text3);
+    margin-bottom: 6px;
+}
+.marketplace-detail-stats {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--text2);
+    align-items: center;
+}
+.marketplace-detail-desc {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+.marketplace-detail-commands {
+    margin-bottom: 16px;
+}
+.marketplace-detail-commands h4 {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+.marketplace-detail-cmd {
+    display: flex;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+.marketplace-detail-cmd code {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-weight: 600;
+}
+
+.marketplace-room-select {
+    margin-bottom: 16px;
+}
+.marketplace-room-select label {
+    font-size: 12px;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 6px;
+}
+.marketplace-room-select select {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+/* ─── Reviews Section ─── */
+.marketplace-reviews {
+    margin-top: 16px;
+}
+.marketplace-reviews h4 {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+.marketplace-review-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+.marketplace-review-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.marketplace-review-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.marketplace-review-body {
+    flex: 1;
+    min-width: 0;
+}
+.marketplace-review-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.marketplace-review-name {
+    font-weight: 600;
+    font-size: 12px;
+}
+.marketplace-review-date {
+    font-size: 10px;
+    color: var(--text3);
+    font-family: var(--mono);
+}
+.marketplace-review-text {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.4;
+}
+
+.marketplace-review-form {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg3);
+    border-radius: 10px;
+}
+.marketplace-review-form label {
+    font-size: 12px;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 6px;
+}
+.marketplace-review-form textarea {
+    width: 100%;
+    padding: 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 12px;
+    resize: vertical;
+    min-height: 50px;
+    margin-top: 8px;
+    box-sizing: border-box;
+}
+.marketplace-review-form textarea:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+
+.marketplace-empty {
+    text-align: center;
+    color: var(--text3);
+    font-size: 13px;
+    padding: 40px 20px;
+}
+.marketplace-loading {
+    text-align: center;
+    color: var(--text3);
+    font-size: 12px;
+    padding: 24px 0;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 600px) {
+    #marketplace-modal .modal {
+        width: calc(100vw - 16px);
+        max-height: 85vh;
+    }
+    .marketplace-grid {
+        grid-template-columns: 1fr;
+    }
+    .marketplace-detail-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    .marketplace-detail-stats {
+        justify-content: center;
+    }
+}
+
+/* ─── Marketplace light theme ─── */
+body[data-theme="light"] .marketplace-card { background: #fafafa; border-color: #e4e4e7; }
+body[data-theme="light"] .marketplace-card:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+body[data-theme="light"] .marketplace-card-avatar { background: #f4f4f5; }
+body[data-theme="light"] .marketplace-review-form { background: #fafafa; }
+body[data-theme="light"] .marketplace-review-form textarea { background: #fff; }
+
+/* ============================================================================
+ * MINI APP PANEL — fullscreen overlay for bot mini apps (like Telegram Mini Apps)
+ * ========================================================================== */
+#miniapp-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: var(--bg);
+    display: none;
+    flex-direction: column;
+}
+#miniapp-panel.show {
+    display: flex;
+}
+
+.miniapp-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    min-height: 48px;
+    flex-shrink: 0;
+}
+
+.miniapp-back-btn,
+.miniapp-close-btn {
+    background: none;
+    border: none;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px 8px;
+    border-radius: var(--radius);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.miniapp-back-btn:hover,
+.miniapp-close-btn:hover {
+    background: var(--bg3);
+    color: var(--text);
+}
+
+.miniapp-title {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.miniapp-bot-badge {
+    font-size: 10px;
+    font-family: var(--mono);
+    font-weight: 700;
+    background: rgba(59,130,246,0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(59,130,246,0.3);
+    padding: 1px 6px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.miniapp-expand-btn {
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 8px;
+    border-radius: var(--radius);
+    transition: all 0.15s;
+}
+.miniapp-expand-btn:hover {
+    background: var(--bg3);
+    color: var(--text);
+}
+
+#miniapp-frame {
+    width: 100%;
+    flex: 1;
+    border: none;
+    background: #fff;
+}
+
+/* Mini app loading spinner */
+.miniapp-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    flex-direction: column;
+    gap: 12px;
+    color: var(--text2);
+    font-size: 13px;
+}
+.miniapp-loading .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Mini app button card in bot messages */
+.miniapp-card {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(124,58,237,0.08);
+    border: 1px solid rgba(124,58,237,0.2);
+    border-radius: 12px;
+    max-width: 300px;
+}
+.miniapp-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+}
+.miniapp-card-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 20px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--sans);
+}
+.miniapp-card-btn:hover {
+    background: var(--accent2);
+    transform: translateY(-1px);
+}
+.miniapp-card-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Mini app URL input in bot settings */
+.miniapp-url-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 6px;
+}
+.miniapp-url-row input {
+    flex: 1;
+    min-width: 0;
+}
+.miniapp-test-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ─── Light theme: Mini App ──────────────────────────────────────────────── */
+body[data-theme="light"] #miniapp-panel { background: #fff; }
+body[data-theme="light"] .miniapp-header { background: #fafafa; border-color: #e4e4e7; }
+body[data-theme="light"] .miniapp-back-btn:hover,
+body[data-theme="light"] .miniapp-close-btn:hover { background: #f4f4f5; }
+body[data-theme="light"] .miniapp-bot-badge {
+    background: rgba(59,130,246,0.08);
+    color: #2563eb;
+    border-color: rgba(59,130,246,0.2);
+}
+body[data-theme="light"] .miniapp-card {
+    background: rgba(124,58,237,0.04);
+    border-color: rgba(124,58,237,0.15);
+}
+

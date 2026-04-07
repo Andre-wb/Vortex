@@ -1,0 +1,35 @@
+// Architex — Counter example
+// Demonstrates: reactive state, computed, button handlers, text binding
+
+@screen Counter
+
+  ~count = 0
+  ~step  = 1
+  ~total := ~count * ~step
+
+  col :: pad(24) gap(16) center
+
+    header "Counter" :: bold size(28)
+
+    text ~count :: size(64) bold center color(#4f8ef7)
+
+    row :: gap(12) center
+
+      button "−" :: size(20) pad(12) radius(8) bg(#f0f0f0)
+        => ~count -= 1
+
+      button "Reset" :: size(16) pad(12) radius(8) bg(#ffe0e0)
+        => ~count = 0
+
+      button "+" :: size(20) pad(12) radius(8) bg(#e0f0e0)
+        => ~count += 1
+
+    divider
+
+    row :: gap(8) center
+
+      label "Step:"
+      input ~step :: w(60) pad(8) radius(6) border(#ccc)
+        => ~step = ~step
+
+    text ~total :: size(14) color(#888) center

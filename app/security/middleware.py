@@ -32,6 +32,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Устанавливает заголовки безопасности. CSP настроен для WebRTC и WebSocket."""
 
     async def dispatch(self, request: Request, call_next):
+        if request.headers.get("upgrade", "").lower() == "websocket":
+            return await call_next(request)
+
         response = await call_next(request)
         if request.url.path.startswith("/static/"):
             return response
@@ -44,22 +47,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Cross-Origin-Opener-Policy"]   = "same-origin"
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
 
-        if _IS_PROD:
-            response.headers["Strict-Transport-Security"] = (
-                "max-age=31536000; includeSubDomains; preload"
-            )
-        else:
-            response.headers["Strict-Transport-Security"] = "max-age=86400"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains; preload"
+        )
 
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline'; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data: blob:; "
-            "connect-src 'self' ws: wss: http: https:; "
+            "img-src 'self' data: blob: https:; "
+            "connect-src 'self' wss: ws: https:; "
             "media-src 'self' blob:; "
-            "frame-src 'none'; "
+            "worker-src 'self' blob:; "
+            "frame-src 'self'; "
             "frame-ancestors 'none'; "
             "object-src 'none'; "
             "base-uri 'self'; "
@@ -82,8 +83,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 or request.headers.get("upgrade", "").lower() == "websocket"):
             return await call_next(request)
 
+        from app.security.ip_privacy import raw_ip_for_ratelimit
         start = time.perf_counter()
-        ip = request.client.host if request.client else "unknown"
+        ip = raw_ip_for_ratelimit(request)
 
         try:
             response = await call_next(request)
@@ -109,6 +111,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         "/health", "/favicon.ico", "/robots.txt",
         "/api/authentication/login", "/api/authentication/register",
         "/api/authentication/refresh",
+        "/api/authentication/profile", "/api/authentication/avatar",
         "/api/peers/receive",
         "/api/peers/status",
         "/api/peers/federated-join",
@@ -117,11 +120,28 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     })
     _SKIP_PREFIXES = (
         "/static/", "/waf/", "/api/rooms/join/",
+        "/api/push/",
+        "/api/authentication/qr-",
+        "/api/authentication/passkey/",
         "/api/files/upload-chunk/",
         "/api/files/upload-complete/",
         "/api/files/upload-cancel/",
         "/api/files/upload-status/",
         "/api/files/upload-init",
+        "/api/stream/",
+        "/api/users/block/",
+        "/api/users/report/",
+        "/api/dm/store-key/",
+        "/api/saved/",
+        "/api/stickers/",
+        "/api/bot/",   # Bot API endpoints use token auth, not CSRF
+        "/api/bots/",  # Bot management endpoints
+        "/api/marketplace/",  # Marketplace endpoints (JWT auth)
+        "/api/spaces/",       # Spaces endpoints (JWT auth)
+        "/api/global/",       # P2P inter-node endpoints (no user session)
+        "/api/transport/",    # Transport layer endpoints (JWT auth)
+        "/api/ai/",           # AI assistant endpoints (JWT auth)
+        "/cover/",            # Cover traffic pages (public)
     )
 
     async def dispatch(self, request: Request, call_next):
@@ -129,7 +149,15 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
-        if path in self._SKIP_PATHS or any(path.startswith(p) for p in self._SKIP_PREFIXES):
+        if (path in self._SKIP_PATHS
+                or any(path.startswith(p) for p in self._SKIP_PREFIXES)
+                or (path.startswith("/api/rooms/") and path.endswith("/read"))
+                or (path.startswith("/api/rooms/") and path.endswith("/mute"))
+                or (path.startswith("/api/rooms/") and path.endswith("/pin"))
+                or (path.startswith("/api/rooms/") and path.endswith("/auto-delete"))
+                or (path.startswith("/api/rooms/") and path.endswith("/slow-mode"))
+                or (path.startswith("/api/rooms/") and path.endswith("/avatar"))
+                or (path.startswith("/api/rooms/") and "/tasks" in path)):
             response = await call_next(request)
             self._set_csrf_cookie(response, request)
             return response
@@ -211,7 +239,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 "csrf_token", token,
                 httponly=False,
                 secure=_IS_PROD,
-                samesite="Lax",
+                samesite="Strict",
                 max_age=86400, path="/",
             )
 
@@ -237,12 +265,20 @@ class TokenRefreshMiddleware(BaseHTTPMiddleware):
                 try:
                     raw = request.cookies["refresh_token"]
                     user = verify_refresh_token(raw, db)
-                    new_token = create_access_token(user.id, user.phone, user.username)
-                    response  = await call_next(request)
+                    new_access = create_access_token(user.id, user.phone, user.username)
+                    # Создаём новый refresh token (ротация)
+                    from app.security.auth_jwt import create_refresh_token
+                    new_refresh, _ = create_refresh_token(user.id, db)
+                    response = await call_next(request)
                     response.set_cookie(
-                        "access_token", new_token,
+                        "access_token", new_access,
                         httponly=True, secure=_IS_PROD,
                         samesite="Lax", max_age=3600, path="/",
+                    )
+                    response.set_cookie(
+                        "refresh_token", new_refresh,
+                        httponly=True, secure=_IS_PROD,
+                        samesite="Lax", max_age=86400 * 30, path="/",
                     )
                     return response
                 finally:

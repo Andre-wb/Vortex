@@ -61,20 +61,28 @@ def _py_decrypt(data: bytes, key: bytes) -> bytes:
 
 
 def _py_hash(data: bytes) -> bytes:
-    return hashlib.blake2b(data, digest_size=32).digest()
+    try:
+        import blake3
+        return blake3.blake3(data).digest()
+    except ImportError:
+        logger.warning("blake3 не установлен — используется BLAKE2b (несовместимо с Rust BLAKE3!)")
+        return hashlib.blake2b(data, digest_size=32).digest()
 
 
 def _py_hash_password(pw: str) -> str:
-    salt = secrets.token_hex(16)
-    dk = hashlib.pbkdf2_hmac("sha256", pw.encode(), salt.encode(), 310_000, dklen=32)
-    return f"pbkdf2:sha256:310000:{salt}:{dk.hex()}"
+    from argon2 import PasswordHasher
+    ph = PasswordHasher()
+    return ph.hash(pw)
 
 
 def _py_verify_password(pw: str, h: str) -> bool:
     try:
-        _, _, iters, salt, stored = h.split(":")
-        dk = hashlib.pbkdf2_hmac("sha256", pw.encode(), salt.encode(), int(iters), dklen=32)
-        return secrets.compare_digest(dk.hex(), stored)
+        from argon2 import PasswordHasher
+        from argon2.exceptions import VerifyMismatchError
+        ph = PasswordHasher()
+        return ph.verify(h, pw)
+    except VerifyMismatchError:
+        return False
     except Exception:
         return False
 
@@ -100,17 +108,24 @@ def _py_generate_keypair() -> Tuple[bytes, bytes]:
 
 
 def _py_derive_session_key(private_bytes: bytes, peer_public_bytes: bytes) -> bytes:
-    """X25519 DH + HKDF-SHA256."""
+    """X25519 DH + HKDF-SHA256.
+
+    Salt = sorted concatenation of both public keys (NIST SP 800-56C style).
+    Both peers derive the same 64-byte salt regardless of initiator/responder role.
+    """
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-    priv = X25519PrivateKey.from_private_bytes(private_bytes)
-    pub  = X25519PublicKey.from_public_bytes(peer_public_bytes)
-    shared = priv.exchange(pub)
-    hkdf  = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
-                 info=b"vortex-session")
-    return hkdf.derive(shared)
+    priv      = X25519PrivateKey.from_private_bytes(private_bytes)
+    peer_pub  = X25519PublicKey.from_public_bytes(peer_public_bytes)
+    shared    = priv.exchange(peer_pub)
+    local_pub = priv.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    pair      = sorted([local_pub, peer_public_bytes])   # canonical order
+    salt      = pair[0] + pair[1]                        # 64 bytes
+    return HKDF(
+        algorithm=hashes.SHA256(), length=32, salt=salt, info=b"vortex-session"
+    ).derive(shared)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -219,6 +234,12 @@ def load_or_create_node_keypair(keys_dir: Path) -> Tuple[bytes, bytes]:
     if priv_path.exists() and pub_path.exists():
         _node_priv = priv_path.read_bytes()
         _node_pub  = pub_path.read_bytes()
+        # Исправляем права если они слишком открыты
+        import stat
+        current_mode = priv_path.stat().st_mode & 0o777
+        if current_mode != 0o600:
+            os.chmod(priv_path, 0o600)
+            logger.warning(f"Исправлены права на {priv_path}: {oct(current_mode)} → 0o600")
         logger.info("X25519 ключи узла загружены")
     else:
         _node_priv, _node_pub = generate_x25519_keypair()

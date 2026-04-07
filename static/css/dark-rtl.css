@@ -1,0 +1,312 @@
+/* =============================================================================
+   Мульти-выбор сообщений (multi-select)
+   ============================================================================= */
+
+/* Чекбокс выбора у каждого сообщения */
+.msg-select-checkbox {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    flex-shrink: 0;
+    align-self: center;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+    position: relative;
+    margin-right: 8px;
+}
+.msg-select-checkbox.checked {
+    background: var(--accent, #7c3aed);
+    border-color: var(--accent, #7c3aed);
+}
+.msg-select-checkbox.checked::after {
+    content: '';
+    display: block;
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 7px;
+    height: 11px;
+    border: 2px solid #fff;
+    border-top: none;
+    border-left: none;
+    transform: rotate(40deg);
+}
+.msg-select-checkbox:hover {
+    border-color: var(--accent2, #a78bfa);
+    transform: scale(1.1);
+}
+
+/* Режим выбора: группы становятся flex-row */
+#messages-container.selection-mode .msg-group {
+    display: flex;
+    align-items: flex-start;
+    padding: 4px 6px;
+    border-radius: 10px;
+    transition: background 0.15s;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Подсветка выбранного сообщения */
+.msg-group.msg-selected {
+    background: rgba(124, 58, 237, 0.14) !important;
+}
+
+/* Тулбар выбора */
+.selection-toolbar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg2, rgba(30, 22, 55, 0.95));
+    border-top: 1px solid rgba(124, 58, 237, 0.25);
+    animation: selToolbarIn 0.18s ease;
+}
+.selection-toolbar.visible {
+    display: flex;
+}
+@keyframes selToolbarIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.selection-count {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text2, rgba(255,255,255,0.65));
+    white-space: nowrap;
+}
+
+.selection-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.selection-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, transform 0.1s;
+    background: rgba(124, 58, 237, 0.18);
+    color: rgba(255, 255, 255, 0.88);
+}
+.selection-btn:hover {
+    background: rgba(124, 58, 237, 0.32);
+    transform: translateY(-1px);
+}
+.selection-btn:active { transform: scale(0.96); }
+.selection-btn.danger {
+    background: rgba(220, 53, 69, 0.16);
+    color: rgba(255, 100, 100, 0.9);
+}
+.selection-btn.danger:hover {
+    background: rgba(220, 53, 69, 0.30);
+}
+.selection-btn.cancel {
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.55);
+}
+.selection-btn.cancel:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RTL LAYOUT  (dir="rtl" is set by i18n.js for Arabic / Hebrew / Farsi etc.)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[dir="rtl"] {
+    direction: rtl;
+    unicode-bidi: embed;
+}
+
+/* ── Sidebar ── */
+[dir="rtl"] .sidebar {
+    border-right: none;
+    border-left: 1px solid var(--border, rgba(255,255,255,0.07));
+    order: 2;
+}
+[dir="rtl"] .main-panel { order: 1; }
+
+[dir="rtl"] .room-item { flex-direction: row-reverse; }
+[dir="rtl"] .room-item-info { text-align: right; }
+[dir="rtl"] .room-item-badge {
+    margin-right: auto;
+    margin-left: 0;
+}
+
+[dir="rtl"] .sidebar-header { flex-direction: row-reverse; }
+[dir="rtl"] .sidebar-header .logo-area { flex-direction: row-reverse; }
+
+/* ── Chat header ── */
+[dir="rtl"] .chat-header { flex-direction: row-reverse; }
+[dir="rtl"] .chat-header-info { text-align: right; }
+[dir="rtl"] .chat-header-actions { flex-direction: row-reverse; margin-right: auto; margin-left: 0; }
+
+/* ── Messages ── */
+[dir="rtl"] .msg-group { flex-direction: row-reverse; }
+[dir="rtl"] .msg-group .msg-avatar { margin-right: 0; margin-left: 10px; }
+[dir="rtl"] .msg-bubble { direction: rtl; text-align: right; }
+[dir="rtl"] .msg-bubble.own {
+    border-radius: 18px 4px 18px 18px;
+    margin-left: 0;
+    margin-right: auto;
+    background: var(--bubble-own, rgba(124,58,237,0.55));
+}
+[dir="rtl"] .msg-bubble:not(.own) {
+    border-radius: 4px 18px 18px 18px;
+    margin-right: 0;
+    margin-left: auto;
+}
+[dir="rtl"] .msg-meta { flex-direction: row-reverse; }
+[dir="rtl"] .msg-time { margin-left: 0; margin-right: 4px; }
+[dir="rtl"] .msg-sender { text-align: right; }
+[dir="rtl"] .reply-bar { border-left: none; border-right: 3px solid var(--accent, #7c3aed); padding-left: 0; padding-right: 10px; }
+
+/* ── Input area ── */
+[dir="rtl"] .input-area { flex-direction: row-reverse; direction: rtl; }
+[dir="rtl"] .input-area textarea { direction: rtl; text-align: right; }
+[dir="rtl"] .input-actions { flex-direction: row-reverse; }
+[dir="rtl"] .attach-btn { margin-right: 0; margin-left: 4px; }
+
+/* ── Modals & panels ── */
+[dir="rtl"] .modal-header { flex-direction: row-reverse; }
+[dir="rtl"] .settings-tabs { flex-direction: row; }
+[dir="rtl"] .settings-tab-content { text-align: right; }
+
+/* ── Search & lists ── */
+[dir="rtl"] .search-bar input { direction: rtl; text-align: right; }
+[dir="rtl"] .member-item { flex-direction: row-reverse; }
+[dir="rtl"] .member-info { text-align: right; }
+
+/* ── Context menu ── */
+[dir="rtl"] .ctx-menu { text-align: right; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ROOM CATALOG
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.room-catalog-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    z-index: 3000;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn .18s ease;
+}
+.room-catalog-modal {
+    background: var(--bg2, #1a1a2e);
+    border: 1px solid var(--border, rgba(255,255,255,0.1));
+    border-radius: 20px;
+    width: min(680px, 96vw);
+    max-height: 80vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+}
+.room-catalog-header {
+    padding: 20px 24px 0;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.room-catalog-header h2 { font-size: 18px; font-weight: 700; margin: 0; }
+.room-catalog-close {
+    background: none; border: none; cursor: pointer;
+    color: var(--text3); font-size: 20px; padding: 4px;
+    border-radius: 8px; transition: background .15s;
+}
+.room-catalog-close:hover { background: rgba(255,255,255,0.08); }
+
+.room-catalog-filters {
+    padding: 16px 24px;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+}
+.room-catalog-search {
+    flex: 1; min-width: 160px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border, rgba(255,255,255,0.1));
+    border-radius: 10px;
+    padding: 8px 14px; color: #fff; font-size: 14px;
+    outline: none; transition: border-color .15s;
+}
+.room-catalog-search:focus { border-color: var(--accent, #7c3aed); }
+.room-catalog-filter-btn {
+    padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border, rgba(255,255,255,0.12));
+    background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7);
+    transition: all .15s; white-space: nowrap;
+}
+.room-catalog-filter-btn.active,
+.room-catalog-filter-btn:hover {
+    background: var(--accent, #7c3aed);
+    border-color: var(--accent, #7c3aed);
+    color: #fff;
+}
+.room-catalog-sort {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border, rgba(255,255,255,0.1));
+    border-radius: 10px; padding: 7px 10px;
+    color: #fff; font-size: 13px; outline: none; cursor: pointer;
+}
+
+.room-catalog-list {
+    overflow-y: auto; padding: 0 24px 20px; flex: 1;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.room-catalog-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border, rgba(255,255,255,0.07));
+    cursor: pointer; transition: all .15s;
+}
+.room-catalog-card:hover {
+    background: rgba(124,58,237,0.12);
+    border-color: rgba(124,58,237,0.3);
+    transform: translateX(2px);
+}
+.room-catalog-card-emoji {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: rgba(124,58,237,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+}
+.room-catalog-card-info { flex: 1; min-width: 0; }
+.room-catalog-card-name {
+    font-size: 15px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.room-catalog-card-desc {
+    font-size: 12px; color: var(--text3);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-top: 2px;
+}
+.room-catalog-card-badges { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.room-catalog-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 700;
+    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.55);
+}
+.room-catalog-badge.channel { background: rgba(59,130,246,0.2); color: #93c5fd; }
+.room-catalog-badge.voice   { background: rgba(16,185,129,0.2); color: #6ee7b7; }
+.room-catalog-card-members {
+    font-size: 12px; color: var(--text3); white-space: nowrap;
+}
+.room-catalog-join-btn {
+    padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    background: var(--accent, #7c3aed); color: #fff; border: none;
+    cursor: pointer; flex-shrink: 0; transition: opacity .15s;
+}
+.room-catalog-join-btn:hover { opacity: 0.85; }
+.room-catalog-empty {
+    text-align: center; color: var(--text3); padding: 40px 0; font-size: 14px;
+}

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0a0a12">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="VORTEX">
+    <link rel="apple-touch-icon" sizes="152x152" href="/static/icons/icon-152.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192.png">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="/static/icons/icon-96.png">
+    <title>VORTEX</title>
+    <!-- Core -->
+    <link rel="stylesheet" href="/static/css/variables.css">
+    <link rel="stylesheet" href="/static/css/sidebar.css">
+    <link rel="stylesheet" href="/static/css/auth.css">
+    <link rel="stylesheet" href="/static/css/layout.css">
+    <!-- Chat -->
+    <link rel="stylesheet" href="/static/css/chat.css">
+    <link rel="stylesheet" href="/static/css/media-grid.css">
+    <link rel="stylesheet" href="/static/css/emoji-picker.css">
+    <link rel="stylesheet" href="/static/css/stickers.css">
+    <link rel="stylesheet" href="/static/css/ai-text.css">
+    <!-- Features -->
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/voice.css">
+    <link rel="stylesheet" href="/static/css/marketplace.css">
+    <link rel="stylesheet" href="/static/css/spaces.css">
+    <link rel="stylesheet" href="/static/css/stories.css">
+    <link rel="stylesheet" href="/static/css/statuses.css">
+    <link rel="stylesheet" href="/static/css/profile.css">
+    <link rel="stylesheet" href="/static/css/fingerprint.css">
+    <link rel="stylesheet" href="/static/css/group-call.css">
+    <link rel="stylesheet" href="/static/css/stream.css">
+    <link rel="stylesheet" href="/static/css/onboarding.css">
+    <link rel="stylesheet" href="/static/css/lang-picker.css">
+    <!-- IDE -->
+    <link rel="stylesheet" href="/static/css/ide.css">
+    <link rel="stylesheet" href="/static/css/docs.css">
+    <!-- UI -->
+    <link rel="stylesheet" href="/static/css/skeleton.css">
+    <link rel="stylesheet" href="/static/css/quickswitch.css">
+    <link rel="stylesheet" href="/static/css/animations.css">
+    <link rel="stylesheet" href="/static/css/themes.css">
+    <link rel="stylesheet" href="/static/css/a11y.css">
+    <link rel="stylesheet" href="/static/css/toast.css">
+    <link rel="stylesheet" href="/static/css/network-status.css">
+    <link rel="stylesheet" href="/static/css/msg-status.css">
+    <link rel="stylesheet" href="/static/css/responsive.css">
+    <link rel="stylesheet" href="/static/css/dark-rtl.css">
+    <link rel="stylesheet" href="/static/css/menu.css">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+<body>
+<a href="#msg-input" class="skip-to-content" data-i18n="app.skipToChat">Skip to chat</a>
+<div id="notification-container" role="status" aria-live="polite"></div>
+
+{# ── SRP: PIN Lock — блокировка экрана ─────────────────────────────── #}
+{% include 'components/pin_lock.html' %}
+
+
+{# ── First-launch language picker ──────────────────────────────────── #}
+{% include 'components/lang_picker.html' %}
+
+{# ── SRP: Auth Screen — аутентификация ─────────────────────────────── #}
+{% include 'screens/auth.html' %}
+
+{# ── Main App (composition of independent components) ──────────────── #}
+<div id="app" style="display:none">
+    <div style="display:flex;height:100vh;overflow:hidden;" id="app-content">
+        {% include 'components/sidebar.html' %}
+        <div id="main" style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;">
+            {% include 'screens/welcome.html' %}
+            {% include 'screens/contacts.html' %}
+            {% include 'screens/calls.html' %}
+            {% include 'screens/bots.html' %}
+            {% include 'screens/settings.html' %}
+            {% include 'screens/ide.html' %}
+            {% include 'screens/chat.html' %}
+            {% include 'screens/room_settings.html' %}
+            {% include 'screens/voice_channel.html' %}
+        </div>
+    </div>
+    {% include 'components/thread_panel.html' %}
+    {% include 'components/room_info_panel.html' %}
+    {% include 'components/profile_modal.html' %}
+    {% include 'components/bottom_tabs.html' %}
+</div>
+
+{# ── Modals (каждая — отдельная ответственность) ───────────────────── #}
+{% include 'modals/create_room.html' %}
+{% include 'modals/create_voice.html' %}
+{% include 'modals/settings.html' %}
+{% include 'modals/contacts.html' %}
+{% include 'modals/stickers.html' %}
+{% include 'modals/gif_picker.html' %}
+{% include 'modals/gallery.html' %}
+{% include 'modals/spaces.html' %}
+{% include 'modals/report.html' %}
+{% include 'modals/files.html' %}
+{% include 'modals/payment.html' %}
+{% include 'modals/story_create.html' %}
+{% include 'screens/story_viewer.html' %}
+{% include 'components/user_profile_modal.html' %}
+{% include 'components/fingerprint_modal.html' %}
+{% include 'components/group_call.html' %}
+{% include 'components/stream.html' %}
+
+{# ── Scripts ───────────────────────────────────────────────────────── #}
+<script>
+window.switchTab=window.switchTab||function(t){
+    var l=document.getElementById('login-form'),r=document.getElementById('register-form');
+    var q=document.getElementById('qr-form'),p=document.getElementById('passkey-form');
+    if(l)l.style.display=t==='login'?'':'none';
+    if(r)r.style.display=t==='register'?'':'none';
+    if(q)q.style.display=t==='qr'?'':'none';
+    if(p)p.style.display=t==='passkey'?'':'none';
+    document.querySelectorAll('.auth-tab').forEach(function(btn,i){
+        btn.classList.toggle('active',(t==='login'&&i===0)||(t==='register'&&i===1)||(t==='qr'&&i===2)||(t==='passkey'&&i===3));
+    });
+    if(t==='qr'&&window.initQRLogin)window.initQRLogin();
+};
+window.doLogin=window.doLogin||function(){};
+window.doRegister=window.doRegister||function(){};
+window.refreshQR=window.refreshQR||function(){ if(window.initQRLogin)window.initQRLogin(); };
+window.doPasskeyLogin=window.doPasskeyLogin||function(){};
+window.doLogout=window.doLogout||function(){};
+function switchSpaceTab(t){
+    document.getElementById('space-create-panel').style.display=t==='create'?'':'none';
+    document.getElementById('space-join-panel').style.display=t==='join'?'':'none';
+    document.querySelectorAll('.space-tab').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});
+}
+function _highlightLang(){
+    var lang=window.getLocale?window.getLocale():'ru';
+    var sel=document.getElementById('lang-select');
+    if(sel) sel.value=lang;
+    document.querySelectorAll('.lang-btn').forEach(function(b){b.classList.toggle('active',b.dataset.lang===lang);});
+}
+document.addEventListener('DOMContentLoaded',_highlightLang);
+</script>
+<script src="/static/js/panic.js" defer></script>
+<script type="module" src="/static/js/main.js"></script>
+<script type="module" src="/static/js/ux-enhancements.js"></script>
+<script src="/static/js/ide-dev-settings.js" defer></script>
+<script src="/static/js/ide/helpers.js" defer></script>
+<script src="/static/js/ide/state.js" defer></script>
+<script src="/static/js/ide/starter.js" defer></script>
+<script src="/static/js/ide/hub.js" defer></script>
+<script src="/static/js/ide/file-tree.js" defer></script>
+<script src="/static/js/ide/editor.js" defer></script>
+<script src="/static/js/ide/highlight.js" defer></script>
+<script src="/static/js/ide/linter.js" defer></script>
+<script src="/static/js/ide/run.js" defer></script>
+<script src="/static/js/ide/simulator.js" defer></script>
+<script src="/static/js/ide/docs.js" defer></script>
+<script src="/static/js/ide/features.js" defer></script>
+<script src="/static/js/ide.js" defer></script>
+<script src="/static/js/ide-docs/data.js" defer></script>
+<script src="/static/js/ide-docs/ui.js" defer></script>
+{% include 'components/birthday_picker.html' %}
+{% include 'components/inline_scripts.html' %}
+</body>
+</html>

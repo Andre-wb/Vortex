@@ -30,6 +30,13 @@ os.environ.setdefault('HOST',                    '127.0.0.1')
 os.environ.setdefault('UDP_PORT',                '4201')
 os.environ.setdefault('MAX_FILE_MB',             '100')
 os.environ.setdefault('WAF_RATE_LIMIT_REQUESTS', '9999')
+os.environ.setdefault('REGISTRATION_MODE',       'open')
+os.environ.setdefault('LOG_FORMAT',               'console')
+os.environ.setdefault('LOG_LEVEL',                'WARNING')
+os.environ.setdefault('NETWORK_MODE',             'local')   # knock/cover disabled in tests
+os.environ.setdefault('OBFUSCATION_ENABLED',      'false')   # no obfuscation in tests
+os.environ.setdefault('VORTEX_PQ_REQUIRED',       'false')   # allow tests without real PQ lib
+os.environ.setdefault('VORTEX_PQ_SIMULATE',        '1')      # enable PQ simulation for tests
 
 import httpx
 import pytest
@@ -89,6 +96,10 @@ class SyncASGIClient:
             except Exception:
                 pass
 
+    def make_anon_client(self) -> 'SyncASGIClient':
+        """Return a fresh client sharing this loop but with no stored cookies."""
+        return SyncASGIClient(loop=self._loop)
+
     def __enter__(self): return self
     def __exit__(self, *args): self.close()
 
@@ -112,13 +123,23 @@ def client() -> SyncASGIClient:
         loop.run_until_complete(app.router.startup())  # loop A — создаёт таблицы
         c = SyncASGIClient()  # loop B (новый!) — таблиц не видит
     """
+    # Ensure DB tables exist before anything else
+    from app.database import init_db
+    init_db()
+
     loop = asyncio.new_event_loop()
     c = SyncASGIClient(loop=loop)           # ← клиент использует loop
-    loop.run_until_complete(app.router.startup())  # ← startup в том же loop
+    loop.run_until_complete(app.router._startup())  # ← startup в том же loop
 
     yield c
 
-    loop.run_until_complete(app.router.shutdown())
+    loop.run_until_complete(app.router._shutdown())
+    # Cancel all pending tasks (e.g. WAF cleanup loop) so loop closes cleanly
+    pending = asyncio.all_tasks(loop)
+    for task in pending:
+        task.cancel()
+    if pending:
+        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
     c.close()
     loop.close()
 
@@ -131,22 +152,42 @@ def random_str(n: int = 10) -> str:
     return ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(n))
 
 
+# Atomic counter for unique phone numbers — eliminates collisions
+_phone_counter = 0
+_phone_lock = __import__('threading').Lock()
+_phone_prefix = secrets.token_hex(2)  # unique per test session
+
+
 def random_digits(n: int = 7) -> str:
-    """Строка только из цифр — для генерации телефонных номеров."""
-    return ''.join(secrets.choice(string.digits) for _ in range(n))
+    """Уникальная строка из цифр. Без коллизий между запусками."""
+    global _phone_counter
+    with _phone_lock:
+        _phone_counter += 1
+        cnt = _phone_counter
+    return str(cnt).zfill(n)[-n:]
+
+
+def _unique_phone() -> str:
+    """Generate a guaranteed-unique phone number using counter + session prefix."""
+    global _phone_counter
+    with _phone_lock:
+        _phone_counter += 1
+        cnt = _phone_counter
+    # Use session-unique prefix to avoid collisions across test runs
+    return f'+1{int(_phone_prefix, 16):04d}{cnt:07d}'
 
 
 def make_user(client: SyncASGIClient, suffix: str | None = None) -> dict:
     """
     Регистрирует пользователя и возвращает его данные + заголовки.
-    Телефон строится только из цифр, чтобы пройти валидацию Pydantic.
+    Телефон уникален через атомный счётчик — нет коллизий.
     """
     tag = suffix or random_str()
     payload = {
         'username':          f'user_{tag}',
-        'password':          'StrongPass99x',
+        'password':          'StrongPass99x!@',
         'display_name':      f'Test {tag}',
-        'phone':             f'+7900{random_digits(7)}',
+        'phone':             _unique_phone(),
         'avatar_emoji':      '🤖',
         'x25519_public_key': secrets.token_hex(32),
     }
@@ -178,6 +219,12 @@ def login_user(client: SyncASGIClient, username: str, password: str) -> dict:
 # ===========================================================================
 
 @pytest.fixture
+def anon_client(client: SyncASGIClient) -> SyncASGIClient:
+    """A fresh client with no stored auth cookies — for testing unauthenticated access."""
+    return client.make_anon_client()
+
+
+@pytest.fixture
 def fresh_user(client: SyncASGIClient) -> dict:
     """Новый пользователь (только зарегистрирован, не залогинен)."""
     return make_user(client)
@@ -197,8 +244,10 @@ def room(client: SyncASGIClient, logged_user: dict) -> dict:
     r = client.post('/api/rooms', json={
         'name':          f'room_{random_str()}',
         'is_public':     True,
-        'encrypted_key': secrets.token_hex(60),
-        'ephemeral_pub': secrets.token_hex(32),
+        'encrypted_room_key': {
+            'ephemeral_pub': secrets.token_hex(32),
+            'ciphertext':    secrets.token_hex(60),
+        },
     }, headers=logged_user['headers'])
     assert r.status_code in (200, 201), f'create room failed: {r.text}'
     return r.json()

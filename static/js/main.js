@@ -6,9 +6,12 @@
 
 import { $, loadCsrfToken, api, openModal, closeModal } from './utils.js';
 import { checkSession }    from './auth.js';
-import { initPWA, showMessageNotification, requestNotificationPermission } from './pwa.js';
+import { initPWA, showMessageNotification, requestNotificationPermission, subscribePush } from './pwa.js';
 import { startPeerPolling } from './peers.js';
-import { showWelcome }     from './ui.js';
+import { showWelcome, openRoom, updateSidebarStatus, openStatusEditor } from './ui.js';
+import { startOnboarding, isOnboardingDone } from './onboarding.js';
+import { initLangPicker } from './lang-picker.js';
+import * as userProfile from './user-profile.js';
 
 import * as auth        from './auth.js';
 import * as rooms       from './rooms.js';
@@ -18,8 +21,43 @@ import * as ui          from './ui.js';
 import * as chat        from './chat/chat.js';
 import * as fileUpload  from './chat/file-upload.js';
 import * as imageViewer from './chat/image-viewer.js';
+import * as contacts     from './contacts.js';
+import * as saved        from './saved.js';
+import * as tasks        from './tasks.js';
+import * as notifications from './notifications.js';
+import * as notifSounds  from './notification-sounds.js';
+import * as voiceChannel from './voice_channel.js';
+import * as spaces       from './spaces.js';
+import * as fingerprint  from './fingerprint.js';
+import * as groupCall   from './group_call.js';
+import * as stream      from './stream.js';
+import * as keyBackup   from './key_backup.js';
+import * as emojiPicker  from './chat/emoji-picker.js';
+import * as skeletons    from './chat/skeletons.js';
+import { invalidateStickerCache } from './chat/emoji-picker.js';
+import * as shortcuts    from './shortcuts.js';
+import * as a11y         from './a11y.js';
+import * as gestures     from './gestures.js';
+import * as toast        from './toast.js';
+import * as netStatus    from './network_status.js';
+import * as preferences  from './preferences.js';
+import * as phonePassword from './phone_password.js';
+import { t, setLocale, getLocale, initI18n, getSupportedLocales } from './i18n.js';
 import {_msgTexts } from './chat/messages.js';
+import './chat/ai-text.js';
 window._msgTexts = _msgTexts;
+window._toggleEmojiPicker    = emojiPicker.togglePicker;
+window._invalidateStickerCache = invalidateStickerCache;
+window._sendStickerFromPicker  = (text) => chat.sendStickerDirect(text);
+window._showUploadProgress = skeletons.showUploadProgress;
+window._updateUploadProgress = skeletons.updateUploadProgress;
+window._removeUploadProgress = skeletons.removeUploadProgress;
+window._openModalA11y = a11y.openModalA11y;
+window._closeModalA11y = a11y.closeModalA11y;
+window._announce = a11y.announce;
+window.t = t;
+window.setLocale = setLocale;
+window.getLocale = getLocale;
 
 
 // Глобальное состояние приложения
@@ -27,9 +65,13 @@ window.AppState = {
     user:          null,          // данные текущего пользователя
     rooms:         [],            // список комнат
     currentRoom:   null,          // текущая комната
+    contacts:      [],            // список контактов
+    dms:           [],            // личные сообщения
+    notifWs:       null,          // WebSocket уведомлений
     token:         null,          // не используется напрямую (хранится в куках)
     ws:            null,          // WebSocket чата
     signalWs:      null,          // WebSocket для сигнализации WebRTC
+    spaces:        [],            // спейсы пользователя
     peers:         [],            // устройства в локальной сети
     peersInterval: null,          // интервал опроса пиров
     typingTimeout: null,          // таймаут для снятия статуса печати
@@ -41,16 +83,25 @@ window.AppState = {
     nodePublicKey: null,          // публичный ключ X25519 ноды
     sessionKeys:   {},            // сессионные ключи для пиров (не используется в этих файлах)
     csrfToken:     null,          // токен для защиты от CSRF
-    x25519PrivateKey: null
+    x25519PrivateKey: null,
+    networkMode:      'local',
 };
 
 // Экспортируем функции всех модулей в глобальную область видимости,
 // чтобы они были доступны из HTML-обработчиков (onclick и т.д.)
-Object.assign(window, auth, rooms, chat, peers, webrtc, ui, fileUpload, imageViewer);
+Object.assign(window, auth, rooms, chat, peers, webrtc, ui, fileUpload, imageViewer, contacts, saved, tasks, notifications, notifSounds, voiceChannel, spaces, userProfile, fingerprint, groupCall, stream, keyBackup, gestures, toast, netStatus, preferences, phonePassword);
 window.openModal  = openModal;
 window.closeModal = closeModal;
+window.openStatusEditor = openStatusEditor;
+window.api        = api;
 window.showMessageNotification = showMessageNotification;
 window.requestNotificationPermission = requestNotificationPermission;
+
+// DND toggle handler for the settings UI checkbox
+window._toggleDND = function(enabled) {
+    notifSounds.setDND(enabled);
+};
+
 
 /**
  * Запускает приложение после успешной аутентификации.
@@ -59,13 +110,37 @@ window.requestNotificationPermission = requestNotificationPermission;
  * инициализирует просмотрщик изображений и динамически подгружает опциональные модули.
  */
 window.bootApp = async function bootApp() {
+    // PIN lock: if enabled, show lock screen before revealing the app
+    if (typeof window._checkPinLock === 'function') {
+        await window._checkPinLock();
+    }
+
     $('auth-screen').style.display = 'none';
     $('app').style.display         = 'flex';
 
+    // Initialize i18n, keyboard shortcuts, accessibility, preferences, network
+    await initI18n();
+    shortcuts.initShortcuts();
+    a11y.initA11y();
+    gestures.initGestures();
+    preferences.initPreferences();
+    netStatus.initNetworkStatus();
+
     // Заполняем информацию о пользователе в сайдбаре
-    $('sb-avatar').textContent = AppState.user.avatar_emoji || '👤';
-    $('sb-name').textContent   = AppState.user.display_name || AppState.user.username;
-    $('sb-phone').textContent  = AppState.user.phone;
+    const sbAv = $('sb-avatar');
+    if (sbAv) {
+        if (AppState.user.avatar_url) {
+            sbAv.innerHTML = `<img src="${AppState.user.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        } else {
+            if (AppState.user.avatar_emoji) { sbAv.textContent = AppState.user.avatar_emoji; }
+            else { sbAv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'; }
+        }
+    }
+    const sbName = $('sb-name');
+    if (sbName) sbName.textContent = AppState.user.display_name || AppState.user.username;
+    const sbPhone = $('sb-phone');
+    if (sbPhone) sbPhone.textContent = AppState.user.phone;
+    updateSidebarStatus();
 
     // PWA: регистрация SW, промпт установки, shortcuts
     initPWA();
@@ -81,9 +156,49 @@ window.bootApp = async function bootApp() {
         console.log('🔑 X25519 pubkey:', AppState.nodePublicKey.slice(0, 16) + '...');
     } catch {}
 
-    // Загружаем список комнат и начинаем опрос пиров
+    // Настраиваем UI в зависимости от режима сети
+    const isGlobal = AppState.user?.network_mode === 'global';
+    AppState.networkMode = isGlobal ? 'global' : 'local';
+
+    // Переключаем видимость навигационных элементов по data-mode
+    document.querySelectorAll('[data-mode]').forEach(el => {
+        const elMode = el.dataset.mode;
+        el.style.display = (elMode === 'global') ? (isGlobal ? '' : 'none')
+                                                  : (isGlobal ? 'none' : '');
+    });
+
+    // Загружаем список комнат, спейсов и начинаем опрос пиров
+    skeletons.showRoomsSkeleton();
     await rooms.loadMyRooms();
-    startPeerPolling();
+    skeletons.hideRoomsSkeleton();
+    spaces.loadMySpaces();  // async, non-blocking — renders icon bar when ready
+    if (!isGlobal) startPeerPolling();
+
+    // Загружаем контакты и подключаем уведомления
+    await contacts.loadContacts();
+
+    // Загружаем сторис (dynamic import — не блокирует приложение при ошибке)
+    try {
+        const stories = await import('./stories.js');
+        Object.assign(window, stories);
+        stories.loadStories();
+        console.log('📖 stories загружен');
+    } catch (e) {
+        console.warn('stories.js не загружен:', e.message);
+    }
+    notifications.connectNotificationWS();
+    notifications.startMultiplexCover();
+
+    // Восстанавливаем состояние DND из localStorage
+    const dndCheckbox = document.getElementById('set-dnd-enabled');
+    if (dndCheckbox) {
+        dndCheckbox.checked = notifSounds.isDND();
+    }
+
+    // Загружаем статусы контактов
+    if (typeof window.loadStatuses === 'function') {
+        window.loadStatuses();
+    }
 
     // Инициализируем просмотрщик изображений
     if (typeof imageViewer.initImageViewer === 'function') {
@@ -110,8 +225,30 @@ window.bootApp = async function bootApp() {
         console.warn('photo_editor.js не загружен:', e.message);
     }
 
-    // Показываем приветственный экран (выбор комнаты)
-    showWelcome();
+    // Авто-открытие последней комнаты или приветственный экран
+    const lastRoomId = parseInt(localStorage.getItem('vortex_last_room'));
+    if (lastRoomId) {
+        const lastRoom = AppState.rooms.find(r => r.id === lastRoomId);
+        if (lastRoom) {
+            openRoom(lastRoomId);
+        } else {
+            showWelcome();
+        }
+    } else {
+        showWelcome();
+    }
+
+    // Подписываемся на Web Push (если разрешено)
+    subscribePush();
+
+    // Start cross-device sync polling + initial history migration
+    keyBackup.startSyncPolling();
+    keyBackup.runInitialHistoryMigration().catch(() => {});
+
+    // Onboarding tour for first-time users (0 rooms, never dismissed)
+    if (AppState.rooms.length === 0 && !isOnboardingDone()) {
+        startOnboarding();
+    }
 };
 
 // Закрытие модальных окон при клике на затемнённый фон
@@ -133,10 +270,32 @@ document.addEventListener('keydown', e => {
     }
 });
 
-// При загрузке страницы проверяем, есть ли активная сессия
-window.addEventListener('DOMContentLoaded', checkSession);
-
+// При загрузке страницы загружаем CSRF и проверяем сессию
 window.addEventListener('DOMContentLoaded', async () => {
+    initLangPicker();
     await loadCsrfToken();
+    phonePassword.initPhonePassword();
     checkSession();
+
+    // Обработка QR deep link: vortex://qr-login?s=<session_id>&c=<challenge>&p=<server_pubkey>
+    function _handleQRDeepLink(url) {
+        try {
+            const u = new URL(url);
+            if (u.pathname !== '//qr-login' && !url.includes('qr-login')) return;
+            const s = u.searchParams.get('s');
+            const c = u.searchParams.get('c');
+            const p = u.searchParams.get('p');
+            if (s && c && p && window.confirmQRLogin) {
+                window.confirmQRLogin(s, c, p);
+            }
+        } catch (_) {}
+    }
+
+    // Tauri deep link
+    if (window.VortexNative?.isTauri()) {
+        window.VortexNative.onDeepLink((url) => _handleQRDeepLink(url));
+    }
+    // Web: если страница открыта с ?qr=... (PWA share_target или кастомный handler)
+    const qrParam = new URLSearchParams(location.search).get('qr');
+    if (qrParam) _handleQRDeepLink(decodeURIComponent(qrParam));
 });

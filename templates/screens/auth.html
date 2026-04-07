@@ -1,0 +1,267 @@
+<!-- Auth Screen — Login / Register -->
+<div id="auth-screen" class="screen active" style="display:flex;">
+    <div class="auth-card">
+        <!-- Logo -->
+        <div class="auth-logo">
+            <div class="auth-logo-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <h1>VORTEX</h1>
+            <p data-i18n="auth.subtitle">// decentralized encrypted messenger</p>
+        </div>
+
+        <!-- Tabs: Login / Register -->
+        <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchTab('login')" data-i18n="auth.login">Войти</button>
+            <button class="auth-tab" onclick="switchTab('register')" data-i18n="auth.register">Создать аккаунт</button>
+        </div>
+
+        <div id="auth-alert" class="alert"></div>
+
+        <!-- ═══════════════ LOGIN ═══════════════ -->
+        <div id="login-form">
+            <div class="form-group">
+                <label class="form-label" data-i18n="auth.phoneOrName">Телефон или имя</label>
+                <div class="form-input-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <input class="form-input" id="l-login" type="text" placeholder="+79001234567 / username" data-i18n-placeholder="auth.phoneOrNamePlaceholder" autocomplete="username">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" data-i18n="auth.password">Пароль</label>
+                <div class="form-input-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                    <input class="form-input" id="l-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+                </div>
+            </div>
+            <button class="btn btn-primary btn-login" onclick="doLogin()" data-i18n="auth.login">Войти</button>
+
+            <!-- Divider -->
+            <div class="auth-divider">
+                <span data-i18n="auth.orContinueWith">или</span>
+            </div>
+
+            <!-- Quick login methods -->
+            <div class="auth-alt-methods">
+                <button class="btn-alt-method" onclick="switchTab('qr')" data-i18n-title="auth.qrHint" title="QR-вход с другого устройства">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m4 0v-3h-3m0-4V7"/></svg>
+                    <span>QR-код</span>
+                </button>
+                <button class="btn-alt-method" onclick="switchTab('passkey')" data-i18n-title="auth.passkeyHint" title="Face ID / Touch ID / Security Key">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                    <span>Passkey</span>
+                </button>
+                <button class="btn-alt-method" onclick="switchTab('seed')" title="Вход по seed-фразе (24 слова)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 2a5 5 0 015 5c0 2-1 3-2 4l-1 1v2h-4v-2l-1-1c-1-1-2-2-2-4a5 5 0 015-5zM9 18h6M10 22h4"/></svg>
+                    <span>Seed</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ═══════════════ QR LOGIN ═══════════════ -->
+        <div id="qr-form" style="display:none;">
+            <button class="auth-back-btn" onclick="switchTab('login')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                <span data-i18n="auth.backToLogin">Назад</span>
+            </button>
+            <div class="qr-section">
+                <p class="qr-description" data-i18n="auth.qrDescription">Откройте Vortex на телефоне и отсканируйте QR-код</p>
+                <div class="qr-frame">
+                    <div id="qr-login-svg" class="qr-display"></div>
+                    <div class="qr-corners">
+                        <span class="qr-corner tl"></span><span class="qr-corner tr"></span>
+                        <span class="qr-corner bl"></span><span class="qr-corner br"></span>
+                    </div>
+                </div>
+                <div id="qr-login-status" class="qr-status" data-i18n="auth.qrLoading">Загрузка QR...</div>
+                <button class="btn btn-secondary btn-sm" onclick="refreshQR()" data-i18n="auth.qrRefresh" style="margin-top:12px;">Обновить QR</button>
+            </div>
+        </div>
+
+        <!-- ═══════════════ PASSKEY LOGIN ═══════════════ -->
+        <div id="passkey-form" style="display:none;">
+            <button class="auth-back-btn" onclick="switchTab('login')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                <span data-i18n="auth.backToLogin">Назад</span>
+            </button>
+            <div class="passkey-section">
+                <div class="passkey-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                </div>
+                <p class="passkey-title" data-i18n="auth.passkeyTitle">Вход по Passkey</p>
+                <p class="passkey-description" data-i18n="auth.passkeyDescription">Face ID, Touch ID, отпечаток пальца<br>или аппаратный ключ безопасности</p>
+                <div id="passkey-status" class="passkey-status"></div>
+                <button class="btn btn-primary" style="width:100%;" onclick="doPasskeyLogin()" id="passkey-login-btn" data-i18n="auth.passkeyLogin">Войти по Passkey</button>
+                <p class="passkey-hint" data-i18n="auth.passkeyHint">Привяжите Passkey в Настройки &rarr; Безопасность</p>
+            </div>
+        </div>
+
+        <!-- ═══════════════ SEED LOGIN ═══════════════ -->
+        <div id="seed-form" style="display:none;">
+            <button class="auth-back-btn" onclick="switchTab('login')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                <span data-i18n="auth.backToLogin">Назад</span>
+            </button>
+            <div class="form-group">
+                <label class="form-label" data-i18n="auth.username">Имя пользователя</label>
+                <div class="form-input-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <input class="form-input" id="seed-username" type="text" placeholder="username" autocomplete="username">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" data-i18n="security.seedPhrase">Seed-фраза (24 слова)</label>
+                <textarea class="form-input form-textarea" id="seed-phrase" rows="3" placeholder="word1 word2 word3 ... word24" spellcheck="false" autocomplete="off"></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="doSeedLogin()" style="width:100%;" data-i18n="security.restoreAccess">Восстановить доступ</button>
+        </div>
+
+        <!-- ═══════════════ REGISTER ═══════════════ -->
+        <div id="register-form" style="display:none;">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" data-i18n="auth.username">Никнейм</label>
+                    <div class="form-input-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <input class="form-input" id="r-username" type="text" placeholder="username" autocomplete="username">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" data-i18n="auth.phone">Телефон <span class="form-optional">(необяз.)</span></label>
+                    <div class="phone-input-wrap">
+                        <button type="button" class="phone-country-btn" id="phone-country-btn" onclick="toggleCountryDropdown()">
+                            <span class="phone-flag" id="phone-flag">🇷🇺</span>
+                            <span class="phone-code" id="phone-code">+7</span>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <input class="form-input phone-number-input" id="r-phone" type="tel" placeholder="900 123 45 67" autocomplete="tel-national">
+                        <div class="phone-country-dropdown" id="phone-country-dropdown"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" data-i18n="auth.displayName">Имя для отображения</label>
+                <div class="form-input-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    <input class="form-input" id="r-display" type="text" placeholder="Как вас называть?" data-i18n-placeholder="auth.displayNamePlaceholder">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" data-i18n="auth.email">Email <span class="form-optional">(необяз.)</span></label>
+                <div class="form-input-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <input class="form-input" id="r-email" type="email" placeholder="email@example.com">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" data-i18n="auth.passwordHint">Пароль <span class="form-optional">(мин. 8 символов)</span></label>
+                <div class="form-input-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                    <input class="form-input" id="r-pass" type="password" placeholder="••••••••" autocomplete="new-password">
+                </div>
+                <div class="password-strength-wrap" id="r-pass-strength">
+                    <div class="pw-bar-track">
+                        <div class="pw-bar-fill" id="pw-bar-fill"></div>
+                    </div>
+                    <div class="pw-info">
+                        <span class="pw-label" id="pw-label"></span>
+                        <span class="pw-details" id="pw-details"></span>
+                    </div>
+                    <div class="pw-criteria" id="pw-criteria">
+                        <span class="pw-check" id="pw-len">8+ символов</span>
+                        <span class="pw-check" id="pw-upper">A-Z</span>
+                        <span class="pw-check" id="pw-lower">a-z</span>
+                        <span class="pw-check" id="pw-digit">0-9</span>
+                        <span class="pw-check" id="pw-special">!@#$</span>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" data-i18n="auth.passwordHint">Подтверждение пароля</label>
+                <div class="form-input-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <input class="form-input" id="r-pass-confirm" type="password" placeholder="••••••••" autocomplete="new-password">
+                </div>
+                <div class="pw-match-status" id="pw-match-status"></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" data-i18n="auth.avatar">Аватар</label>
+                <div class="avatar-picker">
+                    <div class="avatar-tabs">
+                        <button type="button" class="avatar-tab active" id="avatar-emoji-tab" onclick="switchAvatarTab('emoji')" data-i18n="auth.emoji">Эмодзи</button>
+                        <button type="button" class="avatar-tab" id="avatar-photo-tab" onclick="switchAvatarTab('photo')" data-i18n="auth.photo">Фото</button>
+                    </div>
+                    <div id="avatar-emoji-panel">
+                        <div class="emoji-grid" id="emoji-picker">
+                            <button class="emoji-btn emoji-selected" data-emoji="👤" onclick="selectEmoji(this)">👤</button>
+                            <button class="emoji-btn" data-emoji="🦊" onclick="selectEmoji(this)">🦊</button>
+                            <button class="emoji-btn" data-emoji="🐺" onclick="selectEmoji(this)">🐺</button>
+                            <button class="emoji-btn" data-emoji="🦁" onclick="selectEmoji(this)">🦁</button>
+                            <button class="emoji-btn" data-emoji="🐉" onclick="selectEmoji(this)">🐉</button>
+                            <button class="emoji-btn" data-emoji="🦅" onclick="selectEmoji(this)">🦅</button>
+                            <button class="emoji-btn" data-emoji="🌙" onclick="selectEmoji(this)">🌙</button>
+                            <button class="emoji-btn" data-emoji="⚡" onclick="selectEmoji(this)">⚡</button>
+                            <button class="emoji-btn" data-emoji="🔮" onclick="selectEmoji(this)">🔮</button>
+                            <button class="emoji-btn" data-emoji="🛸" onclick="selectEmoji(this)">🛸</button>
+                            <button class="emoji-btn" data-emoji="💀" onclick="selectEmoji(this)">💀</button>
+                            <button class="emoji-btn" data-emoji="🌊" onclick="selectEmoji(this)">🌊</button>
+                            <button class="emoji-btn" data-emoji="🔥" onclick="selectEmoji(this)">🔥</button>
+                            <button class="emoji-btn" data-emoji="❄️" onclick="selectEmoji(this)">❄️</button>
+                            <button class="emoji-btn" data-emoji="🎭" onclick="selectEmoji(this)">🎭</button>
+                            <button class="emoji-btn" data-emoji="🚀" onclick="selectEmoji(this)">🚀</button>
+                            <button class="emoji-btn" data-emoji="🐱" onclick="selectEmoji(this)">🐱</button>
+                            <button class="emoji-btn" data-emoji="🐶" onclick="selectEmoji(this)">🐶</button>
+                            <button class="emoji-btn" data-emoji="🐼" onclick="selectEmoji(this)">🐼</button>
+                            <button class="emoji-btn" data-emoji="🦄" onclick="selectEmoji(this)">🦄</button>
+                            <button class="emoji-btn" data-emoji="🐙" onclick="selectEmoji(this)">🐙</button>
+                            <button class="emoji-btn" data-emoji="🦋" onclick="selectEmoji(this)">🦋</button>
+                            <button class="emoji-btn" data-emoji="🌺" onclick="selectEmoji(this)">🌺</button>
+                            <button class="emoji-btn" data-emoji="🍄" onclick="selectEmoji(this)">🍄</button>
+                            <button class="emoji-btn" data-emoji="🎮" onclick="selectEmoji(this)">🎮</button>
+                            <button class="emoji-btn" data-emoji="💎" onclick="selectEmoji(this)">💎</button>
+                            <button class="emoji-btn" data-emoji="🗡️" onclick="selectEmoji(this)">🗡️</button>
+                            <button class="emoji-btn" data-emoji="🛡️" onclick="selectEmoji(this)">🛡️</button>
+                            <button class="emoji-btn" data-emoji="🌈" onclick="selectEmoji(this)">🌈</button>
+                            <button class="emoji-btn" data-emoji="⭐" onclick="selectEmoji(this)">⭐</button>
+                            <button class="emoji-btn" data-emoji="🧠" onclick="selectEmoji(this)">🧠</button>
+                            <button class="emoji-btn" data-emoji="🤖" onclick="selectEmoji(this)">🤖</button>
+                            <button class="emoji-btn" data-emoji="👾" onclick="selectEmoji(this)">👾</button>
+                            <button class="emoji-btn" data-emoji="🥷" onclick="selectEmoji(this)">🥷</button>
+                            <button class="emoji-btn" data-emoji="🧊" onclick="selectEmoji(this)">🧊</button>
+                        </div>
+                    </div>
+                    <div id="avatar-photo-panel" style="display:none;">
+                        <div class="avatar-photo-upload">
+                            <div id="avatar-preview" class="avatar-preview-circle">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                            </div>
+                            <input type="file" id="avatar-file" accept="image/*" style="display:none" onchange="previewAvatar(this)">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('avatar-file').click()" data-i18n="auth.choosePhoto">Выбрать фото</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group" id="invite-code-group"{% if registration_mode != 'invite' %} style="display:none;"{% endif %}>
+                <label class="form-label" data-i18n="auth.inviteCode">Инвайт-код</label>
+                <input class="form-input invite-code-input" id="r-invite" type="text" placeholder="XXXX-XXXX" data-i18n-placeholder="auth.inviteCodePlaceholder"
+                       maxlength="16" oninput="this.value=this.value.toUpperCase()">
+                <div class="invite-code-hint" data-i18n="auth.inviteCodeHint">Получите код у администратора узла</div>
+            </div>
+            <div id="reg-closed-msg" class="reg-closed-msg" style="display:none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:4px;" aria-hidden="true"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg><span data-i18n="auth.regClosed">Регистрация закрыта на этом узле</span>
+            </div>
+            <button class="btn btn-primary" id="register-btn" onclick="doRegister()" data-i18n="auth.register">Создать аккаунт</button>
+
+            <p class="auth-footer-note">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                E2E-шифрование. Ключи создаются на вашем устройстве.
+            </p>
+        </div>
+
+        <!-- E2E badge -->
+        <div class="auth-e2e-badge" id="auth-e2e-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>End-to-end encrypted</span>
+        </div>
+    </div>
+</div>

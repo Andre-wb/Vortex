@@ -30,7 +30,8 @@ export function esc(str) {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // ----------------------------------------------------------------------------
@@ -41,8 +42,15 @@ export function esc(str) {
  * @param {string} iso - дата в ISO формате
  * @returns {string}
  */
+// Ensure ISO string is always parsed as UTC (append Z if no timezone offset present).
+// Fixes browsers that inconsistently parse "2024-01-01T12:00:00" as local vs UTC.
+function _asUTC(iso) {
+    if (!iso) return iso;
+    return /Z$|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+}
+
 export function fmtTime(iso) {
-    const d = new Date(iso);
+    const d = new Date(_asUTC(iso));
     return d.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -52,7 +60,7 @@ export function fmtTime(iso) {
  * @returns {string}
  */
 export function fmtDate(iso) {
-    const d = new Date(iso);
+    const d = new Date(_asUTC(iso));
     const today = new Date();
     if (d.toDateString() === today.toDateString()) return 'Сегодня';
     return d.toLocaleDateString('ru', { day: 'numeric', month: 'long' });
@@ -154,7 +162,9 @@ export async function loadCsrfToken() {
  * @param {string} id - id модального окна
  */
 export function openModal(id) {
-    $(id).classList.add('show');
+    const el = $(id);
+    if (!el) { console.warn('openModal: element not found:', id); return; }
+    el.classList.add('show');
 }
 
 /**
@@ -162,7 +172,9 @@ export function openModal(id) {
  * @param {string} id - id модального окна
  */
 export function closeModal(id) {
-    $(id).classList.remove('show');
+    const el = $(id);
+    if (!el) return;
+    el.classList.remove('show');
 }
 
 // ----------------------------------------------------------------------------
@@ -176,9 +188,25 @@ export function closeModal(id) {
  */
 export function showAlert(id, msg, type = 'error') {
     const el = $(id);
-    el.textContent = msg;
-    el.className = `alert show alert-${type}`;
-    setTimeout(() => el.classList.remove('show'), 5000);
+    if (el) {
+        el.textContent = msg;
+        el.className = `alert show alert-${type}`;
+        setTimeout(() => el.classList.remove('show'), 5000);
+        return;
+    }
+    // Fallback: id is actually the message (2-arg call pattern)
+    if (typeof id === 'string' && !msg) {
+        msg = id; type = 'error';
+    } else if (typeof id === 'string' && typeof msg === 'string' && !$(id)) {
+        // showAlert('message text', 'success') — 2-arg pattern
+        type = msg; msg = id;
+    }
+    // Use toast system if available, otherwise console
+    if (typeof window.showToast === 'function') {
+        window.showToast(msg, type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
+    } else {
+        console.warn(`[alert] ${type}: ${msg}`);
+    }
 }
 
 // ----------------------------------------------------------------------------

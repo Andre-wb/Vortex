@@ -1,0 +1,15 @@
+{
+  "name": "architex",
+  "version": "0.1.0",
+  "description": "Architex — declarative UI language for Mini Apps",
+  "license": "MIT",
+  "scripts": {
+    "build":   "tsc",
+    "watch":   "tsc --watch",
+    "bundle":  "node scripts/bundle.js",
+    "check":   "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

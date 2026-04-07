@@ -1,0 +1,20 @@
+# Chaos Mesh — CPU stress on Vortex pods
+# Consumes 80% CPU on 1 pod for 3 minutes
+# Tests: HPA auto-scaling trigger, request routing to healthy pods
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: vortex-cpu-stress
+  namespace: vortex
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - vortex
+    labelSelectors:
+      app: vortex
+  stressors:
+    cpu:
+      workers: 2
+      load: 80
+  duration: "3m"

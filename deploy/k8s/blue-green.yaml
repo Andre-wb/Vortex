@@ -1,0 +1,197 @@
+# Blue-Green Deployment for Vortex
+#
+# Strategy:
+#   1. Deploy "green" (new version) alongside "blue" (current)
+#   2. Run health checks + smoke tests on green
+#   3. Switch service selector from blue → green
+#   4. Keep blue running for instant rollback
+#   5. After validation, delete blue
+#
+# Usage:
+#   # Deploy green version
+#   kubectl apply -f deploy/k8s/blue-green.yaml
+#
+#   # Verify green is healthy
+#   kubectl get pods -n vortex -l slot=green
+#
+#   # Switch traffic to green
+#   kubectl patch service vortex-service -n vortex -p '{"spec":{"selector":{"slot":"green"}}}'
+#
+#   # Rollback to blue (if needed)
+#   kubectl patch service vortex-service -n vortex -p '{"spec":{"selector":{"slot":"blue"}}}'
+#
+#   # Cleanup old blue after validation
+#   kubectl delete deployment vortex-blue -n vortex
+
+---
+# Blue deployment (current version)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vortex-blue
+  namespace: vortex
+  labels:
+    app: vortex
+    slot: blue
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vortex
+      slot: blue
+  template:
+    metadata:
+      labels:
+        app: vortex
+        slot: blue
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: vortex
+          image: vortex-chat:current
+          ports:
+            - containerPort: 9000
+          envFrom:
+            - configMapRef:
+                name: vortex-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: JWT_SECRET
+            - name: CSRF_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: CSRF_SECRET
+            - name: DEVICE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+            - name: keys
+              mountPath: /app/keys
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: vortex-uploads
+        - name: keys
+          persistentVolumeClaim:
+            claimName: vortex-keys
+
+---
+# Green deployment (new version)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vortex-green
+  namespace: vortex
+  labels:
+    app: vortex
+    slot: green
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vortex
+      slot: green
+  template:
+    metadata:
+      labels:
+        app: vortex
+        slot: green
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: vortex
+          image: vortex-chat:latest
+          ports:
+            - containerPort: 9000
+          envFrom:
+            - configMapRef:
+                name: vortex-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: JWT_SECRET
+            - name: CSRF_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: CSRF_SECRET
+            - name: DEVICE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+            - name: keys
+              mountPath: /app/keys
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: vortex-uploads
+        - name: keys
+          persistentVolumeClaim:
+            claimName: vortex-keys
+
+---
+# Service with slot selector (switch between blue/green)
+apiVersion: v1
+kind: Service
+metadata:
+  name: vortex-service
+  namespace: vortex
+spec:
+  selector:
+    app: vortex
+    slot: blue  # ← Change to "green" to switch traffic
+  ports:
+    - name: http
+      port: 9000
+      targetPort: 9000
+  type: ClusterIP

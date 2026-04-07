@@ -1,0 +1,6 @@
+// Gravitix package: 
+// Auto-installed via IDE
+
+fn _init() {
+    log("Plugin  loaded")
+}

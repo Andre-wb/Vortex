@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vortex-config
+  namespace: vortex
+  labels:
+    app.kubernetes.io/name: vortex
+data:
+  ENVIRONMENT: "production"
+  HOST: "0.0.0.0"
+  PORT: "9000"
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "INFO"
+  NETWORK_MODE: "local"
+  REGISTRATION_MODE: "open"
+  NODE_INITIALIZED: "true"
+  DATABASE_URL: "postgresql://vortex:vortex@postgres-service:5432/vortex"
+  DB_POOL_SIZE: "10"
+  DB_MAX_OVERFLOW: "20"
+  DB_POOL_RECYCLE: "3600"
+  REDIS_URL: "redis://redis-service:6379/0"
+  REDIS_POOL_SIZE: "10"
+  MAX_FILE_MB: "100"
+  WAF_RATE_LIMIT_REQUESTS: "120"
+  WAF_RATE_LIMIT_WINDOW: "60"
+  WAF_BLOCK_DURATION: "3600"

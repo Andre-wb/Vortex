@@ -1,0 +1,177 @@
+/* setup/steps.css — SSL-опции, статус IP, список сводки, экран успеха, утилиты шагов */
+
+/* ── Карточки выбора опций (SSL, режим сети) ── */
+.ssl-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 480px) {
+    .ssl-options { grid-template-columns: 1fr; }
+}
+
+.ssl-option {
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all .2s;
+    background: var(--bg3);
+    position: relative;
+    overflow: hidden;
+}
+
+.ssl-option:hover { border-color: rgba(78,205,196,.4); }
+
+.ssl-option.selected {
+    border-color: var(--teal);
+    background: rgba(78,205,196,.06);
+}
+
+.ssl-option.selected::before {
+    content: '✓';
+    position: absolute;
+    top: 8px; right: 10px;
+    font-size: 11px;
+    color: var(--teal);
+}
+
+.ssl-option.unavailable {
+    opacity: .4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Компактный вариант (для режима регистрации) */
+.ssl-option--sm { padding: 12px; }
+.ssl-option--sm .ssl-title { font-size: 13px; }
+
+.ssl-icon  { font-size: 24px; margin-bottom: 8px; }
+.ssl-title { font-size: 13px; font-weight: 700; color: var(--text1); margin-bottom: 3px; }
+.ssl-desc  { font-size: 11px; color: var(--text2); line-height: 1.4; }
+
+/* ── Бейджи ── */
+.ssl-badge {
+    display: inline-block;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 6px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+}
+
+.badge-recommended { background: rgba(78,205,196,.15);  color: var(--teal); }
+.badge-internet    { background: rgba(168,85,247,.15);  color: var(--purple); }
+.badge-advanced    { background: rgba(245,158,11,.15);  color: var(--yellow); }
+
+/* ── Детальные панели SSL ── */
+.ssl-detail        { display: none; }
+.ssl-detail.active { display: block; animation: stepIn .25s ease; }
+
+/* ── Строка статуса (IP) ── */
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--bg3);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 12px;
+}
+
+.dot         { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-green   { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot-yellow  { background: var(--yellow); }
+.dot-red     { background: var(--red); }
+
+/* ── Список сводки (шаг 5) ── */
+.info-list { list-style: none; }
+
+.info-list li {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    align-items: flex-start;
+}
+
+.info-list li:last-child { border-bottom: none; }
+
+.info-list .label {
+    color: var(--text3);
+    min-width: 140px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    padding-top: 1px;
+}
+
+.info-list .value { color: var(--text1); word-break: break-all; }
+
+/* ── Экран успеха (шаг 6) ── */
+.success-icon {
+    font-size: 64px;
+    text-align: center;
+    margin: 12px 0 20px;
+    animation: pop .4s cubic-bezier(.34,1.56,.64,1);
+}
+
+.success-url {
+    background: var(--bg0);
+    border: 1px solid var(--teal);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+    text-align: center;
+    font-size: 18px;
+    color: var(--teal);
+    margin: 16px 0;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: background .2s;
+}
+
+.success-url:hover { background: rgba(78,205,196,.06); }
+
+/* ── SSO ── */
+.sso-section-label {
+    margin-bottom: 10px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text2);
+}
+
+/* Карточка-функциональность (passkeys, и т.п.) */
+.feature-card {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--bg3);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+/* ── Отображение инвайт-кода ── */
+.invite-display {
+    margin-top: 12px;
+    padding: 16px;
+    background: var(--bg3);
+    border-radius: var(--radius);
+    text-align: center;
+}
+
+.invite-display-label { font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+
+.invite-display-code {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--teal);
+    font-family: var(--mono);
+}
+
+.invite-display-note { font-size: 11px; color: var(--text3); margin-top: 8px; }

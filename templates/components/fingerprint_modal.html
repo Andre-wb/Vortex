@@ -1,0 +1,207 @@
+<!-- Fingerprint Verification Modal -->
+<div id="fingerprint-modal" class="fp-overlay" style="display:none;"
+     onclick="if(event.target===this)window.closeFingerprintModal()">
+    <div class="fp-panel" role="dialog" aria-modal="true" aria-label="Key verification">
+
+        <!-- Header -->
+        <div class="fp-header">
+            <div class="fp-header-icon">
+                <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div class="fp-header-text">
+                <div class="fp-title" data-i18n="fingerprint.title">Верификация ключа</div>
+                <div class="fp-subtitle" id="fp-contact-name">...</div>
+            </div>
+            <button class="fp-close-btn" onclick="window.closeFingerprintModal()" aria-label="Закрыть">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Key change warning -->
+        <div class="fp-key-warning" id="fp-key-warning" style="display:none;">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="12" y1="9" x2="12" y2="13" stroke-linecap="round"/>
+                <line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round"/>
+            </svg>
+            <span data-i18n="fingerprint.keyChanged">Ключ безопасности этого контакта изменился</span>
+        </div>
+
+        <!-- Body -->
+        <div class="fp-body">
+            <div class="fp-username" id="fp-contact-username">@...</div>
+
+            <!-- Emoji fingerprint (primary — large, easy to compare) -->
+            <div class="fp-emoji-card">
+                <div class="fp-emoji-label">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span data-i18n="fingerprint.compareEmoji">Сравните эмодзи с собеседником</span>
+                </div>
+                <div class="fp-emoji-container" id="fp-emoji-container"></div>
+                <div class="fp-emoji-hint">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <span data-i18n="fingerprint.emojiHint">Оба собеседника должны видеть одинаковые эмодзи. Сравните при встрече или по защищённому каналу.</span>
+                </div>
+            </div>
+
+            <!-- Toggle to show hex key -->
+            <button class="fp-toggle-hex-btn" id="fp-toggle-hex" onclick="window.toggleHexFingerprint()" data-expanded="0">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span class="fp-btn-label" data-i18n="fingerprint.viewKey">Посмотреть ключ</span>
+                <svg class="fp-toggle-chevron" width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/>
+                </svg>
+            </button>
+
+            <!-- Hex fingerprint (secondary, hidden by default) -->
+            <div class="fp-hex-section" id="fp-hex-section" style="display:none;">
+                <div class="fp-fingerprint-block" id="fp-fingerprint-block">...</div>
+            </div>
+
+            <!-- QR code display panel (hidden by default) -->
+            <div class="fp-qr-panel" id="fp-qr-panel" style="display:none;">
+                <div class="fp-qr-label">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="7" height="7"/>
+                        <rect x="14" y="3" width="7" height="7"/>
+                        <rect x="3" y="14" width="7" height="7"/>
+                        <rect x="14" y="14" width="3" height="3"/>
+                        <line x1="21" y1="14" x2="21" y2="14.01"/>
+                        <line x1="21" y1="21" x2="21" y2="21.01"/>
+                    </svg>
+                    <span data-i18n="fingerprint.showQR">Покажите QR-код собеседнику для сканирования</span>
+                </div>
+                <div class="fp-qr-canvas-wrap" id="fp-qr-canvas-wrap"></div>
+                <button class="fp-qr-close-btn" onclick="window.hideFingerprintQR()">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    <span data-i18n="fingerprint.hideQR">Скрыть QR</span>
+                </button>
+            </div>
+
+            <!-- Verified badge -->
+            <div class="fp-verified-badge" id="fp-verified-badge" style="display:none;">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                <span data-i18n="fingerprint.verified">Ключ проверен</span>
+            </div>
+
+            <!-- Device verification panel (hidden by default) -->
+            <div class="fp-devices-panel" id="fp-devices-panel" style="display:none;">
+                <div class="fp-devices-header">
+                    <div class="fp-devices-title">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                        <span data-i18n="fingerprint.myDevices">Мои устройства</span>
+                    </div>
+                    <button class="fp-devices-close" onclick="window.closeDeviceVerification()">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="fp-devices-list" id="fp-devices-list"></div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="fp-actions">
+            <button class="fp-btn fp-btn-secondary" id="fp-copy-btn" onclick="window.copyFingerprint()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span class="fp-btn-label" data-i18n="fingerprint.copy">Скопировать</span>
+            </button>
+            <button class="fp-btn fp-btn-secondary" id="fp-qr-btn" onclick="window.showFingerprintQR()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                    <rect x="14" y="14" width="3" height="3"/>
+                    <line x1="21" y1="14" x2="21" y2="14.01"/>
+                    <line x1="21" y1="21" x2="21" y2="21.01"/>
+                </svg>
+                <span class="fp-btn-label">QR</span>
+            </button>
+            <button class="fp-btn fp-btn-secondary" id="fp-scan-btn" onclick="window.startQRScan()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+                <span class="fp-btn-label" data-i18n="fingerprint.scan">Скан</span>
+            </button>
+            <button class="fp-btn fp-btn-primary" id="fp-verify-btn" onclick="window.verifyCurrentFingerprint()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <polyline points="9 12 11 14 15 10"/>
+                </svg>
+                <span class="fp-btn-label" data-i18n="fingerprint.confirm">Подтвердить</span>
+            </button>
+            <button class="fp-btn fp-btn-danger" id="fp-unverify-btn" style="display:none;" onclick="window.unverifyCurrentFingerprint()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <line x1="9" y1="9" x2="15" y2="15"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/>
+                </svg>
+                <span class="fp-btn-label" data-i18n="fingerprint.unverify">Снять</span>
+            </button>
+        </div>
+
+        <!-- Action row 2: Device verification -->
+        <div class="fp-actions fp-actions-secondary">
+            <button class="fp-btn fp-btn-secondary fp-btn-full" id="fp-devices-btn" onclick="window.openDeviceVerification()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                <span class="fp-btn-label" data-i18n="fingerprint.myDevices">Мои устройства</span>
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<!-- QR Camera Scanner Overlay -->
+<div id="fp-scan-overlay" class="fp-scan-overlay" style="display:none;">
+    <div class="fp-scan-header">
+        <div class="fp-scan-title" data-i18n="fingerprint.scanQR">Сканирование QR-кода</div>
+        <button class="fp-close-btn" onclick="window.stopQRScan()" aria-label="Закрыть">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+        </button>
+    </div>
+    <div class="fp-scan-body">
+        <div class="fp-scan-viewfinder">
+            <video id="fp-scan-video" autoplay playsinline muted></video>
+            <div class="fp-scan-frame"></div>
+        </div>
+    </div>
+    <div class="fp-scan-footer">
+        <div class="fp-scan-status" id="fp-scan-status" data-i18n="fingerprint.aimCamera">Наведите камеру на QR-код собеседника</div>
+    </div>
+</div>

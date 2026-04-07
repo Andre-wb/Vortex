@@ -90,9 +90,12 @@ class BleFragmenter:
 
     _HEADER_SIZE = 4
 
+    _FRAGMENT_TTL = 10.0  # seconds before incomplete sequence is discarded
+
     def __init__(self):
         self._seq = 0
         self._recv_buf: dict[int, dict[int, bytes]] = {}
+        self._recv_buf_ts: dict[int, float] = {}  # seq_id -> first_fragment_time
 
     def fragment(self, data: bytes) -> list[bytes]:
         """Разбивает данные на BLE-фрагменты."""
@@ -121,8 +124,21 @@ class BleFragmenter:
         seq_id, total, idx, _ = struct.unpack_from("BBBB", fragment)
         payload = fragment[self._HEADER_SIZE:]
 
+        # Cleanup expired incomplete sequences (TTL-based)
+        now = time.monotonic()
+        expired = [sid for sid, ts in self._recv_buf_ts.items() if now - ts > self._FRAGMENT_TTL]
+        for sid in expired:
+            self._recv_buf.pop(sid, None)
+            self._recv_buf_ts.pop(sid, None)
+
+        # Limit total pending sequences to prevent memory exhaustion
+        if seq_id not in self._recv_buf and len(self._recv_buf) >= 64:
+            return None  # drop if too many pending
+
+        # Track timestamp for new sequences
         if seq_id not in self._recv_buf:
             self._recv_buf[seq_id] = {}
+            self._recv_buf_ts[seq_id] = now
 
         self._recv_buf[seq_id][idx] = payload
 
@@ -131,6 +147,7 @@ class BleFragmenter:
                 self._recv_buf[seq_id][i] for i in range(total)
             )
             del self._recv_buf[seq_id]
+            self._recv_buf_ts.pop(seq_id, None)
             return complete
 
         return None
@@ -155,6 +172,7 @@ class BleTransportManager:
         self._peers:      dict[str, BlePeer] = {}          # address → BlePeer
         self._fragmenter: BleFragmenter      = BleFragmenter()
         self._scan_task:  Optional[asyncio.Task] = None
+        self._gatt_server = None                            # bless.BlessServer
         self._available:  bool = False
         self._node_name:  str  = ""
         self._http_port:  int  = 8000
@@ -213,9 +231,15 @@ class BleTransportManager:
             try:
                 await self._scan_task
             except asyncio.CancelledError:
-                pass
+                logger.debug("BLE scan task cancelled cleanly")
+        if self._gatt_server is not None:
+            try:
+                await self._gatt_server.stop()
+            except Exception as e:
+                logger.debug("GATT server stop: %s", e)
+            self._gatt_server = None
         self._available = False
-        logger.info("📡 BLE транспорт остановлен")
+        logger.info("BLE транспорт остановлен")
 
     @property
     def available(self) -> bool:
@@ -271,8 +295,8 @@ class BleTransportManager:
                 if len(vortex_data) > 2:
                     try:
                         node_name = vortex_data[2:].decode("utf-8", errors="ignore").rstrip("\x00")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("BLE: failed to decode node_name from service data addr=%s: %s", device.address, e)
 
             addr = device.address
             is_new = addr not in self._peers
@@ -357,61 +381,126 @@ class BleTransportManager:
             logger.debug(f"BLE send to {peer_address} failed: {e}")
             return False
 
-    # ── Запуск GATT сервера ───────────────────────────────────────────────────
+    # ── Запуск GATT сервера (peripheral / advertising) ──────────────────────
 
     async def start_gatt_server(self) -> None:
         """
-        Запускает GATT сервер для приёма сообщений.
+        Запускает GATT сервер для приёма BLE соединений.
 
-        Примечание: bleak не поддерживает GATT сервер напрямую на всех платформах.
-        На Linux используем D-Bus через BlueZ.
+        Использует библиотеку ``bless`` (pip install bless) для
+        кросс-платформенного BLE peripheral:
+          - Linux  (BlueZ/D-Bus)
+          - macOS  (CoreBluetooth)
+          - Windows (WinRT)
+
+        После запуска устройство начинает advertising Vortex service UUID
+        и принимает write-запросы на MESSAGE_CHAR_UUID.
         """
         try:
-            await self._start_bluez_gatt_server()
-        except Exception as e:
-            logger.warning(f"GATT сервер не запущен: {e}. "
-                           f"Использую только scan-режим.")
-
-    async def _start_bluez_gatt_server(self) -> None:
-        """
-        Запускает GATT сервер через BlueZ D-Bus (только Linux).
-        Регистрирует Vortex service и характеристики.
-        """
-        import subprocess
-        import sys
-
-        if sys.platform != "linux":
-            raise RuntimeError("BlueZ доступен только на Linux")
-
-        # Проверяем что bluetoothd запущен
-        result = subprocess.run(
-            ["bluetoothctl", "show"],
-            capture_output=True, text=True, timeout=3
-        )
-        if result.returncode != 0:
-            raise RuntimeError("bluetoothctl недоступен")
-
-        # Для полного GATT сервера нужен python-dbus / dbus-next
-        # Пробуем через dbus-next
-        try:
-            from dbus_next.aio import MessageBus
-            from dbus_next import BusType
-            bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-            logger.info("📡 BlueZ D-Bus подключён, GATT сервер запущен")
-            # Полная реализация GATT сервера через D-Bus
-            await self._register_gatt_application(bus)
+            await self._start_bless_gatt_server()
         except ImportError:
-            logger.warning("dbus-next не установлен (pip install dbus-next)")
-            raise
+            logger.warning(
+                "bless не установлен (pip install bless) — "
+                "BLE работает только в scan-режиме (peer discovery)."
+            )
+        except Exception as e:
+            logger.warning("GATT сервер не запущен: %s — scan-only режим.", e)
 
-    async def _register_gatt_application(self, bus) -> None:
-        """Регистрирует GATT Application в BlueZ."""
-        logger.info(f"📡 GATT Application зарегистрировано: {VORTEX_SERVICE_UUID}")
-        # Упрощённая регистрация — полный D-Bus GATT требует реализации
-        # GattApplicationInterface / GattServiceInterface / GattCharacteristicInterface
-        # что выходит за рамки этого модуля (несколько сотен строк boilerplate)
-        # Для production используйте готовый: https://github.com/kevincar/bless
-        pass
+    async def _start_bless_gatt_server(self) -> None:
+        """
+        Полноценный GATT peripheral через ``bless``.
+
+        Регистрирует Vortex service с тремя характеристиками:
+          - ANNOUNCE_CHAR  (notify)  — периодически рассылает node_name + port
+          - MESSAGE_CHAR   (write)   — принимает входящие фрагменты сообщений
+          - STATUS_CHAR    (read)    — текущий статус ноды (JSON)
+        """
+        from bless import (                   # type: ignore[import-untyped]
+            BlessServer,
+            BlessGATTCharacteristic,
+            GATTCharacteristicProperties,
+            GATTAttributePermissions,
+        )
+
+        server = BlessServer(name=f"Vortex-{self._node_name[:8]}")
+
+        await server.add_new_service(VORTEX_SERVICE_UUID)
+
+        # ── ANNOUNCE characteristic (notify) ─────────────────────────────
+        announce_flags = (
+            GATTCharacteristicProperties.read
+            | GATTCharacteristicProperties.notify
+        )
+        announce_perms = GATTAttributePermissions.readable
+        await server.add_new_characteristic(
+            VORTEX_SERVICE_UUID,
+            ANNOUNCE_CHAR_UUID,
+            announce_flags,
+            None,
+            announce_perms,
+        )
+
+        # ── MESSAGE characteristic (write — incoming fragments) ──────────
+        msg_flags = (
+            GATTCharacteristicProperties.write
+            | GATTCharacteristicProperties.write_without_response
+        )
+        msg_perms = GATTAttributePermissions.writeable
+        await server.add_new_characteristic(
+            VORTEX_SERVICE_UUID,
+            MESSAGE_CHAR_UUID,
+            msg_flags,
+            None,
+            msg_perms,
+        )
+
+        # ── STATUS characteristic (read) ─────────────────────────────────
+        status_flags = GATTCharacteristicProperties.read
+        status_perms = GATTAttributePermissions.readable
+        status_value = json.dumps({
+            "node": self._node_name,
+            "port": self._http_port,
+            "v":    1,
+        }).encode("utf-8")
+        await server.add_new_characteristic(
+            VORTEX_SERVICE_UUID,
+            STATUS_CHAR_UUID,
+            status_flags,
+            status_value,
+            status_perms,
+        )
+
+        # ── Write handler — defragment incoming messages ─────────────────
+        rx_fragmenter = BleFragmenter()
+
+        def _on_write(characteristic: BlessGATTCharacteristic, value: bytes, **kwargs) -> None:
+            if str(characteristic.uuid).lower() == MESSAGE_CHAR_UUID.lower():
+                assembled = rx_fragmenter.defragment(value)
+                if assembled and self._on_msg_cb:
+                    try:
+                        payload = json.loads(assembled.decode("utf-8"))
+                        asyncio.get_event_loop().call_soon_threadsafe(
+                            asyncio.ensure_future,
+                            self._on_msg_cb(payload),
+                        )
+                    except Exception as e:
+                        logger.debug("BLE GATT incoming message parse error: %s", e)
+
+        server.write_request_func = _on_write
+
+        # ── Start advertising ────────────────────────────────────────────
+        await server.start()
+
+        # Encode announce payload: [2B port][node_name UTF-8]
+        announce_data = struct.pack(">H", self._http_port) + self._node_name.encode("utf-8")[:20]
+        server.get_characteristic(ANNOUNCE_CHAR_UUID).value = announce_data
+        server.update_value(VORTEX_SERVICE_UUID, ANNOUNCE_CHAR_UUID)
+
+        self._gatt_server = server
+        logger.info(
+            "BLE GATT peripheral started: advertising %s (node=%s, port=%d)",
+            VORTEX_SERVICE_UUID, self._node_name, self._http_port,
+        )
 
     # ── Публичное API ─────────────────────────────────────────────────────────
 
@@ -436,6 +525,7 @@ class BleTransportManager:
     def status(self) -> dict:
         return {
             "available":   self._available,
+            "advertising": self._gatt_server is not None,
             "peers":       len(self.get_peers()),
             "peers_list":  [p.to_dict() for p in self.get_peers()],
         }

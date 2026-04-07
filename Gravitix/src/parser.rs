@@ -1472,16 +1472,43 @@ impl Parser {
     }
 
     fn parse_and(&mut self) -> GravResult<Expr> {
-        let mut lhs = self.parse_compare()?;
+        let mut lhs = self.parse_bit_or()?;
         while self.eat(&TokenKind::AmpAmp) {
-            let rhs = self.parse_compare()?;
+            let rhs = self.parse_bit_or()?;
             lhs = Expr::Binary { op: BinOp::And, lhs: Box::new(lhs), rhs: Box::new(rhs) };
         }
         Ok(lhs)
     }
 
+    fn parse_bit_or(&mut self) -> GravResult<Expr> {
+        let mut lhs = self.parse_bit_xor()?;
+        while self.eat(&TokenKind::Pipe) {
+            let rhs = self.parse_bit_xor()?;
+            lhs = Expr::Binary { op: BinOp::BitOr, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_bit_xor(&mut self) -> GravResult<Expr> {
+        let mut lhs = self.parse_bit_and()?;
+        while self.eat(&TokenKind::Caret) {
+            let rhs = self.parse_bit_and()?;
+            lhs = Expr::Binary { op: BinOp::BitXor, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_bit_and(&mut self) -> GravResult<Expr> {
+        let mut lhs = self.parse_compare()?;
+        while self.eat(&TokenKind::Amp) {
+            let rhs = self.parse_compare()?;
+            lhs = Expr::Binary { op: BinOp::BitAnd, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+        Ok(lhs)
+    }
+
     fn parse_compare(&mut self) -> GravResult<Expr> {
-        let mut lhs = self.parse_add()?;
+        let mut lhs = self.parse_shift()?;
         loop {
             let op = match self.peek() {
                 TokenKind::EqEq  => BinOp::Eq,
@@ -1491,6 +1518,21 @@ impl Parser {
                 TokenKind::LtEq  => BinOp::Le,
                 TokenKind::GtEq  => BinOp::Ge,
                 _                => break,
+            };
+            self.advance();
+            let rhs = self.parse_add()?;
+            lhs = Expr::Binary { op, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_shift(&mut self) -> GravResult<Expr> {
+        let mut lhs = self.parse_add()?;
+        loop {
+            let op = match self.peek() {
+                TokenKind::Shl => BinOp::Shl,
+                TokenKind::Shr => BinOp::Shr,
+                _              => break,
             };
             self.advance();
             let rhs = self.parse_add()?;
@@ -2686,6 +2728,7 @@ impl Parser {
 mod tests {
     use super::*;
     use crate::lexer::Lexer;
+    #[allow(unused_imports)]
     use crate::ast::*;
 
     fn parse(src: &str) -> Program {

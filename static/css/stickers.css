@@ -1,0 +1,1005 @@
+/* ============================================================================
+ * FEATURE: Animated Stickers (CSS-animated emoji sticker pack)
+ * ========================================================================== */
+
+/* Base animated sticker in chat */
+.animated-sticker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    font-size: 56px;
+    line-height: 1;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* ---- Keyframes ---- */
+@keyframes stickerWave {
+    0%, 100% { transform: rotate(0deg); }
+    15% { transform: rotate(18deg); }
+    30% { transform: rotate(-14deg); }
+    45% { transform: rotate(16deg); }
+    60% { transform: rotate(-12deg); }
+    75% { transform: rotate(10deg); }
+}
+@keyframes stickerPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.25); }
+}
+@keyframes stickerBounce {
+    0%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-12px); }
+    60% { transform: translateY(-4px); }
+}
+@keyframes stickerShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+@keyframes stickerPop {
+    0% { transform: scale(0.3); opacity: 0; }
+    50% { transform: scale(1.15); opacity: 1; }
+    70% { transform: scale(0.9); }
+    100% { transform: scale(1); opacity: 1; }
+}
+@keyframes stickerSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes stickerFloat {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-8px) rotate(5deg); }
+    50% { transform: translateY(-14px) rotate(0deg); }
+    75% { transform: translateY(-8px) rotate(-5deg); }
+}
+@keyframes stickerFlicker {
+    0%, 100% { transform: scale(1) translateY(0); opacity: 1; }
+    25% { transform: scale(1.05) translateY(-2px); opacity: 0.9; }
+    50% { transform: scale(0.95) translateY(1px); opacity: 1; }
+    75% { transform: scale(1.08) translateY(-3px); opacity: 0.85; }
+}
+@keyframes stickerJello {
+    0%, 100% { transform: scale3d(1,1,1); }
+    30% { transform: scale3d(1.15,0.85,1); }
+    40% { transform: scale3d(0.85,1.15,1); }
+    50% { transform: scale3d(1.1,0.9,1); }
+    65% { transform: scale3d(0.95,1.05,1); }
+    75% { transform: scale3d(1.03,0.97,1); }
+}
+@keyframes stickerTada {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    10%, 20% { transform: scale(0.9) rotate(-4deg); }
+    30%, 50%, 70% { transform: scale(1.15) rotate(4deg); }
+    40%, 60% { transform: scale(1.15) rotate(-4deg); }
+    80% { transform: scale(1.05) rotate(0deg); }
+}
+@keyframes stickerSlideIn {
+    0% { transform: translateX(-30px); opacity: 0; }
+    60% { transform: translateX(5px); opacity: 1; }
+    100% { transform: translateX(0); opacity: 1; }
+}
+@keyframes stickerSparkle {
+    0%, 100% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+    25% { transform: scale(1.1) rotate(5deg); filter: brightness(1.3); }
+    50% { transform: scale(0.95) rotate(-3deg); filter: brightness(1); }
+    75% { transform: scale(1.08) rotate(2deg); filter: brightness(1.2); }
+}
+@keyframes stickerSwing {
+    0%, 100% { transform: rotate(0deg); transform-origin: top center; }
+    20% { transform: rotate(12deg); }
+    40% { transform: rotate(-10deg); }
+    60% { transform: rotate(6deg); }
+    80% { transform: rotate(-4deg); }
+}
+@keyframes stickerRubber {
+    0%, 100% { transform: scaleX(1) scaleY(1); }
+    30% { transform: scaleX(1.2) scaleY(0.8); }
+    40% { transform: scaleX(0.85) scaleY(1.15); }
+    50% { transform: scaleX(1.1) scaleY(0.9); }
+    65% { transform: scaleX(0.95) scaleY(1.05); }
+    75% { transform: scaleX(1.02) scaleY(0.98); }
+}
+@keyframes stickerFlip {
+    0% { transform: perspective(400px) rotateY(0deg); }
+    40% { transform: perspective(400px) rotateY(170deg); }
+    50% { transform: perspective(400px) rotateY(190deg); }
+    80% { transform: perspective(400px) rotateY(360deg); }
+    100% { transform: perspective(400px) rotateY(360deg); }
+}
+@keyframes stickerDrop {
+    0% { transform: translateY(-40px); opacity: 0; }
+    60% { transform: translateY(6px); opacity: 1; }
+    80% { transform: translateY(-3px); }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
+/* ---- Per-sticker animation classes ---- */
+.sticker-wave      { animation: stickerWave 1s ease-in-out infinite; }
+.sticker-heart     { animation: stickerPulse 1.2s ease-in-out infinite; }
+.sticker-fire      { animation: stickerFlicker 0.8s ease-in-out infinite; }
+.sticker-laugh     { animation: stickerBounce 0.9s ease-in-out infinite; }
+.sticker-cry       { animation: stickerShake 0.7s ease-in-out infinite; }
+.sticker-thumbsup  { animation: stickerPop 0.8s ease-out forwards; }
+.sticker-party     { animation: stickerTada 1.2s ease-in-out infinite; }
+.sticker-rocket    { animation: stickerFloat 1.5s ease-in-out infinite; }
+.sticker-star      { animation: stickerSparkle 1.4s ease-in-out infinite; }
+.sticker-cool      { animation: stickerSlideIn 0.7s ease-out forwards; }
+.sticker-love      { animation: stickerJello 1.2s ease-in-out infinite; }
+.sticker-clap      { animation: stickerRubber 1s ease-in-out infinite; }
+.sticker-think     { animation: stickerSwing 1.5s ease-in-out infinite; }
+.sticker-scared    { animation: stickerShake 0.4s ease-in-out infinite; }
+.sticker-angry     { animation: stickerJello 0.7s ease-in-out infinite; }
+.sticker-sleep     { animation: stickerPulse 2s ease-in-out infinite; }
+.sticker-money     { animation: stickerSpin 2s linear infinite; }
+.sticker-ghost     { animation: stickerFloat 2s ease-in-out infinite; }
+.sticker-hundred   { animation: stickerDrop 0.8s ease-out forwards; }
+.sticker-eyes      { animation: stickerFlip 2s ease-in-out infinite; }
+
+/* ---- Sticker picker grid ---- */
+.sticker-picker-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    overflow-x: auto;
+}
+
+.sticker-grid-animated {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.sticker-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    aspect-ratio: 1;
+    font-size: 36px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+    user-select: none;
+    -webkit-user-select: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    line-height: 1;
+}
+.sticker-preview:hover {
+    background: var(--bg3);
+    transform: scale(1.1);
+}
+/* Pause animation by default in picker, play on hover */
+.sticker-preview .animated-sticker {
+    width: 44px;
+    height: 44px;
+    font-size: 36px;
+    animation-play-state: paused;
+}
+.sticker-preview:hover .animated-sticker {
+    animation-play-state: running;
+}
+/* ============================================================================
+ * CHAT BACKGROUND PREVIEW (settings)
+ * ========================================================================== */
+.bg-preview {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, transform 0.15s;
+    overflow: hidden;
+}
+.bg-preview:hover {
+    border-color: var(--text3);
+    transform: scale(1.05);
+}
+.bg-preview.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(124, 58, 237, 0.3);
+}
+
+/* ============================================================================
+ * LIGHT THEME OVERRIDES
+ * ========================================================================== */
+body[data-theme="light"] {
+    color-scheme: light;
+    --bg:       #f5f5f5;
+    --bg2:      #ffffff;
+    --bg3:      #e4e4e7;
+    --border:   #d4d4d8;
+    --text:     #18181b;
+    --text2:    #52525b;
+    --text3:    #a1a1aa;
+}
+
+/* Scrollbar for light theme */
+body[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: #c4c4cc;
+}
+
+/* Sidebar borders and separators */
+body[data-theme="light"] #sidebar {
+    border-right: 1px solid var(--border);
+}
+body[data-theme="light"] .sidebar-header {
+    border-bottom: 1px solid var(--border);
+}
+body[data-theme="light"] .sidebar-footer {
+    border-top: 1px solid var(--border);
+}
+
+/* Logo text color */
+body[data-theme="light"] .logo {
+    color: #18181b;
+}
+
+/* Room list items */
+body[data-theme="light"] .room-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+body[data-theme="light"] .room-item.active {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+/* Primary button keeps white text on colored background */
+body[data-theme="light"] .btn-primary {
+    color: #ffffff;
+}
+body[data-theme="light"] .btn-primary:hover {
+    color: #ffffff;
+}
+
+/* Secondary button */
+body[data-theme="light"] .btn-secondary {
+    background: #ffffff;
+    border-color: var(--border);
+    color: #18181b;
+}
+body[data-theme="light"] .btn-secondary:hover {
+    background: #f4f4f5;
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Form inputs */
+body[data-theme="light"] .form-input {
+    background: #ffffff;
+    border-color: var(--border);
+    color: #18181b;
+}
+body[data-theme="light"] .form-input::placeholder {
+    color: #a1a1aa;
+}
+
+/* Message input */
+body[data-theme="light"] #msg-input {
+    background: #ffffff;
+    border-color: var(--border);
+    color: #18181b;
+}
+body[data-theme="light"] #msg-input::placeholder {
+    color: #a1a1aa;
+}
+
+/* Input area */
+body[data-theme="light"] #input-area {
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+}
+
+/* Input buttons */
+body[data-theme="light"] .input-btn {
+    background: #ffffff;
+    border-color: var(--border);
+    color: #52525b;
+}
+body[data-theme="light"] .input-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+body[data-theme="light"] .input-btn.send {
+    background: var(--accent);
+    color: #ffffff;
+}
+
+/* Message bubbles */
+body[data-theme="light"] .msg-bubble {
+    background: #f0f0f2;
+}
+body[data-theme="light"] .msg-bubble.own {
+    background: rgba(124, 58, 237, 0.1);
+}
+
+/* Modal */
+body[data-theme="light"] .modal {
+    background: #ffffff;
+    border-color: var(--border);
+}
+body[data-theme="light"] .modal-overlay {
+    background: rgba(0, 0, 0, 0.3);
+}
+body[data-theme="light"] .status-win {
+    background: #f0f0f3;
+    border-color: #d4d4d8;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.18), 0 0 0 1px #d4d4d8;
+}
+body[data-theme="light"] .status-win-header {
+    background: linear-gradient(to bottom, #e4e4e7, transparent);
+    border-bottom-color: #d4d4d8;
+}
+
+/* Multi-account light theme */
+body[data-theme="light"] .ma-account-row:hover,
+body[data-theme="light"] .ma-account-row.ma-active {
+    background: #f4f4f5;
+}
+body[data-theme="light"] .ma-account-avatar {
+    background: #f4f4f5;
+    border-color: #d4d4d8;
+}
+body[data-theme="light"] .ma-active .ma-account-avatar {
+    border-color: var(--accent);
+}
+
+/* Settings tabs */
+body[data-theme="light"] .settings-tab {
+    color: #52525b;
+}
+body[data-theme="light"] .settings-tab:hover {
+    background: #f4f4f5;
+    color: #18181b;
+}
+body[data-theme="light"] .settings-tab.active {
+    background: #e4e4e7;
+    color: #18181b;
+}
+
+/* Toggle switch */
+body[data-theme="light"] .toggle-track {
+    background: #d4d4d8;
+}
+
+/* Chat header */
+body[data-theme="light"] .chat-header {
+    border-bottom: 1px solid var(--border);
+}
+
+/* Peer badge */
+body[data-theme="light"] .msg-peer-badge {
+    background: rgba(124, 58, 237, 0.08);
+}
+
+/* Bot badge */
+body[data-theme="light"] .msg-bot-badge {
+    background: rgba(59, 130, 246, 0.08);
+    color: #2563eb;
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Theme option light swatch: ensure visible border in light mode */
+body[data-theme="light"] .theme-option[data-theme="light"] {
+    border-color: var(--border) !important;
+}
+body[data-theme="light"] .theme-option[data-theme="light"].active {
+    border-color: var(--accent) !important;
+}
+
+/* Accent option boxes: ensure visible on light bg */
+body[data-theme="light"] .accent-option {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Background preview in light mode */
+body[data-theme="light"] .bg-preview.active {
+    box-shadow: 0 0 8px rgba(124, 58, 237, 0.25);
+}
+
+/* Pinned bar */
+body[data-theme="light"] .pinned-bar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+}
+
+/* Drop overlay */
+body[data-theme="light"] #drop-overlay {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+/* Selection / highlight colors */
+body[data-theme="light"] ::selection {
+    background: rgba(124, 58, 237, 0.2);
+    color: #18181b;
+}
+
+/* System messages */
+body[data-theme="light"] .msg-bubble.system {
+    color: #a1a1aa;
+}
+
+/* Context menu / tooltip adjustments */
+body[data-theme="light"] .context-menu {
+    background: #ffffff;
+    border-color: var(--border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Room info modal in light mode */
+body[data-theme="light"] .room-info-avatar {
+    background: #f4f4f5;
+    border-color: #e4e4e7;
+}
+body[data-theme="light"] .toggle-slider {
+    background: #e4e4e7;
+    border-color: #d4d4d8;
+}
+body[data-theme="light"] .room-avatar-sidebar {
+    background: #f4f4f5;
+}
+
+/* ============================================================================
+ * MEMBERS MODAL — управление участниками
+ * ========================================================================== */
+
+.member-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    transition: opacity 0.2s;
+}
+.member-item:last-child { border-bottom: none; }
+
+.member-item--muted { opacity: 0.55; }
+
+.member-item--banned {
+    opacity: 0.45;
+    background: rgba(239, 68, 68, 0.06);
+    border-radius: var(--radius);
+    padding-left: 8px;
+    padding-right: 8px;
+    margin: 2px -8px;
+}
+
+.member-item-avatar {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.member-online-dot {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 2px solid var(--bg2);
+}
+
+.member-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.member-item-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 14px;
+}
+.member-item-name > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.member-item-username {
+    font-size: 11px;
+    color: var(--text2);
+    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Role badges */
+.member-role-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 9px;
+    line-height: 1.5;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+.member-role-badge--owner  { background: rgba(34,197,94,0.15);  color: var(--green); }
+.member-role-badge--admin  { background: rgba(168,85,247,0.15); color: var(--accent2); }
+.member-role-badge--member { background: rgba(113,113,122,0.12); color: var(--text2); }
+
+.member-status-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.member-you-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 0 5px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+/* Actions dropdown */
+.member-actions-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.member-actions-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--text3);
+    cursor: pointer;
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.member-actions-btn:hover {
+    background: var(--bg3);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+.member-actions-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    min-width: 180px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    z-index: 120;
+    padding: 4px 0;
+    animation: fadeUp 0.15s ease;
+}
+.member-actions-menu.show { display: block; }
+
+.member-actions-item {
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.12s;
+}
+.member-actions-item:hover { background: var(--bg3); }
+.member-actions-item--danger { color: var(--red); }
+.member-actions-item--danger:hover { background: rgba(239,68,68,0.1); }
+
+/* Light theme overrides */
+body[data-theme="light"] .member-item--banned {
+    background: rgba(239, 68, 68, 0.08);
+}
+body[data-theme="light"] .member-actions-menu {
+    background: #ffffff;
+    border-color: var(--border);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+body[data-theme="light"] .member-actions-btn:hover {
+    background: rgba(0,0,0,0.04);
+}
+
+/* ============================================================================
+ * FEATURE: Custom Sticker Packs — Manager UI (Settings)
+ * ========================================================================== */
+
+/* Sub-tab bar in sticker settings */
+.sticker-mgr-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+}
+.sticker-mgr-tab {
+    padding: 6px 14px;
+    background: none;
+    border: none;
+    color: var(--text3);
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    font-family: var(--sans);
+    font-weight: 600;
+    transition: background 0.15s, color 0.15s;
+}
+.sticker-mgr-tab:hover { background: var(--bg2); color: var(--text2); }
+.sticker-mgr-tab.active { background: var(--bg3); color: var(--text1); }
+
+.sticker-mgr-section { display: none; }
+.sticker-mgr-section.active { display: block; }
+
+/* Create pack form area */
+.sticker-mgr-create {
+    margin-bottom: 12px;
+}
+.sticker-create-form {
+    margin-top: 8px;
+    padding: 12px;
+    background: var(--bg2);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+/* Pack list */
+.sticker-packs-list {
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+/* Individual pack card */
+.sticker-pack-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+.sticker-pack-card:hover {
+    border-color: var(--accent);
+    background: var(--bg2);
+}
+
+.sticker-pack-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+.sticker-pack-cover {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--bg3);
+}
+.sticker-pack-cover--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+.sticker-pack-card-info {
+    flex: 1;
+    min-width: 0;
+}
+.sticker-pack-card-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sticker-pack-card-meta {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 2px;
+}
+
+.sticker-pack-card-actions {
+    flex-shrink: 0;
+}
+
+/* Expanded sticker grid inside pack card */
+.sticker-pack-expand {
+    padding: 0 12px 12px;
+}
+
+.sticker-pack-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+}
+
+.sticker-thumb-wrap {
+    position: relative;
+    aspect-ratio: 1;
+}
+.sticker-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    background: var(--bg3);
+    cursor: default;
+}
+.sticker-thumb-delete {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--red);
+    color: #fff;
+    border: none;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.sticker-thumb-wrap:hover .sticker-thumb-delete {
+    opacity: 1;
+}
+
+/* Upload button (dashed square) */
+.sticker-upload-btn {
+    aspect-ratio: 1;
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: var(--text3);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.sticker-upload-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124, 58, 237, 0.05);
+}
+
+/* ============================================================================
+ * FEATURE: Custom Sticker Packs — Enhanced Picker
+ * ========================================================================== */
+
+/* Custom pack tab in sticker picker */
+.custom-sticker-tab {
+    padding: 4px 6px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.custom-sticker-tab-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+.custom-sticker-tab-emoji {
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* Grid for custom stickers in picker */
+.custom-sticker-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+.custom-sticker-preview {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.15s;
+    padding: 4px;
+}
+.custom-sticker-preview:hover {
+    background: var(--bg3);
+    transform: scale(1.08);
+}
+.custom-sticker-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
+/* ============================================================================
+ * FEATURE: Custom Sticker — Message Rendering
+ * ========================================================================== */
+
+/* Custom sticker image in chat messages */
+.custom-sticker {
+    max-width: 150px;
+    max-height: 150px;
+    display: block;
+    object-fit: contain;
+    border-radius: 4px;
+}
+/* Remove bubble background for custom sticker messages */
+.msg-bubble:has(.custom-sticker) {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 4px !important;
+}
+
+/* Sticker hover — hint that it's clickable */
+.custom-sticker {
+    transition: transform .15s, filter .15s;
+}
+.custom-sticker:hover {
+    transform: scale(1.06);
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,.3));
+}
+
+/* Sticker pack popup animation */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+#sticker-pack-popup {
+    animation: fadeInUp .15s ease;
+}
+#sticker-pack-popup::-webkit-scrollbar { width: 4px; }
+#sticker-pack-popup::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ============================================================================
+ * FEATURE: Custom Sticker Packs — Light theme overrides
+ * ========================================================================== */
+body[data-theme="light"] .sticker-mgr-tab {
+    color: #52525b;
+}
+body[data-theme="light"] .sticker-mgr-tab:hover {
+    background: #f4f4f5;
+    color: #18181b;
+}
+body[data-theme="light"] .sticker-mgr-tab.active {
+    background: #e4e4e7;
+    color: #18181b;
+}
+body[data-theme="light"] .sticker-pack-card {
+    border-color: #e4e4e7;
+}
+body[data-theme="light"] .sticker-pack-card:hover {
+    background: #f9fafb;
+}
+body[data-theme="light"] .sticker-create-form {
+    background: #f9fafb;
+    border-color: #e4e4e7;
+}
+body[data-theme="light"] .sticker-thumb {
+    background: #f4f4f5;
+}
+body[data-theme="light"] .sticker-upload-btn {
+    border-color: #d4d4d8;
+    color: #a1a1aa;
+}
+body[data-theme="light"] .sticker-upload-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124, 58, 237, 0.04);
+}
+
+/* ============================================================================
+ * Invoice Cards (Счета)
+ * ========================================================================== */
+.invoice-card {
+    background: var(--bg3);
+    border-radius: 14px;
+    padding: 0;
+    min-width: 260px;
+    max-width: 340px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    display: flex; flex-direction: column;
+}
+.invoice-crypto { border-top: 3px solid #22c55e; }
+.invoice-fiat   { border-top: 3px solid #3b82f6; }
+
+.invoice-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px 0;
+}
+.invoice-icon { font-size: 28px; flex-shrink: 0; }
+.invoice-header-text { flex: 1; min-width: 0; }
+.invoice-title {
+    font-size: 15px; font-weight: 700; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.invoice-from { font-size: 11px; color: var(--text3); margin-top: 1px; }
+.invoice-network {
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    background: rgba(34,197,94,0.15); color: #22c55e;
+    padding: 2px 8px; border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+}
+
+.invoice-amount-row {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 10px 16px 4px;
+}
+.invoice-amount {
+    font-size: 28px; font-weight: 800; color: var(--text);
+    letter-spacing: -0.03em; line-height: 1;
+}
+.invoice-currency-badge {
+    font-size: 13px; font-weight: 700; color: var(--text2);
+    background: var(--bg2); padding: 2px 8px; border-radius: 6px;
+}
+
+.invoice-details {
+    padding: 6px 16px 2px; display: flex; flex-direction: column; gap: 4px;
+}
+.invoice-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.invoice-row:last-child { border-bottom: none; }
+.invoice-label { color: var(--text3); font-family: var(--mono); }
+.invoice-value { color: var(--text); font-weight: 500; text-align: right; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invoice-due { color: var(--yellow, #f59e0b); font-weight: 600; }
+
+.invoice-address-row {
+    display: flex; align-items: center; gap: 6px;
+    margin: 6px 12px; padding: 6px 10px;
+    background: var(--bg2); border-radius: 8px;
+}
+.invoice-address {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.invoice-copy-btn {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--accent); font-size: 10px; font-weight: 600;
+    padding: 3px 8px; cursor: pointer; white-space: nowrap;
+    transition: all 0.15s; flex-shrink: 0;
+}
+.invoice-copy-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.invoice-qr {
+    display: flex; justify-content: center; padding: 8px 0 4px;
+}
+.invoice-qr img { background: #fff; padding: 6px; border-radius: 10px; }
+
+.invoice-pay-btn {
+    margin: 8px 12px 12px; padding: 8px; border-radius: 8px;
+    border: 1px solid var(--border); background: none;
+    color: var(--text2); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; text-align: center;
+}
+.invoice-pay-btn:hover { border-color: #22c55e; color: #22c55e; }
+.invoice-pay-btn.paid {
+    background: rgba(34,197,94,0.12); border-color: #22c55e; color: #22c55e;
+}
+.invoice-pay-btn.paid span { font-weight: 700; }
+
+/* Light theme */
+body[data-theme="light"] .invoice-card { background: #fff; border-color: #e4e4e7; }
+body[data-theme="light"] .invoice-row { border-bottom-color: rgba(0,0,0,0.04); }
+body[data-theme="light"] .invoice-address-row { background: #f4f4f5; }
+body[data-theme="light"] .invoice-qr img { box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+

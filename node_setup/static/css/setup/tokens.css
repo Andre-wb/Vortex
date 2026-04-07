@@ -1,0 +1,23 @@
+/* setup/tokens.css — шрифты и CSS-переменные (design tokens) */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap');
+
+:root {
+    --bg0:     #09090b;     /* самый тёмный фон */
+    --bg1:     #09090b;     /* фон body */
+    --bg2:     #111115;     /* фон карточек */
+    --bg3:     #18181d;     /* фон элементов внутри карточек */
+    --border:  #202027;     /* граница */
+    --teal:    #7c3aed;     /* основной акцентный цвет */
+    --teal2:   #a855f7;     /* hover-оттенок */
+    --purple:  #a855f7;     /* фиолетовый (бейджи) */
+    --green:   #22c55e;     /* успех */
+    --red:     #ef4444;     /* ошибка */
+    --yellow:  #eab308;     /* предупреждение */
+    --text1:   #e4e4e7;     /* основной текст */
+    --text2:   #71717a;     /* второстепенный текст */
+    --text3:   #52525b;     /* бледный текст */
+    --mono:    'Space Mono', monospace;
+    --display: 'Syne', sans-serif;
+    --radius:  6px;
+}

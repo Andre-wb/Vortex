@@ -14,6 +14,7 @@
 // =============================================================================
 
 import { fmtSize, getCookie } from '../utils.js';
+import { encryptFile, decryptFile, getRoomKey } from '../crypto.js';
 
 // ── Константы ─────────────────────────────────────────────────────────────────
 const CHUNK_SIZE          = 1 * 1024 * 1024;   // 1 МБ
@@ -284,7 +285,7 @@ export function uploadFile(e) {
     // Если файл большой — показываем значок возобновляемой загрузки
     if (file.size >= RESUMABLE_THRESHOLD) {
         const label = $('fpo-filesize');
-        if (label) label.textContent = fmtSize(file.size) + ' · чанковая загрузка';
+        if (label) label.textContent = fmtSize(file.size) + ' · ' + t('file.chunkedUpload');
     }
 
     // Проверяем незавершённые сессии
@@ -307,7 +308,7 @@ export function uploadFile(e) {
         closeDotMenu();
 
         const reader = new FileReader();
-        reader.onerror = () => _showAsFileCard('🖼', file.name, file.size);
+        reader.onerror = () => _showAsFileCard('<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>', file.name, file.size);
         reader.onload  = ev => {
             _origDataUrl = ev.target.result;
             const img = new Image();
@@ -322,14 +323,16 @@ export function uploadFile(e) {
                 _updateCompressionInfo(100);
                 _showEditPhotoBtn(true);
             };
-            img.onerror = () => _showAsFileCard('🖼', file.name, file.size);
+            img.onerror = () => _showAsFileCard('<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>', file.name, file.size);
             img.src = _origDataUrl;
         };
         reader.readAsDataURL(file);
     } else {
-        const icon = file.type.startsWith('video/') ? '🎬'
-            : file.type.startsWith('audio/') ? '🎵'
-                : '📄';
+        const icon = file.type.startsWith('video/')
+            ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>'
+            : file.type.startsWith('audio/')
+                ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>'
+                : '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>';
         _showAsFileCard(icon, file.name, file.size);
         $('compress-section').style.display = 'none';
         $('file-preview-overlay').classList.add('show');
@@ -353,7 +356,7 @@ function _showResumeNotice(uploadId, fileSize) {
         if (actions) actions.parentNode.insertBefore(notice, actions);
     }
     notice.innerHTML =
-        `⏩ Найдена незавершённая загрузка этого файла. ` +
+        `Найдена незавершённая загрузка этого файла. ` +
         `<button onclick="window._resumeUpload && window._resumeUpload('${uploadId}')" ` +
         `style="background:none;border:none;color:#4ecdc4;cursor:pointer;text-decoration:underline;padding:0">Возобновить</button>`;
     notice.style.display = 'flex';
@@ -371,10 +374,22 @@ export async function sendPendingFile() {
     const csrfToken = S.csrfToken || getCookie('csrf_token');
     if (!csrfToken) { _showError('CSRF токен не найден — обновите страницу.'); return; }
 
-    const blobToSend = (_resizedBlob && !_skipCompression) ? _resizedBlob : _pendingFile;
+    let blobToSend = (_resizedBlob && !_skipCompression) ? _resizedBlob : _pendingFile;
     const fileName   = _pendingFile.name;
     const mimeType   = _pendingFile.type;
     const localSrc   = _origDataUrl || null;
+
+    // E2E: шифруем содержимое файла ключом комнаты перед отправкой
+    const roomKey = getRoomKey(S.currentRoom.id);
+    if (roomKey) {
+        try {
+            const fileBuffer = await blobToSend.arrayBuffer();
+            const encryptedBuffer = await encryptFile(fileBuffer, roomKey);
+            blobToSend = new File([encryptedBuffer], fileName, { type: 'application/octet-stream' });
+        } catch (e) {
+            console.error('[E2E] Ошибка шифрования файла:', e);
+        }
+    }
 
     $('file-preview-overlay')?.classList.remove('uploading');
     cancelFilePreview();
@@ -536,7 +551,7 @@ export function sendWithoutCompression() {
     if ($('compress-dims')) $('compress-dims').textContent = `${_origW} × ${_origH}`;
     if ($('compress-pct'))  $('compress-pct').textContent  = '100%';
     const sendBtn = $('fpo-send-btn');
-    if (sendBtn) sendBtn.textContent = '↑ Отправить (без сжатия)';
+    if (sendBtn) sendBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>' + t('file.sendOriginal');
     closeDotMenu();
 }
 
@@ -567,6 +582,19 @@ export function cancelFilePreview() {
 
 export function triggerFileUpload() { $('file-input').click(); }
 
+/**
+ * Принимает File из Drag & Drop и запускает тот же flow, что и uploadFile.
+ * Создаёт фиктивный объект-событие для совместимости.
+ * @param {File} file
+ */
+export function uploadFileFromDrop(file) {
+    if (!file) return;
+    // Создаём минимальную обёртку, имитирующую e.target.files[0]
+    const fakeEvent = { target: { files: [file], value: '' } };
+    // Подавляем сброс input.value, т.к. target — обычный объект
+    uploadFile(fakeEvent);
+}
+
 // =============================================================================
 // Обычный XHR upload (для маленьких файлов)
 // =============================================================================
@@ -592,8 +620,8 @@ function _xhrUpload(url, formData, csrfToken, onProgress) {
                 reject(new Error(msg));
             }
         };
-        xhr.onerror   = () => reject(new Error('Нет соединения с сервером'));
-        xhr.ontimeout = () => reject(new Error('Таймаут загрузки'));
+        xhr.onerror   = () => reject(new Error(t('file.noConnection')));
+        xhr.ontimeout = () => reject(new Error(t('file.uploadTimeout')));
         xhr.send(formData);
     });
 }
@@ -614,8 +642,11 @@ function _insertPendingBubble(fileName, fileSize, mimeType, localSrc) {
     const user = S?.user;
     const header = document.createElement('div');
     header.className = 'msg-author';
+    var avatarContent = user?.avatar_url
+        ? '<img src="' + _esc(user.avatar_url) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
+        : (user?.avatar_emoji ? _esc(user.avatar_emoji) : '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>');
     header.innerHTML = `
-        <div class="msg-avatar">${_esc(user?.avatar_emoji || '👤')}</div>
+        <div class="msg-avatar">${avatarContent}</div>
         <span class="msg-name">${_esc(user?.display_name || user?.username || '...')}</span>
         <span class="msg-time">${_fmtNow()}</span>`;
     wrap.appendChild(header);
@@ -639,9 +670,11 @@ function _insertPendingBubble(fileName, fileSize, mimeType, localSrc) {
         bubble.appendChild(meta);
         wrap.appendChild(bubble);
     } else {
-        const icon = mimeType.startsWith('video/') ? '🎬'
-            : mimeType.startsWith('audio/') ? '🎵'
-                : '📄';
+        const icon = mimeType.startsWith('video/')
+            ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>'
+            : mimeType.startsWith('audio/')
+                ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>'
+                : '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>';
         const bubble = document.createElement('div');
         bubble.className = 'msg-bubble own file-msg pending-file-bubble';
         bubble.innerHTML = `
@@ -650,7 +683,7 @@ function _insertPendingBubble(fileName, fileSize, mimeType, localSrc) {
                 <div class="file-name">${_esc(fileName)}</div>
                 <div class="file-size">${fmtSize(fileSize)}</div>
                 <div class="upload-bar-wrap"><div class="upload-bar-fill"></div></div>
-                ${fileSize >= RESUMABLE_THRESHOLD ? '<div class="file-size" style="color:#4ecdc4;font-size:10px">⏩ чанковая загрузка</div>' : ''}
+                ${fileSize >= RESUMABLE_THRESHOLD ? `<div class="file-size" style="color:#4ecdc4;font-size:10px"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:2px;"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg> ${t('file.chunkedUpload')}</div>` : ''}
             </div>
             <div class="upload-corner-badge" style="position:relative;bottom:auto;right:auto;flex-shrink:0;">
                 <svg class="ucb-ring" viewBox="0 0 20 20">
@@ -691,22 +724,22 @@ function _failPendingBubble(el, msg) {
     const pctEl = el.querySelector('.ucb-pct');
     if (badge) badge.classList.add('fail');
     if (fill)  { fill.style.strokeDashoffset = '0'; fill.style.stroke = 'var(--red)'; }
-    if (pctEl) pctEl.textContent = '✕';
+    if (pctEl) pctEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
     const bubble = el.querySelector('.pending-img-bubble, .pending-file-bubble');
     if (bubble) bubble.classList.add('upload-fail');
     const errDiv = document.createElement('div');
     errDiv.className   = 'upload-error-label';
-    errDiv.textContent = '⚠ ' + msg;
+    errDiv.textContent = msg;
     el.appendChild(errDiv);
     const retryBtn = document.createElement('button');
     retryBtn.className   = 'upload-retry-btn';
-    retryBtn.textContent = '↺ Повторить';
+    retryBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>' + t('file.retry');
     retryBtn.onclick     = () => { el.remove(); sendPendingFile(); };
     el.appendChild(retryBtn);
 }
 
 function _fmtNow() {
-    return new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+    return new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 function _esc(str) {
@@ -719,7 +752,7 @@ function _resetSendBtn() {
     if (!btn) return;
     btn.disabled         = false;
     btn.style.background = '';
-    btn.innerHTML        = '↑ Отправить';
+    btn.innerHTML        = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>' + t('chat.send');
 }
 
 function _showError(msg) {
@@ -730,8 +763,87 @@ function _showError(msg) {
         el.style.cssText = 'font-size:12px;color:var(--red);font-family:var(--mono);padding:8px 24px;text-align:center;display:none;';
         $('file-preview-overlay')?.insertBefore(el, $('fpo-bottom-bar'));
     }
-    el.textContent   = '⚠ ' + msg;
+    el.textContent   = msg;
     el.style.display = 'block';
     clearTimeout(el._t);
     el._t = setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+// =============================================================================
+// E2E: скачивание и расшифровка файлов
+// =============================================================================
+
+/**
+ * Скачивает файл, расшифровывает ключом комнаты и отдаёт пользователю.
+ * Для legacy (незашифрованных) файлов — просто скачивает как есть.
+ *
+ * @param {string} downloadUrl — URL для скачивания файла
+ * @param {string} fileName — имя файла для сохранения
+ */
+export async function downloadAndDecryptFile(downloadUrl, fileName) {
+    const roomKey = getRoomKey(window.AppState?.currentRoom?.id);
+
+    try {
+        const resp = await fetch(downloadUrl, { credentials: 'include' });
+        if (!resp.ok) throw new Error('Download failed: HTTP ' + resp.status);
+
+        let fileData = await resp.arrayBuffer();
+
+        // Пытаемся расшифровать (если есть ключ и данные достаточной длины)
+        if (roomKey && fileData.byteLength > 12) {
+            try {
+                fileData = await decryptFile(fileData, roomKey);
+            } catch {
+                // Файл может быть незашифрованным (legacy) — используем как есть
+                console.warn('[E2E] Расшифровка файла не удалась — возможно, legacy (незашифрованный)');
+            }
+        }
+
+        // Создаём blob и запускаем скачивание
+        const blob = new Blob([fileData]);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName || 'file';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('[E2E] Ошибка загрузки файла:', e);
+        alert(t('file.downloadError') + ': ' + e.message);
+    }
+}
+
+/**
+ * Загружает зашифрованное изображение, расшифровывает и устанавливает blob URL.
+ * Используется для inline-изображений в сообщениях.
+ *
+ * @param {HTMLImageElement} imgEl — элемент img
+ * @param {string} url — URL зашифрованного изображения
+ */
+export async function loadEncryptedImage(imgEl, url) {
+    const roomKey = getRoomKey(window.AppState?.currentRoom?.id);
+
+    try {
+        const resp = await fetch(url, { credentials: 'include' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+        let data = await resp.arrayBuffer();
+
+        // Пытаемся расшифровать
+        if (roomKey && data.byteLength > 12) {
+            try {
+                data = await decryptFile(data, roomKey);
+            } catch {
+                // Legacy — используем как есть
+            }
+        }
+
+        const blob = new Blob([data]);
+        imgEl.src = URL.createObjectURL(blob);
+    } catch (e) {
+        console.warn('[E2E] Не удалось загрузить зашифрованное изображение:', e);
+        imgEl.alt = '[не удалось загрузить изображение]';
+    }
 }

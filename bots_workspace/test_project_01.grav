@@ -1,0 +1,3 @@
+on /start do
+    send "Hello!"
+end

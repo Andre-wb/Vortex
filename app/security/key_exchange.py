@@ -8,14 +8,14 @@ app/security/key_exchange.py — ECIES и P2P шифрование между у
   Шифрование (сервер → участнику комнаты):
     1. Генерируем эфемерную X25519 пару: (e_priv, e_pub)  ← новая для каждого вызова
     2. shared = X25519-DH(e_priv, recipient_pub)
-    3. enc_key = HKDF-SHA256(shared, salt=e_pub, info=b"ecies-room-key", len=32)
+    3. enc_key = HKDF-SHA256(shared, salt=None, info=b"vortex-session", len=32)
     4. nonce(12) + ct = AES-256-GCM( plaintext, enc_key )
        для room_key(32 bytes): ct = 32 + 16(tag) = 48 bytes → итого 60 bytes
     5. Сохраняем: { "ephemeral_pub": e_pub.hex(), "ciphertext": (nonce+ct).hex() }
 
   Расшифровка (КЛИЕНТ, JavaScript / мобильное приложение):
     1. shared = X25519-DH(user_priv, e_pub)
-    2. enc_key = HKDF-SHA256(shared, salt=e_pub, info=b"ecies-room-key", len=32)
+    2. enc_key = HKDF-SHA256(shared, salt=None, info=b"vortex-session", len=32)
     3. room_key = AES-256-GCM-decrypt(ciphertext[12:], nonce=ciphertext[:12], key=enc_key)
 
   Сервер НИКОГДА не видит приватный ключ пользователя.
@@ -36,8 +36,7 @@ app/security/key_exchange.py — ECIES и P2P шифрование между у
     const ct     = hexToBytes(ciphertextHex);
     // Web Crypto не поддерживает X25519 DH напрямую — используем TweetNaCl или noble-curves:
     const shared   = x25519.getSharedSecret(myPrivBytes, ephPub);
-    const salt     = ephPub;
-    const encKey   = await hkdf(shared, salt, "ecies-room-key", 32);
+    const encKey   = await hkdf(shared, null, "vortex-session", 32);
     const nonce    = ct.slice(0, 12);
     const cipher   = ct.slice(12);
     const roomKey  = await crypto.subtle.decrypt(
@@ -171,24 +170,19 @@ def encrypt_p2p_payload(payload_dict: dict, our_node_private: bytes, peer_node_p
 
     Args:
         payload_dict:       словарь для JSON-сериализации (room_id, sender, ciphertext, ...)
-        our_node_private:   X25519 приватный ключ нашего узла
+        our_node_private:   X25519 приватный ключ нашего узла (не используется — ECIES генерирует эфемерную пару)
         peer_node_pub_hex:  X25519 публичный ключ узла-получателя
 
     Returns:
         {
           "ephemeral_pub":   "<hex>",
           "ciphertext":      "<hex>",
-          "sender_pubkey":   "<hex нашего публичного ключа — для ответа получателю>"
         }
+        Вызывающий код добавляет sender_pubkey отдельно.
     """
-    from app.security.crypto import generate_x25519_keypair as _kp
-    _, our_pub = _kp()  # получаем pubkey из privkey... но это новая пара!
-    # Правильный способ: получить наш pubkey из node keypair
-    # Это сделает вызывающий код (peer_registry.py), передав sender_pubkey отдельно
-
     payload_bytes = json.dumps(payload_dict, ensure_ascii=False).encode("utf-8")
     encrypted     = ecies_encrypt(payload_bytes, peer_node_pub_hex)
-    return encrypted  # caller добавит sender_pubkey
+    return encrypted
 
 
 def decrypt_p2p_payload(ephemeral_pub_hex: str, ciphertext_hex: str,
@@ -221,15 +215,71 @@ def format_encrypted_key(enc_dict: dict) -> Tuple[str, str]:
     return enc_dict["ephemeral_pub"], enc_dict["ciphertext"]
 
 
+def hybrid_ecies_encrypt(plaintext: bytes, recipient_pub_hex: str,
+                         recipient_kyber_pub_hex: str | None = None) -> dict:
+    """
+    Гибридное ECIES шифрование: X25519 + Kyber-768 (если доступен kyber ключ).
+
+    Если у получателя есть kyber_public_key → hybrid_encrypt (PQ-защита).
+    Если нет → fallback к классическому ecies_encrypt с предупреждением.
+
+    Returns:
+        dict с полями: ephemeral_pub, ciphertext, hybrid (bool),
+        и опционально kyber_ciphertext, x25519_ephemeral_pub.
+    """
+    if recipient_kyber_pub_hex:
+        try:
+            from app.security.post_quantum import hybrid_encrypt, pq_available
+            if pq_available():
+                result = hybrid_encrypt(plaintext, recipient_pub_hex, recipient_kyber_pub_hex)
+                logger.info("Hybrid PQ encryption used for recipient pubkey=%s...", recipient_pub_hex[:16])
+                return result
+            else:
+                logger.warning(
+                    "Recipient has kyber key but PQ library unavailable — falling back to X25519-only"
+                )
+        except Exception as e:
+            logger.warning("Hybrid encryption failed, falling back to X25519-only: %s", e)
+
+    # Fallback: classical X25519-only ECIES
+    if recipient_kyber_pub_hex:
+        logger.warning(
+            "Using X25519-only ECIES for recipient with kyber key (PQ unavailable) — pubkey=%s...",
+            recipient_pub_hex[:16],
+        )
+    else:
+        logger.warning(
+            "Recipient has no kyber_public_key — using X25519-only ECIES (no PQ protection), "
+            "pubkey=%s...", recipient_pub_hex[:16],
+        )
+    result = ecies_encrypt(plaintext, recipient_pub_hex)
+    result["hybrid"] = False
+    return result
+
+
 def validate_ecies_payload(payload: dict) -> bool:
-    """Проверяет что payload содержит корректные ECIES поля."""
+    """Проверяет что payload содержит корректные ECIES или hybrid ECIES поля."""
     try:
-        ep = payload.get("ephemeral_pub", "")
-        ct = payload.get("ciphertext", "")
-        if len(ep) != 64 or len(ct) < 24:  # минимум nonce(12)*2=24 hex chars
-            return False
-        bytes.fromhex(ep)
-        bytes.fromhex(ct)
-        return True
+        is_hybrid = payload.get("hybrid", False)
+        if is_hybrid:
+            # Hybrid payload: x25519_ephemeral_pub + kyber_ciphertext + ciphertext
+            ep = payload.get("x25519_ephemeral_pub", "")
+            kc = payload.get("kyber_ciphertext", "")
+            ct = payload.get("ciphertext", "")
+            if len(ep) != 64 or len(kc) < 100 or len(ct) < 24:
+                return False
+            bytes.fromhex(ep)
+            bytes.fromhex(kc)
+            bytes.fromhex(ct)
+            return True
+        else:
+            # Classical ECIES payload: ephemeral_pub + ciphertext
+            ep = payload.get("ephemeral_pub", "")
+            ct = payload.get("ciphertext", "")
+            if len(ep) != 64 or len(ct) < 24:  # минимум nonce(12)*2=24 hex chars
+                return False
+            bytes.fromhex(ep)
+            bytes.fromhex(ct)
+            return True
     except Exception:
         return False

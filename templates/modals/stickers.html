@@ -1,0 +1,195 @@
+<!-- Stickers + Status + Poll + Bot + Payment Modals -->
+<div class="modal-overlay" id="sticker-modal" role="dialog" aria-modal="true" aria-label="Стикеры">
+    <div class="modal" style="width:380px;">
+        <div class="modal-title" data-i18n="settings.stickers">Стикеры</div>
+        <div class="sticker-picker-tabs">
+            <button class="settings-tab active" onclick="showStickerCategory('animated',this)" data-i18n="stickers.animated">Анимация</button>
+            <button class="settings-tab" onclick="showStickerCategory('emotions',this)" data-i18n="stickers.emotions">Эмоции</button>
+            <button class="settings-tab" onclick="showStickerCategory('animals',this)" data-i18n="stickers.animals">Животные</button>
+            <button class="settings-tab" onclick="showStickerCategory('food',this)" data-i18n="stickers.food">Еда</button>
+            <button class="settings-tab" onclick="showStickerCategory('activities',this)" data-i18n="stickers.activities">Занятия</button>
+            <button class="settings-tab" onclick="showStickerCategory('objects',this)" data-i18n="stickers.objects">Объекты</button>
+            <!-- Dynamic custom pack tabs injected here -->
+            <span id="custom-pack-tabs"></span>
+        </div>
+        <div id="sticker-grid"></div>
+    </div>
+</div>
+
+<!-- Status creation modal -->
+<div class="modal-overlay" id="status-modal" role="dialog" aria-modal="true" aria-label="Статус">
+    <div class="modal">
+        <div class="modal-title" data-i18n="status.newStatus">Новый статус</div>
+        <div class="form-group">
+            <textarea class="form-input" id="status-text" placeholder="Что у вас нового?" data-i18n-placeholder="status.placeholder" rows="3" maxlength="500"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('status-modal')" data-i18n="app.cancel">Отмена</button>
+            <button class="btn btn-primary" onclick="postStatus()" data-i18n="status.publish">Опубликовать</button>
+        </div>
+    </div>
+</div>
+
+<!-- Status viewer modal -->
+<div class="modal-overlay" id="status-viewer-modal" role="dialog" aria-modal="true" aria-label="Просмотр статуса">
+    <div class="modal" style="width:360px;">
+        <div class="modal-title" id="status-viewer-title" data-i18n="nav.statuses">Статусы</div>
+        <div id="status-viewer-list" style="max-height:350px;overflow-y:auto;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('status-viewer-modal')" data-i18n="app.close">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Feature 1: Poll creation modal (Telegram-style) -->
+<div class="modal-overlay" id="poll-modal" role="dialog" aria-modal="true" aria-label="Создать опрос">
+    <div class="modal poll-create-modal">
+        <div class="modal-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/>
+            </svg>
+            <div data-i18n="poll.create">Создать опрос</div>
+        </div>
+
+        <!-- Question -->
+        <div class="form-group">
+            <label class="form-label" data-i18n="poll.question">Вопрос</label>
+            <input class="form-input" id="poll-question" placeholder="О чём спросить?" data-i18n-placeholder="poll.questionPlaceholder" maxlength="300">
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+            <label class="form-label" data-i18n="poll.description">Описание</label>
+            <textarea class="form-input poll-desc-input" id="poll-description" placeholder="Добавьте контекст..." data-i18n-placeholder="poll.descriptionPlaceholder" rows="2" maxlength="500"></textarea>
+        </div>
+
+        <!-- Options -->
+        <label class="form-label" data-i18n="poll.options">Варианты ответа</label>
+        <div id="poll-options-list">
+            <div class="form-group poll-option-row"><input class="form-input poll-option" placeholder="Вариант 1" data-i18n-placeholder="poll.option1"></div>
+            <div class="form-group poll-option-row"><input class="form-input poll-option" placeholder="Вариант 2" data-i18n-placeholder="poll.option2"></div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="addPollOption()" style="margin-bottom:16px;" data-i18n="poll.addOption">+ Добавить вариант</button>
+
+        <!-- Settings section -->
+        <div class="poll-settings-section">
+            <div class="poll-settings-title" data-i18n="poll.settings">Настройки</div>
+
+            <label class="poll-toggle-row">
+                <span data-i18n="poll.anonymousVoting">Анонимное голосование</span>
+                <input type="checkbox" id="poll-anonymous" class="poll-toggle-input">
+                <span class="poll-toggle-slider"></span>
+            </label>
+
+            <label class="poll-toggle-row">
+                <span data-i18n="poll.multipleAnswers">Несколько ответов</span>
+                <input type="checkbox" id="poll-multiple" class="poll-toggle-input">
+                <span class="poll-toggle-slider"></span>
+            </label>
+
+            <label class="poll-toggle-row">
+                <span data-i18n="poll.quizMode">Режим викторины</span>
+                <input type="checkbox" id="poll-quiz" class="poll-toggle-input" onchange="togglePollQuiz(this.checked)">
+                <span class="poll-toggle-slider"></span>
+            </label>
+
+            <!-- Quiz sub-panel -->
+            <div id="poll-quiz-panel" style="display:none;" class="poll-quiz-settings">
+                <div class="form-group">
+                    <label class="form-label" data-i18n="poll.correctAnswer">Правильный ответ (номер)</label>
+                    <input class="form-input" id="poll-correct-option" type="number" min="0" max="11" placeholder="0" data-i18n-placeholder="poll.correctAnswerHint">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" data-i18n="poll.explanation">Объяснение</label>
+                    <textarea class="form-input" id="poll-explanation" rows="2" placeholder="Почему этот ответ правильный..." data-i18n-placeholder="poll.explanationPlaceholder" maxlength="500"></textarea>
+                </div>
+            </div>
+
+            <label class="poll-toggle-row">
+                <span data-i18n="poll.disableRevote">Запретить переголосование</span>
+                <input type="checkbox" id="poll-no-revote" class="poll-toggle-input">
+                <span class="poll-toggle-slider"></span>
+            </label>
+
+            <label class="poll-toggle-row">
+                <span data-i18n="poll.allowSuggest">Участники предлагают варианты</span>
+                <input type="checkbox" id="poll-allow-suggest" class="poll-toggle-input">
+                <span class="poll-toggle-slider"></span>
+            </label>
+
+            <label class="poll-toggle-row">
+                <span data-i18n="poll.shuffleOptions">Перемешать варианты</span>
+                <input type="checkbox" id="poll-shuffle" class="poll-toggle-input">
+                <span class="poll-toggle-slider"></span>
+            </label>
+
+            <!-- Timer -->
+            <div class="form-group" style="margin-top:8px;">
+                <label class="form-label" data-i18n="poll.timeLimit">Ограничение по времени</label>
+                <select class="form-input" id="poll-timer-select">
+                    <option value="" data-i18n="poll.noLimit">Без ограничения</option>
+                    <option value="5">5 мин</option>
+                    <option value="15">15 мин</option>
+                    <option value="30">30 мин</option>
+                    <option value="60">1 час</option>
+                    <option value="360">6 часов</option>
+                    <option value="1440">24 часа</option>
+                    <option value="4320">3 дня</option>
+                    <option value="10080">7 дней</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('poll-modal')" data-i18n="app.cancel">Отмена</button>
+            <button class="btn btn-primary" onclick="sendPoll()" data-i18n="poll.createPoll">Создать опрос</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bot Marketplace modal -->
+<div class="modal-overlay" id="marketplace-modal" role="dialog" aria-modal="true" aria-label="Маркетплейс ботов">
+    <div class="modal" style="width:560px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+        <!-- List view -->
+        <div id="mp-list-view" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+            <div class="modal-title">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm6 16H6V8h2v2c0 .55.45 1 1 1s1-.45 1-1V8h4v2c0 .55.45 1 1 1s1-.45 1-1V8h2v12z"/>
+                </svg>
+                <div data-i18n="marketplace.title">Маркетплейс ботов</div>
+            </div>
+            <div class="marketplace-search">
+                <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M15.5 14h-.79l-.28-.27a6.51 6.51 0 001.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 00-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.51 6.51 0 005.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                </svg>
+                <input id="mp-search" type="text" placeholder="Поиск ботов..." data-i18n-placeholder="marketplace.searchBots" oninput="mpSearch(this.value)" autocomplete="off">
+            </div>
+            <div class="marketplace-categories" id="mp-categories"></div>
+            <div class="marketplace-sort">
+                <button class="marketplace-sort-btn active" data-sort="rating" onclick="mpSetSort('rating',this)" data-i18n="marketplace.byRating">По рейтингу</button>
+                <button class="marketplace-sort-btn" data-sort="installs" onclick="mpSetSort('installs',this)" data-i18n="marketplace.byInstalls">По установкам</button>
+                <button class="marketplace-sort-btn" data-sort="newest" onclick="mpSetSort('newest',this)" data-i18n="marketplace.newest">Новые</button>
+            </div>
+            <div class="marketplace-grid" id="mp-grid">
+                <div class="marketplace-loading" data-i18n="app.loading">Загрузка...</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('marketplace-modal')" data-i18n="app.close">Закрыть</button>
+            </div>
+        </div>
+
+        <!-- Detail view (hidden by default) -->
+        <div id="mp-detail-view" style="display:none;flex-direction:column;flex:1;min-height:0;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;color:var(--accent);font-size:13px;" onclick="mpBackToList()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                <span data-i18n="marketplace.backToList">Назад к списку</span>
+            </div>
+            <div class="marketplace-detail" id="mp-detail-content"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('marketplace-modal')" data-i18n="app.close">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- GIF picker modal (Feature 4) -->

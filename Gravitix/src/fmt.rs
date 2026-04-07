@@ -674,8 +674,15 @@ pub fn format_expr(expr: &Expr) -> String {
         Expr::StateRef => "state".to_string(),
         Expr::EnvVar(k) => format!("env(\"{k}\")"),
 
+        Expr::Complex(re, im) => {
+            if *im >= 0.0 { format!("{re}+{im}i") } else { format!("{re}{im}i") }
+        }
         Expr::Unary { op, expr } => {
-            let op_str = match op { UnaryOp::Neg => "-", UnaryOp::Not => "!" };
+            let op_str = match op {
+                UnaryOp::Neg    => "-",
+                UnaryOp::Not    => "!",
+                UnaryOp::BitNot => "~",
+            };
             format!("{op_str}{}", format_expr(expr))
         }
         Expr::Binary { op, lhs, rhs } => {
@@ -687,6 +694,8 @@ pub fn format_expr(expr: &Expr) -> String {
                 BinOp::And => "&&", BinOp::Or  => "||",
                 BinOp::RangeEx => "..",  BinOp::RangeIn => "..=",
                 BinOp::NullCoalesce => "??",
+                BinOp::BitAnd => "&",  BinOp::BitOr => "|",  BinOp::BitXor => "^",
+                BinOp::Shl    => "<<", BinOp::Shr   => ">>",
             };
             format!("({} {op_str} {})", format_expr(lhs), format_expr(rhs))
         }
@@ -872,6 +881,7 @@ fn format_type(ty: &TypeExpr) -> String {
         TypeExpr::Named(n)         => n.clone(),
         TypeExpr::Optional(inner)  => format!("{}?", format_type(inner)),
         TypeExpr::Result           => "Result".to_string(),
+        TypeExpr::Complex          => "complex".to_string(),
     }
 }
 
