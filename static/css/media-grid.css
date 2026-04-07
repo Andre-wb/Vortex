@@ -1,0 +1,567 @@
+/* ============================================================================
+ * LINK PREVIEW (OG META) CARD
+ * ========================================================================== */
+.link-preview {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--bg3);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    max-width: 100%;
+    overflow: hidden;
+}
+.link-preview-site {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+    font-family: var(--mono);
+}
+.link-preview-title {
+    display: block;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--accent2);
+    text-decoration: none;
+    margin-bottom: 4px;
+    line-height: 1.3;
+}
+.link-preview-title:hover {
+    text-decoration: underline;
+}
+.link-preview-desc {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+.link-preview-image {
+    max-width: 100%;
+    max-height: 150px;
+    border-radius: 4px;
+    object-fit: cover;
+    display: block;
+    margin-top: 4px;
+}
+
+/* ── Мобильная адаптация (<800px) ───────────────────────────────────────── */
+@media (max-width: 799px) {
+    .thread-panel {
+        width: 100%;
+    }
+}
+
+/* ============================================================================
+ * МЕДИА ГАЛЕРЕЯ
+ * ========================================================================== */
+
+/* Tab bar */
+.gallery-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+.gallery-tab {
+    flex: 1;
+    padding: 10px 0;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.gallery-tab:hover {
+    color: var(--text);
+}
+.gallery-tab.active {
+    color: var(--accent2);
+    border-bottom-color: var(--accent2);
+}
+
+/* Grid layout for photos/videos */
+.gallery-grid-media {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+}
+
+/* Thumbnail (photo & video) */
+.gallery-thumb {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 4px;
+    cursor: pointer;
+    background: var(--bg3);
+    transition: transform 0.15s, filter 0.15s;
+}
+.gallery-thumb:hover {
+    transform: scale(1.03);
+    filter: brightness(1.15);
+}
+.gallery-thumb img,
+.gallery-thumb video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Play icon overlay for videos */
+.gallery-play-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+    transition: background 0.15s;
+}
+.gallery-thumb-video:hover .gallery-play-icon {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+/* Files list (non-media tab) */
+.gallery-grid-files {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.gallery-file-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--border);
+    text-decoration: none;
+    color: var(--text);
+    transition: background 0.1s;
+    border-radius: var(--radius);
+}
+.gallery-file-item:hover {
+    background: var(--bg3);
+}
+.gallery-file-item svg {
+    flex-shrink: 0;
+    color: var(--text2);
+}
+.gallery-file-info {
+    flex: 1;
+    min-width: 0;
+}
+.gallery-file-name {
+    font-weight: 700;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.gallery-file-meta {
+    font-size: 11px;
+    color: var(--text2);
+    font-family: var(--mono);
+}
+
+/* Empty state */
+.gallery-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 13px;
+}
+
+/* ── Mobile: 3 columns on phone, 4 on tablet ──────────────────────────────── */
+@media (min-width: 640px) {
+    .gallery-grid-media {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+@media (max-width: 639px) {
+    .gallery-grid-media {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    #gallery-modal .modal {
+        width: calc(100vw - 16px);
+        max-height: 90vh;
+    }
+}
+
+/* ── Hidden chats (Скрытые чаты) ──────────────────────────────────────────── */
+
+/* Context menu for rooms */
+.room-context-menu {
+    position: fixed;
+    z-index: 10000;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    padding: 4px 0;
+    min-width: 160px;
+}
+.room-ctx-item {
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: background 0.1s;
+}
+.room-ctx-item:hover {
+    background: var(--border);
+}
+
+/* Hidden rooms button in sidebar */
+.hidden-rooms-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    font-size: 11px;
+    color: var(--text3);
+    cursor: pointer;
+    font-family: var(--mono);
+    border-top: 1px solid var(--border);
+    transition: color 0.15s;
+}
+.hidden-rooms-btn:hover {
+    color: var(--accent);
+}
+
+/* Hidden rooms panel (overlay inside sidebar) */
+.hidden-rooms-panel {
+    position: absolute;
+    bottom: 60px;
+    left: 8px;
+    right: 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 -4px 20px rgba(0,0,0,.3);
+    z-index: 100;
+    max-height: 300px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.hidden-rooms-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+}
+.hidden-rooms-close {
+    background: none;
+    border: none;
+    color: var(--text3);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+.hidden-rooms-close:hover { color: var(--red); }
+.hidden-rooms-list {
+    overflow-y: auto;
+    flex: 1;
+}
+.hidden-room-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+}
+.hidden-room-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.hidden-room-name:hover { color: var(--accent); }
+.hidden-room-unhide {
+    flex-shrink: 0;
+    font-size: 11px !important;
+    padding: 3px 10px !important;
+}
+.hidden-rooms-timer {
+    padding: 6px 12px;
+    font-size: 10px;
+    color: var(--text3);
+    font-family: var(--mono);
+    border-top: 1px solid var(--border);
+    text-align: center;
+}
+
+/* Pin icon next to room name */
+.room-pin-icon {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 4px;
+    color: var(--accent);
+    opacity: 0.5;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+/* Archive button in sidebar */
+.archive-rooms-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    font-size: 11px;
+    color: var(--text3);
+    cursor: pointer;
+    font-family: var(--mono);
+    border-top: 1px solid var(--border);
+    transition: color 0.15s;
+}
+.archive-rooms-btn:hover {
+    color: var(--accent);
+}
+
+/* Archive panel (overlay inside sidebar) */
+.archive-rooms-panel {
+    position: absolute;
+    bottom: 60px;
+    left: 8px;
+    right: 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 -4px 20px rgba(0,0,0,.3);
+    z-index: 100;
+    max-height: 300px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.archive-rooms-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+}
+.archive-rooms-close {
+    background: none;
+    border: none;
+    color: var(--text3);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+.archive-rooms-close:hover { color: var(--red); }
+.archive-rooms-list {
+    overflow-y: auto;
+    flex: 1;
+}
+.archive-room-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+}
+.archive-room-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.archive-room-name:hover { color: var(--accent); }
+.archive-room-restore {
+    flex-shrink: 0;
+    font-size: 11px !important;
+    padding: 3px 10px !important;
+}
+
+/* ── Chat Folders (tabs above room list) ──────────────────────────────────── */
+
+.folder-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.folder-tabs::-webkit-scrollbar { display: none; }
+
+.folder-tab {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--sans);
+    padding: 4px 12px;
+    border-radius: 12px;
+    background: var(--bg2);
+    color: var(--text2);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+    user-select: none;
+    border: 1px solid transparent;
+    position: relative;
+}
+.folder-tab:hover {
+    background: var(--border);
+    color: var(--text);
+}
+.folder-tab.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+.folder-tab .folder-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+.folder-tab-add {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--bg2);
+    color: var(--text3);
+    border: 1px dashed var(--border);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.folder-tab-add:hover {
+    background: var(--border);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+/* Folder context menu (right-click on tab) */
+.folder-ctx-menu {
+    position: fixed;
+    z-index: 10000;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    padding: 4px 0;
+    min-width: 150px;
+}
+.folder-ctx-item {
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: background 0.1s;
+}
+.folder-ctx-item:hover {
+    background: var(--border);
+}
+.folder-ctx-item.danger {
+    color: var(--red, #ef4444);
+}
+
+/* Folder create/edit modal content */
+.folder-modal-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.folder-color-picker {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.folder-color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s, transform 0.15s;
+}
+.folder-color-swatch:hover {
+    transform: scale(1.15);
+}
+.folder-color-swatch.selected {
+    border-color: var(--text);
+    transform: scale(1.15);
+}
+
+/* Room context menu folder submenu */
+.room-ctx-submenu {
+    position: relative;
+}
+.room-ctx-submenu-list {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    padding: 4px 0;
+    min-width: 140px;
+    z-index: 10001;
+}
+.room-ctx-submenu:hover .room-ctx-submenu-list {
+    display: block;
+}
+.room-ctx-subfolder {
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: var(--sans);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.1s;
+}
+.room-ctx-subfolder:hover {
+    background: var(--border);
+}
+

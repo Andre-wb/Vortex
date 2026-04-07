@@ -35,6 +35,7 @@ from typing import Callable, Optional
 
 import httpx
 
+from app.security.ssl_context import make_peer_ssl_context
 from app.transport.nat_traversal import (
     IceCandidate, StunClient, UdpHolePuncher,
     SignalingStore, hole_puncher, signaling,
@@ -43,6 +44,13 @@ from app.transport.ble_transport import BleTransportManager, ble_manager
 from app.transport.wifi_direct import WifiDirectManager, wifi_direct_manager
 
 logger = logging.getLogger(__name__)
+
+# ── Shared HTTP connection pool for transport probes & signaling ─────────────
+_transport_pool = httpx.AsyncClient(
+    timeout=httpx.Timeout(5.0, connect=3.0),
+    limits=httpx.Limits(max_keepalive_connections=15, max_connections=60, keepalive_expiry=30.0),
+    verify=make_peer_ssl_context(),
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -67,8 +75,12 @@ class TransportStatus:
     last_ok:    float    = 0.0
     error_count: int     = 0
 
-    def is_healthy(self, max_age: float = 30.0) -> bool:
-        return self.active and (time.monotonic() - self.last_ok) < max_age
+    def is_healthy(self, max_age: float = 30.0, max_latency: float = 5000.0) -> bool:
+        return (
+            self.active
+            and (time.monotonic() - self.last_ok) < max_age
+            and self.latency_ms < max_latency
+        )
 
 
 @dataclass
@@ -323,20 +335,19 @@ class TransportManager:
             role:       str,
             candidates: list[dict],
     ) -> bool:
-        """Отправляет ICE кандидатов на пир через HTTP API."""
+        """Отправляет ICE кандидатов на пир через HTTP API (shared pool)."""
         for scheme in ("https", "http"):
             try:
-                async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
-                    resp = await client.post(
-                        f"{scheme}://{peer_ip}:{peer_port}/api/transport/signal",
-                        json={
-                            "session_id": session_id,
-                            "role":       role,
-                            "candidates": candidates,
-                        }
-                    )
-                    if resp.status_code == 200:
-                        return True
+                resp = await _transport_pool.post(
+                    f"{scheme}://{peer_ip}:{peer_port}/api/transport/signal",
+                    json={
+                        "session_id": session_id,
+                        "role":       role,
+                        "candidates": candidates,
+                    }
+                )
+                if resp.status_code == 200:
+                    return True
             except Exception as e:
                 logger.debug(f"Signal send {scheme}://{peer_ip}: {e}")
         return False
@@ -394,31 +405,101 @@ class TransportManager:
         return False, "failed"
 
     async def _send_http(self, ip: str, port: int, payload: dict) -> bool:
-        """Пробует отправить payload через HTTP."""
+        """Пробует отправить payload через HTTP (shared pool)."""
         for scheme in ("https", "http"):
             try:
-                async with httpx.AsyncClient(timeout=3.0, verify=False) as client:
-                    resp = await client.post(
-                        f"{scheme}://{ip}:{port}/api/peers/receive",
-                        json=payload,
-                    )
-                    return resp.status_code == 200
+                resp = await _transport_pool.post(
+                    f"{scheme}://{ip}:{port}/api/peers/receive",
+                    json=payload,
+                )
+                return resp.status_code == 200
             except Exception:
                 pass
         return False
 
     async def _measure_latency(self, ip: str, port: int) -> float:
-        """Измеряет round-trip latency в мс."""
+        """Измеряет round-trip latency в мс (shared pool)."""
         start = time.monotonic()
         for scheme in ("https", "http"):
             try:
-                async with httpx.AsyncClient(timeout=3.0, verify=False) as c:
-                    r = await c.get(f"{scheme}://{ip}:{port}/api/peers/status")
-                    if r.status_code == 200:
-                        return (time.monotonic() - start) * 1000
+                r = await _transport_pool.get(f"{scheme}://{ip}:{port}/api/peers/status")
+                if r.status_code == 200:
+                    return (time.monotonic() - start) * 1000
             except Exception:
                 pass
         return 9999.0
+
+    # ── Multi-path parallel delivery ─────────────────────────────────────────
+
+    async def send_via_parallel_paths(
+            self,
+            peer_ip:   str,
+            peer_port: int,
+            payload:   dict,
+    ) -> tuple[bool, str]:
+        """
+        Send via ALL available transports simultaneously.
+        First successful delivery wins. Provides redundancy and lowest latency.
+        """
+        state = self._peers.get(peer_ip)
+        if not state:
+            return await self.send_via_best_transport(peer_ip, peer_port, payload)
+
+        tasks: list[tuple[str, asyncio.Task]] = []
+        loop = asyncio.get_event_loop()
+
+        # Collect available transports
+        hp_ts = state.transports.get(TransportPriority.UDP_HOLE_PUNCH)
+        if hp_ts and hp_ts.is_healthy() and state.hole_punch_session:
+            sess = hole_puncher.get_session(state.hole_punch_session)
+            if sess:
+                import json as _j
+                async def _udp():
+                    return await hole_puncher.send_data(sess, _j.dumps(payload).encode())
+                tasks.append(("udp_hole_punch", asyncio.create_task(_udp())))
+
+        if state.wifi_direct_mac:
+            wd_peer = next(
+                (p for p in wifi_direct_manager.get_connected_peers()
+                 if p.mac == state.wifi_direct_mac),
+                None,
+            )
+            if wd_peer and wd_peer.ip:
+                tasks.append(("wifi_direct", asyncio.create_task(
+                    self._send_http(wd_peer.ip, wd_peer.port, payload))))
+
+        # Always try direct TCP as well
+        tasks.append(("direct_tcp", asyncio.create_task(
+            self._send_http(peer_ip, peer_port, payload))))
+
+        if not tasks:
+            return False, "no_transports"
+
+        # Race: first success wins
+        done, pending = await asyncio.wait(
+            [t for _, t in tasks],
+            return_when=asyncio.FIRST_COMPLETED,
+            timeout=8.0,
+        )
+
+        winner = "failed"
+        success = False
+        for name, task in tasks:
+            if task in done and not task.cancelled():
+                try:
+                    if task.result():
+                        winner = name
+                        success = True
+                        break
+                except Exception:
+                    pass
+
+        # Cancel remaining tasks
+        for _, task in tasks:
+            if not task.done():
+                task.cancel()
+
+        return success, winner
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

@@ -1,0 +1,198 @@
+# PostgreSQL High Availability with Streaming Replication
+#
+# Architecture:
+#   Primary (read-write) → Replica (read-only, streaming replication)
+#   Automatic failover via pg_basebackup + WAL streaming
+#
+# Usage:
+#   kubectl apply -f deploy/k8s/postgres-ha.yaml
+#   Primary: postgres-primary-service:5432
+#   Replica: postgres-replica-service:5432 (read-only)
+
+---
+# Primary PostgreSQL
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-primary
+  namespace: vortex
+spec:
+  serviceName: postgres-primary-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      role: primary
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: primary
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: vortex
+            - name: POSTGRES_USER
+              value: vortex
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_INITDB_ARGS
+              value: "--wal-segsize=16"
+          command:
+            - bash
+            - -c
+            - |
+              # Enable replication in postgresql.conf
+              cat >> /var/lib/postgresql/data/postgresql.conf << EOF
+              wal_level = replica
+              max_wal_senders = 5
+              wal_keep_size = 256MB
+              hot_standby = on
+              EOF
+              # Allow replica connections
+              echo "host replication vortex 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
+              exec docker-entrypoint.sh postgres
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: pg-primary-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vortex"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vortex"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: pg-primary-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+
+---
+# Replica PostgreSQL (streaming replication)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-replica
+  namespace: vortex
+spec:
+  serviceName: postgres-replica-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      role: replica
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: replica
+    spec:
+      initContainers:
+        - name: pg-basebackup
+          image: postgres:16-alpine
+          command:
+            - bash
+            - -c
+            - |
+              if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
+                PGPASSWORD=$POSTGRES_PASSWORD pg_basebackup \
+                  -h postgres-primary-service -U vortex \
+                  -D /var/lib/postgresql/data -Fp -Xs -P -R
+              fi
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: pg-replica-data
+              mountPath: /var/lib/postgresql/data
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: pg-replica-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vortex"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: pg-replica-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+
+---
+# Primary service (read-write)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-primary-service
+  namespace: vortex
+spec:
+  selector:
+    app: postgres
+    role: primary
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP
+
+---
+# Replica service (read-only)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica-service
+  namespace: vortex
+spec:
+  selector:
+    app: postgres
+    role: replica
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP

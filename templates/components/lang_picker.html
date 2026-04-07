@@ -1,0 +1,34 @@
+<!-- First-launch language picker — shown once before auth screen -->
+<div id="lang-picker-screen" style="display:none;">
+    <div class="lp-bg">
+        <div class="lp-orb lp-orb-1"></div>
+        <div class="lp-orb lp-orb-2"></div>
+        <div class="lp-orb lp-orb-3"></div>
+    </div>
+
+    <div class="lp-content">
+        <div class="lp-logo">
+            <div class="lp-logo-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <div class="lp-logo-text">VORTEX</div>
+        </div>
+
+        <h2 class="lp-title" id="lp-title"></h2>
+        <p class="lp-subtitle" id="lp-subtitle">You can change it later in settings</p>
+
+        <div class="lp-search-wrap">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"/></svg>
+            <input type="text" class="lp-search" id="lp-search" placeholder="Search / Поиск / Buscar..." oninput="window._lpFilter(this.value)">
+        </div>
+
+        <div class="lp-list" id="lp-list">
+            <!-- Populated by JS -->
+        </div>
+
+        <button class="lp-continue-btn" id="lp-continue" onclick="window._lpConfirm()" disabled>
+            <span id="lp-continue-text">Continue</span>
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+        </button>
+    </div>
+</div>

@@ -6,36 +6,152 @@
 // и отправлять готовый файл на сервер.
 // ============================================================================
 
-let _mediaRecorder = null;
-let _chunks        = [];
-let _startTime     = 0;
-let _timerInterval = null;
-let _stream        = null;
-let _animFrame     = null;
-let _analyser      = null;
-let _peaks         = [];
-let _peakInterval  = null;
+let _mediaRecorder  = null;
+let _chunks         = [];
+let _startTime      = 0;
+let _timerInterval  = null;
+let _stream         = null;
+let _animFrame      = null;
+let _analyser       = null;
+let _peaks          = [];
+let _peakInterval   = null;
+let _isVideoNote    = false;
+let _pressStart     = 0;      // pointerdown timestamp for short/long-press detection
+let _vnHideTimer    = null;   // auto-hide timer for the video-note button
 const VOICE_BTN_ID = 'voice-record-btn';
+const VIDEO_NOTE_BTN_ID = 'video-note-btn';
 
 const SVG_PLAY  = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><path d="M15.5 12L10 15.5V8.5L15.5 12Z" fill="currentColor"/></svg>`;
 const SVG_PAUSE = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="8" width="2.2" height="8" rx="1" fill="currentColor"/><rect x="12.8" y="8" width="2.2" height="8" rx="1" fill="currentColor"/></svg>`;
+const SVG_STOP  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>`;
+const SVG_CLOSE = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
 
 export function initVoiceRecorder() {
-    document.addEventListener('click', e => {
-        if (e.target.closest(`#${VOICE_BTN_ID}`)) toggleVoiceRecording();
+    // Shared pointerdown — track press start for both buttons.
+    document.addEventListener('pointerdown', e => {
+        if (e.target.closest(`#${VOICE_BTN_ID}`) || e.target.closest(`#${VIDEO_NOTE_BTN_ID}`)) {
+            _pressStart = Date.now();
+        } else {
+            // Tapped outside both buttons — dismiss the circle button.
+            _hideVideoNoteBtn();
+        }
     });
+
+    // Voice button — short press (<500 ms): switch to circle icon.
+    //               long  press (≥500 ms): start/stop voice recording.
+    document.addEventListener('pointerup', e => {
+        if (!e.target.closest(`#${VOICE_BTN_ID}`)) return;
+        const elapsed = Date.now() - _pressStart;
+        _pressStart = 0;
+        if (_mediaRecorder?.state === 'recording') {
+            _stopRecording();
+        } else if (elapsed < 500) {
+            _showVideoNoteBtn();
+        } else {
+            _isVideoNote = false;
+            _startRecording();
+        }
+    });
+
+    // Circle (video-note) button — short press (<500 ms): switch back to voice icon.
+    //                              long  press (≥500 ms): start/stop circle recording.
+    document.addEventListener('pointerup', e => {
+        if (!e.target.closest(`#${VIDEO_NOTE_BTN_ID}`)) return;
+        const elapsed = Date.now() - _pressStart;
+        _pressStart = 0;
+        if (_mediaRecorder?.state === 'recording') {
+            _stopRecording();
+        } else if (elapsed < 500) {
+            // Short press — just switch back to the voice icon, don't record.
+            _hideVideoNoteBtn();
+        } else {
+            toggleVideoNoteRecording();
+        }
+    });
+
+    // Pointer cancelled — reset timer.
+    document.addEventListener('pointercancel', e => { _pressStart = 0; });
+}
+
+function _showVideoNoteBtn() {
+    const voiceBtn = document.getElementById(VOICE_BTN_ID);
+    const btn = document.getElementById(VIDEO_NOTE_BTN_ID);
+    if (!btn) return;
+    if (voiceBtn) voiceBtn.style.display = 'none';
+    btn.style.display = 'flex';
+    btn.classList.remove('vn-visible');
+    btn.offsetWidth; // force reflow
+    btn.classList.add('vn-visible');
+    clearTimeout(_vnHideTimer);
+}
+
+function _hideVideoNoteBtn() {
+    clearTimeout(_vnHideTimer);
+    const voiceBtn = document.getElementById(VOICE_BTN_ID);
+    const btn = document.getElementById(VIDEO_NOTE_BTN_ID);
+    if (btn) {
+        btn.classList.remove('vn-visible');
+        btn.style.display = 'none';
+    }
+    if (voiceBtn) voiceBtn.style.display = '';
 }
 
 export async function toggleVoiceRecording() {
     if (_mediaRecorder?.state === 'recording') _stopRecording();
-    else await _startRecording();
+    else { _isVideoNote = false; await _startRecording(); }
+}
+
+export async function toggleVideoNoteRecording() {
+    if (_mediaRecorder?.state === 'recording') _stopRecording();
+    else { _isVideoNote = true; await _startVideoRecording(); }
+}
+
+async function _startVideoRecording() {
+    try {
+        _stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: { width: { ideal: 480 }, height: { ideal: 480 }, facingMode: 'user' },
+        });
+    } catch {
+        alert(t('voice.noCameraAccess') || 'Camera access denied');
+        _isVideoNote = false;
+        return;
+    }
+
+    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+            ? 'video/webm;codecs=vp8,opus' : 'video/webm';
+
+    _mediaRecorder = new MediaRecorder(_stream, { mimeType: mime });
+    _chunks = []; _peaks = []; _startTime = Date.now();
+
+    _mediaRecorder.ondataavailable = e => { if (e.data.size > 0) _chunks.push(e.data); };
+    _mediaRecorder.onstop = _onStopVideo;
+    _mediaRecorder.start(100);
+
+    _swapInputTo('video-record');
+    _startTimer();
+
+    document.getElementById(VIDEO_NOTE_BTN_ID)?.classList.add('recording');
+}
+
+function _onStopVideo() {
+    const dur = (Date.now() - _startTime) / 1000;
+    if (dur < 0.5) { _swapInputTo('normal'); _isVideoNote = false; return; }
+
+    const mime = _mediaRecorder.mimeType;
+    const blob = new Blob(_chunks, { type: mime });
+    const name = `videonote_${Date.now()}.webm`;
+
+    _swapInputTo('video-preview', { blob, name, mime, dur });
 }
 
 async function _startRecording() {
     try {
         _stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-        alert('Нет доступа к микрофону');
+        alert(t('voice.noMicAccess'));
         return;
     }
 
@@ -75,6 +191,7 @@ function _stopRecording() {
     _animFrame = null;
     _analyser  = null;
     document.getElementById(VOICE_BTN_ID)?.classList.remove('recording');
+    document.getElementById(VIDEO_NOTE_BTN_ID)?.classList.remove('recording');
 }
 
 function _onStop() {
@@ -135,6 +252,11 @@ function _swapInputTo(mode, data) {
 
     if (mode === 'normal') {
         if (msgRow) msgRow.style.display = '';
+        // Restore voice/circle toggle to initial state
+        const voiceBtn = document.getElementById(VOICE_BTN_ID);
+        const circleBtn = document.getElementById(VIDEO_NOTE_BTN_ID);
+        if (voiceBtn) voiceBtn.style.display = '';
+        if (circleBtn) { circleBtn.classList.remove('vn-visible', 'recording'); circleBtn.style.display = 'none'; }
         return;
     }
 
@@ -145,7 +267,7 @@ function _swapInputTo(mode, data) {
     if (mode === 'record') {
         ui.id = 'vr-record-ui';
         ui.innerHTML = `
-            <div style="display:flex;align-items:center;gap:10px;padding:6px 0;width:100%;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 0;width:100%;">
                 <span style="width:9px;height:9px;border-radius:50%;background:#ef4444;
                     flex-shrink:0;animation:recBlink 1s infinite;"></span>
                 <span id="vr-timer" style="font-family:var(--mono);font-size:13px;
@@ -153,12 +275,111 @@ function _swapInputTo(mode, data) {
                 <canvas id="vr-live-canvas" width="150" height="30" style="
                     flex:1;max-width:160px;border-radius:6px;
                     background:rgba(255,255,255,0.04);"></canvas>
-                <button id="vr-stop" style="${_btnStyle('var(--accent)')}">■ Стоп</button>
-                <button id="vr-cancel" style="${_iconBtnStyle()}">✕</button>
+                <button id="vr-stop" style="${_btnStyle('var(--accent)')}">${SVG_STOP} ${t('voice.stop')}</button>
+                <button id="vr-cancel" style="${_iconBtnStyle()}">${SVG_CLOSE}</button>
             </div>`;
         if (area) area.appendChild(ui);
         document.getElementById('vr-stop').onclick   = () => toggleVoiceRecording();
         document.getElementById('vr-cancel').onclick = () => window.cancelVoiceRecording();
+
+    } else if (mode === 'video-record') {
+        ui.id = 'vr-record-ui';
+        ui.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 0;width:100%;">
+                <div style="position:relative;width:160px;height:160px;border-radius:50%;overflow:hidden;
+                    border:3px solid var(--red);box-shadow:0 0 20px rgba(239,68,68,0.3);">
+                    <video id="vr-video-preview" autoplay muted playsinline
+                        style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+                    <span style="position:absolute;top:6px;left:50%;transform:translateX(-50%);
+                        background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:10px;
+                        font-family:var(--mono);font-size:11px;color:#fff;display:flex;align-items:center;gap:4px;">
+                        <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;
+                            animation:recBlink 1s infinite;"></span>
+                        <span id="vr-timer">0:00</span>
+                    </span>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button id="vr-stop" style="${_btnStyle('var(--accent)')}">${SVG_STOP} ${t('voice.stop')}</button>
+                    <button id="vr-cancel" style="${_iconBtnStyle()}">${SVG_CLOSE}</button>
+                </div>
+            </div>`;
+        if (area) area.appendChild(ui);
+        const videoEl = document.getElementById('vr-video-preview');
+        if (videoEl && _stream) videoEl.srcObject = _stream;
+        document.getElementById('vr-stop').onclick = () => _stopRecording();
+        document.getElementById('vr-cancel').onclick = () => window.cancelVoiceRecording();
+
+    } else if (mode === 'video-preview') {
+        const { blob, name, mime, dur } = data;
+        ui.id = 'vr-preview-ui';
+        const url = URL.createObjectURL(blob);
+        const durStr = _fmtDur(dur);
+
+        ui.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 0;width:100%;">
+                <div style="position:relative;width:160px;height:160px;border-radius:50%;overflow:hidden;
+                    border:2px solid var(--border);cursor:pointer;"
+                    onclick="this.querySelector('video').paused ? this.querySelector('video').play() : this.querySelector('video').pause()">
+                    <video id="vr-video-playback" src="${url}" playsinline
+                        style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+                    <div id="vr-video-play-overlay" style="position:absolute;inset:0;display:flex;
+                        align-items:center;justify-content:center;background:rgba(0,0,0,0.3);
+                        transition:opacity .2s;">${SVG_PLAY}</div>
+                    <span style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
+                        background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:10px;
+                        font-family:var(--mono);font-size:11px;color:#fff;">${durStr}</span>
+                </div>
+                <div style="display:flex;gap:8px;width:100%;justify-content:center;">
+                    <button id="vr-send" style="${_btnStyle('var(--accent)', true)}">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+                        ${t('chat.send')}
+                    </button>
+                    <button id="vr-retry" title="${t('voice.reRecord')}"
+                        style="${_btnStyle('var(--bg3)', false, true)}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>
+                    <button id="vr-cancel2" style="${_iconBtnStyle()}">${SVG_CLOSE}</button>
+                </div>
+            </div>`;
+
+        if (area) area.appendChild(ui);
+
+        const video = document.getElementById('vr-video-playback');
+        const overlay = document.getElementById('vr-video-play-overlay');
+        if (video) {
+            video.addEventListener('play', () => { if (overlay) overlay.style.opacity = '0'; });
+            video.addEventListener('pause', () => { if (overlay) overlay.style.opacity = '1'; });
+            video.addEventListener('ended', () => { if (overlay) overlay.style.opacity = '1'; });
+        }
+
+        document.getElementById('vr-send').onclick = async () => {
+            const btn = document.getElementById('vr-send');
+            btn.disabled = true;
+            btn.textContent = t('chat.send') + '\u2026';
+            try {
+                await _upload(blob, name, mime);
+                if (video) video.pause();
+                URL.revokeObjectURL(url);
+                _swapInputTo('normal');
+                _isVideoNote = false;
+            } catch (e) {
+                btn.disabled = false;
+                btn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg> ${t('chat.send')}`;
+                alert((t('voice.sendError') || 'Send error') + ': ' + e.message);
+            }
+        };
+
+        document.getElementById('vr-retry').onclick = () => {
+            if (video) video.pause();
+            URL.revokeObjectURL(url);
+            _swapInputTo('normal');
+            toggleVideoNoteRecording();
+        };
+
+        document.getElementById('vr-cancel2').onclick = () => {
+            if (video) video.pause();
+            URL.revokeObjectURL(url);
+            _swapInputTo('normal');
+            _isVideoNote = false;
+        };
 
     } else if (mode === 'preview') {
         const { blob, name, mime, dur, peaks } = data;
@@ -169,7 +390,7 @@ function _swapInputTo(mode, data) {
         const durStr    = _fmtDur(dur);
 
         ui.innerHTML = `
-            <div style="display:flex;flex-direction:column;gap:8px;padding:6px 0;width:100%;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 0;width:100%;">
                 <div style="
                     display:flex;align-items:center;gap:10px;
                     padding:10px 14px;border-radius:14px;
@@ -205,16 +426,16 @@ function _swapInputTo(mode, data) {
                     </div>
                 </div>
 
-                <div style="display:flex;gap:8px;">
+                <div style="display:flex;gap:8px;width:100%;justify-content:center;">
                     <button id="vr-send" style="${_btnStyle('var(--accent)', true)}">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="flex-shrink:0">
                             <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
                         </svg>
-                        Отправить
+                        ${t('chat.send')}
                     </button>
-                    <button id="vr-retry" title="Перезаписать"
-                        style="${_btnStyle('var(--bg3)', false, true)}">🔄</button>
-                    <button id="vr-cancel2" style="${_iconBtnStyle()}">✕</button>
+                    <button id="vr-retry" title="${t('voice.reRecord')}"
+                        style="${_btnStyle('var(--bg3)', false, true)}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>
+                    <button id="vr-cancel2" style="${_iconBtnStyle()}">${SVG_CLOSE}</button>
                 </div>
             </div>`;
 
@@ -259,7 +480,7 @@ function _swapInputTo(mode, data) {
         document.getElementById('vr-send').onclick = async () => {
             const btn = document.getElementById('vr-send');
             btn.disabled = true;
-            btn.textContent = '⏳ Отправка…';
+            btn.textContent = t('chat.send') + '\u2026';
             try {
                 try { sessionStorage.setItem('vp:' + name, JSON.stringify(peaks)); } catch {}
                 await _upload(blob, name, mime);
@@ -269,8 +490,8 @@ function _swapInputTo(mode, data) {
             } catch (e) {
                 btn.disabled = false;
                 btn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                    <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg> Отправить`;
-                alert('Ошибка отправки: ' + e.message);
+                    <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg> ${t('chat.send')}`;
+                alert(t('voice.sendError') + ': ' + e.message);
             }
         };
 
@@ -306,7 +527,7 @@ async function _freshCsrf() {
 
 async function _upload(blob, name, mime) {
     const S = window.AppState;
-    if (!S?.currentRoom) throw new Error('Нет активной комнаты');
+    if (!S?.currentRoom) throw new Error('No active room');
 
     const csrf = await _freshCsrf();   // ✅ всегда свежий токен
 
@@ -379,6 +600,7 @@ function _fmtDur(s) {
 }
 
 window.toggleVoiceRecording = toggleVoiceRecording;
+window.toggleVideoNoteRecording = toggleVideoNoteRecording;
 
 window.cancelVoiceRecording = () => {
     if (_mediaRecorder?.state === 'recording') {

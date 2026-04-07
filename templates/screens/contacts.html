@@ -1,0 +1,51 @@
+<!-- Contacts Screen — Fullscreen tab view for contact management -->
+<div id="tab-view-contacts" class="tab-view" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
+    <!-- Header -->
+    <div class="contacts-header">
+        <h2 data-i18n="contacts.title">Contacts</h2>
+        <div class="contacts-search-wrap">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input type="text" id="contacts-search"
+                   data-i18n-placeholder="contacts.searchPlaceholder" placeholder="Search contacts..."
+                   oninput="searchContacts(this.value)">
+        </div>
+        <button class="contacts-add-btn" onclick="openAddContactModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            <span data-i18n="contacts.add">Add</span>
+        </button>
+    </div>
+
+    <!-- Group tabs -->
+    <div id="contact-group-tabs" style="flex-shrink:0;padding:0 16px;"></div>
+
+    <!-- Contact list -->
+    <div id="contacts-view-list" style="flex:1;overflow-y:auto;padding:4px 12px;">
+        <!-- Empty state -->
+        <div id="contacts-empty" class="contacts-empty-state" style="display:none;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5m0-8c1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3 1.35-3 3-3M4 22h16c.55 0 1-.45 1-1v-1c0-3.86-3.14-7-7-7h-4c-3.86 0-7 3.14-7 7v1c0 .55.45 1 1 1"/>
+            </svg>
+            <span data-i18n="contacts.noContacts">No contacts yet</span>
+            <button class="contacts-add-btn" onclick="openAddContactModal()" data-i18n="contacts.addFirst">Add your first contact</button>
+        </div>
+        <!-- Contacts rendered here by renderContactsList() -->
+        <div id="contacts-list"></div>
+    </div>
+</div>
+
+<!-- Add Contact Modal -->
+<div class="modal-overlay" id="add-contact-modal" onclick="if(event.target===this)closeModal('add-contact-modal')">
+    <div class="modal" style="width:420px;">
+        <div class="modal-title" data-i18n="contacts.addContact">Add Contact</div>
+        <div class="contacts-search-wrap" style="max-width:100%;margin-bottom:14px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input type="text" id="add-contact-search"
+                   data-i18n-placeholder="contacts.searchUsers" placeholder="Search by username..."
+                   oninput="searchUsersForAdd(this.value)">
+        </div>
+        <div id="add-contact-results" style="max-height:300px;overflow-y:auto;"></div>
+        <div style="margin-top:14px;text-align:right;">
+            <button class="btn btn-secondary btn-sm" onclick="closeModal('add-contact-modal')" data-i18n="app.close">Close</button>
+        </div>
+    </div>
+</div>

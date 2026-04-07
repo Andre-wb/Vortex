@@ -1,0 +1,20 @@
+{
+  "name": "vortex-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:e2e": "cd e2e && node_modules/.bin/playwright test",
+    "test:e2e:headed": "cd e2e && node_modules/.bin/playwright test --headed",
+    "test:e2e:chromium": "cd e2e && node_modules/.bin/playwright test --project=chromium"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "@jest/globals": "^29.7.0",
+    "babel-jest": "^29.7.0",
+    "@babel/core": "^7.24.0",
+    "@babel/preset-env": "^7.24.0",
+    "@playwright/test": "^1.42.0"
+  }
+}

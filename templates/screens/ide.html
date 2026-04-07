@@ -1,0 +1,355 @@
+<!-- ═══════════════════════════════════════════════════════════
+     Gravitix IDE  — fullscreen developer screen
+     ═══════════════════════════════════════════════════════════ -->
+<div id="tab-view-ide" class="tab-view ide-root" style="display:none;">
+
+  <!-- ── PROJECT HUB ─────────────────────────────────────────── -->
+  <div id="ide-hub" class="ide-hub">
+    <div class="ide-hub-header">
+      <div class="ide-hub-brand">
+        <img src="/static/logo/ide_gx.svg" width="36" height="36" alt="GX" onerror="this.style.display='none'">
+        <div>
+          <div class="ide-hub-title">Gravitix IDE</div>
+          <div class="ide-hub-sub">Bot scripting environment</div>
+        </div>
+      </div>
+      <button class="ide-hub-docs-btn" onclick="ideToggleDocs()" title="Documentation">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        Docs
+      </button>
+    </div>
+
+    <div class="ide-hub-body">
+      <div class="ide-hub-section-title">My Projects</div>
+      <div id="ide-projects-grid" class="ide-projects-grid">
+        <!-- project cards rendered by JS -->
+        <div class="ide-project-card ide-project-new" onclick="ideShowCreateModal()">
+          <div class="ide-project-new-icon">
+            <svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </div>
+          <span>New Project</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EDITOR ──────────────────────────────────────────────── -->
+  <div id="ide-editor" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+
+    <!-- Top bar -->
+    <div class="ide-topbar">
+      <button class="ide-back-btn" onclick="ideGoHub()" title="Back to hub">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <span class="ide-project-label" id="ide-topbar-project">project</span>
+      <button class="ide-settings-btn" onclick="ideShowSettings()" title="Project settings">
+        <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96a6.96 6.96 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      </button>
+      <div class="ide-file-tabs" id="ide-file-tabs"></div>
+      <div class="ide-topbar-actions">
+        <button class="ide-btn-run" id="ide-btn-run" onclick="ideRun()" title="Run">
+          <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          Run
+        </button>
+        <button class="ide-btn-debug" id="ide-btn-debug" onclick="ideDebug()" title="Debug">
+          <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M20 8h-2.81c-.45-.78-1.07-1.45-1.82-1.96L17 4.41 15.59 3l-2.17 2.17a6.002 6.002 0 0 0-2.84 0L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z"/></svg>
+          Debug
+        </button>
+        <div class="ide-indicators">
+          <div class="ide-ind ide-ind-error" id="ide-ind-error" style="display:none" title="Errors — click to see" onclick="ideOpenProblems()" role="button">
+            <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>
+            <span id="ide-ind-error-count">0</span>
+          </div>
+          <div class="ide-ind ide-ind-warn" id="ide-ind-warn" style="display:none" title="Warnings — click to see" onclick="ideOpenProblems()" role="button">
+            <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            <span id="ide-ind-warn-count">0</span>
+          </div>
+          <div class="ide-ind ide-ind-hint" id="ide-ind-hint" style="display:none" title="Hints — click to see" onclick="ideOpenProblems()" role="button">
+            <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2 2 19h20L12 2zm0 3.5 7.5 13H4.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>
+            <span id="ide-ind-hint-count">0</span>
+          </div>
+        </div>
+        <button class="ide-sim-toggle" id="ide-sim-toggle" onclick="ideToggleSim()" title="Bot Simulator">
+          <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 7.07 19H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h-1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5"/></svg>
+          Simulator
+        </button>
+
+        <div class="ide-topbar-sep"></div>
+
+        <!-- Panel toggles -->
+        <button class="ide-panel-btn active" id="ide-toggle-explorer" onclick="ideToggleExplorer()" title="Toggle Explorer">
+          <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M3 3h8v8H3zm0 10h8v8H3zm10-10h8v8h-8zm0 10h8v8h-8z"/><path d="M3 3h4v18H3z" opacity=".35"/></svg>
+        </button>
+        <button class="ide-panel-btn active" id="ide-toggle-console" onclick="ideToggleConsole()" title="Toggle Console">
+          <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8h16v10zm-8-2h6v-2h-6v2zm-3.5-3L5 11.5l1.5-1.5 3.5 3.5-3.5 3.5L5 15.5z"/></svg>
+        </button>
+
+        <div class="ide-topbar-sep"></div>
+
+        <!-- Bot status pill -->
+        <div class="ide-bot-status" id="ide-bot-status" title="Bot deployment status">
+          <span class="ide-bot-dot" id="ide-bot-dot"></span>
+          <span id="ide-bot-status-label">offline</span>
+        </div>
+
+        <!-- Copy API token quick button -->
+        <button class="ide-copy-token-btn" id="ide-copy-token-btn" onclick="ideCopyToken('topbar')" title="Copy Bot API Token" style="display:none;">
+          <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+          API Key
+        </button>
+
+        <!-- Publish button -->
+        <button class="ide-btn-publish" id="ide-btn-publish" onclick="idePublish()" title="Compile &amp; deploy bot to server">
+          <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M5 4v2h14V4H5zm0 10h4v6h6v-6h4l-7-7-7 7z"/></svg>
+          <span>Publish</span>
+        </button>
+
+        <!-- Stop button (shown when running) -->
+        <button class="ide-btn-stop" id="ide-btn-stop" onclick="ideStopBot()" title="Stop running bot" style="display:none;">
+          <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+          <span>Stop</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main workspace -->
+    <div class="ide-workspace">
+
+      <!-- Left sidebar: file tree -->
+      <div class="ide-sidebar" id="ide-sidebar">
+        <div class="ide-sidebar-header">
+          <span class="ide-sidebar-label">EXPLORER</span>
+          <div class="ide-sidebar-actions">
+            <button onclick="ideNewFile()" title="New File">
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            </button>
+            <button onclick="ideNewFolder()" title="New Folder">
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10zm-8-1h2v-3h3v-2h-3V9h-2v3H9v2h3v3z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="ide-file-tree" class="ide-file-tree"></div>
+        <div class="ide-sidebar-footer">
+          <button class="ide-docs-btn" onclick="ideToggleDocs()">
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            Language Docs
+          </button>
+        </div>
+      </div>
+
+      <!-- Code editor + console -->
+      <div class="ide-center">
+        <div class="ide-editor-area" id="ide-editor-area">
+          <div class="ide-no-file" id="ide-no-file">
+            <svg width="40" height="40" fill="var(--text3)" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
+            <span>Open or create a file</span>
+          </div>
+          <div class="ide-code-wrap" id="ide-code-wrap" style="display:none;">
+            <div class="ide-gutter" id="ide-gutter"></div>
+            <div class="ide-highlight" id="ide-highlight"></div>
+            <textarea class="ide-textarea" id="ide-textarea"
+              spellcheck="false" autocomplete="off" autocorrect="off"
+              autocapitalize="off" oninput="ideOnInput()"
+              onscroll="ideOnScroll()" onkeydown="ideOnKeydown(event)"></textarea>
+          </div>
+        </div>
+
+        <!-- Console panel -->
+        <div class="ide-console" id="ide-console">
+          <div class="ide-console-tabs">
+            <button class="ide-console-tab active" onclick="ideConsoleTab('output',this)">Output</button>
+            <button class="ide-console-tab" onclick="ideConsoleTab('debug',this)">Debug</button>
+            <button class="ide-console-tab" onclick="ideConsoleTab('problems',this)">Problems</button>
+            <button class="ide-console-clear" onclick="ideClearConsole()">Clear</button>
+          </div>
+          <div id="ide-console-output" class="ide-console-content"></div>
+          <div id="ide-console-debug"   class="ide-console-content" style="display:none;"></div>
+          <div id="ide-console-problems" class="ide-console-content" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Right: Bot Simulator (UNIQUE FEATURE) -->
+      <div class="ide-simulator" id="ide-simulator" style="display:none;">
+        <div class="ide-sim-header">
+          <svg width="14" height="14" fill="#7c3aed" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 7.07 19H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h-1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5"/></svg>
+          <span>Bot Simulator</span>
+          <span class="ide-sim-badge">LIVE</span>
+          <button class="ide-sim-clear" onclick="ideSimClear()" title="Clear chat">
+            <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          </button>
+        </div>
+        <div class="ide-sim-messages" id="ide-sim-messages">
+          <div class="ide-sim-hint">Write Gravitix code and test your bot here in real-time.</div>
+        </div>
+        <div class="ide-sim-input-wrap">
+          <input class="ide-sim-input" id="ide-sim-input" placeholder="Send a message..." onkeydown="if(event.key==='Enter')ideSimSend()">
+          <button class="ide-sim-send" onclick="ideSimSend()">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /workspace -->
+  </div><!-- /ide-editor -->
+
+  <!-- ── DOCS PANEL ───────────────────────────────────────────── -->
+  <div class="ide-docs-panel" id="ide-docs-panel">
+    <div class="ide-docs-header">
+      <span>Gravitix Language Reference</span>
+      <button onclick="ideToggleDocs()">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <div class="ide-docs-body">
+      <div class="ide-docs-search-wrap">
+        <input class="ide-docs-search" placeholder="Search docs…" oninput="ideDocsSearch(this.value)">
+      </div>
+      <div id="ide-docs-content" class="ide-docs-content"></div>
+    </div>
+  </div>
+  <div class="ide-docs-overlay" id="ide-docs-overlay" onclick="ideToggleDocs()"></div>
+
+  <!-- ── FOLDER CONTEXT MENU ────────────────────────────────── -->
+  <div id="ide-folder-menu" class="ide-ctx-menu" style="display:none;">
+    <button class="ide-ctx-item" onclick="ideFolderAddFile()">
+      <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+      New File
+    </button>
+    <button class="ide-ctx-item" onclick="ideFolderAddFolder()">
+      <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10zm-8-1h2v-3h3v-2h-3V9h-2v3H9v2h3v3z"/></svg>
+      New Subfolder
+    </button>
+    <div class="ide-ctx-sep"></div>
+    <button class="ide-ctx-item" onclick="ideFolderRename()">
+      <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      Rename
+    </button>
+    <button class="ide-ctx-item" onclick="ideFolderCopy()">
+      <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+      Copy
+    </button>
+    <div class="ide-ctx-sep"></div>
+    <button class="ide-ctx-item ide-ctx-danger" onclick="ideFolderDelete()">
+      <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+      Delete
+    </button>
+  </div>
+
+  <!-- ── CREATE PROJECT MODAL ─────────────────────────────────── -->
+  <div class="ide-modal-overlay" id="ide-create-overlay" onclick="ideHideCreateModal()">
+    <div class="ide-modal" id="ide-create-modal" onclick="event.stopPropagation()">
+      <div class="ide-modal-header">
+        <svg width="20" height="20" fill="#7c3aed" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+        <span>New Project</span>
+        <button onclick="ideHideCreateModal()">
+          <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+      <div class="ide-modal-body">
+        <label class="ide-modal-label">Project name</label>
+        <input class="ide-modal-input" id="ide-create-name" placeholder="my_awesome_bot" maxlength="40">
+
+        <label class="ide-modal-label" style="margin-top:14px;">Bot Token <span style="color:var(--text3);font-weight:400;">(optional)</span></label>
+        <div class="ide-token-section" id="ide-token-section">
+          <input class="ide-modal-input" id="ide-create-token" placeholder="123456:ABCdef..." type="password"
+                 style="padding-right:44px;">
+          <button class="ide-bots-menu-btn" id="ide-bots-menu-btn" onclick="ideToggleBotsMenu(event)" title="Choose from saved bots">
+            <span></span><span></span><span></span>
+          </button>
+          <div class="ide-bots-dropdown" id="ide-bots-dropdown" style="display:none;"></div>
+        </div>
+        <div class="ide-modal-hint">Telegram Bot API token. Get it from @BotFather.</div>
+
+        <label class="ide-modal-label" style="margin-top:14px;">Bot username <span style="color:var(--text3);font-weight:400;">(optional)</span></label>
+        <div class="ide-username-wrap">
+          <span class="ide-username-at">@</span>
+          <input class="ide-modal-input ide-username-input" id="ide-create-username" placeholder="my_bot"
+                 oninput="ideValidateUsername('create')" maxlength="32">
+          <span class="ide-username-hint" id="ide-create-uname-hint"></span>
+        </div>
+
+        <div class="ide-modal-check">
+          <input type="checkbox" id="ide-create-tutorial" checked>
+          <label for="ide-create-tutorial">Include quick-start tutorial file</label>
+        </div>
+      </div>
+      <div class="ide-modal-footer">
+        <button class="ide-modal-cancel" onclick="ideHideCreateModal()">Cancel</button>
+        <button class="ide-modal-create" onclick="ideCreateProject()">Create Project</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PROJECT SETTINGS MODAL ──────────────────────────────── -->
+  <div class="ide-modal-overlay" id="ide-settings-overlay" onclick="ideHideSettings()">
+    <div class="ide-modal" id="ide-settings-modal" onclick="event.stopPropagation()">
+      <div class="ide-modal-header">
+        <svg width="20" height="20" fill="#7c3aed" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96a6.96 6.96 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <span>Project Settings</span>
+        <button onclick="ideHideSettings()">
+          <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+      <div class="ide-modal-body">
+        <label class="ide-modal-label">Project name</label>
+        <input class="ide-modal-input" id="ide-settings-name" placeholder="my_awesome_bot" maxlength="40"
+               onkeydown="if(event.key==='Enter')ideSaveSettings()">
+
+        <label class="ide-modal-label" style="margin-top:14px;">Bot Token <span style="color:var(--text3);font-weight:400;">(optional)</span></label>
+        <div style="position:relative;">
+          <input class="ide-modal-input" id="ide-settings-token" placeholder="123456:ABCdef…" type="password"
+                 style="padding-right:106px;" onkeydown="if(event.key==='Enter')ideSaveSettings()">
+          <button class="ide-detect-btn" style="right:68px;" onclick="ideDetectBot('settings')" title="Auto-detect bot info from token">
+            <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            Detect
+          </button>
+          <button class="ide-token-eye" id="ide-settings-eye" onclick="ideToggleTokenVis()" title="Show/hide token"
+                  style="position:absolute;right:38px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);padding:0;display:flex;align-items:center;">
+            <svg id="ide-eye-icon" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+          </button>
+          <button class="ide-token-eye" onclick="ideCopyToken('modal')" title="Copy token"
+                  style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);padding:0;display:flex;align-items:center;">
+            <svg id="ide-copy-icon" width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+          </button>
+        </div>
+        <div class="ide-modal-hint">Telegram Bot API token. Нужен для публикации бота.</div>
+
+        <label class="ide-modal-label" style="margin-top:14px;">Bot username <span style="color:var(--text3);font-weight:400;">(optional)</span></label>
+        <div class="ide-username-wrap">
+          <span class="ide-username-at">@</span>
+          <input class="ide-modal-input ide-username-input" id="ide-settings-username" placeholder="my_bot"
+                 oninput="ideValidateUsername('settings')" maxlength="32"
+                 onkeydown="if(event.key==='Enter')ideSaveSettings()">
+          <span class="ide-username-hint" id="ide-settings-uname-hint"></span>
+        </div>
+
+        <label class="ide-modal-label" style="margin-top:14px;">Mini App URL <span style="color:var(--text3);font-weight:400;">(optional)</span></label>
+        <input class="ide-modal-input" id="ide-settings-miniapp-url" placeholder="https://my-mini-app.example.com"
+               onkeydown="if(event.key==='Enter')ideSaveSettings()">
+        <div class="ide-modal-hint">URL страницы мини-приложения бота. Откроется в панели при нажатии кнопки Mini App в чате.</div>
+      </div>
+      <div class="ide-modal-footer">
+        <button class="ide-modal-cancel" onclick="ideHideSettings()">Cancel</button>
+        <button class="ide-modal-create" onclick="ideSaveSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NEW FILE MODAL ──────────────────────────────────────── -->
+  <div class="ide-modal-overlay" id="ide-newfile-overlay" onclick="ideHideNewFile()">
+    <div class="ide-modal ide-modal-sm" id="ide-newfile-modal" onclick="event.stopPropagation()">
+      <div class="ide-modal-header">
+        <span id="ide-newfile-title">New File</span>
+        <button onclick="ideHideNewFile()"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+      </div>
+      <div class="ide-modal-body">
+        <input class="ide-modal-input" id="ide-newfile-name" placeholder="filename.grav" onkeydown="if(event.key==='Enter')ideConfirmNewFile()">
+      </div>
+      <div class="ide-modal-footer">
+        <button class="ide-modal-cancel" onclick="ideHideNewFile()">Cancel</button>
+        <button class="ide-modal-create" onclick="ideConfirmNewFile()">Create</button>
+      </div>
+    </div>
+  </div>
+
+</div>

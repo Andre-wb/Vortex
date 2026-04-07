@@ -1,0 +1,171 @@
+<!-- Settings — Fullscreen tab view -->
+<div id="tab-view-settings" class="tab-view" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
+
+    <!-- Header -->
+    <div style="padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+        <h2 style="margin:0;font-size:20px;color:var(--text);" data-i18n="tabs.settings">Settings</h2>
+    </div>
+
+    <!-- Settings list OR sub-page -->
+    <div id="settings-main-list" style="flex:1;overflow-y:auto;">
+
+        <!-- Profile card -->
+        <div class="set-profile-card" onclick="openSettingsSection('profile')">
+            <div class="set-profile-avatar" id="set-avatar"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>
+            <div class="set-profile-info">
+                <div class="set-profile-name" id="set-name">—</div>
+                <div class="set-profile-phone" id="set-phone">—</div>
+            </div>
+            <svg width="20" height="20" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+        </div>
+
+        <!-- Sections -->
+        <div class="set-section-list">
+
+            <div class="set-item" onclick="openSettingsSection('appearance')">
+                <div class="set-icon" style="background:#7c3aed;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-1 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8m-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12m3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8m5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8m3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5"/></svg>
+                </div>
+                <span data-i18n="settings.appearance">Appearance</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('language')">
+                <div class="set-icon" style="background:#3b82f6;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.52 17.52 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04M18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12m-2.62 7 1.62-4.33L19.12 17h-3.24z"/></svg>
+                </div>
+                <span data-i18n="settings.language">Language</span>
+                <span class="set-value" id="set-current-lang">English</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('notifications')">
+                <div class="set-icon" style="background:#22c55e;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2m6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                </div>
+                <span data-i18n="settings.notifications">Notifications</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('security')">
+                <div class="set-icon" style="background:#ef4444;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4m0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                </div>
+                <span data-i18n="settings.security">Security</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('privacy')">
+                <div class="set-icon" style="background:#10b981;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM15.1 8H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                </div>
+                <span data-i18n="settings.privacy">Конфиденциальность</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('storage')">
+                <div class="set-icon" style="background:#f97316;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z"/></svg>
+                </div>
+                <span data-i18n="settings.storage">Storage</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('calls')">
+                <div class="set-icon" style="background:#06b6d4;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
+                </div>
+                <span data-i18n="settings.calls">Calls</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('stickers')">
+                <div class="set-icon" style="background:#eab308;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2M12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8m3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5m-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11m3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5"/></svg>
+                </div>
+                <span data-i18n="settings.stickers">Stickers</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('bots')">
+                <div class="set-icon" style="background:#a855f7;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 7.07 19H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h-1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5"/></svg>
+                </div>
+                <span data-i18n="settings.bots">Bots</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('about')">
+                <div class="set-icon" style="background:#71717a;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                </div>
+                <span data-i18n="settings.about">About</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('dev')">
+                <div class="set-icon" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+                </div>
+                <span>Dev Settings</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <!-- Developer toggle -->
+            <div class="set-item" onclick="toggleDevMode()" style="cursor:pointer;">
+                <div class="set-icon" style="background:#18181b;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+                </div>
+                <span>Developer</span>
+                <div id="dev-mode-toggle" class="set-toggle" style="margin-left:auto;"></div>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('panic')" style="color:var(--red);">
+                <div class="set-icon" style="background:var(--red);display:flex;align-items:center;justify-content:center;padding:4px;">
+                    <svg width="20" height="20" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M258.25 19.594c-76.095.492-152.275 42.48-171.844 139.812-2.706 13.46.208 22.172 7.406 30.063 6.18 6.774 16.286 12.65 29.313 17.155 8.87-6.015 17.417-19.395 20.47-34.156 1.136 15.568 7.102 33.066 17.28 42.53 12.807 1.726 26.597 2.752 40.78 3.188C205.5 123.968 313.99 114.71 323.22 208.5c11.655-2.437 22.868-5.327 33.28-8.656 11.107-15.656 7.692-26.07 5.03-41 8.16 11.035 11.332 22.095 28.314 27.25 9.952-5.37 18.034-11.312 23.687-17.5 8.163-8.936 11.494-17.695 9.97-28.47-10.676-75.457-84.34-119.695-161.625-120.53-1.208-.013-2.417-.008-3.625 0zm-29.22 23.093c24.367 0 44.126 19.73 44.126 44.094 0 24.367-19.76 44.126-44.125 44.126-2.338 0-4.633-.18-6.874-.53-3.684 14.55-16.865 25.343-32.562 25.343-18.552 0-33.594-15.044-33.594-33.595 0-16.984 12.604-31.03 28.97-33.28-.032-.682-.032-1.375-.032-2.064 0-24.365 19.727-44.093 44.093-44.093zm95.345 55.97c10.8 0 19.563 8.764 19.563 19.562 0 10.797-8.764 19.53-19.563 19.53-10.8 0-19.53-8.733-19.53-19.53 0-10.8 8.73-19.564 19.53-19.564zm77.156 102.312c-5.32 3-11.025 5.787-17.03 8.374 12.71 15.545 19.88 34.71 22.75 54.25 4.855 33.055-4.353 66.41-16.813 78.97-24.31 24.5-30.547 57.464-23.125 88.248 5.573 23.115 18.495 45.298 36.938 63.407h29.03c-24.623-17.53-41.752-42.65-47.81-67.783-6.2-25.704-1.406-50.908 18.25-70.718 19.685-19.842 27.573-57.107 22.03-94.845-3.062-20.85-10.79-42.05-24.22-59.906zm-41.06 17.25c-5.997 1.886-12.2 3.595-18.533 5.186 8.91 16.314 14.04 30.545 15.625 43.063 2.682 21.173-3.548 38.124-20.187 56.592-23.118 25.66-24.01 54.512-27.563 82.625-3.5 27.702-9.055 55.82-38.812 88.532h24.344c23.8-31.292 29.794-60.816 33-86.19 3.687-29.18 4.24-51.718 22.906-72.436 19.127-21.23 28.188-45.065 24.844-71.47-1.838-14.506-7.098-29.6-15.625-45.905zm-39.75 9.905c-21.83 4.216-44.707 6.853-67.033 8.03-16.476.87-33.335 1.24-49.875.845-14.306 14.035-26.07 29.54-33.78 45.813-12.875 27.174-13.776 57.767 5.562 82.812.295.382.57.788.844 1.188-10.236 6.08-21.41 11.5-33.25 16.75-23.037 10.21-48.35 19.324-72.813 31.125 6.505-27.637 17.068-49.704 29.188-62.063 16.996-17.333 35.44-32.76 46-57.844 6.838-16.245 9.966-35.98 7.75-61.905-6.59-1.016-12.964-2.276-19.094-3.72 2.97 26.23.066 44.26-5.876 58.376-8.568 20.355-24.4 33.955-42.125 52.033-18.482 18.845-31.744 49.66-37.814 86.75-9.37 5.463-18.45 11.502-27.062 18.406v24.936c7.454-7.247 15.6-13.632 24.25-19.406-1.067 14.096-1.178 28.833-.22 43.97h18.75c-1.257-19.685-.448-38.66 1.94-56.158 26.77-14.288 56.505-24.9 84.717-37.406 10.524-4.664 20.864-9.69 30.72-15.375-.125 10.524-4.077 23.175-12.344 37.19-14.266 24.18-40.91 50.666-77.344 71.75h34.344c26.386-19.128 46.457-40.83 59.094-62.25 11.775-19.96 17.327-40.537 13.906-58.095 21.25-15.403 38.72-35.33 48.28-63.47 9.112 1.75 18.513.996 25.314-2.124.256-.116.5-.252.75-.374-7.986 68.863-42.73 137.217-112.313 186.313h30.72c69.553-58.027 100.686-136.855 102.03-213.033 18.65-7.55 31.337-26.797 26.782-53.062zM211.75 255.72c1.172 3.966 3.024 7.484 5.375 10.718l2.938 4.03-1.72 4.688c-3.335 9.118-1.49 15.308 3.5 21.375 2.123 2.58 4.95 4.976 8.25 7.064-7.543 23.296-20.897 39.753-38.124 52.844-.512-.75-1.034-1.492-1.595-2.22-14.877-19.267-14.336-40.467-3.47-63.406 5.618-11.855 14.223-23.8 24.845-35.093z"/></svg>
+                </div>
+                <span style="color:var(--red);font-weight:700;" data-i18n="settings.panic">Паника</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--red)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div style="height:20px;"></div>
+
+            <div class="set-item danger" onclick="doLogout()">
+                <div class="set-icon" style="background:var(--red);">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="m17 7-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                </div>
+                <span data-i18n="settings.logout" style="color:var(--red);">Log Out</span>
+            </div>
+        </div>
+    </div><!-- /settings-main-list -->
+
+    <!-- Language sub-page (hidden by default) -->
+    <div id="settings-lang-page" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+            <button style="width:32px;height:32px;border:none;background:none;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;"
+                    onclick="closeSettingsLangPage()">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            </button>
+            <h2 style="margin:0;font-size:18px;color:var(--text);" data-i18n="settings.language">Language</h2>
+        </div>
+        <div style="padding:8px 16px;flex-shrink:0;">
+            <div class="cs-search" style="margin:0;">
+                <svg width="16" height="16" fill="var(--text3)" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"/></svg>
+                <input type="text" id="lang-search-input" placeholder="Search languages..." data-i18n-placeholder="settings.searchLanguages" oninput="filterLanguages(this.value)">
+            </div>
+        </div>
+        <div id="lang-list" style="flex:1;overflow-y:auto;"></div>
+    </div>
+
+    <!-- Sub-section content (appearance, security, etc) -->
+    <div id="settings-sub-page" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+            <button style="width:32px;height:32px;border:none;background:none;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;"
+                    onclick="closeSettingsSubPage()">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            </button>
+            <h2 id="settings-sub-title" style="margin:0;font-size:18px;color:var(--text);"></h2>
+        </div>
+        <div id="settings-sub-content" style="flex:1;overflow-y:auto;padding:16px;"></div>
+    </div>
+</div>

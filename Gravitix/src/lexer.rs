@@ -145,6 +145,23 @@ pub enum TokenKind {
     Default,
     Global,
 
+    // ── Bitwise operators ──────────────────────
+    Amp,       // & (single)
+    Pipe,      // | (single — not ||, not |>)
+    Caret,     // ^
+    Tilde,     // ~
+    Shl,       // <<
+    Shr,       // >>
+    AmpEq,    // &=
+    PipeEq,   // |=
+    CaretEq,  // ^=
+    ShlEq,    // <<=
+    ShrEq,    // >>=
+
+    // ── Imaginary literal ─────────────────────
+    /// `3i`, `2.5i` — imaginary number literal
+    ImagLit(f64),
+
     // ── Types ──────────────────────────────────
     TInt, TFloat, TBool, TStr, TList, TMap, TVoid,
 
@@ -317,10 +334,12 @@ impl<'s> Lexer<'s> {
             b'%' => { self.advance(); if self.eat(b'=') { TokenKind::PercentEq } else { TokenKind::Percent } }
             b'=' => { self.advance(); if self.eat(b'=') { TokenKind::EqEq      } else if self.eat(b'>') { TokenKind::FatArrow } else { TokenKind::Eq } }
             b'!' => { self.advance(); if self.eat(b'=') { TokenKind::BangEq    } else { TokenKind::Bang    } }
-            b'<' => { self.advance(); if self.eat(b'=') { TokenKind::LtEq      } else if self.eat(b'<') { TokenKind::Lt  /* TODO: shift */ } else { TokenKind::Lt } }
-            b'>' => { self.advance(); if self.eat(b'=') { TokenKind::GtEq      } else { TokenKind::Gt     } }
-            b'&' => { self.advance(); if self.eat(b'&') { TokenKind::AmpAmp    } else { return Err(self.err("expected '&&'")); } }
-            b'|' => { self.advance(); if self.eat(b'|') { TokenKind::PipePipe  } else if self.eat(b'>') { TokenKind::PipeGt } else { return Err(self.err("unexpected '|'")); } }
+            b'<' => { self.advance(); if self.eat(b'=') { TokenKind::LtEq } else if self.eat(b'<') { if self.eat(b'=') { TokenKind::ShlEq } else { TokenKind::Shl } } else { TokenKind::Lt } }
+            b'>' => { self.advance(); if self.eat(b'=') { TokenKind::GtEq } else if self.eat(b'>') { if self.eat(b'=') { TokenKind::ShrEq } else { TokenKind::Shr } } else { TokenKind::Gt } }
+            b'&' => { self.advance(); if self.eat(b'&') { TokenKind::AmpAmp } else if self.eat(b'=') { TokenKind::AmpEq } else { TokenKind::Amp } }
+            b'|' => { self.advance(); if self.eat(b'|') { TokenKind::PipePipe } else if self.eat(b'>') { TokenKind::PipeGt } else if self.eat(b'=') { TokenKind::PipeEq } else { TokenKind::Pipe } }
+            b'^' => { self.advance(); if self.eat(b'=') { TokenKind::CaretEq } else { TokenKind::Caret } }
+            b'~' => { self.advance(); TokenKind::Tilde }
             b'.' => { self.advance(); if self.eat(b'.') { if self.eat(b'=') { TokenKind::DotDotEq } else if self.eat(b'.') { TokenKind::DotDotDot } else { TokenKind::DotDot } } else { TokenKind::Dot } }
             b':' => { self.advance(); if self.eat(b':') { TokenKind::ColonColon } else { TokenKind::Colon } }
             b'?' => { self.advance(); if self.eat(b'.') { TokenKind::QuestionDot } else if self.eat(b'?') { TokenKind::QuestionQuestion } else { TokenKind::Question } }
@@ -358,12 +377,22 @@ impl<'s> Lexer<'s> {
                 .unwrap()
                 .replace('_', "");
             let v: f64 = s.parse().map_err(|_| self.err("invalid float literal"))?;
+            // Check for imaginary suffix `i`
+            if self.peek() == b'i' && !matches!(self.peek2(), b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_') {
+                self.advance();
+                return Ok(TokenKind::ImagLit(v));
+            }
             Ok(TokenKind::FloatLit(v))
         } else {
             let s = std::str::from_utf8(&self.src[start..self.pos])
                 .unwrap()
                 .replace('_', "");
             let v: i64 = s.parse().map_err(|_| self.err("invalid integer literal"))?;
+            // Check for imaginary suffix `i`
+            if self.peek() == b'i' && !matches!(self.peek2(), b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_') {
+                self.advance();
+                return Ok(TokenKind::ImagLit(v as f64));
+            }
             Ok(TokenKind::IntLit(v))
         }
     }

@@ -196,8 +196,8 @@ class WpaCliInterface:
             for iface in interfaces:
                 if iface.startswith("p2p-"):
                     return iface
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("_find_p2p_interface: /sys/class/net scan failed: %s", e)
         return None
 
     async def get_p2p_ip(self, interface: str) -> Optional[str]:
@@ -306,6 +306,7 @@ class WifiDirectManager:
         self._on_peer_cb: Optional[Callable] = None
         self._wpa: Optional[WpaCliInterface] = None
         self._winrt: Optional[WinRTWifiDirect] = None
+        self._reconnect_task: Optional[asyncio.Task] = None
 
     async def start(
             self,
@@ -368,12 +369,13 @@ class WifiDirectManager:
         return ok
 
     async def stop(self) -> None:
-        if self._scan_task:
-            self._scan_task.cancel()
-            try:
-                await self._scan_task
-            except asyncio.CancelledError:
-                pass
+        for task in (self._scan_task, self._reconnect_task):
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
         if self._wpa and self._linux_iface:
             await self._wpa.p2p_stop_find()
@@ -423,6 +425,31 @@ class WifiDirectManager:
             except Exception as e:
                 logger.debug(f"WinRT scan error: {e}")
             await asyncio.sleep(15.0)
+
+    # ── Auto-reconnect loop ─────────────────────────────────────────────────
+
+    async def start_auto_reconnect(self) -> None:
+        """Background loop: re-connect dropped Wi-Fi Direct peers (exp backoff)."""
+        if not self._available:
+            return
+        self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+
+    async def _reconnect_loop(self) -> None:
+        backoff = 5.0
+        while self._available:
+            try:
+                for mac, peer in list(self._peers.items()):
+                    if not peer.connected and peer.last_seen > 0:
+                        age = time.monotonic() - peer.last_seen
+                        if age < 120:  # only retry peers seen in last 2 min
+                            logger.info(f"📶 WiFi Direct auto-reconnect → {peer.name} ({mac})")
+                            ip = await self.connect_pbc(mac)
+                            if ip:
+                                backoff = 5.0  # reset on success
+                backoff = min(backoff * 1.5, 60.0)
+            except Exception as e:
+                logger.debug(f"WiFi Direct reconnect error: {e}")
+            await asyncio.sleep(backoff)
 
     # ── Connect ───────────────────────────────────────────────────────────────
 

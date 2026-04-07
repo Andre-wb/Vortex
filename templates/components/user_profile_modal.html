@@ -1,0 +1,128 @@
+<!-- User Profile Modal — rich profile view with media, groups, bio -->
+<div id="user-profile-modal" class="upm-overlay" style="display:none;"
+     onclick="if(event.target===this)window.closeUserProfile()">
+    <div class="upm-panel" role="dialog" aria-modal="true">
+
+        <!-- Hero section (profile background) -->
+        <div class="upm-hero" id="upm-hero">
+            <!-- SVG icon rendered on profile background -->
+            <div class="upm-hero-icon" id="upm-hero-icon" style="display:none;">
+                <svg id="upm-hero-svg" viewBox="0 0 24 24" fill="currentColor"></svg>
+            </div>
+            <button class="upm-close-btn" onclick="window.closeUserProfile()" aria-label="Закрыть">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Avatar (overlaps hero) -->
+        <div class="upm-avatar-area">
+            <div class="upm-avatar" id="upm-avatar"></div>
+            <div class="upm-presence-ring" id="upm-presence-ring" style="display:none;"></div>
+        </div>
+
+        <!-- Scrollable body -->
+        <div class="upm-body">
+
+            <!-- Identity -->
+            <div class="upm-name" id="upm-name">...</div>
+            <div class="upm-username" id="upm-username"></div>
+            <div class="upm-status-line" id="upm-status-line" style="display:none;"></div>
+
+            <!-- Bio -->
+            <div class="upm-bio" id="upm-bio" style="display:none;"></div>
+
+            <!-- Action buttons -->
+            <div class="upm-actions" id="upm-actions">
+                <button class="upm-action-btn" id="upm-write-btn">
+                    <div class="upm-action-icon">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2"/>
+                        </svg>
+                    </div>
+                    <span data-i18n="upm.write">Написать</span>
+                </button>
+                <button class="upm-action-btn" id="upm-call-btn">
+                    <div class="upm-action-icon">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1 .24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
+                        </svg>
+                    </div>
+                    <span data-i18n="upm.call">Позвонить</span>
+                </button>
+            </div>
+
+            <!-- Birthday section -->
+            <div class="upm-section" id="upm-birthday-section" style="display:none;">
+                <div class="upm-section-header">
+                    <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 6c1.11 0 2-.89 2-2 0-.36-.1-.69-.26-1L12 0l-1.74 3C10.1 3.31 10 3.64 10 4c0 1.11.89 2 2 2m4.6 9.99-1.07-1.07-1.08 1.07c-1.3 1.3-3.58 1.31-4.89 0l-1.07-1.07-1.09 1.07C6.75 17.14 5.88 17.5 5 17.5V19c1.32 0 2.57-.5 3.54-1.43 1.95 1.87 5.03 1.88 6.96 0C16.43 18.5 17.68 19 19 19v-1.5c-.88 0-1.75-.36-2.4-1.01M18 9h-5V7h-2v2H6c-1.1 0-2 .9-2 2v1.17C4.58 12.06 5.26 12 6 12h12c.74 0 1.42.06 2 .17V11c0-1.1-.9-2-2-2"/>
+                    </svg>
+                    <span data-i18n="upm.birthday">День рождения</span>
+                </div>
+                <div class="upm-section-value" id="upm-birthday-value"></div>
+            </div>
+
+            <!-- Shared media section -->
+            <div class="upm-section" id="upm-media-section" style="display:none;">
+                <div class="upm-section-header">
+                    <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                    <span data-i18n="upm.sharedMedia">Общие медиа</span>
+                    <span class="upm-section-badge" id="upm-media-badge"></span>
+                </div>
+                <div class="upm-media-grid" id="upm-media-grid"></div>
+                <button class="upm-section-more" id="upm-media-more" style="display:none;" data-i18n="upm.openChat">
+                    Открыть переписку →
+                </button>
+            </div>
+
+            <!-- Common groups section -->
+            <div class="upm-section" id="upm-groups-section" style="display:none;">
+                <div class="upm-section-header">
+                    <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3m-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3m0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5m8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                    </svg>
+                    <span data-i18n="upm.groups">Общие группы</span>
+                    <span class="upm-section-badge" id="upm-groups-badge"></span>
+                </div>
+                <div class="upm-groups-list" id="upm-groups-list"></div>
+            </div>
+
+            <!-- Fingerprint verification section -->
+            <div class="upm-section" id="upm-fp-section" style="display:none;">
+                <div class="upm-section-header">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    <span data-i18n="upm.security">Безопасность</span>
+                </div>
+                <div class="upm-fp-row" id="upm-fp-row">
+                    <div class="upm-fp-icon fp-pending" id="upm-fp-icon">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <div class="upm-fp-info">
+                        <div class="upm-fp-label" data-i18n="upm.keyVerification">Верификация ключа</div>
+                        <div class="upm-fp-status" id="upm-fp-status" data-i18n="upm.tapToVerify">Нажмите для проверки</div>
+                    </div>
+                    <svg class="upm-fp-arrow" width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                    </svg>
+                </div>
+            </div>
+
+        </div><!-- /upm-body -->
+
+        <!-- Loading skeleton -->
+        <div class="upm-loading" id="upm-loading" style="display:none;">
+            <div class="upm-skeleton upm-skeleton-avatar"></div>
+            <div class="upm-skeleton upm-skeleton-name"></div>
+            <div class="upm-skeleton upm-skeleton-line"></div>
+        </div>
+
+    </div>
+</div>

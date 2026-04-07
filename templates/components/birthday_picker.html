@@ -1,0 +1,59 @@
+<!-- Birthday Calendar Picker — custom fullscreen bottom-sheet calendar -->
+<div id="birthday-picker" class="bp-overlay" style="display:none;" onclick="if(event.target===this)window.closeBirthdayPicker()">
+    <div class="bp-sheet">
+        <div class="bp-handle"></div>
+
+        <!-- Header -->
+        <div class="bp-header">
+            <span class="bp-title" data-i18n="birthday.title">День рождения</span>
+            <button class="bp-close-btn" onclick="window.closeBirthdayPicker()" aria-label="Закрыть">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+        </div>
+
+        <!-- Year toggle -->
+        <div class="bp-toggle-row">
+            <span class="bp-toggle-label" data-i18n="birthday.includeYear">Включить год</span>
+            <label class="bp-switch">
+                <input type="checkbox" id="bp-year-toggle" onchange="window._calToggleYear(this.checked)">
+                <span class="bp-switch-track"></span>
+            </label>
+        </div>
+
+        <!-- Year scroll strip (shown when toggle is on) -->
+        <div id="bp-year-strip" class="bp-year-strip" style="display:none;">
+            <div class="bp-year-track" id="bp-year-track"></div>
+        </div>
+
+        <!-- Month navigation -->
+        <div class="bp-month-nav">
+            <button class="bp-nav-btn" onclick="window._calPrevMonth()" aria-label="Пред. месяц">
+                <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M15.41 16.59 10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg>
+            </button>
+            <div class="bp-month-name" id="bp-month-name">Январь</div>
+            <button class="bp-nav-btn" onclick="window._calNextMonth()" aria-label="След. месяц">
+                <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+            </button>
+        </div>
+
+        <!-- Weekday labels -->
+        <div class="bp-day-labels">
+            <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span>
+            <span class="wknd">Сб</span><span class="wknd">Вс</span>
+        </div>
+
+        <!-- Grid wrapper for slide animation -->
+        <div class="bp-grid-wrap">
+            <div class="bp-grid" id="bp-grid"></div>
+        </div>
+
+        <!-- Selected date display -->
+        <div class="bp-selected-preview" id="bp-selected-preview"></div>
+
+        <!-- Actions -->
+        <div class="bp-footer">
+            <button class="btn btn-secondary" onclick="window.closeBirthdayPicker()" data-i18n="birthday.cancel">Отмена</button>
+            <button class="btn btn-primary" onclick="window._calApply()" data-i18n="birthday.select">Выбрать</button>
+        </div>
+    </div>
+</div>

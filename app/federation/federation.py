@@ -21,21 +21,36 @@ ID виртуальных комнат: отрицательные числа (-
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import ipaddress
 import json
 import logging
+import os
 import ssl
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 import httpx
 import websockets
+
+from app.security.ssl_context import make_peer_ssl_context
+
+# ── Shared HTTP pool for federation server-to-server requests ────────────────
+_federation_http = httpx.AsyncClient(
+    timeout=httpx.Timeout(6.0, connect=3.0),
+    limits=httpx.Limits(max_keepalive_connections=10, max_connections=50, keepalive_expiry=30.0),
+    verify=make_peer_ssl_context(),
+)
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import Config
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import User
+from app.models_rooms import PersistedFederatedRoom
 from app.peer.connection_manager import manager as ws_manager
 from app.peer.peer_registry import registry
 from app.security.auth_jwt import get_current_user
@@ -47,6 +62,55 @@ router = APIRouter(prefix="/api/federation", tags=["federation"])
 
 # WS-роутер без префикса — WS не ходит через /api/
 ws_router = APIRouter(tags=["federation-ws"])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SSL helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _make_peer_ssl_context() -> ssl.SSLContext:
+    """Строит SSL-контекст для исходящих server-to-server соединений.
+    Делегирует в общий модуль app.security.ssl_context."""
+    return make_peer_ssl_context()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DB-encryption helpers for remote_jwt at rest
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _derive_fed_storage_key() -> bytes:
+    """Деривирует 32-байтовый AES-ключ из секретов приложения через HKDF-SHA256."""
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives import hashes as _h
+    raw = (os.environ.get("JWT_SECRET", "") + os.environ.get("CSRF_SECRET", "")).encode()
+    if not raw.strip():
+        # fallback: стабильный ключ из hostname — лучше чем ничего, но слабее
+        raw = hashlib.sha256(os.uname().nodename.encode()).digest()
+    return HKDF(
+        algorithm=_h.SHA256(), length=32,
+        salt=b"vortex-fed-jwt-v1", info=b"federation-jwt-at-rest",
+    ).derive(raw)
+
+
+def _encrypt_fed_jwt(plaintext: str) -> str:
+    """Шифрует JWT строку (AES-256-GCM). Возвращает 'enc:<base64url>'."""
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    key  = _derive_fed_storage_key()
+    nonce = os.urandom(12)
+    ct   = AESGCM(key).encrypt(nonce, plaintext.encode(), None)
+    blob = base64.urlsafe_b64encode(nonce + ct).decode()
+    return f"enc:{blob}"
+
+
+def _decrypt_fed_jwt(stored: str) -> str:
+    """Расшифровывает JWT из БД. Plaintext-строки (без 'enc:') возвращаются как есть."""
+    if not stored.startswith("enc:"):
+        return stored  # backwards-compat: plaintext row
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    key  = _derive_fed_storage_key()
+    blob = base64.urlsafe_b64decode(stored[4:])
+    nonce, ct = blob[:12], blob[12:]
+    return AESGCM(key).decrypt(nonce, ct, None).decode()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -109,6 +173,89 @@ class FederationRelayManager:
         self._lock      = asyncio.Lock()
         self._next_id   = -1
 
+    # ── Persistence ───────────────────────────────────────────────────────────
+
+    def _save_room_sync(self, info: FederatedRoomInfo) -> None:
+        """Сохраняет/обновляет комнату в БД (синхронно, вызывается из async контекста через run_in_executor)."""
+        try:
+            db = SessionLocal()
+            try:
+                row = db.query(PersistedFederatedRoom).filter(
+                    PersistedFederatedRoom.virtual_id == info.virtual_id
+                ).first()
+                if row is None:
+                    row = PersistedFederatedRoom(virtual_id=info.virtual_id)
+                    db.add(row)
+                row.peer_ip        = info.peer_ip
+                row.peer_port      = info.peer_port
+                row.remote_room_id = info.remote_room_id
+                row.remote_jwt     = _encrypt_fed_jwt(info.remote_jwt)
+                row.room_name      = info.room_name
+                row.invite_code    = info.invite_code
+                row.is_private     = info.is_private
+                row.member_count   = info.member_count
+                from datetime import datetime, timezone as _tz
+                row.last_accessed  = datetime.now(_tz.utc)
+                db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            logger.debug("Federation persist save error: %s", e)
+
+    def _delete_room_sync(self, virtual_id: int) -> None:
+        """Удаляет комнату из БД."""
+        try:
+            db = SessionLocal()
+            try:
+                db.query(PersistedFederatedRoom).filter(
+                    PersistedFederatedRoom.virtual_id == virtual_id
+                ).delete()
+                db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            logger.debug("Federation persist delete error: %s", e)
+
+    async def restore_from_db(self) -> int:
+        """
+        Загружает ранее сохранённые федеративные комнаты из БД при старте ноды.
+        Relay-задачи НЕ запускаются — они стартуют автоматически когда пользователи
+        переподключаются через /ws/fed/{virtual_id}.
+        Возвращает количество восстановленных комнат.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            db = await loop.run_in_executor(None, SessionLocal)
+            try:
+                rows = db.query(PersistedFederatedRoom).all()
+                restored = 0
+                for row in rows:
+                    if row.virtual_id in self._rooms:
+                        continue
+                    info = FederatedRoomInfo(
+                        virtual_id     = row.virtual_id,
+                        peer_ip        = row.peer_ip,
+                        peer_port      = row.peer_port,
+                        remote_room_id = row.remote_room_id,
+                        remote_jwt     = _decrypt_fed_jwt(row.remote_jwt),
+                        room_name      = row.room_name,
+                        invite_code    = row.invite_code,
+                        is_private     = row.is_private,
+                        member_count   = row.member_count,
+                        local_user_ids = set(),   # пусто — пользователи переподключатся сами
+                    )
+                    self._rooms[row.virtual_id] = info
+                    # Синхронизируем _next_id чтобы не было коллизий
+                    if row.virtual_id <= self._next_id:
+                        self._next_id = row.virtual_id - 1
+                    restored += 1
+                return restored
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning("Federation restore_from_db error: %s", e)
+            return 0
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def join(
@@ -154,6 +301,11 @@ class FederationRelayManager:
         task = asyncio.create_task(self._relay_loop(vid, q))
         self._tasks[vid] = task
         logger.info(f"🔗 Virtual room {vid} created for {peer_ip}:{peer_port}/room/{remote_room_id}")
+
+        # Persist to DB (non-blocking)
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, self._save_room_sync, info)
+
         return info
 
     def is_federated_room(self, room_id: int) -> bool:
@@ -183,17 +335,22 @@ class FederationRelayManager:
         return None
 
     async def leave(self, virtual_id: int, user_id: int) -> None:
-        info = self._rooms.get(virtual_id)
-        if not info:
-            return
-        info.local_user_ids.discard(user_id)
-        if not info.local_user_ids:
-            task = self._tasks.pop(virtual_id, None)
-            if task:
-                task.cancel()
-            self._outqueue.pop(virtual_id, None)
-            self._rooms.pop(virtual_id, None)
+        task_to_cancel = None
+        async with self._lock:
+            info = self._rooms.get(virtual_id)
+            if not info:
+                return
+            info.local_user_ids.discard(user_id)
+            if not info.local_user_ids:
+                task_to_cancel = self._tasks.pop(virtual_id, None)
+                self._outqueue.pop(virtual_id, None)
+                self._rooms.pop(virtual_id, None)
+        # Cancel task and persist outside the lock to avoid holding it during I/O
+        if task_to_cancel is not None:
+            task_to_cancel.cancel()
             logger.info(f"🔗 Virtual room {virtual_id} closed (no users)")
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(None, self._delete_room_sync, virtual_id)
 
     # ── Relay loop ────────────────────────────────────────────────────────────
 
@@ -202,24 +359,20 @@ class FederationRelayManager:
         if not info:
             return
 
-        ssl_ctx = ssl.create_default_context()
-        ssl_ctx.check_hostname = False
-        ssl_ctx.verify_mode    = ssl.CERT_NONE
-
-        schemes    = ["wss", "ws"]
+        ssl_ctx    = _make_peer_ssl_context()
         scheme_idx = 0
 
         while virtual_id in self._rooms:
-            scheme = schemes[scheme_idx % len(schemes)]
-            uri    = f"{scheme}://{info.peer_ip}:{info.peer_port}/ws/{info.remote_room_id}?token={info.remote_jwt}"
+            scheme = "wss"
+            uri    = f"{scheme}://{info.peer_ip}:{info.peer_port}/ws/{info.remote_room_id}"
 
             try:
                 connect_kwargs = dict(
-                    ping_interval = 20,
-                    ping_timeout  = 10,
+                    ping_interval      = 20,
+                    ping_timeout       = 10,
+                    additional_headers = {"Authorization": f"Bearer {info.remote_jwt}"},
+                    ssl                = ssl_ctx,
                 )
-                if scheme == "wss":
-                    connect_kwargs["ssl"] = ssl_ctx
 
                 async with websockets.connect(uri, **connect_kwargs) as ws:
                     logger.info(f"🔗 Relay connected {scheme}://{info.peer_ip} → room {info.remote_room_id}")
@@ -240,22 +393,45 @@ class FederationRelayManager:
     async def _recv_loop(self, ws, virtual_id: int) -> None:
         async for raw in ws:
             try:
-                data = json.loads(raw)
-                data["federated"] = True
-                if data.get("type") in ("room_key", "key_request", "history"):
-                    data["room_id"] = virtual_id
-                await ws_manager.broadcast_to_room(virtual_id, data)
+                parsed = json.loads(raw)
+                # Support both single messages and batched arrays
+                items = parsed if isinstance(parsed, list) else [parsed]
+                for data in items:
+                    data["federated"] = True
+                    if data.get("type") in ("room_key", "key_request", "history"):
+                        data["room_id"] = virtual_id
+                    await ws_manager.broadcast_to_room(virtual_id, data)
             except Exception as e:
                 logger.debug(f"Relay recv parse error: {e}")
 
     async def _send_loop(self, ws, outbound: asyncio.Queue) -> None:
+        """Send with micro-batching: wait up to 25ms to collect multiple messages."""
         while True:
             payload = await outbound.get()
+            batch = [payload]
+
+            # Collect more messages that arrived during a short window
             try:
-                await ws.send(json.dumps(payload))
+                deadline = asyncio.get_event_loop().time() + 0.025  # 25ms batch window
+                while asyncio.get_event_loop().time() < deadline:
+                    extra = await asyncio.wait_for(outbound.get(), timeout=0.025)
+                    batch.append(extra)
+                    if len(batch) >= 20:  # cap batch size
+                        break
+            except asyncio.TimeoutError:
+                pass
+
+            try:
+                if len(batch) == 1:
+                    await ws.send(json.dumps(batch[0]))
+                else:
+                    # Send as JSON array — remote side handles both single & batch
+                    await ws.send(json.dumps(batch))
             except Exception as e:
                 logger.debug(f"Relay send error: {e}")
-                await outbound.put(payload)
+                # Re-queue all unsent messages
+                for msg in batch:
+                    await outbound.put(msg)
                 raise
 
 
@@ -268,14 +444,9 @@ relay = FederationRelayManager()
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def _ws_get_user(websocket: WebSocket, db: Session) -> Optional[User]:
-    """
-    Получает пользователя из WebSocket-соединения.
-    Поддерживает два способа передачи JWT:
-      1. Cookie: access_token
-      2. Query-param: ?token=... (для relay-соединений)
-    """
+    """Получает пользователя из WebSocket по cookie access_token."""
     from app.security.auth_jwt import decode_access_token
-    token = websocket.cookies.get("access_token") or websocket.query_params.get("token")
+    token = websocket.cookies.get("access_token")
     if not token:
         return None
     try:
@@ -298,11 +469,13 @@ async def federated_ws(
 ):
     user = await _ws_get_user(websocket, db)
     if not user:
+        await websocket.accept()
         await websocket.close(code=4001)
         return
 
     info = relay.get_room(virtual_room_id)
     if not info or user.id not in info.local_user_ids:
+        await websocket.accept()
         await websocket.close(code=4003)
         return
 
@@ -316,28 +489,25 @@ async def federated_ws(
     )
 
     # Пытаемся доставить ключ комнаты сразу при подключении.
-    # Перебираем https/http чтобы не зависеть от конфигурации удалённого узла.
-    for _scheme in ("https", "http"):
+    if not _is_blocked_peer_ip(info.peer_ip) and 1024 <= info.peer_port <= 65535:
         try:
-            async with httpx.AsyncClient(timeout=5.0, verify=False) as http:
-                r = await http.get(
-                    f"{_scheme}://{info.peer_ip}:{info.peer_port}/api/rooms/{info.remote_room_id}/key-bundle",
-                    headers={"Authorization": f"Bearer {info.remote_jwt}"},
-                )
-                if r.status_code == 200:
-                    bundle = r.json()
-                    if bundle.get("has_key"):
-                        await websocket.send_json({
-                            "type":          "room_key",
-                            "room_id":       virtual_room_id,
-                            "ephemeral_pub": bundle["ephemeral_pub"],
-                            "ciphertext":    bundle["ciphertext"],
-                            "federated":     True,
-                        })
-                        logger.info(f"🔑 Key delivered to {user.username} in virtual room {virtual_room_id}")
-                    break
+            r = await _federation_http.get(
+                f"https://{info.peer_ip}:{info.peer_port}/api/rooms/{info.remote_room_id}/key-bundle",
+                headers={"Authorization": f"Bearer {info.remote_jwt}"},
+            )
+            if r.status_code == 200:
+                bundle = r.json()
+                if bundle.get("has_key"):
+                    await websocket.send_json({
+                        "type":          "room_key",
+                        "room_id":       virtual_room_id,
+                        "ephemeral_pub": bundle["ephemeral_pub"],
+                        "ciphertext":    bundle["ciphertext"],
+                        "federated":     True,
+                    })
+                    logger.info(f"🔑 Key delivered to {user.username} in virtual room {virtual_room_id}")
         except Exception as e:
-            logger.debug(f"Key delivery via {_scheme} failed: {e}")
+            logger.debug(f"Key delivery failed: {e}")
 
     try:
         while True:
@@ -363,16 +533,42 @@ class GuestLoginRequest(BaseModel):
     peer_port:     int = 8000
 
 
+# Сети, которые ЗАПРЕЩЕНЫ для исходящих peer-соединений (SSRF-защита).
+# RFC-1918 (10/8, 172.16/12, 192.168/16) здесь НЕ перечислены — LAN-федерация легитимна.
+_BLOCKED_PEER_NETS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
+    ipaddress.ip_network("127.0.0.0/8"),     # loopback
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local / AWS instance metadata
+    ipaddress.ip_network("0.0.0.0/8"),       # "this" network
+    ipaddress.ip_network("100.64.0.0/10"),   # CGNAT
+    ipaddress.ip_network("192.0.0.0/24"),    # IETF protocol assignments
+    ipaddress.ip_network("::1/128"),         # IPv6 loopback
+    ipaddress.ip_network("fe80::/10"),       # IPv6 link-local
+    ipaddress.ip_network("fc00::/7"),        # IPv6 ULA
+]
+
+
+def _is_blocked_peer_ip(ip: str) -> bool:
+    """Возвращает True если IP заблокирован для исходящих запросов к пирам.
+    Блокирует loopback, link-local и metadata-адреса; RFC-1918 разрешён."""
+    if ip == "localhost":
+        return True
+    try:
+        addr = ipaddress.ip_address(ip)
+        return any(addr in net for net in _BLOCKED_PEER_NETS)
+    except ValueError:
+        return True  # malformed → block
+
+
 def _is_private_ip(ip: str) -> bool:
-    """Проверяет что IP из приватного диапазона (RFC 1918) или loopback."""
-    return (
-            ip.startswith("10.")
-            or ip.startswith("192.168.")
-            or ip.startswith("172.")
-            or ip.startswith("127.")
-            or ip == "::1"
-            or ip == "localhost"
-    )
+    """Возвращает True если IP из RFC-1918, loopback или link-local.
+    Используется в guest-login для разрешения входа только из локальной сети."""
+    if ip == "localhost":
+        return True
+    try:
+        addr = ipaddress.ip_address(ip)
+        return addr.is_private or addr.is_loopback
+    except ValueError:
+        return False
 
 
 @router.post("/guest-login")
@@ -389,7 +585,7 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
 
     if not _is_private_ip(src_ip):
         logger.warning(f"guest-login rejected from public IP: {src_ip}")
-        raise HTTPException(403, f"Федеративный вход разрешён только из локальной сети (получен: {src_ip})")
+        raise HTTPException(403, "Федеративный вход разрешён только из локальной сети")
 
     from app.peer.peer_registry import registry as peer_registry
     if not peer_registry.get(src_ip):
@@ -423,7 +619,7 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
 
         if password_hash is None:
             logger.error(f"guest-login: не удалось хешировать пароль: {hash_error}")
-            raise HTTPException(500, f"Ошибка хеширования пароля: {hash_error}")
+            raise HTTPException(500, "Внутренняя ошибка сервера")
 
         try:
             import secrets as _s2
@@ -434,7 +630,7 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
                 display_name      = body.display_name[:64],
                 avatar_emoji      = body.avatar_emoji or "👤",
                 password_hash     = password_hash,
-                x25519_public_key = body.x25519_pubkey[:64] if body.x25519_pubkey else "",
+                x25519_public_key = body.x25519_pubkey[:64] if body.x25519_pubkey else None,
             )
             import inspect as _inspect
             _user_cols = [c.key for c in User.__table__.columns]
@@ -449,7 +645,7 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
         except Exception as _e:
             db.rollback()
             logger.error(f"guest-login: DB error for {fed_username}: {_e}", exc_info=True)
-            raise HTTPException(500, f"Ошибка БД: {_e}")
+            raise HTTPException(500, "Внутренняя ошибка сервера")
     else:
         user.display_name = body.display_name[:64]
         user.avatar_emoji = body.avatar_emoji or "👤"
@@ -460,14 +656,14 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
         except Exception as _e:
             db.rollback()
             logger.error(f"guest-login: DB update error: {_e}", exc_info=True)
-            raise HTTPException(500, f"Ошибка БД: {_e}")
+            raise HTTPException(500, "Внутренняя ошибка сервера")
 
     try:
         from app.security.auth_jwt import create_access_token
         token = create_access_token(user.id, getattr(user, 'phone', ''), user.username)
     except Exception as _e:
         logger.error(f"guest-login: JWT error: {_e}", exc_info=True)
-        raise HTTPException(500, f"Ошибка JWT: {_e}")
+        raise HTTPException(500, "Внутренняя ошибка сервера")
 
     return {
         "access_token": token,

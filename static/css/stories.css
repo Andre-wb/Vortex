@@ -1,0 +1,360 @@
+/* ═══════════════════════════════════════════════════════════════════
+   STORIES — strip + bubbles + fullscreen viewer + creator modal
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Strip container in sidebar */
+.stories-strip {
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.stories-track {
+    display: flex;
+    gap: 10px;
+    padding: 8px 14px 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.stories-track::-webkit-scrollbar { display: none; }
+
+/* Individual story bubble */
+.st-bubble {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    user-select: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    outline: none;
+}
+.st-ring {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    padding: 2px;
+    background: var(--bg3);
+    transition: transform 0.15s;
+}
+.st-ring.unseen,
+.st-ring.has-story {
+    background: conic-gradient(var(--accent), #c084fc, var(--accent));
+}
+.st-bubble:active .st-ring { transform: scale(0.93); }
+.st-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: var(--bg2);
+    border: 2px solid var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    overflow: hidden;
+}
+.st-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.st-label {
+    font-size: 10px;
+    color: var(--text2);
+    text-align: center;
+    max-width: 58px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.st-add-badge {
+    width: 22px;
+    height: 22px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1;
+    border: 2px solid var(--bg);
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    pointer-events: none;
+}
+.st-self .st-ring {
+    position: relative;
+    overflow: visible;
+}
+/* "Show more" bubble */
+.st-more-ring {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--bg3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text2);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ── Fullscreen Story Viewer ──────────────────────────────────────── */
+.story-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    touch-action: none;
+}
+
+/* Progress bars row */
+.sv-progress-row {
+    display: flex;
+    gap: 3px;
+    padding: 10px 10px 6px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+}
+.sv-prog-bar {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.3);
+    overflow: hidden;
+}
+.sv-prog-fill {
+    height: 100%;
+    background: #fff;
+    width: 0%;
+    transition: none;
+    border-radius: 2px;
+}
+
+/* Header */
+.sv-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 40px 12px 10px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+}
+.sv-user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.sv-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--bg3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.sv-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.sv-username {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+}
+.sv-time {
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+}
+.sv-icon-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(0,0,0,0.35);
+    border-radius: 50%;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.sv-icon-btn:hover { background: rgba(0,0,0,0.6); }
+
+/* Content area */
+.sv-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+.sv-media {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+.sv-text-slide {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+}
+.sv-text-slide p {
+    font-size: 24px;
+    font-weight: 700;
+    text-align: center;
+    word-break: break-word;
+    line-height: 1.4;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* Music badge */
+.sv-music-badge {
+    position: absolute;
+    bottom: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 12px;
+    white-space: nowrap;
+    max-width: 80vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Tap zones */
+.sv-tap-left, .sv-tap-right {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 35%;
+    z-index: 4;
+    cursor: pointer;
+}
+.sv-tap-left  { left: 0; }
+.sv-tap-right { right: 0; }
+
+/* Views counter */
+.sv-views {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    background: rgba(0,0,0,0.5);
+    border-radius: 16px;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 13px;
+}
+
+/* ── Story Creator Modal ──────────────────────────────────────────── */
+.sc-type-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 12px 0;
+}
+.sc-type-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    font-family: var(--sans);
+}
+.sc-type-btn:hover {
+    background: var(--bg3);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+.sc-type-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+}
+
+/* Text story preview */
+.sc-text-preview {
+    border-radius: 12px;
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* Color pickers */
+.sc-color-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 4px 0;
+}
+.sc-color-dot, .sc-bg-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.12s;
+    flex-shrink: 0;
+}
+.sc-color-dot:hover, .sc-bg-dot:hover { transform: scale(1.15); }
+.sc-color-dot.active, .sc-bg-dot.active {
+    border-color: var(--accent);
+    transform: scale(1.15);
+}
+
+/* Camera preview recording state */
+#sc-record-btn.recording {
+    background: var(--danger, #ef4444);
+    color: #fff;
+}
+
+@media (max-width: 480px) {
+    .sc-type-grid { grid-template-columns: repeat(2, 1fr); }
+    .sv-text-slide p { font-size: 20px; }
+}
+

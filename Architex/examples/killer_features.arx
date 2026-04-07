@@ -1,0 +1,122 @@
+// ============================================================
+// Architex Killer Features Demo
+// ============================================================
+
+// ── @import — module system ──
+@import "./shared/ui.arx"
+
+// ── @theme — design tokens ──
+@theme
+  ~primary = #4f8ef7
+  ~danger = #e53935
+  ~bg = #ffffff
+  ~text = #212121
+  ~radius = 12
+
+// ── Typed variables ──
+@screen Main
+  ~count: number = 0
+  ~name: string = "World"
+  ~items: array = ["Alpha", "Beta", "Gamma"]
+  ~showToast: boolean = false
+  ~search: string = ""
+  ~activeTab = "home"
+
+  // ── Ternary operator ──
+  ~label := ~count > 0 ? "Items: {~count}" : "No items yet"
+  ~status := ~count >= 10 ? "max" : ~count >= 5 ? "mid" : "low"
+
+  header "Killer Features" :: bold center color(~primary)
+
+  // ── Multiple => handlers ──
+  button "Increment & Notify" => ~count += 1 => ~showToast = true
+
+  text ~label :: size(18) color(~primary)
+  text "Status: {~status}" :: italic
+
+  // ── @for with index ──
+  @for item, idx in ~items
+    row :: gap(8) pad(4)
+      badge ~idx :: bg(#eee) radius(4) pad(4)
+      text ~item :: grow
+
+  // ── Debounce on input ──
+  input ~search :: placeholder("Search...") :: debounce(300) => send(action: "search", query: ~search)
+
+  // ── Toast / Snackbar ──
+  toast ~showToast "Count is now {~count}" :: duration(2000)
+
+  // ── Tabs ──
+  tabs ~activeTab
+    tab "Home" "home"
+      text "Welcome home!"
+    tab "Settings" "settings"
+      text "Settings page"
+
+  // ── Format modifier ──
+  text 1234567.89 :: format("currency", "USD")
+  text 0.42 :: format("percent")
+  text 9876543 :: format("compact")
+
+  // ── Conditional rendering ──
+  @if ~count > 5
+    text "Count is high!" :: bold color(~danger)
+  @elseif ~count > 0
+    text "Keep going..." :: italic
+  @else
+    text "Click the button to start"
+
+  // ── Video component ──
+  video "https://example.com/demo.mp4" :: autoplay loop muted w(320) radius(8)
+
+  // ── Audio component ──
+  audio "https://example.com/track.mp3" :: controls
+
+  // ── Table ──
+  table :: w(100%) border(#ddd)
+    thead
+      tr
+        th "Name" :: bold
+        th "Value" :: bold
+    tbody
+      tr
+        td "Alpha"
+        td "100"
+      tr
+        td "Beta"
+        td "200"
+
+  // ── Swipe gestures (mobile) ──
+  card "Swipe me!" :: pad(24) bg(#f5f5f5) radius(12) swipeleft(~swiped) swiperight(~swiped)
+
+  // ── onHover event ──
+  card "Hover me" :: pad(16) bg(#f0f0f0) transition(200)
+    => ~hovered = true
+
+  // ── Async fetch with auto loading/error ──
+  @onMount => fetch("/api/data") ~data
+  // Auto-creates: ~dataLoading, ~dataError
+  @if ~dataLoading
+    text "Loading..." :: italic color(#999)
+  @elseif ~dataError
+    text "Error: {~dataError}" :: color(~danger)
+  @else
+    text "Data loaded!"
+
+// ── Reusable component with local state ──
+@component Counter(label)
+  ~localCount = 0
+  row :: gap(8) align(center)
+    text label :: bold
+    button "-" => ~localCount -= 1
+    text ~localCount :: size(20)
+    button "+" => ~localCount += 1
+
+@screen Demo
+  header "Component Isolation"
+  // Each Counter has its own ~localCount
+  Counter "Apples"
+  Counter "Oranges"
+  Counter "Bananas"
+
+  button "Back" => back()

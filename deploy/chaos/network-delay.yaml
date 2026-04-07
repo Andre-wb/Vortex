@@ -1,0 +1,25 @@
+# Chaos Mesh — Network delay experiment
+# Adds 200ms latency to all Vortex pods for 5 minutes
+# Requires: chaos-mesh installed in K8s cluster
+#   helm install chaos-mesh chaos-mesh/chaos-mesh -n chaos-testing --create-namespace
+#
+# Apply:  kubectl apply -f deploy/chaos/network-delay.yaml
+# Delete: kubectl delete -f deploy/chaos/network-delay.yaml
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: vortex-network-delay
+  namespace: vortex
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - vortex
+    labelSelectors:
+      app: vortex
+  delay:
+    latency: "200ms"
+    jitter: "50ms"
+    correlation: "25"
+  duration: "5m"

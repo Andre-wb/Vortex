@@ -1,0 +1,203 @@
+<!-- Room Settings — full-screen panel inside #main, replaces chat view -->
+<div id="room-settings-screen" class="screen rss-wrap" style="display:none;">
+    <div class="rss-topbar">
+        <button class="rss-back" onclick="closeRoomSettingsScreen()" aria-label="Назад">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <span class="rss-title" data-i18n="room.settings">Настройки комнаты</span>
+    </div>
+    <div class="rss-body">
+        <!-- Аватар комнаты -->
+        <div class="rss-avatar-block">
+            <div class="room-info-avatar-wrap" id="room-info-avatar-wrap">
+                <div class="room-info-avatar" id="room-info-avatar"></div>
+                <input type="file" id="room-avatar-input" accept="image/*" style="display:none;">
+            </div>
+            <div class="room-info-name" id="room-info-name"></div>
+            <div class="room-info-desc" id="room-info-desc"></div>
+            <div class="room-info-meta" id="room-info-meta"></div>
+        </div>
+
+        <!-- Invite-код -->
+        <div class="room-info-section">
+            <div class="room-info-label" data-i18n="room.inviteCodeShort">Invite-код</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span id="room-info-invite" style="font-size:16px;letter-spacing:3px;font-weight:700;color:var(--accent2);font-family:var(--mono);"></span>
+                <button class="btn btn-secondary btn-sm" onclick="window._roomInfoCopyInvite()" data-i18n="app.copy">Скопировать</button>
+            </div>
+        </div>
+
+        <!-- Быстрые кнопки -->
+        <div class="room-info-section" style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" style="flex:1;" onclick="showMembersModal()" data-i18n="chat.members">Участники</button>
+            <button class="btn btn-danger" style="flex:1;" id="room-info-leave-btn" onclick="leaveRoom();closeRoomSettingsScreen();" data-i18n="room.leaveShort">Покинуть</button>
+        </div>
+
+        <!-- ═══ Медиа (все пользователи) ═══ -->
+        <div class="room-info-section rss-media-section">
+            <div class="rss-media-tabs">
+                <button class="rss-media-tab active" onclick="window._switchRssTab(this,'photo')" data-i18n="auth.photo">Фото</button>
+                <button class="rss-media-tab" onclick="window._switchRssTab(this,'video')" data-i18n="gallery.video">Видео</button>
+                <button class="rss-media-tab" onclick="window._switchRssTab(this,'files')" data-i18n="gallery.files">Файлы</button>
+            </div>
+            <div id="rss-media-grid" class="rss-media-grid"></div>
+        </div>
+
+        <!-- ═══ Настройки (только owner/admin, скрыто для DM) ═══ -->
+        <div id="room-info-settings" style="display:none;">
+            <div class="room-info-divider"></div>
+            <div class="room-info-section-title" id="rss-settings-title" data-i18n="room.settings">Настройки комнаты</div>
+
+            <!-- Общие настройки (группы + каналы) -->
+            <div id="rss-common-settings">
+                <div class="room-info-section">
+                    <div class="room-info-label" data-i18n="room.name">Название</div>
+                    <input class="form-input" id="room-info-edit-name" maxlength="100">
+                </div>
+                <div class="room-info-section">
+                    <div class="room-info-label" data-i18n="room.description">Описание</div>
+                    <textarea class="form-input" id="room-info-edit-desc" maxlength="500" rows="3" style="resize:vertical;"></textarea>
+                </div>
+                <div class="room-info-section">
+                    <div class="room-info-label" data-i18n="room.emoji">Эмодзи комнаты</div>
+                    <input class="form-input" id="room-info-edit-emoji" maxlength="10" style="width:80px;font-size:24px;text-align:center;">
+                </div>
+                <div class="room-info-section">
+                    <label class="room-info-toggle">
+                        <span data-i18n="room.privateRoom">Приватная комната</span>
+                        <input type="checkbox" id="room-info-private">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- ═══ Настройки КАНАЛА ═══ -->
+            <div id="rss-channel-settings" style="display:none;">
+                <div class="room-info-divider"></div>
+                <div class="room-info-section-title" data-i18n="channel.settings">Настройки канала</div>
+
+                <!-- Чат обсуждений -->
+                <div class="room-info-section">
+                    <label class="room-info-toggle">
+                        <span data-i18n="channel.discussionChat">Чат обсуждений</span>
+                        <input type="checkbox" id="channel-discussion-enabled">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div class="room-info-hint" data-i18n="channel.discussionHint">Под каждым постом можно оставить комментарий</div>
+                </div>
+
+                <!-- Управление авторами -->
+                <div class="room-info-section">
+                    <div class="room-info-section-title" data-i18n="channel.authors">Авторы канала</div>
+                    <div id="channel-authors-list" class="channel-authors-list"></div>
+                    <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px;" onclick="window._showAddAuthorModal()" data-i18n="channel.addAuthor">+ Добавить автора</button>
+                </div>
+
+                <!-- Стримы -->
+                <div class="room-info-section">
+                    <div class="room-info-section-title" data-i18n="channel.streaming">Стримы</div>
+                    <button class="btn btn-primary" style="width:100%;" onclick="window._startChannelStream()" id="channel-stream-btn" data-i18n="channel.goLive">Начать стрим</button>
+                    <div class="room-info-hint" data-i18n="channel.streamHint">Запустите прямой эфир для подписчиков</div>
+                </div>
+            </div>
+
+            <!-- ═══ Настройки ГРУППЫ (не каналы, не DM) ═══ -->
+            <div id="rss-group-settings" style="display:none;">
+                <div class="room-info-divider"></div>
+                <div class="room-info-section">
+                    <div class="room-info-section-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:4px;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4l5 2.18V11c0 3.5-2.33 6.79-5 7.93-2.67-1.14-5-4.43-5-7.93V7.18L12 5z"/></svg>
+                        <span data-i18n="room.antispamBot">Антиспам бот</span>
+                    </div>
+                    <label class="room-info-toggle">
+                        <span data-i18n="room.enableAntispam">Включить антиспам</span>
+                        <input type="checkbox" id="room-info-antispam" onchange="window._onAntispamToggle()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div id="antispam-settings" style="display:none;margin-top:8px;">
+                        <div class="form-group">
+                            <label class="form-label" data-i18n="room.floodThreshold">Порог флуда (сообщений за 10 сек)</label>
+                            <select class="form-input" id="antispam-threshold">
+                                <option value="5" data-i18n="room.strict">Строгий (5)</option>
+                                <option value="10" data-i18n="room.medium">Средний (10)</option>
+                                <option value="15" selected data-i18n="room.soft">Мягкий (15)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" data-i18n="room.action">Действие</label>
+                            <select class="form-input" id="antispam-action">
+                                <option value="warn" data-i18n="room.actionWarn">Предупредить</option>
+                                <option value="mute" selected data-i18n="room.actionMute">Заглушить на 5 мин</option>
+                                <option value="kick" data-i18n="room.actionKick">Исключить из комнаты</option>
+                                <option value="ban" data-i18n="room.actionBan">Заблокировать</option>
+                            </select>
+                        </div>
+                        <label class="room-info-toggle">
+                            <span data-i18n="room.blockRepeats">Блокировать повторы</span>
+                            <input type="checkbox" id="antispam-repeat" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label class="room-info-toggle">
+                            <span data-i18n="room.blockSpamLinks">Блокировать спам ссылками</span>
+                            <input type="checkbox" id="antispam-links" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="room-info-section">
+                    <div class="room-info-label" data-i18n="room.slowMode">Медленный режим</div>
+                    <select class="form-input" id="room-info-slowmode">
+                        <option value="0" data-i18n="app.off">Выкл</option>
+                        <option value="5">5 секунд</option>
+                        <option value="15">15 секунд</option>
+                        <option value="30">30 секунд</option>
+                        <option value="60">60 секунд</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Автоудаление (группы + каналы) -->
+            <div class="room-info-section" id="rss-autodelete-section">
+                <div class="room-info-label" data-i18n="room.autoDeleteMessages">Автоудаление сообщений</div>
+                <select class="form-input" id="room-info-autodelete">
+                    <option value="0" data-i18n="app.off">Выкл</option>
+                    <option value="30" data-i18n="time.30sec">30 секунд</option>
+                    <option value="300" data-i18n="time.5min">5 минут</option>
+                    <option value="3600" data-i18n="time.1hour">1 час</option>
+                    <option value="86400" data-i18n="time.24hours">24 часа</option>
+                </select>
+            </div>
+
+            <!-- Автопостинг (каналы) -->
+            <div id="channel-autopost-section" style="display:none;">
+                <div class="room-info-divider"></div>
+                <div class="room-info-section-title" data-i18n="channel.autoposting">Автопостинг</div>
+                <div id="channel-feeds-list"></div>
+                <div style="display:flex;gap:6px;margin-top:8px;">
+                    <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="window._channelAddRss()" data-i18n="channel.addRss">+ RSS</button>
+                    <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="window._channelCreateWebhook()" data-i18n="channel.addWebhook">+ Webhook</button>
+                </div>
+            </div>
+
+            <div class="room-info-section" style="margin-top:12px;">
+                <button class="btn btn-primary" style="width:100%;" onclick="window._roomInfoSave()" data-i18n="room.saveSettings">Сохранить настройки</button>
+            </div>
+
+            <div class="room-info-section" id="room-info-delete-section" style="display:none;">
+                <button class="btn btn-danger" style="width:100%;" onclick="window._roomInfoDelete()" data-i18n="room.delete">Удалить комнату</button>
+            </div>
+        </div>
+
+        <!-- ═══ Модалка добавления автора ═══ -->
+        <div id="add-author-modal" class="rss-inline-modal" style="display:none;">
+            <div class="rss-inline-modal-content">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span style="font-weight:700;font-size:14px;" data-i18n="channel.addAuthor">Добавить автора</span>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('add-author-modal').style.display='none'">✕</button>
+                </div>
+                <div id="add-author-members-list" class="channel-authors-list"></div>
+            </div>
+        </div>
+    </div>
+</div>

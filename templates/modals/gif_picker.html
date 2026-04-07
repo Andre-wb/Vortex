@@ -1,0 +1,13 @@
+<!-- GIF Picker Modal (SRP: GIF search via Tenor API) -->
+<div class="modal-overlay" id="gif-modal" role="dialog" aria-modal="true" aria-label="GIF">
+    <div class="modal" style="width:420px;">
+        <div class="modal-title">GIF</div>
+        <input class="form-input" id="gif-search-input" placeholder="Поиск GIF..." data-i18n-placeholder="gif.search" oninput="searchGifs(this.value)" autocomplete="off">
+        <div id="gif-results" style="max-height:320px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('gif-modal')" data-i18n="app.close">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Payment request modal -->

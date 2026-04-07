@@ -1,0 +1,193 @@
+# VORTEX Chat — CI/CD Pipeline
+#
+# Triggers: push to main, pull requests to main
+# Jobs: lint → test → security → docker-build
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  TESTING: "true"
+  DB_PATH: "file::memory:?cache=shared"
+  JWT_SECRET: "ci_test_secret_key_minimum_32_chars_long_1234"
+  CSRF_SECRET: "ci_test_csrf_secret_minimum_32_chars_1234567"
+  NODE_INITIALIZED: "true"
+  DEVICE_NAME: "CI-Node"
+  PORT: "8001"
+  HOST: "127.0.0.1"
+  UDP_PORT: "4201"
+  MAX_FILE_MB: "100"
+  WAF_RATE_LIMIT_REQUESTS: "9999"
+
+jobs:
+
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Ruff check
+        run: ruff check app/ --output-format=github
+
+      - name: Ruff format check
+        run: ruff format --check app/
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: pip-${{ matrix.python-version }}-
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmagic1
+
+      - name: Install Python deps
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov pytest-timeout
+
+      - name: Run tests with coverage
+        run: |
+          pytest \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80 \
+            --timeout=30 \
+            -x -v
+
+      - name: Upload coverage
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install tools
+        run: pip install bandit safety
+
+      - name: Bandit security scan
+        run: |
+          bandit -r app/ \
+            -x app/tests,app/benchmarks \
+            -s B101,B104 \
+            -f json -o bandit-report.json || true
+          bandit -r app/ \
+            -x app/tests,app/benchmarks \
+            -s B101,B104 \
+            -ll
+
+      - name: Check dependencies for vulnerabilities
+        run: pip install -r requirements.txt && safety check --output json || true
+
+      - name: Upload bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          retention-days: 7
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [test, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: vortex-chat:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: production
+
+      - name: Test Docker image health
+        run: |
+          docker run -d --name vortex-test \
+            -e NODE_INITIALIZED=true \
+            -e DEVICE_NAME=docker-test \
+            -e ENVIRONMENT=production \
+            -p 9000:9000 \
+            vortex-chat:${{ github.sha }}
+
+          # Wait for startup
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9000/health; then
+              echo "Health check passed!"
+              break
+            fi
+            sleep 1
+          done
+
+          # Verify health response
+          curl -sf http://localhost:9000/health | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          assert data['status'] == 'ok', f'Bad status: {data}'
+          print('Docker health check: OK')
+          "
+
+          docker stop vortex-test
+          docker rm vortex-test

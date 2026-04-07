@@ -1,0 +1,48 @@
+// Architex — User profile example
+// Demonstrates: image, badges, navigation, conditional visibility
+
+@screen Profile
+
+  ~username   = "alex"
+  ~bio        = "Building cool things with Vortex."
+  ~followers  = 128
+  ~following  = 64
+  ~isFollowed = false
+
+  col :: pad(24) gap(16)
+
+    // Avatar + name
+    col :: center gap(8)
+      image "https://api.dicebear.com/7.x/thumbs/svg?seed=alex" :: w(80) h(80) radius(40)
+      header ~username :: bold size(20) center
+      text ~bio :: size(14) color(#666) center
+
+    // Stats row
+    row :: gap(32) center pad(16)
+      col :: center
+        text ~followers :: bold size(18) center
+        label "Followers" :: size(12) color(#999)
+      col :: center
+        text ~following :: bold size(18) center
+        label "Following" :: size(12) color(#999)
+
+    divider
+
+    // Follow / Unfollow button (conditional text via screens)
+    button "Follow" :: pad(12) radius(24) bg(#4f8ef7) color(#fff) w(200) center
+      :: hidden(~isFollowed)
+      => ~isFollowed = true
+
+    button "Unfollow" :: pad(12) radius(24) bg(#eee) color(#444) w(200) center
+      :: visible(~isFollowed)
+      => ~isFollowed = false
+
+    // Navigate to messages
+    button "Message" :: pad(12) radius(24) border(#4f8ef7) color(#4f8ef7) w(200) center
+      => send(action: "open_dm", user: ~username)
+
+@screen Home
+  col :: pad(20) gap(16)
+    header "Home" :: bold size(24)
+    button "View Profile" :: pad(12) radius(8) bg(#4f8ef7) color(#fff)
+      => navigate(Profile)

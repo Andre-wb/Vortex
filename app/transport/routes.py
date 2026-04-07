@@ -15,7 +15,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models import User
 from app.security.auth_jwt import get_current_user
@@ -41,7 +41,7 @@ class SignalRequest(BaseModel):
 
 class HolePunchRequest(BaseModel):
     peer_ip:   str
-    peer_port: int = 8000
+    peer_port: int = Field(default=8000, ge=1, le=65535)
 
 
 class WifiDirectConnectRequest(BaseModel):

@@ -1,0 +1,232 @@
+/* ============================================================================
+ * ONBOARDING TOUR (guided walkthrough for new users)
+ * ========================================================================== */
+
+/* ---- E2E encryption badge in chat header ---- */
+.chat-e2e-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--green);
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+/* ---- Overlay: dark backdrop with spotlight cutout ---- */
+.onboarding-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.72);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+
+    /* radial mask to cut a hole for the spotlight */
+    -webkit-mask-image: radial-gradient(
+        ellipse var(--spot-rx, 0px) var(--spot-ry, 0px) at var(--spot-cx, 50%) var(--spot-cy, 50%),
+        transparent 0%,
+        transparent 100%,
+        black 100%
+    );
+    mask-image: radial-gradient(
+        ellipse var(--spot-rx, 0px) var(--spot-ry, 0px) at var(--spot-cx, 50%) var(--spot-cy, 50%),
+        transparent 0%,
+        transparent 100%,
+        black 100%
+    );
+}
+.onboarding-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.onboarding-overlay.no-spotlight {
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+
+/* ---- Spotlight ring around target element ---- */
+.onboarding-spotlight {
+    position: fixed;
+    z-index: 10001;
+    border-radius: var(--radius);
+    box-shadow: 0 0 0 4px var(--accent2), 0 0 24px 4px rgba(124, 58, 237, 0.35);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease, left 0.35s ease, top 0.35s ease,
+                width 0.35s ease, height 0.35s ease;
+}
+.onboarding-spotlight.active {
+    opacity: 1;
+}
+
+/* ---- Tooltip bubble ---- */
+.onboarding-tooltip {
+    position: fixed;
+    z-index: 10002;
+    width: 320px;
+    max-width: calc(100vw - 24px);
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.35s ease, left 0.35s ease, top 0.35s ease;
+}
+.onboarding-tooltip.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Arrow indicators via pseudo-element */
+.onboarding-tooltip::before {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    transform: rotate(45deg);
+    z-index: -1;
+}
+.onboarding-tooltip.pos-right::before {
+    left: -7px;
+    top: 50%;
+    margin-top: -6px;
+    border-right: none;
+    border-top: none;
+}
+.onboarding-tooltip.pos-left::before {
+    right: -7px;
+    top: 50%;
+    margin-top: -6px;
+    border-left: none;
+    border-bottom: none;
+}
+.onboarding-tooltip.pos-bottom::before {
+    top: -7px;
+    left: 50%;
+    margin-left: -6px;
+    border-bottom: none;
+    border-right: none;
+}
+.onboarding-tooltip.pos-top::before {
+    bottom: -7px;
+    left: 50%;
+    margin-left: -6px;
+    border-top: none;
+    border-left: none;
+}
+.onboarding-tooltip.center::before {
+    display: none;
+}
+
+/* Step counter */
+.onboarding-step-counter {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent2);
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+}
+
+/* Title */
+.onboarding-title {
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+    line-height: 1.3;
+}
+
+/* Body text */
+.onboarding-text {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+
+/* Button row */
+.onboarding-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Buttons */
+.onboarding-btn {
+    padding: 7px 18px;
+    border-radius: var(--radius);
+    font-family: var(--sub);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s, color 0.2s, transform 0.15s;
+}
+.onboarding-btn:active {
+    transform: scale(0.96);
+}
+.onboarding-btn-next {
+    background: var(--accent);
+    color: #fff;
+}
+.onboarding-btn-next:hover {
+    background: var(--accent2);
+}
+.onboarding-btn-skip {
+    background: transparent;
+    color: var(--text2);
+    border: 1px solid var(--border);
+}
+.onboarding-btn-skip:hover {
+    background: var(--bg3);
+    color: var(--text);
+}
+
+/* ---- Light theme overrides ---- */
+body[data-theme="light"] .onboarding-overlay {
+    background: rgba(0, 0, 0, 0.48);
+}
+body[data-theme="light"] .onboarding-tooltip {
+    background: #fff;
+    border-color: #d4d4d8;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+body[data-theme="light"] .onboarding-tooltip::before {
+    background: #fff;
+    border-color: #d4d4d8;
+}
+body[data-theme="light"] .onboarding-title {
+    color: #18181b;
+}
+body[data-theme="light"] .onboarding-text {
+    color: #52525b;
+}
+body[data-theme="light"] .onboarding-btn-skip {
+    color: #52525b;
+    border-color: #d4d4d8;
+}
+body[data-theme="light"] .onboarding-btn-skip:hover {
+    background: #f4f4f5;
+    color: #18181b;
+}
+body[data-theme="light"] .onboarding-spotlight {
+    box-shadow: 0 0 0 4px var(--accent2), 0 0 24px 4px rgba(124, 58, 237, 0.2);
+}
+
+/* ---- Responsive: smaller tooltip on narrow screens ---- */
+@media (max-width: 480px) {
+    .onboarding-tooltip {
+        width: 280px;
+        padding: 16px;
+    }
+    .onboarding-title { font-size: 15px; }
+    .onboarding-text { font-size: 12px; }
+}
+

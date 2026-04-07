@@ -1,0 +1,428 @@
+/* ============================================================================
+ * SPACES — Discord-like server icon bar + categorized room list
+ * ========================================================================== */
+
+/* Inner content wrapper (holds everything the sidebar held before) */
+.sidebar-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── Space Icon Bar (left strip) ──────────────────────────────────────────── */
+.space-icon-bar {
+    width: 56px;
+    min-width: 56px;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 4px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-shrink: 0;
+}
+
+/* Thin scrollbar for icon bar */
+.space-icon-bar::-webkit-scrollbar { width: 2px; }
+.space-icon-bar::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* Individual space icon */
+.space-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text2);
+    transition: all 0.15s;
+    position: relative;
+    flex-shrink: 0;
+    user-select: none;
+    overflow: hidden;
+}
+.space-icon:hover {
+    border-radius: 12px;
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+.space-icon.active {
+    border-radius: 12px;
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+/* Active indicator — left accent bar */
+.space-icon.active::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 70%;
+    background: var(--accent);
+    border-radius: 0 3px 3px 0;
+}
+.space-icon:hover::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 40%;
+    background: var(--text3);
+    border-radius: 0 3px 3px 0;
+}
+.space-icon.active:hover::before {
+    height: 70%;
+    background: var(--accent);
+}
+
+/* Add space button — dashed border */
+.space-icon.space-icon-add {
+    background: transparent;
+    border: 2px dashed var(--border);
+    color: var(--text3);
+    font-size: 20px;
+}
+.space-icon.space-icon-add:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124, 58, 237, 0.08);
+}
+.space-icon.space-icon-add::before { display: none; }
+.space-icon.space-icon-add:hover::before { display: none; }
+
+/* Separator line */
+.space-separator {
+    width: 28px;
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+    flex-shrink: 0;
+}
+
+/* ── Space View in Sidebar ────────────────────────────────────────────────── */
+.space-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Space header (name + gear) */
+.space-view-header {
+    padding: 14px 12px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.space-view-header-name {
+    flex: 1;
+    font-weight: 800;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.space-view-header-btn {
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--radius);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+}
+.space-view-header-btn:hover {
+    color: var(--text);
+    background: var(--bg3);
+}
+
+/* Rooms list inside space view */
+.space-rooms-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+/* ── Category ─────────────────────────────────────────────────────────────── */
+.space-category {
+    margin-bottom: 2px;
+}
+.space-category-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px 4px;
+    cursor: pointer;
+    user-select: none;
+}
+.space-category-header:hover .space-category-name {
+    color: var(--text);
+}
+.space-category-arrow {
+    color: var(--text3);
+    transition: transform 0.15s;
+    flex-shrink: 0;
+}
+.space-category-arrow.collapsed {
+    transform: rotate(-90deg);
+}
+.space-category-name {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    flex: 1;
+    transition: color 0.12s;
+}
+.space-category-add {
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 0 4px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: all 0.12s;
+}
+.space-category-header:hover .space-category-add {
+    opacity: 1;
+}
+.space-category-add:hover {
+    color: var(--accent);
+    background: var(--bg3);
+}
+
+/* ── Room item inside space ───────────────────────────────────────────────── */
+.space-category-rooms {
+    padding: 0 4px;
+}
+.space-room-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px 5px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.1s;
+    position: relative;
+}
+.space-room-item:hover {
+    background: var(--bg3);
+    color: var(--text);
+}
+.space-room-item.active {
+    background: var(--border);
+    color: var(--text);
+}
+.space-room-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
+}
+.space-room-icon {
+    display: flex;
+    align-items: center;
+    color: var(--text3);
+    flex-shrink: 0;
+}
+.space-room-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+.space-room-meta {
+    font-size: 10px;
+    color: var(--text3);
+    font-family: var(--mono);
+    flex-shrink: 0;
+}
+
+/* Back-to-home button inside space view */
+.space-back-btn {
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text3);
+    cursor: pointer;
+    transition: color 0.12s;
+    border-bottom: 1px solid var(--border);
+}
+.space-back-btn:hover {
+    color: var(--accent);
+}
+
+/* ── Space Settings Modal ─────────────────────────────────────────────────── */
+.ss-member-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+}
+.ss-member-row:last-child { border-bottom: none; }
+.ss-role-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.ss-owner {
+    background: rgba(234, 179, 8, 0.15);
+    color: var(--yellow);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+}
+.ss-admin {
+    background: rgba(124, 58, 237, 0.15);
+    color: var(--accent2);
+    border: 1px solid rgba(124, 58, 237, 0.3);
+}
+.ss-invite-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.ss-invite-code {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 2px;
+    flex: 1;
+    text-align: center;
+}
+
+/* Space create/join modal tabs */
+.cs-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+.cs-tab {
+    flex: 1;
+    padding: 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text3);
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+}
+.cs-tab:hover { color: var(--text); }
+.cs-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.cs-panel { display: none; }
+.cs-panel.active { display: block; }
+
+/* ── Mobile: space bar horizontal at top ──────────────────────────────────── */
+@media (max-width: 640px) {
+    #sidebar {
+        flex-direction: column !important;
+    }
+    .space-icon-bar {
+        width: 100%;
+        min-width: unset;
+        height: 50px;
+        min-height: 50px;
+        flex-direction: row;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding: 4px 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+    .space-separator {
+        width: 1px;
+        height: 28px;
+        margin: 0 4px;
+    }
+    .space-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+    }
+    .space-icon.active::before,
+    .space-icon:hover::before {
+        left: 50%;
+        top: unset;
+        bottom: -4px;
+        transform: translateX(-50%);
+        width: 40%;
+        height: 3px;
+        border-radius: 3px 3px 0 0;
+    }
+}
+
+/* ── Light theme overrides ────────────────────────────────────────────────── */
+body[data-theme="light"] .space-icon-bar {
+    background: #f4f4f5;
+    border-right-color: #e4e4e7;
+}
+body[data-theme="light"] .space-icon {
+    background: #ffffff;
+    border-color: #e4e4e7;
+}
+body[data-theme="light"] .space-icon:hover,
+body[data-theme="light"] .space-icon.active {
+    background: var(--accent);
+    color: #fff;
+}
+body[data-theme="light"] .space-room-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+body[data-theme="light"] .space-room-item.active {
+    background: rgba(0, 0, 0, 0.08);
+}
+body[data-theme="light"] .space-separator {
+    background: #e4e4e7;
+}
+

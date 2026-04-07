@@ -707,6 +707,10 @@ pub enum Expr {
     Null,
     Str(Vec<StrPart>),
 
+    /// Complex literal: pure imaginary `5i` → Complex(0.0, 5.0)
+    /// Full complex `3+2i` is parsed as Binary(Add, Float(3), Complex(0, 2))
+    Complex(f64, f64),
+
     // Variable
     Var(String),
 
@@ -806,10 +810,12 @@ pub enum BinOp {
     RangeEx, RangeIn,
     /// `??` — null coalescing (Feature 3)
     NullCoalesce,
+    /// Bitwise operators
+    BitAnd, BitOr, BitXor, Shl, Shr,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum UnaryOp { Neg, Not }
+pub enum UnaryOp { Neg, Not, BitNot }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Type expressions
@@ -820,6 +826,8 @@ pub enum TypeExpr {
     Int, Float, Bool, Str, Void,
     /// Explicit `any` type — accepts any value without type-check
     Any,
+    /// Complex number type (re + im*i)
+    Complex,
     List(Box<TypeExpr>),
     Map(Box<TypeExpr>, Box<TypeExpr>),
     Named(String),

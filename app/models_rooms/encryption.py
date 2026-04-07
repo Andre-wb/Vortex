@@ -1,0 +1,109 @@
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import (
+    Column, DateTime, ForeignKey,
+    Integer, String, UniqueConstraint, Index,
+)
+from sqlalchemy.orm import relationship
+
+from app.base import Base
+
+
+class EncryptedRoomKey(Base):
+    """
+    Ключ комнаты, зашифрованный ECIES для конкретного участника.
+
+    Содержимое (схема ECIES):
+      ephemeral_pub -- X25519 публичный ключ эфемерной пары (32 bytes -> 64 hex chars)
+      ciphertext    -- nonce(12) + AES-GCM(room_key(32), shared_key) + tag(16)
+                      = 60 bytes -> 120 hex chars
+
+    Как это работает:
+      shared_key = HKDF( DH(ephemeral_priv, user_pub) )
+      ciphertext = AES-256-GCM(room_key, shared_key)
+
+    Сервер не может расшифровать это:
+      - ему нужен user_priv (приватный ключ пользователя)
+      - который никогда не покидает устройство пользователя
+
+    Клиент расшифровывает:
+      shared_key = HKDF( DH(user_priv, ephemeral_pub) )   <- тот же shared_key
+      room_key   = AES-256-GCM-decrypt(ciphertext, shared_key)
+    """
+    __tablename__ = "encrypted_room_keys"
+
+    id            = Column(Integer,     primary_key=True, index=True)
+    room_id       = Column(Integer,     ForeignKey("rooms.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    user_id       = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+
+    # ECIES поля — то что нужно клиенту для расшифровки
+    ephemeral_pub = Column(String(64),  nullable=False)    # hex(32 bytes)
+    ciphertext    = Column(String(120), nullable=False)    # hex(60 bytes)
+
+    # Для верификации: ключ зашифрован именно для этого pubkey
+    recipient_pub = Column(String(64),  nullable=True)
+
+    created_at    = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+    updated_at    = Column(DateTime,    default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    room = relationship("Room", back_populates="enc_keys")
+
+    __table_args__ = (
+        UniqueConstraint("room_id", "user_id"),
+        Index("ix_erk_room_user", "room_id", "user_id"),
+    )
+
+    def to_client_dict(self) -> dict:
+        """Формат для отправки клиенту через WebSocket."""
+        return {
+            "ephemeral_pub": self.ephemeral_pub,
+            "ciphertext":    self.ciphertext,
+        }
+
+
+class PendingKeyRequest(Base):
+    """
+    Ожидающий запрос на получение ключа комнаты.
+
+    Создаётся когда:
+      - Новый участник подключается через WebSocket
+      - У него нет записи в EncryptedRoomKey
+      - Ни один владелец ключа не онлайн
+
+    Протокол доставки:
+      1. User X joins room -> PendingKeyRequest(room_id=R, user_id=X, pubkey=X.pubkey)
+      2. Сервер рассылает online-членам: {type: "key_request", for_user_id: X, for_pubkey: "..."}
+      3. Любой online-член Y выполняет ECIES(room_key, X.pubkey) на своём клиенте
+      4. Y отправляет: {action: "key_response", for_user_id: X, ephemeral_pub: "...", ciphertext: "..."}
+      5. Сервер сохраняет EncryptedRoomKey для X, удаляет PendingKeyRequest, доставляет X
+      6. Если никто не онлайн: запрос висит до expires_at, очищается через cron/фоновую задачу
+
+    TTL: 48 часов. Если X так и не получил ключ -- при следующем подключении
+    PendingKeyRequest создаётся заново.
+    """
+    __tablename__ = "pending_key_requests"
+
+    id          = Column(Integer,    primary_key=True, index=True)
+    room_id     = Column(Integer,    ForeignKey("rooms.id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    user_id     = Column(Integer,    ForeignKey("users.id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    pubkey_hex  = Column(String(64), nullable=False)   # X25519 pubkey ожидающего (64 hex chars)
+    created_at  = Column(DateTime,   default=lambda: datetime.now(timezone.utc))
+    expires_at  = Column(DateTime,   nullable=False,
+                         default=lambda: datetime.now(timezone.utc) + timedelta(hours=48))
+
+    room = relationship("Room", back_populates="pending_keys")
+
+    __table_args__ = (
+        UniqueConstraint("room_id", "user_id"),
+        Index("ix_pkr_room_user", "room_id", "user_id"),
+    )
+
+    @property
+    def is_expired(self) -> bool:
+        return datetime.now(timezone.utc) > self.expires_at

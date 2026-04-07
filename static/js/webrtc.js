@@ -13,21 +13,37 @@
 //   • Алгоритм на основе конечного автомата: high → medium → low → audio_only
 // ============================================================================
 
-import { $ } from './utils.js';
+import { $, api } from './utils.js';
+import { t } from './i18n.js';
+import { playCallSound, stopCallSound } from './notification-sounds.js';
+import { getRoomKey } from './crypto.js';
+import { isE2ESupported, needsEncodedInsertableStreams, deriveMediaKey, setupPeerE2E } from './e2e_media.js';
 
-// STUN-серверы для ICE
-const ICE_SERVERS = [
-    { urls: 'stun:stun.relay.metered.ca:80' },
-    { urls: 'turn:global.relay.metered.ca:80',                username: '89d094ff4761a3765d7ab286', credential: 'bnMneF4zVHEBd3TG' },
-    { urls: 'turn:global.relay.metered.ca:80?transport=tcp',  username: '89d094ff4761a3765d7ab286', credential: 'bnMneF4zVHEBd3TG' },
-    { urls: 'turn:global.relay.metered.ca:443',               username: '89d094ff4761a3765d7ab286', credential: 'bnMneF4zVHEBd3TG' },
-    { urls: 'turns:global.relay.metered.ca:443?transport=tcp',username: '89d094ff4761a3765d7ab286', credential: 'bnMneF4zVHEBd3TG' },
-];
+// ICE/TURN серверы загружаются динамически с сервера (требует аутентификации).
+// Fallback — только STUN (без TURN), достаточно для LAN.
+let _iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+let _iceLoaded  = false;
+
+async function _loadIceServers() {
+    if (_iceLoaded) return;
+    try {
+        const data = await api('GET', '/api/keys/ice-servers');
+        if (data && data.ice_servers) {
+            _iceServers = data.ice_servers;
+        }
+        _iceLoaded = true;
+    } catch (e) {
+        console.warn('ICE servers fetch failed, using STUN fallback:', e);
+    }
+}
 
 let _isHangingUp      = false;
 let _incomingCallFrom = null;
+let _e2eMediaKey      = null;   // CryptoKey for E2E media frame encryption
 let _statsInterval    = null;
 let _prevStats        = null;
+let _callTimerInterval = null;
+let _callDurationSec   = 0;
 
 // ─── Пороги качества ──────────────────────────────────────────────────────────
 const QUALITY = {
@@ -62,8 +78,11 @@ const QUALITY_UPGRADE_THRESHOLD = 5;
 // ----------------------------------------------------------------------------
 // Подключение к сигнальному WebSocket
 // ----------------------------------------------------------------------------
-export function connectSignal(roomId) {
+export async function connectSignal(roomId) {
     const S = window.AppState;
+
+    // Подгружаем ICE/TURN серверы с бэкенда (lazy, один раз)
+    _loadIceServers();
 
     if (S.signalWs?.readyState === WebSocket.OPEN && S._signalRoomId === roomId) return;
 
@@ -75,8 +94,19 @@ export function connectSignal(roomId) {
 
     S._signalRoomId = roomId;  // запоминаем правильный ID
 
+    // Anti-probing: knock sequence в global mode
+    if (window.AppState.user?.network_mode === 'global') {
+        try {
+            await fetch('/cover/pricing', {credentials: 'include'});
+            await fetch('/cover/about', {credentials: 'include'});
+        } catch {}
+    }
+    const knockCookie = document.cookie.split(';').find(c => c.trim().startsWith('_vk='))?.split('=')[1];
+    const wsSignalPath = `/ws/signal/${roomId}`;
+    const knockParam = knockCookie ? `?knock=${knockCookie}` : '';
+
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    S.signalWs  = new WebSocket(`${proto}://${location.host}/ws/signal/${roomId}`);
+    S.signalWs  = new WebSocket(`${proto}://${location.host}${wsSignalPath}${knockParam}`);
 
     S.signalWs.onopen = () => console.log('Signal WS открыт, комната', roomId);
 
@@ -107,7 +137,7 @@ function waitForSignalOpen(timeout = 5000) {
         if (S.signalWs.readyState === WebSocket.OPEN) { resolve(); return; }
         const tid = setTimeout(() => reject(new Error('Signal WS timeout')), timeout);
         S.signalWs.addEventListener('open',  () => { clearTimeout(tid); resolve(); }, { once: true });
-        S.signalWs.addEventListener('close', () => { clearTimeout(tid); reject(new Error('WS закрылся')); }, { once: true });
+        S.signalWs.addEventListener('close', () => { clearTimeout(tid); reject(new Error(t('call.wsDisconnected'))); }, { once: true });
     });
 }
 
@@ -131,6 +161,12 @@ export async function startVoiceCall() {
     const S = window.AppState;
     if (!S.currentRoom) return;
 
+    // Group call notice — all room members get the invite via signal broadcast
+    if (S.currentRoom.member_count > 2 && !S.currentRoom.is_dm) {
+        const { appendSystemMessage } = await import('./chat/messages.js');
+        appendSystemMessage('Group call — all room members will receive an invite. The first to accept will be connected.');
+    }
+
     console.log('currentRoom:', JSON.stringify(S.currentRoom));
     console.log('signalRoomId:', S.currentRoom.signalRoomId);
     console.log('id:', S.currentRoom.id);
@@ -140,13 +176,19 @@ export async function startVoiceCall() {
         connectSignal(signalId);
     }
     try { await waitForSignalOpen(); }
-    catch (e) { alert('Нет соединения с сигнальным сервером: ' + e.message); return; }
+    catch (e) { alert(t('call.noSignalServer') + ': ' + e.message); return; }
 
     try {
         S.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    } catch (e) { alert('Нет доступа к микрофону: ' + e.message); return; }
+    } catch (e) { alert(t('call.noMicAccess') + ': ' + e.message); return; }
 
-    _showCallOverlay({ name: S.currentRoom.name, avatar: '💬', status: 'Вызов...', hasVideo: false });
+    const callName = (S.currentRoom.is_dm && S.currentRoom.dm_user)
+        ? (S.currentRoom.dm_user.display_name || S.currentRoom.dm_user.username)
+        : S.currentRoom.name;
+    const callAvatar = (S.currentRoom.is_dm && S.currentRoom.dm_user)
+        ? (S.currentRoom.dm_user.avatar_emoji || '\u{1F464}')
+        : '\u{1F464}';
+    _showCallOverlay({ name: callName, avatar: callAvatar, status: t('notifications.voiceCall') + '...', hasVideo: false });
     _isHangingUp = false;
     _currentQualityLevel = 'high';
     _qualityStableCount  = 0;
@@ -154,30 +196,54 @@ export async function startVoiceCall() {
     S.pc = createPeerConnection();
     S.localStream.getTracks().forEach(t => S.pc.addTrack(t, S.localStream));
 
+    // E2E media frame encryption
+    _e2eMediaKey = null;
+    const roomKey = getRoomKey(S.currentRoom?.id);
+    if (roomKey && isE2ESupported()) {
+        try {
+            _e2eMediaKey = await deriveMediaKey(roomKey, `call-${S.currentRoom.id}-${Date.now()}`);
+            setupPeerE2E(S.pc, _e2eMediaKey);
+            console.log('[WebRTC] E2E media encryption active');
+        } catch (e) { console.warn('[WebRTC] E2E setup failed:', e.message); }
+    }
+
     const offer = await S.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
     await S.pc.setLocalDescription(offer);
 
     signal({ type: 'invite', hasVideo: false });
     await new Promise(r => setTimeout(r, 50));
-    signal({ type: 'offer', sdp: offer.sdp });
+    signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
+    _updatePrivacyBadge();
 }
 
 export async function startVideoCall() {
     const S = window.AppState;
     if (!S.currentRoom) return;
 
+    // Group call notice — all room members get the invite via signal broadcast
+    if (S.currentRoom.member_count > 2 && !S.currentRoom.is_dm) {
+        const { appendSystemMessage } = await import('./chat/messages.js');
+        appendSystemMessage('Group video call — all room members will receive an invite. The first to accept will be connected.');
+    }
+
     if (!S.signalWs || S.signalWs.readyState === WebSocket.CLOSED) {
         const signalId = S.currentRoom.signalRoomId ?? S.currentRoom.id;
         connectSignal(signalId);
     }
     try { await waitForSignalOpen(); }
-    catch (e) { alert('Нет соединения с сигнальным сервером: ' + e.message); return; }
+    catch (e) { alert(t('call.noSignalServer') + ': ' + e.message); return; }
 
     try {
         S.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    } catch (e) { alert('Нет доступа к камере/микрофону: ' + e.message); return; }
+    } catch (e) { alert(t('call.noCameraAccess') + ': ' + e.message); return; }
 
-    _showCallOverlay({ name: S.currentRoom.name, avatar: '💬', status: 'Видеозвонок...', hasVideo: true });
+    const vCallName = (S.currentRoom.is_dm && S.currentRoom.dm_user)
+        ? (S.currentRoom.dm_user.display_name || S.currentRoom.dm_user.username)
+        : S.currentRoom.name;
+    const vCallAvatar = (S.currentRoom.is_dm && S.currentRoom.dm_user)
+        ? (S.currentRoom.dm_user.avatar_emoji || '\u{1F464}')
+        : '\u{1F464}';
+    _showCallOverlay({ name: vCallName, avatar: vCallAvatar, status: t('notifications.videoCall') + '...', hasVideo: true });
     _isHangingUp = false;
     S.isCamOff   = false;
     _currentQualityLevel = 'high';
@@ -187,28 +253,191 @@ export async function startVideoCall() {
     S.pc = createPeerConnection();
     S.localStream.getTracks().forEach(t => S.pc.addTrack(t, S.localStream));
 
+    // E2E media frame encryption
+    _e2eMediaKey = null;
+    const vRoomKey = getRoomKey(S.currentRoom?.id);
+    if (vRoomKey && isE2ESupported()) {
+        try {
+            _e2eMediaKey = await deriveMediaKey(vRoomKey, `call-${S.currentRoom.id}-${Date.now()}`);
+            setupPeerE2E(S.pc, _e2eMediaKey);
+            console.log('[WebRTC] E2E media encryption active (video)');
+        } catch (e) { console.warn('[WebRTC] E2E setup failed:', e.message); }
+    }
+
     const offer = await S.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
     await S.pc.setLocalDescription(offer);
 
     signal({ type: 'invite', hasVideo: true });
     await new Promise(r => setTimeout(r, 50));
-    signal({ type: 'offer', sdp: offer.sdp });
+    signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
+    _updatePrivacyBadge();
+}
+
+// ----------------------------------------------------------------------------
+// Call privacy settings (Force TCP / Relay / Traffic Masking)
+// ----------------------------------------------------------------------------
+function _getCallPrivacySettings() {
+    return {
+        forceRelay:  localStorage.getItem('vortex_call_force_relay') === 'true',
+        forceTcp:    localStorage.getItem('vortex_call_force_tcp')   === 'true',
+        trafficMask: localStorage.getItem('vortex_call_traffic_mask') === 'true',
+    };
+}
+
+function _buildRtcConfig() {
+    const priv = _getCallPrivacySettings();
+    let servers = _iceServers;
+
+    // Force TCP: filter ICE servers to only TCP-based TURN urls
+    if (priv.forceTcp) {
+        servers = _iceServers
+            .map(s => {
+                const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+                const tcpUrls = urls.filter(u =>
+                    /\?transport=tcp/i.test(u) || /^turns:/i.test(u)
+                );
+                if (tcpUrls.length === 0) return null;
+                return { ...s, urls: tcpUrls };
+            })
+            .filter(Boolean);
+
+        // Fallback: if no TCP servers found, keep all TURN servers
+        // (relay policy will still force TURN usage)
+        if (servers.length === 0) servers = _iceServers;
+    }
+
+    const config = { iceServers: servers };
+
+    // Force Relay or Force TCP both require relay-only transport
+    if (priv.forceRelay || priv.forceTcp) {
+        config.iceTransportPolicy = 'relay';
+    }
+
+    // Enable Insertable Streams for E2E media frame encryption (legacy Chrome 86–117 only)
+    if (needsEncodedInsertableStreams()) {
+        config.encodedInsertableStreams = true;
+    }
+
+    return config;
+}
+
+// Traffic masking: pad SDP with random a= attributes and randomize session params
+function _maskSdp(sdp) {
+    const priv = _getCallPrivacySettings();
+    if (!priv.trafficMask) return sdp;
+
+    // 1. Randomize session ID and version in o= line to prevent fingerprinting
+    sdp = sdp.replace(
+        /^(o=\S+\s+)\d+(\s+)\d+(\s+.*$)/m,
+        (match, pre, sp1, post) => {
+            const randId  = Math.floor(Math.random() * 9e18) + 1e18;
+            const randVer = Math.floor(Math.random() * 9e8)  + 1e8;
+            return `${pre}${randId}${sp1}${randVer}${post}`;
+        }
+    );
+
+    // 2. Add random padding attributes to each media section
+    //    These are ignored by SDP parsers (unknown a= lines are skipped per RFC 4566)
+    const padCount = 2 + Math.floor(Math.random() * 4);  // 2-5 padding lines
+    const padLines = [];
+    for (let i = 0; i < padCount; i++) {
+        const padLen = 16 + Math.floor(Math.random() * 48);
+        const chars  = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        let padVal   = '';
+        for (let j = 0; j < padLen; j++) {
+            padVal += chars[Math.floor(Math.random() * chars.length)];
+        }
+        padLines.push(`a=x-opad:${padVal}`);
+    }
+    const padding = padLines.join('\r\n') + '\r\n';
+
+    // Insert padding before each m= line (except the first)
+    const sections = sdp.split(/(?=^m=)/m);
+    sdp = sections.map((section, idx) => {
+        if (idx === 0) return section;
+        return section.replace(/\r\n$/, '\r\n' + padding);
+    }).join('');
+
+    // Also add padding at end if not already there
+    if (!sdp.endsWith('\r\n')) sdp += '\r\n';
+    sdp += padding;
+
+    return sdp;
+}
+
+// Show/hide privacy badge on call overlay
+function _updatePrivacyBadge() {
+    const priv  = _getCallPrivacySettings();
+    const show  = priv.forceRelay || priv.forceTcp || priv.trafficMask;
+    let badge   = document.getElementById('wrtc-privacy-badge');
+
+    if (!show) {
+        if (badge) badge.style.display = 'none';
+        return;
+    }
+
+    const overlay = document.getElementById('call-overlay');
+    if (!overlay) return;
+
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'wrtc-privacy-badge';
+        badge.style.cssText = [
+            'position:absolute', 'top:12px', 'left:14px',
+            'display:inline-flex', 'align-items:center', 'gap:5px',
+            'padding:4px 10px', 'border-radius:8px',
+            'background:rgba(39,174,96,.15)',
+            'border:1px solid rgba(39,174,96,.3)',
+            'font-size:11px', 'font-weight:700', 'color:#27ae60',
+            'z-index:10', 'backdrop-filter:blur(8px)',
+            '-webkit-backdrop-filter:blur(8px)',
+        ].join(';');
+        overlay.appendChild(badge);
+    }
+
+    // Shield SVG icon
+    const shieldSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24">' +
+        '<path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>';
+
+    let label = '';
+    if (priv.forceTcp) label = 'TCP RELAY';
+    else if (priv.forceRelay) label = 'RELAY';
+
+    if (priv.trafficMask) label += (label ? ' + ' : '') + 'MASK';
+
+    badge.innerHTML = shieldSvg + ' ' + label;
+    badge.style.display = 'inline-flex';
 }
 
 // ----------------------------------------------------------------------------
 // RTCPeerConnection
 // ----------------------------------------------------------------------------
 function createPeerConnection() {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const config = _buildRtcConfig();
+    const pc = new RTCPeerConnection(config);
+
+    console.info('[WebRTC] PeerConnection config:', JSON.stringify({
+        iceTransportPolicy: config.iceTransportPolicy ?? 'all',
+        serverCount: config.iceServers?.length ?? 0,
+    }));
 
     pc.onicecandidate = e => {
-        if (e.candidate) signal({ type: 'ice', candidate: e.candidate.toJSON() });
+        if (!e.candidate) return;
+        // Force TCP: drop non-TCP candidates
+        const priv = _getCallPrivacySettings();
+        if (priv.forceTcp) {
+            const c = e.candidate;
+            // Only allow TCP relay candidates
+            if (c.protocol && c.protocol.toLowerCase() !== 'tcp') return;
+            if (c.type && c.type !== 'relay') return;
+        }
+        signal({ type: 'ice', candidate: e.candidate.toJSON() });
     };
 
     pc.ontrack = e => {
         console.log('ontrack:', e.track.kind, e.streams[0]);
         $('remote-video').srcObject = e.streams[0];
-        $('call-status').textContent = 'Соединение установлено';
+        $('call-status').textContent = t('call.connected');
     };
 
     pc.onconnectionstatechange = () => {
@@ -216,7 +445,7 @@ function createPeerConnection() {
         console.log('RTCPeerConnection state:', state);
 
         if (state === 'connected') {
-            $('call-status').textContent = 'Разговор...';
+            $('call-status').textContent = t('call.inCall');
             _startStatsMonitor(pc);
         }
         if (state === 'disconnected') {
@@ -417,7 +646,7 @@ async function _applyQualityLevel(pc, level) {
     }
 
     // Обновляем UI
-    const levelLabel = { high: '🟢 HD', medium: '🟡 SD', low: '🟠 Low', audio_only: '🔴 Audio' }[level];
+    const levelLabel = { high: '\u25CF HD', medium: '\u25CF SD', low: '\u25CF Low', audio_only: '\u25CF Audio' }[level];
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     set('sp-quality-level', levelLabel);
 
@@ -426,7 +655,7 @@ async function _applyQualityLevel(pc, level) {
         const statusEl = $('call-status');
         if (statusEl) {
             const prev = statusEl.textContent;
-            statusEl.textContent = `Адаптация сети: ${levelLabel}`;
+            statusEl.textContent = t('call.networkAdaptation').replace('{level}', levelLabel);
             setTimeout(() => { if (statusEl) statusEl.textContent = prev; }, 3000);
         }
     }
@@ -450,16 +679,16 @@ function _applyMetricsToUI(metrics) {
     ) level = 'fair';
 
     const colors = { good: '#27ae60', fair: '#f39c12', poor: '#e74c3c' };
-    const labels = { good: 'Хорошее', fair: 'Среднее', poor: 'Плохое' };
+    const labels = { good: t('call.qualityGood'), fair: t('call.qualityFair'), poor: t('call.qualityPoor') };
 
     const rttVal = document.getElementById('wrtc-rtt-val');
     const dot    = document.getElementById('wrtc-dot');
-    if (rttVal) rttVal.textContent = rtt != null ? `${rtt.toFixed(0)} мс` : '—';
+    if (rttVal) rttVal.textContent = rtt != null ? `${rtt.toFixed(0)} ms` : '—';
     if (dot)    dot.style.background = colors[level];
 
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    set('sp-rtt',    rtt         != null ? `${rtt.toFixed(0)} мс`           : '—');
-    set('sp-jitter', jitter      != null ? `${jitter.toFixed(0)} мс`        : '—');
+    set('sp-rtt',    rtt         != null ? `${rtt.toFixed(0)} ms`           : '—');
+    set('sp-jitter', jitter      != null ? `${jitter.toFixed(0)} ms`        : '—');
     set('sp-loss',   lossPercent != null ? `${lossPercent.toFixed(1)} %`    : '—');
     set('sp-brate',  bitrateKbps != null ? `${bitrateKbps.toFixed(0)} kbps` : '—');
     set('sp-type',   transport ? _transportLabel(transport) : '—');
@@ -469,7 +698,7 @@ function _applyMetricsToUI(metrics) {
     if (qualEl) qualEl.style.color = colors[level];
 
     const upd = document.getElementById('sp-updated');
-    if (upd) upd.textContent = `обновлено: ${new Date().toLocaleTimeString()}`;
+    if (upd) upd.textContent = t('call.statsUpdated').replace('{time}', new Date().toLocaleTimeString());
 
     console.debug('[WebRTC Stats]',
         `RTT=${rtt?.toFixed(0)}мс jitter=${jitter?.toFixed(0)}мс ` +
@@ -477,8 +706,8 @@ function _applyMetricsToUI(metrics) {
         `quality=${_currentQualityLevel}`);
 }
 
-function _transportLabel(t) {
-    return { host: 'Прямое (LAN)', srflx: 'NAT (STUN)', relay: 'Relay (TURN)' }[t] ?? t;
+function _transportLabel(type) {
+    return { host: 'Direct (LAN)', srflx: 'NAT (STUN)', relay: 'Relay (TURN)' }[type] ?? type;
 }
 
 // ── DOM: элементы overlay + статистика ────────────────────────────────────────
@@ -500,7 +729,7 @@ function _ensureQualityBadge() {
     rttBadge.innerHTML =
         '<span id="wrtc-dot" style="width:8px;height:8px;border-radius:50%;' +
         'background:#555;flex-shrink:0;transition:background .3s"></span>' +
-        '<span style="color:#888;font-weight:400">Задержка:</span>' +
+        '<span style="color:#888;font-weight:400">Latency:</span>' +
         '<span id="wrtc-rtt-val" style="font-variant-numeric:tabular-nums">—</span>';
 
     const statusEl = $('call-status');
@@ -510,7 +739,7 @@ function _ensureQualityBadge() {
     // ⚙ кнопка
     const gearBtn = document.createElement('button');
     gearBtn.id    = 'wrtc-gear-btn';
-    gearBtn.title = 'Статистика соединения';
+    gearBtn.title = t('call.stats');
     gearBtn.innerHTML =
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">' +
         '<path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58' +
@@ -554,26 +783,26 @@ function _ensureQualityBadge() {
     panel.innerHTML =
         '<div style="font-size:13px;font-weight:700;margin-bottom:10px;' +
         'color:#fff;display:flex;align-items:center;gap:7px">' +
-        '📊 <span>Статистика соединения</span></div>' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg> <span>' + t('call.stats') + '</span></div>' +
         '<table style="border-collapse:collapse;width:100%">' +
-        '<tr><td style="color:#666;padding-right:14px;white-space:nowrap">Задержка (RTT)</td>' +
+        '<tr><td style="color:#666;padding-right:14px;white-space:nowrap">Latency (RTT)</td>' +
         '<td id="sp-rtt"           style="font-weight:700;text-align:right;font-variant-numeric:tabular-nums">—</td></tr>' +
-        '<tr><td style="color:#666">Джиттер</td>' +
+        '<tr><td style="color:#666">Jitter</td>' +
         '<td id="sp-jitter"        style="font-weight:700;text-align:right;font-variant-numeric:tabular-nums">—</td></tr>' +
-        '<tr><td style="color:#666">Потери пакетов</td>' +
+        '<tr><td style="color:#666">Packet loss</td>' +
         '<td id="sp-loss"          style="font-weight:700;text-align:right;font-variant-numeric:tabular-nums">—</td></tr>' +
-        '<tr><td style="color:#666">Входящий поток</td>' +
+        '<tr><td style="color:#666">Inbound stream</td>' +
         '<td id="sp-brate"         style="font-weight:700;text-align:right;font-variant-numeric:tabular-nums">—</td></tr>' +
-        '<tr><td style="color:#666">Тип соединения</td>' +
+        '<tr><td style="color:#666">Connection type</td>' +
         '<td id="sp-type"          style="font-weight:700;text-align:right">—</td></tr>' +
-        '<tr><td style="color:#666">Качество сети</td>' +
+        '<tr><td style="color:#666">Network quality</td>' +
         '<td id="sp-qual"          style="font-weight:700;text-align:right">—</td></tr>' +
-        '<tr><td style="color:#666">Уровень видео</td>' +
+        '<tr><td style="color:#666">Video level</td>' +
         '<td id="sp-quality-level" style="font-weight:700;text-align:right">—</td></tr>' +
         '</table>' +
         '<div id="sp-updated" style="margin-top:10px;padding-top:8px;' +
         'border-top:1px solid rgba(255,255,255,.07);' +
-        'font-size:10px;color:#444;text-align:right">ожидание данных...</div>';
+        'font-size:10px;color:#444;text-align:right">waiting for data...</div>';
     overlay.appendChild(panel);
 
     document.addEventListener('click', e => {
@@ -610,6 +839,11 @@ function _setQualityBadge(icon, color) {
 // Обработка сигнальных сообщений
 // ----------------------------------------------------------------------------
 async function handleSignal(msg) {
+    if (msg.type && msg.type.startsWith('group_')) {
+        const gc = await import('./group_call.js');
+        gc.handleGroupSignal(msg);
+        return;
+    }
     const S = window.AppState;
     const from = msg.from;
 
@@ -617,7 +851,7 @@ async function handleSignal(msg) {
         if ($('call-overlay').classList.contains('show')) return;
         _incomingCallFrom = from;
         S._offerHasVideo  = !!msg.hasVideo;
-        showIncomingCallUI(msg.username || 'Собеседник');
+        showIncomingCallUI(msg.username || t('notifications.unknown'));
         return;
     }
 
@@ -670,8 +904,24 @@ function _showCallOverlay({ name, avatar, status, hasVideo }) {
     if (callStatus) callStatus.textContent = status;
     if (localVideo) localVideo.srcObject   = window.AppState.localStream ?? null;
 
+    // Hide pip if it was visible
+    const pip = document.getElementById('call-pip');
+    if (pip) pip.classList.remove('show');
+
     overlay.classList.add('show');
-    _setQualityBadge('⚙', '#888');
+    _setQualityBadge('\u2699', '#888');
+    _updatePrivacyBadge();
+
+    // Start call duration timer
+    _callDurationSec = 0;
+    clearInterval(_callTimerInterval);
+    _callTimerInterval = setInterval(() => {
+        _callDurationSec++;
+        const m = Math.floor(_callDurationSec / 60);
+        const s = String(_callDurationSec % 60).padStart(2, '0');
+        const timerEl = document.getElementById('cp-timer');
+        if (timerEl) timerEl.textContent = `${m}:${s}`;
+    }, 1000);
 }
 
 function showIncomingCallUI(callerName) {
@@ -688,20 +938,20 @@ function showIncomingCallUI(callerName) {
         ].join(';');
 
         banner.innerHTML = `
-            <div style="font-size:32px" id="call-ring-emoji">📞</div>
+            <div style="font-size:32px;display:flex;align-items:center;" id="call-ring-emoji"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></div>
             <div>
                 <div id="incoming-caller-name" style="font-weight:700;font-size:16px;margin-bottom:4px"></div>
-                <div style="font-size:13px;color:#4ecdc4" id="incoming-call-type">Входящий звонок...</div>
+                <div style="font-size:13px;color:#4ecdc4" id="incoming-call-type">${t('call.incoming')}</div>
             </div>
             <div style="display:flex;gap:10px;margin-left:12px">
                 <button onclick="window.acceptCall()"
-                    title="Принять"
+                    title="${t('notifications.answer')}"
                     style="background:#27ae60;color:#fff;border:none;border-radius:50%;
-                           width:48px;height:48px;font-size:22px;cursor:pointer">✅</button>
+                           width:48px;height:48px;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></button>
                 <button onclick="window.declineCall()"
-                    title="Отклонить"
+                    title="${t('notifications.decline')}"
                     style="background:#e74c3c;color:#fff;border:none;border-radius:50%;
-                           width:48px;height:48px;font-size:22px;cursor:pointer">❌</button>
+                           width:48px;height:48px;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
             </div>`;
 
         if (!document.getElementById('webrtc-style')) {
@@ -717,16 +967,20 @@ function showIncomingCallUI(callerName) {
 
     const nameEl = document.getElementById('incoming-caller-name');
     const typeEl = document.getElementById('incoming-call-type');
-    if (nameEl) nameEl.textContent = callerName + ' звонит';
+    if (nameEl) nameEl.textContent = callerName + ' ' + t('call.isCalling');
     if (typeEl) typeEl.textContent = window.AppState._offerHasVideo
-        ? '📹 Входящий видеозвонок...'
-        : '📞 Входящий звонок...';
+        ? t('call.incomingVideo')
+        : t('call.incoming');
     banner.style.display = 'flex';
+
+    // Воспроизводим рингтон входящего звонка
+    playCallSound();
 }
 
 function hideIncomingCallUI() {
     const banner = $('incoming-call-banner');
     if (banner) banner.style.display = 'none';
+    stopCallSound();
 }
 
 // ----------------------------------------------------------------------------
@@ -751,12 +1005,22 @@ export async function acceptCall() {
         S.localStream.getTracks().forEach(t => {
             try { S.pc.addTrack(t, S.localStream); } catch {}
         });
+        // E2E media frame encryption (answering side)
+        _e2eMediaKey = null;
+        const aRoomKey = getRoomKey(S.currentRoom?.id);
+        if (aRoomKey && isE2ESupported()) {
+            try {
+                _e2eMediaKey = await deriveMediaKey(aRoomKey, `call-${S.currentRoom.id}-${Date.now()}`);
+                setupPeerE2E(S.pc, _e2eMediaKey);
+                console.log('[WebRTC] E2E media encryption active (answer)');
+            } catch (e) { console.warn('[WebRTC] E2E setup failed:', e.message); }
+        }
     }
     const to = S._pendingOfferFrom;
     if (S.pc?.signalingState === 'have-remote-offer') {
         const answer = await S.pc.createAnswer();
         await S.pc.setLocalDescription(answer);
-        signal({ type: 'answer', sdp: answer.sdp, to });
+        signal({ type: 'answer', sdp: _maskSdp(answer.sdp), to });
     }
     S._pendingOfferFrom = null;
     if (S._pendingCandidates?.length) {
@@ -772,12 +1036,13 @@ export async function acceptCall() {
     _updateCamBtn(S.isCamOff);
 
     _showCallOverlay({
-        name:     'Собеседник',
-        avatar:   needVideo ? '📹' : '📞',
-        status:   'Подключение...',
+        name:     t('notifications.unknown'),
+        avatar:   '\u{1F464}',
+        status:   'Connecting...',
         hasVideo: needVideo,
     });
     _isHangingUp = false;
+    _updatePrivacyBadge();
 }
 
 export function declineCall() {
@@ -800,6 +1065,45 @@ export function declineCall() {
     _stopStatsMonitor();
 }
 
+// ----------------------------------------------------------------------------
+// Minimize / expand call
+// ----------------------------------------------------------------------------
+export function minimizeCall() {
+    const overlay = $('call-overlay');
+    const pip     = document.getElementById('call-pip');
+    if (!overlay || !pip) return;
+
+    // Copy name + avatar into pip
+    const pipName   = document.getElementById('cp-name');
+    const pipAvatar = document.getElementById('cp-avatar');
+    const peerName  = document.getElementById('call-peer-name');
+    const peerAv    = document.getElementById('call-peer-avatar');
+    if (pipName   && peerName)  pipName.textContent   = peerName.textContent;
+    if (pipAvatar && peerAv)    pipAvatar.textContent  = peerAv.textContent;
+
+    // Sync mute button state
+    _syncPipMuteBtn();
+
+    overlay.classList.remove('show');
+    pip.classList.add('show');
+}
+
+export function expandCall() {
+    const overlay = $('call-overlay');
+    const pip     = document.getElementById('call-pip');
+    if (!overlay || !pip) return;
+    pip.classList.remove('show');
+    overlay.classList.add('show');
+}
+
+function _syncPipMuteBtn() {
+    const btn = document.getElementById('cp-mute-btn');
+    if (!btn) return;
+    const muted = window.AppState?.isMuted;
+    btn.classList.toggle('cp-muted', !!muted);
+    btn.title = muted ? t('call.unmuteMic') : t('call.muteMic');
+}
+
 export function hangup() {
     if (_isHangingUp) return;
     _isHangingUp = true;
@@ -818,14 +1122,27 @@ export function hangup() {
 
     S.localStream?.getTracks().forEach(t => t.stop());
     S.localStream = null;
+    _e2eMediaKey  = null;
 
     $('remote-video').srcObject = null;
     $('local-video').srcObject  = null;
     $('call-overlay').classList.remove('show');
+
+    // Hide pip and stop timer
+    const pip = document.getElementById('call-pip');
+    if (pip) pip.classList.remove('show');
+    clearInterval(_callTimerInterval);
+    _callTimerInterval = null;
+    _callDurationSec   = 0;
+
     hideIncomingCallUI();
 
     const detailEl = $('call-quality-detail');
     if (detailEl) detailEl.textContent = '';
+
+    // Hide privacy badge
+    const privBadge = document.getElementById('wrtc-privacy-badge');
+    if (privBadge) privBadge.style.display = 'none';
 
     S._pendingAnswer     = null;
     S._pendingCandidates = [];
@@ -834,10 +1151,13 @@ export function hangup() {
     _incomingCallFrom    = null;
     S.isMuted            = false;
     S.isCamOff           = false;
+    _isScreenSharing     = false;
+    _originalVideoTrack  = null;
     _currentQualityLevel = 'high';
     _qualityStableCount  = 0;
     _updateMuteBtn(false);
     _updateCamBtn(false);
+    _updateScreenBtn(false);
 
     setTimeout(() => { _isHangingUp = false; }, 500);
 }
@@ -878,14 +1198,106 @@ export async function toggleCam() {
 
         const offer = await S.pc.createOffer();
         await S.pc.setLocalDescription(offer);
-        signal({ type: 'offer', sdp: offer.sdp });
-    } catch (e) { alert('Не удалось включить камеру: ' + e.message); }
+        signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
+    } catch (e) { alert(t('call.cameraError').replace('{error}', e.message)); }
+}
+
+// ----------------------------------------------------------------------------
+// Демонстрация экрана
+// ----------------------------------------------------------------------------
+
+let _isScreenSharing = false;
+let _originalVideoTrack = null;
+
+export async function toggleScreenShare() {
+    const S = window.AppState;
+    if (!S.pc) { console.warn('toggleScreenShare: нет RTCPeerConnection'); return; }
+
+    if (_isScreenSharing) {
+        // Выключаем демонстрацию — возвращаем камеру или убираем видео
+        _stopScreenShare();
+        return;
+    }
+
+    try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: { cursor: 'always' },
+            audio: false,
+        });
+        const screenTrack = screenStream.getVideoTracks()[0];
+
+        // Сохраняем текущий видеотрек (камера) для восстановления
+        const sender = S.pc.getSenders().find(s => s.track?.kind === 'video');
+
+        if (sender) {
+            _originalVideoTrack = sender.track;
+            await sender.replaceTrack(screenTrack);
+        } else {
+            S.pc.addTrack(screenTrack, screenStream);
+            // Нужен re-offer
+            const offer = await S.pc.createOffer();
+            await S.pc.setLocalDescription(offer);
+            signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
+        }
+
+        // Показываем экран в local-video
+        $('local-video').srcObject = screenStream;
+
+        _isScreenSharing = true;
+        _updateScreenBtn(true);
+
+        // Когда пользователь нажмёт "Прекратить показ" в браузере
+        screenTrack.onended = () => _stopScreenShare();
+
+    } catch (e) {
+        if (e.name !== 'NotAllowedError') {
+            alert(t('call.screenShareError').replace('{error}', e.message));
+        }
+    }
+}
+
+async function _stopScreenShare() {
+    const S = window.AppState;
+    if (!S.pc) return;
+
+    const sender = S.pc.getSenders().find(s => s.track?.kind === 'video');
+
+    if (sender) {
+        // Останавливаем screen track
+        sender.track?.stop();
+
+        if (_originalVideoTrack && !_originalVideoTrack.readyState === 'ended') {
+            // Возвращаем камеру
+            await sender.replaceTrack(_originalVideoTrack);
+            if (S.localStream) {
+                $('local-video').srcObject = S.localStream;
+            }
+        } else {
+            // Камеры не было — просто убираем видео
+            await sender.replaceTrack(null);
+            $('local-video').srcObject = S.localStream || null;
+        }
+    }
+
+    _isScreenSharing = false;
+    _originalVideoTrack = null;
+    _updateScreenBtn(false);
+}
+
+function _updateScreenBtn(active) {
+    const btn = $('screen-btn');
+    if (btn) {
+        btn.style.background = active ? 'var(--accent)' : '';
+        btn.style.color = active ? '#fff' : '';
+        btn.title = active ? 'Stop screen sharing' : 'Screen sharing';
+    }
 }
 
 // ----------------------------------------------------------------------------
 // Кнопки
 // ----------------------------------------------------------------------------
 function _updateMuteBtn(muted) {
+    _syncPipMuteBtn();
     $('mute-btn').innerHTML = muted
         ? '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" viewBox="0 0 24 24"><path d="M8.03 12.27a3.98 3.98 0 0 0 3.7 3.7zM20 12h-2c0 1.29-.42 2.49-1.12 3.47l-1.44-1.44c.36-.59.56-1.28.56-2.02v-6c0-2.21-1.79-4-4-4s-4 1.79-4 4v.59L2.71 1.29 1.3 2.7l20 20 1.41-1.41-4.4-4.4A7.9 7.9 0 0 0 20 12M10 6c0-1.1.9-2 2-2s2 .9 2 2v6c0 .18-.03.35-.07.51L10 8.58V5.99Z"></path><path d="M12 18c-3.31 0-6-2.69-6-6H4c0 4.07 3.06 7.44 7 7.93V22h2v-2.07c.74-.09 1.45-.29 2.12-.57l-1.57-1.57c-.49.13-1.01.21-1.55.21"></path></svg>'
         : '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" viewBox="0 0 24 24"><path d="M16 12V6c0-2.21-1.79-4-4-4S8 3.79 8 6v6c0 2.21 1.79 4 4 4s4-1.79 4-4m-6 0V6c0-1.1.9-2 2-2s2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2"></path><path d="M18 12c0 3.31-2.69 6-6 6s-6-2.69-6-6H4c0 4.07 3.06 7.44 7 7.93V22h2v-2.07c3.94-.49 7-3.86 7-7.93z"></path></svg>';

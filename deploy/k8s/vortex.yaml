@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vortex
+  namespace: vortex
+  labels:
+    app.kubernetes.io/name: vortex
+    app.kubernetes.io/part-of: vortex-chat
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vortex
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: vortex
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9000"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: vortex
+          image: vortex-chat:latest
+          ports:
+            - containerPort: 9000
+              name: http
+            - containerPort: 4200
+              protocol: UDP
+              name: udp-discovery
+          envFrom:
+            - configMapRef:
+                name: vortex-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: JWT_SECRET
+            - name: CSRF_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: CSRF_SECRET
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: vortex-secrets
+                  key: SENTRY_DSN
+            - name: DEVICE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+            - name: keys
+              mountPath: /app/keys
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: vortex-uploads
+        - name: keys
+          persistentVolumeClaim:
+            claimName: vortex-keys
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vortex-service
+  namespace: vortex
+  labels:
+    app.kubernetes.io/name: vortex
+spec:
+  selector:
+    app: vortex
+  ports:
+    - name: http
+      port: 9000
+      targetPort: 9000
+    - name: udp
+      port: 4200
+      targetPort: 4200
+      protocol: UDP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vortex-uploads
+  namespace: vortex
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vortex-keys
+  namespace: vortex
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 1Gi

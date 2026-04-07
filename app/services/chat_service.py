@@ -12,7 +12,11 @@ app/chats/chat_service.py — Простая реализация WebSocket ча
 
 from fastapi import WebSocket
 import json
-import vortex_chat
+
+try:
+    import vortex_chat
+except ImportError:
+    vortex_chat = None
 
 
 class ChatService:
@@ -25,13 +29,25 @@ class ChatService:
         # Словарь активных WebSocket-соединений: client_id -> WebSocket
         self.active_connections: dict[str, WebSocket] = {}
 
+        if vortex_chat is None:
+            raise RuntimeError(
+                "vortex_chat не доступен — ChatService требует Rust-модуль. "
+                "Скомпилируйте: cd rust_utils && maturin develop --release"
+            )
+
         # Объект статистики из vortex_chat (предположительно считает количество сообщений, байт и т.д.)
         self.chat_stats = vortex_chat.ChatStats()
 
-        # Генерируем ключ шифрования для всех сообщений (в реальном проекте может быть свой ключ на комнату)
-        self.encryption_key = vortex_chat.generate_key()
+        # Словарь ключей шифрования: room_id -> key (генерируется при первом использовании)
+        self._room_keys: dict[str, bytes] = {}
 
-    async def handle_connection(self, websocket: WebSocket, client_id: str):
+    def _get_room_key(self, room_id: str) -> bytes:
+        """Возвращает ключ шифрования для комнаты, генерируя его при первом обращении."""
+        if room_id not in self._room_keys:
+            self._room_keys[room_id] = vortex_chat.generate_key()
+        return self._room_keys[room_id]
+
+    async def handle_connection(self, websocket: WebSocket, client_id: str, room_id: str = "default"):
         """
         Основной метод для обработки нового WebSocket-подключения.
 
@@ -61,7 +77,7 @@ class ChatService:
                 # Получаем текстовое сообщение (ожидается JSON)
                 data = await websocket.receive_text()
                 # Обрабатываем полученное сообщение
-                await self.process_message(client_id, websocket, data)
+                await self.process_message(client_id, websocket, data, room_id)
         except Exception as e:
             # Любое исключение (например, закрытие соединения) приводит к выходу из цикла
             print(f"❌ {client_id} disconnected: {e}")
@@ -69,7 +85,7 @@ class ChatService:
             # Гарантированно удаляем клиента из активных соединений при выходе
             await self.disconnect_client(client_id)
 
-    async def process_message(self, client_id: str, websocket: WebSocket, data: str):
+    async def process_message(self, client_id: str, websocket: WebSocket, data: str, room_id: str = "default"):
         """
         Обрабатывает входящее JSON-сообщение от клиента.
 
@@ -88,7 +104,8 @@ class ChatService:
             text = message_data["text"]
 
             # Шифруем текст с использованием ключа (vortex_chat.encrypt_message возвращает bytes)
-            encrypted = vortex_chat.encrypt_message(text.encode(), self.encryption_key)
+            room_key = self._get_room_key(room_id)
+            encrypted = vortex_chat.encrypt_message(text.encode(), room_key)
 
             # Вычисляем хэш зашифрованного сообщения (вероятно, для проверки целостности)
             msg_hash = vortex_chat.hash_message(encrypted)
@@ -162,5 +179,12 @@ class ChatService:
             await self.broadcast_system(f"👋 {client_id} left")
 
 
-# Глобальный экземпляр сервиса, который можно импортировать и использовать в WebSocket эндпоинтах
-chat_service = ChatService()
+# Глобальный экземпляр — создаётся лениво, не при импорте
+# (ChatService требует vortex_chat, который может быть не скомпилирован)
+chat_service = None
+
+def get_chat_service() -> ChatService:
+    global chat_service
+    if chat_service is None:
+        chat_service = ChatService()
+    return chat_service

@@ -1,0 +1,345 @@
+/* ============================================================================
+ * UX ENHANCEMENTS — Spring Physics, Micro-interactions, Chat Bubbles,
+ *                    Custom Themes, Swipe Gestures, Haptic Feedback
+ * ========================================================================== */
+
+/* ── Spring Physics (cubic-bezier overshoot) ─────────────────────────────── */
+
+:root {
+    --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --spring-soft: cubic-bezier(0.25, 1.1, 0.5, 1);
+    --spring-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Modals open with spring bounce */
+.modal-overlay.active .modal,
+.modal-overlay[style*="flex"] .modal {
+    animation: modalSpringIn 0.4s var(--spring) forwards;
+}
+@keyframes modalSpringIn {
+    from { transform: scale(0.85) translateY(20px); opacity: 0; }
+    to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* Context menu spring pop */
+.context-menu, .ctx-menu {
+    animation: ctxSpring 0.25s var(--spring) forwards;
+    transform-origin: top left;
+}
+@keyframes ctxSpring {
+    from { transform: scale(0.8); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+}
+
+/* New message appear animation */
+.message-row {
+    animation: msgSlideIn 0.3s var(--spring-soft) forwards;
+}
+@keyframes msgSlideIn {
+    from { transform: translateY(10px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+/* Reaction picker spring */
+.reaction-picker {
+    animation: reactSpring 0.2s var(--spring) forwards;
+}
+@keyframes reactSpring {
+    from { transform: scale(0.9) translateY(5px); opacity: 0; }
+    to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+
+/* ── Micro-interactions ──────────────────────────────────────────────────── */
+
+/* Button press effect — scale down then spring back */
+button, .btn, .input-btn, .theme-mode-btn, .settings-tab {
+    transition: transform 0.15s var(--spring), background 0.2s ease, box-shadow 0.2s ease;
+}
+button:active, .btn:active, .input-btn:active {
+    transform: scale(0.95);
+}
+button:hover, .btn:hover {
+    box-shadow: 0 2px 12px rgba(124, 58, 237, 0.15);
+}
+
+/* Room item hover — subtle lift */
+.room-item {
+    transition: transform 0.2s var(--spring-soft), background 0.15s ease;
+}
+.room-item:hover {
+    transform: translateX(3px);
+}
+.room-item:active {
+    transform: scale(0.98);
+}
+
+/* Input focus glow */
+.form-input:focus, textarea:focus, #msg-input:focus {
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    transition: box-shadow 0.2s ease;
+}
+
+/* Avatar hover scale */
+.avatar, .room-avatar, [class*="avatar"] {
+    transition: transform 0.2s var(--spring-soft);
+}
+.avatar:hover, .room-avatar:hover {
+    transform: scale(1.08);
+}
+
+/* Loading shimmer for skeleton states */
+@keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+.skeleton, .shimmer {
+    background: linear-gradient(90deg,
+        var(--bg3) 25%, rgba(255,255,255,0.08) 50%, var(--bg3) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: var(--radius);
+}
+
+/* Tooltip fade-in */
+[title]:hover::after {
+    animation: tooltipIn 0.15s var(--spring-soft) forwards;
+}
+@keyframes tooltipIn {
+    from { transform: translateY(4px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+/* Notification badge bounce */
+.unread-badge, .badge {
+    animation: badgePop 0.3s var(--spring-bounce);
+}
+@keyframes badgePop {
+    0%   { transform: scale(0); }
+    60%  { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+
+/* ── Chat Bubbles (Telegram-style) ───────────────────────────────────────── */
+
+.msg-bubble {
+    max-width: 70%;
+    padding: 8px 12px;
+    border-radius: 16px;
+    position: relative;
+    word-wrap: break-word;
+    line-height: 1.45;
+    transition: transform 0.15s var(--spring-soft);
+}
+.msg-bubble:hover {
+    transform: scale(1.01);
+}
+
+/* Outgoing (own) message — right side, accent color */
+.msg-bubble.outgoing {
+    background: var(--accent);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+    margin-left: auto;
+}
+.msg-bubble.outgoing .msg-time {
+    color: rgba(255,255,255,0.6);
+}
+
+/* Incoming message — left side, neutral */
+.msg-bubble.incoming {
+    background: var(--bg3);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+}
+
+/* Bubble tail (CSS triangle) */
+.msg-bubble.outgoing::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: -6px;
+    width: 0; height: 0;
+    border: 6px solid transparent;
+    border-bottom-color: var(--accent);
+    border-right: 0;
+}
+.msg-bubble.incoming::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: -6px;
+    width: 0; height: 0;
+    border: 6px solid transparent;
+    border-bottom-color: var(--bg3);
+    border-left: 0;
+}
+
+/* Consecutive messages from same sender — no tail, tight spacing */
+.msg-bubble.consecutive {
+    margin-top: 2px;
+}
+.msg-bubble.consecutive::after {
+    display: none;
+}
+.msg-bubble.consecutive.outgoing {
+    border-radius: 16px 16px 4px 16px;
+}
+.msg-bubble.consecutive.incoming {
+    border-radius: 16px 16px 16px 4px;
+}
+
+
+/* ── Custom Themes (CSS variables for user themes) ───────────────────────── */
+
+/* Purple (default) */
+body[data-accent="purple"] { --accent: #7c3aed; --accent2: #a855f7; }
+/* Blue */
+body[data-accent="blue"]   { --accent: #3b82f6; --accent2: #60a5fa; }
+/* Green */
+body[data-accent="green"]  { --accent: #22c55e; --accent2: #4ade80; }
+/* Red */
+body[data-accent="red"]    { --accent: #ef4444; --accent2: #f87171; }
+/* Orange */
+body[data-accent="orange"] { --accent: #f97316; --accent2: #fb923c; }
+/* Pink */
+body[data-accent="pink"]   { --accent: #ec4899; --accent2: #f472b6; }
+/* Cyan */
+body[data-accent="cyan"]   { --accent: #06b6d4; --accent2: #22d3ee; }
+/* Yellow */
+body[data-accent="yellow"] { --accent: #eab308; --accent2: #facc15; }
+
+/* Custom background */
+body[data-bg-image] #chat-area {
+    background-image: var(--bg-image);
+    background-size: cover;
+    background-position: center;
+}
+body[data-bg-image] .msg-bubble.incoming {
+    background: rgba(24, 24, 29, 0.85);
+    backdrop-filter: blur(10px);
+}
+body[data-bg-image] .msg-bubble.outgoing {
+    backdrop-filter: blur(10px);
+}
+
+
+/* ── Swipe Gestures (touch feedback) ─────────────────────────────────────── */
+
+.swipeable {
+    touch-action: pan-y;
+    transition: transform 0.2s var(--spring-soft);
+    will-change: transform;
+}
+.swipeable.swiping {
+    transition: none;
+}
+
+/* Swipe-right reveal (archive/pin) */
+.swipe-action-left, .swipe-action-right {
+    position: absolute;
+    top: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.swipe-action-left  { left: 0; background: var(--accent); color: #fff; border-radius: var(--radius) 0 0 var(--radius); }
+.swipe-action-right { right: 0; background: var(--red); color: #fff; border-radius: 0 var(--radius) var(--radius) 0; }
+.swipeable.swiped-right .swipe-action-left,
+.swipeable.swiped-left .swipe-action-right {
+    opacity: 1;
+}
+
+
+/* ── Touch ripple effect ─────────────────────────────────────────────────── */
+
+.ripple-container {
+    position: relative;
+    overflow: hidden;
+}
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(0);
+    animation: rippleExpand 0.5s ease-out forwards;
+    pointer-events: none;
+}
+@keyframes rippleExpand {
+    to { transform: scale(4); opacity: 0; }
+}
+
+/* Light theme ripple */
+body[data-theme="light"] .ripple {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+
+/* ── Tab-view desktop centering ──────────────────────────────────────── */
+/*
+   Сайдбар скрыт на вкладках contacts/calls/bots/settings → #main = 100vw.
+   Ключевой принцип: элементы списков (set-item, contact-row, call-item) занимают
+   ПОЛНУЮ ширину экрана (hover-фон и border идут до края), а их контент центрируется
+   через padding на самом элементе. Для ботов (grid-карточки) padding на контейнере OK.
+*/
+@media (min-width: 641px) {
+    /* Заголовки вкладок (полная ширина, content центрируется внутри) */
+    #tab-view-contacts > div:first-child,
+    #tab-view-calls    > div:first-child,
+    #tab-view-bots     > div:first-child,
+    #tab-view-settings > div:first-child,
+    #settings-sub-page  > div:first-child,
+    #settings-lang-page > div:first-child,
+    #settings-lang-page > div:nth-child(2) {
+        padding-left:  max(20px, calc(50vw - 340px)) !important;
+        padding-right: max(20px, calc(50vw - 340px)) !important;
+    }
+
+    /* Бот-контент: контейнерный padding OK (grid-карточки без edge-to-edge фона) */
+    #bot-categories,
+    #bot-store-content {
+        padding-left:  max(20px, calc(50vw - 340px)) !important;
+        padding-right: max(20px, calc(50vw - 340px)) !important;
+    }
+
+    /* Настройки: элементы полной ширины, контент центрируется через свой padding */
+    .set-profile-card,
+    .set-item {
+        padding-left:  max(20px, calc(50vw - 340px)) !important;
+        padding-right: max(20px, calc(50vw - 340px)) !important;
+    }
+
+    /* Список языков: те же правила */
+    .lang-item {
+        padding-left:  max(20px, calc(50vw - 340px)) !important;
+        padding-right: max(20px, calc(50vw - 340px)) !important;
+    }
+
+    /* Контакты: contact-row и буквенные группы (override inline-padding) */
+    .contact-row,
+    .contact-group-header {
+        padding-left:  max(20px, calc(50vw - 340px)) !important;
+        padding-right: max(20px, calc(50vw - 340px)) !important;
+    }
+
+    /* Звонки: центрирование на широких экранах */
+    #calls-items {
+        padding-left:  max(0px, calc(50vw - 380px));
+        padding-right: max(0px, calc(50vw - 380px));
+    }
+    .call-date-header {
+        padding-left:  max(18px, calc(50vw - 362px)) !important;
+        padding-right: max(18px, calc(50vw - 362px)) !important;
+    }
+
+    /* Контент суб-страниц настроек (форма, не list-items) */
+    #settings-sub-content {
+        padding-left:  max(20px, calc(50vw - 340px)) !important;
+        padding-right: max(20px, calc(50vw - 340px)) !important;
+    }
+}
+

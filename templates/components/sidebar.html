@@ -1,0 +1,72 @@
+<!-- Chat Sidebar — Telegram-style chat list -->
+<div id="sidebar" class="chat-sidebar" role="navigation" aria-label="Chat list">
+
+    <!-- Header: hamburger + title -->
+    <div class="cs-header">
+        <div class="cs-header-left">
+            <button class="cs-hamburger" onclick="toggleSidebarMenu()" aria-label="Menu">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            </button>
+            <h1 class="cs-title" data-i18n="tabs.chats">Chats</h1>
+        </div>
+    </div>
+
+    <!-- Stories strip -->
+    <div id="stories-strip" class="stories-strip">
+        <div id="stories-track" class="stories-track"></div>
+    </div>
+
+    <!-- Search -->
+    <div class="cs-search">
+        <svg width="16" height="16" fill="var(--text3)" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"/></svg>
+        <input type="text" id="cs-search-input" data-i18n-placeholder="app.search" placeholder="Search..." oninput="filterChats(this.value)">
+    </div>
+
+    <!-- Folder tabs -->
+    <div class="cs-folders" id="cs-folders">
+        <button class="cs-folder-tab active" onclick="switchFolder('all')" data-folder="all" data-i18n="rooms.allChats">All Chats</button>
+    </div>
+
+    <!-- Archived chats -->
+    <div class="cs-archived" id="cs-archived" onclick="showArchivedChats()" style="display:none;">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="m20.54 5.23-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+        <span data-i18n="rooms.archived">Archived Chats</span>
+        <span class="cs-archived-count" id="cs-archived-count"></span>
+    </div>
+
+    <!-- Chat list -->
+    <div class="cs-list" id="rooms-list"></div>
+
+    <!-- Hamburger menu — all actions in one place -->
+    <div class="cs-dropdown-menu" id="cs-sidebar-menu" style="display:none;">
+        <button onclick="showCreateRoomModal();closeSidebarMenu()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M0 18v2h6v-2H0zM0 14v2h10v-2H0zM0 10v2h10v-2H0zm18-4h-2v4h-4v2h4v4h2v-4h4v-2h-4V6z"/></svg>
+            <span data-i18n="nav.newRoom">New Group</span>
+        </button>
+        <button onclick="showCreateChannelModal();closeSidebarMenu()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2"/></svg>
+            <span data-i18n="nav.newChannel">New Channel</span>
+        </button>
+        <button onclick="showCreateVoiceModal();closeSidebarMenu()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <span data-i18n="nav.newVoiceChannel">Voice Channel</span>
+        </button>
+        <button onclick="showCreateSpaceModal();closeSidebarMenu()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>
+            <span data-i18n="spaces.createOrJoin">New Space</span>
+        </button>
+        <div class="cs-menu-divider"></div>
+        <button onclick="showJoinModal();closeSidebarMenu()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M9.88 18.36a3 3 0 0 1-4.24 0 3 3 0 0 1 0-4.24l2.83-2.83-1.41-1.41-2.83 2.83a5.003 5.003 0 0 0 0 7.07c.98.97 2.25 1.46 3.54 1.46s2.56-.49 3.54-1.46l2.83-2.83-1.41-1.41z"/></svg>
+            <span data-i18n="nav.joinByCode">Join by Code</span>
+        </button>
+        <button onclick="showContactsPanel();closeSidebarMenu()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19z"/></svg>
+            <span data-i18n="nav.findUser">Find User</span>
+        </button>
+        <button onclick="showSavedPanel();closeSidebarMenu()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
+            <span data-i18n="nav.saved">Saved Messages</span>
+        </button>
+    </div>
+</div>

@@ -1,0 +1,274 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# VORTEX Chat — Docker Compose (Production)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Usage:
+#   docker compose up -d                         # Start (SQLite)
+#   docker compose --profile postgres up -d      # Start with PostgreSQL
+#   docker compose --profile monitoring up -d    # Start with Prometheus + Grafana
+#   docker compose --profile dev up              # Dev mode with hot-reload
+#   docker compose logs -f vortex                # Logs
+#   docker compose down                          # Stop
+#
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Redis (horizontal scaling) ───────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: vortex-redis
+    profiles: ["scaling", "postgres"]
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--appendonly", "no"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ── PostgreSQL (opt-in) ──────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: vortex-postgres
+    profiles: ["postgres"]
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vortex}
+      POSTGRES_USER: ${POSTGRES_USER:-vortex}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vortex_secret}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vortex}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+
+  # ── Vortex Node (Production) ─────────────────────────────────────────────
+  vortex:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: vortex-node
+    restart: unless-stopped
+    ports:
+      - "${PORT:-9000}:${PORT:-9000}"
+      - "${UDP_PORT:-4200}:${UDP_PORT:-4200}/udp"
+    volumes:
+      - vortex-data:/app/uploads
+      - vortex-keys:/app/keys
+      - vortex-certs:/app/certs
+      - vortex-db:/app/data
+      - vortex-logs:/app/logs
+    environment:
+      - ENVIRONMENT=production
+      - HOST=0.0.0.0
+      - PORT=${PORT:-9000}
+      - DB_PATH=/app/data/vortex.db
+      - DATABASE_URL=${DATABASE_URL:-}
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-5}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-10}
+      - DB_POOL_RECYCLE=${DB_POOL_RECYCLE:-3600}
+      - UPLOAD_DIR=/app/uploads
+      - KEYS_DIR=/app/keys
+      - LOG_FORMAT=json
+      - LOG_LEVEL=INFO
+      - NETWORK_MODE=${NETWORK_MODE:-local}
+      - REGISTRATION_MODE=${REGISTRATION_MODE:-open}
+      - NODE_INITIALIZED=true
+      - DEVICE_NAME=${DEVICE_NAME:-vortex-docker}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-9000}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        tag: "vortex-node"
+
+  # ── Vortex + PostgreSQL (production with PG) ───────────────────────────
+  vortex-pg:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: vortex-node-pg
+    profiles: ["postgres"]
+    restart: unless-stopped
+    ports:
+      - "${PORT:-9000}:${PORT:-9000}"
+      - "${UDP_PORT:-4200}:${UDP_PORT:-4200}/udp"
+    volumes:
+      - vortex-data:/app/uploads
+      - vortex-keys:/app/keys
+      - vortex-certs:/app/certs
+      - vortex-logs:/app/logs
+    environment:
+      - ENVIRONMENT=production
+      - HOST=0.0.0.0
+      - PORT=${PORT:-9000}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-vortex}:${POSTGRES_PASSWORD:-vortex_secret}@postgres:5432/${POSTGRES_DB:-vortex}
+      - REDIS_URL=redis://redis:6379/0
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-10}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-20}
+      - DB_POOL_RECYCLE=${DB_POOL_RECYCLE:-3600}
+      - UPLOAD_DIR=/app/uploads
+      - KEYS_DIR=/app/keys
+      - LOG_FORMAT=json
+      - LOG_LEVEL=INFO
+      - NETWORK_MODE=${NETWORK_MODE:-local}
+      - REGISTRATION_MODE=${REGISTRATION_MODE:-open}
+      - NODE_INITIALIZED=true
+      - DEVICE_NAME=${DEVICE_NAME:-vortex-docker-pg}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-9000}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── Vortex Dev (Hot-reload) ──────────────────────────────────────────────
+  vortex-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: vortex-dev
+    profiles: ["dev"]
+    ports:
+      - "${PORT:-9000}:${PORT:-9000}"
+      - "${UDP_PORT:-4200}:${UDP_PORT:-4200}/udp"
+    volumes:
+      - .:/app
+      - vortex-data:/app/uploads
+      - vortex-keys:/app/keys
+    environment:
+      - ENVIRONMENT=development
+      - HOST=0.0.0.0
+      - PORT=${PORT:-9000}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - LOG_FORMAT=console
+      - LOG_LEVEL=DEBUG
+      - NODE_INITIALIZED=true
+      - DEVICE_NAME=vortex-dev
+    env_file:
+      - .env
+    command: >
+      python -m uvicorn app.main:app
+      --host 0.0.0.0
+      --port ${PORT:-9000}
+      --reload
+      --reload-dir app
+
+  # ── Prometheus (Monitoring) ──────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: vortex-prometheus
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      vortex:
+        condition: service_healthy
+
+  # ── Grafana (Dashboards) ────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: vortex-grafana
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-vortex}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  vortex-data:
+    name: vortex-uploads
+  vortex-keys:
+    name: vortex-keys
+  vortex-certs:
+    name: vortex-certs
+  vortex-db:
+    name: vortex-db
+  vortex-logs:
+    name: vortex-logs
+  postgres-data:
+    name: vortex-postgres-data
+  redis-data:
+    name: vortex-redis
+  prometheus-data:
+    name: vortex-prometheus
+  grafana-data:
+    name: vortex-grafana

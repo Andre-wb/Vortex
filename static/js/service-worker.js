@@ -13,7 +13,12 @@ const API_CACHE      = 'vortex-api-v1';
 // Ресурсы для предварительного кэширования при установке SW
 const PRECACHE_URLS = [
     '/',
-    '/static/css/main.css',
+    '/static/css/variables.css',
+    '/static/css/layout.css',
+    '/static/css/components.css',
+    '/static/css/sidebar.css',
+    '/static/css/chat.css',
+    '/static/css/responsive.css',
     '/static/css/menu.css',
     '/static/js/main.js',
     '/static/js/auth.js',
@@ -104,7 +109,7 @@ const OFFLINE_HTML = `<!DOCTYPE html>
   <div class="logo">VORTEX</div>
   <div class="sub">децентрализованный чат</div>
   <div class="card">
-    <div class="icon">📡</div>
+    <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" viewBox="0 0 24 24"><path d="M12 5c-3.87 0-7 3.13-7 7h2c0-2.76 2.24-5 5-5s5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4C5.93 1 1 5.93 1 12h2c0-4.97 4.03-9 9-9s9 4.03 9 9h2c0-6.07-4.93-11-11-11zm0 8c-1.66 0-3 1.34-3 3 0 1.31.84 2.41 2 2.83V22h2v-7.17c1.16-.42 2-1.52 2-2.83 0-1.66-1.34-3-3-3z"/></svg></div>
     <h2>Нет соединения с узлом</h2>
     <p>Убедись, что VORTEX запущен на этом устройстве или в той же локальной сети.</p>
     <div class="hint">python run.py</div>
@@ -249,7 +254,7 @@ self.addEventListener('push', event => {
         renotify: !!data.renotify,
         silent:  false,
         vibrate: [100, 50, 100],
-        data:    { url: data.url || '/', roomId: data.roomId },
+        data:    { url: data.url || '/', roomId: data.roomId || data.room_id },
         actions: [
             { action: 'open',    title: 'Открыть', icon: '/static/icons/icon-72.png' },
             { action: 'dismiss', title: 'Закрыть' },

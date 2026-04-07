@@ -1,0 +1,44 @@
+    <div class="step active" id="step-1">
+        <div class="step-title">Настройка <span>узла</span></div>
+        <div class="step-desc">Укажите имя устройства и порт. Эти данные будут видны другим участникам локальной сети.</div>
+
+        <div id="alert-s1" class="alert"></div>
+
+        <div class="form-group">
+            <label class="form-label">Имя устройства</label>
+            <input class="form-input" id="device-name" type="text"
+                   placeholder="MacBook-Boris, Server-Home, Pi4..." autocomplete="off">
+            <div class="form-hint">Видно другим узлам в сети.</div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Порт HTTP(S)</label>
+                <input class="form-input" id="node-port" type="number" value="8000" min="1024" max="65535">
+                <div class="form-hint" id="port-hint">Порт для веб-интерфейса</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">UDP порт (P2P)</label>
+                <input class="form-input" id="udp-port" type="number" value="4200" min="1024" max="65535">
+                <div class="form-hint">Обнаружение соседних узлов</div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Макс. размер файла (МБ)</label>
+            <input class="form-input" id="max-file" type="number" value="100" min="1" max="2048">
+            <div class="form-hint">Рекомендуется 100–500 МБ.</div>
+        </div>
+
+        <div class="status-row">
+            <div class="dot dot-yellow" id="ip-dot"></div>
+            <span id="ip-text" style="color:var(--text3);font-size:12px;">Определение IP...</span>
+        </div>
+
+        <div class="btn-row">
+            <div class="spacer"></div>
+            <button class="btn btn-primary" id="btn-s1-next" onclick="step1Next()">
+                Продолжить →
+            </button>
+        </div>
+    </div>

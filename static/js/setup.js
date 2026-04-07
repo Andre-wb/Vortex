@@ -60,7 +60,7 @@ function checkMkcert() {
     const opt   = document.getElementById('opt-mkcert');
     const badge = document.getElementById('mkcert-badge');
     if (avail) {
-        badge.textContent = '✓ Установлен';
+        badge.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Установлен';
         badge.className   = 'ssl-badge badge-recommended';
     } else {
         opt.classList.add('unavailable');
@@ -160,7 +160,7 @@ function selectSSL(mode) {
     document.getElementById('detail-' + mode).classList.add('active');
 
     document.getElementById('btn-ssl-gen').textContent =
-        mode === 'skip' ? 'Пропустить SSL →' : '🔒 Сгенерировать →';
+        mode === 'skip' ? 'Пропустить SSL →' : 'Сгенерировать \u2192';
 }
 
 /**
@@ -265,7 +265,7 @@ async function generateSSL() {
 
     } finally {
         btn.disabled    = false;
-        btn.textContent = state.sslMode === 'skip' ? 'Пропустить SSL →' : '🔒 Сгенерировать →';
+        btn.textContent = state.sslMode === 'skip' ? 'Пропустить SSL →' : 'Сгенерировать \u2192';
     }
 }
 
@@ -278,7 +278,9 @@ async function generateSSL() {
 async function buildSummary() {
     const cfg   = state.config;
     const proto = state.sslSkipped ? 'http' : 'https';
-    const ssl   = state.sslSkipped ? '✗ HTTP (без SSL)' : '✓ HTTPS';
+    const ssl   = state.sslSkipped
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> HTTP (без SSL)'
+        : '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> HTTPS';
     const modes = { self: 'Самоподписанный', mkcert: 'mkcert', le: "Let's Encrypt", skip: 'Отключён' };
     const ip    = state.sysInfo?.local_ips?.[0] || '—';
 
@@ -428,7 +430,7 @@ function copyCode(id) {
     const text = el.querySelector('span')?.textContent || el.textContent;
     navigator.clipboard.writeText(text.trim()).then(() => {
         const btn = el.querySelector('.code-copy');
-        if (btn) { btn.textContent = '✓'; setTimeout(() => btn.textContent = 'copy', 1500); }
+        if (btn) { btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'; setTimeout(() => btn.textContent = 'copy', 1500); }
     });
 }
 

@@ -1,0 +1,32 @@
+<!-- PIN Lock Screen (Single Responsibility: PIN authentication UI) -->
+<!-- PIN Lock Screen -->
+<div id="pin-lock-screen">
+    <div class="pin-lock-inner">
+        <img src="/static/icons/icon-96.png" alt="Vortex" class="pin-lock-logo">
+        <div class="pin-lock-title">VORTEX</div>
+        <div class="pin-lock-subtitle" data-i18n="app.enterPin">Введите PIN-код</div>
+        <div class="pin-dots" id="pin-dots">
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+        </div>
+        <div class="pin-lock-error" id="pin-lock-error"></div>
+        <div class="pin-pad" id="pin-pad">
+            <button class="pin-pad-btn" onclick="window._pinInput(1)">1</button>
+            <button class="pin-pad-btn" onclick="window._pinInput(2)">2</button>
+            <button class="pin-pad-btn" onclick="window._pinInput(3)">3</button>
+            <button class="pin-pad-btn" onclick="window._pinInput(4)">4</button>
+            <button class="pin-pad-btn" onclick="window._pinInput(5)">5</button>
+            <button class="pin-pad-btn" onclick="window._pinInput(6)">6</button>
+            <button class="pin-pad-btn" onclick="window._pinInput(7)">7</button>
+            <button class="pin-pad-btn" onclick="window._pinInput(8)">8</button>
+            <button class="pin-pad-btn" onclick="window._pinInput(9)">9</button>
+            <button class="pin-pad-btn pin-pad-clear" onclick="window._pinClear()">C</button>
+            <button class="pin-pad-btn" onclick="window._pinInput(0)">0</button>
+            <button class="pin-pad-btn pin-pad-back" onclick="window._pinBackspace()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+            </button>
+        </div>
+    </div>
+</div>

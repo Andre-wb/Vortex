@@ -1,0 +1,489 @@
+/* ============================================================================
+ * APP CONTAINER
+ * ========================================================================== */
+#app {
+    display: flex;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+}
+
+/* ============================================================================
+ * ОСНОВНАЯ ОБЛАСТЬ (#main)
+ * ========================================================================== */
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+/* ----------------------------------------------------------------------------
+ * Экраны — переключаются через класс active
+ * ------------------------------------------------------------------------- */
+.screen { display: none; flex: 1; flex-direction: column; height: 100%; }
+.screen.active { display: flex; }
+
+/* ============================================================================
+ * ЭКРАН АУТЕНТИФИКАЦИИ
+ * ========================================================================== */
+#auth-screen {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 200;
+    align-items: center; justify-content: center;
+    background: var(--bg);
+    background-image:
+        radial-gradient(circle at 20% 50%, rgba(124,58,237,0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(168,85,247,0.06) 0%, transparent 40%);
+}
+
+/* ---- Карточка ------------------------------------------------------------ */
+.auth-card {
+    width: 420px; max-width: 94vw; padding: 36px 32px 28px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    animation: fadeUp 0.4s ease;
+    position: relative;
+}
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Логотип ------------------------------------------------------------- */
+.auth-logo { text-align: center; margin-bottom: 28px; }
+.auth-logo-icon {
+    width: 56px; height: 56px; border-radius: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px;
+    box-shadow: 0 4px 24px rgba(124,58,237,0.25);
+}
+.auth-logo h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+.auth-logo p  { color: var(--text2); font-size: 12px; margin-top: 4px; font-family: var(--mono); }
+
+/* ---- Табы Вход / Регистрация --------------------------------------------- */
+.auth-tabs {
+    display: flex; gap: 4px; margin-bottom: 20px;
+    background: var(--bg3); padding: 4px; border-radius: 10px;
+}
+.auth-tab {
+    flex: 1; padding: 9px 0;
+    background: transparent; border: none; border-radius: 8px;
+    color: var(--text2); font-family: var(--sans); font-weight: 700; font-size: 13px;
+    cursor: pointer; transition: all 0.2s;
+}
+.auth-tab:hover { color: var(--text); }
+.auth-tab.active {
+    background: var(--bg2); color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+
+/* ============================================================================
+ * ОБЩИЕ ЭЛЕМЕНТЫ ФОРМ
+ * ========================================================================== */
+.form-group { margin-bottom: 14px; }
+.form-label {
+    display: block; margin-bottom: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--text2); text-transform: uppercase;
+}
+.form-optional {
+    font-weight: 400; text-transform: none; letter-spacing: 0;
+    color: var(--text3); font-size: 10px;
+}
+
+.form-input {
+    width: 100%; padding: 10px 12px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text);
+    font-family: var(--mono); font-size: 13px;
+    outline: none; transition: border-color 0.15s;
+}
+.form-input:focus { border-color: var(--accent); }
+.form-input::placeholder { color: var(--text3); }
+
+/* Input with icon */
+.form-input-icon {
+    position: relative;
+    display: flex; align-items: center;
+}
+.form-input-icon svg {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--text3); pointer-events: none;
+    transition: color 0.15s;
+    flex-shrink: 0;
+}
+.form-input-icon .form-input {
+    padding-left: 38px;
+}
+.form-input-icon:focus-within svg { color: var(--accent); }
+
+.form-textarea {
+    resize: vertical; min-height: 72px;
+    font-family: var(--mono); font-size: 13px; line-height: 1.5;
+}
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ---- Password strength indicator ----------------------------------------- */
+.password-strength-wrap {
+    margin-top: 8px;
+    display: none; /* shown by JS when user types */
+}
+.password-strength-wrap.visible { display: block; }
+
+.pw-bar-track {
+    height: 4px; border-radius: 2px;
+    background: var(--bg3); overflow: hidden;
+}
+.pw-bar-fill {
+    height: 100%; width: 0; border-radius: 2px;
+    transition: width 0.35s cubic-bezier(0.4,0,0.2,1), background 0.35s;
+}
+.pw-bar-fill[data-level="0"] { width: 0; }
+.pw-bar-fill[data-level="1"] { width: 20%; background: var(--red); }
+.pw-bar-fill[data-level="2"] { width: 40%; background: #f97316; }
+.pw-bar-fill[data-level="3"] { width: 60%; background: var(--yellow); }
+.pw-bar-fill[data-level="4"] { width: 80%; background: #84cc16; }
+.pw-bar-fill[data-level="5"] { width: 100%; background: var(--green); }
+
+.pw-info {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 6px;
+}
+.pw-label {
+    font-size: 11px; font-weight: 700; font-family: var(--sans);
+    letter-spacing: 0.3px;
+}
+.pw-label[data-level="1"] { color: var(--red); }
+.pw-label[data-level="2"] { color: #f97316; }
+.pw-label[data-level="3"] { color: var(--yellow); }
+.pw-label[data-level="4"] { color: #84cc16; }
+.pw-label[data-level="5"] { color: var(--green); }
+
+.pw-details {
+    font-size: 10px; color: var(--text3); font-family: var(--mono);
+}
+
+.pw-criteria {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+}
+.pw-check {
+    font-size: 10px; font-family: var(--mono);
+    padding: 2px 8px; border-radius: 10px;
+    background: var(--bg3); color: var(--text3);
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+.pw-check.pass {
+    color: var(--green); background: rgba(34,197,94,0.08);
+    border-color: rgba(34,197,94,0.2);
+}
+
+/* ---- Password match status ----------------------------------------------- */
+.pw-match-status {
+    font-size: 11px; margin-top: 4px; min-height: 16px;
+    font-family: var(--mono); transition: color 0.2s;
+}
+.pw-match-status.match { color: var(--green); }
+.pw-match-status.mismatch { color: var(--red); }
+
+/* ---- Phone input with country picker ------------------------------------- */
+.phone-input-wrap {
+    display: flex; position: relative;
+}
+.phone-country-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 10px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-right: none; border-radius: var(--radius) 0 0 var(--radius);
+    color: var(--text); font-family: var(--mono); font-size: 13px;
+    cursor: pointer; white-space: nowrap;
+    transition: border-color 0.15s;
+}
+.phone-country-btn:hover { border-color: var(--accent); }
+.phone-flag { font-size: 16px; line-height: 1; }
+.phone-code { font-weight: 600; font-size: 12px; }
+.phone-country-btn svg { color: var(--text3); margin-left: 2px; }
+
+.phone-number-input {
+    border-radius: 0 var(--radius) var(--radius) 0 !important;
+    flex: 1; min-width: 0;
+}
+.phone-input-wrap:focus-within .phone-country-btn {
+    border-color: var(--accent);
+}
+
+/* Country dropdown */
+.phone-country-dropdown {
+    display: none; position: absolute;
+    top: 100%; left: 0; right: 0; z-index: 50;
+    margin-top: 4px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    max-height: 240px; overflow-y: auto;
+}
+.phone-country-dropdown.open { display: block; }
+
+.phone-country-search {
+    width: 100%; padding: 10px 12px;
+    background: var(--bg); border: none; border-bottom: 1px solid var(--border);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    outline: none;
+}
+.phone-country-search::placeholder { color: var(--text3); }
+
+.phone-country-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; cursor: pointer;
+    font-size: 13px; color: var(--text);
+    transition: background 0.1s;
+}
+.phone-country-item:hover { background: var(--bg3); }
+.phone-country-item .pc-flag { font-size: 18px; width: 24px; text-align: center; }
+.phone-country-item .pc-name { flex: 1; font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phone-country-item .pc-code { font-family: var(--mono); font-size: 12px; color: var(--text3); font-weight: 600; }
+
+/* ============================================================================
+ * КНОПКИ
+ * ========================================================================== */
+.btn {
+    width: 100%; padding: 11px 16px;
+    border: none; border-radius: var(--radius);
+    font-family: var(--sans); font-weight: 700; font-size: 14px;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent2); }
+.btn-danger { background: var(--bg3); color: var(--red); border: 1px solid var(--border); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); border-color: var(--red); }
+.btn-sm { padding: 6px 12px; font-size: 12px; width: auto; }
+.btn-login { margin-top: 6px; }
+
+/* ============================================================================
+ * РАЗДЕЛИТЕЛЬ «или»
+ * ========================================================================== */
+.auth-divider {
+    display: flex; align-items: center; gap: 14px;
+    margin: 18px 0 16px;
+    color: var(--text3); font-size: 12px; font-family: var(--mono);
+}
+.auth-divider::before,
+.auth-divider::after {
+    content: ''; flex: 1; height: 1px;
+    background: var(--border);
+}
+
+/* ============================================================================
+ * АЛЬТЕРНАТИВНЫЕ МЕТОДЫ ВХОДА (QR / Passkey / Seed)
+ * ========================================================================== */
+.auth-alt-methods {
+    display: flex; gap: 10px;
+}
+.btn-alt-method {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 14px 8px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text2); font-size: 11px; font-family: var(--sans); font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+}
+.btn-alt-method svg { color: var(--text2); transition: color 0.2s; }
+.btn-alt-method:hover {
+    border-color: var(--accent); color: var(--text);
+    background: rgba(124,58,237,0.04);
+}
+.btn-alt-method:hover svg { color: var(--accent); }
+
+/* ============================================================================
+ * КНОПКА «НАЗАД»
+ * ========================================================================== */
+.auth-back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 0; margin-bottom: 16px;
+    background: none; border: none;
+    color: var(--text2); font-family: var(--sans); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: color 0.15s;
+}
+.auth-back-btn:hover { color: var(--accent); }
+.auth-back-btn svg { transition: transform 0.15s; }
+.auth-back-btn:hover svg { transform: translateX(-3px); }
+
+/* ============================================================================
+ * QR LOGIN
+ * ========================================================================== */
+#qr-form { text-align: center; padding: 4px 0; }
+.qr-section { display: flex; flex-direction: column; align-items: center; }
+.qr-description {
+    font-size: 13px; color: var(--text2); margin-bottom: 20px;
+    line-height: 1.5; max-width: 280px;
+}
+
+.qr-frame {
+    position: relative; display: inline-flex;
+    padding: 4px;
+}
+.qr-display {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 14px; overflow: hidden;
+    background: #fff; padding: 14px;
+    width: 200px; height: 200px;
+}
+
+/* Декоративные уголки вокруг QR */
+.qr-corners {
+    position: absolute; inset: -4px;
+    pointer-events: none;
+}
+.qr-corner {
+    position: absolute; width: 20px; height: 20px;
+    border-color: var(--accent); border-style: solid; border-width: 0;
+}
+.qr-corner.tl { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; border-radius: 6px 0 0 0; }
+.qr-corner.tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; border-radius: 0 6px 0 0; }
+.qr-corner.bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; border-radius: 0 0 0 6px; }
+.qr-corner.br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 6px 0; }
+
+.qr-status {
+    margin-top: 14px; font-size: 13px; color: var(--text2);
+    font-family: var(--mono);
+}
+
+/* ============================================================================
+ * PASSKEY LOGIN
+ * ========================================================================== */
+#passkey-form { text-align: center; padding: 4px 0; }
+.passkey-section { display: flex; flex-direction: column; align-items: center; }
+.passkey-icon {
+    width: 64px; height: 64px; margin-bottom: 16px; border-radius: 50%;
+    background: var(--bg3); display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+}
+.passkey-title { font-size: 16px; color: var(--text); font-weight: 700; margin-bottom: 6px; }
+.passkey-description {
+    font-size: 13px; color: var(--text2); margin-bottom: 22px;
+    line-height: 1.5; max-width: 280px;
+}
+.passkey-status { font-size: 13px; color: var(--text2); margin-bottom: 12px; display: none; }
+.passkey-hint {
+    font-size: 11px; color: var(--text3); margin-top: 14px;
+    line-height: 1.5; max-width: 260px;
+}
+
+/* ============================================================================
+ * АВАТАР ПИКЕР (регистрация)
+ * ========================================================================== */
+.avatar-picker {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+}
+.avatar-tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+}
+.avatar-tab {
+    flex: 1; padding: 8px 0;
+    background: none; border: none;
+    color: var(--text2); font-family: var(--sans); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+    position: relative;
+}
+.avatar-tab.active { color: var(--text); }
+.avatar-tab.active::after {
+    content: ''; position: absolute; bottom: -1px; left: 20%; right: 20%;
+    height: 2px; background: var(--accent); border-radius: 1px;
+}
+.avatar-tab:hover { color: var(--text); }
+
+/* Emoji grid */
+.emoji-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+    gap: 2px; padding: 10px; max-height: 140px; overflow-y: auto;
+}
+.emoji-btn {
+    width: 36px; height: 36px;
+    background: none; border: 2px solid transparent; border-radius: 8px;
+    font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+}
+.emoji-btn:hover { background: var(--bg3); transform: scale(1.15); }
+.emoji-btn.emoji-selected,
+.emoji-btn.selected {
+    border-color: var(--accent); background: rgba(124,58,237,0.1);
+}
+
+/* Photo upload */
+.avatar-photo-upload {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 12px; padding: 16px;
+}
+.avatar-preview-circle {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: var(--bg3); border: 2px dashed var(--border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text3); overflow: hidden;
+    transition: border-color 0.2s;
+}
+.avatar-preview-circle:hover { border-color: var(--accent); }
+.avatar-preview-circle img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+}
+
+/* ============================================================================
+ * INVITE CODE
+ * ========================================================================== */
+.invite-code-input {
+    text-transform: uppercase; letter-spacing: 3px; text-align: center;
+    font-size: 18px; font-weight: 700; font-family: var(--mono);
+}
+.invite-code-hint { font-size: 11px; color: var(--text3); margin-top: 4px; text-align: center; }
+.reg-closed-msg {
+    padding: 14px; background: var(--bg3); border-radius: var(--radius);
+    color: var(--red); font-size: 13px; text-align: center;
+    margin-bottom: 14px;
+}
+
+/* ============================================================================
+ * FOOTER NOTE & E2E BADGE
+ * ========================================================================== */
+.auth-footer-note {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    margin-top: 16px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--text3); line-height: 1.4;
+}
+.auth-footer-note svg { flex-shrink: 0; color: var(--green); }
+
+.auth-e2e-badge {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    margin-top: 18px;
+    font-size: 11px; color: var(--text3); font-family: var(--mono);
+    letter-spacing: 0.3px;
+}
+
+/* ============================================================================
+ * АЛЕРТЫ
+ * ========================================================================== */
+.alert {
+    padding: 10px 12px; border-radius: var(--radius);
+    font-size: 13px; margin-bottom: 14px; font-family: var(--mono);
+    display: none;
+}
+.alert.show { display: block; }
+.alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--red); }
+.alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
+
+/* ============================================================================
+ * АДАПТИВ
+ * ========================================================================== */
+@media (max-width: 480px) {
+    .auth-card { padding: 28px 20px 22px; border-radius: 16px; }
+    .auth-logo-icon { width: 48px; height: 48px; border-radius: 14px; }
+    .auth-logo h1 { font-size: 22px; }
+    .form-row { grid-template-columns: 1fr; }
+    .btn-alt-method { padding: 12px 6px; }
+    .qr-display { width: 180px; height: 180px; }
+    .emoji-grid { grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); }
+}

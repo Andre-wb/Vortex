@@ -1,0 +1,168 @@
+/* setup/layout.css — шапка, панель шагов, карточка, типография */
+
+/* ── Шапка ── */
+.header {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 48px 24px 0;
+    width: 100%;
+}
+
+.logo-ascii {
+    font-family: var(--mono);
+    font-size: clamp(6px, 1.2vw, 11px);
+    line-height: 1.2;
+    color: var(--teal);
+    white-space: pre;
+    opacity: .7;
+    letter-spacing: 0;
+    animation: fadeIn .8s ease;
+}
+
+.header-sub {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text3);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-top: 12px;
+    animation: fadeIn 1s ease .2s both;
+}
+
+/* ── Панель шагов (stepbar) ── */
+.stepbar {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 36px auto 0;
+    padding: 0 24px;
+    width: 100%;
+    max-width: 600px;
+    animation: fadeIn .6s ease .4s both;
+}
+
+.step-dot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    position: relative;
+    cursor: pointer;
+}
+
+.step-dot::before {
+    content: attr(data-n);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--text3);
+    background: var(--bg1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text3);
+    transition: all .3s;
+    position: relative;
+    z-index: 1;
+    line-height: 1;
+    padding-top: 1px;
+}
+
+.step-dot.active::before {
+    border-color: var(--teal);
+    background: var(--teal);
+    color: var(--bg0);
+    box-shadow: 0 0 16px rgba(78,205,196,.5);
+}
+
+.step-dot.done::before {
+    content: '✓';
+    border-color: var(--green);
+    background: var(--green);
+    color: var(--bg0);
+}
+
+.step-dot .step-label {
+    font-size: 10px;
+    color: var(--text3);
+    white-space: nowrap;
+    letter-spacing: .5px;
+    transition: color .3s;
+}
+
+.step-dot.active .step-label { color: var(--teal); }
+.step-dot.done  .step-label  { color: var(--green); }
+
+.step-line {
+    flex: 1;
+    height: 2px;
+    background: var(--text3);
+    margin: 0 4px;
+    margin-bottom: 22px;
+    transition: background .3s;
+    max-width: 60px;
+}
+
+.step-line.done { background: var(--green); }
+
+/* ── Карточка ── */
+.card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 580px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px 40px;
+    margin: 24px auto 48px;
+    box-shadow: 0 24px 80px rgba(0,0,0,.6);
+    animation: slideUp .5s ease .5s both;
+}
+
+@media (max-width: 640px) {
+    .card   { margin: 16px; padding: 24px 20px; }
+    .header { padding: 24px 16px 0; }
+    .logo-ascii { font-size: 5px; }
+}
+
+/* ── Шаги ── */
+.step        { display: none; }
+.step.active { display: block; animation: stepIn .35s ease; }
+
+/* ── Типография ── */
+.step-title {
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text1);
+    margin-bottom: 6px;
+}
+
+.step-title span { color: var(--teal); }
+
+.step-title--center { text-align: center; }
+
+.step-desc {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.6;
+    margin-bottom: 28px;
+}
+
+.step-desc--center { text-align: center; margin-bottom: 20px; }
+
+/* Заголовок секции внутри шага */
+.section-heading {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text2);
+    margin-bottom: 12px;
+}

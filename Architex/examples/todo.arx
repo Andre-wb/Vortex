@@ -1,0 +1,27 @@
+// Architex — Todo list example
+// Demonstrates: list rendering, navigate, send, reactive arrays
+
+@screen Todo
+
+  ~items = ["Buy groceries", "Walk the dog", "Read a book"]
+  ~draft = ""
+
+  col :: pad(20) gap(14)
+
+    header "My Todos" :: bold size(24)
+
+    list item from ~items
+      row :: gap(10) pad(10) radius(8) bg(#f9f9f9) border(#eee)
+        icon "check_circle" :: color(#4caf50)
+        text ~item :: grow size(15)
+
+    divider
+
+    row :: gap(8)
+      input ~draft :: grow pad(10) radius(8) border(#ccc) placeholder("Add a task…")
+        => ~draft = ~draft
+      button "Add" :: pad(10) radius(8) bg(#4f8ef7) color(#fff)
+        => send(action: "add_todo", text: ~draft)
+
+    button "← Back" :: pad(10) radius(8) bg(#eee) size(14)
+      => navigate(Home)

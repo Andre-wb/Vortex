@@ -16,7 +16,7 @@ import hashlib
 import secrets
 import logging
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from fastapi import UploadFile, HTTPException, Request
@@ -41,7 +41,7 @@ except (ImportError, OSError):
 
 class FileUploadConfig:
     """Настройки загрузки файлов."""
-    MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 МБ
 
     # Ограничения для изображений
     MAX_IMAGE_DIMENSION = 10000
@@ -56,7 +56,6 @@ class FileUploadConfig:
         'image/gif':      ['.gif'],
         'image/bmp':      ['.bmp'],
         'image/tiff':     ['.tif', '.tiff'],
-        'image/svg+xml':  ['.svg'],
         # HEIC/HEIF (iPhone): magic возвращает разные строки в зависимости от libmagic версии
         'image/heic':     ['.heic', '.heif'],
         'image/heif':     ['.heic', '.heif'],
@@ -88,19 +87,425 @@ class FileUploadConfig:
         'application/x-7z-compressed':    ['.7z'],
         'application/gzip':               ['.gz'],
         'application/x-tar':              ['.tar'],
+        # ── Зашифрованные файлы (E2E) ─────────────────────────────────
+        'application/octet-stream':       ['.enc', '.bin'],
     }
     ALLOWED_EXTENSIONS = {ext for exts in ALLOWED_MIME_TYPES.values() for ext in exts}
 
     # Квоты загрузок
     MAX_FILES_PER_HOUR = 10
     MAX_FILES_PER_DAY = 50
-    MAX_MEMORY_BUFFER = 10 * 1024 * 1024 * 1024
+    MAX_MEMORY_BUFFER = 100 * 1024 * 1024  # 100 МБ
     # Время жизни временных файлов в секундах (для очистки)
     TEMP_FILE_LIFETIME = 300
 
     # Включать ли дополнительные проверки содержимого
     REQUIRE_CONTENT_VALIDATION = True
     CHECK_FOR_MALICIOUS_CONTENT = True
+
+
+# ── EXIF Stripping ───────────────────────────────────────────────────────────
+
+def strip_exif(content: bytes, mime_type: str) -> bytes:
+    """
+    Strip EXIF/metadata from images before storage.
+
+    Removes GPS coordinates, camera model, timestamps — prevents geolocation leaks.
+    Preserves image quality (lossless for PNG, quality=95 for JPEG).
+    Returns original content unchanged for non-image files.
+    """
+    if not mime_type or not mime_type.startswith("image/"):
+        return content
+
+    try:
+        img = Image.open(io.BytesIO(content))
+
+        # Create clean image without EXIF
+        clean = Image.new(img.mode, img.size)
+        clean.putdata(list(img.getdata()))
+
+        # Preserve ICC profile if present (color accuracy, not privacy-sensitive)
+        icc = img.info.get("icc_profile")
+
+        buf = io.BytesIO()
+        save_kwargs = {}
+        if icc:
+            save_kwargs["icc_profile"] = icc
+
+        fmt = img.format or "JPEG"
+        if fmt.upper() in ("JPEG", "JPG"):
+            clean.save(buf, format="JPEG", quality=95, **save_kwargs)
+        elif fmt.upper() == "PNG":
+            clean.save(buf, format="PNG", **save_kwargs)
+        elif fmt.upper() == "WEBP":
+            clean.save(buf, format="WEBP", quality=95, **save_kwargs)
+        else:
+            # Unknown format — return original (don't risk corruption)
+            return content
+
+        result = buf.getvalue()
+        stripped_size = len(content) - len(result)
+        if stripped_size > 0:
+            logger.debug(f"EXIF stripped: {stripped_size} bytes removed from {fmt}")
+        return result
+
+    except Exception as e:
+        logger.warning(f"EXIF strip failed ({e}), returning original")
+        return content
+
+
+def _strip_mp4_atoms(content: bytes) -> bytes:
+    """
+    Pure-Python MP4/MOV metadata removal.
+
+    Parses ISO BMFF atom structure, removes metadata-bearing atoms
+    (udta, meta, XMP_, uuid) from inside moov container.
+    Works without ffmpeg.
+    """
+    import struct
+
+    METADATA_ATOMS = {b"udta", b"meta", b"XMP_", b"uuid"}
+
+    def parse_atoms(data: bytes, offset: int = 0, end: int | None = None) -> list:
+        """Parse top-level atoms, return list of (offset, size, type, has_children)."""
+        if end is None:
+            end = len(data)
+        atoms = []
+        pos = offset
+        while pos + 8 <= end:
+            size = struct.unpack(">I", data[pos:pos + 4])[0]
+            atype = data[pos + 4:pos + 8]
+            if size == 0:
+                size = end - pos
+            elif size == 1 and pos + 16 <= end:
+                size = struct.unpack(">Q", data[pos + 8:pos + 16])[0]
+            if size < 8 or pos + size > end:
+                break
+            atoms.append((pos, size, atype))
+            pos += size
+        return atoms
+
+    def rebuild_moov(data: bytes, moov_off: int, moov_size: int) -> bytes:
+        """Rebuild moov atom without metadata sub-atoms."""
+        children = parse_atoms(data, moov_off + 8, moov_off + moov_size)
+        parts = []
+        removed = 0
+        for coff, csize, ctype in children:
+            if ctype in METADATA_ATOMS:
+                removed += csize
+                continue
+            parts.append(data[coff:coff + csize])
+        if removed == 0:
+            return data[moov_off:moov_off + moov_size]
+        body = b"".join(parts)
+        new_size = 8 + len(body)
+        return struct.pack(">I", new_size) + b"moov" + body
+
+    try:
+        top_atoms = parse_atoms(content)
+        parts = []
+        changed = False
+        for aoff, asize, atype in top_atoms:
+            if atype == b"moov":
+                new_moov = rebuild_moov(content, aoff, asize)
+                if len(new_moov) != asize:
+                    changed = True
+                parts.append(new_moov)
+            elif atype in METADATA_ATOMS:
+                changed = True
+                continue
+            else:
+                parts.append(content[aoff:aoff + asize])
+        if changed:
+            result = b"".join(parts)
+            logger.debug("MP4 metadata atoms stripped (pure-Python): %d bytes removed",
+                         len(content) - len(result))
+            return result
+    except Exception as e:
+        logger.debug("MP4 atom stripping failed: %s", e)
+
+    return content
+
+
+def _strip_id3_tags(content: bytes) -> bytes:
+    """
+    Pure-Python ID3 tag removal for MP3 files.
+
+    Strips:
+      - ID3v2 header (beginning of file, variable size)
+      - ID3v1 footer (last 128 bytes)
+      - APEv2 footer
+    Works without ffmpeg or mutagen.
+    """
+    import struct
+    data = bytearray(content)
+    changed = False
+
+    # Strip ID3v2 at the beginning
+    if data[:3] == b"ID3" and len(data) > 10:
+        # ID3v2 size is syncsafe integer (4 bytes, 7 bits each)
+        sz_bytes = data[6:10]
+        tag_size = (
+            (sz_bytes[0] & 0x7F) << 21 |
+            (sz_bytes[1] & 0x7F) << 14 |
+            (sz_bytes[2] & 0x7F) << 7 |
+            (sz_bytes[3] & 0x7F)
+        )
+        header_size = 10 + tag_size
+        # Check for footer flag (bit 4 of flags byte)
+        if data[5] & 0x10:
+            header_size += 10
+        if header_size < len(data):
+            data = data[header_size:]
+            changed = True
+            logger.debug("ID3v2 tag stripped: %d bytes", header_size)
+
+    # Strip ID3v1 at the end (last 128 bytes starting with "TAG")
+    if len(data) > 128 and data[-128:-125] == b"TAG":
+        data = data[:-128]
+        changed = True
+        logger.debug("ID3v1 tag stripped: 128 bytes")
+
+    # Strip APEv2 at the end
+    if len(data) > 32 and data[-32:-24] == b"APETAGEX":
+        ape_size = struct.unpack("<I", data[-20:-16])[0] + 32
+        if ape_size < len(data):
+            data = data[:-ape_size]
+            changed = True
+            logger.debug("APEv2 tag stripped: %d bytes", ape_size)
+
+    return bytes(data) if changed else content
+
+
+def strip_video_metadata(content: bytes, mime_type: str) -> bytes:
+    """
+    Strip metadata from video files (GPS, camera, creation time, software).
+
+    Priority: ffmpeg (best) → pure-Python MP4 atom removal (fallback).
+    """
+    if not mime_type or not mime_type.startswith("video/"):
+        return content
+
+    import shutil
+    import subprocess
+    import tempfile
+
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as inp:
+                inp.write(content)
+                inp_path = inp.name
+            out_path = inp_path + ".clean.mp4"
+            result = subprocess.run(
+                [ffmpeg, "-i", inp_path, "-map_metadata", "-1",
+                 "-c", "copy", "-fflags", "+bitexact",
+                 "-movflags", "+faststart", "-y", out_path],
+                capture_output=True, timeout=60,
+            )
+            if result.returncode == 0:
+                cleaned = Path(out_path).read_bytes()
+                logger.debug(f"Video metadata stripped via ffmpeg: {len(content) - len(cleaned)} bytes removed")
+                os.unlink(inp_path)
+                os.unlink(out_path)
+                return cleaned
+            os.unlink(inp_path)
+            if os.path.exists(out_path):
+                os.unlink(out_path)
+        except Exception as e:
+            logger.debug(f"Video metadata strip via ffmpeg failed: {e}")
+
+    # Fallback: pure-Python MP4/MOV atom removal
+    if mime_type in ("video/mp4", "video/quicktime", "video/x-m4v", "video/mp4v-es"):
+        return _strip_mp4_atoms(content)
+
+    logger.debug("No stripping method available for %s", mime_type)
+    return content
+
+
+def strip_audio_metadata(content: bytes, mime_type: str) -> bytes:
+    """
+    Strip metadata from audio files (ID3 tags, Vorbis comments, etc.).
+
+    Uses ffmpeg if available. Falls back to mutagen if installed.
+    """
+    if not mime_type or not mime_type.startswith("audio/"):
+        return content
+
+    import shutil
+    import subprocess
+    import tempfile
+
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        # Determine output format from mime
+        ext_map = {
+            "audio/mpeg": (".mp3", ["-c", "copy"]),
+            "audio/ogg": (".ogg", ["-c", "copy"]),
+            "audio/wav": (".wav", ["-c", "copy"]),
+            "audio/x-wav": (".wav", ["-c", "copy"]),
+            "audio/aac": (".m4a", ["-c", "copy"]),
+            "audio/mp4": (".m4a", ["-c", "copy"]),
+            "audio/flac": (".flac", ["-c", "copy"]),
+            "audio/x-flac": (".flac", ["-c", "copy"]),
+            "audio/webm": (".webm", ["-c", "copy"]),
+        }
+        ext, codec_args = ext_map.get(mime_type, (".bin", ["-c", "copy"]))
+        try:
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as inp:
+                inp.write(content)
+                inp_path = inp.name
+            out_path = inp_path + ".clean" + ext
+            result = subprocess.run(
+                [ffmpeg, "-i", inp_path, "-map_metadata", "-1"] + codec_args + ["-y", out_path],
+                capture_output=True, timeout=60,
+            )
+            if result.returncode == 0:
+                cleaned = Path(out_path).read_bytes()
+                logger.debug(f"Audio metadata stripped: {len(content) - len(cleaned)} bytes removed")
+                os.unlink(inp_path)
+                os.unlink(out_path)
+                return cleaned
+            os.unlink(inp_path)
+            if os.path.exists(out_path):
+                os.unlink(out_path)
+        except Exception as e:
+            logger.debug(f"Audio metadata strip via ffmpeg failed: {e}")
+    else:
+        # Fallback 1: try mutagen for tag removal
+        try:
+            import mutagen
+            import tempfile as _tf
+            with _tf.NamedTemporaryFile(suffix=".tmp", delete=False) as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+            f = mutagen.File(tmp_path)
+            if f is not None:
+                f.delete()
+                f.save()
+                cleaned = Path(tmp_path).read_bytes()
+                os.unlink(tmp_path)
+                return cleaned
+            os.unlink(tmp_path)
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"Audio metadata strip via mutagen failed: {e}")
+
+        # Fallback 2: pure-Python ID3 stripping for MP3
+        if mime_type in ("audio/mpeg", "audio/mp3"):
+            return _strip_id3_tags(content)
+
+        # Fallback 3: strip MP4/M4A atoms for AAC containers
+        if mime_type in ("audio/mp4", "audio/aac", "audio/x-m4a"):
+            return _strip_mp4_atoms(content)
+
+        logger.debug("No audio metadata stripping method available for %s", mime_type)
+
+    return content
+
+
+def strip_pdf_metadata(content: bytes) -> bytes:
+    """
+    Strip metadata from PDF files (author, creator, producer, creation/mod dates).
+
+    Uses pikepdf if available, fallback to PyPDF2/pypdf.
+    """
+    # Try pikepdf first (best PDF library)
+    try:
+        import pikepdf
+        pdf = pikepdf.open(io.BytesIO(content))
+        # Clear /Info dictionary
+        with pdf.open_metadata() as meta:
+            for key in list(meta.keys()):
+                del meta[key]
+        if "/Info" in pdf.trailer:
+            del pdf.trailer["/Info"]
+        buf = io.BytesIO()
+        pdf.save(buf)
+        result = buf.getvalue()
+        logger.debug(f"PDF metadata stripped via pikepdf: {len(content) - len(result)} bytes delta")
+        return result
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.debug(f"PDF metadata strip via pikepdf failed: {e}")
+
+    # Fallback: pypdf
+    try:
+        from pypdf import PdfReader, PdfWriter
+        reader = PdfReader(io.BytesIO(content))
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        # Clear metadata
+        writer.add_metadata({
+            "/Producer": "",
+            "/Creator": "",
+            "/Author": "",
+            "/Title": "",
+            "/Subject": "",
+            "/CreationDate": "",
+            "/ModDate": "",
+        })
+        buf = io.BytesIO()
+        writer.write(buf)
+        result = buf.getvalue()
+        logger.debug(f"PDF metadata stripped via pypdf")
+        return result
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.debug(f"PDF metadata strip via pypdf failed: {e}")
+
+    logger.debug("No PDF library available — PDF metadata NOT stripped")
+    return content
+
+
+def strip_all_metadata(content: bytes, mime_type: str) -> bytes:
+    """
+    Universal metadata stripper. Dispatches to format-specific strippers.
+
+    Supported:
+      - Images (JPEG, PNG, WebP) → strip_exif()
+      - Video (MP4, WebM, MOV, AVI, MKV) → strip_video_metadata() via ffmpeg
+      - Audio (MP3, OGG, WAV, AAC, FLAC) → strip_audio_metadata() via ffmpeg/mutagen
+      - PDF → strip_pdf_metadata() via pikepdf/pypdf
+    """
+    if not mime_type:
+        return content
+
+    if mime_type.startswith("image/"):
+        return strip_exif(content, mime_type)
+    elif mime_type.startswith("video/"):
+        return strip_video_metadata(content, mime_type)
+    elif mime_type.startswith("audio/"):
+        return strip_audio_metadata(content, mime_type)
+    elif mime_type == "application/pdf":
+        return strip_pdf_metadata(content)
+
+    return content
+
+
+def generate_encrypted_thumbnail(content: bytes, mime_type: str, max_dim: int = 200) -> Optional[bytes]:
+    """
+    Generate a small thumbnail for image preview.
+
+    Returns JPEG bytes (quality=60) or None for non-images.
+    Thumbnail is EXIF-clean by construction.
+    """
+    if not mime_type or not mime_type.startswith("image/"):
+        return None
+    try:
+        img = Image.open(io.BytesIO(content))
+        img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=60)
+        return buf.getvalue()
+    except Exception:
+        return None
 
 
 class FileAnomalyDetector:
@@ -188,22 +593,24 @@ class FileAnomalyDetector:
     @staticmethod
     def calculate_file_complexity(content: bytes) -> float:
         """
-        Вычисляет энтропию содержимого файла.
+        Вычисляет энтропию содержимого файла (Shannon entropy, 0–8 бит).
         Высокая энтропия может указывать на сжатые или зашифрованные данные (zip-бомбы).
         """
+        import math
+
         if len(content) == 0:
-            return 0
+            return 0.0
 
         freq = {}
         for byte in content:
             freq[byte] = freq.get(byte, 0) + 1
 
-        entropy = 0
+        entropy = 0.0
         total = len(content)
         for count in freq.values():
             probability = count / total
             if probability > 0:
-                entropy -= probability * (probability.bit_length())  # приближённо log2
+                entropy -= probability * math.log2(probability)
 
         return entropy
 
@@ -250,7 +657,7 @@ class UploadQuotaManager:
             # Импортируем модель внутри функции, чтобы избежать циклических импортов
             from app.models import UploadQuota
 
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
             hour_ago = current_time - timedelta(hours=1)
             day_ago = current_time - timedelta(days=1)
 
@@ -299,7 +706,7 @@ class UploadQuotaManager:
                 client_ip=client_ip,
                 file_size=file_size,
                 file_hash=file_hash,
-                uploaded_at=datetime.utcnow()
+                uploaded_at=datetime.now(timezone.utc)
             )
             self.db.add(upload_record)
             self.db.commit()
@@ -349,6 +756,18 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
         mime = ext_to_mime.get(file_ext)
         if mime is None:
             return False, f"Неподдерживаемое расширение файла: {file_ext}"
+
+    # ── Шаг 2.5: encrypted files (E2E) — magic bytes unrecognisable ────────
+    # If libmagic reports octet-stream but the original extension is a known
+    # allowed type, accept it as octet-stream (encrypted payload).
+    if mime == 'application/octet-stream':
+        ext_to_mime = {
+            ext: mt
+            for mt, exts in FileUploadConfig.ALLOWED_MIME_TYPES.items()
+            for ext in exts
+        }
+        if file_ext in ext_to_mime:
+            return True, 'application/octet-stream'
 
     # ── Шаг 3: проверяем что MIME входит в белый список ─────────────────────
     if mime not in FileUploadConfig.ALLOWED_MIME_TYPES:
