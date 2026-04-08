@@ -100,13 +100,33 @@ async def list_contacts(
         .all()
     )
 
+    if not contacts:
+        return {"contacts": []}
+
+    # Batch load: все пользователи одним запросом (вместо N+1)
+    contact_ids = [c.contact_id for c in contacts]
+    users_list = db.query(User).filter(User.id.in_(contact_ids)).all()
+    users_map = {usr.id: usr for usr in users_list}
+
+    # Batch load: все DM комнаты одним запросом
+    my_dm_rooms = (
+        db.query(RoomMember.room_id, RoomMember.user_id)
+        .join(Room, Room.id == RoomMember.room_id)
+        .filter(Room.is_dm == True, RoomMember.room_id.in_(
+            db.query(RoomMember.room_id)
+            .join(Room, Room.id == RoomMember.room_id)
+            .filter(Room.is_dm == True, RoomMember.user_id == u.id)
+            .subquery()
+        ), RoomMember.user_id.in_(contact_ids))
+        .all()
+    )
+    dm_map = {row.user_id: row.room_id for row in my_dm_rooms}
+
     result = []
     for c in contacts:
-        contact_user = db.query(User).filter(User.id == c.contact_id).first()
+        contact_user = users_map.get(c.contact_id)
         if not contact_user:
             continue
-
-        dm_room_id = _find_dm_room(u.id, c.contact_id, db)
 
         result.append({
             "contact_id":   c.id,
@@ -121,7 +141,7 @@ async def list_contacts(
             "custom_status": contact_user.custom_status,
             "status_emoji":  contact_user.status_emoji,
             "presence":      contact_user.presence or "online",
-            "dm_room_id":   dm_room_id,
+            "dm_room_id":   dm_map.get(c.contact_id),
             "created_at":   c.created_at.isoformat(),
             "x25519_public_key":    contact_user.x25519_public_key,
             "fingerprint_verified": bool(c.fingerprint_verified),

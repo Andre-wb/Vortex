@@ -113,7 +113,7 @@ export function _updateReaction(msgId, userId, emoji, added, username, displayNa
 // Закреплённое сообщение — UI
 // =============================================================================
 
-export function _showPinnedBar(msgId) {
+export function _showPinnedBar(msgId, ciphertext, senderName) {
     let bar = document.getElementById('pinned-bar');
     if (!bar) {
         bar = document.createElement('div');
@@ -122,25 +122,122 @@ export function _showPinnedBar(msgId) {
         const header = document.getElementById('chat-header');
         if (header) header.after(bar);
     }
-    // Try to extract actual message text from the DOM
-    let pinnedPreview = t('chat.pinnedMessage');
+
+    const _buildPinnedContent = (preview, sender) => {
+        // Clear old content
+        bar.textContent = '';
+
+        const icon = document.createElement('span');
+        icon.className = 'pinned-icon';
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '16');
+        svg.setAttribute('height', '16');
+        svg.setAttribute('fill', 'currentColor');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M14 4v5c0 1.12.37 2.16 1 3H9c.65-.86 1-1.9 1-3V4h4zm3-2H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3V4h1c.55 0 1-.45 1-1s-.45-1-1-1z');
+        svg.appendChild(path);
+        icon.appendChild(svg);
+        bar.appendChild(icon);
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'pinned-text';
+        const truncated = preview && preview.length > 80 ? preview.slice(0, 80) + '...' : (preview || '');
+        if (sender) {
+            const senderSpan = document.createElement('span');
+            senderSpan.className = 'pinned-sender';
+            senderSpan.textContent = sender + ': ';
+            textSpan.appendChild(senderSpan);
+        }
+        textSpan.appendChild(document.createTextNode(truncated || t('chat.pinnedMessage')));
+        bar.appendChild(textSpan);
+
+        const closeBtn = document.createElement('span');
+        closeBtn.className = 'pinned-close';
+        closeBtn.textContent = '\u00d7';
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.unpinMessage?.();
+        });
+        bar.appendChild(closeBtn);
+    };
+
+    // Try to get text from DOM first
+    let pinnedPreview = null;
     const msgEl = document.querySelector(`[data-msg-id="${msgId}"]`);
     if (msgEl) {
-        const bodyEl = msgEl.querySelector('.msg-body');
-        if (bodyEl) {
-            const raw = bodyEl.textContent.trim();
-            pinnedPreview = raw.length > 80 ? raw.slice(0, 80) + '...' : raw;
-        }
+        const textEl = msgEl.querySelector('.msg-text');
+        if (textEl) pinnedPreview = textEl.textContent.trim();
     }
-    bar.innerHTML = `<span class="pinned-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M14 4v5c0 1.12.37 2.16 1 3H9c.65-.86 1-1.9 1-3V4h4zm3-2H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3V4h1c.55 0 1-.45 1-1s-.45-1-1-1z"/></svg></span><span class="pinned-text">${pinnedPreview}</span><span class="pinned-close" onclick="unpinMessage()">&times;</span>`;
+
+    if (pinnedPreview) {
+        _buildPinnedContent(pinnedPreview, senderName);
+    } else if (ciphertext) {
+        _buildPinnedContent(t('chat.pinnedMessage'), senderName);
+        (async () => {
+            try {
+                const { getRoomKey, decryptText } = await import('../crypto.js');
+                const S = window.AppState;
+                const roomKey = getRoomKey(S.currentRoom?.id);
+                if (roomKey) {
+                    const text = await decryptText(ciphertext, roomKey);
+                    _buildPinnedContent(text, senderName);
+                }
+            } catch {}
+        })();
+    } else {
+        _buildPinnedContent(t('chat.pinnedMessage'), senderName);
+    }
+
     bar.style.display = 'flex';
-    bar.onclick = (e) => {
+    bar.onclick = async (e) => {
         if (e.target.classList.contains('pinned-close')) return;
-        const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+        let el = document.querySelector(`[data-msg-id="${msgId}"]`);
         if (el) {
             el.scrollIntoView({behavior: 'smooth', block: 'center'});
             el.classList.add('msg-highlight');
             setTimeout(() => el.classList.remove('msg-highlight'), 1500);
+            return;
+        }
+        // Сообщение не в DOM — загружаем контекст вокруг него
+        try {
+            const S = window.AppState;
+            const roomId = S.currentRoom?.id;
+            if (!roomId) return;
+            const { api } = await import('../utils.js');
+            const data = await api('GET', `/api/rooms/${roomId}/messages?around_id=${msgId}&limit=50`);
+            if (!data?.messages?.length) return;
+            const container = document.getElementById('messages-container');
+            if (!container) return;
+            // Очищаем и рендерим новые сообщения
+            while (container.firstChild) container.removeChild(container.firstChild);
+            const { appendMessage, appendFileMessage, resetMessageState } = await import('./messages.js');
+            const { decryptText } = await import('./room-crypto.js');
+            const { getRoomKey } = await import('../crypto.js');
+            resetMessageState();
+            const roomKey = getRoomKey(roomId);
+            for (const m of data.messages) {
+                // Расшифровка
+                if (m.ciphertext && roomKey) {
+                    try { m.text = await decryptText(m.ciphertext, roomKey); } catch { m.text = m.ciphertext; }
+                }
+                m.sender_id = m.sender_id || m.id;
+                if (m.file_name || m.file_url) {
+                    appendFileMessage(m);
+                } else {
+                    appendMessage(m);
+                }
+            }
+            // Скроллим к целевому сообщению
+            await new Promise(r => setTimeout(r, 50));
+            el = document.querySelector(`[data-msg-id="${msgId}"]`);
+            if (el) {
+                el.scrollIntoView({behavior: 'smooth', block: 'center'});
+                el.classList.add('msg-highlight');
+                setTimeout(() => el.classList.remove('msg-highlight'), 1500);
+            }
+        } catch (err) {
+            console.warn('Failed to load pinned message context', err);
         }
     };
     bar.dataset.msgId = msgId;

@@ -18,8 +18,11 @@ let _peakInterval   = null;
 let _isVideoNote    = false;
 let _pressStart     = 0;      // pointerdown timestamp for short/long-press detection
 let _vnHideTimer    = null;   // auto-hide timer for the video-note button
+let _longPressTimer = null;   // timer to start recording on long press (without waiting for pointerup)
+let _longPressTriggered = false; // flag: recording already started by long press
 const VOICE_BTN_ID = 'voice-record-btn';
 const VIDEO_NOTE_BTN_ID = 'video-note-btn';
+const LONG_PRESS_MS = 500;
 
 const SVG_PLAY  = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><path d="M15.5 12L10 15.5V8.5L15.5 12Z" fill="currentColor"/></svg>`;
 const SVG_PAUSE = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="8" width="2.2" height="8" rx="1" fill="currentColor"/><rect x="12.8" y="8" width="2.2" height="8" rx="1" fill="currentColor"/></svg>`;
@@ -27,50 +30,74 @@ const SVG_STOP  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14
 const SVG_CLOSE = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
 
 export function initVoiceRecorder() {
-    // Shared pointerdown — track press start for both buttons.
+    // Shared pointerdown — start long-press timer to begin recording immediately.
     document.addEventListener('pointerdown', e => {
-        if (e.target.closest(`#${VOICE_BTN_ID}`) || e.target.closest(`#${VIDEO_NOTE_BTN_ID}`)) {
+        const isVoice = !!e.target.closest(`#${VOICE_BTN_ID}`);
+        const isCircle = !!e.target.closest(`#${VIDEO_NOTE_BTN_ID}`);
+        if (isVoice || isCircle) {
             _pressStart = Date.now();
+            _longPressTriggered = false;
+            clearTimeout(_longPressTimer);
+            // After LONG_PRESS_MS, start recording immediately (don't wait for pointerup)
+            if (!(_mediaRecorder?.state === 'recording')) {
+                _longPressTimer = setTimeout(() => {
+                    _longPressTriggered = true;
+                    if (isVoice) {
+                        _isVideoNote = false;
+                        _startRecording();
+                    } else {
+                        toggleVideoNoteRecording();
+                    }
+                }, LONG_PRESS_MS);
+            }
         } else {
             // Tapped outside both buttons — dismiss the circle button.
             _hideVideoNoteBtn();
         }
     });
 
-    // Voice button — short press (<500 ms): switch to circle icon.
-    //               long  press (≥500 ms): start/stop voice recording.
+    // Voice button — pointerup:
+    //   If already recording (long press started it) → stop.
+    //   If short press (<LONG_PRESS_MS) and not recording → show circle button.
     document.addEventListener('pointerup', e => {
         if (!e.target.closest(`#${VOICE_BTN_ID}`)) return;
-        const elapsed = Date.now() - _pressStart;
+        clearTimeout(_longPressTimer);
         _pressStart = 0;
-        if (_mediaRecorder?.state === 'recording') {
+        if (_longPressTriggered && _mediaRecorder?.state === 'recording') {
             _stopRecording();
-        } else if (elapsed < 500) {
+            _longPressTriggered = false;
+        } else if (_mediaRecorder?.state === 'recording') {
+            _stopRecording();
+        } else if (!_longPressTriggered) {
             _showVideoNoteBtn();
-        } else {
-            _isVideoNote = false;
-            _startRecording();
         }
+        _longPressTriggered = false;
     });
 
-    // Circle (video-note) button — short press (<500 ms): switch back to voice icon.
-    //                              long  press (≥500 ms): start/stop circle recording.
+    // Circle (video-note) button — pointerup:
+    //   If already recording → stop.
+    //   If short press → switch back to voice icon.
     document.addEventListener('pointerup', e => {
         if (!e.target.closest(`#${VIDEO_NOTE_BTN_ID}`)) return;
-        const elapsed = Date.now() - _pressStart;
+        clearTimeout(_longPressTimer);
         _pressStart = 0;
-        if (_mediaRecorder?.state === 'recording') {
+        if (_longPressTriggered && _mediaRecorder?.state === 'recording') {
             _stopRecording();
-        } else if (elapsed < 500) {
-            // Short press — just switch back to the voice icon, don't record.
+            _longPressTriggered = false;
+        } else if (_mediaRecorder?.state === 'recording') {
+            _stopRecording();
+        } else if (!_longPressTriggered) {
             _hideVideoNoteBtn();
-        } else {
-            toggleVideoNoteRecording();
         }
+        _longPressTriggered = false;
     });
 
-    // Pointer cancelled — reset timer.
-    document.addEventListener('pointercancel', e => { _pressStart = 0; });
+    // Pointer cancelled — cleanup timers.
+    document.addEventListener('pointercancel', () => {
+        clearTimeout(_longPressTimer);
+        _pressStart = 0;
+        _longPressTriggered = false;
+    });
 }
 
 function _showVideoNoteBtn() {
@@ -109,7 +136,7 @@ export async function toggleVideoNoteRecording() {
 async function _startVideoRecording() {
     try {
         _stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
             video: { width: { ideal: 480 }, height: { ideal: 480 }, facingMode: 'user' },
         });
     } catch {
@@ -149,7 +176,7 @@ function _onStopVideo() {
 
 async function _startRecording() {
     try {
-        _stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        _stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     } catch {
         alert(t('voice.noMicAccess'));
         return;

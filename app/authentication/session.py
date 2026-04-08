@@ -52,7 +52,7 @@ async def logout(request: Request, db: Session = Depends(get_db)):
         rec = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
         if rec and not rec.revoked_at:
             rec.revoked_at = datetime.now(timezone.utc)
-            db.commit()
+        db.commit()
     r = JSONResponse({"ok": True})
     r.delete_cookie("access_token", path="/")
     r.delete_cookie("refresh_token", path="/")

@@ -21,6 +21,9 @@ let _scTextColor = '#ffffff';
 let _scBg = 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)';
 let _expanded = false;     // stories strip expanded state
 
+// ── Public: set of user IDs that have active stories ─────────────────────────
+export const storyUserIds = new Set();
+
 // ── Load & render strip ───────────────────────────────────────────────────────
 export async function loadStories() {
     try {
@@ -28,6 +31,10 @@ export async function loadStories() {
         _groups = data.story_groups || [];
     } catch {
         _groups = [];
+    }
+    storyUserIds.clear();
+    for (const g of _groups) {
+        if (g.user_id && g.stories?.length) storyUserIds.add(g.user_id);
     }
     renderStoriesStrip();
 }
@@ -42,12 +49,16 @@ export function renderStoriesStrip() {
     // Always show "Add story" (self) first
     let html = '';
 
-    // Self bubble
+    // Self bubble: если есть истории → открыть просмотр, иначе → создать
     const selfGroup = _groups.find(g => g.is_self);
-    html += `<button class="st-bubble st-self" onclick="window.showStoryCreator()" title="${window.t ? window.t('stories.addStory') : 'Add Story'}">
-        <div class="st-ring ${selfGroup ? 'has-story' : ''}">
+    const selfIdx = selfGroup ? _groups.indexOf(selfGroup) : -1;
+    const selfAction = selfGroup && selfGroup.stories.length > 0
+        ? `window.openStories(${selfIdx})`
+        : `window.showStoryCreator()`;
+    html += `<button class="st-bubble st-self" onclick="${selfAction}" title="${window.t ? window.t('stories.myStory') : 'My Story'}">
+        <div class="st-ring ${selfGroup && selfGroup.stories.length > 0 ? 'has-story' : ''}">
             <div class="st-avatar">${_avatarHtml(S.user?.avatar_url, S.user?.avatar_emoji || '👤')}</div>
-            <div class="st-add-badge">+</div>
+            ${!selfGroup || selfGroup.stories.length === 0 ? '<div class="st-add-badge">+</div>' : ''}
         </div>
         <span class="st-label">${window.t ? window.t('stories.myStory') : 'My'}</span>
     </button>`;
@@ -89,7 +100,7 @@ export function renderStoriesStrip() {
     track.innerHTML = html;
 
     const strip = document.getElementById('stories-strip');
-    if (strip) strip.style.display = (_groups.length || true) ? '' : 'none';
+    if (strip) strip.style.display = '';
 }
 
 function _avatarHtml(url, emoji) {
@@ -148,7 +159,9 @@ function _renderCurrent() {
         avatarEl.textContent = group.avatar_emoji || '👤';
     }
 
-    // Delete button for own stories
+    // Add + Delete buttons for own stories
+    const addBtn = document.getElementById('sv-add-btn');
+    if (addBtn) addBtn.style.display = group.is_self ? 'flex' : 'none';
     const delBtn = document.getElementById('sv-delete-btn');
     if (delBtn) delBtn.style.display = group.is_self ? 'flex' : 'none';
 

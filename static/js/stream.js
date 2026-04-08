@@ -24,6 +24,8 @@ const _streamPeers = {}; // peerId -> { pc, stream, audioEl, videoEl }
 let _streamTimer = null;
 let _streamDuration = 0;
 let _reactionTimeout = null;
+let _scheduledTitle = null; // saved title for auto-start after countdown
+let _streamConfirmed = false; // bypass confirmation after user confirmed
 
 // ICE servers
 let _iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -82,6 +84,16 @@ export function openStreamSettings(roomId) {
 export async function startStream() {
     if (_streamState !== 'settings' || !_streamRoomId) return;
 
+    // Check if confirmation required (default: on)
+    const needConfirm = $('stream-settings-confirm-start')?.checked !== false;
+    if (needConfirm && !_streamConfirmed) {
+        // Show confirmation modal, actual start happens in _confirmedStartStream()
+        const confirmModal = $('stream-confirm-modal');
+        if (confirmModal) confirmModal.classList.add('show');
+        return;
+    }
+    _streamConfirmed = false; // reset for next time
+
     const title = $('stream-settings-title')?.value?.trim() || 'Live';
     const description = $('stream-settings-desc')?.value?.trim() || '';
     const allowReactions = $('stream-settings-reactions')?.checked !== false;
@@ -90,11 +102,36 @@ export async function startStream() {
     const donationMessage = $('stream-settings-card-message')?.value?.trim() || '';
     const autoAcceptSpeakers = $('stream-settings-auto-accept')?.checked || false;
 
-    _streamState = 'connecting';
+    // Check if scheduled
+    const isScheduled = $('stream-settings-scheduled')?.checked || false;
+    const _schedDate = $('stream-settings-date')?.value || '';
+    const _schedTime = $('stream-settings-time')?.value || '00:00';
+    const scheduledDatetime = _schedDate ? `${_schedDate}T${_schedTime}` : '';
 
     // Close settings modal
     const modal = $('stream-settings-modal');
     if (modal) modal.classList.remove('show');
+
+    // If scheduled in the future, show banner and return without starting
+    if (isScheduled && scheduledDatetime) {
+        const scheduledTime = new Date(scheduledDatetime).getTime();
+        if (scheduledTime > Date.now()) {
+            _scheduledTitle = title;
+            _showScheduledBanner(title, scheduledDatetime);
+            // Notify server so all subscribers see the banner
+            try {
+                await api('POST', `/api/stream/${_streamRoomId}/schedule`, {
+                    title, scheduled_at: scheduledDatetime,
+                });
+            } catch (e) {
+                console.warn('[Stream] schedule error:', e);
+            }
+            _streamState = 'idle';
+            return;
+        }
+    }
+
+    _streamState = 'connecting';
 
     await _loadIceServers();
 
@@ -216,6 +253,11 @@ export async function leaveStream() {
     _streamMyRole = null;
 
     _hideStreamOverlay();
+    // Also hide PIP
+    const pip = document.getElementById('stream-pip');
+    if (pip) pip.classList.remove('show');
+    // Log in chat
+    _appendStreamLog(t('stream.ended') || 'Stream ended');
     console.log('[Stream] Left');
 }
 
@@ -911,6 +953,9 @@ function _showStreamOverlay() {
     _updateViewerCount();
     _updateStreamControls();
     _updateLocalPreview();
+
+    // Log stream start in chat
+    _appendStreamLog(t('stream.started') || 'Stream started');
 }
 
 function _hideStreamOverlay() {
@@ -997,17 +1042,23 @@ function _updateLocalPreview() {
 }
 
 function _updateRemoteVideo(peerId, stream) {
-    // Main video area — show host/active speaker
+    // Main video area — show host, co_host, speaker, or screen share
     const mainVideo = $('stream-main-video');
-    if (mainVideo) {
-        // Find if this peer is the host
-        const peerInfo = _streamData?.participants?.find(p => p.user_id === peerId);
-        if (peerInfo && (peerInfo.role === 'host' || peerInfo.is_screen_sharing)) {
-            mainVideo.srcObject = stream;
-            mainVideo.style.display = '';
-            const placeholder = $('stream-video-placeholder');
-            if (placeholder) placeholder.style.display = 'none';
-        }
+    if (!mainVideo) return;
+
+    const peerInfo = _streamData?.participants?.find(p => p.user_id === peerId);
+    const isHost = peerInfo && (peerInfo.role === 'host' || peerInfo.role === 'co_host');
+    const isSpeaker = peerInfo && peerInfo.role === 'speaker';
+    const isScreenSharing = peerInfo && peerInfo.is_screen_sharing;
+
+    // Show video if peer is host/co_host/speaker, or is screen-sharing,
+    // or if it has video tracks (fallback — always show incoming video)
+    const hasVideo = stream?.getVideoTracks().length > 0;
+    if (isHost || isSpeaker || isScreenSharing || hasVideo) {
+        mainVideo.srcObject = stream;
+        mainVideo.style.display = '';
+        const placeholder = $('stream-video-placeholder');
+        if (placeholder) placeholder.style.display = 'none';
     }
 }
 
@@ -1208,6 +1259,45 @@ function _updateStreamUI() {
     _updateStreamControls();
 }
 
+/**
+ * Добавить системное лог-сообщение в чат (стрим начался/закончился).
+ */
+function _appendStreamLog(text) {
+    const mc = document.getElementById('messages-container');
+    if (!mc) return;
+    const now = new Date();
+    const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const isEnded = text.toLowerCase().includes('end') || text.toLowerCase().includes('заверш');
+
+    const row = document.createElement('div');
+    row.className = 'message-row';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble system stream-log';
+
+    const icon = document.createElement('span');
+    icon.className = 'stream-log-icon';
+    icon.textContent = isEnded ? '⏹' : '🔴';
+
+    const label = document.createElement('span');
+    label.className = 'stream-log-text';
+    label.textContent = text;
+
+    const ts = document.createElement('span');
+    ts.className = 'stream-log-time';
+    ts.textContent = time;
+
+    bubble.appendChild(icon);
+    bubble.appendChild(document.createTextNode(' '));
+    bubble.appendChild(label);
+    bubble.appendChild(document.createTextNode(' '));
+    bubble.appendChild(ts);
+
+    row.appendChild(bubble);
+    mc.appendChild(row);
+    mc.scrollTop = mc.scrollHeight;
+}
+
 function _toggleDonationSection() {
     const toggle = $('stream-settings-donations');
     const section = $('stream-donation-settings');
@@ -1230,3 +1320,263 @@ window._sendStreamChatMsg = function() {
         input.value = '';
     }
 };
+
+// ─── Minimize / Expand ─────────────────────────────────────────────────────
+
+export function minimizeStream() {
+    _hideStreamOverlay();
+    // Show a small PIP-like indicator
+    let pip = document.getElementById('stream-pip');
+    if (!pip) {
+        pip = document.createElement('div');
+        pip.id = 'stream-pip';
+        pip.className = 'stream-pip';
+        document.body.appendChild(pip);
+    }
+
+    const liveText = document.createTextNode('LIVE');
+    const dot = document.createElement('span');
+    dot.className = 'stream-pip-dot';
+
+    const title = document.createElement('span');
+    title.className = 'stream-pip-title';
+    title.textContent = _streamData?.title || 'Stream';
+
+    const timer = document.createElement('span');
+    timer.className = 'stream-pip-timer';
+    timer.id = 'stream-pip-timer';
+
+    const expandBtn = document.createElement('button');
+    expandBtn.className = 'stream-pip-expand';
+    expandBtn.textContent = t('call.stats') || 'Expand';
+    expandBtn.onclick = () => expandStream();
+
+    const leaveBtn = document.createElement('button');
+    leaveBtn.className = 'stream-pip-leave';
+    leaveBtn.onclick = () => {
+        if (_streamMyRole === 'host') endStream();
+        else leaveStream();
+    };
+    const leaveIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    leaveIcon.setAttribute('width', '14');
+    leaveIcon.setAttribute('height', '14');
+    leaveIcon.setAttribute('fill', 'currentColor');
+    leaveIcon.setAttribute('viewBox', '0 0 24 24');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z');
+    leaveIcon.appendChild(path);
+    leaveBtn.appendChild(leaveIcon);
+
+    // Clear and rebuild
+    while (pip.firstChild) pip.removeChild(pip.firstChild);
+    pip.appendChild(dot);
+    const badge = document.createElement('span');
+    badge.className = 'stream-pip-badge';
+    badge.appendChild(liveText);
+    pip.appendChild(badge);
+    pip.appendChild(title);
+    pip.appendChild(timer);
+    pip.appendChild(expandBtn);
+    pip.appendChild(leaveBtn);
+
+    pip.classList.add('show');
+}
+
+export function expandStream() {
+    const pip = document.getElementById('stream-pip');
+    if (pip) pip.classList.remove('show');
+    _showStreamOverlay();
+}
+
+// ─── Zen Mode ──────────────────────────────────────────────────────────────
+
+let _streamZenMode = false;
+
+export function toggleStreamZen() {
+    const overlay = $('stream-overlay');
+    if (!overlay) return;
+    _streamZenMode = !_streamZenMode;
+    overlay.classList.toggle('zen', _streamZenMode);
+    const btn = $('stream-zen-btn');
+    if (btn) btn.classList.toggle('active', _streamZenMode);
+}
+
+/**
+ * Кнопка стрелочек: в zen → выход из zen, в обычном → свернуть стрим.
+ */
+export function streamMinimizeOrExitZen() {
+    if (_streamZenMode) {
+        toggleStreamZen();
+    } else {
+        minimizeStream();
+    }
+}
+
+// ESC exits zen mode
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _streamZenMode) {
+        toggleStreamZen();
+    }
+});
+
+// ─── Scheduled stream + waiting screen ─────────────────────────────────────
+
+let _scheduledTimer = null;
+let _selectedStreamBg = 'gradient-1';
+
+const _STREAM_GRADIENTS = {
+    'gradient-1': 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)',
+    'gradient-2': 'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)',
+    'gradient-3': 'linear-gradient(135deg,#141e30,#243b55)',
+    'gradient-4': 'linear-gradient(135deg,#0a0a14,#1a0e2e,#2d1b69)',
+    'gradient-5': 'linear-gradient(135deg,#200122,#6f0000)',
+};
+
+window._toggleStreamScheduleSection = function() {
+    const toggle = $('stream-settings-scheduled');
+    const section = $('stream-schedule-settings');
+    if (toggle && section) {
+        section.style.display = toggle.checked ? '' : 'none';
+        if (toggle.checked) {
+            // Default: 1 hour from now
+            const dateEl = $('stream-settings-date');
+            const timeEl = $('stream-settings-time');
+            if (dateEl && !dateEl.value) {
+                const now = new Date(Date.now() + 3600000);
+                dateEl.value = now.toISOString().slice(0, 10);
+                if (timeEl) timeEl.value = now.toTimeString().slice(0, 5);
+            }
+        }
+    }
+};
+
+window._selectStreamBg = function(btn) {
+    const opts = document.getElementById('stream-bg-options');
+    if (opts) {
+        opts.querySelectorAll('.stream-bg-opt').forEach(b => b.classList.remove('active'));
+    }
+    btn.classList.add('active');
+    _selectedStreamBg = btn.dataset.bg || 'gradient-1';
+};
+
+window._closeStreamWaiting = function() {
+    const waiting = $('stream-waiting-overlay');
+    if (waiting) waiting.classList.remove('show');
+    if (_scheduledTimer) { clearInterval(_scheduledTimer); _scheduledTimer = null; }
+};
+
+/**
+ * Автозапуск стрима после истечения таймера запланированного стрима.
+ */
+async function _autoStartScheduledStream() {
+    const title = _scheduledTitle || 'Live';
+    _streamState = 'connecting';
+    await _loadIceServers();
+
+    try {
+        _streamLocalStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+        });
+        _streamMuted = false;
+        _streamVideoOn = true;
+    } catch {
+        try {
+            _streamLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            _streamMuted = false;
+            _streamVideoOn = false;
+        } catch (e2) {
+            _streamState = 'idle';
+            return;
+        }
+    }
+
+    try {
+        _streamData = await api('POST', `/api/stream/${_streamRoomId}/start`, { title });
+        _streamMyRole = 'host';
+    } catch {
+        _cleanupMedia();
+        _streamState = 'idle';
+        return;
+    }
+
+    _connectStreamWs(_streamRoomId);
+    _streamState = 'live';
+    _showStreamOverlay();
+    _startStreamTimer();
+    _updateStreamControls();
+    _scheduledTitle = null;
+}
+
+/**
+ * Показать баннер запланированного стрима сверху чата (видят все подписчики).
+ */
+function _showScheduledBanner(title, scheduledDate) {
+    const banner = $('stream-scheduled-banner');
+    if (!banner) return;
+
+    const textEl = $('stream-sched-text');
+    if (textEl) textEl.textContent = (t('stream.scheduled') || 'Запланирован стрим') + ': ' + (title || 'Live');
+
+    banner.style.display = '';
+
+    // Start countdown
+    if (_scheduledTimer) clearInterval(_scheduledTimer);
+    const target = new Date(scheduledDate).getTime();
+
+    function updateCountdown() {
+        const now = Date.now();
+        const diff = target - now;
+        const countEl = $('stream-sched-countdown');
+        if (!countEl) return;
+        if (diff <= 0) {
+            countEl.textContent = t('stream.goLive') || 'Go Live';
+            if (_scheduledTimer) { clearInterval(_scheduledTimer); _scheduledTimer = null; }
+            // Auto-hide banner
+            const bannerEl = $('stream-scheduled-banner');
+            if (bannerEl) bannerEl.style.display = 'none';
+            // Auto-start stream for creator if still idle
+            if (_streamRoomId && _streamState === 'idle') {
+                _autoStartScheduledStream();
+            }
+            return;
+        }
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        countEl.textContent = h > 0
+            ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+            : `${m}:${String(s).padStart(2,'0')}`;
+    }
+
+    updateCountdown();
+    _scheduledTimer = setInterval(updateCountdown, 1000);
+}
+
+/**
+ * Показать баннер при входе в канал (вызывается из ui.js при openRoom).
+ */
+export function showScheduledStreamBanner(title, scheduledAt) {
+    _showScheduledBanner(title, scheduledAt);
+}
+
+/**
+ * Автостарт стрима из другой комнаты (вызывается из notifications.js по сигналу stream_auto_start).
+ */
+export function startStreamAuto(roomId, title) {
+    _streamRoomId = roomId;
+    _scheduledTitle = title;
+    _streamState = 'idle';
+    _autoStartScheduledStream();
+}
+
+window._confirmedStartStream = function() {
+    _streamConfirmed = true;
+    startStream();
+};
+
+export function hideScheduledStreamBanner() {
+    const banner = $('stream-scheduled-banner');
+    if (banner) banner.style.display = 'none';
+    if (_scheduledTimer) { clearInterval(_scheduledTimer); _scheduledTimer = null; }
+}

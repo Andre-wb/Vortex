@@ -126,6 +126,60 @@ class StreamState:
 
 _active_streams: dict[int, StreamState] = {}  # room_id -> StreamState
 _stream_ws: dict[int, dict[int, WebSocket]] = {}  # room_id -> {user_id -> WS}
+_scheduled_streams: dict[int, dict] = {}  # room_id -> { title, scheduled_at, host_id }
+_schedule_checker_task = None  # asyncio background task
+
+
+async def _check_scheduled_streams():
+    """Фоновая задача: проверяет запланированные стримы каждые 5 сек.
+    Когда время пришло — отправляет stream_auto_start хосту через global WS."""
+    import asyncio
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+            to_fire = []
+            for room_id, sched in list(_scheduled_streams.items()):
+                scheduled_at_str = sched.get("scheduled_at", "")
+                try:
+                    # Parse ISO datetime (may be naive — treat as UTC)
+                    sdt = datetime.fromisoformat(scheduled_at_str.replace("Z", "+00:00"))
+                    if sdt.tzinfo is None:
+                        sdt = sdt.replace(tzinfo=timezone.utc)
+                except Exception:
+                    continue
+                if now >= sdt and room_id not in _active_streams:
+                    to_fire.append((room_id, sched))
+
+            for room_id, sched in to_fire:
+                host_id = sched.get("host_id")
+                if not host_id:
+                    _scheduled_streams.pop(room_id, None)
+                    continue
+                # Notify host via global WS to auto-start
+                await manager.notify_user(host_id, {
+                    "type": "stream_auto_start",
+                    "room_id": room_id,
+                    "title": sched.get("title", "Live"),
+                })
+                logger.info("Sent stream_auto_start to host %s for room %s", host_id, room_id)
+                # Remove schedule — host will call /start
+                _scheduled_streams.pop(room_id, None)
+        except Exception as e:
+            logger.warning("_check_scheduled_streams error: %s", e)
+        await asyncio.sleep(5)
+
+
+def start_schedule_checker():
+    """Запуск фоновой задачи проверки расписания. Вызывается из main.py startup."""
+    global _schedule_checker_task
+    import asyncio
+    if _schedule_checker_task is None or _schedule_checker_task.done():
+        _schedule_checker_task = asyncio.create_task(_check_scheduled_streams())
+
+
+class ScheduleStreamRequest(BaseModel):
+    title: str = Field("Live", max_length=200)
+    scheduled_at: str = Field(..., max_length=50)
 
 
 class StartStreamRequest(BaseModel):
@@ -232,6 +286,49 @@ async def _notify_room_stream_state(room_id: int, action: str, stream: StreamSta
         })
 
 
+@router.post("/{room_id}/schedule")
+async def schedule_stream(
+    room_id: int,
+    body: ScheduleStreamRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Запланировать стрим. Уведомляет всех подписчиков канала."""
+    _require_channel(room_id, db)
+    _require_admin(room_id, u.id, db)
+
+    _scheduled_streams[room_id] = {
+        "title": body.title,
+        "scheduled_at": body.scheduled_at,
+        "host_id": u.id,
+        "host_name": u.display_name or u.username,
+    }
+
+    # Notify all room members via room WS + global notifications
+    room = db.query(Room).filter(Room.id == room_id).first()
+    room_name = room.name if room else ""
+    payload = {
+        "type": "stream_scheduled",
+        "room_id": room_id,
+        "room_name": room_name,
+        "title": body.title,
+        "scheduled_at": body.scheduled_at,
+        "host_name": u.display_name or u.username,
+    }
+    await manager.broadcast_to_room(room_id, payload)
+
+    # Also notify via global WS so users not in the room see browser notifications
+    members = db.query(RoomMember.user_id).filter(
+        RoomMember.room_id == room_id, RoomMember.is_banned == False,
+    ).all()
+    for (uid,) in members:
+        if uid != u.id:
+            await manager.notify_user(uid, payload)
+
+    logger.info("Stream scheduled in room %s at %s by %s", room_id, body.scheduled_at, u.username)
+    return {"ok": True, "scheduled_at": body.scheduled_at}
+
+
 @router.post("/{room_id}/start", status_code=201)
 async def start_stream(
     room_id: int,
@@ -258,6 +355,7 @@ async def start_stream(
         auto_accept_speakers=body.auto_accept_speakers,
     )
     _active_streams[room_id] = stream
+    _scheduled_streams.pop(room_id, None)
 
     logger.info("Stream started in room %s by %s", room_id, u.username)
     await _notify_room_stream_state(room_id, "started", stream)
@@ -385,6 +483,9 @@ async def stream_status(
     """Статус стрима (есть ли активный)."""
     stream = _active_streams.get(room_id)
     if not stream:
+        sched = _scheduled_streams.get(room_id)
+        if sched:
+            return {"is_live": False, "scheduled": sched}
         return {"is_live": False}
     return {"is_live": True, "stream": stream.to_dict()}
 

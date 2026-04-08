@@ -61,9 +61,9 @@ window.saveProfileSettings = async function() {
     if (window._settingsSelectedEmoji) {
         body.avatar_emoji = window._settingsSelectedEmoji;
     }
-    // Birthday
+    // Birthday — only send if user actually changed it via the picker
     var bdBtn = document.getElementById('set-birthday-btn');
-    if (bdBtn && bdBtn.dataset.value !== undefined) {
+    if (bdBtn && bdBtn.dataset.dirty === '1') {
         body.birth_date = bdBtn.dataset.value;
     }
     // Profile background
@@ -345,7 +345,10 @@ window._selectProfileIcon = function(btn) {
         }
         var btn = document.getElementById('set-birthday-btn');
         var txt = document.getElementById('set-birthday-text');
-        if (btn) btn.dataset.value = value;
+        if (btn) {
+            btn.dataset.value = value;
+            btn.dataset.dirty = '1';
+        }
         if (txt) txt.textContent = display;
         window.closeBirthdayPicker();
     };
@@ -396,6 +399,78 @@ window._loadCallSettings = function() {
         var el = document.getElementById(ids[i]);
         if (el) el.checked = localStorage.getItem(keys[i]) === 'true';
     }
+};
+
+// ── Device selection (Microphone / Speaker / Camera) ──
+window._saveDeviceSetting = function(key, deviceId) {
+    localStorage.setItem('vortex_device_' + key, deviceId);
+};
+window._getDeviceSetting = function(key) {
+    return localStorage.getItem('vortex_device_' + key) || '';
+};
+window._refreshDeviceList = async function() {
+    try {
+        // Request permission first (needed to get device labels)
+        await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(function(s) {
+            s.getTracks().forEach(function(t) { t.stop(); });
+        }).catch(function() {
+            // Try audio-only if camera denied
+            return navigator.mediaDevices.getUserMedia({ audio: true }).then(function(s) {
+                s.getTracks().forEach(function(t) { t.stop(); });
+            });
+        });
+    } catch (_e) { /* ignore */ }
+
+    try {
+        var devices = await navigator.mediaDevices.enumerateDevices();
+        var audioIn  = document.getElementById('set-audio-input');
+        var audioOut = document.getElementById('set-audio-output');
+        var videoIn  = document.getElementById('set-video-input');
+
+        if (audioIn) {
+            audioIn.textContent = '';
+            var defOpt = document.createElement('option');
+            defOpt.value = ''; defOpt.textContent = 'Default';
+            audioIn.appendChild(defOpt);
+        }
+        if (audioOut) {
+            audioOut.textContent = '';
+            var defOpt2 = document.createElement('option');
+            defOpt2.value = ''; defOpt2.textContent = 'Default';
+            audioOut.appendChild(defOpt2);
+        }
+        if (videoIn) {
+            videoIn.textContent = '';
+            var defOpt3 = document.createElement('option');
+            defOpt3.value = ''; defOpt3.textContent = 'Default';
+            videoIn.appendChild(defOpt3);
+        }
+
+        for (var i = 0; i < devices.length; i++) {
+            var d = devices[i];
+            var opt = document.createElement('option');
+            opt.value = d.deviceId;
+            opt.textContent = d.label || (d.kind + ' ' + (i + 1));
+            if (d.kind === 'audioinput' && audioIn) audioIn.appendChild(opt);
+            else if (d.kind === 'audiooutput' && audioOut) audioOut.appendChild(opt);
+            else if (d.kind === 'videoinput' && videoIn) videoIn.appendChild(opt);
+        }
+
+        // Restore saved selections
+        if (audioIn)  audioIn.value  = window._getDeviceSetting('audioInput');
+        if (audioOut) audioOut.value = window._getDeviceSetting('audioOutput');
+        if (videoIn)  videoIn.value  = window._getDeviceSetting('videoInput');
+
+        // Hide speaker select if setSinkId not supported
+        if (audioOut && typeof HTMLMediaElement !== 'undefined' && !('setSinkId' in HTMLMediaElement.prototype)) {
+            audioOut.parentElement.style.display = 'none';
+        }
+    } catch (e) {
+        console.warn('[Devices] enumerate failed:', e);
+    }
+};
+window._loadDeviceSettings = function() {
+    window._refreshDeviceList();
 };
 
 // ══════════════════════════════════════════════════════════════════════════════

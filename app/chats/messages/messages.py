@@ -58,11 +58,12 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         })
         return
 
-    # ── Flood auto-mute check (skipped if antispam disabled for this room) ────
+    # ── Flood auto-mute check (skipped for DMs and if antispam disabled) ────
     room_obj = db.query(Room).filter(Room.id == room_id).first()
+    _is_dm = room_obj and room_obj.is_dm
     _antispam = room_obj.antispam_enabled if (room_obj and room_obj.antispam_enabled is not None) else True
 
-    if _antispam:
+    if _antispam and not _is_dm:
         from app.bots.antispam_bot import (
             get_antispam_config, get_antispam_bot_user_id,
             check_repeat_spam, check_link_spam, check_caps_spam,
@@ -188,6 +189,11 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
             content_hash = bytes(content_hash_result)
 
     reply_to_id = data.get("reply_to_id")
+    if reply_to_id is not None:
+        try:
+            reply_to_id = int(reply_to_id)
+        except (ValueError, TypeError):
+            reply_to_id = None
     if reply_to_id:
         reply_exists = db.query(Message.id).filter(
             Message.id      == reply_to_id,
@@ -231,16 +237,24 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         "created_at": _utc_iso(msg.created_at),
     })
 
+    # Fetch sender's tag in this room
+    _sender_member = db.query(RoomMember).filter(
+        RoomMember.room_id == room_id, RoomMember.user_id == user.id,
+    ).first()
+
     payload = {
         "type":          "message",
         "msg_id":        msg.id,
         "client_msg_id": client_msg_id,
+        "sender_id":     user.id,
         "sender_pseudo": msg.sender_pseudo,
         "sender":        user.username,
         "display_name":  user.display_name or user.username,
         "avatar_emoji":  user.avatar_emoji,
         "avatar_url":    user.avatar_url,
         "is_bot":        bool(user.is_bot),
+        "tag":           getattr(_sender_member, 'tag', None) if _sender_member else None,
+        "tag_color":     getattr(_sender_member, 'tag_color', None) if _sender_member else None,
         "ciphertext":    ciphertext_hex,
         "hash":          hash_hex or (content_hash.hex() if content_hash else None),
         "reply_to_id":   reply_to_id,
@@ -393,10 +407,11 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         })
         return
 
-    # Flood auto-mute check (skipped if antispam disabled for this room)
+    # Flood auto-mute check (skipped for DMs and if antispam disabled)
     _room_for_flood = db.query(Room).filter(Room.id == room_id).first()
+    _is_dm2 = _room_for_flood and _room_for_flood.is_dm
     _antispam2 = _room_for_flood.antispam_enabled if (_room_for_flood and _room_for_flood.antispam_enabled is not None) else True
-    if _antispam2:
+    if _antispam2 and not _is_dm2:
         from app.bots.antispam_bot import get_antispam_config as _get_as_cfg2, get_antispam_bot_user_id as _get_bot_uid2
         _bot_uid2 = _get_bot_uid2()
         if not (_bot_uid2 and user.id == _bot_uid2):
@@ -591,13 +606,19 @@ async def handle_delete_message(room_id: int, user: User, data: dict, db: Sessio
     ).first()
     if not msg:
         return
-    # Ownership check
+    # Ownership check OR admin/owner role in room
     _is_owner = (
         (msg.sender_pseudo and verify_sender_pseudo(room_id, user.id, msg.sender_pseudo))
         or (msg.sender_pseudo is None and msg.sender_id == user.id)
     )
     if not _is_owner:
-        return
+        from app.models_rooms import RoomMember, RoomRole
+        member = db.query(RoomMember).filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user.id,
+        ).first()
+        if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
+            return
 
     db.delete(msg)
     db.commit()

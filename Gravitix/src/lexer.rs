@@ -145,6 +145,10 @@ pub enum TokenKind {
     Default,
     Global,
 
+    // ── Architex bridge ──────────────────────
+    UiSet,
+    UiNavigate,
+
     // ── Bitwise operators ──────────────────────
     Amp,       // & (single)
     Pipe,      // | (single — not ||, not |>)
@@ -587,6 +591,8 @@ impl<'s> Lexer<'s> {
             "roles"           => TokenKind::Roles,
             "default"         => TokenKind::Default,
             "global"          => TokenKind::Global,
+            "ui_set"          => TokenKind::UiSet,
+            "ui_navigate"     => TokenKind::UiNavigate,
             "true"            => TokenKind::BoolLit(true),
             "false"    => TokenKind::BoolLit(false),
             "null"     => TokenKind::NullLit,

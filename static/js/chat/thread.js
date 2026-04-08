@@ -100,6 +100,28 @@ window.sendThreadReply = async function() {
     if (input) { input.value = ''; input.style.height = 'auto'; }
 };
 
+/**
+ * Open channel discussion — close settings and open thread of the last post.
+ */
+window._openChannelDiscussion = function() {
+    if (typeof window.closeRoomSettingsScreen === 'function') {
+        window.closeRoomSettingsScreen();
+    }
+    // Find the last message in the channel that has comments or is the latest post
+    const mc = document.getElementById('messages-container');
+    if (mc) {
+        const rows = mc.querySelectorAll('.message-row[data-msg-id]');
+        if (rows.length > 0) {
+            const lastRow = rows[rows.length - 1];
+            const msgId = parseInt(lastRow.dataset.msgId, 10);
+            if (msgId) {
+                window.openThread(msgId);
+                return;
+            }
+        }
+    }
+};
+
 function _pluralRepliesThread(n) {
     const mod10 = n % 10;
     const mod100 = n % 100;

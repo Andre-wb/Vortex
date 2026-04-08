@@ -21,6 +21,10 @@ function ideOpenFile(name) {
     ideUpdateHighlight();
     ideUpdateGutter();
     ideLintCode(code);
+    // Обновляем превью при смене файла
+    if (name.endsWith('.arx') && IDE.previewVisible) {
+        ideUpdatePreview(code, name);
+    }
 }
 
 function ideAutosave() {
@@ -33,11 +37,17 @@ function ideAutosave() {
 }
 
 function ideOnInput() {
+    // Пропускаем обновления во время IME composition (предотвращает дублирование слов)
+    if (window._ideComposing) return;
     ideUpdateHighlight();
     ideUpdateGutter();
     const ta = document.getElementById('ide-textarea');
     ideLintCode(ta.value);
     ideSimRefresh();
+    // Обновляем превью для .arx файлов
+    if (IDE.activeFile && IDE.activeFile.endsWith('.arx')) {
+        ideUpdatePreview(ta.value, IDE.activeFile);
+    }
 }
 
 function ideToggleExplorer() {
@@ -109,7 +119,10 @@ function ideCloseTab(name) {
 }
 
 // ── New file / folder ─────────────────────────────────────────
-function ideNewFile()   { IDE.newFileIsDir = false; _showNewFileModal('New File',   'filename.grav'); }
+function ideNewFile()   {
+    IDE.newFileIsDir = false;
+    _showNewFileModal('New File', 'filename.grav');
+}
 function ideNewFolder() { IDE.newFileIsDir = true;  _showNewFileModal('New Folder', 'folder_name'); }
 
 function _showNewFileModal(title, ph) {
@@ -135,7 +148,10 @@ function ideConfirmNewFile() {
         const folderName = parent ? parent + '/' + name : name;
         IDE.current.folders.push(folderName);
     } else {
-        const base   = name.includes('.') ? name : name + '.grav';
+        // Определяем расширение по выбранному радио (grav/arx)
+        const langRadio = document.querySelector('input[name="ide-newfile-lang"]:checked');
+        const selectedExt = langRadio?.value === 'arx' ? '.arx' : '.grav';
+        const base   = name.includes('.') ? name : name + selectedExt;
         const parent = IDE.newFileParent;
         const fname  = parent ? parent + '/' + base : base;
         IDE.current.files[fname] = '// ' + base + '\n\n';

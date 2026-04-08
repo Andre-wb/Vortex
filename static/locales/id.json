@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Temukan kontak Anda",
+    "desc": "Periksa kontak mana yang sudah ada di Vortex. Nomor di-hash — server tidak melihatnya.",
+    "start": "Sinkronkan kontak",
+    "skip": "Lewati",
+    "readingContacts": "Membaca kontak...",
+    "selectFile": "Pilih file (.vcf)...",
+    "hashing": "Memproses {n} nomor...",
+    "searching": "Mencari kecocokan...",
+    "resultsTitle": "Kontak ditemukan",
+    "noMatches": "Belum ada kontak di Vortex",
+    "stats": "{checked} nomor diperiksa, {found} kontak ditemukan",
+    "selectedCount": "{n} dipilih",
+    "addAll": "Tambahkan yang dipilih",
+    "adding": "Menambahkan...",
+    "done": "Kontak ditambahkan!",
+    "doneCount": "{n} kontak ditambahkan",
+    "continue": "Lanjutkan"
   }
 }

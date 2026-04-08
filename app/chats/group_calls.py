@@ -164,7 +164,7 @@ async def start_group_call(
     call_id = str(uuid.uuid4())
 
     # Determine topology: mesh (≤ threshold, E2E) or SFU (> threshold, scalable)
-    members = db.query(RoomMember).filter(RoomMember.room_id == room_id).all()
+    members = db.query(RoomMember).filter(RoomMember.room_id == room_id).limit(500).all()
     member_count = len(members)
 
     from app.chats.sfu import is_sfu_available, SFU_THRESHOLD, SFU_MAX_PARTICIPANTS
@@ -276,8 +276,8 @@ async def leave_group_call(
         "user_id": u.id,
     })
 
-    # If no one connected, end the call
-    if call.connected_count() == 0:
+    # If no one connected, end the call (guard against double-end race)
+    if call.connected_count() == 0 and call.state != "ended":
         await _broadcast_call_event(call, "group_call_ended", {"reason": "all_left"})
         _end_call(call)
 

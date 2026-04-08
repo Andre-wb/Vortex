@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     Column, DateTime, ForeignKey,
-    Integer, String, UniqueConstraint, Index,
+    Integer, String, Text, UniqueConstraint, Index,
 )
 from sqlalchemy.orm import relationship
 
@@ -107,3 +107,25 @@ class PendingKeyRequest(Base):
     @property
     def is_expired(self) -> bool:
         return datetime.now(timezone.utc) > self.expires_at
+
+
+class PendingNotification(Base):
+    """
+    Persistent queue for notifications that couldn't be delivered via WebSocket.
+
+    Stores encrypted payloads (JSON-serialized) for offline users.
+    Flushed when user reconnects to /ws/notifications.
+    Server cannot read the actual message content (messages are E2E encrypted).
+    Only notification metadata (type, room_id, sender info) is stored — no plaintext.
+    """
+    __tablename__ = "pending_notifications"
+
+    id         = Column(Integer,      primary_key=True, index=True)
+    user_id    = Column(Integer,      ForeignKey("users.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    payload    = Column(Text,         nullable=False)  # JSON-serialized notification
+    created_at = Column(DateTime,     default=lambda: datetime.now(timezone.utc), index=True)
+
+    __table_args__ = (
+        Index("ix_pending_notif_user", "user_id", "created_at"),
+    )

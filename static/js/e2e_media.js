@@ -222,6 +222,14 @@ export function setupPeerE2E(pc, mediaKey) {
         }
     }
 
+    // Apply decryption to receivers that already exist (e.g. callee gets
+    // remote tracks via setRemoteDescription(offer) before acceptCall runs).
+    for (const receiver of pc.getReceivers()) {
+        if (receiver.track) {
+            setupReceiverTransform(receiver, mediaKey);
+        }
+    }
+
     const origOntrack = pc.ontrack;
     pc.ontrack = (e) => {
         if (e.receiver) {

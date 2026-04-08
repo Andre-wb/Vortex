@@ -287,83 +287,97 @@ async def ws_chat(
             data   = json.loads(raw)
             action = data.get("action", "")
 
-            if action == "message":
-                await _handle_e2e_message(room_id, user, data, db)
+            try:
+                if action == "message":
+                    await _handle_e2e_message(room_id, user, data, db)
 
-            elif action == "edit_message":
-                await _handle_edit_message(room_id, user, data, db)
+                elif action == "edit_message":
+                    await _handle_edit_message(room_id, user, data, db)
 
-            elif action == "delete_message":
-                await _handle_delete_message(room_id, user, data, db)
+                elif action == "delete_message":
+                    await _handle_delete_message(room_id, user, data, db)
 
-            elif action == "key_response":
-                await _handle_key_response(room_id, user, data, db)
+                elif action == "key_response":
+                    await _handle_key_response(room_id, user, data, db)
 
-            elif action == "typing":
-                await manager.set_typing(room_id, user.id, bool(data.get("is_typing")))
+                elif action == "typing":
+                    await manager.set_typing(room_id, user.id, bool(data.get("is_typing")))
 
-            elif action == "file_sending":
-                await manager.broadcast_to_room(room_id, {
-                    "type":         "file_sending",
-                    "sender":       user.username,
-                    "display_name": user.display_name or user.username,
-                    "filename":     data.get("filename", ""),
-                }, exclude=user.id)
+                elif action == "file_sending":
+                    await manager.broadcast_to_room(room_id, {
+                        "type":         "file_sending",
+                        "sender":       user.username,
+                        "display_name": user.display_name or user.username,
+                        "filename":     data.get("filename", ""),
+                    }, exclude=user.id)
 
-            elif action == "stop_file_sending":
-                await manager.broadcast_to_room(room_id, {
-                    "type":   "stop_file_sending",
-                    "sender": user.username,
-                }, exclude=user.id)
+                elif action == "stop_file_sending":
+                    await manager.broadcast_to_room(room_id, {
+                        "type":   "stop_file_sending",
+                        "sender": user.username,
+                    }, exclude=user.id)
 
-            elif action == "signal":
-                await _handle_signal(room_id, user, data, db)
+                elif action == "signal":
+                    await _handle_signal(room_id, user, data, db)
 
-            elif action == "ping":
-                await manager.send_to_user(room_id, user.id, {"type": "pong"})
+                elif action == "ping":
+                    await manager.send_to_user(room_id, user.id, {"type": "pong"})
 
-            elif action == "mark_read":
-                await _handle_mark_read(room_id, user, data, db)
+                elif action == "mark_read":
+                    await _handle_mark_read(room_id, user, data, db)
 
-            elif action == "react":
-                await _handle_reaction(room_id, user, data, db)
+                elif action == "react":
+                    await _handle_reaction(room_id, user, data, db)
 
-            elif action == "forward":
-                await _handle_forward(room_id, user, data, db)
+                elif action == "forward":
+                    await _handle_forward(room_id, user, data, db)
 
-            elif action == "pin_message":
-                await _handle_pin_message(room_id, user, data, db)
+                elif action == "pin_message":
+                    await _handle_pin_message(room_id, user, data, db)
 
-            elif action == "timed_message":
-                await _handle_timed_message(room_id, user, data, db)
+                elif action == "timed_message":
+                    await _handle_timed_message(room_id, user, data, db)
 
-            elif action == "create_poll":
-                await _handle_create_poll(room_id, user, data, db)
+                elif action == "create_poll":
+                    await _handle_create_poll(room_id, user, data, db)
 
-            elif action == "vote_poll":
-                await _handle_vote_poll(room_id, user, data, db)
+                elif action == "vote_poll":
+                    await _handle_vote_poll(room_id, user, data, db)
 
-            elif action == "retract_vote":
-                await _handle_retract_vote(room_id, user, data, db)
+                elif action == "retract_vote":
+                    await _handle_retract_vote(room_id, user, data, db)
 
-            elif action == "close_poll":
-                await _handle_close_poll(room_id, user, data, db)
+                elif action == "close_poll":
+                    await _handle_close_poll(room_id, user, data, db)
 
-            elif action == "suggest_option":
-                await _handle_suggest_option(room_id, user, data, db)
+                elif action == "suggest_option":
+                    await _handle_suggest_option(room_id, user, data, db)
 
-            elif action == "schedule_message":
-                await _handle_schedule_message(room_id, user, data, db)
+                elif action == "schedule_message":
+                    await _handle_schedule_message(room_id, user, data, db)
 
-            elif action == "thread_reply":
-                await _handle_thread_reply(room_id, user, data, db)
+                elif action == "thread_reply":
+                    await _handle_thread_reply(room_id, user, data, db)
 
-            elif action == "screenshot":
-                await manager.broadcast_to_room(room_id, {
-                    "type":     "screenshot_taken",
-                    "user_id":  user.id,
-                    "username": user.display_name or user.username,
-                }, exclude=user.id)
+                elif action == "screenshot":
+                    await manager.broadcast_to_room(room_id, {
+                        "type":     "screenshot_taken",
+                        "user_id":  user.id,
+                        "username": user.display_name or user.username,
+                    }, exclude=user.id)
+
+            except Exception as _action_err:
+                logger.warning("WS action=%s error user=%s room=%s: %s", action, user.username, room_id, _action_err)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                try:
+                    await manager.send_to_user(room_id, user.id, {
+                        "type": "error", "message": "Ошибка обработки действия",
+                    })
+                except Exception:
+                    pass
 
     except WebSocketDisconnect:
         logger.debug("WS disconnect user=%s room=%s", user.username, room_id)

@@ -40,6 +40,28 @@
     to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Scroll-to-bottom arrow with unread badge */
+.scroll-bottom-arrow {
+    position: absolute; bottom: 80px; right: 20px; z-index: 30;
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--bg2); border: 1px solid var(--border);
+    display: none; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    transition: transform 0.15s, background 0.15s;
+}
+.scroll-bottom-arrow.show { display: flex; animation: jumpBtnIn 0.2s ease; }
+.scroll-bottom-arrow:hover { background: var(--bg3); transform: translateY(-2px); }
+.scroll-bottom-badge {
+    position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 10px;
+    min-width: 20px; text-align: center;
+    box-shadow: 0 2px 8px rgba(124,58,237,0.4);
+    display: none;
+}
+
 /* Группа сообщений (автор + пузырьки) */
 .msg-group { margin-bottom: 12px; }
 
@@ -53,8 +75,22 @@
     background: var(--bg3); border: 1px solid var(--border);
     display: flex; align-items: center; justify-content: center;
     font-size: 14px; flex-shrink: 0;
+    overflow: hidden;
+}
+.msg-avatar-story {
+    border: 2px solid var(--accent, #7c3aed);
+    box-shadow: 0 0 0 1px var(--accent, #7c3aed);
 }
 .msg-name { font-weight: 700; font-size: 13px; }
+.msg-tag {
+    font-size: 10px; font-weight: 700;
+    padding: 1px 7px; border-radius: 20px;
+    background: rgba(124,58,237,0.12);
+    color: var(--accent, #7c3aed);
+    border: 1px solid rgba(124,58,237,0.25);
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
 .msg-time { font-size: 11px; color: var(--text3); font-family: var(--mono); }
 /* Бейдж P2P для сообщений, отправленных напрямую */
 .msg-peer-badge {
@@ -100,6 +136,17 @@
     color: var(--text3); font-size: 12px; font-family: var(--mono);
     max-width: 100%;
 }
+/* Системное лог-сообщение стрима */
+.msg-bubble.system.stream-log {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: linear-gradient(90deg, rgba(239,68,68,0.06), rgba(124,58,237,0.06));
+    border: 1px solid rgba(124,58,237,0.15);
+    border-radius: 8px; padding: 6px 14px;
+    color: var(--text2); font-size: 12px;
+}
+.stream-log-icon { font-size: 10px; line-height: 1; }
+.stream-log-text { font-weight: 600; color: var(--text); }
+.stream-log-time { color: var(--text3); font-family: var(--mono, monospace); font-size: 11px; }
 /* Системное сообщение-предупреждение (скриншот) */
 .msg-bubble.system.screenshot-warn {
     color: #e8a830; font-weight: 600;
@@ -716,42 +763,197 @@
 /* ============================================================================
  * ОВЕРЛЕЙ ЗВОНКА (WebRTC)
  * ========================================================================== */
+/* ══════════════════════════════════════════════════════════════════════════
+   CALL OVERLAY — FaceTime-style elegant design
+   ══════════════════════════════════════════════════════════════════════════ */
 #call-overlay {
     position: fixed; inset: 0; z-index: 200;
-    background: rgba(0,0,0,0.95);
+    background: linear-gradient(165deg, #0a0a14 0%, #12101f 40%, #1a0e2e 100%);
     display: none; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 20px;
 }
 #call-overlay.show { display: flex; }
 
-/* Аватар звонящего с анимацией пульсации */
-.call-avatar {
-    width: 96px; height: 96px; border-radius: 24px;
-    background: var(--bg3); border: 2px solid var(--accent);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 48px;
-    animation: pulse 2s infinite;
+/* ── Top bar ───────────────────────────────────────────────────────────── */
+.call-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; z-index: 5;
 }
-@keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,0.4); }
-    50%        { box-shadow: 0 0 0 20px rgba(124,58,237,0); }
+.call-topbar-center {
+    display: flex; align-items: center; gap: 10px;
 }
-.call-status { font-size: 16px; color: var(--text2); font-family: var(--mono); }
-.call-name   { font-size: 28px; font-weight: 800; }
+.call-timer {
+    font-size: 14px; font-weight: 600; color: rgba(255,255,255,.8);
+    font-family: var(--mono, monospace); letter-spacing: 0.5px;
+}
+.call-encrypt-badge {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 10px; color: rgba(34,197,94,.8);
+    background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.15);
+    border-radius: 10px; padding: 2px 8px;
+}
 
-/* Кнопки управления вызовом */
-.call-controls { display: flex; gap: 16px; margin-top: 12px; }
-.call-btn {
-    width: 60px; height: 60px; border-radius: 50%;
-    border: none; cursor: pointer; font-size: 24px;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.15s;
+/* ── Video area ────────────────────────────────────────────────────────── */
+.call-video-area {
+    flex: 1; position: relative; display: flex;
+    align-items: center; justify-content: center;
+    overflow: hidden;
 }
-.call-btn.mute  { background: var(--bg3); border: 1px solid var(--border); color: var(--text); }
-.call-btn.mute:hover { border-color: var(--yellow); color: var(--yellow); }
-.call-btn.hangup { background: var(--red); color: white; }
-.call-btn.hangup:hover { background: #dc2626; transform: scale(1.05); }
+
+/* Main video (full area) */
+.call-main-video-wrap {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+}
+.call-main-video-wrap video {
+    width: 100%; height: 100%; object-fit: cover;
+    position: absolute; inset: 0;
+    border-radius: 0; border: none; background: transparent;
+}
+.call-main-video-wrap video:not([src]):not([srcObject]),
+.call-main-video-wrap video.hidden-video {
+    display: none;
+}
+
+/* Main avatar (shown when no video) */
+.call-avatar-main {
+    width: 120px; height: 120px; border-radius: 50%;
+    background: rgba(124,58,237,.12);
+    border: 2px solid rgba(124,58,237,.3);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2; position: relative;
+    animation: call-pulse 2.5s ease-in-out infinite;
+    backdrop-filter: blur(12px);
+}
+.call-avatar-main svg { opacity: .7; }
+@keyframes call-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,.3), 0 0 40px rgba(124,58,237,.1); }
+    50%      { box-shadow: 0 0 0 24px rgba(124,58,237,0), 0 0 60px rgba(124,58,237,.15); }
+}
+/* Hide avatar when video is active */
+.call-main-video-wrap.has-video .call-avatar-main { display: none; }
+
+/* PIP video (small floating, draggable) */
+.call-pip-video-wrap {
+    position: absolute; bottom: 24px; right: 24px;
+    width: 140px; height: 200px;
+    border-radius: 16px; overflow: hidden;
+    z-index: 10; cursor: pointer;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08);
+    transition: transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease;
+    background: rgba(20,18,30,.9);
+}
+.call-pip-video-wrap:hover {
+    transform: scale(1.04);
+    box-shadow: 0 12px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.12);
+}
+.call-pip-video-wrap video {
+    width: 100%; height: 100%; object-fit: cover;
+    position: absolute; inset: 0;
+    border-radius: 16px; border: none; background: transparent;
+}
+.call-pip-video-wrap video.hidden-video { display: none; }
+
+/* PIP avatar (shown when local camera is off) */
+.call-avatar-pip {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(124,58,237,.12);
+    border: 1px solid rgba(124,58,237,.2);
+    display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%); z-index: 2;
+}
+.call-pip-video-wrap.has-video .call-avatar-pip { display: none; }
+/* Hide PIP entirely if no local stream at all */
+.call-pip-video-wrap.no-stream { display: none; }
+
+/* Swapped state: PIP becomes main, main becomes PIP */
+#call-overlay.video-swapped .call-main-video-wrap {
+    position: absolute; bottom: 24px; right: 24px;
+    width: 140px; height: 200px; inset: auto;
+    border-radius: 16px; overflow: hidden; z-index: 10;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08);
+}
+#call-overlay.video-swapped .call-main-video-wrap video {
+    border-radius: 16px;
+}
+#call-overlay.video-swapped .call-pip-video-wrap {
+    position: absolute; inset: 0; width: auto; height: auto;
+    border-radius: 0; z-index: 1;
+    box-shadow: none;
+}
+#call-overlay.video-swapped .call-pip-video-wrap video {
+    border-radius: 0;
+}
+#call-overlay.video-swapped .call-pip-video-wrap:hover {
+    transform: none; box-shadow: none;
+}
+
+/* ── Peer info (center, when no video) ─────────────────────────────────── */
+.call-peer-info {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center; z-index: 3;
+    pointer-events: none;
+}
+.call-peer-info .call-name {
+    font-size: 24px; font-weight: 700; color: #fff;
+    margin-bottom: 6px; letter-spacing: -0.3px;
+}
+.call-peer-info .call-status {
+    font-size: 14px; color: rgba(255,255,255,.5);
+    font-family: var(--mono, monospace);
+}
+/* Hide peer info when video is playing fullscreen */
+#call-overlay.has-main-video .call-peer-info { display: none; }
+/* Move peer info below avatar when no video */
+.call-peer-info {
+    top: calc(50% + 90px);
+}
+
+/* ── Controls ──────────────────────────────────────────────────────────── */
+.call-controls {
+    display: flex; justify-content: center; align-items: flex-end;
+    gap: 20px; padding: 20px 24px 40px; z-index: 5;
+}
+.call-btn {
+    width: 56px; height: 56px;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 0;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 50%; padding: 0;
+    cursor: pointer; color: rgba(255,255,255,.85);
+    transition: background .15s, transform .12s, border-color .15s, box-shadow .15s;
+    backdrop-filter: blur(12px);
+    position: relative;
+}
+.call-btn:hover {
+    background: rgba(255,255,255,.18);
+    border-color: rgba(255,255,255,.14);
+    transform: scale(1.08);
+}
+.call-btn:active { transform: scale(.94); }
+.call-btn.active {
+    background: rgba(124,58,237,.25); border-color: rgba(124,58,237,.35);
+    color: var(--accent);
+    box-shadow: 0 0 12px rgba(124,58,237,.2);
+}
+.call-btn-label {
+    font-size: 9px; font-weight: 500; opacity: .55;
+    letter-spacing: 0.3px;
+    position: absolute; bottom: -18px; left: 50%;
+    transform: translateX(-50%); white-space: nowrap;
+}
+.call-btn-hangup {
+    background: #ef4444; border-color: #ef4444;
+    color: #fff;
+}
+.call-btn-hangup:hover {
+    background: #dc2626; border-color: #dc2626;
+    color: #fff; transform: scale(1.08);
+    box-shadow: 0 0 16px rgba(239,68,68,.3);
+}
 
 /* Privacy / relay badge on call overlay */
 #wrtc-privacy-badge {
@@ -762,13 +964,20 @@
     to   { opacity: 1; transform: none; }
 }
 
-/* Видео-элементы */
-video {
-    border-radius: 10px; background: #000;
-    position: absolute; border: 1px solid var(--border);
+/* ── Responsive call UI ────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .call-pip-video-wrap,
+    #call-overlay.video-swapped .call-main-video-wrap {
+        width: 100px; height: 140px;
+        bottom: 16px; right: 16px; border-radius: 12px;
+    }
+    .call-controls { gap: 16px; padding: 16px 12px 32px; }
+    .call-btn { width: 48px; height: 48px; }
+    .call-btn svg { width: 20px; height: 20px; }
+    .call-btn-label { font-size: 8px; bottom: -16px; }
+    .call-avatar-main { width: 96px; height: 96px; }
+    .call-avatar-main svg { width: 44px; height: 44px; }
 }
-#remote-video { width: 100%; max-height: 60vh; object-fit: contain; position: relative; }
-#local-video  { width: 160px; bottom: 100px; right: 20px; }
 
 /* ============================================================================
  * РАЗДЕЛИТЕЛЬ ДАТЫ (в ленте сообщений)
@@ -2656,6 +2865,10 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.pinned-sender {
+    color: var(--accent, #7c3aed);
+    font-weight: 700;
+}
 .pinned-close {
     font-size: 18px;
     color: var(--text3);
@@ -3602,6 +3815,62 @@ mark.search-highlight.current {
     background-size: contain;
     background-repeat: no-repeat;
     flex-shrink: 0;
+}
+
+/* ── Channel comment bar (Telegram-style "Leave a comment") ────────────── */
+.channel-comment-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent2);
+    cursor: pointer;
+    border-radius: 12px;
+    background: rgba(124, 58, 237, 0.06);
+    border: 1px solid rgba(124, 58, 237, 0.12);
+    transition: background 0.15s, border-color 0.15s;
+    user-select: none;
+    width: fit-content;
+}
+.channel-comment-bar:hover {
+    background: rgba(124, 58, 237, 0.14);
+    border-color: rgba(124, 58, 237, 0.3);
+}
+.channel-comment-bar svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+/* ── Channel about page (non-admin view) ──────────────────────────────── */
+.rss-discussion-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 24px;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border);
+    color: var(--accent2);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: var(--sans);
+}
+.rss-discussion-btn:hover {
+    background: rgba(124, 58, 237, 0.06);
+}
+.rss-discussion-btn svg {
+    flex-shrink: 0;
+}
+.rss-subscriber-count {
+    font-size: 13px;
+    color: var(--text3);
+    margin-top: 4px;
 }
 
 /* ── Панель треда (slide-in справа) ─────────────────────────────────────── */

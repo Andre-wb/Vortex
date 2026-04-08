@@ -161,22 +161,42 @@ class WAFEngine:
         parsed = False
         if 'multipart/form-data' in content_type:
             import urllib.parse
+            import re
             decoded_body = urllib.parse.unquote(urllib.parse.unquote(body))
-            if '..' in decoded_body or '../' in decoded_body or '..\\' in decoded_body:
+            # Проверяем только path-traversal паттерны, НЕ просто '..' в контенте.
+            # '../' и '..\' — реальные traversal. Но '..' в имени файла (например "file..ext")
+            # или в тексте сообщения — нормально. Проверяем только filename/path контекст.
+            _traversal_re = re.compile(
+                r'(?:filename\s*=\s*["\']?[^"\']*(?:\.\./|\.\.\\))'    # ../  в filename
+                r'|(?:name\s*=\s*["\']?[^"\']*(?:\.\./|\.\.\\))'       # ../  в form field name
+                r'|(?:\.\./\.\./)'                                       # ../../ (двойной traversal)
+                r'|(?:\.\.[\\/](?:etc|proc|windows|usr|var|tmp|boot))',   # ../ к системным директориям
+                re.IGNORECASE
+            )
+            if _traversal_re.search(decoded_body):
                 findings.append({
                     'rule_id': 'PATH-TRAVERSAL',
                     'severity': 'high',
                     'description': 'Directory traversal attempt in multipart form data',
                 })
-            dangerous_extensions = ('.php', '.asp', '.aspx', '.jsp', '.py', '.pl', '.sh', '.exe', '.bat', '.cmd')
-            for ext in dangerous_extensions:
-                if ext in decoded_body.lower():
-                    findings.append({
-                        'rule_id': 'DANGEROUS-UPLOAD',
-                        'severity': 'high',
-                        'description': f'Dangerous file extension {ext} in multipart upload',
-                    })
-                    break
+            # Only block extensions that could execute as web shells on the server.
+            # Code files (.py, .sh, .pl) are legitimate uploads in a messenger;
+            # the upload endpoint already validates MIME and generates safe stored names.
+            _webshell_exts = ('.php', '.asp', '.aspx', '.jsp', '.exe', '.bat', '.cmd')
+            _fname_re = re.compile(
+                r'filename\s*=\s*["\']?([^"\';\r\n]+)',
+                re.IGNORECASE,
+            )
+            for m in _fname_re.finditer(decoded_body):
+                fname_lower = m.group(1).strip().lower()
+                for ext in _webshell_exts:
+                    if fname_lower.endswith(ext):
+                        findings.append({
+                            'rule_id': 'DANGEROUS-UPLOAD',
+                            'severity': 'high',
+                            'description': f'Dangerous file extension {ext} in multipart upload',
+                        })
+                        break
             return findings
 
         if 'application/json' in content_type:

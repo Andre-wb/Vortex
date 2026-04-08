@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "ค้นหาผู้ติดต่อของคุณ",
+    "desc": "ตรวจสอบว่าผู้ติดต่อคนไหนอยู่บน Vortex แล้ว หมายเลขถูกแฮช — เซิร์ฟเวอร์ไม่เคยเห็น",
+    "start": "ซิงค์ผู้ติดต่อ",
+    "skip": "ข้าม",
+    "readingContacts": "กำลังอ่านผู้ติดต่อ...",
+    "selectFile": "เลือกไฟล์ (.vcf)...",
+    "hashing": "กำลังประมวลผล {n} หมายเลข...",
+    "searching": "กำลังค้นหาที่ตรงกัน...",
+    "resultsTitle": "ผู้ติดต่อที่พบ",
+    "noMatches": "ยังไม่พบผู้ติดต่อบน Vortex",
+    "stats": "ตรวจสอบ {checked} หมายเลข พบ {found} ผู้ติดต่อ",
+    "selectedCount": "เลือก {n} รายการ",
+    "addAll": "เพิ่มที่เลือก",
+    "adding": "กำลังเพิ่ม...",
+    "done": "เพิ่มผู้ติดต่อแล้ว!",
+    "doneCount": "เพิ่ม {n} ผู้ติดต่อแล้ว",
+    "continue": "ดำเนินการต่อ"
   }
 }

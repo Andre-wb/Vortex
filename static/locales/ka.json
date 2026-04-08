@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "იპოვეთ კონტაქტები",
+    "desc": "შეამოწმეთ ვინ არის Vortex-ზე. ნომრები ჰეშირებულია — სერვერი არ ხედავს.",
+    "start": "სინქრონიზაცია",
+    "skip": "გამოტოვება",
+    "readingContacts": "წაკითხვა...",
+    "selectFile": "ფაილი აირჩიეთ (.vcf)...",
+    "hashing": "{n} ნომრის დამუშავება...",
+    "searching": "ძიება...",
+    "resultsTitle": "ნაპოვნი კონტაქტები",
+    "noMatches": "კონტაქტები არ მოიძებნა",
+    "stats": "{checked} შემოწმდა, {found} ნაპოვნია",
+    "selectedCount": "{n} არჩეული",
+    "addAll": "არჩეულების დამატება",
+    "adding": "ემატება...",
+    "done": "კონტაქტები დამატებულია!",
+    "doneCount": "{n} კონტაქტი დამატებულია",
+    "continue": "გაგრძელება"
   }
 }

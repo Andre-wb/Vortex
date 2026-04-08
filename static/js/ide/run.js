@@ -19,10 +19,20 @@ function ideRun() {
     ideAutosave();
     const code = IDE.current?.files[IDE.activeFile] || '';
     const file = IDE.activeFile || 'code';
+    const isArx = file.endsWith('.arx');
 
     ideConsoleTab('output', null);
-    document.getElementById('ide-console-output').innerHTML = '';
+    document.getElementById('ide-console-output').textContent = '';
     ideLog('output', `▶ Compiling ${file}…`, 'muted');
+
+    // For .arx files, run Architex analysis and show preview
+    if (isArx) {
+        _arxRunAnalysis(code, file);
+        // Автоматически показываем превью при запуске .arx
+        if (!IDE.previewVisible) ideShowPreview();
+        else ideUpdatePreview(code, file);
+        return;
+    }
 
     const { errors, warns, hints } = _compileSync(code);
 
@@ -78,16 +88,97 @@ function ideRun() {
         : '⚠  Add at least one handler to use the Simulator.', uniqH.length > 0 ? 'success' : 'warn');
 }
 
+function _arxRunAnalysis(code, file) {
+    // Parse Architex structure
+    const lines = code.split('\n');
+    const screens = [], components = [], reactiveVars = [], sendCalls = [], navCalls = [];
+    let widgets = 0;
+
+    for (const line of lines) {
+        const t = line.trim();
+        const screenMatch = t.match(/^@screen\s+(\w+)/);
+        if (screenMatch) screens.push(screenMatch[1]);
+        const compMatch = t.match(/^@component\s+(\w+)/);
+        if (compMatch) components.push(compMatch[1]);
+        const rxMatch = t.match(/^\s*~(\w+)\s*(?::.*?)?\s*=/);
+        if (rxMatch) reactiveVars.push(rxMatch[1]);
+        if (/\bsend\s*\(/.test(t)) sendCalls.push(t);
+        if (/\bnavigate\s*\(/.test(t)) navCalls.push(t);
+        if (/^\s*(col|row|header|text|button|input|label|image|icon|divider|list|card|badge|toast|tabs|tab|video|audio|table)\b/.test(t)) widgets++;
+    }
+
+    // Run linter
+    IDE._diagFull = [];
+    IDE._diagLines = {};
+    _arxLint(code);
+    const diag = IDE._diagFull || [];
+    const errors = diag.filter(d => d.sev === 'error');
+    const warns  = diag.filter(d => d.sev === 'warn');
+
+    if (errors.length > 0) {
+        ideLog('output', `✕ ${errors.length} error(s) in ${file}`, 'error');
+        errors.forEach(e => ideLog('output', `  [${e.line}:${e.col}] ${e.msg}`, 'error'));
+        ideOpenProblems();
+        return;
+    }
+
+    if (warns.length > 0) {
+        ideLog('output', `⚠ ${warns.length} warning(s)`, 'warn');
+    }
+
+    ideLog('output', '✓ Architex parsed OK', 'success');
+    ideLog('output', '', 'muted');
+
+    if (screens.length) {
+        ideLog('output', `Screens (${screens.length}):`, 'bold');
+        screens.forEach(s => ideLog('output', `  @screen ${s}`, 'success'));
+    }
+    if (components.length) {
+        ideLog('output', `Components: ${components.join(', ')}`, 'info');
+    }
+    if (reactiveVars.length) {
+        ideLog('output', `Reactive vars: ~${reactiveVars.join(', ~')}`, 'info');
+    }
+    ideLog('output', `Widgets:    ${widgets}`, 'info');
+
+    if (sendCalls.length) {
+        ideLog('output', `send() calls: ${sendCalls.length} (→ Gravitix bot)`, 'info');
+    }
+    if (navCalls.length) {
+        ideLog('output', `navigate():   ${navCalls.length}`, 'info');
+    }
+    ideLog('output', '', 'muted');
+
+    // Check bridge
+    const gravFiles = Object.keys(IDE.current?.files || {}).filter(f => f.endsWith('.grav'));
+    if (sendCalls.length > 0 && gravFiles.length > 0) {
+        ideLog('output', `🔗 Bridge: ${sendCalls.length} send() → ${gravFiles.join(', ')}`, 'success');
+    } else if (sendCalls.length > 0) {
+        ideLog('output', '⚠ send() calls found but no .grav file in project — add a bot.grav to handle them', 'warn');
+    }
+
+    ideLog('output', screens.length > 0
+        ? `✅ Mini App ready — ${screens.length} screen(s), ${widgets} widget(s)`
+        : '⚠ No @screen defined — add @screen Main to start', screens.length > 0 ? 'success' : 'warn');
+}
+
 function ideDebug() {
     ideAutosave();
     const code = IDE.current?.files[IDE.activeFile] || '';
     const file = IDE.activeFile || 'code';
+    const isArx = file.endsWith('.arx');
 
     ideConsoleTab('debug', null);
-    document.getElementById('ide-console-debug').innerHTML = '';
+    document.getElementById('ide-console-debug').textContent = '';
     ideLog('debug', `🔍 Debug compile: ${file}`, 'bold');
 
-    const { errors, warns, hints } = _compileSync(code);
+    if (isArx) {
+        IDE._diagFull = []; IDE._diagLines = {};
+        _arxLint(code);
+    }
+    const { errors, warns, hints } = isArx
+        ? { errors: (IDE._diagFull||[]).filter(d=>d.sev==='error'), warns: (IDE._diagFull||[]).filter(d=>d.sev==='warn'), hints: (IDE._diagFull||[]).filter(d=>d.sev==='hint') }
+        : _compileSync(code);
     const lines = code.split('\n');
     const nonEmpty = lines.filter(l => l.trim() && !l.trim().startsWith('//')).length;
 
@@ -155,9 +246,11 @@ function _ideToken() {
 }
 
 function _ideAllCode() {
-    // Concatenate all files in project into one compilation unit
+    // Concatenate all .grav files in project into one compilation unit
+    // (.arx files are handled by the Architex runtime separately)
     if (!IDE.current) return '';
     return Object.entries(IDE.current.files)
+        .filter(([name]) => name.endsWith('.grav'))
         .map(([name, code]) => `// ── ${name} ──\n${code}`)
         .join('\n\n');
 }

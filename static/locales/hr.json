@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Pronađite kontakte",
+    "desc": "Provjerite tko je već na Vortexu. Brojevi se hashiraju — poslužitelj ih ne vidi.",
+    "start": "Sinkroniziraj",
+    "skip": "Preskoči",
+    "readingContacts": "Čitanje kontakata...",
+    "selectFile": "Odaberite datoteku (.vcf)...",
+    "hashing": "Obrada {n} brojeva...",
+    "searching": "Traženje podudaranja...",
+    "resultsTitle": "Pronađeni kontakti",
+    "noMatches": "Nema pronađenih kontakata",
+    "stats": "Provjereno {checked} brojeva, pronađeno {found} kontakata",
+    "selectedCount": "{n} odabrano",
+    "addAll": "Dodaj odabrane",
+    "adding": "Dodavanje...",
+    "done": "Kontakti dodani!",
+    "doneCount": "{n} kontakata dodano",
+    "continue": "Nastavi"
   }
 }

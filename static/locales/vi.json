@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Tìm liên hệ của bạn",
+    "desc": "Kiểm tra danh bạ nào đã có trên Vortex. Số được mã hóa — máy chủ không nhìn thấy.",
+    "start": "Đồng bộ danh bạ",
+    "skip": "Bỏ qua",
+    "readingContacts": "Đang đọc danh bạ...",
+    "selectFile": "Chọn tệp (.vcf)...",
+    "hashing": "Đang xử lý {n} số...",
+    "searching": "Đang tìm kiếm...",
+    "resultsTitle": "Danh bạ tìm thấy",
+    "noMatches": "Chưa tìm thấy danh bạ trên Vortex",
+    "stats": "Đã kiểm tra {checked} số, tìm thấy {found} liên hệ",
+    "selectedCount": "Đã chọn {n}",
+    "addAll": "Thêm đã chọn",
+    "adding": "Đang thêm...",
+    "done": "Đã thêm danh bạ!",
+    "doneCount": "Đã thêm {n} liên hệ",
+    "continue": "Tiếp tục"
   }
 }

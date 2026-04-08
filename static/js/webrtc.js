@@ -40,10 +40,13 @@ async function _loadIceServers() {
 let _isHangingUp      = false;
 let _incomingCallFrom = null;
 let _e2eMediaKey      = null;   // CryptoKey for E2E media frame encryption
+let _currentCallId    = null;   // shared between caller and callee for E2E key derivation
 let _statsInterval    = null;
 let _prevStats        = null;
 let _callTimerInterval = null;
 let _callDurationSec   = 0;
+let _callHistoryId     = null;  // ID записи в истории звонков
+let _inviteRetryTimer  = null;  // periodically resend invite for new contacts
 
 // ─── Пороги качества ──────────────────────────────────────────────────────────
 const QUALITY = {
@@ -65,9 +68,42 @@ const VIDEO_BITRATES = {
 const AUDIO_BITRATES = {
     high:    64_000,   // 64 kbps opus
     medium:  32_000,   // 32 kbps
-    low:     16_000,   // 16 kbps
-    audio_only: 24_000,
+    low:     24_000,   // 24 kbps (min для разборчивой речи)
+    audio_only: 32_000,
 };
+
+// Аудио constraints — подавление шума, эхо, авто-усиление
+const AUDIO_CONSTRAINTS = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    sampleRate: 48000,
+    channelCount: 1,
+};
+
+/** Build getUserMedia constraints using saved device preferences. */
+function _buildMediaConstraints(audio, video) {
+    const audioDevId = (typeof window._getDeviceSetting === 'function')
+        ? window._getDeviceSetting('audioInput') : '';
+    const videoDevId = (typeof window._getDeviceSetting === 'function')
+        ? window._getDeviceSetting('videoInput') : '';
+
+    let audioC = audio ? { ...AUDIO_CONSTRAINTS } : false;
+    if (audio && audioDevId) audioC.deviceId = { exact: audioDevId };
+
+    let videoC = video;
+    if (video && videoDevId) videoC = { deviceId: { exact: videoDevId } };
+
+    return { audio: audioC, video: videoC };
+}
+
+/** Apply saved output device (speaker) to an audio/video element. */
+function _applyOutputDevice(el) {
+    if (!el || typeof el.setSinkId !== 'function') return;
+    const outId = (typeof window._getDeviceSetting === 'function')
+        ? window._getDeviceSetting('audioOutput') : '';
+    if (outId) el.setSinkId(outId).catch(() => {});
+}
 
 let _currentQualityLevel = 'high';   // текущий уровень
 let _qualityStableCount  = 0;        // счётчик стабильных итераций (для повышения)
@@ -160,6 +196,10 @@ function _sdpHasVideo(sdp) {
 export async function startVoiceCall() {
     const S = window.AppState;
     if (!S.currentRoom) return;
+    if (S.pc && S.pc.connectionState !== 'closed') {
+        console.warn('[WebRTC] Call already in progress');
+        return;
+    }
 
     // Group call notice — all room members get the invite via signal broadcast
     if (S.currentRoom.member_count > 2 && !S.currentRoom.is_dm) {
@@ -179,7 +219,7 @@ export async function startVoiceCall() {
     catch (e) { alert(t('call.noSignalServer') + ': ' + e.message); return; }
 
     try {
-        S.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        S.localStream = await navigator.mediaDevices.getUserMedia(_buildMediaConstraints(true, false));
     } catch (e) { alert(t('call.noMicAccess') + ': ' + e.message); return; }
 
     const callName = (S.currentRoom.is_dm && S.currentRoom.dm_user)
@@ -196,29 +236,55 @@ export async function startVoiceCall() {
     S.pc = createPeerConnection();
     S.localStream.getTracks().forEach(t => S.pc.addTrack(t, S.localStream));
 
+    // Generate shared callId for E2E key derivation (sent to callee via invite)
+    _currentCallId = `call-${S.currentRoom.id}-${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}`;
+
     // E2E media frame encryption
     _e2eMediaKey = null;
     const roomKey = getRoomKey(S.currentRoom?.id);
     if (roomKey && isE2ESupported()) {
         try {
-            _e2eMediaKey = await deriveMediaKey(roomKey, `call-${S.currentRoom.id}-${Date.now()}`);
+            _e2eMediaKey = await deriveMediaKey(roomKey, _currentCallId);
             setupPeerE2E(S.pc, _e2eMediaKey);
-            console.log('[WebRTC] E2E media encryption active');
+            console.log('[WebRTC] E2E media encryption active, callId:', _currentCallId);
         } catch (e) { console.warn('[WebRTC] E2E setup failed:', e.message); }
     }
 
     const offer = await S.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
     await S.pc.setLocalDescription(offer);
 
-    signal({ type: 'invite', hasVideo: false });
+    signal({ type: 'invite', hasVideo: false, callId: _currentCallId });
     await new Promise(r => setTimeout(r, 50));
     signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
     _updatePrivacyBadge();
+
+    // Re-send invite periodically in case callee just connected signal WS
+    _inviteRetryTimer = setInterval(() => {
+        if (!S.pc || S.pc.connectionState === 'connected' || S.pc.connectionState === 'closed' || _isHangingUp) {
+            clearInterval(_inviteRetryTimer); _inviteRetryTimer = null; return;
+        }
+        signal({ type: 'invite', hasVideo: false, callId: _currentCallId });
+        signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
+    }, 3000);
+
+    // Save call to history
+    _callHistoryId = null;
+    try {
+        const calleeId = S.currentRoom.is_dm && S.currentRoom.dm_user ? S.currentRoom.dm_user.user_id : null;
+        const res = await api('POST', '/api/calls/start', {
+            callee_id: calleeId, room_id: S.currentRoom.id, call_type: 'audio',
+        });
+        _callHistoryId = res.call_id;
+    } catch (e) { console.warn('[WebRTC] call history start failed:', e); }
 }
 
 export async function startVideoCall() {
     const S = window.AppState;
     if (!S.currentRoom) return;
+    if (S.pc && S.pc.connectionState !== 'closed') {
+        console.warn('[WebRTC] Call already in progress');
+        return;
+    }
 
     // Group call notice — all room members get the invite via signal broadcast
     if (S.currentRoom.member_count > 2 && !S.currentRoom.is_dm) {
@@ -234,7 +300,7 @@ export async function startVideoCall() {
     catch (e) { alert(t('call.noSignalServer') + ': ' + e.message); return; }
 
     try {
-        S.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        S.localStream = await navigator.mediaDevices.getUserMedia(_buildMediaConstraints(true, true));
     } catch (e) { alert(t('call.noCameraAccess') + ': ' + e.message); return; }
 
     const vCallName = (S.currentRoom.is_dm && S.currentRoom.dm_user)
@@ -253,24 +319,46 @@ export async function startVideoCall() {
     S.pc = createPeerConnection();
     S.localStream.getTracks().forEach(t => S.pc.addTrack(t, S.localStream));
 
+    // Generate shared callId for E2E key derivation
+    _currentCallId = `call-${S.currentRoom.id}-${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}`;
+
     // E2E media frame encryption
     _e2eMediaKey = null;
     const vRoomKey = getRoomKey(S.currentRoom?.id);
     if (vRoomKey && isE2ESupported()) {
         try {
-            _e2eMediaKey = await deriveMediaKey(vRoomKey, `call-${S.currentRoom.id}-${Date.now()}`);
+            _e2eMediaKey = await deriveMediaKey(vRoomKey, _currentCallId);
             setupPeerE2E(S.pc, _e2eMediaKey);
-            console.log('[WebRTC] E2E media encryption active (video)');
+            console.log('[WebRTC] E2E media encryption active (video), callId:', _currentCallId);
         } catch (e) { console.warn('[WebRTC] E2E setup failed:', e.message); }
     }
 
     const offer = await S.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
     await S.pc.setLocalDescription(offer);
 
-    signal({ type: 'invite', hasVideo: true });
+    signal({ type: 'invite', hasVideo: true, callId: _currentCallId });
     await new Promise(r => setTimeout(r, 50));
     signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
     _updatePrivacyBadge();
+
+    // Re-send invite periodically in case callee just connected signal WS
+    _inviteRetryTimer = setInterval(() => {
+        if (!S.pc || S.pc.connectionState === 'connected' || S.pc.connectionState === 'closed' || _isHangingUp) {
+            clearInterval(_inviteRetryTimer); _inviteRetryTimer = null; return;
+        }
+        signal({ type: 'invite', hasVideo: true, callId: _currentCallId });
+        signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
+    }, 3000);
+
+    // Save call to history
+    _callHistoryId = null;
+    try {
+        const calleeId = S.currentRoom.is_dm && S.currentRoom.dm_user ? S.currentRoom.dm_user.user_id : null;
+        const res = await api('POST', '/api/calls/start', {
+            callee_id: calleeId, room_id: S.currentRoom.id, call_type: 'video',
+        });
+        _callHistoryId = res.call_id;
+    } catch (e) { console.warn('[WebRTC] call history start failed:', e); }
 }
 
 // ----------------------------------------------------------------------------
@@ -436,8 +524,14 @@ function createPeerConnection() {
 
     pc.ontrack = e => {
         console.log('ontrack:', e.track.kind, e.streams[0]);
-        $('remote-video').srcObject = e.streams[0];
+        const remoteEl = $('remote-video');
+        remoteEl.srcObject = e.streams[0];
+        _applyOutputDevice(remoteEl);
         $('call-status').textContent = t('call.connected');
+        _updateVideoVisibility();
+        // Track mute/unmute events to update visibility
+        e.track.onmute = () => _updateVideoVisibility();
+        e.track.onunmute = () => _updateVideoVisibility();
     };
 
     pc.onconnectionstatechange = () => {
@@ -481,6 +575,7 @@ function _startStatsMonitor(pc) {
             }
         } catch (e) {
             console.debug('getStats error:', e);
+            _stopStatsMonitor();
         }
     }, 2000);
 }
@@ -851,6 +946,7 @@ async function handleSignal(msg) {
         if ($('call-overlay').classList.contains('show')) return;
         _incomingCallFrom = from;
         S._offerHasVideo  = !!msg.hasVideo;
+        _currentCallId    = msg.callId || null;  // shared callId for E2E key
         showIncomingCallUI(msg.username || t('notifications.unknown'));
         return;
     }
@@ -863,8 +959,10 @@ async function handleSignal(msg) {
     }
 
     if (msg.type === 'answer') {
-        if (S.pc?.signalingState !== 'stable') {
-            await S.pc?.setRemoteDescription({ type: 'answer', sdp: msg.sdp });
+        if (S.pc?.signalingState === 'have-local-offer') {
+            await S.pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp });
+        } else {
+            console.warn('[WebRTC] Answer in unexpected state:', S.pc?.signalingState);
         }
     }
 
@@ -908,9 +1006,14 @@ function _showCallOverlay({ name, avatar, status, hasVideo }) {
     const pip = document.getElementById('call-pip');
     if (pip) pip.classList.remove('show');
 
+    // Reset swap state
+    _videoSwapped = false;
+    overlay.classList.remove('video-swapped');
+
     overlay.classList.add('show');
     _setQualityBadge('\u2699', '#888');
     _updatePrivacyBadge();
+    _updateVideoVisibility();
 
     // Start call duration timer
     _callDurationSec = 0;
@@ -919,8 +1022,11 @@ function _showCallOverlay({ name, avatar, status, hasVideo }) {
         _callDurationSec++;
         const m = Math.floor(_callDurationSec / 60);
         const s = String(_callDurationSec % 60).padStart(2, '0');
+        // Update both PIP timer and overlay timer
         const timerEl = document.getElementById('cp-timer');
         if (timerEl) timerEl.textContent = `${m}:${s}`;
+        const overlayTimer = document.getElementById('call-overlay-timer');
+        if (overlayTimer) overlayTimer.textContent = `${m}:${s}`;
     }, 1000);
 }
 
@@ -991,12 +1097,12 @@ export async function acceptCall() {
     hideIncomingCallUI();
     const needVideo = !!S._offerHasVideo;
     try {
-        S.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: needVideo });
+        S.localStream = await navigator.mediaDevices.getUserMedia(_buildMediaConstraints(true, needVideo));
         $('local-video').srcObject = S.localStream;
     } catch (e) {
         if (needVideo) {
             try {
-                S.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                S.localStream = await navigator.mediaDevices.getUserMedia(_buildMediaConstraints(true, false));
                 $('local-video').srcObject = S.localStream;
             } catch (e2) { console.warn('Нет микрофона:', e2.message); }
         } else { console.warn('Нет микрофона:', e.message); }
@@ -1005,14 +1111,14 @@ export async function acceptCall() {
         S.localStream.getTracks().forEach(t => {
             try { S.pc.addTrack(t, S.localStream); } catch {}
         });
-        // E2E media frame encryption (answering side)
+        // E2E media frame encryption (answering side) — use shared callId from invite
         _e2eMediaKey = null;
         const aRoomKey = getRoomKey(S.currentRoom?.id);
-        if (aRoomKey && isE2ESupported()) {
+        if (aRoomKey && isE2ESupported() && _currentCallId) {
             try {
-                _e2eMediaKey = await deriveMediaKey(aRoomKey, `call-${S.currentRoom.id}-${Date.now()}`);
+                _e2eMediaKey = await deriveMediaKey(aRoomKey, _currentCallId);
                 setupPeerE2E(S.pc, _e2eMediaKey);
-                console.log('[WebRTC] E2E media encryption active (answer)');
+                console.log('[WebRTC] E2E media encryption active (answer), callId:', _currentCallId);
             } catch (e) { console.warn('[WebRTC] E2E setup failed:', e.message); }
         }
     }
@@ -1023,9 +1129,11 @@ export async function acceptCall() {
         signal({ type: 'answer', sdp: _maskSdp(answer.sdp), to });
     }
     S._pendingOfferFrom = null;
-    if (S._pendingCandidates?.length) {
+    if (S._pendingCandidates?.length && S.pc?.remoteDescription) {
         for (const c of S._pendingCandidates) {
-            try { await S.pc.addIceCandidate(c); } catch {}
+            try { await S.pc.addIceCandidate(c); } catch (e) {
+                console.warn('[WebRTC] Failed to add ICE candidate:', e.message);
+            }
         }
         S._pendingCandidates = [];
     }
@@ -1123,16 +1231,32 @@ export function hangup() {
     S.localStream?.getTracks().forEach(t => t.stop());
     S.localStream = null;
     _e2eMediaKey  = null;
+    _currentCallId = null;
+    if (_inviteRetryTimer) { clearInterval(_inviteRetryTimer); _inviteRetryTimer = null; }
 
     $('remote-video').srcObject = null;
     $('local-video').srcObject  = null;
-    $('call-overlay').classList.remove('show');
+    const _overlay = $('call-overlay');
+    if (_overlay) {
+        _overlay.classList.remove('show', 'video-swapped', 'has-main-video');
+    }
+    _videoSwapped = false;
 
     // Hide pip and stop timer
     const pip = document.getElementById('call-pip');
     if (pip) pip.classList.remove('show');
     clearInterval(_callTimerInterval);
     _callTimerInterval = null;
+
+    // Save call end to history
+    if (_callHistoryId) {
+        const dur = _callDurationSec;
+        const status = dur > 0 ? 'answered' : 'missed';
+        api('POST', '/api/calls/end', {
+            call_id: _callHistoryId, status, duration: dur,
+        }).catch(e => console.warn('[WebRTC] call history end failed:', e));
+        _callHistoryId = null;
+    }
     _callDurationSec   = 0;
 
     hideIncomingCallUI();
@@ -1180,6 +1304,7 @@ export async function toggleCam() {
         S.isCamOff = !S.isCamOff;
         existingVideoTracks.forEach(t => { t.enabled = !S.isCamOff; });
         _updateCamBtn(S.isCamOff);
+        _updateVideoVisibility();
         return;
     }
     if (!S.pc) { console.warn('toggleCam: нет RTCPeerConnection'); return; }
@@ -1195,6 +1320,7 @@ export async function toggleCam() {
         S.pc.addTrack(videoTrack, S.localStream);
         S.isCamOff = false;
         _updateCamBtn(false);
+        _updateVideoVisibility();
 
         const offer = await S.pc.createOffer();
         await S.pc.setLocalDescription(offer);
@@ -1266,7 +1392,7 @@ async function _stopScreenShare() {
         // Останавливаем screen track
         sender.track?.stop();
 
-        if (_originalVideoTrack && !_originalVideoTrack.readyState === 'ended') {
+        if (_originalVideoTrack && _originalVideoTrack.readyState !== 'ended') {
             // Возвращаем камеру
             await sender.replaceTrack(_originalVideoTrack);
             if (S.localStream) {
@@ -1286,11 +1412,8 @@ async function _stopScreenShare() {
 
 function _updateScreenBtn(active) {
     const btn = $('screen-btn');
-    if (btn) {
-        btn.style.background = active ? 'var(--accent)' : '';
-        btn.style.color = active ? '#fff' : '';
-        btn.title = active ? 'Stop screen sharing' : 'Screen sharing';
-    }
+    if (!btn) return;
+    btn.classList.toggle('active', active);
 }
 
 // ----------------------------------------------------------------------------
@@ -1298,16 +1421,77 @@ function _updateScreenBtn(active) {
 // ----------------------------------------------------------------------------
 function _updateMuteBtn(muted) {
     _syncPipMuteBtn();
-    $('mute-btn').innerHTML = muted
-        ? '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" viewBox="0 0 24 24"><path d="M8.03 12.27a3.98 3.98 0 0 0 3.7 3.7zM20 12h-2c0 1.29-.42 2.49-1.12 3.47l-1.44-1.44c.36-.59.56-1.28.56-2.02v-6c0-2.21-1.79-4-4-4s-4 1.79-4 4v.59L2.71 1.29 1.3 2.7l20 20 1.41-1.41-4.4-4.4A7.9 7.9 0 0 0 20 12M10 6c0-1.1.9-2 2-2s2 .9 2 2v6c0 .18-.03.35-.07.51L10 8.58V5.99Z"></path><path d="M12 18c-3.31 0-6-2.69-6-6H4c0 4.07 3.06 7.44 7 7.93V22h2v-2.07c.74-.09 1.45-.29 2.12-.57l-1.57-1.57c-.49.13-1.01.21-1.55.21"></path></svg>'
-        : '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" viewBox="0 0 24 24"><path d="M16 12V6c0-2.21-1.79-4-4-4S8 3.79 8 6v6c0 2.21 1.79 4 4 4s4-1.79 4-4m-6 0V6c0-1.1.9-2 2-2s2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2"></path><path d="M18 12c0 3.31-2.69 6-6 6s-6-2.69-6-6H4c0 4.07 3.06 7.44 7 7.93V22h2v-2.07c3.94-.49 7-3.86 7-7.93z"></path></svg>';
+    const btn = $('mute-btn');
+    if (!btn) return;
+    btn.classList.toggle('active', muted);
 }
 
 function _updateCamBtn(camOff) {
-    $('cam-btn').innerHTML = camOff
-        ? '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" viewBox="0 0 24 24"><path d="M4 18V8.24L2.12 6.36c-.07.2-.12.42-.12.64v11c0 1.1.9 2 2 2h11.76l-2-2zm18 0V7c0-1.1-.9-2-2-2h-2.59L14.7 2.29a1 1 0 0 0-.71-.29h-4c-.27 0-.52.11-.71.29L6.57 5H6.4L2.71 1.29 1.3 2.7l20 20 1.41-1.41-1.62-1.62c.55-.36.91-.97.91-1.67M10.41 4h3.17l2.71 2.71c.19.19.44.29.71.29h3v11h-.59l-3.99-3.99c.36-.59.57-1.28.57-2.01 0-2.17-1.83-4-4-4-.73 0-1.42.21-2.01.57L7.91 6.5zm1.08 6.08c.16-.05.33-.08.51-.08 1.07 0 2 .93 2 2 0 .17-.03.34-.08.51z"></path><path d="M8.03 12.27c.14 1.95 1.75 3.56 3.7 3.7z"></path></svg>'
-        : '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c-2.17 0-4 1.83-4 4s1.83 4 4 4 4-1.83 4-4-1.83-4-4-4m0 6c-1.07 0-2-.93-2-2s.93-2 2-2 2 .93 2 2-.93 2-2 2"></path><path d="M20 5h-2.59L14.7 2.29a1 1 0 0 0-.71-.29h-4c-.27 0-.52.11-.71.29L6.57 5H3.98c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2Zm0 13H4V7h3c.27 0 .52-.11.71-.29L10.42 4h3.17l2.71 2.71c.19.19.44.29.71.29h3v11Z"></path></svg>';
+    const btn = $('cam-btn');
+    if (!btn) return;
+    btn.classList.toggle('active', camOff);
 }
 
 // Экспортируем текущий уровень качества для внешнего использования
 export function getCurrentQualityLevel() { return _currentQualityLevel; }
+
+// ----------------------------------------------------------------------------
+// Video swap (FaceTime-style: click to swap local/remote positions)
+// ----------------------------------------------------------------------------
+let _videoSwapped = false;
+
+export function swapCallVideos() {
+    const overlay = $('call-overlay');
+    if (!overlay) return;
+    // Only allow swap when both local and remote have active video
+    const remoteEl = $('remote-video');
+    const localEl  = $('local-video');
+    const hasRemote = remoteEl?.srcObject?.getVideoTracks().some(t => t.enabled && !t.muted) ?? false;
+    const hasLocal  = localEl?.srcObject?.getVideoTracks().some(t => t.enabled) ?? false;
+    if (!hasRemote || !hasLocal) return;
+    _videoSwapped = !_videoSwapped;
+    overlay.classList.toggle('video-swapped', _videoSwapped);
+}
+
+// ----------------------------------------------------------------------------
+// Video visibility management
+// ----------------------------------------------------------------------------
+function _updateVideoVisibility() {
+    const remoteEl   = $('remote-video');
+    const localEl    = $('local-video');
+    const mainWrap   = document.getElementById('call-main-wrap');
+    const pipWrap    = document.getElementById('call-pip-wrap');
+    const overlay    = $('call-overlay');
+
+    // Remote video: check if it has active video tracks
+    const remoteStream = remoteEl?.srcObject;
+    const hasRemoteVideo = remoteStream?.getVideoTracks().some(t => t.enabled && !t.muted) ?? false;
+
+    if (mainWrap) mainWrap.classList.toggle('has-video', hasRemoteVideo);
+    if (remoteEl) remoteEl.classList.toggle('hidden-video', !hasRemoteVideo);
+    if (overlay)  overlay.classList.toggle('has-main-video', hasRemoteVideo);
+
+    // Local video: check if we have active local video tracks
+    const localStream = localEl?.srcObject;
+    const hasLocalVideo = localStream?.getVideoTracks().some(t => t.enabled) ?? false;
+
+    if (localEl) localEl.classList.toggle('hidden-video', !hasLocalVideo);
+
+    // PIP wrap: show only when local video is active
+    // For audio-only calls or when only remote has video — no PIP needed
+    if (pipWrap) {
+        pipWrap.classList.toggle('has-video', hasLocalVideo);
+        pipWrap.style.display = hasLocalVideo ? '' : 'none';
+    }
+
+    // Reset swap if one of the cameras was turned off
+    const bothActive = hasRemoteVideo && hasLocalVideo;
+    if (!bothActive && _videoSwapped) {
+        _videoSwapped = false;
+        if (overlay) overlay.classList.remove('video-swapped');
+    }
+
+    // Disable pointer/cursor on wraps when swap isn't possible
+    if (mainWrap) mainWrap.style.cursor = bothActive ? 'pointer' : 'default';
+    if (pipWrap)  pipWrap.style.cursor  = bothActive ? 'pointer' : 'default';
+}

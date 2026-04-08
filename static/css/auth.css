@@ -27,6 +27,8 @@
     top: 0; left: 0; right: 0; bottom: 0;
     z-index: 200;
     align-items: center; justify-content: center;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     background: var(--bg);
     background-image:
         radial-gradient(circle at 20% 50%, rgba(124,58,237,0.08) 0%, transparent 50%),
@@ -36,11 +38,15 @@
 /* ---- Карточка ------------------------------------------------------------ */
 .auth-card {
     width: 420px; max-width: 94vw; padding: 36px 32px 28px;
+    margin: auto;
+    margin-top: 24px;
+    margin-bottom: 24px;
     background: var(--bg2);
     border: 1px solid var(--border);
     border-radius: 20px;
     animation: fadeUp 0.4s ease;
     position: relative;
+    flex-shrink: 0;
 }
 @keyframes fadeUp {
     from { opacity: 0; transform: translateY(20px); }

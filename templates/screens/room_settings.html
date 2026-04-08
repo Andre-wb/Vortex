@@ -33,6 +33,14 @@
             <button class="btn btn-danger" style="flex:1;" id="room-info-leave-btn" onclick="leaveRoom();closeRoomSettingsScreen();" data-i18n="room.leaveShort">Покинуть</button>
         </div>
 
+        <!-- ═══ Кнопка "Обсуждение" (каналы с включённым discussion) ═══ -->
+        <div id="rss-discussion-section" style="display:none;">
+            <button class="rss-discussion-btn" onclick="window._openChannelDiscussion()">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
+                <span data-i18n="channel.discussion">Обсуждение</span>
+            </button>
+        </div>
+
         <!-- ═══ Медиа (все пользователи) ═══ -->
         <div class="room-info-section rss-media-section">
             <div class="rss-media-tabs">
@@ -193,14 +201,7 @@
                     <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px;" onclick="window._loadRecentActions()" data-i18n="channel.loadActions">Загрузить журнал</button>
                 </div>
 
-                <div class="room-info-divider"></div>
-
-                <!-- Streaming -->
-                <div class="room-info-section">
-                    <div class="room-info-section-title" data-i18n="channel.streaming">Стримы</div>
-                    <button class="btn btn-primary" style="width:100%;" onclick="window._startChannelStream()" id="channel-stream-btn" data-i18n="channel.goLive">Начать стрим</button>
-                    <div class="room-info-hint" data-i18n="channel.streamHint">Запустите прямой эфир для подписчиков</div>
-                </div>
+                <!-- Streaming section moved to header three-dots menu -->
             </div>
 
             <!-- ═══ Настройки ГРУППЫ (не каналы, не DM) ═══ -->

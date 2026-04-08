@@ -71,7 +71,7 @@ export function _attachReactionLongPress(btn) {
 const _RECENT_REACTIONS_KEY = 'vortex_recent_reactions';
 const _MAX_RECENT_REACTIONS = 12;
 
-function _getRecentReactions() {
+export function _getRecentReactions() {
     try { return JSON.parse(localStorage.getItem(_RECENT_REACTIONS_KEY) || '[]'); }
     catch { return []; }
 }
@@ -98,7 +98,7 @@ function _sendReaction(msgId, emoji) {
 let _reactionPickerEl = null;
 let _reactionMsgId = null;
 
-function _openReactionPicker(msgId) {
+export function _openReactionPicker(msgId) {
     _closeReactionPicker();
     _reactionMsgId = msgId;
 

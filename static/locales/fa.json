@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "مخاطبین خود را پیدا کنید",
+    "desc": "بررسی کنید کدام مخاطبین در Vortex هستند. شماره‌ها هش می‌شوند — سرور نمی‌بیند.",
+    "start": "همگام‌سازی مخاطبین",
+    "skip": "رد شدن",
+    "readingContacts": "خواندن مخاطبین...",
+    "selectFile": "فایل مخاطبین را انتخاب کنید (.vcf)...",
+    "hashing": "پردازش {n} شماره...",
+    "searching": "جستجوی تطابق...",
+    "resultsTitle": "مخاطبین یافت شده",
+    "noMatches": "مخاطبی در Vortex یافت نشد",
+    "stats": "{checked} شماره بررسی شد، {found} مخاطب یافت شد",
+    "selectedCount": "{n} انتخاب شده",
+    "addAll": "افزودن انتخاب‌شده‌ها",
+    "adding": "در حال افزودن...",
+    "done": "مخاطبین اضافه شدند!",
+    "doneCount": "{n} مخاطب اضافه شد",
+    "continue": "ادامه"
   }
 }

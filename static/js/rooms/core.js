@@ -26,6 +26,7 @@ let _hiddenRevealed  = false;
 let _hiddenTimer     = null;
 let _peerRoomsCache  = {};
 let _discoveryTimer  = null;
+let _searchQuery     = '';      // текущий поисковый запрос по чатам
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Папки — CRUD
@@ -229,6 +230,89 @@ function closeFolderModal() {
 }
 
 window.closeFolderModal = closeFolderModal;
+window._openFolderModalFromMenu = () => _openFolderModal(null);
+
+let _searchDebounce = null;
+window.filterRoomList = function(query) {
+    _searchQuery = (query || '').trim().toLowerCase();
+    renderRoomsList();
+
+    // Серверный поиск публичных комнат (с debounce)
+    clearTimeout(_searchDebounce);
+    if (!_searchQuery || _searchQuery.length < 2) {
+        _clearServerSearchResults();
+        return;
+    }
+    _searchDebounce = setTimeout(() => _serverSearchRooms(_searchQuery), 300);
+};
+
+async function _serverSearchRooms(query) {
+    try {
+        const data = await api('GET', `/api/global/search-rooms?q=${encodeURIComponent(query)}`);
+        const results = data?.rooms || [];
+        if (!results.length) { _clearServerSearchResults(); return; }
+
+        const S = window.AppState;
+        const myIds = new Set((S.rooms || []).map(r => r.id));
+        const external = results.filter(r => !myIds.has(r.id));
+        if (!external.length) { _clearServerSearchResults(); return; }
+
+        const el = $('rooms-list');
+        if (!el) return;
+
+        // Удаляем старые результаты
+        _clearServerSearchResults();
+
+        const label = document.createElement('div');
+        label.className = 'rooms-section-label server-search-label';
+        label.textContent = t('rooms.globalResults') || 'Найденные каналы';
+        el.appendChild(label);
+
+        for (const r of external) {
+            const item = document.createElement('div');
+            item.className = 'room-item server-search-item';
+            item.dataset.room = r.id;
+            item.addEventListener('click', () => {
+                if (r.invite_code) {
+                    if (r.is_channel) {
+                        if (typeof window.joinAndOpenChannel === 'function')
+                            window.joinAndOpenChannel(r.invite_code, r.id);
+                        else joinPublicRoom(r.id, r.invite_code);
+                    } else {
+                        joinPublicRoom(r.id, r.invite_code);
+                    }
+                }
+            });
+
+            const icon = document.createElement('div');
+            icon.className = 'room-icon';
+            icon.textContent = r.avatar_emoji || (r.is_channel ? '\u{1F4E2}' : '\u{1F4AC}');
+            item.appendChild(icon);
+
+            const body = document.createElement('div');
+            body.className = 'room-body';
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'room-name';
+            nameDiv.textContent = r.name;
+            body.appendChild(nameDiv);
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'room-meta';
+            metaDiv.textContent = r.description || '';
+            body.appendChild(metaDiv);
+            item.appendChild(body);
+
+            el.appendChild(item);
+        }
+    } catch (e) {
+        console.warn('server search error', e);
+    }
+}
+
+function _clearServerSearchResults() {
+    const el = $('rooms-list');
+    if (!el) return;
+    el.querySelectorAll('.server-search-label, .server-search-item').forEach(n => n.remove());
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Pin / Archive toggles
@@ -278,6 +362,8 @@ function _showRoomContextMenu(e, roomId) {
     items += isHidden
         ? `<div class="room-ctx-item" data-action="unhide">${t('hidden.showChat')}</div>`
         : `<div class="room-ctx-item" data-action="hide">${t('rooms.hideChat')}</div>`;
+    items += `<div class="room-ctx-item" data-action="mark_unread">${t('rooms.markUnread') || 'Пометить непрочитанным'}</div>`;
+    items += `<div class="room-ctx-item" data-action="clear_history" style="color:var(--red);">${t('rooms.clearHistory') || 'Очистить историю'}</div>`;
 
     // Folder assignment submenu
     const folders = _getFolders();
@@ -319,6 +405,21 @@ function _showRoomContextMenu(e, roomId) {
         if (action === 'unpin')     window.togglePinRoom(roomId);
         if (action === 'archive')   window.toggleArchiveRoom(roomId);
         if (action === 'unarchive') window.toggleArchiveRoom(roomId);
+        if (action === 'mark_unread') {
+            const S = window.AppState;
+            const room = S.rooms?.find(r => r.id === roomId);
+            if (room) {
+                room.unread_count = Math.max(room.unread_count || 0, 1);
+                renderRoomsList();
+            }
+        }
+        if (action === 'clear_history') {
+            const S = window.AppState;
+            if (S.currentRoom?.id === roomId) {
+                const mc = document.getElementById('messages-container');
+                if (mc) { while (mc.firstChild) mc.removeChild(mc.firstChild); }
+            }
+        }
 
         // Folder assignment
         const folderAssign = ev.target.dataset.folderAssign;
@@ -702,6 +803,15 @@ export function renderRoomsList() {
     const folderFilter = _getActiveFilterRoomIds(_activeFolder);
     if (folderFilter !== null) {
         visible = visible.filter(r => folderFilter.includes(r.id));
+    }
+
+    // Фильтрация по поисковому запросу
+    if (_searchQuery) {
+        visible = visible.filter(r => {
+            const roomName = (r.name || '').toLowerCase();
+            const dmName = (r.dm_user?.display_name || r.dm_user?.username || '').toLowerCase();
+            return roomName.includes(_searchQuery) || dmName.includes(_searchQuery);
+        });
     }
 
     // Сортировка: закреплённые наверх внутри каждой секции

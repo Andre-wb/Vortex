@@ -44,9 +44,20 @@ export default {{
   async fetch(request, env) {{
     const url = new URL(request.url);
 
-    // Проверка shared secret
-    if (request.headers.get("X-Relay-Auth") !== SECRET) {{
-      // Без секрета — показываем cover-сайт
+    // Проверка HMAC-подписи (время-зависимая, не plaintext secret)
+    const ts = request.headers.get("X-Relay-Ts") || "";
+    const sig = request.headers.get("X-Relay-Auth") || "";
+    async function verifySig(secret, authSig, tsVal) {{
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey("raw", enc.encode(secret), {{name:"HMAC",hash:"SHA-256"}}, false, ["sign"]);
+      const mac = await crypto.subtle.sign("HMAC", key, enc.encode(tsVal));
+      const hex = [...new Uint8Array(mac)].map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,32);
+      return hex === authSig;
+    }}
+    const curTs = String(Math.floor(Date.now()/1000/300));
+    const prevTs = String(Math.floor(Date.now()/1000/300) - 1);
+    const ok = await verifySig(SECRET, sig, ts) || await verifySig(SECRET, sig, curTs) || await verifySig(SECRET, sig, prevTs);
+    if (!ok) {{
       return fetch(BACKEND + "/cover" + url.pathname);
     }}
 
@@ -305,10 +316,39 @@ class CDNRelayConfig:
             self._failures[self._current_idx] = 0
 
     def get_headers(self) -> dict:
-        """Возвращает заголовки для CDN-проксированных запросов."""
+        """
+        Возвращает заголовки для CDN-проксированных запросов.
+        Вместо plaintext secret используется HMAC(secret, timestamp).
+        Timestamp привязан к 5-минутным окнам — replay-защита.
+        """
         if self.enabled and self.relay_secret:
-            return {"X-Relay-Auth": self.relay_secret}
+            import hashlib, hmac, time
+            ts = str(int(time.time()) // 300)  # 5-минутное окно
+            sig = hmac.new(
+                self.relay_secret.encode(), ts.encode(), hashlib.sha256
+            ).hexdigest()[:32]
+            return {
+                "X-Relay-Auth": sig,
+                "X-Relay-Ts": ts,
+            }
         return {}
+
+    @staticmethod
+    def verify_relay_auth(secret: str, auth_header: str, ts_header: str) -> bool:
+        """Проверяет HMAC-подпись CDN relay на стороне сервера."""
+        import hashlib, hmac, time
+        if not auth_header or not ts_header:
+            return False
+        # Принимаем текущее и предыдущее окно (grace period)
+        current_ts = str(int(time.time()) // 300)
+        prev_ts = str(int(time.time()) // 300 - 1)
+        for ts in (ts_header, current_ts, prev_ts):
+            expected = hmac.new(
+                secret.encode(), ts.encode(), hashlib.sha256
+            ).hexdigest()[:32]
+            if hmac.compare_digest(auth_header, expected):
+                return True
+        return False
 
     def get_status(self) -> dict:
         """Возвращает статус всех CDN relay."""

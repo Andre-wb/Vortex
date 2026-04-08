@@ -8,7 +8,7 @@
                     </svg>
                 </button>
                 <div class="chat-header-carousel">
-                    <div class="chat-header-info chat-header-element" onclick="openRoomSettings()" style="cursor:pointer;">
+                    <div class="chat-header-info chat-header-element" onclick="handleChatHeaderClick()" style="cursor:pointer;">
                         <div class="chat-header-title-row">
                             <div class="chat-title" id="chat-room-name">—</div>
                             <div class="chat-meta" id="chat-room-meta">—</div>
@@ -45,11 +45,6 @@
                             </div>
                         </div>
 
-                        <button class="header-btn" onclick="copyInviteCode()" title="Скопировать код" data-i18n-title="chat.copyCode">
-                            <svg  xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M9.88 18.36a3 3 0 0 1-4.24 0 3 3 0 0 1 0-4.24l2.83-2.83-1.41-1.41-2.83 2.83a5.003 5.003 0 0 0 0 7.07c.98.97 2.25 1.46 3.54 1.46s2.56-.49 3.54-1.46l2.83-2.83-1.41-1.41-2.83 2.83Zm2.83-14.14L9.88 7.05l1.41 1.41 2.83-2.83a3 3 0 0 1 4.24 0 3 3 0 0 1 0 4.24l-2.83 2.83 1.41 1.41 2.83-2.83a5.003 5.003 0 0 0 0-7.07 5.003 5.003 0 0 0-7.07 0Z"></path><path d="m16.95 8.46-.71-.7-.7-.71-4.25 4.24-4.24 4.25.71.7.7.71 4.25-4.24z"></path>
-                            </svg>
-                        </button>
                         <!-- ── Три точки ───────────────────────────────────── -->
                         <div class="header-popup-wrap" id="header-dots-wrap">
                             <button class="header-btn" id="header-dots-btn" onclick="toggleHeaderMenu(event)" title="Ещё" data-i18n-title="chat.more">
@@ -66,21 +61,22 @@
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M22 8c0-.55-.45-1-1-1h-7c-.55 0-1 .45-1 1s.45 1 1 1h7c.55 0 1-.45 1-1zm0 8c0-.55-.45-1-1-1h-7c-.55 0-1 .45-1 1s.45 1 1 1h7c.55 0 1-.45 1-1zm-10.29-3.29l-3 3a.996.996 0 01-1.41 0l-1.5-1.5a.996.996 0 111.41-1.41l.79.79 2.29-2.29a.996.996 0 111.41 1.41zm0-8l-3 3a.996.996 0 01-1.41 0l-1.5-1.5a.996.996 0 011.41-1.41l.79.79 2.29-2.29c.39-.39 1.02-.39 1.41 0 .4.39.4 1.02.01 1.41z"/></svg>
                                     <span data-i18n="chat.tasks">Задачи</span>
                                 </button>
-                                <!-- ── Channel-only items ── -->
+                                <!-- Channel items moved to channel settings panel (room_settings.html) -->
+                                <!-- Channel discussion (visible to all subscribers) -->
+                                <button class="header-popup-item" onclick="window._openChannelDiscussion();closeHeaderMenu()" id="header-discussion-btn" style="display:none;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
+                                    <span data-i18n="channel.discussion">Перейти к чату</span>
+                                </button>
+                                <!-- Channel admin items (stream, settings) -->
                                 <div id="header-channel-items" style="display:none;">
                                     <div class="header-popup-divider"></div>
-                                    <button class="header-popup-item" onclick="window._startChannelStream();closeHeaderMenu()">
+                                    <button class="header-popup-item" onclick="window._startChannelStream();closeHeaderMenu()" id="header-stream-btn">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
                                         <span data-i18n="channel.goLive">Начать стрим</span>
                                     </button>
-                                    <button class="header-popup-item" onclick="window._showAddAuthorModal();closeHeaderMenu()">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                                        <span data-i18n="channel.manageAuthors">Управление авторами</span>
-                                    </button>
-                                    <button class="header-popup-item" onclick="window._toggleChannelDiscussion();closeHeaderMenu()">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
-                                        <span data-i18n="channel.discussionChat">Чат обсуждений</span>
-                                        <span id="header-discussion-status" style="font-size:9px;margin-left:auto;background:var(--green);color:#fff;border-radius:3px;padding:0 4px;line-height:1.5;display:none;"></span>
+                                    <button class="header-popup-item" onclick="openRoomSettings();closeHeaderMenu()">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                                        <span data-i18n="channel.settings">Настройки канала</span>
                                     </button>
                                 </div>
                                 <!-- ── Common items ── -->
@@ -150,6 +146,13 @@
                     <span class="stream-live-banner-count">0</span>
                 </span>
                 <span class="stream-live-banner-join" data-i18n="stream.watchLive">Watch</span>
+            </div>
+
+            <!-- Scheduled stream banner -->
+            <div id="stream-scheduled-banner" class="stream-scheduled-banner" style="display:none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                <span class="stream-sched-text" id="stream-sched-text"></span>
+                <span class="stream-sched-countdown" id="stream-sched-countdown"></span>
             </div>
 
             <div id="messages-container" role="log" aria-live="polite" aria-label="Сообщения"></div>

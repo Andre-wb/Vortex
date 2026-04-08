@@ -9,6 +9,7 @@
 import { esc, fmtTime, fmtDate, fmtSize } from '../../utils.js';
 import { initLiquidGlass, createReplyQuote } from '../liquid-glass.js';
 import { loadEncryptedImage, downloadAndDecryptFile } from '../file-upload.js';
+import { _getRecentReactions, _openReactionPicker } from './reactions.js';
 
 
 // =========================================================================
@@ -324,18 +325,20 @@ const _ICON_SAVE   = '/static/elements/edit-svgrepo-com.svg'; // reuse edit icon
 
 /**
  * Renders avatar HTML: photo if avatar_url exists, otherwise emoji fallback.
- * Clicking the avatar opens the user profile modal (for non-own messages).
+ * Clicking the avatar opens the user profile modal.
+ * If the user has active stories, a blue ring is shown around the avatar.
  */
 function _avatarHtml(msg) {
-    const S = window.AppState;
-    const isOwn = msg.sender_id && S?.user && (msg.sender_id === S.user.user_id || msg.sender_id === S.user.id);
-    const clickAttr = (!isOwn && msg.sender_id)
+    const clickAttr = msg.sender_id
         ? ` style="cursor:pointer;" onclick="window.openUserProfile(${msg.sender_id})"`
         : '';
+    // Story ring: check if this sender has active stories
+    const hasStory = msg.sender_id && window._storyUserIds?.has(msg.sender_id);
+    const ringClass = hasStory ? ' msg-avatar-story' : '';
     if (msg.avatar_url) {
-        return `<div class="msg-avatar"${clickAttr}><img src="${esc(msg.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>`;
+        return `<div class="msg-avatar${ringClass}"${clickAttr}><img src="${esc(msg.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>`;
     }
-    return `<div class="msg-avatar"${clickAttr}>${esc(msg.avatar_emoji || '\u{1F464}')}</div>`;
+    return `<div class="msg-avatar${ringClass}"${clickAttr}>${esc(msg.avatar_emoji || '\u{1F464}')}</div>`;
 }
 
 /**
@@ -517,6 +520,23 @@ function _showContextMenu(e, msg, isOwn) {
 
     items.push({ icon: _ICON_REPLY, label: t('ctx.reply'), danger: false, action: () => window.setReplyTo(msg) });
 
+    // Цитировать выделенный текст
+    const _sel = window.getSelection();
+    const _selectedText = _sel && _sel.toString().trim();
+    if (_selectedText) {
+        items.push({ icon: _ICON_REPLY, label: t('ctx.quote') || 'Цитировать', danger: false, action: () => {
+            window.setReplyTo(msg);
+            const input = document.getElementById('msg-input');
+            if (input) {
+                const quoted = _selectedText.split('\n').map(l => '> ' + l).join('\n');
+                input.value = quoted + '\n';
+                input.focus();
+                // Move cursor to end
+                input.selectionStart = input.selectionEnd = input.value.length;
+            }
+        }});
+    }
+
     // Тред
     if (msg.msg_id) {
         items.push({ icon: _ICON_REPLY, label: t('ctx.thread'), danger: false, action: () => window.openThread(msg.msg_id) });
@@ -549,7 +569,14 @@ function _showContextMenu(e, msg, isOwn) {
         items.push({ icon: _ICON_EDIT, label: t('ctx.edit'), danger: false, action: () => window.startEditMessage(msg) });
     }
 
-    if (isOwn) {
+    // Удалить: свои сообщения или любые для admin/owner
+    const _room = window.AppState?.currentRoom;
+    const canDelete = isOwn
+        || _room?.my_role === 'owner'
+        || _room?.my_role === 'admin'
+        || _room?.is_owner
+        || _room?.is_admin;
+    if (canDelete) {
         items.push({ divider: true });
         items.push({ icon: _ICON_DELETE, label: t('ctx.delete'), danger: true, action: () => window.deleteMessage(msg.msg_id) });
     }
@@ -936,10 +963,11 @@ async function _showEditHistory(msgId, roomId) {
 function _buildReplyQuote(replyToId, replyToText, replyToSender, isOwn = false) {
     const quote = createReplyQuote(
         replyToSender || '?',
-        _truncate(replyToText, 80),
+        replyToText?.length > 80 ? replyToText.slice(0, 80) + '\u2026' : (replyToText || ''),
         isOwn,
         () => _scrollToMsg(replyToId)
     );
+    if (replyToId) quote.dataset.replyId = replyToId;
     return quote;
 }
 
@@ -951,6 +979,27 @@ function _buildReplyQuote(replyToId, replyToText, replyToSender, isOwn = false) 
  * Сбрасывает состояние группировки (дата, автор) и очищает карту элементов.
  */
 
+/**
+ * Attaches mobile long-press (400ms) to a bubble element to show the context menu.
+ * Fires before the selection-mode timer (500ms on group) and stops propagation.
+ */
+function _attachMobileLongPress(bubble, msg, isOwn) {
+    let _ctxTimer = null;
+    let _ctxMoved = false;
+    bubble.addEventListener('touchstart', (te) => {
+        _ctxMoved = false;
+        _ctxTimer = setTimeout(() => {
+            if (_ctxMoved) return;
+            te.stopPropagation();
+            if (navigator.vibrate) navigator.vibrate(20);
+            _showContextMenu(te, msg, isOwn);
+        }, 400);
+    }, { passive: true });
+    bubble.addEventListener('touchmove',   () => { _ctxMoved = true; clearTimeout(_ctxTimer); }, { passive: true });
+    bubble.addEventListener('touchend',    () => clearTimeout(_ctxTimer), { passive: true });
+    bubble.addEventListener('touchcancel', () => clearTimeout(_ctxTimer), { passive: true });
+}
+
 export {
     _maybeAttachLinkPreview, _buildPreviewCard, _renderBotMarkdown,
     _renderTextWithMentions, _notifyMention, extractMentions,
@@ -958,4 +1007,5 @@ export {
     _ensureContextMenuStyles, _showContextMenu, _closeContextMenu,
     _loadReminders, _saveReminders, _showReminderModal, _scheduleReminder,
     _fireReminder, _showEditHistory, _buildReplyQuote,
+    _attachMobileLongPress,
 };

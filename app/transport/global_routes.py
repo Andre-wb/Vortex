@@ -175,6 +175,8 @@ async def search_rooms_local(q: str = Query("", description="Поисковый 
                         "name": r.name,
                         "description": r.description or "",
                         "invite_code": r.invite_code,
+                        "is_channel": getattr(r, "is_channel", False),
+                        "avatar_emoji": getattr(r, "avatar_emoji", "") or "",
                         "member_count": r.member_count() if callable(getattr(r, "member_count", None)) else 0,
                     }
                     for r in rooms

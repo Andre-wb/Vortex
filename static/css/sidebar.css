@@ -55,6 +55,9 @@
     flex: 1; border: none; background: none; outline: none;
     color: var(--text); font-size: 13px; font-family: var(--sub);
 }
+.cs-search input:focus-visible {
+    box-shadow: none;
+}
 .cs-search input::placeholder { color: var(--text3); }
 
 /* Folder tabs */
@@ -63,7 +66,7 @@
     overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
 }
 .cs-folders::-webkit-scrollbar { display: none; }
-.cs-folder-tab {
+.cs-folder-tab, .folder-tab {
     padding: 5px 14px; font-size: 12px; font-weight: 600;
     color: var(--text2);
     background: rgba(255, 255, 255, 0.04);
@@ -72,15 +75,28 @@
     cursor: pointer; white-space: nowrap;
     transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
     font-family: var(--sans);
+    display: inline-flex; align-items: center; gap: 5px;
 }
-.cs-folder-tab:hover {
+.cs-folder-tab:hover, .folder-tab:hover {
     background: rgba(255, 255, 255, 0.08); color: var(--text);
     transform: translateY(-1px);
 }
-.cs-folder-tab.active {
+.cs-folder-tab.active, .folder-tab.active {
     background: var(--accent); color: #fff;
     border-color: rgba(124, 58, 237, 0.4);
     box-shadow: 0 2px 10px rgba(124, 58, 237, 0.3);
+}
+.folder-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.folder-tab-add {
+    padding: 5px 10px; font-size: 14px; font-weight: 600;
+    color: var(--text3); background: transparent; border: 1px dashed rgba(255,255,255,0.08);
+    border-radius: 20px; cursor: pointer; white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+}
+.folder-tab-add:hover {
+    color: var(--text); background: rgba(255,255,255,0.04);
 }
 
 /* Archived chats link */

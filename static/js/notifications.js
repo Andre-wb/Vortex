@@ -158,6 +158,59 @@ function handleNotification(data) {
         return;
     }
 
+    // Stream scheduled — browser notification
+    if (data.type === 'stream_scheduled') {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(data.room_name || 'Vortex', {
+                body: '\uD83D\uDCC5 ' + (data.title || 'Live') + ' — ' + (data.scheduled_at || '').replace('T', ' '),
+                icon: '/static/icons/icon-192x192.png',
+            });
+        }
+        return;
+    }
+
+    // Stream auto-start — scheduled stream time has come, host gets this even from another room
+    if (data.type === 'stream_auto_start') {
+        const roomId = data.room_id;
+        const title = data.title || 'Live';
+        // Show confirmation banner and auto-start the stream
+        if (typeof window.openRoom === 'function') {
+            window.openRoom(roomId);
+        }
+        // Delay slightly to let room load, then trigger stream start
+        setTimeout(async () => {
+            try {
+                if (typeof window.openStreamSettings === 'function') {
+                    // Set state and start directly
+                    const { startStreamAuto } = await import('./stream.js');
+                    if (typeof startStreamAuto === 'function') {
+                        startStreamAuto(roomId, title);
+                    }
+                }
+            } catch (e) {
+                console.warn('[Notif] auto-start stream error:', e);
+            }
+        }, 1500);
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('🔴 Запланированный стрим начинается!', {
+                body: title,
+                icon: '/static/icons/icon-192x192.png',
+            });
+        }
+        return;
+    }
+
+    // Stream started — browser notification
+    if (data.type === 'stream_state' && data.action === 'started') {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('\uD83D\uDD34 Стрим начался!', {
+                body: data.room_name || 'Vortex',
+                icon: '/static/icons/icon-192x192.png',
+            });
+        }
+        return;
+    }
+
     // Не считаем непрочитанным для текущей активной комнаты
     if (data.room_id && S.currentRoom?.id === data.room_id) return;
 
@@ -304,7 +357,6 @@ function _handleIncomingCall(data) {
 
 // Глобальная функция — открыть комнату и подключиться к signal WS для ответа
 window._answerCallFromNotif = async function(roomId) {
-    // Находим комнату или загружаем DM-список
     const S = window.AppState;
     let room = S.rooms.find(r => r.id === roomId);
 
@@ -325,8 +377,18 @@ window._answerCallFromNotif = async function(roomId) {
     }
 
     if (room && typeof window.openRoom === 'function') {
-        window.openRoom(roomId);
+        await window.openRoom(roomId);
     }
+
+    // Подключаемся к signal WS и отправляем ringing — звонящий повторит offer
+    try {
+        const signalId = room?.signalRoomId ?? roomId;
+        if (typeof window.connectSignal === 'function') {
+            window.connectSignal(signalId);
+        }
+        // Помечаем что ожидаем входящий звонок — webrtc.js покажет incoming UI при получении offer
+        S._pendingIncomingCall = roomId;
+    } catch {}
 }
 
 // ── HTTP/2 Multiplex Cover (имитация загрузки SPA-ресурсов) ─────────────────

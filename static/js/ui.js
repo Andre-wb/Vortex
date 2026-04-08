@@ -85,6 +85,10 @@ export function openRoom(id) {
 
     S.currentRoom = room;
     clearUnread(id);
+    // Reset server-side unread count for this room in AppState
+    const _roomInList = S.rooms?.find(r => r.id === id);
+    if (_roomInList) _roomInList.unread_count = 0;
+    if (typeof window.renderRoomsList === 'function') window.renderRoomsList();
 
     // Remove "not in contacts" banner from previous room
     const oldBanner = document.getElementById('not-contact-banner');
@@ -204,8 +208,13 @@ export function openRoom(id) {
     if (channelItems) {
         channelItems.style.display = (room.is_channel && (room.is_owner || room.is_admin || room.my_role === 'owner' || room.my_role === 'admin')) ? '' : 'none';
     }
+    // Show "Go to discussion" button if discussion_enabled
+    const discBtn = document.getElementById('header-discussion-btn');
+    if (discBtn) {
+        discBtn.style.display = (room.is_channel && room.discussion_enabled) ? '' : 'none';
+    }
 
-    // Check for active stream in channel
+    // Check for active or scheduled stream in channel
     if (room.is_channel && typeof window.checkStreamStatus === 'function') {
         window.checkStreamStatus(id).then(resp => {
             const banner = document.getElementById('stream-live-banner');
@@ -221,7 +230,17 @@ export function openRoom(id) {
                     banner.style.display = 'none';
                 }
             }
+            // Show scheduled stream banner
+            if (resp.scheduled && resp.scheduled.scheduled_at) {
+                if (window.showScheduledStreamBanner) {
+                    window.showScheduledStreamBanner(resp.scheduled.title, resp.scheduled.scheduled_at);
+                }
+            } else {
+                if (window.hideScheduledStreamBanner) window.hideScheduledStreamBanner();
+            }
         }).catch(() => {});
+    } else {
+        if (window.hideScheduledStreamBanner) window.hideScheduledStreamBanner();
     }
 
     // Apply per-room theme if set, otherwise restore global theme
@@ -535,4 +554,22 @@ window.addEventListener('resize', function() {
         document.body.classList.remove('mobile-chat-open');
     }
 });
+
+/**
+ * Клик по заголовку чата: в ЛС открывает профиль собеседника,
+ * в группе/канале — настройки комнаты.
+ */
+export function handleChatHeaderClick() {
+    const S = window.AppState;
+    const room = S?.currentRoom;
+    if (room?.is_dm && room.dm_user?.user_id) {
+        if (typeof window.openUserProfile === 'function') {
+            window.openUserProfile(room.dm_user.user_id);
+        }
+    } else {
+        if (typeof window.openRoomSettings === 'function') {
+            window.openRoomSettings();
+        }
+    }
+}
 

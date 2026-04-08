@@ -60,7 +60,10 @@ export async function joinVoiceChannel(roomId) {
 
     // Get microphone access
     try {
-        _voiceLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        const _micId = (typeof window._getDeviceSetting === 'function') ? window._getDeviceSetting('audioInput') : '';
+        const _audioC = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 };
+        if (_micId) _audioC.deviceId = { exact: _micId };
+        _voiceLocalStream = await navigator.mediaDevices.getUserMedia({ audio: _audioC, video: false });
     } catch (e) {
         alert(t('call.noMicAccess') + ': ' + e.message);
         return;
@@ -351,6 +354,9 @@ function _createPeerConnection(peerId) {
             _voicePeers[peerId].audioEl = audioEl;
         }
         audioEl.srcObject = stream;
+        // Apply saved output device
+        const _outId = (typeof window._getDeviceSetting === 'function') ? window._getDeviceSetting('audioOutput') : '';
+        if (_outId && typeof audioEl.setSinkId === 'function') audioEl.setSinkId(_outId).catch(() => {});
 
         // Start speaking detection for this peer
         _startPeerSpeakingDetection(peerId, stream);

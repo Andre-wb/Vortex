@@ -6,7 +6,11 @@
 // ============================================================================
 
 const toHex   = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
-const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
+const fromHex = h => {
+    const m = h?.match(/.{2}/g);
+    if (!m) throw new Error('Invalid hex string');
+    return Uint8Array.from(m.map(b => parseInt(b, 16)));
+};
 
 /**
  * Шифрует roomKey для получателя через ECIES (X25519 + HKDF + AES-GCM).
@@ -91,12 +95,60 @@ export async function eciesDecrypt(ephemeralPubHex, ciphertextHex, ourPrivKeyJwk
 
 // ============================================================================
 // Хранилище ключей комнат в памяти (roomId → Uint8Array)
+// Три уровня: JS heap → sessionStorage → localStorage
+// + BroadcastChannel для синхронизации между вкладками
 // ============================================================================
 
 const _roomKeys = {};
+const _rkHex = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+const _rkFromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
 
-export function getRoomKey(roomId)           { return _roomKeys[roomId] || null; }
-export function setRoomKey(roomId, keyBytes) { _roomKeys[roomId] = keyBytes; }
+// BroadcastChannel — синхронизация ключей между вкладками в реальном времени
+let _rkChannel = null;
+try {
+    _rkChannel = new BroadcastChannel('vortex_room_keys');
+    _rkChannel.onmessage = (e) => {
+        const { roomId, hex } = e.data || {};
+        if (!roomId) return;
+        if (hex) {
+            _roomKeys[roomId] = _rkFromHex(hex);
+        } else {
+            delete _roomKeys[roomId];
+        }
+    };
+} catch {}
+
+export function getRoomKey(roomId) {
+    if (_roomKeys[roomId]) return _roomKeys[roomId];
+    // Fallback: sessionStorage → localStorage
+    try {
+        const hex = sessionStorage.getItem(`vortex_rk_${roomId}`)
+                 || localStorage.getItem(`vortex_rk_${roomId}`);
+        if (hex) {
+            const bytes = _rkFromHex(hex);
+            _roomKeys[roomId] = bytes;
+            return bytes;
+        }
+    } catch {}
+    return null;
+}
+
+export function setRoomKey(roomId, keyBytes) {
+    _roomKeys[roomId] = keyBytes;
+    try {
+        if (keyBytes) {
+            const hex = _rkHex(keyBytes);
+            sessionStorage.setItem(`vortex_rk_${roomId}`, hex);
+            localStorage.setItem(`vortex_rk_${roomId}`, hex);
+            // Уведомляем другие вкладки
+            _rkChannel?.postMessage({ roomId, hex });
+        } else {
+            sessionStorage.removeItem(`vortex_rk_${roomId}`);
+            localStorage.removeItem(`vortex_rk_${roomId}`);
+            _rkChannel?.postMessage({ roomId, hex: null });
+        }
+    } catch {}
+}
 
 // ============================================================================
 // E2E File Encryption — шифрование файлов ключом комнаты

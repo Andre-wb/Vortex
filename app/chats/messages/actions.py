@@ -170,6 +170,7 @@ async def handle_forward(room_id: int, user: User, data: dict, db: Session) -> N
     await manager.broadcast_to_room(target_room_id, {
         "type":           "message",
         "msg_id":         new_msg.id,
+        "sender_id":      user.id,
         "sender_pseudo":  new_msg.sender_pseudo,
         "sender":         user.username,
         "display_name":   user.display_name or user.username,

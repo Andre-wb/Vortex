@@ -1,0 +1,174 @@
+/* static/css/contact-sync.css — Contact Sync Overlay */
+
+/* ── Overlay ─────────────────────────────────────────────────────────────── */
+.cs-overlay {
+    position: fixed; inset: 0; z-index: 210;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(20px);
+    display: none; align-items: center; justify-content: center;
+    padding: 16px;
+}
+.cs-overlay.show { display: flex; }
+
+/* ── Card ────────────────────────────────────────────────────────────────── */
+.cs-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    width: 100%; max-width: 420px;
+    padding: 40px 32px;
+    animation: csFadeIn 0.35s ease;
+}
+
+@keyframes csFadeIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Step ────────────────────────────────────────────────────────────────── */
+.cs-step {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 16px; text-align: center;
+}
+
+/* ── Icon ────────────────────────────────────────────────────────────────── */
+.cs-icon {
+    width: 88px; height: 88px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(124, 58, 237, 0.1);
+    border-radius: 50%;
+    margin-bottom: 8px;
+}
+.cs-icon-done {
+    background: rgba(34, 197, 94, 0.1);
+}
+
+/* ── Text ────────────────────────────────────────────────────────────────── */
+.cs-title {
+    font-family: var(--sans);
+    font-size: 22px; font-weight: 700;
+    color: var(--text);
+    margin: 0;
+}
+.cs-desc {
+    font-size: 14px; color: var(--text2);
+    line-height: 1.5; max-width: 340px;
+    margin: 0;
+}
+.cs-stats {
+    font-size: 13px; color: var(--text2);
+    margin: 0;
+}
+.cs-selected-count {
+    font-size: 13px; color: var(--accent2);
+    margin: 0;
+}
+.cs-progress-text {
+    font-size: 15px; color: var(--text2);
+    margin: 0;
+}
+.cs-done-text {
+    font-size: 18px; font-weight: 600;
+    color: var(--green);
+    margin: 0;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.cs-btn {
+    width: 100%; max-width: 280px;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; border: none;
+    transition: background 0.15s, opacity 0.15s;
+    font-family: var(--sub);
+}
+.cs-btn:disabled { opacity: 0.5; cursor: default; }
+.cs-btn-primary {
+    background: var(--accent); color: #fff;
+}
+.cs-btn-primary:hover:not(:disabled) { background: var(--accent2); }
+.cs-btn-ghost {
+    background: transparent; color: var(--text2);
+}
+.cs-btn-ghost:hover { color: var(--text); }
+
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+.cs-spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: csSpin 0.8s linear infinite;
+}
+@keyframes csSpin { to { transform: rotate(360deg); } }
+
+/* ── Match List ──────────────────────────────────────────────────────────── */
+.cs-match-list {
+    width: 100%;
+    max-height: 320px; overflow-y: auto;
+    display: flex; flex-direction: column;
+    gap: 2px;
+    margin: 4px 0;
+}
+.cs-match-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.cs-match-row:hover { background: var(--bg3); }
+
+.cs-match-row input[type="checkbox"] {
+    width: 18px; height: 18px;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+}
+
+.cs-match-avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--bg3);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; overflow: hidden;
+}
+.cs-avatar-img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+}
+.cs-avatar-emoji {
+    font-size: 22px;
+}
+
+.cs-match-info {
+    flex: 1; min-width: 0; text-align: left;
+}
+.cs-match-name {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cs-match-username {
+    font-size: 12px; color: var(--text2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.cs-empty {
+    padding: 32px 16px;
+    font-size: 14px; color: var(--text2);
+    text-align: center;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+.cs-match-list::-webkit-scrollbar { width: 4px; }
+.cs-match-list::-webkit-scrollbar-track { background: transparent; }
+.cs-match-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .cs-card {
+        padding: 28px 20px;
+        border-radius: 16px;
+    }
+    .cs-title { font-size: 19px; }
+    .cs-match-list { max-height: 260px; }
+}

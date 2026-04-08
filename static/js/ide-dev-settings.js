@@ -175,7 +175,7 @@ function _applyFeature(key, val) {
 }
 
 /* ── Typing sound engine ─────────────────────────────────── */
-let _audioCtx = null;
+let _typingAudio = null;
 function _initTypingSound() {
     document.addEventListener('keydown', _onTypingKey);
 }
@@ -186,19 +186,14 @@ function _onTypingKey(e) {
     const ide = document.getElementById('tab-view-ide');
     if (!ide || ide.style.display === 'none') return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const ctx = _audioCtx;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.connect(g); g.connect(ctx.destination);
-    const freq = 800 + Math.random() * 400;
-    o.frequency.setValueAtTime(freq, ctx.currentTime);
-    o.frequency.exponentialRampToValueAtTime(freq * 0.5, ctx.currentTime + 0.04);
-    o.type = 'sawtooth';
-    g.gain.setValueAtTime(0.06, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
-    o.start(ctx.currentTime);
-    o.stop(ctx.currentTime + 0.06);
+    try {
+        if (!_typingAudio) {
+            _typingAudio = new Audio('/static/sounds/COMCell_Iphone touch sound 2 (ID 2038)_BigSoundBank.com.wav');
+            _typingAudio.volume = 0.15;
+        }
+        _typingAudio.currentTime = 0;
+        _typingAudio.play().catch(() => {});
+    } catch {}
 }
 
 /* ── Code rain (idle matrix) ─────────────────────────────── */
@@ -298,15 +293,22 @@ function _clearCodeBg() {
     delete ds.codeBg;
     localStorage.setItem(DS_KEY, JSON.stringify(ds));
     const prev = document.getElementById('dev-bg-preview');
-    if (prev) { prev.style.backgroundImage = ''; prev.textContent = (window.t ? '📂 ' + window.t('ide.noBackground') : '📂 No background'); }
+    if (prev) { prev.style.backgroundImage = ''; prev.textContent = (window.t ? window.t('ide.noBackground') : 'No background'); }
     document.getElementById('dev-bg-clear') && (document.getElementById('dev-bg-clear').style.display = 'none');
 }
 
 /* ── Pomodoro timer ──────────────────────────────────────── */
 let _pom = null;
+let _pomMinutes = parseInt(localStorage.getItem('pom-minutes') || '25', 10);
 function _togglePomodoro() {
     if (_pom) { _stopPomodoro(); return; }
-    _startPomodoro(25);
+    _startPomodoro(_pomMinutes);
+}
+function _setPomMinutes(m) {
+    _pomMinutes = Math.max(1, Math.min(120, parseInt(m, 10) || 25));
+    localStorage.setItem('pom-minutes', _pomMinutes);
+    const lbl = document.getElementById('pom-minutes-label');
+    if (lbl) lbl.textContent = `${_pomMinutes} min`;
 }
 function _startPomodoro(minutes) {
     let secs = minutes * 60;
@@ -348,7 +350,15 @@ function _stopPomodoro() {
 function _showPomDone() {
     const n = document.createElement('div');
     n.className = 'ide-pom-done';
-    n.textContent = '🍅 ' + (window.t ? window.t('ide.breakTime') : 'Break time! Take 5 minutes.');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '16'); svg.setAttribute('height', '16');
+    svg.setAttribute('fill', 'currentColor'); svg.setAttribute('viewBox', '0 0 24 24');
+    svg.style.cssText = 'vertical-align:-2px;margin-right:6px';
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', 'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z');
+    svg.appendChild(p);
+    n.appendChild(svg);
+    n.appendChild(document.createTextNode(window.t ? window.t('ide.breakTime') : 'Break time! Take 5 minutes.'));
     document.body.appendChild(n);
     setTimeout(() => n.remove(), 5000);
 }
@@ -446,6 +456,7 @@ window.DevSettings = {
     clearCodeBg: _clearCodeBg,
     togglePomodoro: _togglePomodoro,
     stopPomodoro: _stopPomodoro,
+    setPomMinutes: _setPomMinutes,
     renderDevSettings,
     handleBgUpload(e) {
         const file = e.target.files[0];

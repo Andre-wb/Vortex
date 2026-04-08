@@ -763,7 +763,14 @@ def test_cdn_config_get_headers_with_secret():
     try:
         cfg = CDNRelayConfig()
         headers = cfg.get_headers()
-        assert headers.get("X-Relay-Auth") == "my-secret"
+        # HMAC-based auth: X-Relay-Auth is an HMAC signature, not the raw secret
+        assert "X-Relay-Auth" in headers
+        assert len(headers["X-Relay-Auth"]) == 32
+        assert "X-Relay-Ts" in headers
+        # Verify the signature is valid
+        assert CDNRelayConfig.verify_relay_auth(
+            "my-secret", headers["X-Relay-Auth"], headers["X-Relay-Ts"]
+        ) is True
     finally:
         del os.environ["CDN_RELAY_URLS"]
         del os.environ["CDN_RELAY_SECRET"]
@@ -774,18 +781,19 @@ def test_cdn_config_get_headers_with_secret():
 # ============================================================================
 
 def test_knock_sequence_completion():
-    from app.transport.knock import record_page_visit, verify_knock, KNOCK_SEQUENCE
+    from app.transport.knock import record_page_visit, verify_knock, get_current_knock_sequence
 
     session_id = f"test_sess_{random_str(10)}"
+    seq = get_current_knock_sequence()
 
     # Follow the sequence
     token = None
-    for path in KNOCK_SEQUENCE[:-1]:
+    for path in seq[:-1]:
         result = record_page_visit(session_id, path)
         assert result is None  # not yet complete
 
     # Final step
-    token = record_page_visit(session_id, KNOCK_SEQUENCE[-1])
+    token = record_page_visit(session_id, seq[-1])
     assert token is not None
     assert len(token) > 10
 
@@ -801,11 +809,12 @@ def test_knock_verify_invalid_token():
 
 
 def test_knock_wrong_sequence_order():
-    from app.transport.knock import record_page_visit, KNOCK_SEQUENCE
+    from app.transport.knock import record_page_visit, get_current_knock_sequence
 
     session_id = f"wrong_order_{random_str(8)}"
+    seq = get_current_knock_sequence()
     # Visit last page first
-    result = record_page_visit(session_id, KNOCK_SEQUENCE[-1])
+    result = record_page_visit(session_id, seq[-1])
     assert result is None
 
 

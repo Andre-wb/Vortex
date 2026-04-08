@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
@@ -49,6 +50,70 @@ async def transport_status(u: User = Depends(get_current_user)):
     """List all available transports and their status."""
     from app.transport.pluggable import transport_manager
     return transport_manager.get_status()
+
+
+@router.get("/stealth-status")
+async def stealth_status(u: User = Depends(get_current_user)):
+    """Full stealth/obfuscation status — all mechanisms (Level 1-4)."""
+    from app.transport.auto_stealth import get_stealth_status
+    from app.transport.advanced_stealth import advanced_stealth
+    from app.transport.stealth_level3 import stealth_l3
+    from app.transport.stealth_level4 import stealth_l4
+    base = get_stealth_status()
+    base["advanced"] = advanced_stealth.get_status()
+    base["level3"] = stealth_l3.get_status()
+    base["level4"] = stealth_l4.get_status()
+    return base
+
+
+@router.post("/censorship-report")
+async def censorship_report(request: Request):
+    """
+    Клиент отправляет отчёт о доступности транспортов.
+    Без аутентификации (клиент может быть заблокирован).
+    """
+    from app.transport.stealth_level4 import stealth_l4
+    try:
+        body = await request.json()
+        region = body.get("region", "unknown")
+        stealth_l4.dashboard.submit_report(region, body)
+        recommended = stealth_l4.dashboard.get_recommended_transport(region)
+        return {"ok": True, "recommended_transport": recommended}
+    except Exception:
+        return {"ok": False}
+
+
+@router.get("/censorship-map")
+async def censorship_map(u: User = Depends(get_current_user)):
+    """Карта блокировок по регионам."""
+    from app.transport.stealth_level4 import stealth_l4
+    return stealth_l4.dashboard.get_all_regions()
+
+
+@router.get("/sw-config")
+async def sw_config():
+    """Конфигурация для Service Worker proxy (без авторизации)."""
+    from app.transport.stealth_level4 import stealth_l4
+    return stealth_l4.sw_config.generate_sw_config(
+        transports=["websocket", "sse", "cdn_relay", "meek", "doh"],
+    )
+
+
+@router.get("/probe/{transport_name}")
+async def probe_transport(transport_name: str):
+    """Probe endpoint для проверки доступности транспорта."""
+    return {"ok": True, "transport": transport_name, "ts": int(time.time())}
+
+
+@router.get("/knock-hint")
+async def knock_hint():
+    """
+    Замаскировано как /api/transport/knock-hint → feature flags.
+    Клиент получает текущую knock-последовательность.
+    Без аутентификации (клиент ещё не авторизован).
+    """
+    from app.transport.auto_stealth import get_knock_hint
+    return get_knock_hint()
 
 
 # ── Bridge endpoints ─────────────────────────────────────────────────────────

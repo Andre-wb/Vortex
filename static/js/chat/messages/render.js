@@ -8,6 +8,7 @@ import {
     _ensureContextMenuStyles, _showContextMenu, _closeContextMenu,
     _loadReminders, _saveReminders, _showReminderModal, _scheduleReminder,
     _fireReminder, _showEditHistory, _buildReplyQuote,
+    _attachMobileLongPress,
 } from './helpers.js';
 import { _msgElements, _msgTexts } from './shared.js';
 import { _buildVoiceBubble, _initVoiceBubble, _guessMimeFromName, _guessMimeFromText, _extractDownloadUrl } from './voice.js';
@@ -43,6 +44,8 @@ export function appendMessage(msg) {
             display_name: msg.display_name,
             avatar_emoji: msg.avatar_emoji,
             avatar_url:   msg.avatar_url,
+            tag:          msg.tag,
+            tag_color:    msg.tag_color,
             file_name:    msg.file_name,
             file_size:    msg.file_size,
             msg_id:       msg.msg_id,
@@ -102,9 +105,13 @@ export function appendMessage(msg) {
         // Build author header using safe helpers — _avatarHtml uses esc() internally
         const signatureHtml = (isChannel && room.admin_signatures && msg.display_name)
             ? `<span class="msg-channel-signature">${esc(msg.display_name)}</span>` : '';
+        const tagHtml = msg.tag
+            ? `<span class="msg-tag" ${msg.tag_color ? `style="background:${esc(msg.tag_color)}22;color:${esc(msg.tag_color)};border-color:${esc(msg.tag_color)}44"` : ''}>${esc(msg.tag)}</span>`
+            : '';
         author.innerHTML = `
             ${_avatarHtml(avatarObj)}
             <span class="msg-name"${nameClick}>${esc(authorName)}</span>
+            ${tagHtml}
             ${msg.is_bot ? '<span class="msg-bot-badge">BOT</span>' : ''}
             <span class="msg-time">${fmtTime(msg.created_at)}</span>
             ${signatureHtml}
@@ -344,6 +351,8 @@ export function appendMessage(msg) {
         _showContextMenu(e, msg, isOwn);
     });
 
+    _attachMobileLongPress(bubble, msg, isOwn);
+
     if (isOwn) {
         const timeEl = document.createElement('div');
         timeEl.style.cssText = 'font-size:10px;color:var(--text3);margin-top:3px;text-align:right;font-family:var(--mono);';
@@ -403,6 +412,33 @@ export function appendMessage(msg) {
         group.appendChild(threadBadge);
     }
 
+    // Channel "Leave a comment" bar (Telegram-style)
+    const _chRoom = S.currentRoom;
+    if (_chRoom && _chRoom.is_channel && _chRoom.discussion_enabled && msg.msg_id) {
+        const commentBar = document.createElement('div');
+        commentBar.className = 'channel-comment-bar';
+        const commentIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        commentIcon.setAttribute('width', '16');
+        commentIcon.setAttribute('height', '16');
+        commentIcon.setAttribute('fill', 'currentColor');
+        commentIcon.setAttribute('viewBox', '0 0 24 24');
+        const commentPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        commentPath.setAttribute('d', 'M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z');
+        commentIcon.appendChild(commentPath);
+        commentBar.appendChild(commentIcon);
+        const commentLabel = document.createElement('span');
+        const count = msg.thread_count || 0;
+        commentLabel.textContent = count > 0
+            ? `${_pluralReplies(count)}`
+            : (window.t ? window.t('channel.leaveComment') : 'Оставить комментарий');
+        commentBar.appendChild(commentLabel);
+        commentBar.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.openThread(msg.msg_id);
+        });
+        group.appendChild(commentBar);
+    }
+
     container.appendChild(group);
     if (msg.msg_id) _msgElements.set(msg.msg_id, group);
     if (msg.msg_id && msg.text) {
@@ -452,10 +488,16 @@ export function appendFileMessage(msg) {
     const _aObj = _isCh ? { avatar_url: _room.avatar_url, avatar_emoji: _room.avatar_emoji || '\u{1F4E2}' } : msg;
     const _sigHtml = (_isCh && _room.admin_signatures && msg.display_name)
         ? `<span class="msg-channel-signature">${esc(msg.display_name)}</span>` : '';
+    const _nameClick = (!_isCh && msg.sender_id)
+        ? ` style="cursor:pointer;" onclick="window.openUserProfile(${msg.sender_id})"` : '';
+    const _tagHtml = msg.tag
+        ? `<span class="msg-tag" ${msg.tag_color ? `style="background:${esc(msg.tag_color)}22;color:${esc(msg.tag_color)};border-color:${esc(msg.tag_color)}44"` : ''}>${esc(msg.tag)}</span>`
+        : '';
     const authorHtml = `
         <div class="msg-author">
             ${_avatarHtml(_aObj)}
-            <span class="msg-name">${esc(_aName)}</span>
+            <span class="msg-name"${_nameClick}>${esc(_aName)}</span>
+            ${_tagHtml}
             ${msg.is_bot ? '<span class="msg-bot-badge">BOT</span>' : ''}
             <span class="msg-time">${fmtTime(msg.created_at)}</span>
             ${_sigHtml}
@@ -525,8 +567,8 @@ export function appendFileMessage(msg) {
 
         container.onclick = (e) => {
             if (e.target.closest('.lg-reply')) return;
-            if (videoEl.paused) videoEl.play();
-            else videoEl.pause();
+            e.stopPropagation();
+            window.openVideoNoteViewer?.(msg.download_url, msg.file_name);
         };
 
         bubble.appendChild(container);
@@ -536,6 +578,7 @@ export function appendFileMessage(msg) {
             if (e.target === videoEl || e.target.closest('.lg-reply')) return;
             _showContextMenu(e, msg, isOwn);
         });
+        _attachMobileLongPress(bubble, msg, isOwn);
 
         div.appendChild(bubble);
     } else if (isImage && msg.download_url) {
@@ -573,6 +616,7 @@ export function appendFileMessage(msg) {
             if (e.target === img || e.target.closest('.lg-reply')) return;
             _showContextMenu(e, msg, isOwn);
         });
+        _attachMobileLongPress(bubble, msg, isOwn);
 
         div.innerHTML = authorHtml;
         div.appendChild(bubble);
@@ -621,11 +665,29 @@ export function appendFileMessage(msg) {
         }
         bubble.appendChild(fileContent);
 
+        // Click to open inline viewer for video/audio/documents
+        if (msg.download_url) {
+            bubble.style.cursor = 'pointer';
+            bubble.addEventListener('click', (e) => {
+                if (e.target.closest('.file-download') || e.target.closest('.lg-reply')) return;
+                const url = msg.download_url;
+                const name = msg.file_name || '';
+                if (isVideo && window.openVideoViewer) {
+                    window.openVideoViewer(url, name);
+                } else if (isAudio && window.openAudioViewer) {
+                    window.openAudioViewer(url, name);
+                } else if (window.openDocViewer) {
+                    window.openDocViewer(url, name, mime);
+                }
+            });
+        }
+
         bubble.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             if (e.target.closest('.lg-reply') || e.target.closest('.file-download')) return;
             _showContextMenu(e, msg, isOwn);
         });
+        _attachMobileLongPress(bubble, msg, isOwn);
 
         div.innerHTML = authorHtml;
         div.appendChild(bubble);
@@ -668,6 +730,14 @@ export function appendSystemMessage(text, extraClass) {
 export function deleteMessageAnim(msgId) {
     const el = _msgElements.get(msgId);
     if (!el) return;
+
+    // Update reply quotes pointing to this deleted message
+    document.querySelectorAll(`.lg-reply[data-reply-id="${msgId}"]`).forEach(q => {
+        const textEl = q.querySelector('.lg-text');
+        if (textEl) textEl.textContent = t('chat.messageDeleted') || 'Сообщение удалено';
+        q.style.opacity = '0.5';
+        q.style.pointerEvents = 'none';
+    });
 
     const bubble = el.querySelector('.msg-bubble');
     if (!bubble) { el.remove(); _msgElements.delete(msgId); return; }

@@ -375,9 +375,12 @@ async def leave_room(
         ).delete()
 
     r = db.query(Room).filter(Room.id == room_id).first()
-    remaining = r.member_count() - 1 if r else 0
 
     db.delete(m)
+    db.flush()
+
+    # Считаем оставшихся ПОСЛЕ удаления участника
+    remaining = db.query(RoomMember).filter(RoomMember.room_id == room_id).count() if r else 0
 
     if m.role == RoomRole.OWNER and r and remaining <= 0:
         db.delete(r)

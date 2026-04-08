@@ -1102,5 +1102,24 @@
     "amount": "Amount",
     "donateMessage": "Message",
     "sendDonate": "Send"
+  },
+  "contactSync": {
+    "title": "अपने संपर्क खोजें",
+    "desc": "देखें कि आपके फ़ोन संपर्कों में से कौन पहले से Vortex पर है। नंबर हैश किए जाते हैं — सर्वर उन्हें कभी नहीं देखता।",
+    "start": "संपर्क सिंक करें",
+    "skip": "छोड़ें",
+    "readingContacts": "संपर्क पढ़ रहे हैं...",
+    "selectFile": "संपर्क फ़ाइल चुनें (.vcf)...",
+    "hashing": "{n} नंबर प्रोसेस हो रहे हैं...",
+    "searching": "मिलान खोज रहे हैं...",
+    "resultsTitle": "मिले संपर्क",
+    "noMatches": "Vortex पर अभी कोई संपर्क नहीं मिला",
+    "stats": "{checked} नंबर जाँचे, {found} संपर्क मिले",
+    "selectedCount": "{n} चुने गए",
+    "addAll": "चुने गए जोड़ें",
+    "adding": "जोड़ रहे हैं...",
+    "done": "संपर्क जोड़ दिए गए!",
+    "doneCount": "{n} संपर्क जोड़े गए",
+    "continue": "जारी रखें"
   }
 }

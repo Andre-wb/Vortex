@@ -35,6 +35,7 @@ from app.chats.channels import router as channels_router
 from app.chats.channel_feeds import router as channel_feeds_router
 from app.chats.chat import router as chat_router
 from app.chats.contacts import router as contacts_router, block_router
+from app.chats.contact_sync import router as contact_sync_router
 from app.chats.dm import router as dm_router
 from app.chats.link_preview import router as link_preview_router
 from app.chats.reports import router as reports_router
@@ -390,6 +391,13 @@ async def lifespan(app: FastAPI):
     if _PROMETHEUS_AVAILABLE:
         _create_background_task(_metrics_update_loop(), "metrics-updater")
 
+    # Start scheduled stream checker
+    try:
+        from app.chats.stream import start_schedule_checker
+        start_schedule_checker()
+    except Exception as e:
+        logger.debug("Stream schedule checker init: %s", e)
+
     startup_duration = time.monotonic() - _startup_time
     logger.info("Vortex started in %.2fs (mode=%s, peers=%d)",
                 startup_duration, Config.NETWORK_MODE, len(registry.active()))
@@ -588,6 +596,7 @@ app.include_router(chat_router)
 app.include_router(peers_router)
 app.include_router(waf_router)
 app.include_router(contacts_router)
+app.include_router(contact_sync_router)
 app.include_router(block_router)
 app.include_router(search_router)
 app.include_router(messages_search_router)
@@ -716,23 +725,85 @@ app.include_router(cover_router)
 if Config.NETWORK_MODE == "global":
     logger.info("Global mode: gossip + cover routes enabled")
 
-# ── Obfuscation middleware (добавляет cover-заголовки в global mode) ───
-if Config.NETWORK_MODE == "global" and Config.OBFUSCATION_ENABLED:
+# ── Obfuscation middleware (cover-заголовки + padding ко всем ответам) ────
+if Config.OBFUSCATION_ENABLED:
     from starlette.middleware.base import BaseHTTPMiddleware
     from starlette.requests import Request as StarletteRequest
     from starlette.responses import Response as StarletteResponse
     from app.transport.obfuscation import TrafficObfuscator
+    from app.transport.auto_stealth import add_response_padding
 
     class ObfuscationMiddleware(BaseHTTPMiddleware):
-        """Добавляет cover HTTP-заголовки ко всем ответам в global mode."""
+        """Добавляет cover HTTP-заголовки, padding, probe detection ко всем ответам."""
         async def dispatch(self, request: StarletteRequest, call_next):
+            # Active probe detection: если зонд — отдаём cover site
+            try:
+                from app.transport.stealth_level3 import stealth_l3
+                req_info = {
+                    "ip": request.client.host if request.client else "",
+                    "headers": dict(request.headers),
+                    "path": request.url.path,
+                    "method": request.method,
+                }
+                is_probe, reason = stealth_l3.probe_detector.is_probe(req_info)
+                if is_probe:
+                    from app.transport.cover_traffic import COVER_PAGES
+                    from fastapi.responses import HTMLResponse
+                    html = COVER_PAGES.get(request.url.path, COVER_PAGES["/"])
+                    return HTMLResponse(html, headers={"Server": "nginx/1.24.0"})
+            except Exception:
+                pass
+
             response: StarletteResponse = await call_next(request)
             for k, v in TrafficObfuscator.get_cover_headers().items():
                 response.headers[k] = v
+            add_response_padding(response.headers)
             return response
 
     app.add_middleware(ObfuscationMiddleware)
-    logger.info("Obfuscation middleware enabled")
+    logger.info("Obfuscation middleware enabled (all modes)")
+
+# ── Auto-Stealth startup ────────────────────────────────────────────────
+@app.on_event("startup")
+async def _start_stealth():
+    from app.transport.auto_stealth import start_auto_stealth
+    await start_auto_stealth()
+
+@app.on_event("startup")
+async def _start_advanced_stealth():
+    from app.transport.advanced_stealth import advanced_stealth
+    await advanced_stealth.start()
+
+@app.on_event("shutdown")
+async def _stop_stealth():
+    from app.transport.auto_stealth import stop_auto_stealth
+    await stop_auto_stealth()
+
+@app.on_event("shutdown")
+async def _stop_advanced_stealth():
+    from app.transport.advanced_stealth import advanced_stealth
+    advanced_stealth.stop()
+
+@app.on_event("startup")
+async def _start_stealth_l3():
+    from app.transport.stealth_level3 import stealth_l3
+    site_url = f"https://{Config.HOST}:{Config.PORT}" if hasattr(Config, "HOST") else ""
+    await stealth_l3.start(site_url=site_url)
+
+@app.on_event("shutdown")
+async def _stop_stealth_l3():
+    from app.transport.stealth_level3 import stealth_l3
+    stealth_l3.stop()
+
+@app.on_event("startup")
+async def _start_stealth_l4():
+    from app.transport.stealth_level4 import stealth_l4
+    await stealth_l4.start()
+
+@app.on_event("shutdown")
+async def _stop_stealth_l4():
+    from app.transport.stealth_level4 import stealth_l4
+    stealth_l4.stop()
 
 
 # ── Static Files ─────────────────────────────────────────────────────────────

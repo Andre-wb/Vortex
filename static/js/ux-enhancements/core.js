@@ -314,14 +314,23 @@ window.switchBottomTab = switchBottomTab;
 // main.js runs Object.assign(window, rooms, ...) before this module, so
 // window.openRoomInfo is currently the full settings function from rooms.js.
 const _roomsOpenRoomInfo = window.openRoomInfo;
+window._roomsOpenRoomInfo = _roomsOpenRoomInfo;
 
 function openRoomInfo() {
-    const panel = document.getElementById('room-info-panel');
-    if (!panel) return;
-
     const S = window.AppState;
     const room = S?.currentRoom;
     if (!room) return;
+
+    // Для каналов: сразу открываем полные настройки вместо боковой панели
+    if (room.is_channel && typeof window.openRoomSettings === 'function') {
+        window.openRoomSettings();
+        return;
+    }
+
+    const panel = document.getElementById('room-info-panel');
+    if (!panel) return;
+
+    const isChannel = !!room.is_channel;
 
     // Populate
     const avatar = document.getElementById('ri-avatar');
@@ -329,15 +338,42 @@ function openRoomInfo() {
     const meta = document.getElementById('ri-meta');
     const desc = document.getElementById('ri-description');
     const invite = document.getElementById('ri-invite-code');
+    const inviteSection = document.getElementById('ri-invite-section');
 
     if (avatar) {
-        if (room.avatar_emoji) { avatar.textContent = room.avatar_emoji; }
-        else { avatar.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>'; }
+        if (room.avatar_url) {
+            // Safe: avatar_url comes from our own server upload endpoint
+            const img = document.createElement('img');
+            img.src = room.avatar_url;
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+            avatar.textContent = '';
+            avatar.appendChild(img);
+        } else {
+            avatar.textContent = room.avatar_emoji || (isChannel ? '\u{1F4E2}' : '\u{1F4AC}');
+        }
     }
-    if (name) name.textContent = room.name || 'Room';
-    if (meta) meta.textContent = `${room.member_count || 0} members`;
-    if (desc) desc.textContent = room.description || 'No description';
-    if (invite) invite.textContent = room.invite_code || '';
+    if (name) name.textContent = room.name || (isChannel ? 'Channel' : 'Room');
+    if (meta) {
+        const count = room.subscriber_count || room.member_count || 0;
+        meta.textContent = isChannel
+            ? `${count} подписчиков`
+            : `${count} участников`;
+    }
+    if (desc) desc.textContent = room.description || '';
+
+    // Для каналов: скрываем invite-код и меняем текст кнопок
+    if (inviteSection) inviteSection.style.display = isChannel ? 'none' : '';
+    if (invite && !isChannel) invite.textContent = room.invite_code || '';
+
+    // Кнопка "Участники" → "Подписчики" для каналов
+    const membersLabels = panel.querySelectorAll('[data-i18n="chat.members"], [data-i18n="roomInfo.members"]');
+    membersLabels.forEach(el => {
+        el.textContent = isChannel ? 'Подписчики' : el.getAttribute('data-i18n') === 'chat.members' ? 'Все участники' : 'Участники';
+    });
+
+    // Кнопка "Покинуть" → "Отписаться" для каналов
+    const leaveBtn = panel.querySelector('[data-i18n="roomInfo.leave"]');
+    if (leaveBtn) leaveBtn.textContent = isChannel ? 'Отписаться' : 'Покинуть комнату';
 
     // Sync mute button state
     const muteBtn   = document.getElementById('ri-mute-btn');

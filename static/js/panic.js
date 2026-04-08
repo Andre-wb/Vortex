@@ -64,7 +64,8 @@ window.openPanicConfirm = async function() {
             headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
             body: JSON.stringify({password: pw}),
         });
-        var data = await resp.json();
+        var data = {};
+        try { data = await resp.json(); } catch(_) {}
         if (!resp.ok) {
             if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.innerHTML = origText; }
             _showPanicError(inp, data.detail || 'Неверный пароль');

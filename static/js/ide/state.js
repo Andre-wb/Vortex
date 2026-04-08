@@ -5,6 +5,7 @@ const IDE = {
     openFiles:       [],     // open tab names
     activeFile:      null,   // "path/filename.grav"
     simVisible:      false,
+    previewVisible:  false,
     docsVisible:     false,
     newFileIsDir:    false,
     newFileParent:   null,   // folder name when creating inside a folder

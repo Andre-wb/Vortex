@@ -836,7 +836,7 @@ async def set_space_theme(
 
     d = {}
     if body.wallpaper is not None:
-        if body.wallpaper not in _VALID_WALLPAPERS and not body.wallpaper.startswith("http"):
+        if body.wallpaper not in _VALID_WALLPAPERS and not body.wallpaper.startswith("https://"):
             raise HTTPException(400, f"Недопустимый wallpaper: {body.wallpaper}")
         d["wallpaper"] = body.wallpaper
     if body.accent is not None:

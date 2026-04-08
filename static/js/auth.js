@@ -324,6 +324,8 @@ export async function switchAccount(userId) {
         window.AppState.user = null;
         window.AppState.x25519PrivateKey = null;
         $('app').style.display = 'none';
+        const _bt = document.getElementById('bottom-tabs');
+        if (_bt) _bt.style.display = 'none';
         $('auth-screen').style.display = 'flex';
         $('auth-screen').className = 'screen active';
     }
@@ -616,6 +618,20 @@ export async function doRegister() {
         _saveCurrentAccount();
 
         window.bootApp();
+
+        // Запросить разрешение на уведомления сразу при регистрации
+        try {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().catch(() => {});
+            }
+        } catch (e) { console.debug('notification permission:', e); }
+
+        // После регистрации — предложить синхронизацию контактов с устройства
+        try {
+            if (window.shouldShowContactSync && window.shouldShowContactSync()) {
+                window.showContactSync();
+            }
+        } catch (e) { console.debug('contact sync init:', e); }
     } catch (e) {
         // Эта ветка срабатывает ТОЛЬКО если сам API /register вернул ошибку (пользователь НЕ создан)
         showAlert('auth-alert', e.message);
@@ -632,6 +648,8 @@ export async function doLogout() {
     if (window.AppState.notifWs) { window.AppState.notifWs.onclose = null; window.AppState.notifWs.close(); window.AppState.notifWs = null; }
     if (window.AppState.signalWs) { window.AppState.signalWs.onclose = null; window.AppState.signalWs.close(); window.AppState.signalWs = null; }
     $('app').style.display         = 'none';
+    const _bt2 = document.getElementById('bottom-tabs');
+    if (_bt2) _bt2.style.display = 'none';
     $('auth-screen').style.display = 'flex';
     $('auth-screen').className     = 'screen active';
 }

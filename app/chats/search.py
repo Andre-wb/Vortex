@@ -55,11 +55,8 @@ def _name_similarity(query: str, name: str | None) -> float:
 
 
 def _best_name_similarity(query: str, user: User) -> float:
-    """Return the best similarity score across username and display_name."""
-    return max(
-        _name_similarity(query, user.username),
-        _name_similarity(query, user.display_name),
-    )
+    """Return similarity score for username only (display_name is freely changeable)."""
+    return _name_similarity(query, user.username)
 
 
 def _similarity_threshold(query_len: int) -> float:
@@ -107,18 +104,14 @@ async def search_users(
     if _IP_RE.match(q):
         filters.append(User.last_ip == q)
 
-    # Username / display_name — only search names if query is 2+ chars
+    # Username — only search by username (not display_name, since it's freely changeable)
     if len(q) >= 2:
         if len(q) <= 3:
-            # Short queries: starts-with only (more precise)
             starts_q = f"{q}%"
             filters.append(User.username.ilike(starts_q))
-            filters.append(User.display_name.ilike(starts_q))
         else:
-            # Longer queries: contains (will be post-filtered by similarity)
             like_q = f"%{q}%"
             filters.append(User.username.ilike(like_q))
-            filters.append(User.display_name.ilike(like_q))
 
     if not filters:
         return {"users": []}
@@ -189,16 +182,14 @@ async def global_search(
     if not q or len(q) < 2:
         return {"users": [], "channels": [], "chats": []}
 
-    # Users — build name filters based on query length
+    # Users — search by username only (not display_name, since it's freely changeable)
     user_filters = [User.phone == q, User.email.ilike(q)]
     if len(q) <= 3:
         starts_q = f"{q}%"
         user_filters.append(User.username.ilike(starts_q))
-        user_filters.append(User.display_name.ilike(starts_q))
     else:
         like_q = f"%{q}%"
         user_filters.append(User.username.ilike(like_q))
-        user_filters.append(User.display_name.ilike(like_q))
 
     users = db.query(User).filter(
         User.is_active == True,
@@ -225,20 +216,22 @@ async def global_search(
         "is_self": u2.id == u.id,
     } for _, u2 in scored_users[:10]]
 
-    # Channels (public, by name, sorted by subscriber count)
+    # Channels + public groups (by name, sorted by member count)
+    # Include: all public rooms + private rooms where user is a member
     from app.models_rooms import Room, RoomMember
     like_q = f"%{q}%"
-    channels = db.query(Room).filter(
-        Room.is_channel == True,
-        Room.is_private == False,
+    my_room_ids_set = {m.room_id for m in db.query(RoomMember.room_id).filter(RoomMember.user_id == u.id).all()}
+    public_rooms = db.query(Room).filter(
+        Room.is_dm == False,
         Room.name.ilike(like_q),
+        or_(Room.is_private == False, Room.id.in_(my_room_ids_set)),
     ).all()
 
     channel_results = []
-    for ch in channels:
+    for ch in public_rooms:
         count = ch.members.count()
         channel_results.append({
-            "type": "channel",
+            "type": "channel" if ch.is_channel else "group",
             "id": ch.id,
             "name": ch.name,
             "description": ch.description,
@@ -248,9 +241,8 @@ async def global_search(
     channel_results.sort(key=lambda x: x["subscriber_count"], reverse=True)
 
     # My rooms/DMs matching name
-    my_room_ids = [m.room_id for m in db.query(RoomMember).filter(RoomMember.user_id == u.id).all()]
     my_rooms = db.query(Room).filter(
-        Room.id.in_(my_room_ids),
+        Room.id.in_(my_room_ids_set),
         Room.name.ilike(like_q),
     ).limit(10).all()
 

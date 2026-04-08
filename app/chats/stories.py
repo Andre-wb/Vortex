@@ -149,7 +149,11 @@ async def delete_story(
     for url in (story.media_url, story.music_url):
         if url:
             try:
-                Path(url.lstrip("/")).unlink(missing_ok=True)
+                # Безопасное удаление: только из UPLOAD_DIR
+                fname = Path(url).name
+                safe_path = (UPLOAD_DIR / fname).resolve()
+                if safe_path.parent == UPLOAD_DIR.resolve() and safe_path.exists():
+                    safe_path.unlink()
             except Exception:
                 pass
     db.delete(story)
@@ -163,8 +167,11 @@ async def view_story(
     u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    story = db.query(Story).filter(Story.id == story_id).first()
-    if story and story.user_id != u.id:
-        story.views_count = (story.views_count or 0) + 1
-        db.commit()
+    from sqlalchemy import update as sa_update
+    db.execute(
+        sa_update(Story)
+        .where(Story.id == story_id, Story.user_id != u.id)
+        .values(views_count=Story.views_count + 1)
+    )
+    db.commit()
     return {"ok": True}

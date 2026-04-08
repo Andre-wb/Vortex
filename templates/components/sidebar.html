@@ -22,10 +22,8 @@
         <input type="text" id="cs-search-input" data-i18n-placeholder="app.search" placeholder="Search..." oninput="filterChats(this.value)">
     </div>
 
-    <!-- Folder tabs -->
-    <div class="cs-folders" id="cs-folders">
-        <button class="cs-folder-tab active" onclick="switchFolder('all')" data-folder="all" data-i18n="rooms.allChats">All Chats</button>
-    </div>
+    <!-- Folder tabs (rendered dynamically by rooms/core.js) -->
+    <div class="cs-folders" id="folder-tabs"></div>
 
     <!-- Archived chats -->
     <div class="cs-archived" id="cs-archived" onclick="showArchivedChats()" style="display:none;">
@@ -54,6 +52,10 @@
         <button onclick="showCreateSpaceModal();closeSidebarMenu()">
             <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>
             <span data-i18n="spaces.createOrJoin">New Space</span>
+        </button>
+        <button onclick="window._openFolderModalFromMenu?.();closeSidebarMenu()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+            <span data-i18n="folders.createFolder">Create Folder</span>
         </button>
         <div class="cs-menu-divider"></div>
         <button onclick="showJoinModal();closeSidebarMenu()">

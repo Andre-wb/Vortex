@@ -19,6 +19,25 @@
     letter-spacing: 0.5px;
 }
 
+/* ── Scheduled stream banner ────────────────────────────────────────────── */
+.stream-scheduled-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: linear-gradient(90deg, rgba(124,58,237,0.08), rgba(59,130,246,0.06));
+    border-bottom: 1px solid rgba(124,58,237,0.15);
+    color: var(--text2);
+    font-size: 13px;
+}
+.stream-scheduled-banner svg { color: var(--accent); flex-shrink: 0; }
+.stream-sched-text { flex: 1; font-weight: 500; }
+.stream-sched-countdown {
+    font-family: var(--mono, monospace);
+    font-weight: 700; font-size: 13px;
+    color: var(--accent);
+}
+
 .stream-overlay {
     position: fixed;
     inset: 0;
@@ -294,16 +313,18 @@
 .stream-ctrl-btn.active { background: var(--accent); border-color: var(--accent); }
 
 .stream-end-btn {
-    width: auto;
-    padding: 0 24px;
-    border-radius: 24px;
-    background: var(--red);
+    width: auto; height: 42px;
+    padding: 0 20px;
+    border-radius: 22px;
+    background: #ef4444;
     color: #fff;
     font-weight: 700;
     font-size: 13px;
     border: none;
+    display: flex; align-items: center; justify-content: center;
+    white-space: nowrap;
 }
-.stream-end-btn:hover { filter: brightness(1.1); }
+.stream-end-btn:hover { background: #dc2626; transform: scale(1.04); }
 
 .stream-ctrl-separator {
     width: 1px;
@@ -555,6 +576,121 @@
     justify-content: flex-end;
 }
 
+/* ── Stream PIP (minimized) ─────────────────────────────────────────────── */
+.stream-pip {
+    position: fixed; bottom: 28px; left: 20px; z-index: 9999;
+    display: none; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: rgba(14,14,24,.92); backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,.1); border-radius: 22px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.55);
+    transform: translateY(20px); opacity: 0;
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .22s ease;
+    min-width: 200px; cursor: default; user-select: none;
+}
+.stream-pip.show { display: flex; transform: translateY(0); opacity: 1; }
+.stream-pip-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
+    animation: pip-dot 1.4s ease-in-out infinite; flex-shrink: 0;
+}
+.stream-pip-badge {
+    font-size: 10px; font-weight: 800; color: #ef4444;
+    background: rgba(239,68,68,.12); border-radius: 4px; padding: 1px 6px;
+    letter-spacing: 1px;
+}
+.stream-pip-title {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 120px;
+}
+.stream-pip-timer {
+    font-size: 11px; color: var(--accent); font-family: var(--mono, monospace);
+}
+.stream-pip-expand {
+    font-size: 11px; color: var(--accent); background: rgba(124,58,237,.1);
+    border: none; border-radius: 8px; padding: 4px 10px; cursor: pointer;
+    font-weight: 600;
+}
+.stream-pip-expand:hover { background: rgba(124,58,237,.2); }
+.stream-pip-leave {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(239,68,68,.12); border: none; cursor: pointer;
+    color: #ef4444; display: flex; align-items: center; justify-content: center;
+}
+.stream-pip-leave:hover { background: rgba(239,68,68,.25); }
+
+/* ── Zen Mode ──────────────────────────────────────────────────────────── */
+.stream-overlay.zen .stream-side-panel,
+.stream-overlay.zen .stream-controls,
+.stream-overlay.zen .stream-reactions-float,
+.stream-overlay.zen .stream-host-controls {
+    display: none !important;
+}
+.stream-overlay.zen .stream-header {
+    opacity: 0; transition: opacity .3s ease;
+}
+.stream-overlay.zen:hover .stream-header {
+    opacity: 1;
+}
+.stream-overlay.zen .stream-video-area {
+    width: 100%;
+}
+/* Zen exit hint */
+.stream-overlay.zen::after {
+    content: 'ESC — выйти из Zen';
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; color: rgba(255,255,255,.3);
+    opacity: 0; transition: opacity .3s; pointer-events: none;
+}
+.stream-overlay.zen:hover::after { opacity: 1; }
+
+/* ── Waiting screen (countdown) ────────────────────────────────────────── */
+.stream-waiting-overlay {
+    position: fixed; inset: 0; z-index: 250;
+    display: none; align-items: center; justify-content: center;
+}
+.stream-waiting-overlay.show { display: flex; }
+.stream-waiting-bg {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    transition: background .5s ease;
+}
+.stream-waiting-content {
+    position: relative; z-index: 2; text-align: center;
+}
+.stream-waiting-title {
+    font-size: 28px; font-weight: 700; color: #fff;
+    margin-bottom: 24px; letter-spacing: -0.3px;
+}
+.stream-waiting-countdown {
+    font-size: 64px; font-weight: 800; color: #fff;
+    font-family: var(--mono, monospace);
+    text-shadow: 0 0 40px rgba(124,58,237,.4);
+    margin-bottom: 8px;
+}
+.stream-waiting-label {
+    font-size: 14px; color: rgba(255,255,255,.5);
+    text-transform: uppercase; letter-spacing: 2px;
+}
+.stream-waiting-close {
+    position: absolute; top: 20px; right: 20px;
+    color: rgba(255,255,255,.5);
+}
+
+/* ── Background options in settings ────────────────────────────────────── */
+.stream-settings-divider {
+    height: 1px; background: rgba(255,255,255,.06); margin: 16px 0;
+}
+.stream-bg-options {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;
+}
+.stream-bg-opt {
+    width: 48px; height: 32px; border-radius: 8px; border: 2px solid transparent;
+    cursor: pointer; transition: border-color .15s, transform .1s;
+}
+.stream-bg-opt:hover { transform: scale(1.08); }
+.stream-bg-opt.active { border-color: var(--accent); }
+
 @media (max-width: 768px) {
     .stream-side-panel { width: 100%; position: absolute; bottom: 80px; top: 60px; z-index: 20; display: none; }
     .stream-side-panel.show { display: flex; }
@@ -563,4 +699,6 @@
     .stream-ctrl-btn { width: 42px; height: 42px; }
     .stream-reaction-btn { width: 34px; height: 34px; font-size: 16px; }
     .stream-settings-modal .stream-settings-content { width: 95vw; }
+    .stream-waiting-countdown { font-size: 42px; }
+    .stream-waiting-title { font-size: 22px; }
 }
