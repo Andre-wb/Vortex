@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Βρείτε τις επαφές σας",
+    "desc": "Ελέγξτε ποιες επαφές είναι ήδη στο Vortex. Οι αριθμοί κρυπτογραφούνται — ο διακομιστής δεν τους βλέπει.",
+    "start": "Συγχρονισμός επαφών",
+    "skip": "Παράλειψη",
+    "readingContacts": "Ανάγνωση επαφών...",
+    "selectFile": "Επιλέξτε αρχείο (.vcf)...",
+    "hashing": "Επεξεργασία {n} αριθμών...",
+    "searching": "Αναζήτηση αντιστοιχιών...",
+    "resultsTitle": "Βρέθηκαν επαφές",
+    "noMatches": "Δεν βρέθηκαν επαφές στο Vortex",
+    "stats": "Ελέγχθηκαν {checked} αριθμοί, βρέθηκαν {found} επαφές",
+    "selectedCount": "{n} επιλεγμένα",
+    "addAll": "Προσθήκη επιλεγμένων",
+    "adding": "Προσθήκη...",
+    "done": "Οι επαφές προστέθηκαν!",
+    "doneCount": "{n} επαφές προστέθηκαν",
+    "continue": "Συνέχεια"
   }
 }

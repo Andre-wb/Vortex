@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "আপনার পরিচিতি খুঁজুন",
+    "desc": "দেখুন আপনার পরিচিতিদের মধ্যে কারা Vortex-এ আছেন। নম্বরগুলো হ্যাশ করা হয় — সার্ভার দেখে না।",
+    "start": "পরিচিতি সিঙ্ক করুন",
+    "skip": "এড়িয়ে যান",
+    "readingContacts": "পরিচিতি পড়া হচ্ছে...",
+    "selectFile": "পরিচিতি ফাইল নির্বাচন করুন (.vcf)...",
+    "hashing": "{n}টি নম্বর প্রক্রিয়া হচ্ছে...",
+    "searching": "মিল খোঁজা হচ্ছে...",
+    "resultsTitle": "পাওয়া পরিচিতি",
+    "noMatches": "Vortex-এ কোনো পরিচিতি পাওয়া যায়নি",
+    "stats": "{checked}টি যাচাই, {found}টি পাওয়া গেছে",
+    "selectedCount": "{n}টি নির্বাচিত",
+    "addAll": "নির্বাচিত যোগ করুন",
+    "adding": "যোগ করা হচ্ছে...",
+    "done": "পরিচিতি যোগ হয়েছে!",
+    "doneCount": "{n}টি পরিচিতি যোগ হয়েছে",
+    "continue": "চালিয়ে যান"
   }
 }

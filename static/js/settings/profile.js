@@ -61,9 +61,9 @@ window.saveProfileSettings = async function() {
     if (window._settingsSelectedEmoji) {
         body.avatar_emoji = window._settingsSelectedEmoji;
     }
-    // Birthday
+    // Birthday — only send if user actually changed it via the picker
     var bdBtn = document.getElementById('set-birthday-btn');
-    if (bdBtn && bdBtn.dataset.value !== undefined) {
+    if (bdBtn && bdBtn.dataset.dirty === '1') {
         body.birth_date = bdBtn.dataset.value;
     }
     // Profile background
@@ -345,7 +345,10 @@ window._selectProfileIcon = function(btn) {
         }
         var btn = document.getElementById('set-birthday-btn');
         var txt = document.getElementById('set-birthday-text');
-        if (btn) btn.dataset.value = value;
+        if (btn) {
+            btn.dataset.value = value;
+            btn.dataset.dirty = '1';
+        }
         if (txt) txt.textContent = display;
         window.closeBirthdayPicker();
     };

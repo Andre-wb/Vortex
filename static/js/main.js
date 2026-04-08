@@ -30,6 +30,8 @@ import * as voiceChannel from './voice_channel.js';
 import * as spaces       from './spaces.js';
 import * as fingerprint  from './fingerprint.js';
 import * as groupCall   from './group_call.js';
+import * as mediaViewer from './chat/media-viewer.js';
+import * as contactSync from './contact_sync.js';
 import * as stream      from './stream.js';
 import * as keyBackup   from './key_backup.js';
 import * as emojiPicker  from './chat/emoji-picker.js';
@@ -89,7 +91,7 @@ window.AppState = {
 
 // Экспортируем функции всех модулей в глобальную область видимости,
 // чтобы они были доступны из HTML-обработчиков (onclick и т.д.)
-Object.assign(window, auth, rooms, chat, peers, webrtc, ui, fileUpload, imageViewer, contacts, saved, tasks, notifications, notifSounds, voiceChannel, spaces, userProfile, fingerprint, groupCall, stream, keyBackup, gestures, toast, netStatus, preferences, phonePassword);
+Object.assign(window, auth, rooms, chat, peers, webrtc, ui, fileUpload, imageViewer, contacts, saved, tasks, notifications, notifSounds, voiceChannel, spaces, userProfile, fingerprint, groupCall, contactSync, stream, keyBackup, gestures, toast, netStatus, preferences, phonePassword);
 window.openModal  = openModal;
 window.closeModal = closeModal;
 window.openStatusEditor = openStatusEditor;
@@ -117,6 +119,8 @@ window.bootApp = async function bootApp() {
 
     $('auth-screen').style.display = 'none';
     $('app').style.display         = 'flex';
+    const _btabs = document.getElementById('bottom-tabs');
+    if (_btabs) _btabs.style.display = '';
 
     // Initialize i18n, keyboard shortcuts, accessibility, preferences, network
     await initI18n();
@@ -130,7 +134,11 @@ window.bootApp = async function bootApp() {
     const sbAv = $('sb-avatar');
     if (sbAv) {
         if (AppState.user.avatar_url) {
-            sbAv.innerHTML = `<img src="${AppState.user.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            const img = document.createElement('img');
+            img.src = AppState.user.avatar_url;
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+            sbAv.textContent = '';
+            sbAv.appendChild(img);
         } else {
             if (AppState.user.avatar_emoji) { sbAv.textContent = AppState.user.avatar_emoji; }
             else { sbAv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'; }
@@ -181,6 +189,7 @@ window.bootApp = async function bootApp() {
     try {
         const stories = await import('./stories.js');
         Object.assign(window, stories);
+        window._storyUserIds = stories.storyUserIds;
         stories.loadStories();
         console.log('📖 stories загружен');
     } catch (e) {

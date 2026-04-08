@@ -73,6 +73,10 @@
           <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 7.07 19H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h-1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5"/></svg>
           Simulator
         </button>
+        <button class="ide-preview-toggle" id="ide-preview-toggle" onclick="ideTogglePreview()" title="Mini App Preview">
+          <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
+          Preview
+        </button>
 
         <div class="ide-topbar-sep"></div>
 
@@ -149,8 +153,11 @@
             <div class="ide-highlight" id="ide-highlight"></div>
             <textarea class="ide-textarea" id="ide-textarea"
               spellcheck="false" autocomplete="off" autocorrect="off"
-              autocapitalize="off" oninput="ideOnInput()"
-              onscroll="ideOnScroll()" onkeydown="ideOnKeydown(event)"></textarea>
+              autocapitalize="off" data-gramm="false" data-gramm_editor="false"
+              oninput="ideOnInput()"
+              onscroll="ideOnScroll()" onkeydown="ideOnKeydown(event)"
+              oncompositionstart="window._ideComposing=true"
+              oncompositionend="window._ideComposing=false;ideOnInput()"></textarea>
           </div>
         </div>
 
@@ -189,18 +196,79 @@
         </div>
       </div>
 
+      <!-- Right: Mini App Preview (Architex) -->
+      <div class="ide-preview" id="ide-preview" style="display:none;">
+        <div class="ide-preview-header">
+          <svg width="14" height="14" fill="#4f8ef7" viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
+          <span>Mini App Preview</span>
+          <span class="ide-preview-badge">LIVE</span>
+          <button class="ide-preview-clear" onclick="idePreviewClearLog()" title="Clear log">
+            <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          </button>
+        </div>
+
+        <!-- Phone frame -->
+        <div class="ide-preview-phone">
+          <!-- Status bar -->
+          <div class="ide-preview-statusbar">
+            <span class="ide-preview-time" id="ide-preview-time">9:41</span>
+            <div class="ide-preview-notch"></div>
+            <div class="ide-preview-statusbar-right">
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4l2 2a7.074 7.074 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z" opacity=".6"/></svg>
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z" opacity=".6"/></svg>
+            </div>
+          </div>
+
+          <!-- Screen title bar -->
+          <div class="ide-preview-titlebar">
+            <span id="ide-preview-screen-title">Main</span>
+          </div>
+
+          <!-- App content -->
+          <div class="ide-preview-content" id="ide-preview-content">
+            <div class="arx-placeholder">
+              <svg width="36" height="36" fill="rgba(124,58,237,.4)" viewBox="0 0 24 24">
+                <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
+              </svg>
+              <span>Open an .arx file to preview</span>
+            </div>
+          </div>
+
+          <!-- Screen navigation tabs -->
+          <div class="ide-preview-nav" id="ide-preview-nav" style="display:none;"></div>
+
+          <!-- Home indicator -->
+          <div class="ide-preview-home-indicator">
+            <div class="ide-preview-home-bar"></div>
+          </div>
+        </div>
+
+        <!-- Console log for send() / navigate() -->
+        <div class="ide-preview-log-wrap">
+          <div class="ide-preview-log-header">
+            <span>Console</span>
+            <button onclick="idePreviewClearLog()" title="Clear">Clear</button>
+          </div>
+          <div class="ide-preview-log" id="ide-preview-log"></div>
+        </div>
+      </div>
+
     </div><!-- /workspace -->
   </div><!-- /ide-editor -->
 
   <!-- ── DOCS PANEL ───────────────────────────────────────────── -->
   <div class="ide-docs-panel" id="ide-docs-panel">
     <div class="ide-docs-header">
-      <span>Gravitix Language Reference</span>
+      <span id="ide-docs-title">Language Reference</span>
       <button onclick="ideToggleDocs()">
         <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
     </div>
     <div class="ide-docs-body">
+      <div id="ide-docs-tabs" class="ide-docs-tabs">
+        <button class="ide-docs-tab active" data-lang="grav" onclick="ideDocsSelectTab('grav')">Gravitix</button>
+        <button class="ide-docs-tab" data-lang="arx" onclick="ideDocsSelectTab('arx')">Architex</button>
+      </div>
       <div class="ide-docs-search-wrap">
         <input class="ide-docs-search" placeholder="Search docs…" oninput="ideDocsSearch(this.value)">
       </div>
@@ -266,6 +334,30 @@
           <input class="ide-modal-input ide-username-input" id="ide-create-username" placeholder="my_bot"
                  oninput="ideValidateUsername('create')" maxlength="32">
           <span class="ide-username-hint" id="ide-create-uname-hint"></span>
+        </div>
+
+        <label class="ide-modal-label" style="margin-top:14px;">Language</label>
+        <div class="ide-lang-select">
+          <label class="ide-lang-option">
+            <input type="radio" name="ide-create-lang" value="gravitix" checked>
+            <div class="ide-lang-card">
+              <img src="/logo/gravitix.svg" width="28" height="28" alt="Gravitix">
+              <div>
+                <div class="ide-lang-name">Gravitix</div>
+                <div class="ide-lang-desc">Bot logic · .grav</div>
+              </div>
+            </div>
+          </label>
+          <label class="ide-lang-option">
+            <input type="radio" name="ide-create-lang" value="architex">
+            <div class="ide-lang-card">
+              <img src="/logo/architex.svg" width="28" height="28" alt="Architex">
+              <div>
+                <div class="ide-lang-name">Architex</div>
+                <div class="ide-lang-desc">Mini App UI · .arx</div>
+              </div>
+            </div>
+          </label>
         </div>
 
         <div class="ide-modal-check">
@@ -343,6 +435,18 @@
         <button onclick="ideHideNewFile()"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
       </div>
       <div class="ide-modal-body">
+        <div class="ide-lang-select" id="ide-newfile-lang" style="margin-bottom:10px;">
+          <label class="ide-lang-option" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:6px 12px;border-radius:8px;border:1px solid var(--border);margin-right:6px;" onclick="document.getElementById('ide-newfile-name').placeholder='filename.grav'">
+            <input type="radio" name="ide-newfile-lang" value="grav" checked style="accent-color:var(--accent);">
+            <img src="/logo/gravitix.svg" width="16" height="16" alt="Gravitix" style="opacity:.85;">
+            <span style="font-size:12px;font-weight:600;">.grav</span>
+          </label>
+          <label class="ide-lang-option" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:6px 12px;border-radius:8px;border:1px solid var(--border);" onclick="document.getElementById('ide-newfile-name').placeholder='filename.arx'">
+            <input type="radio" name="ide-newfile-lang" value="arx" style="accent-color:var(--accent);">
+            <img src="/logo/architex.svg" width="16" height="16" alt="Architex" style="opacity:.85;">
+            <span style="font-size:12px;font-weight:600;">.arx</span>
+          </label>
+        </div>
         <input class="ide-modal-input" id="ide-newfile-name" placeholder="filename.grav" onkeydown="if(event.key==='Enter')ideConfirmNewFile()">
       </div>
       <div class="ide-modal-footer">

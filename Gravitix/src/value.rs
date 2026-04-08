@@ -73,6 +73,9 @@ pub enum BotOutput {
     /// Stream chunk (Feature W6)
     #[allow(dead_code)]
     StreamChunk { room_id: i64, text: String },
+    /// Update Architex Mini App reactive state from Gravitix bot
+    #[allow(dead_code)]
+    UiUpdate { variable: String, value: String },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

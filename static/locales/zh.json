@@ -1102,5 +1102,24 @@
     "amount": "Amount",
     "donateMessage": "Message",
     "sendDonate": "Send"
+  },
+  "contactSync": {
+    "title": "查找联系人",
+    "desc": "检查您的手机联系人中有哪些已在 Vortex。号码经过哈希处理，服务器永远看不到。",
+    "start": "同步联系人",
+    "skip": "跳过",
+    "readingContacts": "正在读取联系人...",
+    "selectFile": "选择联系人文件 (.vcf)...",
+    "hashing": "正在处理 {n} 个号码...",
+    "searching": "正在搜索匹配...",
+    "resultsTitle": "找到的联系人",
+    "noMatches": "暂未找到 Vortex 上的联系人",
+    "stats": "已检查 {checked} 个号码，找到 {found} 个联系人",
+    "selectedCount": "已选择 {n} 个",
+    "addAll": "添加所选",
+    "adding": "正在添加...",
+    "done": "联系人已添加！",
+    "doneCount": "已添加 {n} 个联系人",
+    "continue": "继续"
   }
 }

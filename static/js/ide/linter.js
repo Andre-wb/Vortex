@@ -15,6 +15,7 @@ const GX_KW = new Set([
     'migration','multiplatform','scenario',
     'form','field','submit','table','chart','websocket','stream',
     'permissions','ratelimit','import','typedef','where','try','catch','finally','repl',
+    'ui_set','ui_navigate',
 ]);
 const GX_TYPES   = new Set(['int','float','bool','str','list','map','void']);
 const GX_BUILTIN = new Set([
@@ -33,7 +34,11 @@ const GX_BUILTIN = new Set([
 let _lintTimer = null;
 function ideLintCode(code) {
     clearTimeout(_lintTimer);
-    _lintTimer = setTimeout(() => _gxCompile(code), 200);
+    _lintTimer = setTimeout(() => {
+        const isArx = IDE.activeFile && IDE.activeFile.endsWith('.arx');
+        if (isArx) _arxLint(code);
+        else _gxCompile(code);
+    }, 200);
 }
 
 // ── Lexer ──────────────────────────────────────────────────────
@@ -604,4 +609,120 @@ function _setIndicator(type, items) {
     if (!el) return;
     el.style.display = items.length ? 'flex' : 'none';
     if (count) count.textContent = items.length;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Architex Linter  (basic structural checks)
+// ══════════════════════════════════════════════════════════════
+
+const ARX_WIDGETS = new Set([
+    'col','row','header','text','button','input','label','image','icon',
+    'divider','list','card','badge','toast','tabs','tab','video','audio',
+    'table','thead','tbody','tr','th','td','form','field','submit',
+]);
+const ARX_MODIFIERS = new Set([
+    'pad','gap','center','bold','italic','size','color','bg','radius',
+    'border','w','h','grow','hidden','visible','placeholder','debounce',
+    'format','autoplay','loop','muted','controls','transition',
+    'swipeleft','swiperight',
+]);
+const ARX_DIRECTIVES = new Set([
+    'screen','component','theme','import','for','if','elseif','else','onMount',
+]);
+
+function _arxLint(code) {
+    const lines = code.split('\n');
+    const diag = [];
+    let hasScreen = false;
+    const reactiveVars = new Set();
+    const usedVars = new Set();
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        const ln = i + 1;
+
+        // Skip empty / comments
+        if (!trimmed || trimmed.startsWith('//')) continue;
+
+        // Check @directives
+        const atMatch = trimmed.match(/^@(\w+)/);
+        if (atMatch) {
+            const dir = atMatch[1];
+            if (dir === 'screen') hasScreen = true;
+            if (!ARX_DIRECTIVES.has(dir) && dir !== 'screen' && dir !== 'component' && dir !== 'theme' && dir !== 'import' && dir !== 'for' && dir !== 'if' && dir !== 'elseif' && dir !== 'else' && dir !== 'onMount') {
+                // Unknown but might be a screen/component name — skip
+            }
+            continue;
+        }
+
+        // Collect reactive variable declarations: ~name = ...
+        const declMatch = trimmed.match(/^~(\w+)\s*(?::.*?)?\s*[:=]/);
+        if (declMatch) {
+            reactiveVars.add(declMatch[1]);
+        }
+
+        // Collect used reactive vars
+        const rxUsed = trimmed.matchAll(/~(\w+)/g);
+        for (const m of rxUsed) usedVars.add(m[1]);
+
+        // Check for unclosed strings
+        const quotes = (trimmed.match(/"/g) || []).length;
+        if (quotes % 2 !== 0) {
+            diag.push({ line: ln, col: trimmed.indexOf('"') + 1, len: 1, sev: 'error', msg: 'Unclosed string literal' });
+        }
+
+        // Check :: modifier validity
+        const modBlocks = trimmed.matchAll(/::\s*([^:=>\n]+)/g);
+        for (const mb of modBlocks) {
+            const mods = mb[1].match(/(\w+)\s*\(/g);
+            if (mods) {
+                for (const m of mods) {
+                    const name = m.replace('(', '').trim();
+                    if (!ARX_MODIFIERS.has(name)) {
+                        const col = trimmed.indexOf(name) + 1;
+                        diag.push({ line: ln, col, len: name.length, sev: 'warn', msg: `Unknown modifier: ${name}` });
+                    }
+                }
+            }
+        }
+    }
+
+    if (!hasScreen && lines.length > 3) {
+        diag.push({ line: 1, col: 1, len: 1, sev: 'warn', msg: 'No @screen defined — Architex files need at least one @screen' });
+    }
+
+    // Check for unused reactive vars
+    for (const v of reactiveVars) {
+        let usedElsewhere = false;
+        for (let i = 0; i < lines.length; i++) {
+            const matches = lines[i].matchAll(new RegExp(`~${v}\\b`, 'g'));
+            let count = 0;
+            for (const _ of matches) count++;
+            if (count > 1) { usedElsewhere = true; break; }
+        }
+        if (!usedElsewhere) {
+            diag.push({ line: 1, col: 1, len: 1, sev: 'hint', msg: `Reactive variable ~${v} is declared but may be unused` });
+        }
+    }
+
+    // Update IDE diagnostics
+    IDE._diagFull = diag;
+    IDE._diagLines = {};
+    diag.forEach(d => {
+        const prev = IDE._diagLines[d.line];
+        if (!prev || (d.sev === 'error' && prev !== 'error') || (d.sev === 'warn' && prev === 'hint'))
+            IDE._diagLines[d.line] = d.sev;
+    });
+
+    ideUpdateGutter();
+    ideUpdateHighlight();
+
+    const errors = diag.filter(d => d.sev === 'error');
+    const warns  = diag.filter(d => d.sev === 'warn');
+    const hints  = diag.filter(d => d.sev === 'hint');
+    _setIndicator('error', errors);
+    _setIndicator('warn', warns);
+    _setIndicator('hint', hints);
+    _renderProblems(errors, warns, hints);
 }

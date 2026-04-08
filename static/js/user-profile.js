@@ -19,7 +19,6 @@ const _MONTH_GEN = [
 export async function openUserProfile(userId) {
     if (!userId) return;
     const S = window.AppState;
-    if (S?.user && (userId === S.user.user_id || userId === S.user.id)) return;
 
     const overlay = document.getElementById('user-profile-modal');
     if (!overlay) return;
@@ -92,7 +91,7 @@ function _renderUserProfile(data) {
             avatarEl.innerHTML = `<img src="${_esc(user.avatar_url)}"
                 style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         } else {
-            avatarEl.textContent = user.profile_icon || user.avatar_emoji || '👤';
+            avatarEl.textContent = user.avatar_emoji || '👤';
         }
     }
 

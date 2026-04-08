@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Знайдзіце свае кантакты",
+    "desc": "Праверце, хто ўжо ёсць у Vortex. Нумары хэшуюцца — сервер іх не бачыць.",
+    "start": "Сінхранізаваць",
+    "skip": "Прапусціць",
+    "readingContacts": "Чытанне кантактаў...",
+    "selectFile": "Абярыце файл (.vcf)...",
+    "hashing": "Апрацоўка {n} нумароў...",
+    "searching": "Пошук супадзенняў...",
+    "resultsTitle": "Знойдзеныя кантакты",
+    "noMatches": "Кантакты не знойдзены",
+    "stats": "Праверана {checked} нумароў, знойдзена {found} кантактаў",
+    "selectedCount": "{n} абрана",
+    "addAll": "Дадаць абраных",
+    "adding": "Даданне...",
+    "done": "Кантакты дададзены!",
+    "doneCount": "Дададзена кантактаў: {n}",
+    "continue": "Працягнуць"
   }
 }

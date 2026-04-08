@@ -116,7 +116,7 @@ export async function startGroupCall(roomId, withVideo = false) {
 
     try {
         _gcLocalStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 },
             video: withVideo ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false,
         });
     } catch (e) {
@@ -176,7 +176,7 @@ export async function joinGroupCall(callId, roomId, withVideo = false) {
 
     try {
         _gcLocalStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 },
             video: withVideo ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
         });
     } catch (e) {

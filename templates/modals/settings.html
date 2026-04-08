@@ -644,6 +644,49 @@
                 </label>
             </div>
 
+            <!-- ── Device selection ── -->
+            <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+                <div style="font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                    <span data-i18n="settings.devices">Устройства</span>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/></svg>
+                        <span data-i18n="settings.microphone">Микрофон</span>
+                    </div>
+                    <select class="form-input" id="set-audio-input" onchange="window._saveDeviceSetting('audioInput', this.value)" style="font-size:13px;">
+                        <option value="">Default</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 16c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                        <span data-i18n="settings.speaker">Динамик</span>
+                    </div>
+                    <select class="form-input" id="set-audio-output" onchange="window._saveDeviceSetting('audioOutput', this.value)" style="font-size:13px;">
+                        <option value="">Default</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11z"/></svg>
+                        <span data-i18n="settings.camera">Камера</span>
+                    </div>
+                    <select class="form-input" id="set-video-input" onchange="window._saveDeviceSetting('videoInput', this.value)" style="font-size:13px;">
+                        <option value="">Default</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-secondary btn-sm" onclick="window._refreshDeviceList()" style="width:100%;margin-top:4px;">
+                    <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:4px;"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"/></svg>
+                    <span data-i18n="settings.refreshDevices">Обновить устройства</span>
+                </button>
+            </div>
+
             <div style="margin-top:16px;padding:12px;background:var(--bg2);border-radius:var(--radius);font-size:11px;color:var(--text3);line-height:1.6;">
                 <strong style="color:var(--text2);">Примечание:</strong> Force TCP и Relay режимы могут увеличить задержку,
                 но обеспечивают максимальную приватность. Маскировка трафика добавляет случайный padding
@@ -750,7 +793,7 @@
                 </div>
                 <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
                     <div id="dev-bg-preview" class="dev-bg-preview" onclick="document.getElementById('dev-bg-upload').click()">
-                        📂 No background
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:4px;opacity:0.6"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg> No background
                     </div>
                     <div style="flex:1;min-width:140px;">
                         <input type="file" id="dev-bg-upload" accept="image/*" style="display:none"
@@ -866,7 +909,7 @@
                     <label class="dev-feature-tile">
                         <input type="checkbox" id="dev-feat-error-lens"
                                onchange="window.DevSettings.applyFeature('error-lens',this.checked)">
-                        <div class="dev-feat-icon">🔍</div>
+                        <div class="dev-feat-icon"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"/></svg></div>
                         <div class="dev-feat-name">Error Lens</div>
                         <div class="dev-feat-desc">Show errors inline next to code</div>
                     </label>
@@ -874,7 +917,7 @@
                     <label class="dev-feature-tile">
                         <input type="checkbox" id="dev-feat-word-highlight"
                                onchange="window.DevSettings.applyFeature('word-highlight',this.checked)">
-                        <div class="dev-feat-icon">📌</div>
+                        <div class="dev-feat-icon"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg></div>
                         <div class="dev-feat-name">Word Highlight</div>
                         <div class="dev-feat-desc">Highlight all occurrences of selected word</div>
                     </label>
@@ -882,7 +925,7 @@
                     <label class="dev-feature-tile">
                         <input type="checkbox" id="dev-feat-minimap"
                                onchange="window.DevSettings.applyFeature('minimap',this.checked)">
-                        <div class="dev-feat-icon">🗺️</div>
+                        <div class="dev-feat-icon"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11z"/></svg></div>
                         <div class="dev-feat-name">Minimap</div>
                         <div class="dev-feat-desc">Scrollable code overview on the side</div>
                     </label>
@@ -890,7 +933,7 @@
                     <label class="dev-feature-tile">
                         <input type="checkbox" id="dev-feat-smooth-caret"
                                onchange="window.DevSettings.applyFeature('smooth-caret',this.checked)">
-                        <div class="dev-feat-icon">🎯</div>
+                        <div class="dev-feat-icon"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
                         <div class="dev-feat-name">Smooth Caret</div>
                         <div class="dev-feat-desc">Animated cursor transitions</div>
                     </label>
@@ -898,7 +941,7 @@
                     <label class="dev-feature-tile">
                         <input type="checkbox" id="dev-feat-heatmap"
                                onchange="window.DevSettings.applyFeature('heatmap',this.checked)">
-                        <div class="dev-feat-icon">🌡️</div>
+                        <div class="dev-feat-icon"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg></div>
                         <div class="dev-feat-name">Edit Heatmap</div>
                         <div class="dev-feat-desc">Glow on recently edited lines</div>
                     </label>
@@ -909,17 +952,30 @@
             <!-- Pomodoro timer -->
             <div class="dev-settings-group">
                 <div class="dev-settings-group-header">
-                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61-1.42-1.42c-.43-.43-.99-.65-1.55-.64L14 7.39C13.19 6.5 12.16 6 11 6 8.79 6 7 7.79 7 10s1.79 4 4 4 4-1.79 4-4c0-.97-.36-1.85-.96-2.53l2.5-2.5 1.49 1.42zM11 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
                     Pomodoro Timer
                 </div>
                 <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Built-in focus timer with visual overlay — stay in flow without leaving the IDE</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <button class="dev-action-btn" onclick="window.DevSettings.togglePomodoro()" style="min-width:120px;">
-                        🍅 Start 25 min
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <div style="display:flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:2px 4px;">
+                        <button class="dev-action-btn" onclick="window.DevSettings.setPomMinutes(Math.max(1,(parseInt(document.getElementById('pom-input').value)||25)-5));document.getElementById('pom-input').value=parseInt(localStorage.getItem('pom-minutes')||'25')" style="min-width:24px;padding:3px 6px;">−</button>
+                        <input type="number" id="pom-input" value="25" min="1" max="120" style="width:42px;text-align:center;background:transparent;border:none;color:var(--text);font-size:13px;font-weight:600;font-family:var(--mono,monospace);" onchange="window.DevSettings.setPomMinutes(this.value)">
+                        <span style="font-size:11px;color:var(--text3);">min</span>
+                        <button class="dev-action-btn" onclick="window.DevSettings.setPomMinutes(Math.min(120,(parseInt(document.getElementById('pom-input').value)||25)+5));document.getElementById('pom-input').value=parseInt(localStorage.getItem('pom-minutes')||'25')" style="min-width:24px;padding:3px 6px;">+</button>
+                    </div>
+                    <button class="dev-action-btn" onclick="window.DevSettings.togglePomodoro()" style="min-width:100px;">
+                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:4px;"><path d="M8 5v14l11-7z"/></svg>Start
                     </button>
                     <button class="dev-action-btn" onclick="window.DevSettings.stopPomodoro()">
-                        ✕ Stop
+                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:4px;"><path d="M6 6h12v12H6z"/></svg>Stop
                     </button>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                    <button class="dev-action-btn" onclick="document.getElementById('pom-input').value=5;window.DevSettings.setPomMinutes(5)" style="font-size:11px;padding:3px 10px;">5m</button>
+                    <button class="dev-action-btn" onclick="document.getElementById('pom-input').value=15;window.DevSettings.setPomMinutes(15)" style="font-size:11px;padding:3px 10px;">15m</button>
+                    <button class="dev-action-btn" onclick="document.getElementById('pom-input').value=25;window.DevSettings.setPomMinutes(25)" style="font-size:11px;padding:3px 10px;">25m</button>
+                    <button class="dev-action-btn" onclick="document.getElementById('pom-input').value=45;window.DevSettings.setPomMinutes(45)" style="font-size:11px;padding:3px 10px;">45m</button>
+                    <button class="dev-action-btn" onclick="document.getElementById('pom-input').value=60;window.DevSettings.setPomMinutes(60)" style="font-size:11px;padding:3px 10px;">60m</button>
                 </div>
             </div>
 

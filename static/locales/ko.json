@@ -1102,5 +1102,24 @@
     "amount": "Amount",
     "donateMessage": "Message",
     "sendDonate": "Send"
+  },
+  "contactSync": {
+    "title": "연락처 찾기",
+    "desc": "전화번호부에서 이미 Vortex에 가입된 사용자를 확인합니다. 번호는 해시되며 서버는 볼 수 없습니다.",
+    "start": "연락처 동기화",
+    "skip": "건너뛰기",
+    "readingContacts": "연락처 읽는 중...",
+    "selectFile": "연락처 파일 선택 (.vcf)...",
+    "hashing": "{n}개 번호 처리 중...",
+    "searching": "일치 항목 검색 중...",
+    "resultsTitle": "찾은 연락처",
+    "noMatches": "아직 Vortex에서 연락처를 찾지 못했습니다",
+    "stats": "{checked}개 확인, {found}개 발견",
+    "selectedCount": "{n}개 선택됨",
+    "addAll": "선택 항목 추가",
+    "adding": "추가 중...",
+    "done": "연락처가 추가되었습니다!",
+    "doneCount": "{n}개 연락처 추가됨",
+    "continue": "계속"
   }
 }

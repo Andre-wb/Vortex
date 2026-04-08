@@ -20,7 +20,43 @@ from app.chats.rooms.helpers import (
     _require_member,
 )
 
+import json as _json
+from typing import Optional
+from pydantic import BaseModel, Field
+
 logger = logging.getLogger(__name__)
+
+
+def _parse_perms(raw: str | None) -> dict | None:
+    if not raw:
+        return None
+    try:
+        return _json.loads(raw)
+    except Exception:
+        return None
+
+
+# Granular permission keys that owner/admin can toggle per member
+PERMISSION_KEYS = [
+    "can_send",           # Send messages
+    "can_send_media",     # Send photos/videos/files
+    "can_send_stickers",  # Send stickers & GIFs
+    "can_send_links",     # Send links
+    "can_pin",            # Pin messages
+    "can_delete_others",  # Delete other's messages
+    "can_invite",         # Add members
+    "can_change_info",    # Edit room name/description/avatar
+    "can_manage_calls",   # Start/end group calls
+]
+
+
+class SetTagRequest(BaseModel):
+    tag: Optional[str] = Field(None, max_length=30)
+    tag_color: Optional[str] = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
+
+
+class SetPermissionsRequest(BaseModel):
+    permissions: dict
 
 
 @router.get("/{room_id}/members")
@@ -54,6 +90,9 @@ async def members(
             "is_bot":       bool(m.user.is_bot) if m.user else False,
             "x25519_pubkey":m.user.x25519_public_key if m.user else None,
             "has_key":      m.user_id not in pending_ids,
+            "tag":          getattr(m, 'tag', None),
+            "tag_color":    getattr(m, 'tag_color', None),
+            "custom_permissions": _parse_perms(getattr(m, 'custom_permissions', None)),
         } for m in all_m],
     }
 
@@ -212,3 +251,79 @@ async def toggle_ban_member(
     logger.info(f"Ban toggled: user {target_id} is_banned={t.is_banned} in room {room_id} by {u.username}")
 
     return {"ok": True, "is_banned": t.is_banned}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Теги участников
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.put("/{room_id}/members/{target_id}/tag")
+async def set_member_tag(
+        room_id: int, target_id: int,
+        body: SetTagRequest,
+        u: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+):
+    """Назначить / снять тег участника. Только OWNER и ADMIN."""
+    actor = _require_member(room_id, u.id, db)
+    if actor.role not in (RoomRole.ADMIN, RoomRole.OWNER):
+        raise HTTPException(403, "Недостаточно прав")
+
+    t = db.query(RoomMember).filter(
+        RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
+    if not t:
+        raise HTTPException(404, "Участник не найден")
+
+    t.tag = body.tag
+    t.tag_color = body.tag_color
+    db.commit()
+
+    await manager.broadcast_to_room(room_id, {
+        "type": "member_updated",
+        "user_id": target_id,
+        "tag": t.tag,
+        "tag_color": t.tag_color,
+    })
+
+    return {"ok": True, "tag": t.tag, "tag_color": t.tag_color}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Гранулярные права участников
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/{room_id}/permissions-schema")
+async def get_permissions_schema(u: User = Depends(get_current_user)):
+    """Возвращает список доступных прав для UI."""
+    return {"permissions": PERMISSION_KEYS}
+
+
+@router.put("/{room_id}/members/{target_id}/permissions")
+async def set_member_permissions(
+        room_id: int, target_id: int,
+        body: SetPermissionsRequest,
+        u: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+):
+    """Установить гранулярные права участника. Только OWNER."""
+    actor = _require_member(room_id, u.id, db)
+    if actor.role != RoomRole.OWNER:
+        raise HTTPException(403, "Только владелец может менять права")
+
+    t = db.query(RoomMember).filter(
+        RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
+    if not t:
+        raise HTTPException(404, "Участник не найден")
+
+    # Validate keys
+    cleaned = {k: bool(v) for k, v in body.permissions.items() if k in PERMISSION_KEYS}
+    t.custom_permissions = _json.dumps(cleaned) if cleaned else None
+    db.commit()
+
+    await manager.broadcast_to_room(room_id, {
+        "type": "member_updated",
+        "user_id": target_id,
+        "custom_permissions": cleaned,
+    })
+
+    return {"ok": True, "permissions": cleaned}

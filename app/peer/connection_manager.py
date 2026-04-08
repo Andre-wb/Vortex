@@ -9,6 +9,7 @@ app/peer/connection_manager.py — WebSocket менеджер с разделе�
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import logging
 import time
 from collections import defaultdict, deque
@@ -220,6 +221,53 @@ class PendingDeliveryQueue:
 pending_queue = PendingDeliveryQueue()
 
 
+class PendingNotificationQueue:
+    """
+    Очередь уведомлений для пользователей, у которых нет активного notification WS.
+    Flush-ится при подключении к /ws/notifications.
+    """
+
+    def __init__(self, max_per_user: int = 50, ttl_sec: float = 300.0):
+        self._max  = max_per_user
+        self._ttl  = ttl_sec
+        self._queues: dict[int, deque] = defaultdict(deque)
+        self._lock   = asyncio.Lock()
+
+    async def enqueue(self, user_id: int, payload: dict) -> None:
+        async with self._lock:
+            q = self._queues[user_id]
+            q.append((time.monotonic(), payload))
+            while len(q) > self._max:
+                q.popleft()
+
+    async def flush(self, user_id: int, ws: WebSocket) -> int:
+        async with self._lock:
+            q = self._queues.pop(user_id, deque())
+        if not q:
+            return 0
+        now = time.monotonic()
+        sent = 0
+        for ts, payload in q:
+            if now - ts > self._ttl:
+                continue
+            try:
+                payload["_pending"] = True
+                await ws.send_json(payload)
+                sent += 1
+            except Exception:
+                break
+        return sent
+
+    def stats(self) -> dict:
+        return {
+            "queues": len(self._queues),
+            "total": sum(len(q) for q in self._queues.values()),
+        }
+
+
+pending_notifications = PendingNotificationQueue()
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # ConnectionManager
 # ══════════════════════════════════════════════════════════════════════════════
@@ -311,7 +359,7 @@ class ConnectionManager:
                 delivered_uids.add(uid)  # отправитель считается доставленным
                 continue
             try:
-                await conn.websocket.send_json(payload)
+                await conn.websocket.send_text(self._pad_ws_frame(payload))
                 delivered_uids.add(uid)
             except Exception as e:
                 logger.debug("Broadcast: dead WS for user %s room %s: %s", uid, room_id, e)
@@ -345,11 +393,19 @@ class ConnectionManager:
         if not conn:
             return False
         try:
-            await conn.websocket.send_json(payload)
+            await conn.websocket.send_text(self._pad_ws_frame(payload))
             return True
         except Exception:
             await self.disconnect(room_id, user_id)
             return False
+
+    @staticmethod
+    def _pad_ws_frame(payload: dict) -> str:
+        """Добавляет рандомный padding к WS-фрейму (anti DPI size analysis)."""
+        import json, secrets
+        pad_len = 32 + secrets.randbelow(225)  # 32..256
+        payload["_p"] = secrets.token_urlsafe(pad_len)
+        return json.dumps(payload)
 
     async def set_typing(self, room_id: int, user_id: int, is_typing: bool) -> None:
         conn = self._rooms.get(room_id, {}).get(user_id)
@@ -359,10 +415,10 @@ class ConnectionManager:
         await self.broadcast_to_room(
             room_id,
             {
-                "type":      "typing",
-                "user_id":   user_id,
-                "username":  conn.username,
-                "is_typing": is_typing,
+                "type":         "typing",
+                "user_id":      user_id,
+                "username":     conn.display_name or conn.username,
+                "is_typing":    is_typing,
             },
             exclude=user_id,
         )
@@ -394,22 +450,94 @@ class ConnectionManager:
         self._global_ws[user_id] = ws
         logger.info(f"Global WS+ user {user_id}")
 
+        # Flush in-memory pending notifications
+        flushed = await pending_notifications.flush(user_id, ws)
+
+        # Flush DB-persistent pending notifications
+        db_flushed = await self._flush_db_notifications(user_id, ws)
+
+        total = flushed + db_flushed
+        if total > 0:
+            logger.info(f"Flushed {total} pending notifications to user {user_id} (mem={flushed}, db={db_flushed})")
+
     def disconnect_global(self, user_id: int) -> None:
         """Отключает глобальный WS пользователя."""
         self._global_ws.pop(user_id, None)
         logger.info(f"Global WS- user {user_id}")
 
     async def notify_user(self, user_id: int, payload: dict) -> bool:
-        """Отправляет уведомление через глобальный WS. Возвращает True если доставлено."""
+        """Отправляет уведомление через глобальный WS. Если WS нет — сохраняет в БД."""
         ws = self._global_ws.get(user_id)
         if not ws:
+            await self._persist_notification(user_id, payload)
             return False
         try:
             await ws.send_json(payload)
             return True
         except Exception:
             self._global_ws.pop(user_id, None)
+            await self._persist_notification(user_id, payload)
             return False
+
+    @staticmethod
+    async def _persist_notification(user_id: int, payload: dict) -> None:
+        """Сохраняет уведомление в БД для гарантированной доставки."""
+        try:
+            from app.database import SessionLocal
+            from app.models_rooms.encryption import PendingNotification
+            db = SessionLocal()
+            try:
+                notif = PendingNotification(
+                    user_id=user_id,
+                    payload=_json.dumps(payload, ensure_ascii=False),
+                )
+                db.add(notif)
+                db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning("Failed to persist notification for user %s: %s", user_id, e)
+            # Fallback — in-memory queue
+            await pending_notifications.enqueue(user_id, payload)
+
+    @staticmethod
+    async def _flush_db_notifications(user_id: int, ws: WebSocket) -> int:
+        """Отправляет все DB-pending уведомления пользователю и удаляет их."""
+        try:
+            from app.database import SessionLocal
+            from app.models_rooms.encryption import PendingNotification
+            db = SessionLocal()
+            try:
+                rows = (
+                    db.query(PendingNotification)
+                    .filter(PendingNotification.user_id == user_id)
+                    .order_by(PendingNotification.created_at.asc())
+                    .all()
+                )
+                if not rows:
+                    return 0
+                sent = 0
+                ids_to_delete = []
+                for row in rows:
+                    try:
+                        data = _json.loads(row.payload)
+                        data["_pending"] = True
+                        await ws.send_json(data)
+                        ids_to_delete.append(row.id)
+                        sent += 1
+                    except Exception:
+                        break
+                if ids_to_delete:
+                    db.query(PendingNotification).filter(
+                        PendingNotification.id.in_(ids_to_delete)
+                    ).delete(synchronize_session=False)
+                    db.commit()
+                return sent
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning("Failed to flush DB notifications for user %s: %s", user_id, e)
+            return 0
 
     def get_online_users(self, room_id: int) -> list[dict]:
         return [
@@ -431,6 +559,13 @@ class ConnectionManager:
         if user_id in self._global_ws:
             return True
         return any(user_id in users for users in self._rooms.values())
+
+    def count_online_from_set(self, user_ids: set[int]) -> int:
+        """Count how many users from the given set are currently online anywhere."""
+        online = set(self._global_ws.keys())
+        for users in self._rooms.values():
+            online.update(users.keys())
+        return len(user_ids & online)
 
     def total_connections(self) -> int:
         return sum(len(v) for v in self._rooms.values())

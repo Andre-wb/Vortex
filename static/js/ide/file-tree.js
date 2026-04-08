@@ -87,6 +87,9 @@ function _fileIcon(name, size = 12) {
     if (name.endsWith('.grav')) {
         return `<img src="/logo/gravitix.svg" width="${size}" height="${size}" style="flex-shrink:0;opacity:.85" alt=".grav">`;
     }
+    if (name.endsWith('.arx')) {
+        return `<img src="/logo/architex.svg" width="${size}" height="${size}" style="flex-shrink:0;opacity:.85" alt=".arx">`;
+    }
     return `<svg width="${size}" height="${size}" fill="var(--text3)" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>`;
 }
 
@@ -114,7 +117,8 @@ function ideFolderAddFile() {
     if (!folder) return;
     IDE.newFileIsDir  = false;
     IDE.newFileParent = folder;
-    _showNewFileModal('New File in ' + folder, 'filename.grav');
+    const ext = IDE.current?.lang === 'architex' ? '.arx' : '.grav';
+    _showNewFileModal('New File in ' + folder, 'filename' + ext);
 }
 function ideFolderAddFolder() {
     const folder = IDE.ctxFolder; _closeFolderCtx();

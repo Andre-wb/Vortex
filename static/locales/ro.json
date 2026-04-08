@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Găsește-ți contactele",
+    "desc": "Verifică care dintre contacte sunt deja pe Vortex. Numerele sunt criptate — serverul nu le vede.",
+    "start": "Sincronizează contactele",
+    "skip": "Omite",
+    "readingContacts": "Citirea contactelor...",
+    "selectFile": "Selectează fișier (.vcf)...",
+    "hashing": "Procesarea a {n} numere...",
+    "searching": "Căutarea potrivirilor...",
+    "resultsTitle": "Contacte găsite",
+    "noMatches": "Niciun contact găsit pe Vortex",
+    "stats": "{checked} numere verificate, {found} contacte găsite",
+    "selectedCount": "{n} selectate",
+    "addAll": "Adaugă selectate",
+    "adding": "Se adaugă...",
+    "done": "Contactele au fost adăugate!",
+    "doneCount": "{n} contacte adăugate",
+    "continue": "Continuă"
   }
 }

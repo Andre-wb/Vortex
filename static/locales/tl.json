@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Hanapin ang mga contact",
+    "desc": "Suriin kung sino nasa Vortex na. Ang mga numero ay naka-hash — hindi nakikita ng server.",
+    "start": "I-sync ang mga contact",
+    "skip": "Laktawan",
+    "readingContacts": "Binabasa ang mga contact...",
+    "selectFile": "Pumili ng file (.vcf)...",
+    "hashing": "Pinoproseso ang {n} na numero...",
+    "searching": "Naghahanap ng mga tugma...",
+    "resultsTitle": "Mga nahanap na contact",
+    "noMatches": "Wala pang nahanap sa Vortex",
+    "stats": "{checked} na numero nasuri, {found} na contact nahanap",
+    "selectedCount": "{n} ang napili",
+    "addAll": "Idagdag ang napili",
+    "adding": "Idinaragdag...",
+    "done": "Naidagdag na!",
+    "doneCount": "{n} na contact naidagdag",
+    "continue": "Magpatuloy"
   }
 }

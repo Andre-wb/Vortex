@@ -1102,5 +1102,24 @@
     "amount": "Monto",
     "donateMessage": "Mensaje",
     "sendDonate": "Enviar"
+  },
+  "contactSync": {
+    "title": "Encuentra tus contactos",
+    "desc": "Verifica cuáles de tus contactos ya están en Vortex. Los números se cifran — el servidor nunca los ve.",
+    "start": "Sincronizar contactos",
+    "skip": "Omitir",
+    "readingContacts": "Leyendo contactos...",
+    "selectFile": "Seleccionar archivo (.vcf)...",
+    "hashing": "Procesando {n} números...",
+    "searching": "Buscando coincidencias...",
+    "resultsTitle": "Contactos encontrados",
+    "noMatches": "Ningún contacto encontrado en Vortex",
+    "stats": "Verificados {checked} números, encontrados {found} contactos",
+    "selectedCount": "{n} seleccionados",
+    "addAll": "Agregar seleccionados",
+    "adding": "Agregando...",
+    "done": "¡Contactos agregados!",
+    "doneCount": "{n} contactos agregados",
+    "continue": "Continuar"
   }
 }

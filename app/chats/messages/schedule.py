@@ -58,6 +58,7 @@ async def handle_timed_message(room_id: int, user: User, data: dict, db: Session
         "type":          "message",
         "msg_id":        msg.id,
         "client_msg_id": client_msg_id,
+        "sender_id":     user.id,
         "sender_pseudo": msg.sender_pseudo,
         "sender":        user.username,
         "display_name":  user.display_name or user.username,
@@ -160,6 +161,7 @@ async def deliver_scheduled_messages(db: Session) -> int:
         await manager.broadcast_to_room(msg.room_id, {
             "type":         "message",
             "msg_id":       msg.id,
+            "sender_id":    msg.sender_id,
             "sender_pseudo": msg.sender_pseudo,
             "sender":       msg.sender.username if msg.sender else "—",
             "display_name": (msg.sender.display_name or msg.sender.username) if msg.sender else "—",

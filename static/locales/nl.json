@@ -1102,5 +1102,24 @@
     "amount": "Amount",
     "donateMessage": "Message",
     "sendDonate": "Send"
+  },
+  "contactSync": {
+    "title": "Vind je contacten",
+    "desc": "Controleer welke van je contacten al op Vortex zitten. Nummers worden gehasht — de server ziet ze nooit.",
+    "start": "Contacten synchroniseren",
+    "skip": "Overslaan",
+    "readingContacts": "Contacten lezen...",
+    "selectFile": "Selecteer contactenbestand (.vcf)...",
+    "hashing": "{n} nummers verwerken...",
+    "searching": "Overeenkomsten zoeken...",
+    "resultsTitle": "Gevonden contacten",
+    "noMatches": "Nog geen contacten gevonden op Vortex",
+    "stats": "{checked} nummers gecontroleerd, {found} contacten gevonden",
+    "selectedCount": "{n} geselecteerd",
+    "addAll": "Selectie toevoegen",
+    "adding": "Toevoegen...",
+    "done": "Contacten toegevoegd!",
+    "doneCount": "{n} contacten toegevoegd",
+    "continue": "Doorgaan"
   }
 }

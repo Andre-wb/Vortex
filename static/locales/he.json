@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "מצא את אנשי הקשר שלך",
+    "desc": "בדוק אילו אנשי קשר כבר ב-Vortex. המספרים מוצפנים — השרת לא רואה אותם.",
+    "start": "סנכרן אנשי קשר",
+    "skip": "דלג",
+    "readingContacts": "קורא אנשי קשר...",
+    "selectFile": "בחר קובץ (.vcf)...",
+    "hashing": "מעבד {n} מספרים...",
+    "searching": "מחפש התאמות...",
+    "resultsTitle": "אנשי קשר שנמצאו",
+    "noMatches": "לא נמצאו אנשי קשר ב-Vortex",
+    "stats": "נבדקו {checked} מספרים, נמצאו {found} אנשי קשר",
+    "selectedCount": "{n} נבחרו",
+    "addAll": "הוסף נבחרים",
+    "adding": "מוסיף...",
+    "done": "אנשי הקשר נוספו!",
+    "doneCount": "{n} אנשי קשר נוספו",
+    "continue": "המשך"
   }
 }

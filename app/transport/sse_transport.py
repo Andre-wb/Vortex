@@ -67,21 +67,38 @@ async def sse_stream(
     manager._sse_queues[sse_key] = queue
 
     async def event_generator():
+        import os as _os
+        import base64 as _b64
+        import secrets as _sec
+
+        def _pad_json(data: dict) -> str:
+            """Добавляет рандомный padding к JSON чтобы убрать паттерн размеров."""
+            raw = json.dumps(data)
+            pad_len = 64 + _sec.randbelow(193)  # 64..256 символов
+            padded = {**data, "_p": _b64.b85encode(_os.urandom(pad_len)).decode()}
+            return json.dumps(padded)
+
         try:
-            # Начальное событие
-            yield f"data: {json.dumps({'type': 'connected', 'room_id': room_id})}\n\n"
+            yield f"data: {_pad_json({'type': 'connected', 'room_id': room_id})}\n\n"
 
             while True:
-                # Проверяем что клиент всё ещё подключён
                 if await request.is_disconnected():
                     break
 
                 try:
                     msg = await asyncio.wait_for(queue.get(), timeout=30.0)
-                    yield f"data: {json.dumps(msg)}\n\n"
+                    yield f"data: {_pad_json(msg)}\n\n"
+                    # Рандомная задержка (anti timing analysis)
+                    jitter = _sec.randbelow(151) / 1000  # 0..150мс
+                    if jitter > 0.01:
+                        await asyncio.sleep(jitter)
                 except asyncio.TimeoutError:
-                    # Keepalive comment (не событие — DPI не видит паттерн)
-                    yield f": keepalive {asyncio.get_event_loop().time()}\n\n"
+                    # Keepalive: рандомный комментарий (DPI не видит фикс. интервал)
+                    fake_ts = 1700000000 + _sec.randbelow(10000000)
+                    yield f": heartbeat {fake_ts}\n\n"
+                    # Иногда отправляем фейковое cover-событие
+                    if _sec.randbelow(3) == 0:
+                        yield f"data: {_pad_json({'type': 'sync', 'v': _sec.randbelow(9999)})}\n\n"
         finally:
             manager._sse_queues.pop(sse_key, None)
 

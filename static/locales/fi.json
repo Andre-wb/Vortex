@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Etsi yhteystietosi",
+    "desc": "Tarkista ketkä yhteystiedoistasi ovat jo Vortexissa. Numerot hajautetaan — palvelin ei näe niitä.",
+    "start": "Synkronoi yhteystiedot",
+    "skip": "Ohita",
+    "readingContacts": "Luetaan yhteystietoja...",
+    "selectFile": "Valitse tiedosto (.vcf)...",
+    "hashing": "Käsitellään {n} numeroa...",
+    "searching": "Etsitään vastaavuuksia...",
+    "resultsTitle": "Löydetyt yhteystiedot",
+    "noMatches": "Yhteystietoja ei löytynyt Vortexista",
+    "stats": "{checked} numeroa tarkistettu, {found} yhteystietoa löydetty",
+    "selectedCount": "{n} valittu",
+    "addAll": "Lisää valitut",
+    "adding": "Lisätään...",
+    "done": "Yhteystiedot lisätty!",
+    "doneCount": "{n} yhteystietoa lisätty",
+    "continue": "Jatka"
   }
 }

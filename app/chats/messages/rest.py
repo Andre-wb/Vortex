@@ -131,6 +131,7 @@ async def send_message(
     payload = {
         "type":          "message",
         "msg_id":        msg.id,
+        "sender_id":     u.id,
         "sender_pseudo": msg.sender_pseudo,
         "sender":        u.username,
         "display_name":  u.display_name or u.username,
@@ -155,6 +156,7 @@ async def list_messages(
     room_id:   int,
     before_id: Optional[int] = None,
     after_id:  Optional[int] = None,
+    around_id: Optional[int] = None,
     limit:     int = 50,
     u:  User    = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -166,6 +168,29 @@ async def list_messages(
     _require_member(room_id, u.id, db)
 
     limit = max(1, min(limit, 200))
+
+    # around_id: загружаем limit/2 до и limit/2 после указанного сообщения
+    if around_id:
+        half = limit // 2
+        before = (
+            db.query(Message).filter(
+                Message.room_id == room_id,
+                Message.thread_id.is_(None),
+                Message.is_scheduled == False,
+                Message.id <= around_id,
+            ).order_by(Message.created_at.desc()).limit(half + 1).all()
+        )
+        after = (
+            db.query(Message).filter(
+                Message.room_id == room_id,
+                Message.thread_id.is_(None),
+                Message.is_scheduled == False,
+                Message.id > around_id,
+            ).order_by(Message.created_at.asc()).limit(half).all()
+        )
+        messages = list(reversed(before)) + after
+        return {"messages": [_msg_dict(m) for m in messages]}
+
     q = db.query(Message).filter(
         Message.room_id == room_id,
         Message.thread_id.is_(None),

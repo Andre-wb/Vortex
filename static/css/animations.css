@@ -54,25 +54,29 @@
 /* ── Micro-interactions ──────────────────────────────────────────────────── */
 
 /* Button press effect — scale down then spring back */
-button, .btn, .input-btn, .theme-mode-btn, .settings-tab {
+.btn, .input-btn, .theme-mode-btn, .settings-tab {
     transition: transform 0.15s var(--spring), background 0.2s ease, box-shadow 0.2s ease;
 }
-button:active, .btn:active, .input-btn:active {
-    transform: scale(0.95);
-}
-button:hover, .btn:hover {
-    box-shadow: 0 2px 12px rgba(124, 58, 237, 0.15);
+@media (hover: hover) {
+    .btn:active, .input-btn:active {
+        transform: scale(0.95);
+    }
+    .btn:hover {
+        box-shadow: 0 2px 12px rgba(124, 58, 237, 0.15);
+    }
 }
 
 /* Room item hover — subtle lift */
 .room-item {
     transition: transform 0.2s var(--spring-soft), background 0.15s ease;
 }
-.room-item:hover {
-    transform: translateX(3px);
-}
-.room-item:active {
-    transform: scale(0.98);
+@media (hover: hover) {
+    .room-item:hover {
+        transform: translateX(3px);
+    }
+    .room-item:active {
+        transform: scale(0.98);
+    }
 }
 
 /* Input focus glow */

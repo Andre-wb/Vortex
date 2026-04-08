@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Пронађите контакте",
+    "desc": "Проверите ко је већ на Vortex-у. Бројеви се хеширају — сервер их не види.",
+    "start": "Синхронизуј",
+    "skip": "Прескочи",
+    "readingContacts": "Читање контаката...",
+    "selectFile": "Изаберите фајл (.vcf)...",
+    "hashing": "Обрада {n} бројева...",
+    "searching": "Претрага подударања...",
+    "resultsTitle": "Пронађени контакти",
+    "noMatches": "Нису пронађени контакти",
+    "stats": "Проверено {checked} бројева, пронађено {found} контаката",
+    "selectedCount": "{n} изабрано",
+    "addAll": "Додај изабране",
+    "adding": "Додавање...",
+    "done": "Контакти додати!",
+    "doneCount": "{n} контаката додато",
+    "continue": "Настави"
   }
 }

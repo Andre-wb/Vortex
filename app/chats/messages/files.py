@@ -103,7 +103,12 @@ async def upload_file(
         file_hash     = file_hash,
     )
     db.add(ft)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        stored_path.unlink(missing_ok=True)
+        raise
     db.refresh(ft)
 
     download_url = f"/api/files/download/{ft.id}"
@@ -125,6 +130,7 @@ async def upload_file(
 
     await manager.broadcast_to_room(room_id, {
         "type":         "file",
+        "sender_id":    u.id,
         "sender_pseudo": compute_sender_pseudo(room_id, u.id),
         "sender":       u.username,
         "display_name": u.display_name or u.username,
@@ -168,7 +174,11 @@ async def download_file(
     if not path.exists():
         raise HTTPException(404, "Файл не найден на диске")
 
-    ft.download_count += 1
+    from sqlalchemy import update as sa_update
+    db.execute(
+        sa_update(type(ft)).where(type(ft).id == ft.id)
+        .values(download_count=type(ft).download_count + 1)
+    )
     db.commit()
 
     return FileResponse(

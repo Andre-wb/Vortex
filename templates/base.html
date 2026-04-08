@@ -36,6 +36,8 @@
     <link rel="stylesheet" href="/static/css/profile.css">
     <link rel="stylesheet" href="/static/css/fingerprint.css">
     <link rel="stylesheet" href="/static/css/group-call.css">
+    <link rel="stylesheet" href="/static/css/media-viewer.css">
+    <link rel="stylesheet" href="/static/css/contact-sync.css">
     <link rel="stylesheet" href="/static/css/stream.css">
     <link rel="stylesheet" href="/static/css/onboarding.css">
     <link rel="stylesheet" href="/static/css/lang-picker.css">
@@ -72,7 +74,7 @@
 
 {# ── Main App (composition of independent components) ──────────────── #}
 <div id="app" style="display:none">
-    <div style="display:flex;height:100vh;overflow:hidden;" id="app-content">
+    <div style="display:flex;height:100%;overflow:hidden;" id="app-content">
         {% include 'components/sidebar.html' %}
         <div id="main" style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;">
             {% include 'screens/welcome.html' %}
@@ -89,8 +91,9 @@
     {% include 'components/thread_panel.html' %}
     {% include 'components/room_info_panel.html' %}
     {% include 'components/profile_modal.html' %}
-    {% include 'components/bottom_tabs.html' %}
 </div>
+{% include 'components/bottom_tabs.html' %}
+
 
 {# ── Modals (каждая — отдельная ответственность) ───────────────────── #}
 {% include 'modals/create_room.html' %}
@@ -109,6 +112,7 @@
 {% include 'components/user_profile_modal.html' %}
 {% include 'components/fingerprint_modal.html' %}
 {% include 'components/group_call.html' %}
+{% include 'components/contact_sync.html' %}
 {% include 'components/stream.html' %}
 
 {# ── Scripts ───────────────────────────────────────────────────────── #}
@@ -157,6 +161,7 @@ document.addEventListener('DOMContentLoaded',_highlightLang);
 <script src="/static/js/ide/linter.js" defer></script>
 <script src="/static/js/ide/run.js" defer></script>
 <script src="/static/js/ide/simulator.js" defer></script>
+<script src="/static/js/ide/preview.js" defer></script>
 <script src="/static/js/ide/docs.js" defer></script>
 <script src="/static/js/ide/features.js" defer></script>
 <script src="/static/js/ide.js" defer></script>

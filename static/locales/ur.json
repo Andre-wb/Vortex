@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "اپنے رابطے تلاش کریں",
+    "desc": "چیک کریں کون Vortex پر ہے۔ نمبر ہیش کیے جاتے ہیں — سرور نہیں دیکھتا۔",
+    "start": "رابطے ہم آہنگ کریں",
+    "skip": "چھوڑیں",
+    "readingContacts": "رابطے پڑھ رہے ہیں...",
+    "selectFile": "فائل منتخب کریں (.vcf)...",
+    "hashing": "{n} نمبر پروسیس ہو رہے ہیں...",
+    "searching": "مماثلت تلاش کر رہے ہیں...",
+    "resultsTitle": "ملے ہوئے رابطے",
+    "noMatches": "Vortex پر کوئی رابطہ نہیں ملا",
+    "stats": "{checked} نمبر چیک، {found} رابطے ملے",
+    "selectedCount": "{n} منتخب",
+    "addAll": "منتخب شامل کریں",
+    "adding": "شامل کر رہے ہیں...",
+    "done": "رابطے شامل ہو گئے!",
+    "doneCount": "{n} رابطے شامل",
+    "continue": "جاری رکھیں"
   }
 }

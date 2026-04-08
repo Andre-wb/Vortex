@@ -315,6 +315,7 @@ function openSettingsSection(section) {
     }
     if (section === 'calls') {
         if (typeof window._loadCallSettings === 'function') window._loadCallSettings();
+        if (typeof window._loadDeviceSettings === 'function') window._loadDeviceSettings();
     }
     if (section === 'stickers') {
         if (typeof window.loadStickerManager === 'function') window.loadStickerManager();

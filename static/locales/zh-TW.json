@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "尋找聯絡人",
+    "desc": "檢查您的手機聯絡人中有哪些已在 Vortex。號碼經過雜湊處理，伺服器永遠看不到。",
+    "start": "同步聯絡人",
+    "skip": "略過",
+    "readingContacts": "正在讀取聯絡人...",
+    "selectFile": "選擇聯絡人檔案 (.vcf)...",
+    "hashing": "正在處理 {n} 個號碼...",
+    "searching": "正在搜尋比對...",
+    "resultsTitle": "找到的聯絡人",
+    "noMatches": "尚未找到 Vortex 上的聯絡人",
+    "stats": "已檢查 {checked} 個號碼，找到 {found} 個聯絡人",
+    "selectedCount": "已選擇 {n} 個",
+    "addAll": "新增所選",
+    "adding": "正在新增...",
+    "done": "聯絡人已新增！",
+    "doneCount": "已新增 {n} 個聯絡人",
+    "continue": "繼續"
   }
 }

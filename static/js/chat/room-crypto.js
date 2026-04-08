@@ -32,18 +32,21 @@ export async function decryptText(ciphertextHex, roomKeyBytes) {
 
 export function _saveRoomKeyToSession(roomId, keyBytes) {
     _roomKeyCache.set(String(roomId), keyBytes);
-    // Backup to sessionStorage so key survives page reload
+    // Backup to sessionStorage + localStorage so key survives page reload and browser restart
     try {
-        sessionStorage.setItem(`vortex_rk_${roomId}`, toHex(keyBytes));
+        const hex = toHex(keyBytes);
+        sessionStorage.setItem(`vortex_rk_${roomId}`, hex);
+        localStorage.setItem(`vortex_rk_${roomId}`, hex);
     } catch {}
 }
 
 export function _loadRoomKeyFromSession(roomId) {
     const cached = _roomKeyCache.get(String(roomId));
     if (cached) return cached;
-    // Fallback: restore from sessionStorage after page reload
+    // Fallback: sessionStorage → localStorage (browser restart survival)
     try {
-        const hex = sessionStorage.getItem(`vortex_rk_${roomId}`);
+        const hex = sessionStorage.getItem(`vortex_rk_${roomId}`)
+                 || localStorage.getItem(`vortex_rk_${roomId}`);
         if (hex) {
             const bytes = fromHex(hex);
             _roomKeyCache.set(String(roomId), bytes);
@@ -55,5 +58,8 @@ export function _loadRoomKeyFromSession(roomId) {
 
 export function _clearRoomKeyFromSession(roomId) {
     _roomKeyCache.delete(String(roomId));
-    try { sessionStorage.removeItem(`vortex_rk_${roomId}`); } catch {}
+    try {
+        sessionStorage.removeItem(`vortex_rk_${roomId}`);
+        localStorage.removeItem(`vortex_rk_${roomId}`);
+    } catch {}
 }

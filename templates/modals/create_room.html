@@ -72,38 +72,70 @@
 </div>
 
 <div id="call-overlay">
-    <!-- Minimize to pip — top-left corner -->
-    <button class="call-minimize-btn" onclick="minimizeCall()" title="Свернуть" data-i18n-title="app.more">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M22 3l-5.46 5.46L20 12h-8V4l3.54 3.54L21 2zM2 21l5.46-5.46L4 12h8v8l-3.54-3.54L3 22z"/>
-        </svg>
-    </button>
-    <video id="remote-video" autoplay playsinline></video>
-    <video id="local-video"  autoplay playsinline muted></video>
-    <div class="call-avatar" id="call-peer-avatar"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>
-    <div class="call-name"   id="call-peer-name">—</div>
-    <div class="call-status" id="call-status" data-i18n="call.calling">Вызов...</div>
+    <!-- Top bar: minimize + timer + quality -->
+    <div class="call-topbar">
+        <button class="call-minimize-btn" onclick="minimizeCall()" title="Свернуть" data-i18n-title="app.more">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19.5 3.09L15 7.59V4h-2v7h7V9h-3.59l4.5-4.5-1.41-1.41zM4 13v2h3.59l-4.5 4.5 1.41 1.41 4.5-4.5V20h2v-7H4z"/>
+            </svg>
+        </button>
+        <div class="call-topbar-center">
+            <div class="call-timer" id="call-overlay-timer">0:00</div>
+            <div class="call-encrypt-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                <span data-i18n="call.encrypted">E2E</span>
+            </div>
+        </div>
+        <div style="width:38px"></div>
+    </div>
+
+    <!-- Video area: main + PIP (swappable) -->
+    <div class="call-video-area" id="call-video-area">
+        <div class="call-main-video-wrap" id="call-main-wrap" onclick="swapCallVideos()">
+            <video id="remote-video" autoplay playsinline></video>
+            <div class="call-avatar call-avatar-main" id="call-peer-avatar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            </div>
+        </div>
+        <div class="call-pip-video-wrap" id="call-pip-wrap" onclick="swapCallVideos()">
+            <video id="local-video" autoplay playsinline muted></video>
+            <div class="call-avatar call-avatar-pip" id="call-local-avatar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Peer info (shown when no video) -->
+    <div class="call-peer-info" id="call-peer-info">
+        <div class="call-name" id="call-peer-name">—</div>
+        <div class="call-status" id="call-status" data-i18n="call.calling">Вызов...</div>
+    </div>
+
+    <!-- Controls -->
     <div class="call-controls">
-        <button class="call-btn mute" id="mute-btn" onclick="toggleMute()">
-            <svg  xmlns="http://www.w3.org/2000/svg" width="30" height="30"
-                  fill="currentColor" viewBox="0 0 24 24" >
+        <button class="call-btn" id="mute-btn" onclick="toggleMute()" data-i18n-title="call.muteMic">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M16 12V6c0-2.21-1.79-4-4-4S8 3.79 8 6v6c0 2.21 1.79 4 4 4s4-1.79 4-4m-6 0V6c0-1.1.9-2 2-2s2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2"></path><path d="M18 12c0 3.31-2.69 6-6 6s-6-2.69-6-6H4c0 4.07 3.06 7.44 7 7.93V22h2v-2.07c3.94-.49 7-3.86 7-7.93z"></path>
             </svg>
+            <span class="call-btn-label" data-i18n="call.muteMic">Микрофон</span>
         </button>
-        <button class="call-btn mute" id="cam-btn"  onclick="toggleCam()">
-            <svg  xmlns="http://www.w3.org/2000/svg" width="30" height="30"
-                  fill="currentColor" viewBox="0 0 24 24" >
-                <path d="M12 8c-2.17 0-4 1.83-4 4s1.83 4 4 4 4-1.83 4-4-1.83-4-4-4m0 6c-1.07 0-2-.93-2-2s.93-2 2-2 2 .93 2 2-.93 2-2 2"></path><path d="M20 5h-2.59L14.7 2.29a1 1 0 0 0-.71-.29h-4c-.27 0-.52.11-.71.29L6.57 5H3.98c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2Zm0 13H4V7h3c.27 0 .52-.11.71-.29L10.42 4h3.17l2.71 2.71c.19.19.44.29.71.29h3v11Z"></path>
+        <button class="call-btn" id="cam-btn" onclick="toggleCam()" data-i18n-title="call.camera">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
             </svg>
+            <span class="call-btn-label" data-i18n="call.camera">Камера</span>
         </button>
-        <button class="call-btn mute" id="screen-btn" onclick="toggleScreenShare()" title="Демонстрация экрана" data-i18n-title="call.screenShare">
-            <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" viewBox="0 0 24 24">
+        <button class="call-btn" id="screen-btn" onclick="toggleScreenShare()" data-i18n-title="call.screenShare">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H1v2h22v-2h-3ZM4 6h16v10H4V6Z"/>
             </svg>
+            <span class="call-btn-label" data-i18n="call.screenShare">Экран</span>
         </button>
-        <button class="call-btn hangup" onclick="hangup()">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" height="30" width="30">
-                <path d="M567 39.1C576.4 29.7 591.6 29.7 600.9 39.1C610.2 48.5 610.3 63.7 600.9 73L73 601.1C63.6 610.5 48.4 610.5 39.1 601.1C29.8 591.7 29.7 576.5 39.1 567.2L173.5 432.6C121.2 374.5 83.6 302.8 66.8 223.4C50.7 147.1 105.9 84.6 170.5 66.9L176 65.4C195.7 60 216.3 70.1 224.1 88.9L264.6 186.2C271.5 202.7 266.7 221.8 252.8 233.2L208.7 269.3C221.6 297.8 238.3 324.1 258.2 347.8L567 39.1zM416.6 573.1C353.6 559.7 295.3 533.3 244.9 496.8L329.8 412C342 420.2 354.8 427.6 368.1 434.2L406.7 387C418 373.1 437.1 368.4 453.7 375.2L551 415.8C569.8 423.6 579.9 444.2 574.5 463.9L573 469.4C555.4 534 492.8 589.2 416.6 573.1z"/></svg>
+        <button class="call-btn call-btn-hangup" onclick="hangup()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.99.99 0 0 1-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+            </svg>
+            <span class="call-btn-label" data-i18n="notifications.decline">Завершить</span>
         </button>
     </div>
 </div>

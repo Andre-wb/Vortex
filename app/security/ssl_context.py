@@ -20,8 +20,17 @@ def make_peer_ssl_context() -> ssl.SSLContext:
 
     Cached: only one SSLContext is ever created per process.
     Certificate verification is ALWAYS enabled.
+    Applies TLS record padding and Chrome-like cipher preferences for DPI resistance.
     """
     ctx = ssl.create_default_context()
     if _CA_PATH.exists():
         ctx.load_verify_locations(str(_CA_PATH))
+
+    # Apply TLS record padding for DPI resistance
+    try:
+        from app.transport.advanced_stealth import TLSRecordPadder
+        TLSRecordPadder.configure_ssl_context(ctx)
+    except Exception:
+        pass
+
     return ctx

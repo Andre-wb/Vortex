@@ -390,6 +390,15 @@ impl BotBackend for VortexClient {
                     .send().await;
                 Ok(())
             }
+            BotOutput::UiUpdate { variable, value } => {
+                let body = json!({ "type": "ui_update", "variable": variable, "value": value });
+                let _ = self.client
+                    .post(self.url("/api/bot/send"))
+                    .header("Authorization", self.auth())
+                    .json(&body)
+                    .send().await;
+                Ok(())
+            }
         }
     }
 

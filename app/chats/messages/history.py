@@ -62,6 +62,18 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
         for rm in room_members
     }
 
+    # Build uid→User cache for display names (sealed sender may null .sender)
+    _member_uids = [rm.user_id for rm in room_members]
+    _uid_to_user: dict[int, User] = {
+        u.id: u for u in db.query(User).filter(User.id.in_(_member_uids)).all()
+    } if _member_uids else {}
+
+    # Build uid→tag map for member tags
+    _uid_to_tag: dict[int, tuple[str | None, str | None]] = {
+        rm.user_id: (getattr(rm, 'tag', None), getattr(rm, 'tag_color', None))
+        for rm in room_members
+    }
+
     history = []
     for m in messages:
         # Пропускаем запланированные сообщения
@@ -73,13 +85,20 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
             try:
                 poll_data = json.loads(m.content_encrypted.decode())
                 if "question" in poll_data and "options" in poll_data:
+                    _poll_sender_id = (
+                        _pseudo_to_uid.get(m.sender_pseudo)
+                        if m.sender_pseudo
+                        else m.sender_id
+                    )
+                    _poll_user = m.sender or _uid_to_user.get(_poll_sender_id)
                     history.append({
                         "type": "poll",
                         "msg_id": m.id,
+                        "sender_id": _poll_sender_id,
                         "sender_pseudo": m.sender_pseudo,
-                        "sender": m.sender.username if m.sender else "\u2014",
-                        "display_name": (m.sender.display_name or m.sender.username) if m.sender else "\u2014",
-                        "avatar_emoji": m.sender.avatar_emoji if m.sender else "\U0001F464",
+                        "sender": _poll_user.username if _poll_user else "?",
+                        "display_name": (_poll_user.display_name or _poll_user.username) if _poll_user else "?",
+                        "avatar_emoji": _poll_user.avatar_emoji if _poll_user else "\U0001F464",
                         "question": poll_data["question"],
                         "options": poll_data["options"],
                         "votes": poll_data.get("votes", {}),
@@ -90,15 +109,26 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
             except Exception:
                 pass
 
-        _sender_is_bot = bool(m.sender and m.sender.is_bot)
+        # Resolve sender user_id from sealed-sender pseudo or fallback
+        _resolved_sender_id = (
+            _pseudo_to_uid.get(m.sender_pseudo)
+            if m.sender_pseudo
+            else m.sender_id
+        )
+        _user = m.sender or _uid_to_user.get(_resolved_sender_id)
+        _sender_is_bot = bool(_user and _user.is_bot)
+        _tag_info = _uid_to_tag.get(_resolved_sender_id, (None, None)) if _resolved_sender_id else (None, None)
         entry = {
             **m.to_relay_dict(),
             "type":         "history_msg",
-            "sender":       m.sender.username      if m.sender else "\u2014",
-            "display_name": (m.sender.display_name or m.sender.username) if m.sender else "\u2014",
-            "avatar_emoji": m.sender.avatar_emoji   if m.sender else "\U0001F464",
-            "avatar_url":   m.sender.avatar_url     if m.sender else None,
+            "sender_id":    _resolved_sender_id,
+            "sender":       _user.username      if _user else "?",
+            "display_name": (_user.display_name or _user.username) if _user else "?",
+            "avatar_emoji": _user.avatar_emoji   if _user else "\U0001F464",
+            "avatar_url":   _user.avatar_url     if _user else None,
             "is_bot":       _sender_is_bot,
+            "tag":          _tag_info[0],
+            "tag_color":    _tag_info[1],
             "status":       "sent",
             "reactions":    reactions_map.get(m.id, []),
         }
@@ -145,6 +175,14 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
     # Получаем закреплённое сообщение
     room_obj = db.query(Room).filter(Room.id == room_id).first()
     pinned_id = room_obj.pinned_message_id if room_obj else None
+    pinned_text = None
+    pinned_sender = None
+    if pinned_id:
+        _pinned_msg = db.query(Message).filter(Message.id == pinned_id).first()
+        if _pinned_msg:
+            # Text is encrypted — send ciphertext hex for client-side decryption
+            pinned_text = _pinned_msg.content_encrypted.hex() if _pinned_msg.content_encrypted else None
+            pinned_sender = _pinned_msg.sender.display_name or _pinned_msg.sender.username if _pinned_msg.sender else None
 
     # Определяем, является ли собеседник контактом (для DM)
     is_contact_flag = True
@@ -168,6 +206,8 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
         "type":              "history",
         "messages":          history,
         "pinned_message_id": pinned_id,
+        "pinned_message_ciphertext": pinned_text,
+        "pinned_message_sender": pinned_sender,
         "auto_delete_seconds": room_obj.auto_delete_seconds if room_obj else None,
         "slow_mode_seconds":   room_obj.slow_mode_seconds if room_obj else 0,
         "is_dm":               is_dm,

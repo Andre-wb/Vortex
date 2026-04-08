@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Cari kenalan anda",
+    "desc": "Semak kenalan mana yang sudah ada di Vortex. Nombor di-hash — pelayan tidak melihatnya.",
+    "start": "Segerakkan kenalan",
+    "skip": "Langkau",
+    "readingContacts": "Membaca kenalan...",
+    "selectFile": "Pilih fail (.vcf)...",
+    "hashing": "Memproses {n} nombor...",
+    "searching": "Mencari padanan...",
+    "resultsTitle": "Kenalan ditemui",
+    "noMatches": "Tiada kenalan ditemui di Vortex",
+    "stats": "{checked} nombor disemak, {found} kenalan ditemui",
+    "selectedCount": "{n} dipilih",
+    "addAll": "Tambah yang dipilih",
+    "adding": "Menambah...",
+    "done": "Kenalan ditambah!",
+    "doneCount": "{n} kenalan ditambah",
+    "continue": "Teruskan"
   }
 }

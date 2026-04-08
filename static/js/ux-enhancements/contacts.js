@@ -401,21 +401,36 @@ window.openRoomSettings = function() {
             avatarEl.textContent = room.avatar_emoji || '\u{1F4AC}';
         }
     }
+    const isChannel = !!room.is_channel;
     const nameEl   = document.getElementById('room-info-name');
     const descEl   = document.getElementById('room-info-desc');
     const metaEl   = document.getElementById('room-info-meta');
     const inviteEl = document.getElementById('room-info-invite');
+    const inviteSec = document.getElementById('rss-invite-section');
+    const topTitle  = document.getElementById('rss-topbar-title');
     if (nameEl)   nameEl.textContent   = room.name        || '';
     if (descEl)   descEl.textContent   = room.description || '';
-    if (metaEl)   metaEl.textContent   = `${room.member_count || 0} ${t('roomMedia.members')}`;
-    if (inviteEl) inviteEl.textContent = room.invite_code  || '';
+    if (isChannel) {
+        const count = room.subscriber_count || room.member_count || 0;
+        if (metaEl) metaEl.textContent = `${count} подписчиков`;
+        if (inviteSec) inviteSec.style.display = 'none';
+        if (topTitle) topTitle.textContent = t('channel.settings') || 'Настройки канала';
+    } else {
+        if (metaEl) metaEl.textContent = `${room.member_count || 0} ${t('roomMedia.members')}`;
+        if (inviteEl) inviteEl.textContent = room.invite_code || '';
+        if (inviteSec) inviteSec.style.display = '';
+        if (topTitle) topTitle.textContent = t('room.settings') || 'Настройки комнаты';
+    }
 
     // Load media section for this room
     window._loadRssMedia(room.id, 'photo');
 
     // Asynchronously load full/fresh data (fills admin-only settings fields)
-    if (typeof _roomsOpenRoomInfo === 'function') {
-        _roomsOpenRoomInfo();
+    // openRoomInfo from rooms/info.js is saved as _roomsOpenRoomInfo in core.js,
+    // but we access it via window since it's not in our import scope.
+    const _infoFn = window._roomsOpenRoomInfo || window.openRoomInfo;
+    if (typeof _infoFn === 'function') {
+        _infoFn();
     }
 };
 

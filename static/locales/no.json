@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Finn kontaktene dine",
+    "desc": "Sjekk hvilke av kontaktene dine som allerede er på Vortex. Numre hashes — serveren ser dem aldri.",
+    "start": "Synkroniser kontakter",
+    "skip": "Hopp over",
+    "readingContacts": "Leser kontakter...",
+    "selectFile": "Velg kontaktfil (.vcf)...",
+    "hashing": "Behandler {n} numre...",
+    "searching": "Søker etter treff...",
+    "resultsTitle": "Funne kontakter",
+    "noMatches": "Ingen kontakter funnet på Vortex",
+    "stats": "{checked} numre sjekket, {found} kontakter funnet",
+    "selectedCount": "{n} valgt",
+    "addAll": "Legg til valgte",
+    "adding": "Legger til...",
+    "done": "Kontakter lagt til!",
+    "doneCount": "{n} kontakter lagt til",
+    "continue": "Fortsett"
   }
 }

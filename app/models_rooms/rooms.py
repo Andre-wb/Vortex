@@ -99,6 +99,20 @@ class Room(Base):
         self._cached_member_count = count
         return count
 
+    def member_user_ids(self) -> set[int]:
+        """Return set of user IDs who are members of this room."""
+        try:
+            from sqlalchemy.orm import Session, object_session
+            sess: Session | None = object_session(self)
+            if sess is not None:
+                rows = sess.query(RoomMember.user_id).filter(
+                    RoomMember.room_id == self.id
+                ).all()
+                return {r[0] for r in rows}
+        except Exception:
+            pass
+        return set()
+
     def is_full(self) -> bool:
         return self.member_count() >= self.max_members
 
@@ -117,6 +131,13 @@ class RoomMember(Base):
 
     # ID последнего прочитанного сообщения (для серверного подсчёта непрочитанных)
     last_read_message_id = Column(Integer, nullable=True)
+
+    # Custom tag assigned by owner/admin (e.g. "VIP", "Developer", "Moderator")
+    tag       = Column(String(30),     nullable=True)
+    tag_color = Column(String(7),      nullable=True)   # hex color e.g. "#ff3b30"
+
+    # Granular permissions JSON: {"can_send": true, "can_pin": false, ...}
+    custom_permissions = Column(Text,  nullable=True)
 
     room = relationship("Room", back_populates="members")
     user = relationship("User", back_populates="room_memberships")

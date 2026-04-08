@@ -99,7 +99,7 @@ def _room_dict(r: Room) -> dict:
         "is_voice":            getattr(r, "is_voice", False) or False,
         "invite_code":         r.invite_code,
         "member_count":        r.member_count(),
-        "online_count":        len(manager.get_online_users(r.id)),
+        "online_count":        manager.count_online_from_set(r.member_user_ids()),
         "avatar_emoji":        r.avatar_emoji or "\U0001f4ac",
         "avatar_url":          r.avatar_url,
         "auto_delete_seconds": r.auto_delete_seconds,
@@ -164,7 +164,7 @@ def _validate_theme(body: RoomThemeBody) -> str:
     d = {}
     if body.wallpaper is not None:
         # Allow preset names or custom URLs
-        if body.wallpaper not in _VALID_WALLPAPERS and not body.wallpaper.startswith("http"):
+        if body.wallpaper not in _VALID_WALLPAPERS and not body.wallpaper.startswith("https://"):
             raise HTTPException(400, f"Недопустимый wallpaper: {body.wallpaper}")
         d["wallpaper"] = body.wallpaper
     if body.accent is not None:

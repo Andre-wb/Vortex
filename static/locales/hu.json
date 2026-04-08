@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Keresse meg ismerőseit",
+    "desc": "Ellenőrizze, kik vannak már a Vortexen. A számok hashveltek — a szerver nem látja őket.",
+    "start": "Névjegyek szinkronizálása",
+    "skip": "Kihagyás",
+    "readingContacts": "Névjegyek olvasása...",
+    "selectFile": "Válasszon fájlt (.vcf)...",
+    "hashing": "{n} szám feldolgozása...",
+    "searching": "Egyezések keresése...",
+    "resultsTitle": "Talált névjegyek",
+    "noMatches": "Még nem találtunk névjegyeket",
+    "stats": "{checked} szám ellenőrizve, {found} névjegy találva",
+    "selectedCount": "{n} kiválasztva",
+    "addAll": "Kiválasztottak hozzáadása",
+    "adding": "Hozzáadás...",
+    "done": "Névjegyek hozzáadva!",
+    "doneCount": "{n} névjegy hozzáadva",
+    "continue": "Tovább"
   }
 }

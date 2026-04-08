@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Pata anwani zako",
+    "desc": "Angalia anwani zipi ziko kwenye Vortex. Nambari zimefiwa — seva haizioni.",
+    "start": "Sawazisha anwani",
+    "skip": "Ruka",
+    "readingContacts": "Kusoma anwani...",
+    "selectFile": "Chagua faili (.vcf)...",
+    "hashing": "Kuchakata nambari {n}...",
+    "searching": "Kutafuta mechi...",
+    "resultsTitle": "Anwani zilizopatikana",
+    "noMatches": "Hakuna anwani kwenye Vortex",
+    "stats": "Nambari {checked} zimekaguliwa, anwani {found} zimepatikana",
+    "selectedCount": "{n} zimechaguliwa",
+    "addAll": "Ongeza zilizochaguliwa",
+    "adding": "Kuongeza...",
+    "done": "Anwani zimeongezwa!",
+    "doneCount": "Anwani {n} zimeongezwa",
+    "continue": "Endelea"
   }
 }

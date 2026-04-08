@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Najděte své kontakty",
+    "desc": "Zkontrolujte, kteří z vašich kontaktů jsou na Vortexu. Čísla jsou hashována — server je nevidí.",
+    "start": "Synchronizovat kontakty",
+    "skip": "Přeskočit",
+    "readingContacts": "Čtení kontaktů...",
+    "selectFile": "Vyberte soubor (.vcf)...",
+    "hashing": "Zpracování {n} čísel...",
+    "searching": "Hledání shod...",
+    "resultsTitle": "Nalezené kontakty",
+    "noMatches": "Na Vortexu nebyli nalezeni žádní kontakty",
+    "stats": "Zkontrolováno {checked} čísel, nalezeno {found} kontaktů",
+    "selectedCount": "Vybráno: {n}",
+    "addAll": "Přidat vybrané",
+    "adding": "Přidávání...",
+    "done": "Kontakty přidány!",
+    "doneCount": "Přidáno kontaktů: {n}",
+    "continue": "Pokračovat"
   }
 }

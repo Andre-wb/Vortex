@@ -35,29 +35,39 @@ class TrafficObfuscator:
     }
 
     @staticmethod
-    def pad_message(data: bytes) -> bytes:
+    def pad_message(data: bytes, target_sizes: list[int] | None = None) -> bytes:
         """
         Рандомный padding с непрерывным распределением размеров.
 
-        Вместо фиксированных бинов (256, 512, 1K) используем:
-        - Минимальный overhead: 4 байта (2B длина + 2B padding_len)
-        - Размер padding: случайный от 16 до 512 байт
-        - Итоговый размер НЕ кратен степени двойки
-
         Формат: [2B real_len][2B pad_len][real_data][random_padding]
+
+        Если target_sizes задан — размер подгоняется под один из целевых
+        (имитация типичных веб-ресурсов: 1K CSS, 5K JSON, 15K HTML, 30K JS).
         """
         real_len = len(data)
 
         if real_len > 65535:
             return data
 
-        # Случайный размер padding (16-512 байт, нормальное распределение)
-        pad_size = max(16, min(512, int(random.gauss(128, 64))))
+        if target_sizes:
+            # Выбираем ближайший целевой размер >= real_len + 4
+            candidates = [s for s in target_sizes if s >= real_len + 4]
+            if candidates:
+                target = min(candidates)
+                pad_size = max(16, target - real_len - 4)
+            else:
+                pad_size = max(16, min(512, int(random.gauss(128, 64))))
+        else:
+            # Случайный padding (16-512 байт, нормальное распределение)
+            pad_size = max(16, min(512, int(random.gauss(128, 64))))
 
         header = struct.pack(">HH", real_len, pad_size)
         padding = os.urandom(pad_size)
 
         return header + data + padding
+
+    # Типичные размеры веб-ресурсов для маскировки
+    WEB_SIZES = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
 
     @staticmethod
     def unpad_message(padded: bytes) -> bytes:

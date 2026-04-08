@@ -16,6 +16,8 @@ import {
     updateThreadBadge,
     insertUnreadDivider,
     cleanupUnreadDivider,
+    incrementLiveUnread,
+    initScrollArrow,
 } from './messages.js';
 import { showMessagesSkeleton, hideMessagesSkeleton, showConnectingSpinner } from './skeletons.js';
 import { decryptText, _saveRoomKeyToSession, _loadRoomKeyFromSession, _clearRoomKeyFromSession } from './room-crypto.js';
@@ -44,6 +46,45 @@ document.addEventListener('keyup', e => {
 let _msgQueue    = Promise.resolve();
 let _pendingHistory = null;
 
+/**
+ * Авто-pull зашифрованного ключа комнаты с сервера.
+ * Если ключ есть в БД (зашифрован ECIES для нашего X25519 pubkey),
+ * расшифровываем и сохраняем — история станет доступна без ожидания online-участника.
+ */
+async function _pullKeyFromServer(roomId) {
+    const S = window.AppState;
+    const privKey = S.x25519PrivateKey;
+    if (!privKey) return;
+    try {
+        const resp = await fetch(`/api/rooms/${roomId}/key-bundle`, {
+            credentials: 'include',
+            headers: { 'Authorization': `Bearer ${S.token || ''}` },
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.has_key && data.ephemeral_pub && data.ciphertext) {
+            const keyBytes = await eciesDecrypt(data.ephemeral_pub, data.ciphertext, privKey);
+            setRoomKey(roomId, keyBytes);
+            _saveRoomKeyToSession(roomId, keyBytes);
+            console.info('🔑 Ключ комнаты получен с сервера для room', roomId);
+            // Если история ждёт ключ — расшифровываем
+            if (_pendingHistory) {
+                const pending = _pendingHistory;
+                _pendingHistory = null;
+                resetMessageState();
+                const mc = document.getElementById('messages-container');
+                while (mc.firstChild) mc.removeChild(mc.firstChild);
+                for (const m of pending) await _decryptAndAppend(m);
+                const unread = S.currentRoom?.unread_count || 0;
+                if (unread > 0) insertUnreadDivider(unread);
+                else scrollToBottom();
+            }
+        }
+    } catch (e) {
+        console.debug('[WS] Key pull failed:', e.message);
+    }
+}
+
 export async function connectWS(roomId) {
     const S = window.AppState;
 
@@ -60,10 +101,14 @@ export async function connectWS(roomId) {
     // Закрываем панель треда при смене комнаты
     if (window.closeThread) window.closeThread();
 
+    // 1) Пробуем восстановить из sessionStorage / localStorage
     const cachedKey = _loadRoomKeyFromSession(roomId);
     if (cachedKey) {
         setRoomKey(roomId, cachedKey);
-        console.info('🔑 Ключ комнаты восстановлен из sessionStorage для room', roomId);
+        console.info('🔑 Ключ комнаты восстановлен из storage для room', roomId);
+    } else {
+        // 2) Авто-pull с сервера (зашифрованный ECIES ключ) — не блокируем подключение
+        _pullKeyFromServer(roomId).catch(() => {});
     }
 
     const proto  = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -206,6 +251,7 @@ async function handleWsMessage(msg) {
                 } else {
                     scrollToBottom();
                 }
+                initScrollArrow();
 
                 // Отправляем mark_read для непрочитанных
                 const unreadIds = msg.messages
@@ -226,7 +272,7 @@ async function handleWsMessage(msg) {
 
             // Обработка закреплённого сообщения
             if (msg.pinned_message_id) {
-                _showPinnedBar(msg.pinned_message_id);
+                _showPinnedBar(msg.pinned_message_id, msg.pinned_message_ciphertext, msg.pinned_message_sender);
             } else {
                 _hidePinnedBar();
             }
@@ -321,7 +367,15 @@ async function handleWsMessage(msg) {
                 if (existing) break; // уже отрендерено (оптимистично или ранее)
             }
             await _decryptAndAppend(msg);
-            scrollToBottom(true);
+            {
+                const _mc = document.getElementById('messages-container');
+                const _atBottom = _mc && (_mc.scrollHeight - _mc.scrollTop - _mc.clientHeight < 100);
+                if (_atBottom) {
+                    scrollToBottom(true);
+                } else {
+                    incrementLiveUnread();
+                }
+            }
             // Отправляем mark_read для входящего сообщения
             if (msg.sender_id !== S.user?.user_id && msg.msg_id && S.ws?.readyState === WebSocket.OPEN) {
                 S.ws.send(JSON.stringify({action: 'mark_read', msg_ids: [msg.msg_id]}));
@@ -331,10 +385,14 @@ async function handleWsMessage(msg) {
             break;
         }
 
-        case 'file':
+        case 'file': {
             appendFileMessage(msg);
-            scrollToBottom(true);
+            const _mc2 = document.getElementById('messages-container');
+            const _atBot2 = _mc2 && (_mc2.scrollHeight - _mc2.scrollTop - _mc2.clientHeight < 100);
+            if (_atBot2) scrollToBottom(true);
+            else incrementLiveUnread();
             break;
+        }
 
         case 'online':
             _updateOnlineList(msg.users);
@@ -489,10 +547,14 @@ async function handleWsMessage(msg) {
             }
             break;
 
-        case 'poll':
+        case 'poll': {
             appendPollMessage(msg);
-            scrollToBottom(true);
+            const _mc3 = document.getElementById('messages-container');
+            const _atBot3 = _mc3 && (_mc3.scrollHeight - _mc3.scrollTop - _mc3.clientHeight < 100);
+            if (_atBot3) scrollToBottom(true);
+            else incrementLiveUnread();
             break;
+        }
 
         case 'poll_update':
             updatePoll(msg);
@@ -528,6 +590,40 @@ async function handleWsMessage(msg) {
         case 'screenshot_taken':
             appendSystemMessage(`\u26a0\ufe0f ${msg.username} ${t('chat.screenshotTaken')}`, 'screenshot-warn');
             scrollToBottom(true);
+            break;
+
+        case 'stream_scheduled': {
+            // Show scheduled stream banner in current room
+            if (msg.room_id === S.currentRoom?.id && window.showScheduledStreamBanner) {
+                window.showScheduledStreamBanner(msg.title, msg.scheduled_at);
+            }
+            // Browser notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+                const title = msg.room_name || 'Vortex';
+                new Notification(title, {
+                    body: `📅 ${msg.title || 'Live'} — ${msg.scheduled_at?.replace('T', ' ')}`,
+                    icon: '/static/icons/icon-192x192.png',
+                });
+            }
+            break;
+        }
+
+        case 'stream_update': {
+            if (msg.action === 'started' && msg.room_id) {
+                // Browser notification for stream start
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    const sTitle = msg.stream?.title || 'Live';
+                    new Notification('🔴 ' + sTitle, {
+                        body: 'Стрим начался!',
+                        icon: '/static/icons/icon-192x192.png',
+                    });
+                }
+            }
+            break;
+        }
+
+        case 'stream_state':
+            // Global notification from server about stream state
             break;
 
         case 'pong':

@@ -1102,5 +1102,24 @@
     "amount": "Amount",
     "donateMessage": "Message",
     "sendDonate": "Send"
+  },
+  "contactSync": {
+    "title": "Znajdź swoje kontakty",
+    "desc": "Sprawdź, które z Twoich kontaktów telefonicznych są już w Vortex. Numery są hashowane — serwer ich nie widzi.",
+    "start": "Synchronizuj kontakty",
+    "skip": "Pomiń",
+    "readingContacts": "Odczytywanie kontaktów...",
+    "selectFile": "Wybierz plik kontaktów (.vcf)...",
+    "hashing": "Przetwarzanie {n} numerów...",
+    "searching": "Wyszukiwanie dopasowań...",
+    "resultsTitle": "Znalezione kontakty",
+    "noMatches": "Nie znaleziono kontaktów w Vortex",
+    "stats": "Sprawdzono {checked} numerów, znaleziono {found} kontaktów",
+    "selectedCount": "Wybrano: {n}",
+    "addAll": "Dodaj wybrane",
+    "adding": "Dodawanie...",
+    "done": "Kontakty dodane!",
+    "doneCount": "Dodano kontaktów: {n}",
+    "continue": "Dalej"
   }
 }

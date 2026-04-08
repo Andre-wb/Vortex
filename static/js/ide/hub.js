@@ -7,9 +7,13 @@ function ideRenderHub() {
     IDE.projects.forEach((p, idx) => {
         const card = document.createElement('div');
         card.className = 'ide-project-card';
+        const isArx = p.lang === 'architex';
+        const logoEl = isArx
+            ? '<img src="/logo/architex.svg" width="24" height="24" alt="Architex" style="opacity:.9">'
+            : '<img src="/logo/gravitix.svg" width="24" height="24" alt="Gravitix" style="opacity:.9">';
         card.innerHTML = `
             <div class="ide-project-card-icon">
-                <svg width="24" height="24" fill="#7c3aed" viewBox="0 0 24 24"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+                ${logoEl}
             </div>
             <div class="ide-project-card-info">
                 <div class="ide-project-card-name">${_esc(p.name)}</div>
@@ -275,18 +279,54 @@ function ideCreateProject() {
     const token    = document.getElementById('ide-create-token').value.trim();
     const username = document.getElementById('ide-create-username').value.trim().replace('@','');
     const tutorial = document.getElementById('ide-create-tutorial').checked;
+    const langSel  = document.querySelector('input[name="ide-create-lang"]:checked');
+    const lang     = langSel ? langSel.value : 'gravitix';
+    const ext      = lang === 'architex' ? '.arx' : '.grav';
 
     if (!name) { document.getElementById('ide-create-name').focus(); return; }
 
     const files = {};
     if (tutorial) {
-        files['tutorial.grav'] = TUTORIAL_CODE;
-        files['main.grav']     = STARTER_CODE(name);
+        const tutCode = lang === 'architex' ? TUTORIAL_CODE_ARX : TUTORIAL_CODE;
+        files['tutorial' + ext] = tutCode;
+        files['main' + ext]     = STARTER_CODE(name, lang);
     } else {
-        files['main.grav'] = STARTER_CODE(name);
+        files['main' + ext] = STARTER_CODE(name, lang);
     }
 
-    const project = { id: Date.now(), name, token, username, created: Date.now(), files, folders: [] };
+    // For Architex projects, also add a Gravitix bridge file
+    if (lang === 'architex') {
+        files['bot.grav'] = `// ${name} — Gravitix Bot Bridge
+// Handles messages from Architex UI via send()
+
+on msg {
+    match ctx.action {
+        "counter"  => emit "Counter value: {ctx.value}",
+        "from_ui"  => emit "Got from UI: {ctx.name} (count={ctx.count})",
+        _          => {}
+    }
+}
+`;
+    }
+    // For Gravitix projects, add an Architex UI file
+    if (lang === 'gravitix') {
+        files['ui.arx'] = `// ${name} — Architex Mini App UI
+// Companion UI for the Gravitix bot
+
+@screen Main
+
+  ~status = "Ready"
+
+  col :: pad(24) gap(16) center
+    header "${name}" :: bold size(22) color(#4f8ef7)
+    text ~status :: size(16) color(#666)
+
+    button "Ping Bot" :: pad(12) radius(12) bg(#4f8ef7) color(#fff)
+      => send(action: "ping")
+`;
+    }
+
+    const project = { id: Date.now(), name, token, username, lang, created: Date.now(), files, folders: [] };
     IDE.projects.unshift(project);
     ideSave();
     ideHideCreateModal();
@@ -328,7 +368,8 @@ function ideGoHub() {
     ideUpdateTokenBtn();
     document.getElementById('ide-editor').style.display = 'none';
     document.getElementById('ide-hub').style.display    = 'flex';
-    // Hide simulator if open
+    // Hide simulator and preview if open
     if (IDE.simVisible) ideToggleSim();
+    if (IDE.previewVisible) ideHidePreview();
     ideRenderHub();
 }

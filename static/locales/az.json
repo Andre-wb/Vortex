@@ -1102,5 +1102,24 @@
     "lowerHand": "Lower Hand",
     "screenShare": "Screen Share",
     "stopScreenShare": "Stop Sharing"
+  },
+  "contactSync": {
+    "title": "Kontaktlarınızı tapın",
+    "desc": "Vortex-də kimin olduğunu yoxlayın. Nömrələr heşlənir — server görmür.",
+    "start": "Sinxronlaşdır",
+    "skip": "Keç",
+    "readingContacts": "Oxunur...",
+    "selectFile": "Fayl seçin (.vcf)...",
+    "hashing": "{n} nömrə emal edilir...",
+    "searching": "Axtarılır...",
+    "resultsTitle": "Tapılmış kontaktlar",
+    "noMatches": "Kontakt tapılmadı",
+    "stats": "{checked} yoxlanıldı, {found} tapıldı",
+    "selectedCount": "{n} seçilib",
+    "addAll": "Seçilmişləri əlavə et",
+    "adding": "Əlavə edilir...",
+    "done": "Kontaktlar əlavə edildi!",
+    "doneCount": "{n} kontakt əlavə edildi",
+    "continue": "Davam et"
   }
 }

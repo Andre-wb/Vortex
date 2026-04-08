@@ -87,10 +87,15 @@ async def ws_signal(
             msg["avatar_emoji"] = user.avatar_emoji or "\U0001f464"
             msg["avatar_url"]   = user.avatar_url
 
+            # Padding для anti-DPI (размер фрейма рандомизирован)
+            import secrets as _sec
+            msg["_p"] = _sec.token_urlsafe(32 + _sec.randbelow(225))
+
             target_uid = msg.get("to")
+            padded = _json.dumps(msg)
             if target_uid and target_uid in _signal_rooms.get(room_id, {}):
                 try:
-                    await _signal_rooms[room_id][target_uid].send_text(_json.dumps(msg))
+                    await _signal_rooms[room_id][target_uid].send_text(padded)
                 except Exception as e:
                     logger.debug("Signal: dead WS target=%s room=%s: %s", target_uid, room_id, e)
                     _signal_rooms[room_id].pop(target_uid, None)
@@ -98,7 +103,7 @@ async def ws_signal(
                 for uid, ws in list(_signal_rooms.get(room_id, {}).items()):
                     if uid != user.id:
                         try:
-                            await ws.send_text(_json.dumps(msg))
+                            await ws.send_text(padded)
                         except Exception as e:
                             logger.debug("Signal broadcast: dead WS user=%s room=%s: %s", uid, room_id, e)
                             _signal_rooms[room_id].pop(uid, None)

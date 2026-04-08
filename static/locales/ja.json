@@ -1102,5 +1102,24 @@
     "amount": "Amount",
     "donateMessage": "Message",
     "sendDonate": "Send"
+  },
+  "contactSync": {
+    "title": "連絡先を見つける",
+    "desc": "電話帳の連絡先がVortexに登録済みか確認します。番号はハッシュ化されサーバーは見ません。",
+    "start": "連絡先を同期",
+    "skip": "スキップ",
+    "readingContacts": "連絡先を読み込み中...",
+    "selectFile": "連絡先ファイルを選択 (.vcf)...",
+    "hashing": "{n}件の番号を処理中...",
+    "searching": "マッチを検索中...",
+    "resultsTitle": "見つかった連絡先",
+    "noMatches": "Vortexにはまだ連絡先が見つかりません",
+    "stats": "{checked}件確認、{found}件検出",
+    "selectedCount": "{n}件選択中",
+    "addAll": "選択を追加",
+    "adding": "追加中...",
+    "done": "連絡先を追加しました！",
+    "doneCount": "{n}件の連絡先を追加",
+    "continue": "続ける"
   }
 }

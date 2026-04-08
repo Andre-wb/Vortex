@@ -7,7 +7,7 @@ app/models_rooms — Модели комнат, сообщений, файлов
 from app.models_rooms.enums import RoomRole, MessageType
 from app.models_rooms.spaces import Space, SpaceMember, SpaceCategory
 from app.models_rooms.rooms import Room, RoomMember
-from app.models_rooms.encryption import EncryptedRoomKey, PendingKeyRequest
+from app.models_rooms.encryption import EncryptedRoomKey, PendingKeyRequest, PendingNotification
 from app.models_rooms.messages import Message, FileTransfer, MessageReaction, MessageEditHistory
 from app.models_rooms.collections import RoomTask, SavedMessage
 from app.models_rooms.stickers import StickerPack, Sticker, UserFavoritePack
@@ -29,7 +29,7 @@ __all__ = [
     # rooms
     "Room", "RoomMember",
     # encryption
-    "EncryptedRoomKey", "PendingKeyRequest",
+    "EncryptedRoomKey", "PendingKeyRequest", "PendingNotification",
     # messages
     "Message", "FileTransfer", "MessageReaction", "MessageEditHistory",
     # collections

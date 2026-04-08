@@ -1102,5 +1102,24 @@
     "amount": "Amount",
     "donateMessage": "Message",
     "sendDonate": "Send"
+  },
+  "contactSync": {
+    "title": "Kişilerinizi bulun",
+    "desc": "Telefon rehberinizdeki kişilerin hangilerinin Vortex'te olduğunu kontrol edin. Numaralar hashlenir — sunucu onları asla görmez.",
+    "start": "Kişileri senkronize et",
+    "skip": "Atla",
+    "readingContacts": "Kişiler okunuyor...",
+    "selectFile": "Kişi dosyası seçin (.vcf)...",
+    "hashing": "{n} numara işleniyor...",
+    "searching": "Eşleşmeler aranıyor...",
+    "resultsTitle": "Bulunan kişiler",
+    "noMatches": "Henüz Vortex'te kişi bulunamadı",
+    "stats": "{checked} numara kontrol edildi, {found} kişi bulundu",
+    "selectedCount": "{n} seçili",
+    "addAll": "Seçilenleri ekle",
+    "adding": "Ekleniyor...",
+    "done": "Kişiler eklendi!",
+    "doneCount": "{n} kişi eklendi",
+    "continue": "Devam"
   }
 }

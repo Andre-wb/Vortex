@@ -1,8 +1,11 @@
 // =========================================================================
-// Unread divider & jump-to-unread button
+// Unread divider, jump-to-unread button, scroll-to-bottom arrow
 // =========================================================================
+import { t } from '../../i18n.js';
 
 let _unreadObserver = null;
+let _scrollArrowObserver = null;
+let _liveUnreadCount = 0;
 
 /**
  * Inserts the unread divider before the first unread message and shows the
@@ -13,6 +16,8 @@ let _unreadObserver = null;
 export function insertUnreadDivider(unreadCount) {
     cleanupUnreadDivider();
     if (!unreadCount || unreadCount <= 0) return;
+
+    _liveUnreadCount = unreadCount;
 
     const container = document.getElementById('messages-container');
     if (!container) return;
@@ -29,7 +34,14 @@ export function insertUnreadDivider(unreadCount) {
     const divider = document.createElement('div');
     divider.className = 'unread-divider';
     divider.id = 'unread-divider';
-    divider.innerHTML = `<span>${unreadCount} ${unreadCount === 1 ? 'новое сообщение' : unreadCount < 5 ? 'новых сообщения' : 'новых сообщений'}</span>`;
+    const label = unreadCount === 1
+        ? (t('chat.newMessage1') || '1 новое сообщение')
+        : unreadCount < 5
+            ? `${unreadCount} ${t('chat.newMessages2_4') || 'новых сообщения'}`
+            : `${unreadCount} ${t('chat.newMessages5') || 'новых сообщений'}`;
+    const span = document.createElement('span');
+    span.textContent = label;
+    divider.appendChild(span);
 
     if (refNode) {
         container.insertBefore(divider, refNode);
@@ -37,36 +49,28 @@ export function insertUnreadDivider(unreadCount) {
         container.appendChild(divider);
     }
 
-    // Build jump button
-    const btn = document.createElement('button');
-    btn.id = 'jump-unread-btn';
-    btn.className = 'jump-unread-btn';
-    btn.innerHTML = `↓ ${unreadCount} новых`;
-    btn.setAttribute('onclick', 'jumpToUnread()');
-
-    // Insert into the chat-screen (parent of messages-container)
-    const chatScreen = document.getElementById('chat-screen');
-    if (chatScreen) chatScreen.appendChild(btn);
-
-    // IntersectionObserver: hide button when divider is visible
+    // IntersectionObserver: when divider visible, reset live counter
     _unreadObserver = new IntersectionObserver(entries => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                _hideJumpButton();
+                _liveUnreadCount = 0;
+                _updateScrollArrow();
             }
         });
     }, { root: container, threshold: 0.1 });
 
     _unreadObserver.observe(divider);
+
+    // Show scroll arrow with counter
+    _updateScrollArrow();
 }
 
-function _hideJumpButton() {
-    const btn = document.getElementById('jump-unread-btn');
-    if (btn) btn.remove();
-    if (_unreadObserver) {
-        _unreadObserver.disconnect();
-        _unreadObserver = null;
-    }
+/**
+ * Called when a new message arrives while the user is scrolled up.
+ */
+export function incrementLiveUnread() {
+    _liveUnreadCount++;
+    _updateScrollArrow();
 }
 
 /**
@@ -75,19 +79,105 @@ function _hideJumpButton() {
 export function cleanupUnreadDivider() {
     const divider = document.getElementById('unread-divider');
     if (divider) divider.remove();
-    _hideJumpButton();
+    if (_unreadObserver) {
+        _unreadObserver.disconnect();
+        _unreadObserver = null;
+    }
+    _liveUnreadCount = 0;
+    _removeScrollArrow();
 }
 
 /**
- * Scrolls to the unread divider smoothly and hides the jump button.
- * Exposed as window.jumpToUnread for inline onclick.
+ * Scrolls to the unread divider smoothly.
  */
 export function jumpToUnread() {
     const divider = document.getElementById('unread-divider');
     if (divider) {
         divider.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    _hideJumpButton();
+    _liveUnreadCount = 0;
+    _updateScrollArrow();
+}
+
+// ── Scroll-to-bottom arrow with unread counter ──────────────────────────────
+
+function _updateScrollArrow() {
+    let arrow = document.getElementById('scroll-bottom-arrow');
+    const chatScreen = document.getElementById('chat-screen');
+    if (!chatScreen) return;
+
+    if (!arrow) {
+        arrow = document.createElement('div');
+        arrow.id = 'scroll-bottom-arrow';
+        arrow.className = 'scroll-bottom-arrow';
+        arrow.addEventListener('click', () => {
+            const container = document.getElementById('messages-container');
+            if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+            _liveUnreadCount = 0;
+            _updateScrollArrow();
+        });
+
+        // Arrow icon (chevron down)
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('width', '20');
+        svg.setAttribute('height', '20');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'currentColor');
+        const path = document.createElementNS(svgNS, 'path');
+        path.setAttribute('d', 'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z');
+        svg.appendChild(path);
+        arrow.appendChild(svg);
+
+        // Badge
+        const badge = document.createElement('div');
+        badge.className = 'scroll-bottom-badge';
+        badge.id = 'scroll-bottom-badge';
+        arrow.appendChild(badge);
+
+        chatScreen.appendChild(arrow);
+    }
+
+    const badge = document.getElementById('scroll-bottom-badge');
+    if (_liveUnreadCount > 0) {
+        arrow.classList.add('show');
+        if (badge) {
+            badge.textContent = _liveUnreadCount > 99 ? '99+' : String(_liveUnreadCount);
+            badge.style.display = '';
+        }
+    } else {
+        // Still show arrow if scrolled up
+        const container = document.getElementById('messages-container');
+        if (container) {
+            const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+            if (isAtBottom) {
+                arrow.classList.remove('show');
+            } else {
+                arrow.classList.add('show');
+            }
+        }
+        if (badge) badge.style.display = 'none';
+    }
+}
+
+function _removeScrollArrow() {
+    const arrow = document.getElementById('scroll-bottom-arrow');
+    if (arrow) arrow.remove();
+}
+
+/**
+ * Set up scroll listener on messages container to show/hide arrow.
+ */
+export function initScrollArrow() {
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+    container.addEventListener('scroll', () => {
+        const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        if (isAtBottom) {
+            _liveUnreadCount = 0;
+        }
+        _updateScrollArrow();
+    });
 }
 
 // Expose globally for inline onclick handlers

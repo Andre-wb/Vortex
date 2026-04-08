@@ -241,6 +241,9 @@ def init_db() -> None:
             "ALTER TABLE rooms ADD COLUMN silent_default BOOLEAN DEFAULT 0",
             "ALTER TABLE rooms ADD COLUMN join_approval BOOLEAN DEFAULT 0",
             "ALTER TABLE rooms ADD COLUMN hashtags_enabled BOOLEAN DEFAULT 1",
+            "ALTER TABLE room_members ADD COLUMN tag VARCHAR(30)",
+            "ALTER TABLE room_members ADD COLUMN tag_color VARCHAR(7)",
+            "ALTER TABLE room_members ADD COLUMN custom_permissions TEXT",
         ]
         with engine.connect() as conn:
             try:

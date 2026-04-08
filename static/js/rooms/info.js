@@ -86,6 +86,7 @@ export async function openRoomInfo() {
     const _meta = $('room-info-meta'); if (_meta) _meta.textContent = `${room.member_count} ${t('rooms.members')} \u00b7 ${room.online_count} ${t('rooms.online')} \u00b7 ${createdDate}`;
 
     // Invite code + channel-specific UI adjustments
+    console.log('[RoomInfo] room.is_channel =', room.is_channel, '| room.name =', room.name, '| isAdmin =', isAdmin, '| my_role =', room.my_role);
     const _invite = $('room-info-invite'); if (_invite) _invite.textContent = room.invite_code || '';
     const _inviteSection = $('rss-invite-section');
     const _membersBtn = $('rss-members-btn');
@@ -96,15 +97,28 @@ export async function openRoomInfo() {
         if (_membersBtn) _membersBtn.textContent = t('channel.subscribers') || 'Подписчики';
         if (_leaveBtn) _leaveBtn.textContent = t('channel.unsubscribe') || 'Отписаться';
         const topTitle = $('rss-topbar-title');
-        if (topTitle) topTitle.textContent = t('channel.settings') || 'Настройки канала';
+        if (topTitle) topTitle.textContent = isAdmin
+            ? (t('channel.settings') || 'Настройки канала')
+            : (t('channel.about') || 'О канале');
         const _metaEl = $('room-info-meta');
         if (_metaEl) _metaEl.textContent = `${room.member_count} ${t('channel.subscribers') || 'подписчиков'} · ${createdDate}`;
+
+        // Show discussion button for channels with discussion enabled
+        const _discSection = $('rss-discussion-section');
+        if (_discSection) {
+            _discSection.style.display = room.discussion_enabled ? '' : 'none';
+        }
     } else {
+        // Hide discussion button for non-channels
+        const _discSection2 = $('rss-discussion-section');
+        if (_discSection2) _discSection2.style.display = 'none';
         if (_inviteSection) _inviteSection.style.display = '';
         if (_membersBtn) _membersBtn.textContent = t('chat.members') || 'Участники';
         if (_leaveBtn) _leaveBtn.textContent = t('room.leaveShort') || 'Покинуть';
         const topTitle = $('rss-topbar-title');
-        if (topTitle) topTitle.textContent = t('room.settings') || 'Настройки комнаты';
+        if (topTitle) topTitle.textContent = room.is_channel
+            ? (t('channel.settings') || 'Настройки канала')
+            : (t('room.settings') || 'Настройки комнаты');
     }
 
     // Settings section (admin/owner only, never for DM)
@@ -778,15 +792,20 @@ export async function globalSearch(query) {
                 });
             }
 
-            // Channels
+            // Channels & public groups
             if (data.channels && data.channels.length) {
                 html += `<div class="search-section-label">${t('rooms.channels')}</div>`;
                 data.channels.forEach(ch => {
+                    const isGroup = ch.type === 'group';
+                    const icon = isGroup
+                        ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="var(--green)" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>`
+                        : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="var(--accent)" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>`;
+                    const label = isGroup ? t('rooms.members') : t('rooms.subscribers');
                     html += `<div class="search-result-item" onclick="joinAndOpenChannel('${esc(ch.invite_code)}', ${ch.id})" style="cursor:pointer;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="var(--accent)" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                        ${icon}
                         <div class="room-body">
                             <div style="font-weight:700;font-size:13px;">${esc(ch.name)}</div>
-                            <div style="font-size:11px;color:var(--text3);">${ch.subscriber_count} ${t('rooms.subscribers')}</div>
+                            <div style="font-size:11px;color:var(--text3);">${ch.subscriber_count} ${label}</div>
                         </div>
                     </div>`;
                 });

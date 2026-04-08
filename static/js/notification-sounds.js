@@ -28,12 +28,13 @@ function _getAudioCtx() {
 }
 
 // ── Message sound ────────────────────────────────────────────────────────────
-// Short 440 Hz sine beep, 150 ms, volume 0.3
+// WAV file playback, debounced to 1 second
 
 let _lastMessageSound = 0;
+let _msgAudio = null;
 
 /**
- * Play a subtle notification beep for a new message.
+ * Play notification sound for a new message (WAV file).
  * Debounced to 1 second so rapid messages don't overlap.
  */
 export function playMessageSound() {
@@ -43,19 +44,12 @@ export function playMessageSound() {
     _lastMessageSound = now;
 
     try {
-        const ctx = _getAudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(440, ctx.currentTime);
-
-        gain.gain.setValueAtTime(0.3, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.15);
+        if (!_msgAudio) {
+            _msgAudio = new Audio('/static/sounds/COMCell_Message 1 (ID 1111)_BigSoundBank.com.wav');
+            _msgAudio.volume = 0.4;
+        }
+        _msgAudio.currentTime = 0;
+        _msgAudio.play().catch(() => {});
     } catch (e) {
         console.warn('playMessageSound error:', e.message);
     }
