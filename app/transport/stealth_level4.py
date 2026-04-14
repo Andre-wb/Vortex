@@ -43,6 +43,11 @@ import struct
 import time
 from typing import Optional, Callable, Awaitable
 
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.backends import default_backend
+
 logger = logging.getLogger(__name__)
 
 
@@ -178,17 +183,21 @@ class VMessProtocol:
             self._uuid + b"c48619fe-8f02-49e0-b9e9-edf763e17e21"
         ).digest()
 
-        # Simple XOR encryption (production would use AES-CFB)
-        encrypted_header = bytes(
-            b ^ cmd_key[i % 16] for i, b in enumerate(header)
-        )
+        # Encrypt header with AES-128-CFB
+        header_iv = hashlib.md5(
+            self._uuid + b"c48619fe-8f02-49e0-b9e9-edf763e17e21" + self._uuid
+        ).digest()
+        cipher = Cipher(algorithms.AES(cmd_key), modes.CFB(header_iv), backend=default_backend())
+        encryptor = cipher.encryptor()
+        encrypted_header = encryptor.update(header) + encryptor.finalize()
 
-        # Encrypt payload with body_key/body_iv
-        # Simple XOR (production: AES-128-GCM)
-        key_stream = hashlib.sha256(self._request_body_key + self._request_body_iv).digest()
-        encrypted_payload = bytes(
-            b ^ key_stream[i % 32] for i, b in enumerate(data)
-        )
+        # Encrypt payload with AES-128-GCM using body_key/body_iv
+        nonce = self._request_body_iv[:12]  # GCM uses 12-byte nonce
+        cipher = Cipher(algorithms.AES(self._request_body_key), modes.GCM(nonce), backend=default_backend())
+        encryptor = cipher.encryptor()
+        ciphertext = encryptor.update(data) + encryptor.finalize()
+        tag = encryptor.tag  # 16-byte authentication tag
+        encrypted_payload = ciphertext + tag
 
         # Length prefix for payload
         payload_frame = struct.pack(">H", len(encrypted_payload)) + encrypted_payload
@@ -220,17 +229,23 @@ class VMessProtocol:
             self._uuid + b"c48619fe-8f02-49e0-b9e9-edf763e17e21"
         ).digest()
 
+        # Decrypt header with AES-128-CFB
+        header_iv = hashlib.md5(
+            self._uuid + b"c48619fe-8f02-49e0-b9e9-edf763e17e21" + self._uuid
+        ).digest()
+
         rest = packet[16:]
-        decrypted_header = bytes(
-            b ^ cmd_key[i % 16] for i, b in enumerate(rest[:64])
-        )
+        header_encrypted = rest[:64]
+        cipher = Cipher(algorithms.AES(cmd_key), modes.CFB(header_iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        decrypted_header = decryptor.update(header_encrypted) + decryptor.finalize()
 
         # Extract body key/iv from header
         body_iv = decrypted_header[1:17]
         body_key = decrypted_header[17:33]
 
         # Find payload (after header)
-        # Header size varies — use FNV hash to find boundary
+        # Header size varies -- use FNV hash to find boundary
         # Simplified: skip header, read length-prefixed payload
         payload_start = 16 + 64  # Approximate
         if payload_start + 2 > len(packet):
@@ -239,8 +254,15 @@ class VMessProtocol:
         payload_len = struct.unpack(">H", packet[payload_start:payload_start + 2])[0]
         encrypted_payload = packet[payload_start + 2:payload_start + 2 + payload_len]
 
-        key_stream = hashlib.sha256(body_key + body_iv).digest()
-        return bytes(b ^ key_stream[i % 32] for i, b in enumerate(encrypted_payload))
+        # Decrypt payload with AES-128-GCM
+        if len(encrypted_payload) < 16:
+            return None
+        tag = encrypted_payload[-16:]
+        ciphertext = encrypted_payload[:-16]
+        nonce = body_iv[:12]  # GCM uses 12-byte nonce
+        cipher = Cipher(algorithms.AES(body_key), modes.GCM(nonce, tag), backend=default_backend())
+        decryptor = cipher.decryptor()
+        return decryptor.update(ciphertext) + decryptor.finalize()
 
     @staticmethod
     def _fnv1a_32(data: bytes) -> int:
@@ -444,19 +466,17 @@ class RealityProtocol:
     # Short ID для идентификации клиента (8 hex chars)
     SHORT_ID_LEN = 8
 
-    def __init__(self, private_key: bytes = b"", dest: str = "www.google.com"):
+    def __init__(self, private_key: Optional[X25519PrivateKey] = None, dest: str = "www.google.com"):
         """
         private_key: X25519 private key для REALITY handshake.
         dest: сервер-донор сертификата.
         """
         self._dest = dest
         self._short_ids: set[str] = set()
-        self._private_key = private_key or os.urandom(32)
-        self._public_key = self._derive_public_key(self._private_key)
-
-    def _derive_public_key(self, private: bytes) -> bytes:
-        """Derive X25519 public key (simplified)."""
-        return hashlib.sha256(b"reality-pubkey:" + private).digest()
+        self._private_key = private_key or X25519PrivateKey.generate()
+        self._public_key = self._private_key.public_key().public_bytes(
+            Encoding.Raw, PublicFormat.Raw
+        )
 
     def add_short_id(self, short_id: str):
         """Добавляет разрешённый short_id клиента."""
@@ -731,16 +751,21 @@ class NaiveProxyConfig:
 }}
 """
 
-    def __init__(self, port: int = 443, backend_url: str = ""):
+    def __init__(self, port: int = 443, backend_url: str = "",
+                 server_host: str = "", username: str = "vortex",
+                 password: str = ""):
         self.port = port
         self.backend_url = backend_url
+        self._server_host = server_host
+        self._username = username
+        self._password = password or secrets.token_urlsafe(24)
 
     def generate_caddy_config(self, username: str = "vortex",
                                 password: str = "",
                                 email: str = "admin@example.com",
                                 probe_domain: str = "unsplash.com") -> str:
         """Генерирует Caddyfile для NaïveProxy."""
-        pwd = password or secrets.token_urlsafe(24)
+        pwd = password or self._password
         return self.CADDY_CONFIG_TEMPLATE.format(
             port=self.port,
             email=email,
@@ -761,10 +786,68 @@ class NaiveProxyConfig:
             "padding": True,
         }
 
+    async def check_available(self, server_host: str = "", timeout: float = 5.0) -> bool:
+        """
+        Проверяет доступность NaiveProxy (Caddy forward_proxy).
+        Отправляет HTTP CONNECT probe — ожидает 407 (Proxy Auth Required)
+        или 200 при правильных credentials.
+        """
+        host = server_host or self._server_host
+        if not host:
+            return False
+        try:
+            import httpx
+            # Caddy с forward_proxy при probe_resistance возвращает фейковую страницу
+            # для неавторизованных запросов. Авторизованный CONNECT вернёт 200.
+            proxy_url = f"https://{self._username}:{self._password}@{host}:{self.port}"
+            async with httpx.AsyncClient(
+                proxy=proxy_url,
+                timeout=timeout,
+                verify=False,
+            ) as client:
+                resp = await client.get("https://www.google.com/generate_204")
+                return resp.status_code in (200, 204)
+        except Exception as e:
+            logger.debug("NaiveProxy availability check failed: %s", e)
+            return False
+
+    async def forward_via_proxy(self, target_url: str, data: bytes,
+                                  method: str = "POST",
+                                  server_host: str = "") -> Optional[bytes]:
+        """
+        Пересылает запрос через NaiveProxy (HTTP CONNECT proxy).
+        Использует Caddy forward_proxy как HTTPS прокси.
+        """
+        host = server_host or self._server_host
+        if not host:
+            logger.error("NaiveProxy: server_host not configured")
+            return None
+
+        proxy_url = f"https://{self._username}:{self._password}@{host}:{self.port}"
+        try:
+            import httpx
+            async with httpx.AsyncClient(
+                proxy=proxy_url,
+                timeout=15.0,
+                verify=False,
+            ) as client:
+                if method.upper() == "POST":
+                    resp = await client.post(target_url, content=data)
+                else:
+                    resp = await client.get(target_url)
+                if resp.status_code == 200:
+                    return resp.content
+                logger.debug("NaiveProxy forward: status %d", resp.status_code)
+                return None
+        except Exception as e:
+            logger.debug("NaiveProxy forward error: %s", e)
+            return None
+
     def get_status(self) -> dict:
         return {
             "protocol": "naiveproxy",
             "port": self.port,
+            "server_host": self._server_host or "not_configured",
             "fingerprint": "chrome_identical",
         }
 
@@ -775,12 +858,14 @@ class NaiveProxyConfig:
 
 class TorHiddenService:
     """
-    Конфигурация Tor Hidden Service (.onion) для Vortex.
+    Управление Tor Hidden Service (.onion) для Vortex.
 
     Если IP заблокирован — .onion адрес работает через Tor.
     Сервер доступен даже без знания его IP.
 
     Требует установленный Tor на сервере.
+    Класс управляет жизненным циклом процесса Tor:
+    запуск, остановка, перезапуск, ожидание готовности .onion адреса.
     """
 
     TORRC_TEMPLATE = """\
@@ -798,12 +883,20 @@ HiddenServiceMaxStreamsCloseCircuit 1
 SocksPort 0
 """
 
+    HS_READY_TIMEOUT = 120
+    HS_POLL_INTERVAL = 2.0
+
     def __init__(self, http_port: int = 8000, https_port: int = 8443,
-                 hidden_service_dir: str = "/var/lib/tor/vortex"):
+                 hidden_service_dir: str = "/var/lib/tor/vortex",
+                 tor_binary: str = "tor",
+                 torrc_path: str = "/etc/tor/vortex-torrc"):
         self.http_port = http_port
         self.https_port = https_port
         self.hidden_service_dir = hidden_service_dir
+        self._tor_binary = tor_binary
+        self._torrc_path = torrc_path
         self._onion_address: Optional[str] = None
+        self._process: Optional[asyncio.subprocess.Process] = None
 
     def generate_torrc(self) -> str:
         """Генерирует torrc конфигурацию."""
@@ -812,6 +905,98 @@ SocksPort 0
             http_port=self.http_port,
             https_port=self.https_port,
         )
+
+    def _write_torrc(self) -> str:
+        """Записывает torrc на диск, возвращает путь к файлу."""
+        config = self.generate_torrc()
+        os.makedirs(os.path.dirname(self._torrc_path), exist_ok=True)
+        with open(self._torrc_path, "w") as f:
+            f.write(config)
+        logger.info("Tor: wrote torrc to %s", self._torrc_path)
+        return self._torrc_path
+
+    async def start(self) -> Optional[str]:
+        """
+        Запускает процесс Tor с конфигурацией hidden service.
+        Ожидает появления hostname файла с .onion адресом.
+        Возвращает .onion адрес или None при ошибке.
+        """
+        if self.is_running():
+            logger.warning("Tor: already running (pid=%s)", self._process.pid)
+            return self._onion_address
+
+        torrc_path = self._write_torrc()
+
+        try:
+            self._process = await asyncio.create_subprocess_exec(
+                self._tor_binary, "-f", torrc_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            logger.info("Tor: started process (pid=%s)", self._process.pid)
+        except FileNotFoundError:
+            logger.error("Tor: binary '%s' not found — is Tor installed?", self._tor_binary)
+            return None
+        except Exception as e:
+            logger.error("Tor: failed to start process: %s", e)
+            return None
+
+        onion = await self._wait_for_hostname()
+        if onion:
+            logger.info("Tor: hidden service ready at %s", onion)
+        else:
+            logger.error("Tor: hidden service did not become ready within %ds",
+                         self.HS_READY_TIMEOUT)
+        return onion
+
+    async def _wait_for_hostname(self) -> Optional[str]:
+        """Поллит hostname файл до появления .onion адреса или таймаута."""
+        elapsed = 0.0
+        while elapsed < self.HS_READY_TIMEOUT:
+            if self._process and self._process.returncode is not None:
+                stderr_data = b""
+                if self._process.stderr:
+                    stderr_data = await self._process.stderr.read()
+                logger.error("Tor: process exited with code %d: %s",
+                             self._process.returncode,
+                             stderr_data.decode(errors="replace")[:500])
+                return None
+
+            addr = self.read_onion_address()
+            if addr:
+                return addr
+
+            await asyncio.sleep(self.HS_POLL_INTERVAL)
+            elapsed += self.HS_POLL_INTERVAL
+        return None
+
+    async def stop(self):
+        """Останавливает процесс Tor (SIGTERM, затем SIGKILL по таймауту)."""
+        if not self._process:
+            return
+        if self._process.returncode is not None:
+            logger.debug("Tor: process already exited (code=%s)", self._process.returncode)
+            self._process = None
+            return
+
+        logger.info("Tor: stopping process (pid=%s)", self._process.pid)
+        self._process.terminate()
+        try:
+            await asyncio.wait_for(self._process.wait(), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("Tor: process did not exit after SIGTERM, sending SIGKILL")
+            self._process.kill()
+            await self._process.wait()
+        self._process = None
+
+    async def restart(self) -> Optional[str]:
+        """Перезапуск Tor: stop + start."""
+        await self.stop()
+        return await self.start()
+
+    def is_running(self) -> bool:
+        """Проверяет, запущен ли процесс Tor."""
+        return self._process is not None and self._process.returncode is None
 
     def read_onion_address(self) -> Optional[str]:
         """Читает .onion адрес из файла (после запуска Tor)."""
@@ -832,6 +1017,8 @@ SocksPort 0
     def get_status(self) -> dict:
         return {
             "enabled": True,
+            "running": self.is_running(),
+            "pid": self._process.pid if self.is_running() else None,
             "onion_address": self.onion_address or "not_started",
             "http_port": self.http_port,
             "https_port": self.https_port,
@@ -1315,6 +1502,351 @@ async function hmacSign(secret, message) {{
         return {
             "enabled": bool(self.worker_url),
             "worker_url": self.worker_url[:30] + "..." if self.worker_url else None,
+        }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 10b. AWS LAMBDA@EDGE RELAY (Store-and-Forward via CloudFront)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class AWSLambdaRelay:
+    """
+    AWS Lambda@Edge + CloudFront store-and-forward relay.
+
+    Архитектура:
+    - Lambda@Edge обрабатывает запросы на уровне CloudFront CDN
+    - DynamoDB (или S3) хранит сообщения с TTL
+    - Авторизация через CloudFront signed URLs (RSA-SHA1)
+
+    Преимущества:
+    - CloudFront — глобальная CDN, блокировка = блокировка AWS
+    - Lambda@Edge работает на edge-локациях (низкая задержка)
+    - Signed URLs не позволяют неавторизованным читать/писать
+    """
+
+    LAMBDA_TEMPLATE = """\
+// AWS Lambda@Edge — Vortex Store-and-Forward
+// Trigger: CloudFront viewer-request
+// DynamoDB table: VortexMessages (partition key: recipient, sort key: msg_id)
+
+const AWS = require('aws-sdk');
+const crypto = require('crypto');
+
+const AUTH_SECRET = "{secret}";
+const TABLE_NAME = "VortexMessages";
+const MSG_TTL_SECONDS = 3600;
+
+const dynamo = new AWS.DynamoDB.DocumentClient({{ region: "{region}" }});
+
+exports.handler = async (event) => {{
+    const request = event.Records[0].cf.request;
+    const uri = request.uri;
+    const method = request.method;
+
+    // Verify signed URL
+    const qs = request.querystring || "";
+    if (!verifySignature(uri, qs)) {{
+        return {{ status: "403", body: "Forbidden" }};
+    }}
+
+    // POST /relay/send — store message in DynamoDB
+    if (uri === "/relay/send" && method === "POST") {{
+        const body = JSON.parse(Buffer.from(request.body.data, "base64").toString());
+        const item = {{
+            recipient: body.to,
+            msg_id: `${{Date.now()}}:${{crypto.randomUUID()}}`,
+            data: JSON.stringify(body.data),
+            ttl: Math.floor(Date.now() / 1000) + MSG_TTL_SECONDS,
+        }};
+        await dynamo.put({{ TableName: TABLE_NAME, Item: item }}).promise();
+        return {{
+            status: "200",
+            body: JSON.stringify({{ ok: true, id: item.msg_id }}),
+            headers: {{ "content-type": [{{ value: "application/json" }}] }},
+        }};
+    }}
+
+    // GET /relay/recv?user=xxx — fetch and delete messages
+    if (uri === "/relay/recv" && method === "GET") {{
+        const params = new URLSearchParams(qs);
+        const user = params.get("user") || "";
+        const result = await dynamo.query({{
+            TableName: TABLE_NAME,
+            KeyConditionExpression: "recipient = :r",
+            ExpressionAttributeValues: {{ ":r": user }},
+        }}).promise();
+
+        const messages = [];
+        for (const item of (result.Items || [])) {{
+            messages.push(JSON.parse(item.data));
+            await dynamo.delete({{
+                TableName: TABLE_NAME,
+                Key: {{ recipient: item.recipient, msg_id: item.msg_id }},
+            }}).promise();
+        }}
+        return {{
+            status: "200",
+            body: JSON.stringify({{ messages }}),
+            headers: {{ "content-type": [{{ value: "application/json" }}] }},
+        }};
+    }}
+
+    return request;
+}};
+
+function verifySignature(uri, qs) {{
+    const params = new URLSearchParams(qs);
+    const sig = params.get("X-VX-Sig") || "";
+    const ts = params.get("X-VX-Ts") || "";
+    const expected = crypto.createHmac("sha256", AUTH_SECRET)
+        .update(uri + ts).digest("hex");
+    return crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
+}}
+"""
+
+    # Signed URL validity window (seconds)
+    SIGNED_URL_TTL = 300
+
+    def __init__(self, cloudfront_domain: str = "", secret: str = "",
+                 region: str = "us-east-1"):
+        self.cloudfront_domain = cloudfront_domain or os.environ.get(
+            "AWS_CLOUDFRONT_DOMAIN", "")
+        self._secret = secret or os.environ.get("AWS_RELAY_SECRET", "vortex-aws")
+        self._region = region
+
+    def generate_lambda_script(self) -> str:
+        """Генерирует Lambda@Edge скрипт для деплоя."""
+        return self.LAMBDA_TEMPLATE.format(
+            secret=self._secret,
+            region=self._region,
+        )
+
+    def _sign_url(self, path: str) -> str:
+        """Генерирует signed URL с HMAC подписью и таймстемпом."""
+        ts = str(int(time.time()))
+        sig = hmac.new(
+            self._secret.encode(), (path + ts).encode(), hashlib.sha256
+        ).hexdigest()
+        sep = "&" if "?" in path else "?"
+        return f"https://{self.cloudfront_domain}{path}{sep}X-VX-Sig={sig}&X-VX-Ts={ts}"
+
+    async def send_message(self, to_user: str, data: dict) -> bool:
+        """Отправляет сообщение через Lambda@Edge relay."""
+        if not self.cloudfront_domain:
+            return False
+        url = self._sign_url("/relay/send")
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10.0) as c:
+                resp = await c.post(url, json={"to": to_user, "data": data})
+                return resp.status_code == 200
+        except Exception as e:
+            logger.debug("AWS Lambda relay send error: %s", e)
+            return False
+
+    async def recv_messages(self, user_id: str) -> list[dict]:
+        """Получает сообщения из Lambda@Edge relay."""
+        if not self.cloudfront_domain:
+            return []
+        url = self._sign_url(f"/relay/recv?user={user_id}")
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10.0) as c:
+                resp = await c.get(url)
+                if resp.status_code == 200:
+                    return resp.json().get("messages", [])
+        except Exception as e:
+            logger.debug("AWS Lambda relay recv error: %s", e)
+        return []
+
+    def get_status(self) -> dict:
+        return {
+            "enabled": bool(self.cloudfront_domain),
+            "cloudfront_domain": self.cloudfront_domain or None,
+            "region": self._region,
+        }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 10c. AZURE CDN RELAY (Azure Functions + Azure CDN + SAS tokens)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class AzureCDNRelay:
+    """
+    Azure Functions + Azure CDN store-and-forward relay.
+
+    Архитектура:
+    - Azure Functions обрабатывает запросы за Azure CDN
+    - Azure Table Storage хранит сообщения с TTL
+    - Авторизация через SAS (Shared Access Signature) tokens
+
+    Преимущества:
+    - Azure CDN — глобальная CDN Microsoft, блокировка = блокировка Azure
+    - SAS tokens — временные, одноразовые, не раскрывают ключ
+    - Azure Functions — serverless, масштабируется автоматически
+    """
+
+    FUNCTION_TEMPLATE = """\
+// Azure Function — Vortex Store-and-Forward
+// Trigger: HTTP (behind Azure CDN)
+// Storage: Azure Table Storage (table: VortexMessages)
+
+const {{ TableClient, AzureNamedKeyCredential }} = require("@azure/data-tables");
+const crypto = require("crypto");
+
+const AUTH_SECRET = "{secret}";
+const TABLE_NAME = "VortexMessages";
+const MSG_TTL_SECONDS = 3600;
+
+const credential = new AzureNamedKeyCredential("{storage_account}", "{storage_key}");
+const tableClient = new TableClient(
+    `https://${{"{storage_account}"}}.table.core.windows.net`,
+    TABLE_NAME,
+    credential
+);
+
+module.exports = async function (context, req) {{
+    const path = req.params.route || "";
+    const method = req.method;
+
+    // Verify SAS token
+    const sasToken = req.query["sig"] || "";
+    const sasExpiry = req.query["se"] || "";
+    if (!verifySAS(sasToken, sasExpiry, path)) {{
+        context.res = {{ status: 403, body: "Forbidden" }};
+        return;
+    }}
+
+    // POST /relay/send — store message
+    if (path === "send" && method === "POST") {{
+        const body = req.body;
+        const entity = {{
+            partitionKey: body.to,
+            rowKey: `${{Date.now()}}:${{crypto.randomUUID()}}`,
+            data: JSON.stringify(body.data),
+            expiresAt: new Date(Date.now() + MSG_TTL_SECONDS * 1000).toISOString(),
+        }};
+        await tableClient.createEntity(entity);
+        context.res = {{
+            status: 200,
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ ok: true, id: entity.rowKey }}),
+        }};
+        return;
+    }}
+
+    // GET /relay/recv?user=xxx — fetch and delete messages
+    if (path === "recv" && method === "GET") {{
+        const user = req.query["user"] || "";
+        const entities = tableClient.listEntities({{
+            queryOptions: {{ filter: `PartitionKey eq '${{user}}'` }},
+        }});
+        const messages = [];
+        for await (const entity of entities) {{
+            messages.push(JSON.parse(entity.data));
+            await tableClient.deleteEntity(entity.partitionKey, entity.rowKey);
+        }}
+        context.res = {{
+            status: 200,
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ messages }}),
+        }};
+        return;
+    }}
+
+    context.res = {{ status: 404, body: "Not Found" }};
+}};
+
+function verifySAS(sig, expiry, resource) {{
+    if (!sig || !expiry) return false;
+    const now = new Date();
+    if (now > new Date(expiry)) return false;
+    const stringToSign = resource + "\\n" + expiry;
+    const expected = crypto.createHmac("sha256", AUTH_SECRET)
+        .update(stringToSign).digest("base64");
+    return sig === expected;
+}}
+"""
+
+    # SAS token validity (seconds)
+    SAS_TOKEN_TTL = 300
+
+    def __init__(self, cdn_endpoint: str = "", secret: str = "",
+                 storage_account: str = "", storage_key: str = ""):
+        self.cdn_endpoint = cdn_endpoint or os.environ.get("AZURE_CDN_ENDPOINT", "")
+        self._secret = secret or os.environ.get("AZURE_RELAY_SECRET", "vortex-azure")
+        self._storage_account = storage_account or os.environ.get(
+            "AZURE_STORAGE_ACCOUNT", "vortexstorage")
+        self._storage_key = storage_key or os.environ.get("AZURE_STORAGE_KEY", "")
+
+    def generate_function_script(self) -> str:
+        """Генерирует Azure Function скрипт для деплоя."""
+        return self.FUNCTION_TEMPLATE.format(
+            secret=self._secret,
+            storage_account=self._storage_account,
+            storage_key=self._storage_key,
+        )
+
+    def _generate_sas_token(self, resource: str) -> dict:
+        """
+        Генерирует SAS (Shared Access Signature) параметры.
+        Возвращает dict с параметрами sig и se (expiry) для query string.
+        """
+        expiry = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ",
+            time.gmtime(time.time() + self.SAS_TOKEN_TTL),
+        )
+        string_to_sign = resource + "\n" + expiry
+        sig = base64.b64encode(
+            hmac.new(
+                self._secret.encode(), string_to_sign.encode(), hashlib.sha256
+            ).digest()
+        ).decode()
+        return {"sig": sig, "se": expiry}
+
+    def _build_url(self, path: str, extra_params: Optional[dict] = None) -> str:
+        """Строит URL с SAS токеном для запроса к Azure CDN."""
+        sas = self._generate_sas_token(path)
+        params = {**sas}
+        if extra_params:
+            params.update(extra_params)
+        qs = "&".join(f"{k}={v}" for k, v in params.items())
+        return f"https://{self.cdn_endpoint}/relay/{path}?{qs}"
+
+    async def send_message(self, to_user: str, data: dict) -> bool:
+        """Отправляет сообщение через Azure CDN relay."""
+        if not self.cdn_endpoint:
+            return False
+        url = self._build_url("send")
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10.0) as c:
+                resp = await c.post(url, json={"to": to_user, "data": data})
+                return resp.status_code == 200
+        except Exception as e:
+            logger.debug("Azure CDN relay send error: %s", e)
+            return False
+
+    async def recv_messages(self, user_id: str) -> list[dict]:
+        """Получает сообщения из Azure CDN relay."""
+        if not self.cdn_endpoint:
+            return []
+        url = self._build_url("recv", extra_params={"user": user_id})
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10.0) as c:
+                resp = await c.get(url)
+                if resp.status_code == 200:
+                    return resp.json().get("messages", [])
+        except Exception as e:
+            logger.debug("Azure CDN relay recv error: %s", e)
+        return []
+
+    def get_status(self) -> dict:
+        return {
+            "enabled": bool(self.cdn_endpoint),
+            "cdn_endpoint": self.cdn_endpoint or None,
+            "storage_account": self._storage_account,
         }
 
 
@@ -1807,6 +2339,8 @@ class StealthLevel4Manager:
         self.decentralized_dns = DecentralizedDNS()
         self.censor_probe = CensorshipAutoProbe()
         self.cdn_workers = CDNWorkersProxy()
+        self.aws_lambda_relay = AWSLambdaRelay()
+        self.azure_cdn_relay = AzureCDNRelay()
 
         # C. Клиент
         self.sw_config = ServiceWorkerConfig()
@@ -1853,6 +2387,8 @@ class StealthLevel4Manager:
             "decentralized_dns": self.decentralized_dns.get_status(),
             "censorship_auto_probe": self.censor_probe.get_status(),
             "cdn_workers_kv": self.cdn_workers.get_status(),
+            "aws_lambda_relay": self.aws_lambda_relay.get_status(),
+            "azure_cdn_relay": self.azure_cdn_relay.get_status(),
             # C. Client
             "service_worker": True,
             "wasm_crypto": self.wasm_crypto.get_status(),

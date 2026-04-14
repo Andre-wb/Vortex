@@ -1,7 +1,7 @@
 {
-  "name": "VORTEX — децентрализованный чат",
-  "short_name": "VORTEX",
-  "description": "Децентрализованный P2P мессенджер с E2E шифрованием. Работает без интернета в локальной сети.",
+  "name": "Messenger",
+  "short_name": "Chat",
+  "description": "Secure messaging application",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -69,14 +69,14 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Чат в VORTEX"
+      "label": "Chat"
     },
     {
       "src": "/static/screenshots/mobile.png",
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "VORTEX на телефоне"
+      "label": "Mobile"
     }
   ],
 
@@ -102,7 +102,7 @@
 
   "protocol_handlers": [
     {
-      "protocol": "web+vortex",
+      "protocol": "web+msg",
       "url": "/?invite=%s"
     }
   ],

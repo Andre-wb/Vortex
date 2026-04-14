@@ -100,13 +100,13 @@ function _restoreKeyBundle(bundle) {
 
 export async function createKeyBackup(passphrase) {
     if (!passphrase || passphrase.length < 8) {
-        showAlert(window.t ? window.t('keyBackup.passphraseMinLen') : 'Парольная фраза должна быть не менее 8 символов', 'error');
+        showAlert(t('keyBackup.passphraseMinLen'), 'error');
         return false;
     }
 
     const bundle = _collectKeyBundle();
     if (!bundle.keys.x25519_private_jwk) {
-        showAlert(window.t ? window.t('keyBackup.noKeysToBackup') : 'Нет ключей для бэкапа', 'error');
+        showAlert(t('keyBackup.noKeysToBackup'), 'error');
         return false;
     }
 
@@ -129,10 +129,10 @@ export async function createKeyBackup(passphrase) {
                 alg: 'PBKDF2', iter: PBKDF2_ITERATIONS, hash: 'SHA-256'
             }),
         });
-        showAlert(window.t ? window.t('keyBackup.backupCreated') : 'Бэкап ключей создан', 'success');
+        showAlert(t('keyBackup.backupCreated'), 'success');
         return true;
     } catch (e) {
-        showAlert((window.t ? window.t('keyBackup.backupCreateError') : 'Ошибка создания бэкапа: {error}').replace('{error}', e.message || e), 'error');
+        showAlert(t('keyBackup.backupCreateError', {error: e.message || e}), 'error');
         return false;
     }
 }
@@ -143,7 +143,7 @@ export async function createKeyBackup(passphrase) {
 
 export async function restoreKeyBackup(passphrase) {
     if (!passphrase) {
-        showAlert(window.t ? window.t('keyBackup.enterPassphrase') : 'Введите парольную фразу', 'error');
+        showAlert(t('keyBackup.enterPassphrase'), 'error');
         return false;
     }
 
@@ -151,7 +151,7 @@ export async function restoreKeyBackup(passphrase) {
     try {
         backup = await api('GET', '/api/keys/backup');
     } catch (e) {
-        showAlert(window.t ? window.t('keyBackup.backupNotFound') : 'Бэкап не найден', 'error');
+        showAlert(t('keyBackup.backupNotFound'), 'error');
         return false;
     }
 
@@ -177,7 +177,7 @@ export async function restoreKeyBackup(passphrase) {
             ['decrypt']
         );
     } catch (e) {
-        showAlert(window.t ? window.t('keyBackup.keyDerivationError') : 'Ошибка деривации ключа', 'error');
+        showAlert(t('keyBackup.keyDerivationError'), 'error');
         return false;
     }
 
@@ -185,10 +185,10 @@ export async function restoreKeyBackup(passphrase) {
         const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ct);
         const bundle = JSON.parse(new TextDecoder().decode(plain));
         _restoreKeyBundle(bundle);
-        showAlert(window.t ? window.t('keyBackup.keysRestored') : 'Ключи восстановлены из бэкапа', 'success');
+        showAlert(t('keyBackup.keysRestored'), 'success');
         return true;
     } catch {
-        showAlert(window.t ? window.t('keyBackup.wrongPassphrase') : 'Неверная парольная фраза', 'error');
+        showAlert(t('keyBackup.wrongPassphrase'), 'error');
         return false;
     }
 }
@@ -196,10 +196,10 @@ export async function restoreKeyBackup(passphrase) {
 export async function deleteKeyBackup() {
     try {
         await api('DELETE', '/api/keys/backup');
-        showAlert(window.t ? window.t('keyBackup.backupDeleted') : 'Бэкап удалён', 'success');
+        showAlert(t('keyBackup.backupDeleted'), 'success');
         return true;
     } catch (e) {
-        showAlert((window.t ? window.t('keyBackup.backupDeleteError') : 'Ошибка удаления бэкапа: {error}').replace('{error}', e.message || e), 'error');
+        showAlert(t('keyBackup.backupDeleteError', {error: e.message || e}), 'error');
         return false;
     }
 }
@@ -240,7 +240,7 @@ export async function requestDeviceLink() {
             expiresIn: resp.expires_in_seconds,
         };
     } catch (e) {
-        showAlert((window.t ? window.t('keyBackup.requestCreateError') : 'Ошибка создания запроса: {error}').replace('{error}', e.message || e), 'error');
+        showAlert(t('keyBackup.requestCreateError', {error: e.message || e}), 'error');
         return null;
     }
 }
@@ -324,7 +324,7 @@ async function _decryptLinkedKeys(encryptedHex) {
         return JSON.parse(new TextDecoder().decode(plain));
     } catch (e) {
         console.error('[KeyBackup] Failed to decrypt linked keys:', e);
-        showAlert(window.t ? window.t('keyBackup.decryptError') : 'Ошибка расшифровки ключей', 'error');
+        showAlert(t('keyBackup.decryptError'), 'error');
         return null;
     }
 }
@@ -345,7 +345,7 @@ export async function approveLinkRequest(code, newDevicePubHex) {
     // Collect current keys
     const bundle = _collectKeyBundle();
     if (!bundle.keys.x25519_private_jwk) {
-        showAlert(window.t ? window.t('keyBackup.noKeysToTransfer') : 'Нет ключей для передачи', 'error');
+        showAlert(t('keyBackup.noKeysToTransfer'), 'error');
         return false;
     }
 
@@ -388,10 +388,10 @@ export async function approveLinkRequest(code, newDevicePubHex) {
         await api('POST', `/api/keys/link/${code}/approve`, {
             encrypted_keys: toHex(packed),
         });
-        showAlert(window.t ? window.t('keyBackup.keysTransferred') : 'Ключи переданы на новое устройство', 'success');
+        showAlert(t('keyBackup.keysTransferred'), 'success');
         return true;
     } catch (e) {
-        showAlert((window.t ? window.t('keyBackup.transferError') : 'Ошибка передачи ключей: {error}').replace('{error}', e.message || e), 'error');
+        showAlert(t('keyBackup.transferError', {error: e.message || e}), 'error');
         return false;
     }
 }
@@ -680,12 +680,12 @@ async function _loadBackupStatus() {
         el.textContent = '';
         const span = document.createElement('span');
         span.style.color = 'var(--green)';
-        span.textContent = window.t ? window.t('keyBackup.backupCreatedShort') : 'Бэкап создан';
+        span.textContent = t('keyBackup.backupCreatedShort');
         el.appendChild(span);
-        const detail = document.createTextNode(` (версия ${backup.version}, обновлён ${backup.updated_at ? new Date(backup.updated_at).toLocaleDateString() : '\u2014'})`);
+        const detail = document.createTextNode(` (${t('keyBackup.version')} ${backup.version}, ${t('keyBackup.updated')} ${backup.updated_at ? new Date(backup.updated_at).toLocaleDateString() : '\u2014'})`);
         el.appendChild(detail);
     } catch {
-        el.textContent = window.t ? window.t('keyBackup.backupNotCreated') : 'Бэкап не создан';
+        el.textContent = t('keyBackup.backupNotCreated');
         el.style.color = 'var(--text3)';
     }
 }
@@ -696,8 +696,8 @@ async function _loadBackupStatus() {
 // ============================================================================
 
 export function _showBackupPassphraseDialog(mode) {
-    const title = mode === 'create' ? 'Создать бэкап ключей' : 'Восстановить из бэкапа';
-    const btnText = mode === 'create' ? 'Зашифровать и сохранить' : 'Расшифровать и восстановить';
+    const title = mode === 'create' ? t('keyBackup.createBackupTitle') : t('keyBackup.restoreBackupTitle');
+    const btnText = mode === 'create' ? t('keyBackup.encryptAndSave') : t('keyBackup.decryptAndRestore');
 
     let modal = $('backup-passphrase-modal');
     if (!modal) {
@@ -723,14 +723,14 @@ export function _showBackupPassphraseDialog(mode) {
     const desc = document.createElement('p');
     desc.style.cssText = 'font-size:12px;color:var(--text2);margin:0 0 16px;';
     desc.textContent = mode === 'create'
-        ? (window.t ? window.t('keyBackup.passphraseEncryptHint') : 'Введите парольную фразу для шифрования. Запомните её — без неё восстановление невозможно.')
-        : (window.t ? window.t('keyBackup.passphraseRestoreHint') : 'Введите парольную фразу, которую вы использовали при создании бэкапа.');
+        ? t('keyBackup.passphraseEncryptHint')
+        : t('keyBackup.passphraseRestoreHint');
     inner.appendChild(desc);
 
     const input = document.createElement('input');
     input.type = 'password'; input.id = 'backup-passphrase-input';
     input.className = 'form-input';
-    input.placeholder = window.t ? window.t('keyBackup.passphrasePlaceholder') : 'Парольная фраза (мин. 8 символов)';
+    input.placeholder = t('keyBackup.passphrasePlaceholder');
     input.style.marginBottom = '12px';
     inner.appendChild(input);
 
@@ -739,7 +739,7 @@ export function _showBackupPassphraseDialog(mode) {
         confirmInput = document.createElement('input');
         confirmInput.type = 'password'; confirmInput.id = 'backup-passphrase-confirm';
         confirmInput.className = 'form-input';
-        confirmInput.placeholder = window.t ? window.t('keyBackup.passphraseConfirmPlaceholder') : 'Повторите парольную фразу';
+        confirmInput.placeholder = t('keyBackup.passphraseConfirmPlaceholder');
         confirmInput.style.marginBottom = '12px';
         inner.appendChild(confirmInput);
     }
@@ -749,7 +749,7 @@ export function _showBackupPassphraseDialog(mode) {
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'btn btn-secondary btn-sm';
-    cancelBtn.textContent = window.t ? window.t('app.cancel') : 'Отмена';
+    cancelBtn.textContent = t('app.cancel');
     cancelBtn.onclick = () => { modal.style.display = 'none'; };
     btnRow.appendChild(cancelBtn);
 
@@ -759,7 +759,7 @@ export function _showBackupPassphraseDialog(mode) {
     submitBtn.onclick = async () => {
         const pass = input.value;
         if (mode === 'create') {
-            if (pass !== confirmInput.value) { showAlert(window.t ? window.t('keyBackup.phraseMismatch') : 'Фразы не совпадают', 'error'); return; }
+            if (pass !== confirmInput.value) { showAlert(t('keyBackup.phraseMismatch'), 'error'); return; }
             const ok = await createKeyBackup(pass);
             if (ok) { modal.style.display = 'none'; _loadBackupStatus(); }
         } else {
@@ -778,7 +778,7 @@ export function _showBackupPassphraseDialog(mode) {
 }
 
 export async function _deleteBackupConfirm() {
-    if (!confirm('Удалить бэкап ключей? Это действие необратимо.')) return;
+    if (!confirm(t('keyBackup.deleteBackupConfirm'))) return;
     await deleteKeyBackup();
     _loadBackupStatus();
 }
@@ -790,34 +790,34 @@ export function _startDeviceLinkFromSettings(role) {
     status.textContent = '';
 
     if (role === 'new') {
-        status.textContent = window.t ? window.t('keyBackup.generatingCode') : 'Генерация кода...';
+        status.textContent = t('keyBackup.generatingCode');
         requestDeviceLink().then(result => {
-            if (!result) { status.textContent = window.t ? window.t('keyBackup.errorGeneric') : 'Ошибка'; return; }
+            if (!result) { status.textContent = t('keyBackup.errorGeneric'); return; }
             status.textContent = '';
             const code = document.createElement('div');
             code.style.cssText = 'font-size:24px;font-weight:700;letter-spacing:8px;margin:8px 0;';
             code.textContent = result.linkCode;
             const hint = document.createElement('div');
             hint.style.cssText = 'font-size:12px;color:var(--text2);';
-            hint.textContent = window.t ? window.t('keyBackup.enterCodeOnMain') : 'Введите этот код на вашем основном устройстве';
+            hint.textContent = t('keyBackup.enterCodeOnMain');
             const ttl = document.createElement('div');
             ttl.style.cssText = 'font-size:11px;color:var(--text3);margin-top:4px;';
-            ttl.textContent = (window.t ? window.t('keyBackup.codeValid') : 'Код действует {n} мин').replace('{n}', Math.floor(result.expiresIn / 60));
+            ttl.textContent = t('keyBackup.codeValid', {n: Math.floor(result.expiresIn / 60)});
             status.appendChild(code); status.appendChild(hint); status.appendChild(ttl);
             startLinkPoll(result.requestId,
-                () => { status.textContent = ''; const s = document.createElement('span'); s.style.color = 'var(--green)'; s.textContent = window.t ? window.t('keyBackup.keysReceived') : 'Ключи получены!'; status.appendChild(s); },
-                () => { status.textContent = ''; const s = document.createElement('span'); s.style.color = 'var(--red)'; s.textContent = window.t ? window.t('keyBackup.codeExpired') : 'Код истёк'; status.appendChild(s); }
+                () => { status.textContent = ''; const s = document.createElement('span'); s.style.color = 'var(--green)'; s.textContent = t('keyBackup.keysReceived'); status.appendChild(s); },
+                () => { status.textContent = ''; const s = document.createElement('span'); s.style.color = 'var(--red)'; s.textContent = t('keyBackup.codeExpired'); status.appendChild(s); }
             );
         });
     } else {
         const input = document.createElement('input');
         input.type = 'text'; input.id = 'link-code-input';
         input.className = 'form-input';
-        input.placeholder = '6-значный код'; input.maxLength = 6;
+        input.placeholder = t('keyBackup.sixDigitCode'); input.maxLength = 6;
         input.style.cssText = 'text-align:center;font-size:18px;letter-spacing:4px;margin-bottom:8px;';
         const btn = document.createElement('button');
         btn.className = 'btn btn-primary btn-sm';
-        btn.textContent = window.t ? window.t('app.confirm') : 'Подтвердить';
+        btn.textContent = t('app.confirm');
         btn.onclick = () => _submitLinkCode();
         status.appendChild(input); status.appendChild(btn);
         setTimeout(() => input.focus(), 100);
@@ -827,16 +827,16 @@ export function _startDeviceLinkFromSettings(role) {
 export async function _submitLinkCode() {
     const code = $('link-code-input')?.value?.trim();
     const status = $('privacy-link-status');
-    if (!code || code.length !== 6) { showAlert(window.t ? window.t('keyBackup.enter6DigitCode') : 'Введите 6-значный код', 'error'); return; }
+    if (!code || code.length !== 6) { showAlert(t('keyBackup.enter6DigitCode'), 'error'); return; }
     const req = await checkLinkCode(code);
-    if (!req) { showAlert(window.t ? window.t('keyBackup.invalidOrExpiredCode') : 'Неверный или истёкший код', 'error'); return; }
-    if (status) status.textContent = window.t ? window.t('keyBackup.transferringKeys') : 'Передача ключей...';
+    if (!req) { showAlert(t('keyBackup.invalidOrExpiredCode'), 'error'); return; }
+    if (status) status.textContent = t('keyBackup.transferringKeys');
     const ok = await approveLinkRequest(code, req.new_device_pub);
     if (ok && status) {
         status.textContent = '';
         const s = document.createElement('span');
         s.style.color = 'var(--green)';
-        s.textContent = window.t ? window.t('keyBackup.keysTransferredShort') : 'Ключи переданы!';
+        s.textContent = t('keyBackup.keysTransferredShort');
         status.appendChild(s);
     }
 }
@@ -943,7 +943,7 @@ export async function createSecretShares(threshold, contacts) {
     // contacts: array of { userId, pubKeyHex, label }
     const totalShares = contacts.length;
     if (threshold < 2 || threshold > totalShares) {
-        showAlert(window.t ? window.t('keyBackup.minTwoContacts') : 'Минимум 2 доверенных контакта и порог ≥ 2', 'error');
+        showAlert(t('keyBackup.minTwoContacts'), 'error');
         return false;
     }
 
@@ -951,7 +951,7 @@ export async function createSecretShares(threshold, contacts) {
     const privJwk = window.AppState?.x25519PrivateKey
         || sessionStorage.getItem('vortex_x25519_priv')
         || localStorage.getItem('vortex_x25519_priv');
-    if (!privJwk) { showAlert(window.t ? window.t('keyBackup.noMasterKey') : 'Нет мастер-ключа для разделения', 'error'); return false; }
+    if (!privJwk) { showAlert(t('keyBackup.noMasterKey'), 'error'); return false; }
     const secretBytes = new TextEncoder().encode(privJwk);
 
     // Split
@@ -976,10 +976,10 @@ export async function createSecretShares(threshold, contacts) {
             total_shares: totalShares,
             shares: encryptedShares,
         });
-        showAlert((window.t ? window.t('keyBackup.keyShared') : 'Ключ разделён на {totalShares} частей (порог: {threshold})').replace('{totalShares}', totalShares).replace('{threshold}', threshold), 'success');
+        showAlert(t('keyBackup.keyShared', {totalShares, threshold}), 'success');
         return true;
     } catch (e) {
-        showAlert((window.t ? window.t('keyBackup.ssssError') : 'Ошибка создания SSSS: {error}').replace('{error}', e.message || e), 'error');
+        showAlert(t('keyBackup.ssssError', {error: e.message || e}), 'error');
         return false;
     }
 }
@@ -995,13 +995,13 @@ export async function getHeldShares() {
 }
 
 export async function revokeShares() {
-    if (!confirm('Отозвать все части ключа? Восстановление через доверенных контактов станет невозможным.')) return;
+    if (!confirm(t('keyBackup.revokeSharesConfirm'))) return;
     try {
         await api('DELETE', '/api/keys/ssss');
-        showAlert(window.t ? window.t('keyBackup.sharesRevoked') : 'Части отозваны', 'success');
+        showAlert(t('keyBackup.sharesRevoked'), 'success');
         _loadSsssStatus();
     } catch (e) {
-        showAlert((window.t ? window.t('app.errorGeneric') : 'Ошибка: {error}').replace('{error}', e.message || e), 'error');
+        showAlert(t('errors.generic', {error: e.message || e}), 'error');
     }
 }
 
@@ -1081,7 +1081,7 @@ async function _loadDevicesListWithFingerprint() {
                 fpRow.textContent = fp || '';
                 fpRow.title = d.device_pub_key;
             } else {
-                fpRow.textContent = window.t ? window.t('keyBackup.noKey') : 'нет ключа';
+                fpRow.textContent = t('keyBackup.noKey');
                 fpRow.style.color = 'var(--text3)';
                 fpRow.style.letterSpacing = '0';
                 fpRow.style.fontSize = '11px';
@@ -1094,14 +1094,14 @@ async function _loadDevicesListWithFingerprint() {
             info.appendChild(date);
             const badge = document.createElement('span');
             badge.style.cssText = 'font-size:11px;font-weight:600;white-space:nowrap;';
-            if (d.is_current) { badge.style.color = 'var(--green)'; badge.textContent = window.t ? window.t('keyBackup.thisDevice') : 'это устройство'; }
-            else if (signedIds.has(d.id)) { badge.style.color = 'var(--green)'; badge.textContent = window.t ? window.t('keyBackup.verified') : '✅ верифицировано'; }
-            else { badge.style.color = 'var(--text3)'; badge.textContent = window.t ? window.t('keyBackup.notVerified') : '⚠ не верифицировано'; }
+            if (d.is_current) { badge.style.color = 'var(--green)'; badge.textContent = t('keyBackup.thisDevice'); }
+            else if (signedIds.has(d.id)) { badge.style.color = 'var(--green)'; badge.textContent = t('keyBackup.verified'); }
+            else { badge.style.color = 'var(--text3)'; badge.textContent = t('keyBackup.notVerified'); }
             row.appendChild(iconEl); row.appendChild(info); row.appendChild(badge);
             container.appendChild(row);
         }
     } catch {
-        container.textContent = window.t ? window.t('keyBackup.failedLoadDevices') : 'Не удалось загрузить устройства';
+        container.textContent = t('keyBackup.failedLoadDevices');
         container.style.cssText = 'font-size:12px;color:var(--text3);';
     }
 }
@@ -1120,16 +1120,16 @@ async function _loadSsssStatus() {
         if (resp.shares.length > 0) {
             const info = document.createElement('span');
             info.style.color = 'var(--green)';
-            info.textContent = (window.t ? window.t('keyBackup.sharesActive') : '{threshold}-из-{total} активно').replace('{threshold}', resp.threshold).replace('{total}', resp.total_shares);
+            info.textContent = t('keyBackup.sharesActive', {threshold: resp.threshold, total: resp.total_shares});
             el.appendChild(info);
-            const detail = document.createTextNode(` (${resp.shares.length} частей, создано ${resp.shares[0].created_at ? new Date(resp.shares[0].created_at).toLocaleDateString() : '\u2014'})`);
+            const detail = document.createTextNode(` (${t('keyBackup.sharesCount', {count: resp.shares.length})}, ${t('keyBackup.created')} ${resp.shares[0].created_at ? new Date(resp.shares[0].created_at).toLocaleDateString() : '\u2014'})`);
             el.appendChild(detail);
         } else {
-            el.textContent = window.t ? window.t('keyBackup.keyNotShared') : 'Ключ не разделён';
+            el.textContent = t('keyBackup.keyNotShared');
             el.style.color = 'var(--text3)';
         }
     } catch {
-        el.textContent = window.t ? window.t('keyBackup.keyNotShared') : 'Ключ не разделён';
+        el.textContent = t('keyBackup.keyNotShared');
         el.style.color = 'var(--text3)';
     }
 }
@@ -1153,18 +1153,18 @@ export function _showSsssCreateDialog() {
 
     const h3 = document.createElement('h3');
     h3.style.cssText = 'margin:0 0 8px;font-size:16px;';
-    h3.textContent = 'Разделить ключ (M-of-N)';
+    h3.textContent = t('keyBackup.splitKeyTitle');
     inner.appendChild(h3);
 
     const desc = document.createElement('p');
     desc.style.cssText = 'font-size:12px;color:var(--text2);margin:0 0 16px;line-height:1.5;';
-    desc.textContent = 'Ваш мастер-ключ будет разделён на N частей с помощью схемы Шамира. Любые M частей позволят восстановить ключ. Каждая часть шифруется для конкретного доверенного контакта.';
+    desc.textContent = t('keyBackup.splitKeyDesc');
     inner.appendChild(desc);
 
     // Threshold input
     const thLabel = document.createElement('label');
     thLabel.style.cssText = 'display:block;font-size:13px;font-weight:500;margin-bottom:4px;';
-    thLabel.textContent = 'Порог M (минимум частей для восстановления)';
+    thLabel.textContent = t('keyBackup.thresholdLabel');
     const thInput = document.createElement('input');
     thInput.type = 'number'; thInput.min = '2'; thInput.max = '10'; thInput.value = '3';
     thInput.className = 'form-input'; thInput.style.marginBottom = '12px';
@@ -1175,13 +1175,13 @@ export function _showSsssCreateDialog() {
     // Contact list
     const contactLabel = document.createElement('label');
     contactLabel.style.cssText = 'display:block;font-size:13px;font-weight:500;margin-bottom:4px;';
-    contactLabel.textContent = 'Доверенные контакты (N)';
+    contactLabel.textContent = t('keyBackup.trustedContactsLabel');
     inner.appendChild(contactLabel);
 
     const contactList = document.createElement('div');
     contactList.id = 'ssss-contact-list';
     contactList.style.cssText = 'max-height:200px;overflow-y:auto;margin-bottom:12px;';
-    contactList.textContent = 'Загрузка контактов...';
+    contactList.textContent = t('keyBackup.loadingContacts');
     inner.appendChild(contactList);
 
     // Buttons
@@ -1190,13 +1190,13 @@ export function _showSsssCreateDialog() {
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'btn btn-secondary btn-sm';
-    cancelBtn.textContent = window.t ? window.t('app.cancel') : 'Отмена';
+    cancelBtn.textContent = t('app.cancel');
     cancelBtn.onclick = () => { modal.style.display = 'none'; };
     btnRow.appendChild(cancelBtn);
 
     const submitBtn = document.createElement('button');
     submitBtn.className = 'btn btn-primary btn-sm';
-    submitBtn.textContent = 'Разделить ключ';
+    submitBtn.textContent = t('keyBackup.splitKeyBtn');
     submitBtn.onclick = async () => {
         const threshold = parseInt(thInput.value);
         const checkboxes = contactList.querySelectorAll('input[type="checkbox"]:checked');
@@ -1208,9 +1208,9 @@ export function _showSsssCreateDialog() {
                 label: cb.dataset.label,
             });
         });
-        if (contacts.length < 2) { showAlert('Выберите минимум 2 контакта', 'error'); return; }
+        if (contacts.length < 2) { showAlert(t('keyBackup.selectMinTwoContacts'), 'error'); return; }
         if (threshold < 2 || threshold > contacts.length) {
-            showAlert(`Порог должен быть от 2 до ${contacts.length}`, 'error'); return;
+            showAlert(t('keyBackup.thresholdRange', {max: contacts.length}), 'error'); return;
         }
         const ok = await createSecretShares(threshold, contacts);
         if (ok) { modal.style.display = 'none'; _loadSsssStatus(); }
@@ -1232,7 +1232,7 @@ async function _loadSsssContacts(container) {
         const contacts = resp.contacts || resp || [];
         container.textContent = '';
         if (!contacts.length) {
-            container.textContent = 'Нет контактов с публичными ключами';
+            container.textContent = t('keyBackup.noContactsWithKeys');
             container.style.cssText = 'font-size:12px;color:var(--text3);';
             return;
         }
@@ -1253,7 +1253,7 @@ async function _loadSsssContacts(container) {
             container.appendChild(row);
         }
     } catch {
-        container.textContent = 'Ошибка загрузки контактов';
+        container.textContent = t('keyBackup.loadContactsError');
         container.style.cssText = 'font-size:12px;color:var(--text3);';
     }
 }
@@ -1270,11 +1270,11 @@ export async function distributeFederatedBackup(threshold) {
         const resp = await api('GET', '/api/peers');
         peers = (resp.peers || []).filter(p => p.online && p.encrypted);
     } catch {
-        showAlert('Не удалось получить список пиров', 'error');
+        showAlert(t('keyBackup.failedLoadPeers'), 'error');
         return false;
     }
     if (peers.length < 2) {
-        showAlert('Нужно минимум 2 активных пира с шифрованием', 'error');
+        showAlert(t('keyBackup.minTwoPeers'), 'error');
         return false;
     }
     const totalShards = peers.length;
@@ -1283,7 +1283,7 @@ export async function distributeFederatedBackup(threshold) {
     // Collect backup data
     const bundle = _collectKeyBundle();
     if (!bundle.keys.x25519_private_jwk) {
-        showAlert(window.t ? window.t('keyBackup.noKeysToBackup') : 'Нет ключей для бэкапа', 'error');
+        showAlert(t('keyBackup.noKeysToBackup'), 'error');
         return false;
     }
     const secretBytes = new TextEncoder().encode(JSON.stringify(bundle));
@@ -1317,11 +1317,11 @@ export async function distributeFederatedBackup(threshold) {
             total_shards: totalShards,
             shards,
         });
-        showAlert(`Бэкап распределён: ${resp.placed}/${resp.total} шардов`, 'success');
+        showAlert(t('keyBackup.backupDistributed', {placed: resp.placed, total: resp.total}), 'success');
         _loadFederatedStatus();
         return true;
     } catch (e) {
-        showAlert((window.t ? window.t('app.errorGeneric') : 'Ошибка: {error}').replace('{error}', e.message || e), 'error');
+        showAlert(t('errors.generic', {error: e.message || e}), 'error');
         return false;
     }
 }
@@ -1335,28 +1335,28 @@ async function _loadFederatedStatus() {
         if (resp.distributed) {
             const info = document.createElement('span');
             info.style.color = 'var(--green)';
-            info.textContent = `Распределён (${resp.threshold}-из-${resp.total_shards})`;
+            info.textContent = t('keyBackup.distributed', {threshold: resp.threshold, total: resp.total_shards});
             el.appendChild(info);
-            const detail = document.createTextNode(` — ${resp.shards.length} шардов на ${new Set(resp.shards.map(s => s.peer_ip)).size} пирах`);
+            const detail = document.createTextNode(` — ${t('keyBackup.shardsOnPeers', {shards: resp.shards.length, peers: new Set(resp.shards.map(s => s.peer_ip)).size})}`);
             el.appendChild(detail);
         } else {
-            el.textContent = 'Не распределён';
+            el.textContent = t('keyBackup.notDistributed');
             el.style.color = 'var(--text3)';
         }
     } catch {
-        el.textContent = 'Не распределён';
+        el.textContent = t('keyBackup.notDistributed');
         el.style.color = 'var(--text3)';
     }
 }
 
 export async function deleteFederatedBackup() {
-    if (!confirm('Удалить федеративный бэкап? Шарды на пирах останутся, но метаданные будут потеряны.')) return;
+    if (!confirm(t('keyBackup.deleteFederatedConfirm'))) return;
     try {
         await api('DELETE', '/api/keys/federated-backup');
-        showAlert('Федеративный бэкап удалён', 'success');
+        showAlert(t('keyBackup.federatedBackupDeleted'), 'success');
         _loadFederatedStatus();
     } catch (e) {
-        showAlert((window.t ? window.t('app.errorGeneric') : 'Ошибка: {error}').replace('{error}', e.message || e), 'error');
+        showAlert(t('errors.generic', {error: e.message || e}), 'error');
     }
 }
 
@@ -1369,7 +1369,7 @@ export async function _loadKeyTransparencyLog() {
     const el = $('privacy-kt-log');
     if (!el) return;
     const userId = window.AppState?.user?.id;
-    if (!userId) { el.textContent = 'Не авторизован'; return; }
+    if (!userId) { el.textContent = t('keyBackup.notAuthorized'); return; }
     try {
         const resp = await api('GET', `/api/keys/transparency/${userId}`);
         const audit = await api('GET', `/api/keys/transparency/${userId}/audit`);
@@ -1380,10 +1380,10 @@ export async function _loadKeyTransparencyLog() {
         badge.style.cssText = 'margin-bottom:8px;font-size:12px;font-weight:600;';
         if (audit.valid) {
             badge.style.color = 'var(--green)';
-            badge.textContent = `\u{2705} Цепочка верифицирована (${audit.entries} записей)`;
+            badge.textContent = `\u{2705} ${t('keyBackup.chainVerified', {entries: audit.entries})}`;
         } else {
             badge.style.color = 'var(--red)';
-            badge.textContent = `\u{26A0} Цепочка нарушена! ${audit.errors.length} ошибок`;
+            badge.textContent = `\u{26A0} ${t('keyBackup.chainBroken', {errors: audit.errors.length})}`;
         }
         el.appendChild(badge);
 
@@ -1411,12 +1411,79 @@ export async function _loadKeyTransparencyLog() {
         if (!entries.length) {
             const empty = document.createElement('div');
             empty.style.cssText = 'font-size:12px;color:var(--text3);';
-            empty.textContent = 'Нет записей';
+            empty.textContent = t('keyBackup.noEntries');
             el.appendChild(empty);
         }
     } catch {
-        el.textContent = 'Ошибка загрузки';
+        el.textContent = t('keyBackup.loadError');
         el.style.color = 'var(--text3)';
     }
+}
+
+
+// ============================================================================
+// Auto-backup: синхронизирует ключи автоматически при bootApp
+// Можно отключить в конфиденциальности (auto_key_sync: false)
+// ============================================================================
+
+const _AUTO_BACKUP_KEY = 'vortex_auto_backup_ts';
+const _AUTO_BACKUP_INTERVAL = 3600_000; // не чаще раза в час
+
+export async function autoBackupIfNeeded() {
+    const prefs = _loadPrefs();
+    if (prefs.auto_key_sync === false) return;
+
+    const lastTs = parseInt(localStorage.getItem(_AUTO_BACKUP_KEY) || '0');
+    if (Date.now() - lastTs < _AUTO_BACKUP_INTERVAL) return;
+
+    const bundle = _collectKeyBundle();
+    if (!bundle.keys.x25519_private_jwk) return;
+
+    // Push ключей на сервер (зашифровано, сервер не видит)
+    try {
+        const payload = await _encryptSyncPayload(bundle);
+        if (payload) {
+            await api('POST', '/api/keys/sync/push', {
+                device_id: _getDeviceId(),
+                event_type: 'key_update',
+                payload,
+            });
+            localStorage.setItem(_AUTO_BACKUP_KEY, String(Date.now()));
+            console.info('[AutoBackup] Keys synced');
+        }
+    } catch (e) {
+        console.debug('[AutoBackup] Push failed:', e.message);
+    }
+
+    // Pull ключей от других устройств
+    try { await _pullSyncEvents(); } catch {}
+
+    // Авто-восстановление room keys на сервер (encrypted_room_key)
+    // Если у нас есть ключ в localStorage но нет на сервере — загрузим
+    try {
+        const { getRoomKey, setRoomKey } = await import('./crypto.js');
+        const { eciesEncrypt } = await import('./crypto.js');
+        const rooms = window.AppState?.rooms || [];
+        const pubkey = window.AppState?.user?.x25519_public_key;
+        if (pubkey) {
+            for (const room of rooms) {
+                const rk = getRoomKey(room.id);
+                if (!rk) continue;
+                // Check if server has our key
+                try {
+                    const kb = await api('GET', `/api/rooms/${room.id}/key-bundle`);
+                    if (kb.has_key) continue; // already on server
+                    // Upload our key
+                    const enc = await eciesEncrypt(rk, pubkey);
+                    await api('POST', `/api/dm/store-key/${room.id}`, {
+                        user_id: window.AppState.user.user_id,
+                        ephemeral_pub: enc.ephemeral_pub,
+                        ciphertext: enc.ciphertext,
+                    });
+                    console.info('[AutoBackup] Room key restored to server for room', room.id);
+                } catch {}
+            }
+        }
+    } catch {}
 }
 

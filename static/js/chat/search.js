@@ -151,7 +151,7 @@ window.serverSearchMessages = async function() {
 
     panel.style.display = 'block';
     list.innerHTML = '';
-    status.textContent = 'Поиск...';
+    status.textContent = t('chat.searching');
 
     try {
         const params = new URLSearchParams();
@@ -161,8 +161,8 @@ window.serverSearchMessages = async function() {
         const data = await window.api('GET', `/api/rooms/${roomId}/messages/search?${params}`);
         const msgs = data.messages || [];
         status.textContent = msgs.length
-            ? `Найдено: ${data.total} (показано ${msgs.length})`
-            : 'Ничего не найдено';
+            ? t('chat.searchFound', { total: data.total, shown: msgs.length })
+            : t('chat.nothingFound');
 
         msgs.forEach(m => {
             const div = document.createElement('div');
@@ -184,6 +184,6 @@ window.serverSearchMessages = async function() {
             list.appendChild(div);
         });
     } catch (e) {
-        status.textContent = 'Ошибка поиска: ' + (e.message || e);
+        status.textContent = t('errors.searchError') + ': ' + (e.message || e);
     }
 };

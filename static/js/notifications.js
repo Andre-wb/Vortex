@@ -145,8 +145,8 @@ function handleNotification(data) {
         const desc = data.description || '';
         showNotificationBanner({
             type:      'notification',
-            room_name: '\u26A0\uFE0F \u041C\u043E\u0434\u0435\u0440\u0430\u0446\u0438\u044F',
-            sender:    '\u041D\u0430\u0440\u0443\u0448\u0435\u043D\u0438\u0435 #' + (data.strike_number || '?'),
+            room_name: t('notifications.moderation'),
+            sender:    t('notifications.strikeNumber', {number: data.strike_number || '?'}),
             text:      desc,
         });
         return;
@@ -192,7 +192,7 @@ function handleNotification(data) {
             }
         }, 1500);
         if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('🔴 Запланированный стрим начинается!', {
+            new Notification(t('notifications.scheduledStreamStarting'), {
                 body: title,
                 icon: '/static/icons/icon-192x192.png',
             });
@@ -203,7 +203,7 @@ function handleNotification(data) {
     // Stream started — browser notification
     if (data.type === 'stream_state' && data.action === 'started') {
         if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('\uD83D\uDD34 Стрим начался!', {
+            new Notification(t('notifications.streamStarted'), {
                 body: data.room_name || 'Vortex',
                 icon: '/static/icons/icon-192x192.png',
             });
@@ -238,6 +238,7 @@ async function _handleRoomKeyFromNotif(data) {
         // Сохраняем в in-memory cache + sessionStorage
         const { _saveRoomKeyToSession } = await import('./chat/room-crypto.js');
         _saveRoomKeyToSession(data.room_id, keyBytes);
+        if (window.registerRoomSecret) window.registerRoomSecret(data.room_id);
         console.info('🔑 Ключ комнаты получен через notification WS, room', data.room_id);
 
         // Если мы сейчас в этой комнате — перезагружаем историю
@@ -270,13 +271,13 @@ function _handleNewDm(data) {
     }
 
     // Показываем баннер-уведомление
-    const name = data.dm_user?.display_name || data.dm_user?.username || 'Новый чат';
+    const name = data.dm_user?.display_name || data.dm_user?.username || t('notifications.newChat');
     showNotificationBanner({
         type:      'notification',
         room_id:   room.id,
         room_name: name,
         sender:    name,
-        text:      window.t?.('chat.newDm') || 'Новое личное сообщение',
+        text:      t('notifications.newDirectMessage'),
     });
 
     console.info('📩 Новый DM от', name, '→ room', room.id);
@@ -453,7 +454,7 @@ export async function showNotificationBanner(data) {
         <div class="notif-avatar">${esc(data.sender_avatar || '\u{1F464}')}</div>
         <div class="notif-body">
             <div class="notif-sender">${esc(data.sender_display_name || data.sender_username || 'User')}</div>
-            <div class="notif-text">${data.is_dm ? t('notifications.dm') : esc(data.room_name || 'Новое сообщение')}</div>
+            <div class="notif-text">${data.is_dm ? t('notifications.dm') : esc(data.room_name || t('notifications.newMessage'))}</div>
         </div>
     `;
 
@@ -485,7 +486,7 @@ export async function showNotificationBanner(data) {
                 reg.showNotification(
                     data.sender_display_name || data.sender_username || 'Vortex',
                     {
-                        body: data.is_dm ? t('notifications.dm') : (data.room_name || 'Новое сообщение'),
+                        body: data.is_dm ? t('notifications.dm') : (data.room_name || t('notifications.newMessage')),
                         icon: '/static/icons/icon-192.png',
                         tag:  `vortex-${data.room_id}`,
                         data: { room_id: data.room_id },

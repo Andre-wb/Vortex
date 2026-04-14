@@ -34,6 +34,7 @@ from app.models.bot import Bot, BotReview
 from app.models.moderation import UserReport, UserStrike
 from app.models.media import CallHistory, UploadQuota, PushSubscription
 from app.models.contact import Contact
+from app.models.prekeys import PreKeyBundle, OneTimePreKey
 
 __all__ = [
     # user
@@ -49,4 +50,6 @@ __all__ = [
     "CallHistory", "UploadQuota", "PushSubscription",
     # contact
     "Contact",
+    # prekeys (Double Ratchet / X3DH)
+    "PreKeyBundle", "OneTimePreKey",
 ]

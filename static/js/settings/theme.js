@@ -64,6 +64,12 @@ window.setChatTheme = function(theme) {
     } else {
         document.body.removeAttribute('data-theme');
     }
+    // Show/hide background grids based on theme
+    var darkGrid = document.getElementById('dark-bg-grid');
+    var lightGrid = document.getElementById('light-bg-grid');
+    if (darkGrid) darkGrid.style.display = theme === 'light' ? 'none' : '';
+    if (lightGrid) lightGrid.style.display = theme === 'light' ? '' : 'none';
+
     document.querySelectorAll('.theme-option').forEach(function(el) {
         el.classList.toggle('active', el.dataset.theme === theme);
     });
@@ -125,23 +131,40 @@ var _chatBgPresets = {
     'ocean-wave': 'linear-gradient(180deg,rgba(10,25,47,0.5) 0%,rgba(13,40,71,0.5) 40%,rgba(10,58,94,0.4) 70%,rgba(10,25,47,0.5) 100%)',
     mesh: 'repeating-linear-gradient(0deg,transparent,transparent 19px,rgba(255,255,255,0.03) 19px,rgba(255,255,255,0.03) 20px),repeating-linear-gradient(90deg,transparent,transparent 19px,rgba(255,255,255,0.03) 19px,rgba(255,255,255,0.03) 20px)',
     'deep-space': 'radial-gradient(ellipse at 50% 0%,rgba(88,28,135,0.2) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(30,64,175,0.15) 0%,transparent 50%)',
+    // Light theme backgrounds
+    'light-clean': 'none',
+    'light-lavender': 'linear-gradient(180deg,#f0e6ff 0%,#e8d5ff 50%,#f5eeff 100%)',
+    'light-sky': 'linear-gradient(180deg,#dbeafe 0%,#bfdbfe 50%,#e0f2fe 100%)',
+    'light-mint': 'linear-gradient(180deg,#d1fae5 0%,#a7f3d0 50%,#ecfdf5 100%)',
+    'light-peach': 'linear-gradient(180deg,#fef3c7 0%,#fde68a 50%,#fffbeb 100%)',
+    'light-rose': 'linear-gradient(180deg,#ffe4e6 0%,#fecdd3 50%,#fff1f2 100%)',
+    'light-dots': 'radial-gradient(circle,rgba(124,58,237,0.08) 1px,transparent 1px)',
+    'light-grid': 'repeating-linear-gradient(0deg,transparent,transparent 19px,rgba(0,0,0,0.04) 19px,rgba(0,0,0,0.04) 20px),repeating-linear-gradient(90deg,transparent,transparent 19px,rgba(0,0,0,0.04) 19px,rgba(0,0,0,0.04) 20px)',
+};
+
+var _lightBgColors = {
+    'light-clean': '#f8f9fa', 'light-lavender': '#f5eeff', 'light-sky': '#e0f2fe',
+    'light-mint': '#ecfdf5', 'light-peach': '#fffbeb', 'light-rose': '#fff1f2',
+    'light-dots': '#fafafa', 'light-grid': '#fafafa',
 };
 
 window.setChatBackground = function(bgKey) {
     var mc = document.getElementById('messages-container');
     if (!mc) return;
-    if (bgKey === 'none') {
+    if (bgKey === 'none' || bgKey === 'light-clean') {
         mc.style.backgroundImage = 'none';
         mc.style.backgroundSize = '';
         mc.style.backgroundPosition = '';
         mc.style.backgroundRepeat = '';
+        mc.style.backgroundColor = _lightBgColors[bgKey] || '';
     } else if (bgKey === 'custom') {
         return;
     } else {
         var preset = _chatBgPresets[bgKey];
         if (!preset) return;
         mc.style.backgroundImage = preset;
-        mc.style.backgroundSize = '';
+        mc.style.backgroundColor = _lightBgColors[bgKey] || '';
+        mc.style.backgroundSize = bgKey === 'light-dots' ? '16px 16px' : '';
         mc.style.backgroundPosition = '';
         mc.style.backgroundRepeat = '';
     }
@@ -158,7 +181,7 @@ window.uploadChatBackground = function(input) {
     if (!input.files || !input.files[0]) return;
     var file = input.files[0];
     if (file.size > 2 * 1024 * 1024) {
-        alert(window.t ? window.t('settings.fileTooLarge') : 'Файл слишком большой. Максимум 2 МБ.');
+        alert(t('settings.fileTooLarge'));
         input.value = '';
         return;
     }

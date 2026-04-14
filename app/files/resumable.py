@@ -493,7 +493,10 @@ async def upload_complete(
     mime_type = mime_result
 
     is_image = mime_type and mime_type.startswith("image/")
-    if is_image:
+    _is_encrypted = (len(content) > 12 and not content[:4] in (
+        b'\xff\xd8\xff', b'\x89PNG', b'GIF8', b'RIFF',
+    ))
+    if is_image and not _is_encrypted:
         img_ok, img_err = await FileAnomalyDetector.validate_image_content(content)
         if not img_ok:
             await _store.delete(upload_id)
@@ -546,7 +549,7 @@ async def upload_complete(
     db.commit()
 
     # ── WebSocket broadcast ───────────────────────────────────────────────────
-    await manager.broadcast_to_room(session.room_id, {
+    broadcast_payload = {
         "type":         "file",
         "sender_id":    u.id,
         "sender":       u.username,
@@ -559,7 +562,8 @@ async def upload_complete(
         "msg_type":     msg_type.value,
         "created_at":   ft.created_at.isoformat(),
         "file_hash":    actual_hash,
-    })
+    }
+    await manager.broadcast_to_room(session.room_id, broadcast_payload)
 
     logger.info(
         f"[UploadComplete] user={u.username} file={session.file_name!r} "

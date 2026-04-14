@@ -35,10 +35,10 @@ export function insertUnreadDivider(unreadCount) {
     divider.className = 'unread-divider';
     divider.id = 'unread-divider';
     const label = unreadCount === 1
-        ? (t('chat.newMessage1') || '1 новое сообщение')
+        ? t('chat.newMessage1')
         : unreadCount < 5
-            ? `${unreadCount} ${t('chat.newMessages2_4') || 'новых сообщения'}`
-            : `${unreadCount} ${t('chat.newMessages5') || 'новых сообщений'}`;
+            ? `${unreadCount} ${t('chat.newMessages2_4')}`
+            : `${unreadCount} ${t('chat.newMessages5')}`;
     const span = document.createElement('span');
     span.textContent = label;
     divider.appendChild(span);

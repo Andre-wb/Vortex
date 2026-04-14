@@ -57,7 +57,7 @@ function updateNetStatus() {
     const n = window.AppState.peers.length;
     const dot = $('net-dot');
     $('peers-badge').textContent = n;
-    $('net-label').textContent = n === 0 ? 'Нет устройств' : `${n} устр. в сети`;
+    $('net-label').textContent = n === 0 ? t('peers.noDevices') : t('peers.devicesOnline', {n});
     dot.className = 'net-dot ' + (n > 0 ? 'online' : 'offline');
 }
 

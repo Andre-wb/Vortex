@@ -27,13 +27,24 @@ function _toast(message, duration = 2500) {
  * Вызывается из контекстного меню.
  * @param {number} msgId - ID сообщения
  */
+// Кэш ID сохранённых сообщений (для toggle в контекстном меню)
+window._savedMsgIds = new Set();
+
+export async function loadSavedIds() {
+    try {
+        const data = await api('GET', '/api/saved');
+        window._savedMsgIds = new Set((data.messages || []).map(m => m.message_id));
+    } catch { /* ignore */ }
+}
+
 export async function toggleSavedMessage(msgId) {
     try {
         const data = await api('POST', `/api/saved/${msgId}`);
+        if (data.saved) window._savedMsgIds.add(msgId); else window._savedMsgIds.delete(msgId);
         _toast(data.saved ? t('saved.addedToSaved') : t('saved.removedFromSaved'));
     } catch (err) {
         console.error('toggleSavedMessage error:', err);
-        _toast('Ошибка: ' + err.message);
+        _toast(t('errors.generic') + ': ' + err.message);
     }
 }
 
@@ -145,7 +156,7 @@ function _buildSavedItem(item) {
     if (item.msg_type === 'file' || item.msg_type === 'image' || item.msg_type === 'voice') {
         textEl.textContent = item.file_name
             ? '\uD83D\uDCCE ' + item.file_name
-            : '\uD83D\uDCCE [файл]';
+            : '\uD83D\uDCCE [' + t('gallery.files') + ']';
     } else if (item.ciphertext) {
         // Attempt to decrypt using the room key if available
         const decrypted = _tryDecrypt(item.ciphertext, item.room_id);

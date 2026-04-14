@@ -17,3 +17,4 @@ import app.authentication.two_factor      # noqa: F401
 import app.authentication.session         # noqa: F401
 import app.authentication.profile         # noqa: F401
 import app.authentication.passkey         # noqa: F401
+import app.authentication.security_questions  # noqa: F401

@@ -68,8 +68,8 @@ def _call_dict(call: CallHistory, current_user_id: int, db: Session) -> dict:
         "duration": call.duration,
         "room_id": call.room_id,
         "other_user": other_user,
-        "started_at": call.started_at.isoformat() if call.started_at else "",
-        "ended_at": call.ended_at.isoformat() if call.ended_at else "",
+        "started_at": (call.started_at.isoformat() + "Z") if call.started_at else "",
+        "ended_at": (call.ended_at.isoformat() + "Z") if call.ended_at else "",
     }
 
 
@@ -106,21 +106,56 @@ async def missed_calls(u: User = Depends(get_current_user), db: Session = Depend
     return {"calls": [_call_dict(c, u.id, db) for c in calls]}
 
 
+@router.get("/missed/unseen")
+async def unseen_missed_calls(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get missed calls the user hasn't seen yet (shown on login)."""
+    calls = db.query(CallHistory).filter(
+        CallHistory.callee_id == u.id,
+        CallHistory.status == "missed",
+        CallHistory.seen == False,
+    ).order_by(CallHistory.started_at.desc()).limit(20).all()
+
+    return {
+        "calls": [_call_dict(c, u.id, db) for c in calls],
+        "count": len(calls),
+    }
+
+
+@router.post("/missed/mark-seen")
+async def mark_missed_seen(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Mark all missed calls as seen."""
+    db.query(CallHistory).filter(
+        CallHistory.callee_id == u.id,
+        CallHistory.status == "missed",
+        CallHistory.seen == False,
+    ).update({"seen": True}, synchronize_session=False)
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/start", status_code=201)
 async def start_call(body: CallStartRequest, u: User = Depends(get_current_user),
                      db: Session = Depends(get_db)):
     """Record a call start. Called by the initiator."""
+    # Compute sealed pseudonyms for metadata privacy
+    from app.security.sealed_sender import compute_sender_pseudo
+    _room = body.room_id or 0
+    _caller_pseudo = compute_sender_pseudo(_room, u.id)
+    _callee_pseudo = compute_sender_pseudo(_room, body.callee_id) if body.callee_id else None
+
     call = CallHistory(
         caller_id=u.id,
         callee_id=body.callee_id,
         room_id=body.room_id,
         call_type=body.call_type,
-        status="missed",  # Default to missed, updated when answered/ended
+        status="missed",
+        caller_pseudo=_caller_pseudo,
+        callee_pseudo=_callee_pseudo,
     )
     db.add(call)
     db.commit()
     db.refresh(call)
-    return {"call_id": call.id, "started_at": call.started_at.isoformat()}
+    return {"call_id": call.id, "started_at": (call.started_at.isoformat() + "Z") if call.started_at else ""}
 
 
 @router.post("/end")

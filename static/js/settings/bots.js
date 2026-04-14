@@ -20,7 +20,7 @@ window.createBot = async function() {
     var name = document.getElementById('bot-name')?.value?.trim();
     var description = document.getElementById('bot-description')?.value?.trim() || '';
     if (!name || name.length < 2) {
-        alert(window.t ? window.t('bots.nameTooShort') : 'Bot name must be at least 2 characters');
+        window.vxAlert(t('bots.nameTooShort'));
         return;
     }
     try {
@@ -28,11 +28,13 @@ window.createBot = async function() {
         if (resp.ok) {
             window.hideCreateBotForm();
             window.loadMyBots();
-            // Show token once
-            alert(window.t ? window.t('bots.createdToken').replace('{token}', resp.api_token) : 'Bot created!\n\nAPI Token (save it, shown only once):\n' + resp.api_token);
+            await window.vxAlert(
+                t('bots.createdTitle'),
+                { token: resp.api_token }
+            );
         }
     } catch (e) {
-        alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e));
+        window.vxAlert(t('bots.error') + ': ' + (e.message || e));
     }
 };
 
@@ -43,75 +45,32 @@ window.loadMyBots = async function() {
         var resp = await window.api('GET', '/api/bots');
         var bots = resp.bots || [];
         if (bots.length === 0) {
-            container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">У вас пока нет ботов</div>';
+            container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('bots.noBots') + '</div>';
             return;
         }
         container.innerHTML = bots.map(function(b) {
-            var cmds = (b.commands || []).map(function(c) {
-                return '<code>' + _escBot(c.command) + '</code> — ' + _escBot(c.description || '');
-            }).join('<br>');
-            // Mini App row: shows current URL and edit/test controls
-            var miniAppHtml = '';
-            miniAppHtml += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">' +
-                '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Mini App URL:</div>' +
-                '<div class="miniapp-url-row">' +
-                    '<input class="form-input" id="miniapp-url-' + b.bot_id + '" type="url" ' +
-                        'placeholder="https://example.com/app" value="' + _escBot(b.mini_app_url || '') + '" ' +
-                        'style="font-size:12px;padding:4px 8px;" maxlength="500">' +
-                    '<button class="btn btn-primary miniapp-test-btn" onclick="saveBotMiniAppUrl(' + b.bot_id + ')" ' +
-                        'title="Save mini app URL">Save</button>' +
-                    (b.mini_app_url && b.mini_app_enabled ?
-                        '<button class="btn btn-secondary miniapp-test-btn" onclick="testBotMiniApp(' + b.bot_id + ', \'' + _escBot(b.mini_app_url || '') + '\', \'' + _escBot(b.name) + '\')" ' +
-                            'title="Test mini app">Test</button>' : '') +
+            var statusDot = b.is_active
+                ? '<span style="width:8px;height:8px;border-radius:50%;background:#27ae60;display:inline-block;"></span>'
+                : '<span style="width:8px;height:8px;border-radius:50%;background:var(--text3);display:inline-block;"></span>';
+            return '<div class="bot-card" onclick="openBotSettings(' + b.bot_id + ')" style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:border-color .15s;"' +
+                ' onmouseenter="this.style.borderColor=\'var(--accent)\'" onmouseleave="this.style.borderColor=\'var(--border)\'">' +
+                '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#3b82f6);display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7 13H6v-2h1v2zm5 4c-1.1 0-2-.9-2-2h4c0 1.1-.9 2-2 2zm4-4h-1v-2h1v2zm-6-2v-2h4v2h-4z"/></svg>' +
                 '</div>' +
-                (b.mini_app_enabled ? '<div style="font-size:10px;color:var(--green);margin-top:4px;">Mini App active</div>' :
-                    '<div style="font-size:10px;color:var(--text3);margin-top:4px;">No mini app configured</div>') +
-            '</div>';
-            return '<div class="bot-card" style="background:var(--bg3);border-radius:8px;padding:12px;">' +
-                '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-                    '<div>' +
-                        '<div style="font-weight:700;font-size:14px;">' +
-                            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7 13H6v-2h1v2zm5 4c-1.1 0-2-.9-2-2h4c0 1.1-.9 2-2 2zm4-4h-1v-2h1v2zm-6-2v-2h4v2h-4z"/></svg>' + _escBot(b.name) +
-                            (b.is_active ? '' : ' <span style="color:var(--danger);font-size:11px;">(disabled)</span>') +
-                        '</div>' +
-                        '<div style="font-size:11px;color:var(--text3);font-family:var(--mono);">@' + _escBot(b.username) + '</div>' +
-                        (b.description ? '<div style="font-size:12px;color:var(--text2);margin-top:4px;">' + _escBot(b.description) + '</div>' : '') +
+                '<div style="flex:1;min-width:0;">' +
+                    '<div style="display:flex;align-items:center;gap:6px;">' +
+                        '<span style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _escBot(b.name) + '</span>' +
+                        statusDot +
                     '</div>' +
-                    '<div style="display:flex;gap:4px;">' +
-                        '<button class="btn btn-secondary" onclick="copyBotToken(' + b.bot_id + ')" style="font-size:11px;padding:2px 8px;" title="Copy token">Token</button>' +
-                        '<button class="btn btn-secondary" onclick="editBotCommands(' + b.bot_id + ')" style="font-size:11px;padding:2px 8px;">Commands</button>' +
-                        '<button class="btn btn-secondary" onclick="regenerateBotToken(' + b.bot_id + ')" style="font-size:11px;padding:2px 8px;" title="Regenerate token">&#x1F504;</button>' +
-                        '<button class="btn btn-secondary" style="font-size:11px;padding:2px 8px;color:var(--danger);" onclick="deleteBot(' + b.bot_id + ')">&#x1F5D1;</button>' +
-                    '</div>' +
+                    '<div style="font-size:11px;color:var(--text3);font-family:var(--mono);">@' + _escBot(b.username) + '</div>' +
                 '</div>' +
-                (cmds ? '<div style="margin-top:8px;font-size:12px;color:var(--text2);">' + cmds + '</div>' : '') +
-                miniAppHtml +
-                '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">' +
-                    '<div style="display:flex;align-items:center;gap:8px;">' +
-                        '<label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">' +
-                            '<input type="checkbox" ' + (b.is_public ? 'checked' : '') + ' onchange="toggleBotPublish(' + b.bot_id + ',this.checked,document.getElementById(\'bot-cat-' + b.bot_id + '\').value)" style="width:14px;height:14px;accent-color:var(--accent);">' +
-                            ' Маркетплейс' +
-                        '</label>' +
-                        '<select id="bot-cat-' + b.bot_id + '" style="font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);" onchange="toggleBotPublish(' + b.bot_id + ',true,this.value)">' +
-                            '<option value="utilities"' + (b.category==='utilities'?' selected':'') + '>Утилиты</option>' +
-                            '<option value="games"' + (b.category==='games'?' selected':'') + '>Игры</option>' +
-                            '<option value="moderation"' + (b.category==='moderation'?' selected':'') + '>Модерация</option>' +
-                            '<option value="music"' + (b.category==='music'?' selected':'') + '>Музыка</option>' +
-                            '<option value="productivity"' + (b.category==='productivity'?' selected':'') + '>Продуктивность</option>' +
-                            '<option value="social"' + (b.category==='social'?' selected':'') + '>Соцсети</option>' +
-                            '<option value="fun"' + (b.category==='fun'?' selected':'') + '>Развлечения</option>' +
-                            '<option value="other"' + (b.category==='other'?' selected':'') + '>Другое</option>' +
-                        '</select>' +
-                    '</div>' +
-                    (b.is_public ? '<div style="font-size:10px;color:var(--text3);">' +
-                        _escBot(String(b.installs || 0)) + ' установок, ' +
-                        _escBot(String(b.rating || 0)) + ' (' + _escBot(String(b.rating_count || 0)) + ' оценок)' +
-                    '</div>' : '') +
+                '<div style="flex-shrink:0;color:var(--text3);">' +
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' +
                 '</div>' +
             '</div>';
         }).join('');
     } catch (e) {
-        container.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:12px;padding:24px 0;">Ошибка загрузки: ' + (e.message || e) + '</div>';
+        container.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:12px;padding:24px 0;">' + t('bots.loadError') + ': ' + _escBot(e.message || String(e)) + '</div>';
     }
 };
 
@@ -122,40 +81,163 @@ function _escBot(s) {
     return d.innerHTML;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Bot Settings Panel — full screen settings for a single bot
+// ══════════════════════════════════════════════════════════════════════════════
+
+window.openBotSettings = async function(botId) {
+    // Remove existing panel
+    document.getElementById('bot-settings-panel')?.remove();
+
+    var panel = document.createElement('div');
+    panel.id = 'bot-settings-panel';
+    panel.style.cssText = 'position:fixed;inset:0;z-index:500;background:var(--bg);display:flex;flex-direction:column;overflow-y:auto;';
+
+    panel.innerHTML = '<div style="padding:16px 20px;text-align:center;color:var(--text3);">' + t('common.loading') + '</div>';
+    document.body.appendChild(panel);
+
+    try {
+        var resp = await window.api('GET', '/api/bots/' + botId + '/detail');
+        var b = resp.bot || resp;
+
+        var statusText = b.is_active ? t('bots.statusActive') : t('bots.statusDisabled');
+        var statusColor = b.is_active ? '#27ae60' : 'var(--text3)';
+        var cmds = (b.commands || []).map(function(c) {
+            return '<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;">' +
+                '<code style="color:var(--accent);font-weight:600;">' + _escBot(c.command) + '</code>' +
+                '<span style="color:var(--text2);font-size:12px;">' + _escBot(c.description || '') + '</span></div>';
+        }).join('');
+
+        panel.innerHTML =
+            // Header
+            '<div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">' +
+                '<button onclick="document.getElementById(\'bot-settings-panel\')?.remove()" style="background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;">' +
+                    '<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>' +
+                '</button>' +
+                '<span style="font-weight:700;font-size:16px;flex:1;">' + t('bots.botSettings') + '</span>' +
+                '<button onclick="deleteBot(' + botId + ');document.getElementById(\'bot-settings-panel\')?.remove()" style="background:none;border:none;color:var(--red);cursor:pointer;padding:4px;" title="' + t('app.delete') + '">' +
+                    '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+                '</button>' +
+            '</div>' +
+
+            // Bot avatar + name
+            '<div style="text-align:center;padding:24px 20px 16px;">' +
+                '<div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,var(--accent),#3b82f6);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">' +
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="#fff" viewBox="0 0 24 24"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7 13H6v-2h1v2zm5 4c-1.1 0-2-.9-2-2h4c0 1.1-.9 2-2 2zm4-4h-1v-2h1v2zm-6-2v-2h4v2h-4z"/></svg>' +
+                '</div>' +
+                '<div style="font-weight:700;font-size:18px;">' + _escBot(b.name) + '</div>' +
+                '<div style="font-size:12px;color:var(--text3);font-family:var(--mono);">@' + _escBot(b.username) + '</div>' +
+                '<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px;">' +
+                    '<span style="width:8px;height:8px;border-radius:50%;background:' + statusColor + ';"></span>' +
+                    '<span style="font-size:12px;color:' + statusColor + ';">' + statusText + '</span>' +
+                '</div>' +
+                (b.description ? '<div style="font-size:13px;color:var(--text2);margin-top:8px;max-width:300px;margin-left:auto;margin-right:auto;">' + _escBot(b.description) + '</div>' : '') +
+            '</div>' +
+
+            // Settings sections
+            '<div style="padding:0 20px 24px;display:flex;flex-direction:column;gap:12px;">' +
+
+                // API Token
+                '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">' +
+                    '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">' + t('bots.apiToken') + '</div>' +
+                    '<div style="display:flex;gap:8px;">' +
+                        '<button class="btn btn-secondary" onclick="copyBotToken(' + botId + ')" style="flex:1;font-size:12px;">' +
+                            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>' +
+                            t('bots.getToken') +
+                        '</button>' +
+                        '<button class="btn btn-secondary" onclick="regenerateBotToken(' + botId + ')" style="font-size:12px;color:var(--red);">' +
+                            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>' +
+                            t('bots.regenerate') +
+                        '</button>' +
+                    '</div>' +
+                '</div>' +
+
+                // Constructor button
+                '<button onclick="openBotConstructor(' + botId + ')" style="width:100%;display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,var(--accent),#3b82f6);border:none;border-radius:12px;cursor:pointer;transition:opacity .15s;" onmouseenter="this.style.opacity=\'0.9\'" onmouseleave="this.style.opacity=\'1\'">' +
+                    '<svg width="24" height="24" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>' +
+                    '<div style="text-align:left;">' +
+                        '<div style="color:#fff;font-weight:700;font-size:14px;">' + t('botConstructor.title') + '</div>' +
+                        '<div style="color:rgba(255,255,255,0.7);font-size:11px;">' + t('botConstructor.subtitle') + '</div>' +
+                    '</div>' +
+                    '<svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2" viewBox="0 0 24 24" style="margin-left:auto;"><polyline points="9 18 15 12 9 6"/></svg>' +
+                '</button>' +
+
+                // Commands preview
+                (cmds ? '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">' +
+                    '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">' + t('bots.commands') + '</div>' +
+                    cmds + '</div>' : '') +
+
+                // Marketplace
+                '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">' +
+                    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">' +
+                        '<span style="font-weight:600;font-size:13px;">' + t('bots.marketplace') + '</span>' +
+                        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">' +
+                            '<input type="checkbox" ' + (b.is_public ? 'checked' : '') + ' onchange="toggleBotPublish(' + botId + ',this.checked,document.getElementById(\'bot-cat-' + botId + '\').value)" style="width:16px;height:16px;accent-color:var(--accent);">' +
+                            '<span style="font-size:12px;">' + t('bots.publishToMarketplace') + '</span>' +
+                        '</label>' +
+                    '</div>' +
+                    '<select id="bot-cat-' + botId + '" style="width:100%;font-size:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);" onchange="if(document.querySelector(\'input[onchange*=toggleBotPublish]\')?.checked)toggleBotPublish(' + botId + ',true,this.value)">' +
+                        '<option value="utilities"' + (b.category==='utilities'?' selected':'') + '>' + t('bots.catUtilities') + '</option>' +
+                        '<option value="games"' + (b.category==='games'?' selected':'') + '>' + t('bots.catGames') + '</option>' +
+                        '<option value="moderation"' + (b.category==='moderation'?' selected':'') + '>' + t('bots.catModeration') + '</option>' +
+                        '<option value="music"' + (b.category==='music'?' selected':'') + '>' + t('bots.catMusic') + '</option>' +
+                        '<option value="productivity"' + (b.category==='productivity'?' selected':'') + '>' + t('bots.catProductivity') + '</option>' +
+                        '<option value="social"' + (b.category==='social'?' selected':'') + '>' + t('bots.catSocial') + '</option>' +
+                        '<option value="fun"' + (b.category==='fun'?' selected':'') + '>' + t('bots.catFun') + '</option>' +
+                        '<option value="other"' + (b.category==='other'?' selected':'') + '>' + t('bots.catOther') + '</option>' +
+                    '</select>' +
+                    (b.is_public ? '<div style="font-size:11px;color:var(--text3);margin-top:8px;">' +
+                        t('bots.installsCount', {count: b.installs || 0}) + ' · ' +
+                        '★ ' + _escBot(String(b.rating || 0)) + ' (' + t('bots.ratingsCount', {count: b.rating_count || 0}) + ')' +
+                    '</div>' : '') +
+                '</div>' +
+
+            '</div>';
+
+    } catch (e) {
+        panel.innerHTML = '<div style="padding:40px;text-align:center;">' +
+            '<div style="color:var(--red);margin-bottom:12px;">' + t('errors.loadingError') + '</div>' +
+            '<button class="btn btn-secondary" onclick="document.getElementById(\'bot-settings-panel\')?.remove()">' + t('app.close') + '</button>' +
+        '</div>';
+    }
+};
+
 window.copyBotToken = async function(botId) {
     try {
         var resp = await window.api('GET', '/api/bots/' + botId + '/token');
         if (resp.api_token) {
-            await navigator.clipboard.writeText(resp.api_token);
-            alert(window.t ? window.t('bots.tokenCopied') : 'Token copied to clipboard');
+            await window.vxAlert('API Token', { token: resp.api_token });
         }
     } catch (e) {
-        alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e));
+        window.vxAlert(t('bots.error') + ': ' + (e.message || e));
     }
 };
 
 window.regenerateBotToken = async function(botId) {
-    if (!confirm('Перегенерировать токен? Старый токен перестанет работать.')) return;
+    if (!await window.vxConfirm(t('bots.regenerateTokenConfirm'), { danger: true })) return;
     try {
         var resp = await window.api('POST', '/api/bots/' + botId + '/regenerate-token');
         if (resp.ok) {
-            alert(window.t ? window.t('bots.newToken').replace('{token}', resp.api_token) : 'New token:\n' + resp.api_token);
+            await window.vxAlert(
+                t('bots.newTokenTitle'),
+                { token: resp.api_token }
+            );
             window.loadMyBots();
         }
     } catch (e) {
-        alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e));
+        window.vxAlert(t('bots.error') + ': ' + (e.message || e));
     }
 };
 
 window.deleteBot = async function(botId) {
-    if (!confirm('Удалить бота? Это действие необратимо.')) return;
+    if (!await window.vxConfirm(t('bots.deleteBotConfirm'), { danger: true })) return;
     try {
         var resp = await window.api('DELETE', '/api/bots/' + botId);
         if (resp.ok) {
             window.loadMyBots();
         }
     } catch (e) {
-        alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e));
+        window.vxAlert(t('bots.error') + ': ' + (e.message || e));
     }
 };
 
@@ -167,12 +249,12 @@ window.showAddBotToRoom = async function() {
         return;
     }
     list.style.display = '';
-    list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:8px;">Загрузка...</div>';
+    list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:8px;">' + t('common.loading') + '</div>';
     try {
         var resp = await window.api('GET', '/api/bots');
         var bots = resp.bots || [];
         if (bots.length === 0) {
-            list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:8px;">У вас нет ботов. Создайте бота в Настройки &rarr; Боты</div>';
+            list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:8px;">' + t('bots.noBotsCreateHint') + '</div>';
             return;
         }
         var S = window.AppState;
@@ -180,7 +262,7 @@ window.showAddBotToRoom = async function() {
         list.innerHTML = bots.map(function(b) {
             return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--bg3);border-radius:6px;margin-bottom:4px;">' +
                 '<span style="font-size:12px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7 13H6v-2h1v2zm5 4c-1.1 0-2-.9-2-2h4c0 1.1-.9 2-2 2zm4-4h-1v-2h1v2zm-6-2v-2h4v2h-4z"/></svg>' + _escBot(b.name) + '</span>' +
-                '<button class="btn btn-primary" style="font-size:11px;padding:2px 8px;" onclick="addBotToCurrentRoom(' + b.bot_id + ')">Добавить</button>' +
+                '<button class="btn btn-primary" style="font-size:11px;padding:2px 8px;" onclick="addBotToCurrentRoom(' + b.bot_id + ')">' + t('common.add') + '</button>' +
             '</div>';
         }).join('');
     } catch (e) {
@@ -194,30 +276,29 @@ window.addBotToCurrentRoom = async function(botId) {
     if (!roomId) return;
     try {
         await window.api('POST', '/api/bots/' + botId + '/rooms/' + roomId);
-        alert(window.t ? window.t('bots.addedToRoom') : 'Bot added to room');
+        window.showToast?.(t('bots.addedToRoom'), 'success');
         document.getElementById('add-bot-to-room-list').style.display = 'none';
     } catch (e) {
-        alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e));
+        window.vxAlert(t('bots.error') + ': ' + (e.message || e));
     }
 };
 
-window.editBotCommands = function(botId) {
-    var cmdsJson = prompt(
-        'Введите команды в формате JSON:\n' +
-        '[{"command": "/help", "description": "Помощь"}, ...]\n\n' +
-        'Или оставьте пустым для очистки:'
+window.editBotCommands = async function(botId) {
+    var cmdsJson = await window.vxPrompt(
+        t('bots.enterCommandsJson'),
+        '', '[]'
     );
-    if (cmdsJson === null) return; // cancelled
+    if (cmdsJson === null) return;
     if (cmdsJson.trim() === '') cmdsJson = '[]';
     try {
-        JSON.parse(cmdsJson); // validate
+        JSON.parse(cmdsJson);
     } catch {
-        alert(window.t ? window.t('bots.invalidJson') : 'Invalid JSON format');
+        window.vxAlert(t('bots.invalidJson'));
         return;
     }
     window.api('PUT', '/api/bots/' + botId, { commands: cmdsJson })
         .then(function() { window.loadMyBots(); })
-        .catch(function(e) { alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e)); });
+        .catch(function(e) { window.vxAlert(t('bots.error') + ': ' + (e.message || e)); });
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -232,7 +313,7 @@ window.saveBotMiniAppUrl = async function(botId) {
         await window.api('PUT', '/api/bots/' + botId, { mini_app_url: url });
         window.loadMyBots();
     } catch (e) {
-        alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e));
+        alert(t('bots.error') + ': ' + (e.message || e));
     }
 };
 
@@ -275,7 +356,7 @@ window.testBotMiniApp = function(botId, url, title) {
 
     window.openMiniApp = function(botId, url, title) {
         if (!url) {
-            alert(window.t ? window.t('bots.noMiniAppUrl') : 'No Mini App URL configured for this bot.');
+            alert(t('bots.noMiniAppUrl'));
             return;
         }
 
@@ -464,7 +545,7 @@ window.toggleBotPublish = async function(botId, isPublic, category) {
         });
         window.loadMyBots();
     } catch (e) {
-        alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e));
+        alert(t('bots.error') + ': ' + (e.message || e));
     }
 };
 
@@ -479,16 +560,19 @@ var _mpState = {
     userRooms: []
 };
 
-var _mpCatLabels = {
-    utilities: 'Утилиты',
-    games: 'Игры',
-    moderation: 'Модерация',
-    music: 'Музыка',
-    productivity: 'Продуктивность',
-    social: 'Соцсети',
-    fun: 'Развлечения',
-    other: 'Другое'
-};
+function _mpCatLabel(id) {
+    var keys = {
+        utilities: 'bots.catUtilities',
+        games: 'bots.catGames',
+        moderation: 'bots.catModeration',
+        music: 'bots.catMusic',
+        productivity: 'bots.catProductivity',
+        social: 'bots.catSocial',
+        fun: 'bots.catFun',
+        other: 'bots.catOther'
+    };
+    return keys[id] ? t(keys[id]) : id;
+}
 
 window.openMarketplace = function() {
     openModal('marketplace-modal');
@@ -512,10 +596,10 @@ window.mpLoadCategories = async function() {
     try {
         var data = await window.api('GET', '/api/marketplace/categories');
         var cats = data.categories || [];
-        var html = '<button class="marketplace-cat-pill active" onclick="mpSetCategory(\'\',this)">Все<span class="cat-count">' + (data.total || 0) + '</span></button>';
+        var html = '<button class="marketplace-cat-pill active" onclick="mpSetCategory(\'\',this)">' + t('common.all') + '<span class="cat-count">' + (data.total || 0) + '</span></button>';
         cats.forEach(function(c) {
             html += '<button class="marketplace-cat-pill" onclick="mpSetCategory(\'' + c.id + '\',this)">' +
-                (_mpCatLabels[c.id] || c.id) +
+                _mpCatLabel(c.id) +
                 '<span class="cat-count">' + c.count + '</span></button>';
         });
         container.innerHTML = html;
@@ -552,26 +636,26 @@ window.mpSearch = function(q) {
 window.mpSearchBots = async function(q) {
     var grid = document.getElementById('mp-grid');
     if (!grid) return;
-    grid.innerHTML = '<div class="marketplace-loading">Поиск...</div>';
+    grid.innerHTML = '<div class="marketplace-loading">' + t('common.searching') + '</div>';
     try {
         var data = await window.api('GET', '/api/marketplace/search?q=' + encodeURIComponent(q));
         mpRenderGrid(data.bots || []);
     } catch (e) {
-        grid.innerHTML = '<div class="marketplace-empty">Ошибка поиска</div>';
+        grid.innerHTML = '<div class="marketplace-empty">' + t('bots.searchError') + '</div>';
     }
 };
 
 window.mpLoadBots = async function() {
     var grid = document.getElementById('mp-grid');
     if (!grid) return;
-    grid.innerHTML = '<div class="marketplace-loading">Загрузка...</div>';
+    grid.innerHTML = '<div class="marketplace-loading">' + t('common.loading') + '</div>';
     try {
         var url = '/api/marketplace?sort=' + _mpState.sort + '&limit=50';
         if (_mpState.category) url += '&category=' + _mpState.category;
         var data = await window.api('GET', url);
         mpRenderGrid(data.bots || []);
     } catch (e) {
-        grid.innerHTML = '<div class="marketplace-empty">Ошибка загрузки</div>';
+        grid.innerHTML = '<div class="marketplace-empty">' + t('bots.loadError') + '</div>';
     }
 };
 
@@ -579,7 +663,7 @@ function mpRenderGrid(bots) {
     var grid = document.getElementById('mp-grid');
     if (!grid) return;
     if (bots.length === 0) {
-        grid.innerHTML = '<div class="marketplace-empty" style="grid-column:1/-1;">Ботов пока нет</div>';
+        grid.innerHTML = '<div class="marketplace-empty" style="grid-column:1/-1;">' + t('bots.noBotsYet') + '</div>';
         return;
     }
     grid.innerHTML = bots.map(function(b) {
@@ -595,7 +679,7 @@ function mpRenderGrid(bots) {
                 '</div>' +
             '</div>' +
             '<div class="marketplace-card-bottom">' +
-                '<div class="marketplace-card-cat">' + (_mpCatLabels[b.category] || b.category) + '</div>' +
+                '<div class="marketplace-card-cat">' + _mpCatLabel(b.category) + '</div>' +
                 '<div class="marketplace-card-stats">' +
                     '<span class="stat-icon">' + mpStarsHtml(b.rating, true) + '</span>' +
                     '<span class="stat-icon"><svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> ' + (b.installs || 0) + '</span>' +
@@ -637,7 +721,7 @@ window.mpOpenDetail = async function(botId) {
     document.getElementById('mp-detail-view').style.display = 'flex';
     var content = document.getElementById('mp-detail-content');
     if (!content) return;
-    content.innerHTML = '<div class="marketplace-loading">Загрузка...</div>';
+    content.innerHTML = '<div class="marketplace-loading">' + t('common.loading') + '</div>';
 
     try {
         var bot = await window.api('GET', '/api/marketplace/' + botId);
@@ -650,7 +734,7 @@ window.mpOpenDetail = async function(botId) {
         var cmdsHtml = '';
         var cmds = bot.commands || [];
         if (cmds.length > 0) {
-            cmdsHtml = '<div class="marketplace-detail-commands"><h4>Команды</h4>';
+            cmdsHtml = '<div class="marketplace-detail-commands"><h4>' + t('bots.commands') + '</h4>';
             cmds.forEach(function(c) {
                 cmdsHtml += '<div class="marketplace-detail-cmd"><code>' + _escBot(c.command) + '</code><span>' + _escBot(c.description || '') + '</span></div>';
             });
@@ -663,13 +747,13 @@ window.mpOpenDetail = async function(botId) {
         }).join('');
         var installHtml = roomOptions ?
             '<div class="marketplace-room-select">' +
-                '<label>Добавить в комнату</label>' +
+                '<label>' + t('bots.addToRoom') + '</label>' +
                 '<div style="display:flex;gap:8px;">' +
                     '<select id="mp-install-room" style="flex:1;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">' + roomOptions + '</select>' +
-                    '<button class="btn btn-primary" onclick="mpInstallBot(' + botId + ')" style="white-space:nowrap;font-size:12px;">Установить</button>' +
+                    '<button class="btn btn-primary" onclick="mpInstallBot(' + botId + ')" style="white-space:nowrap;font-size:12px;">' + t('bots.install') + '</button>' +
                 '</div>' +
             '</div>' :
-            '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Нет доступных комнат для установки</div>';
+            '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">' + t('bots.noRoomsForInstall') + '</div>';
 
         // Mini app button
         var miniAppHtml = '';
@@ -677,25 +761,25 @@ window.mpOpenDetail = async function(botId) {
             miniAppHtml = '<div style="margin-bottom:16px;">' +
                 '<button class="btn btn-secondary" onclick="window.open(\'' + _escBot(bot.mini_app_url) + '\',\'_blank\')" style="font-size:12px;">' +
                     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>' +
-                    'Открыть приложение</button>' +
+                    t('bots.openApp') + '</button>' +
             '</div>';
         }
 
         // Reviews
-        var reviewsHtml = '<div class="marketplace-reviews"><h4>Отзывы (' + (bot.rating_count || 0) + ')</h4>';
+        var reviewsHtml = '<div class="marketplace-reviews"><h4>' + t('bots.reviews', {count: bot.rating_count || 0}) + '</h4>';
 
         // Review form
         var existingRating = (bot.user_review && bot.user_review.rating) || 0;
         var existingText = (bot.user_review && bot.user_review.text) || '';
         reviewsHtml += '<div class="marketplace-review-form">' +
-            '<label>' + (existingRating ? 'Ваш отзыв (обновить)' : 'Оставить отзыв') + '</label>' +
+            '<label>' + (existingRating ? t('bots.updateReview') : t('bots.leaveReview')) + '</label>' +
             '<div class="marketplace-star-input" id="mp-star-input" data-bot="' + botId + '">';
         for (var i = 1; i <= 5; i++) {
             reviewsHtml += '<span class="star' + (i <= existingRating ? ' active' : '') + '" data-val="' + i + '" onclick="mpSelectStar(this,' + i + ')">&#9733;</span>';
         }
         reviewsHtml += '</div>' +
-            '<textarea id="mp-review-text" placeholder="Комментарий (необязательно)" maxlength="500">' + _escBot(existingText) + '</textarea>' +
-            '<button class="btn btn-primary" onclick="mpSubmitReview(' + botId + ')" style="font-size:12px;margin-top:8px;">Отправить</button>' +
+            '<textarea id="mp-review-text" placeholder="' + t('bots.commentOptional') + '" maxlength="500">' + _escBot(existingText) + '</textarea>' +
+            '<button class="btn btn-primary" onclick="mpSubmitReview(' + botId + ')" style="font-size:12px;margin-top:8px;">' + t('common.submit') + '</button>' +
         '</div>';
 
         // Existing reviews list
@@ -719,7 +803,7 @@ window.mpOpenDetail = async function(botId) {
                 '</div>';
             });
         } else {
-            reviewsHtml += '<div style="font-size:12px;color:var(--text3);padding:8px 0;">Пока нет отзывов</div>';
+            reviewsHtml += '<div style="font-size:12px;color:var(--text3);padding:8px 0;">' + t('bots.noReviewsYet') + '</div>';
         }
         reviewsHtml += '</div>';
 
@@ -728,11 +812,11 @@ window.mpOpenDetail = async function(botId) {
                 '<div class="marketplace-detail-avatar">' + avatarHtml + '</div>' +
                 '<div class="marketplace-detail-info">' +
                     '<div class="marketplace-detail-name">' + _escBot(bot.name) + '</div>' +
-                    '<div class="marketplace-detail-owner">от ' + _escBot(bot.owner_name) + '</div>' +
+                    '<div class="marketplace-detail-owner">' + t('bots.byOwner', {name: _escBot(bot.owner_name)}) + '</div>' +
                     '<div class="marketplace-detail-stats">' +
-                        '<span class="marketplace-card-cat">' + (_mpCatLabels[bot.category] || bot.category) + '</span>' +
+                        '<span class="marketplace-card-cat">' + _mpCatLabel(bot.category) + '</span>' +
                         '<span>' + mpStarsHtml(bot.rating) + ' <span style="font-size:11px;color:var(--text3);">(' + (bot.rating_count || 0) + ')</span></span>' +
-                        '<span><svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> ' + (bot.installs || 0) + ' установок</span>' +
+                        '<span><svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> ' + t('bots.installsCount', {count: bot.installs || 0}) + '</span>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -740,10 +824,34 @@ window.mpOpenDetail = async function(botId) {
             cmdsHtml +
             miniAppHtml +
             installHtml +
+            // Chat with bot button
+            (bot.user_id ? '<div style="margin-bottom:16px;">' +
+                '<button class="btn btn-primary" style="width:100%;font-size:13px;padding:10px;display:flex;align-items:center;justify-content:center;gap:8px;" onclick="mpOpenBotChat(' + bot.user_id + ')">' +
+                    '<svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>' +
+                    t('bots.chatWithBot') +
+                '</button>' +
+            '</div>' : '') +
             reviewsHtml;
 
     } catch (e) {
-        content.innerHTML = '<div class="marketplace-empty">Ошибка загрузки: ' + _escBot(e.message || String(e)) + '</div>';
+        content.innerHTML = '<div class="marketplace-empty">' + t('bots.loadError') + ': ' + _escBot(e.message || String(e)) + '</div>';
+    }
+};
+
+window.mpOpenBotChat = async function(botUserId) {
+    try {
+        // Close marketplace/settings modals
+        if (window.closeModal) {
+            window.closeModal('settings-modal');
+        }
+        // Open DM with bot's user account
+        if (window.openDm) {
+            await window.openDm(botUserId);
+        } else if (window.startDmWith) {
+            await window.startDmWith(botUserId);
+        }
+    } catch (e) {
+        if (window.showToast) window.showToast(t('errors.generic') + ': ' + e.message, 'error');
     }
 };
 
@@ -754,19 +862,31 @@ window.mpBackToList = function() {
 
 window.mpInstallBot = async function(botId) {
     var sel = document.getElementById('mp-install-room');
-    if (!sel || !sel.value) {
-        alert(window.t ? window.t('bots.selectRoom') : 'Select a room');
+    var roomId = sel ? sel.value : '';
+    if (!roomId) {
+        // No room selected — try current room
+        roomId = window.AppState?.currentRoom?.id;
+    }
+    if (!roomId) {
+        if (window.showToast) window.showToast(t('bots.selectRoom'), 'error');
         return;
     }
     try {
-        var resp = await window.api('POST', '/api/marketplace/' + botId + '/install/' + sel.value);
-        if (resp.message) {
-            alert(resp.message);
-        } else {
-            alert(window.t ? window.t('bots.installedToRoom') : 'Bot installed to room!');
+        var resp = await window.api('POST', '/api/marketplace/' + botId + '/install/' + roomId);
+        if (window.showToast) window.showToast(t('bots.installedToRoom'), 'success');
+
+        // Close settings and open DM with bot
+        if (window.closeModal) window.closeModal('settings-modal');
+        var botUserId = resp.bot_user_id;
+        if (botUserId) {
+            if (window.openDm) {
+                window.openDm(botUserId);
+            } else if (window.startDmWith) {
+                window.startDmWith(botUserId);
+            }
         }
     } catch (e) {
-        alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e));
+        if (window.showToast) window.showToast(t('bots.error') + ': ' + (e.message || e), 'error');
     }
 };
 
@@ -782,7 +902,7 @@ window.mpSelectStar = function(el, val) {
 
 window.mpSubmitReview = async function(botId) {
     if (_mpSelectedRating < 1 || _mpSelectedRating > 5) {
-        alert(window.t ? window.t('bots.selectRating') : 'Select rating (1-5 stars)');
+        alert(t('bots.selectRating'));
         return;
     }
     var text = (document.getElementById('mp-review-text')?.value || '').trim();
@@ -793,7 +913,7 @@ window.mpSubmitReview = async function(botId) {
         });
         mpOpenDetail(botId);
     } catch (e) {
-        alert((window.t ? window.t('bots.error') : 'Error') + ': ' + (e.message || e));
+        alert(t('bots.error') + ': ' + (e.message || e));
     }
 };
 
@@ -819,7 +939,7 @@ window.submitReport = async function() {
     var submitBtn = document.getElementById('report-submit-btn');
 
     if (!targetId) {
-        alertEl.textContent = 'Не указан пользователь';
+        alertEl.textContent = t('report.noUserSpecified');
         alertEl.style.display = 'block';
         alertEl.style.color = '#ef4444';
         return;
@@ -830,14 +950,14 @@ window.submitReport = async function() {
         var body = { reason: reason, description: description };
         if (messageId) body.message_id = parseInt(messageId);
         var resp = await window.api('POST', '/api/users/report/' + targetId, body);
-        alertEl.textContent = resp.message || 'Жалоба отправлена';
+        alertEl.textContent = resp.message || t('report.reportSent');
         alertEl.style.display = 'block';
         alertEl.style.color = '#22c55e';
         setTimeout(function() {
             document.getElementById('report-modal').classList.remove('show');
         }, 1500);
     } catch (e) {
-        alertEl.textContent = e.message || 'Ошибка отправки жалобы';
+        alertEl.textContent = e.message || t('report.reportError');
         alertEl.style.display = 'block';
         alertEl.style.color = '#ef4444';
         submitBtn.disabled = false;

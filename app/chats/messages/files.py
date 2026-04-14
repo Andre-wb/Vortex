@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import Depends, File, HTTPException, Request, UploadFile
+from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,7 @@ async def upload_file(
     room_id: int,
     request: Request,
     file:    UploadFile          = File(...),
+    caption_ct: str | None       = Form(None),
     u:       User                = Depends(get_current_user),
     db:      Session             = Depends(get_db),
 ):
@@ -76,7 +77,12 @@ async def upload_file(
     mime_type = mime_result
 
     is_image = mime_type and mime_type.startswith("image/")
-    if is_image:
+    # E2E: encrypted content can't be validated as image — skip PIL check
+    # if magic bytes indicate octet-stream but extension is image, it's encrypted
+    _is_encrypted = (len(content) > 12 and not content[:4] in (
+        b'\xff\xd8\xff', b'\x89PNG', b'GIF8', b'RIFF',  # JPEG, PNG, GIF, WEBP magic
+    ))
+    if is_image and not _is_encrypted:
         img_ok, img_err = await FileAnomalyDetector.validate_image_content(content)
         if not img_ok:
             raise HTTPException(400, img_err or "Неверное содержимое изображения")
@@ -127,9 +133,11 @@ async def upload_file(
     )
     db.add(msg)
     db.commit()
+    db.refresh(msg)
 
-    await manager.broadcast_to_room(room_id, {
+    broadcast_payload = {
         "type":         "file",
+        "msg_id":       msg.id,
         "sender_id":    u.id,
         "sender_pseudo": compute_sender_pseudo(room_id, u.id),
         "sender":       u.username,
@@ -143,9 +151,12 @@ async def upload_file(
         "msg_type":     msg_type.value,
         "created_at":   utc_iso(ft.created_at),
         "file_hash":    file_hash,
-    })
+    }
+    if caption_ct:
+        broadcast_payload["ciphertext"] = caption_ct
+    await manager.broadcast_to_room(room_id, broadcast_payload)
 
-    logger.info("File uploaded: %s (%d bytes) room=%d user=%s", filename, size, room_id, u.username)
+    logger.info("File uploaded: %s (%d bytes) room=%d user=%s caption=%s", filename, size, room_id, u.username, 'yes' if caption_ct else 'no')
     return {"ok": True, "file_id": ft.id, "download_url": download_url, "file_hash": file_hash}
 
 

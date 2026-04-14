@@ -103,9 +103,9 @@ class WebhookManager:
 
         headers = {
             "Content-Type":       "application/json",
-            "X-Vortex-Event":     event,
-            "X-Vortex-Signature": f"sha256={signature}",
-            "User-Agent":         "Vortex-Webhook/2.0",
+            "X-Hook-Event":       event,
+            "X-Hook-Signature":   f"sha256={signature}",
+            "User-Agent":         "Mozilla/5.0 (compatible)",
         }
 
         for attempt in range(3):

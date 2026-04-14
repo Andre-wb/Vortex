@@ -141,8 +141,10 @@ function openContactDM(userId) {
     switchBottomTab('chats');
 }
 
-function callContact(userId, type) {
-    if (window.startCall) window.startCall(userId, type === 'video');
+async function callContact(userId, type) {
+    if (window.startCall) {
+        await window.startCall(userId, type === 'video');
+    }
 }
 
 function showContactMenu(event, contactId, userId, name) {
@@ -162,9 +164,10 @@ function showContactMenu(event, contactId, userId, name) {
     actions.forEach(a => {
         const btn = document.createElement('button');
         btn.textContent = a.label;
-        btn.style.cssText = `display:block;width:100%;text-align:left;padding:8px 12px;border:none;background:none;color:${a.danger ? 'var(--red)' : 'var(--text)'};cursor:pointer;font-size:13px;border-radius:4px;`;
-        btn.onmouseover = () => btn.style.background = 'var(--bg3)';
-        btn.onmouseout = () => btn.style.background = '';
+        const color = a.danger ? 'var(--red)' : 'var(--text)';
+        btn.style.cssText = `display:block;width:100%;text-align:left;padding:8px 12px;border:none;background:none;color:${color};cursor:pointer;font-size:13px;border-radius:6px;transition:background .15s,color .15s;`;
+        btn.onmouseover = () => { btn.style.background = a.danger ? 'rgba(239,68,68,0.15)' : 'rgba(124,58,237,0.15)'; if (!a.danger) btn.style.color = 'var(--accent)'; };
+        btn.onmouseout = () => { btn.style.background = 'none'; btn.style.color = color; };
         btn.onclick = () => { menu.remove(); a.action(); };
         menu.appendChild(btn);
     });
@@ -174,7 +177,7 @@ function showContactMenu(event, contactId, userId, name) {
 }
 
 async function renameContact(contactId) {
-    const name = prompt(t('contacts.newName'));
+    const name = await window.vxPrompt(t('contacts.newName'));
     if (!name) return;
     try {
         await window.api('PUT', `/api/contacts/${contactId}`, { nickname: name });
@@ -253,9 +256,22 @@ function closeComposeMenu() {
     if (menu) menu.style.display = 'none';
 }
 
+var _globalSearchTimer = null;
+
 function filterChats(query) {
-    // Delegate to rooms.js if available
+    // 1. Filter local rooms immediately
     if (window.filterRoomList) window.filterRoomList(query);
+
+    // 2. Global search with debounce (channels, groups, bots, users not in your chats)
+    clearTimeout(_globalSearchTimer);
+    var resultsEl = document.getElementById('global-search-results');
+    if (!query || query.trim().length < 2) {
+        if (resultsEl) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; }
+        return;
+    }
+    _globalSearchTimer = setTimeout(function() {
+        if (window.globalSearch) window.globalSearch(query.trim());
+    }, 400);
 }
 
 function switchFolder(folder) {
@@ -350,6 +366,9 @@ function openRoomSettingsScreen() {
     const chat   = document.getElementById('chat-screen');
     const welcome = document.getElementById('welcome-screen');
     if (!screen) return;
+    // Закрываем info панель если открыта
+    if (typeof window.closeRoomInfo === 'function') window.closeRoomInfo();
+    if (typeof window.closeModal === 'function') window.closeModal('room-info-modal');
     if (chat)    chat.style.display    = 'none';
     if (welcome) welcome.style.display = 'none';
     screen.style.display = 'flex';
@@ -412,14 +431,14 @@ window.openRoomSettings = function() {
     if (descEl)   descEl.textContent   = room.description || '';
     if (isChannel) {
         const count = room.subscriber_count || room.member_count || 0;
-        if (metaEl) metaEl.textContent = `${count} подписчиков`;
+        if (metaEl) metaEl.textContent = `${count} ${t('rooms.subscribers')}`;
         if (inviteSec) inviteSec.style.display = 'none';
-        if (topTitle) topTitle.textContent = t('channel.settings') || 'Настройки канала';
+        if (topTitle) topTitle.textContent = t('channel.settings');
     } else {
         if (metaEl) metaEl.textContent = `${room.member_count || 0} ${t('roomMedia.members')}`;
         if (inviteEl) inviteEl.textContent = room.invite_code || '';
         if (inviteSec) inviteSec.style.display = '';
-        if (topTitle) topTitle.textContent = t('room.settings') || 'Настройки комнаты';
+        if (topTitle) topTitle.textContent = t('room.settings');
     }
 
     // Load media section for this room

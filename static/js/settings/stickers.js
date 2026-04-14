@@ -5,6 +5,23 @@
 // Cached custom packs for the picker
 window._customStickerPacks = [];
 
+// ── Auto-load my packs when sticker section becomes visible ──
+(function() {
+    var _loaded = false;
+    var observer = new MutationObserver(function() {
+        var section = document.getElementById('sticker-mgr-my');
+        if (section && section.classList.contains('active') && !_loaded) {
+            _loaded = true;
+            setTimeout(function() { if (window.loadMyPacks) loadMyPacks(); }, 100);
+        }
+        if (section && !section.classList.contains('active')) _loaded = false;
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+        var container = document.getElementById('sticker-mgr-my');
+        if (container) observer.observe(container, { attributes: true, attributeFilter: ['class'] });
+    });
+})();
+
 // ── Sticker Manager tab switching ──
 window.switchStickerMgrTab = function(tab, btn) {
     document.querySelectorAll('.sticker-mgr-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -49,36 +66,36 @@ window.loadMyPacks = async function() {
         window._customStickerPacks = packs;
         _renderMyPacks(packs, list);
     } catch(e) {
-        list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Не удалось загрузить паки</div>';
+        list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.failedToLoadPacks') + '</div>';
         console.warn('loadMyPacks error:', e);
     }
 };
 
 function _renderMyPacks(packs, container) {
     if (!packs || packs.length === 0) {
-        container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">У вас пока нет стикерпаков</div>';
+        container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.noPacksYet') + '</div>';
         return;
     }
     var S = window.AppState;
-    var myId = S && S.user ? S.user.id : null;
+    var myId = S && S.user ? (S.user.user_id || S.user.id) : null;
     container.innerHTML = packs.map(function(pack) {
-        var isOwner = pack.creator_id === myId;
+        var isOwner = String(pack.creator_id) === String(myId);
         var stickerCount = (pack.stickers && pack.stickers.length) || 0;
         var coverHtml = pack.cover_url
             ? '<img src="' + _sesc(pack.cover_url) + '" class="sticker-pack-cover">'
             : '<div class="sticker-pack-cover sticker-pack-cover--empty">📦</div>';
         var actions = '';
         if (isOwner) {
-            actions = '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();deleteStickerPack(\'' + pack.id + '\')" title="Удалить" style="color:var(--red);padding:4px 8px;font-size:11px;">Удалить</button>';
+            actions = '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();deleteStickerPack(\'' + pack.id + '\')" title="' + t('app.delete') + '" style="color:var(--red);padding:4px 8px;font-size:11px;">' + t('app.delete') + '</button>';
         } else {
-            actions = '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();unfavoritePack(\'' + pack.id + '\')" title="Убрать" style="padding:4px 8px;font-size:11px;">Убрать</button>';
+            actions = '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();unfavoritePack(\'' + pack.id + '\')" title="' + t('common.remove') + '" style="padding:4px 8px;font-size:11px;">' + t('common.remove') + '</button>';
         }
         return '<div class="sticker-pack-card" onclick="togglePackExpand(this,\'' + pack.id + '\',' + isOwner + ')">' +
             '<div class="sticker-pack-card-header">' +
                 coverHtml +
                 '<div class="sticker-pack-card-info">' +
                     '<div class="sticker-pack-card-name">' + _sesc(pack.name) + '</div>' +
-                    '<div class="sticker-pack-card-meta">' + stickerCount + ' стикер' + _pluralRu(stickerCount) + '</div>' +
+                    '<div class="sticker-pack-card-meta">' + t('stickers.stickerCount', {count: stickerCount}) + '</div>' +
                 '</div>' +
                 '<div class="sticker-pack-card-actions">' + actions + '</div>' +
             '</div>' +
@@ -90,28 +107,200 @@ function _renderMyPacks(packs, container) {
 function _pluralRu(n) {
     var m = n % 10, mm = n % 100;
     if (m === 1 && mm !== 11) return '';
-    if (m >= 2 && m <= 4 && (mm < 12 || mm > 14)) return 'а';
-    return 'ов';
+    if (m >= 2 && m <= 4 && (mm < 12 || mm > 14)) return 's';
+    return 's';
 }
 
-// ── Expand pack to show stickers ──
-window.togglePackExpand = async function(cardEl, packId, isOwner) {
-    var expandEl = cardEl.querySelector('.sticker-pack-expand');
-    if (!expandEl) return;
-    if (expandEl.style.display !== 'none') {
-        expandEl.style.display = 'none';
-        return;
-    }
-    expandEl.style.display = 'block';
-    expandEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:12px;">Загрузка...</div>';
+// ── Click on pack card → open fullscreen editor ──
+window.togglePackExpand = function(cardEl, packId, isOwner) {
+    if (window.openPackEditor) window.openPackEditor(packId, isOwner);
+};
+
+// ── Full-screen sticker pack detail (safe DOM construction) ──
+window.openStickerPackDetail = async function(packId, isOwner) {
     try {
         var resp = await fetch('/api/stickers/packs/' + packId, { credentials: 'include', headers: _stickerHeaders(false) });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         var pack = await resp.json();
-        _renderPackStickers(expandEl, pack, isOwner);
+        var stickers = pack.stickers || [];
+
+        // Build fullscreen page (single fixed element, no overlay nesting)
+        var card = document.createElement('div');
+        card.className = 'sticker-detail-card';
+        function _closeStickerDetail() { card.remove(); }
+
+        // Close button
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'sd-close';
+        closeBtn.textContent = '\u00D7';
+        closeBtn.onclick = function(e) { e.stopPropagation(); _closeStickerDetail(); };
+        card.appendChild(closeBtn);
+
+        // Hero section
+        var hero = document.createElement('div');
+        hero.className = 'sd-hero';
+        if (pack.cover_url) {
+            var coverImg = document.createElement('img');
+            coverImg.src = pack.cover_url;
+            coverImg.className = 'sd-cover';
+            hero.appendChild(coverImg);
+        } else {
+            var coverEmpty = document.createElement('div');
+            coverEmpty.className = 'sd-cover sd-cover--empty';
+            coverEmpty.textContent = '\uD83D\uDCE6';
+            hero.appendChild(coverEmpty);
+        }
+        var heroInfo = document.createElement('div');
+        heroInfo.className = 'sd-hero-info';
+        var nameEl = document.createElement('div');
+        nameEl.className = 'sd-name';
+        nameEl.textContent = pack.name || 'Pack';
+        heroInfo.appendChild(nameEl);
+        var metaEl = document.createElement('div');
+        metaEl.className = 'sd-meta';
+        metaEl.textContent = stickers.length + ' sticker' + (stickers.length !== 1 ? 's' : '') + (pack.description ? ' \u00B7 ' + pack.description : '');
+        heroInfo.appendChild(metaEl);
+        var badge = document.createElement('span');
+        badge.className = pack.is_public ? 'sd-badge' : 'sd-badge sd-badge--private';
+        badge.textContent = pack.is_public ? 'PUBLIC' : 'PRIVATE';
+        heroInfo.appendChild(badge);
+        hero.appendChild(heroInfo);
+        card.appendChild(hero);
+
+        // Sticker grid
+        var grid = document.createElement('div');
+        grid.className = 'sd-grid';
+        if (stickers.length === 0) {
+            var emptyMsg = document.createElement('div');
+            emptyMsg.style.cssText = 'grid-column:1/-1;text-align:center;color:var(--text3);padding:24px;font-size:13px;';
+            emptyMsg.textContent = 'No stickers yet';
+            grid.appendChild(emptyMsg);
+        } else {
+            stickers.forEach(function(st) {
+                var item = document.createElement('div');
+                item.className = 'sd-sticker-item';
+                var img = document.createElement('img');
+                img.src = st.image_url;
+                img.className = 'sd-sticker-img';
+                img.alt = 'sticker';
+                item.appendChild(img);
+                if (isOwner) {
+                    var del = document.createElement('button');
+                    del.className = 'sd-sticker-del';
+                    del.textContent = '\u00D7';
+                    del.title = 'Remove';
+                    del.onclick = function(e) { e.stopPropagation(); _sdDeleteSticker(packId, st.id); };
+                    item.appendChild(del);
+                }
+                grid.appendChild(item);
+            });
+        }
+        card.appendChild(grid);
+
+        // Actions
+        var actions = document.createElement('div');
+        actions.className = 'sd-actions';
+        if (isOwner) {
+            // 1. Upload sticker
+            var addBtn = document.createElement('button');
+            addBtn.className = 'sd-action-btn sd-add';
+            addBtn.textContent = '\uD83D\uDCE4 Upload sticker';
+            addBtn.onclick = function() { _sdAddSticker(packId); };
+            actions.appendChild(addBtn);
+
+            // 2. Toggle public/private
+            var pubBtn = document.createElement('button');
+            pubBtn.className = 'sd-action-btn';
+            pubBtn.textContent = pack.is_public ? '\uD83D\uDD12 Make private' : '\uD83C\uDF10 Publish to catalog';
+            pubBtn.onclick = function() { _sdTogglePublic(packId, pack.is_public); };
+            actions.appendChild(pubBtn);
+
+            // 3. Rename pack
+            var renameBtn = document.createElement('button');
+            renameBtn.className = 'sd-action-btn';
+            renameBtn.textContent = '\u270F\uFE0F Rename pack';
+            renameBtn.onclick = function() {
+                var newName = prompt('New pack name:', pack.name);
+                if (newName && newName.trim()) _sdRenamePack(packId, newName.trim());
+            };
+            actions.appendChild(renameBtn);
+
+            // 4. Set description
+            var descBtn = document.createElement('button');
+            descBtn.className = 'sd-action-btn';
+            descBtn.textContent = '\uD83D\uDCDD Edit description';
+            descBtn.onclick = function() {
+                var newDesc = prompt('Description:', pack.description || '');
+                if (newDesc !== null) _sdUpdatePack(packId, { description: newDesc.trim() });
+            };
+            actions.appendChild(descBtn);
+
+            // 5. Delete pack
+            var delBtn = document.createElement('button');
+            delBtn.className = 'sd-action-btn sd-delete';
+            delBtn.textContent = '\uD83D\uDDD1 Delete pack';
+            delBtn.onclick = function() { _sdDeletePack(packId); };
+            actions.appendChild(delBtn);
+        } else {
+            var removeBtn = document.createElement('button');
+            removeBtn.className = 'sd-action-btn sd-delete';
+            removeBtn.textContent = '\u2716 Remove from my packs';
+            removeBtn.onclick = function() { unfavoritePack(packId); _closeStickerDetail(); };
+            actions.appendChild(removeBtn);
+        }
+        card.appendChild(actions);
+
+        document.body.appendChild(card);
     } catch(e) {
-        expandEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:12px;">Ошибка загрузки</div>';
+        window.showToast?.('Error loading pack: ' + e.message, 'error');
     }
+};
+
+// Helper actions for pack detail
+window._sdDeleteSticker = async function(packId, stickerId) {
+    await deleteStickerFromPack(packId, stickerId);
+    document.querySelector('.sticker-detail-card')?.remove();
+    openStickerPackDetail(packId, true);
+};
+window._sdAddSticker = function(packId) {
+    triggerStickerUpload(packId);
+    setTimeout(function() {
+        document.querySelector('.sticker-detail-card')?.remove();
+        openStickerPackDetail(packId, true);
+    }, 2000);
+};
+window._sdDeletePack = async function(packId) {
+    if (!confirm('Delete entire sticker pack?')) return;
+    await deleteStickerPack(packId);
+    document.querySelector('.sticker-detail-card')?.remove();
+};
+window._sdRenamePack = async function(packId, newName) {
+    await _sdUpdatePack(packId, { name: newName });
+};
+window._sdUpdatePack = async function(packId, fields) {
+    try {
+        await fetch('/api/stickers/packs/' + packId, {
+            method: 'PUT', credentials: 'include',
+            headers: _stickerHeaders(true),
+            body: JSON.stringify(fields)
+        });
+        document.querySelector('.sticker-detail-card')?.remove();
+        openStickerPackDetail(packId, true);
+        loadMyPacks();
+        window.showToast?.('Pack updated', 'success');
+    } catch(e) { console.warn('updatePack error:', e); }
+};
+window._sdTogglePublic = async function(packId, isCurrentlyPublic) {
+    try {
+        await fetch('/api/stickers/packs/' + packId, {
+            method: 'PUT', credentials: 'include',
+            headers: _stickerHeaders(true),
+            body: JSON.stringify({ is_public: !isCurrentlyPublic })
+        });
+        document.querySelector('.sticker-detail-card')?.remove();
+        openStickerPackDetail(packId, true);
+        window.showToast?.(isCurrentlyPublic ? 'Pack hidden' : 'Pack published', 'success');
+    } catch(e) { console.warn('toggle public error:', e); }
 };
 
 function _renderPackStickers(container, pack, isOwner) {
@@ -120,11 +309,11 @@ function _renderPackStickers(container, pack, isOwner) {
     stickers.forEach(function(st) {
         html += '<div class="sticker-thumb-wrap">' +
             '<img src="' + _sesc(st.image_url) + '" class="sticker-thumb" alt="sticker">' +
-            (isOwner ? '<button class="sticker-thumb-delete" onclick="event.stopPropagation();deleteStickerFromPack(\'' + pack.id + '\',\'' + st.id + '\')" title="Удалить">&times;</button>' : '') +
+            (isOwner ? '<button class="sticker-thumb-delete" onclick="event.stopPropagation();deleteStickerFromPack(\'' + pack.id + '\',\'' + st.id + '\')" title="' + t('app.delete') + '">&times;</button>' : '') +
         '</div>';
     });
     if (isOwner) {
-        html += '<div class="sticker-upload-btn" onclick="event.stopPropagation();triggerStickerUpload(\'' + pack.id + '\')" title="Добавить стикер">+</div>';
+        html += '<div class="sticker-upload-btn" onclick="event.stopPropagation();triggerStickerUpload(\'' + pack.id + '\')" title="' + t('stickers.uploadSticker') + '">+</div>';
     }
     html += '</div>';
     container.innerHTML = html;
@@ -143,19 +332,23 @@ window.createStickerPack = async function() {
             body: JSON.stringify({ name: name, description: desc, is_public: false })
         });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var data = await resp.json();
+        var packId = data.pack ? data.pack.id : data.id;
         document.getElementById('sticker-pack-name').value = '';
         document.getElementById('sticker-pack-desc').value = '';
         toggleStickerCreateForm();
-        loadMyPacks();
+        // Open fullscreen editor for the new pack
+        if (window.openPackEditor && packId) window.openPackEditor(packId, true);
+        else loadMyPacks();
     } catch(e) {
         console.warn('createStickerPack error:', e);
-        alert(window.t ? window.t('settings.stickerPackFailed') : 'Не удалось создать пак');
+        alert(window.t ? window.t('settings.stickerPackFailed') : 'Failed to create pack');
     }
 };
 
 // ── Delete pack ──
 window.deleteStickerPack = async function(packId) {
-    if (!confirm('Удалить этот стикерпак?')) return;
+    if (!confirm((window.t?.('stickers.deleteConfirm')||'Delete this sticker pack?'))) return;
     try {
         await fetch('/api/stickers/packs/' + packId, {
             method: 'DELETE',
@@ -195,7 +388,7 @@ window.uploadStickerFile = async function(packId, file) {
         loadMyPacks();
     } catch(e) {
         console.warn('uploadStickerFile error:', e);
-        alert(window.t ? window.t('settings.stickerUploadFailed') : 'Не удалось загрузить стикер');
+        alert(t('settings.stickerUploadFailed'));
     }
 };
 
@@ -242,17 +435,18 @@ window.loadCatalogPacks = async function() {
     try {
         var resp = await fetch('/api/stickers/packs/public', { credentials: 'include', headers: _stickerHeaders(false) });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        var packs = await resp.json();
+        var data = await resp.json();
+        var packs = Array.isArray(data) ? data : (data.packs || []);
         _renderCatalogPacks(packs, list);
     } catch(e) {
-        list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Не удалось загрузить каталог</div>';
+        list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.failedToLoadCatalog') + '</div>';
         console.warn('loadCatalogPacks error:', e);
     }
 };
 
 function _renderCatalogPacks(packs, container) {
     if (!packs || packs.length === 0) {
-        container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Каталог пуст</div>';
+        container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.catalogEmpty') + '</div>';
         return;
     }
     // Determine which packs user already has
@@ -265,14 +459,14 @@ function _renderCatalogPacks(packs, container) {
             ? '<img src="' + _sesc(pack.cover_url) + '" class="sticker-pack-cover">'
             : '<div class="sticker-pack-cover sticker-pack-cover--empty">📦</div>';
         var addBtn = ownedIds[pack.id]
-            ? '<span style="font-size:11px;color:var(--green);">Добавлен</span>'
-            : '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();favoritePack(\'' + pack.id + '\')" style="padding:4px 10px;font-size:11px;">Добавить</button>';
+            ? '<span style="font-size:11px;color:var(--green);">' + t('common.added') + '</span>'
+            : '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();favoritePack(\'' + pack.id + '\')" style="padding:4px 10px;font-size:11px;">' + t('common.add') + '</button>';
         return '<div class="sticker-pack-card">' +
             '<div class="sticker-pack-card-header">' +
                 coverHtml +
                 '<div class="sticker-pack-card-info">' +
                     '<div class="sticker-pack-card-name">' + _sesc(pack.name) + '</div>' +
-                    '<div class="sticker-pack-card-meta">' + stickerCount + ' стикер' + _pluralRu(stickerCount) +
+                    '<div class="sticker-pack-card-meta">' + t('stickers.stickerCount', {count: stickerCount}) +
                         (pack.description ? ' &mdash; ' + _sesc(pack.description) : '') + '</div>' +
                 '</div>' +
                 '<div class="sticker-pack-card-actions">' + addBtn + '</div>' +
@@ -311,14 +505,15 @@ window.showCustomPackInPicker = async function(packId, btn) {
     if (!grid) return;
     grid.className = '';
     grid.style.cssText = 'max-height:280px;overflow-y:auto;padding:4px;';
-    grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Загрузка...</div>';
+    grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('common.loading') + '</div>';
     try {
         var resp = await fetch('/api/stickers/packs/' + packId, { credentials: 'include', headers: _stickerHeaders(false) });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        var pack = await resp.json();
+        var _raw = await resp.json();
+        var pack = _raw.pack || _raw;
         var stickers = pack.stickers || [];
         if (stickers.length === 0) {
-            grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Пак пуст</div>';
+            grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.packEmpty') + '</div>';
             return;
         }
         grid.innerHTML = '<div class="custom-sticker-picker-grid">' +
@@ -329,25 +524,22 @@ window.showCustomPackInPicker = async function(packId, btn) {
             }).join('') +
         '</div>';
     } catch(e) {
-        grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Ошибка загрузки</div>';
+        grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('errors.loadingError') + '</div>';
     }
 };
 
 // ── Send custom sticker ──
 window.sendCustomSticker = function(imageUrl) {
     if (window.closeModal) window.closeModal('sticker-modal');
+    if (window.closeUnifiedPicker) window.closeUnifiedPicker();
     if (window.sendStickerDirect) window.sendStickerDirect('[STICKER] img:' + imageUrl);
 };
 
-// ── Hook into sticker picker open to load custom tabs ──
-var _origOpenStickerPicker = window.openStickerPicker;
+// ── Single definitive openStickerPicker (no wrappers) ──
 window.openStickerPicker = function() {
-    window._loadCustomPackTabs();
-    if (_origOpenStickerPicker) _origOpenStickerPicker();
-    else {
-        if (window.openModal) window.openModal('sticker-modal');
-        window.showStickerCategory('animated', document.querySelector('#sticker-modal .sticker-picker-tabs .settings-tab'));
-    }
+    if (window._loadCustomPackTabs) window._loadCustomPackTabs();
+    if (window.openModal) window.openModal('sticker-modal');
+    window.showStickerCategory('animated', document.querySelector('#sticker-modal .sticker-picker-tabs .settings-tab') || document.querySelector('#sticker-modal .settings-tab'));
 };
 
 // Load packs when stickers tab is selected in settings
@@ -391,11 +583,11 @@ window.startVideoMessage = async function() {
                 '<div class="vr-controls">' +
                     '<button class="vr-btn" onclick="stopVideoMessage(false)">' +
                         '<span class="vr-btn-icon vr-btn-cancel">&#x2715;</span>' +
-                        '<span class="vr-btn-label">Отмена</span>' +
+                        '<span class="vr-btn-label">' + t('app.cancel') + '</span>' +
                     '</button>' +
                     '<button class="vr-btn" onclick="stopVideoMessage(true)">' +
                         '<span class="vr-btn-icon vr-btn-send"><svg width="24" height="24" fill="#fff" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>' +
-                        '<span class="vr-btn-label">Отправить</span>' +
+                        '<span class="vr-btn-label">' + t('common.send') + '</span>' +
                     '</button>' +
                 '</div>' +
             '</div>';
@@ -424,7 +616,7 @@ window.startVideoMessage = async function() {
         overlay._tid = tid;
 
     } catch(e) {
-        alert((window.t ? window.t('settings.cameraNoAccess') : 'Нет доступа к камере: {error}').replace('{error}', e.message));
+        alert(t('settings.cameraNoAccess', {error: e.message}));
     }
 };
 

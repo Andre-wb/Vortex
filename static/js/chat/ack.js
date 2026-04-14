@@ -97,7 +97,13 @@ function _trySend(msgId) {
         return;
     }
 
-    ws.send(JSON.stringify(entry.payload));
+    try {
+        ws.send(JSON.stringify(entry.payload));
+    } catch (e) {
+        console.warn('[ACK] ws.send failed, persisting to IDB:', e.message);
+        _idbPut(entry.payload);
+        return;
+    }
 
     const backoff = _getBackoffMs(entry.retries);
     entry.timeoutId = setTimeout(() => {
@@ -142,10 +148,10 @@ export async function _flushOfflineQueue() {
 
     // Flush IndexedDB persistent queue
     const stored = await _idbGetAll();
-    const oneHourAgo = Date.now() - 3600_000;
+    const sevenDaysAgo = Date.now() - 7 * 86400_000;
     for (const item of stored) {
-        if (item.ts < oneHourAgo) {
-            // Drop messages older than 1 hour
+        if (item.ts < sevenDaysAgo) {
+            // Drop messages older than 7 days
             await _idbDelete(item.msg_id);
             continue;
         }

@@ -77,6 +77,9 @@ export function openRoom(id) {
     const room = S.rooms.find(r => r.id === id);
     if (!room) return;
 
+    // Mark BMP activity — switch to fast polling for active chat
+    if (window.bmpMarkActivity) window.bmpMarkActivity('send');
+
     // Save draft of current room before switching
     const input = document.getElementById('msg-input');
     if (S.currentRoom && input) {
@@ -94,16 +97,16 @@ export function openRoom(id) {
     const oldBanner = document.getElementById('not-contact-banner');
     if (oldBanner) oldBanner.remove();
 
-    if (S.ws) {
-        S.ws.onclose = null;
-        if (S.ws._ping) clearInterval(S.ws._ping);
-        S.ws.close();
-        S.ws = null;
-    }
     cleanupUnreadDivider();
     showChatScreen();
     const msgContainer = $('messages-container');
-    if (msgContainer) msgContainer.innerHTML = '';
+    // Clear messages container safely
+    if (msgContainer) while (msgContainer.firstChild) msgContainer.removeChild(msgContainer.firstChild);
+
+    // Закрываем info и settings панели предыдущей комнаты
+    if (typeof window.closeRoomInfo === 'function') window.closeRoomInfo();
+    if (typeof window.closeRoomSettingsScreen === 'function') window.closeRoomSettingsScreen();
+    closeModal('room-info-modal');
 
     // Восстанавливаем область ввода по умолчанию
     const inputArea = document.getElementById('input-area');
@@ -159,8 +162,10 @@ export function openRoom(id) {
             metaParts.push(t('status.offline'));
         } else if (isOnline) {
             metaParts.push(t('time.online'));
-        } else {
+        } else if (dmU.last_seen && dmU.show_last_seen !== false) {
             metaParts.push(_formatLastSeen(dmU.last_seen));
+        } else {
+            metaParts.push(t('status.offline'));
         }
         // Append rich status text if available
         const richStatus = ((dmU.status_emoji || '') + (dmU.status_emoji && dmU.custom_status ? ' ' : '') + (dmU.custom_status || '')).trim();
@@ -274,12 +279,38 @@ export function openRoom(id) {
             msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
         }
     }
+
+    // Translate bar — показываем если перевод включён
+    const translateBar = document.getElementById('chat-translate-bar');
+    if (translateBar) {
+        const disabled = localStorage.getItem('vortex_translate_enabled') === 'false';
+        translateBar.style.display = disabled ? 'none' : 'flex';
+        translateBar.classList.toggle('active', !!localStorage.getItem(`vortex_translate_active_${id}`));
+        translateBar.onclick = () => {
+            if (translateBar.classList.contains('active')) {
+                // Выключить перевод
+                translateBar.classList.remove('active');
+                localStorage.removeItem(`vortex_translate_active_${id}`);
+                window.showToast?.(t('ui.translationDisabled'), 'info');
+            } else {
+                // Показать выбор языка
+                window._showChatTranslateLangPicker?.(id, translateBar);
+            }
+        };
+    }
 }
 
 /**
  * Открывает модальное окно профиля текущего пользователя.
  * Заполняет данные из AppState.user и рендерит список аккаунтов.
  */
+// Translate bar close
+window._closeTranslateBar = () => {
+    localStorage.setItem('vortex_translate_enabled', 'false');
+    const bar = document.getElementById('chat-translate-bar');
+    if (bar) bar.style.display = 'none';
+};
+
 export function showProfileModal() {
     const S = window.AppState;
     if (!S.user) return;

@@ -20,12 +20,12 @@ window._channelLoadFeeds = async function(roomId) {
         // Render feed list
         const rssFeeds = feeds.filter(f => f.feed_type === 'rss');
         if (rssFeeds.length === 0) {
-            listEl.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">Нет активных RSS-лент</div>';
+            listEl.textContent = t('channels.noActiveFeeds');
         } else {
             listEl.innerHTML = rssFeeds.map(f => `
                 <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);">
                     <span style="flex:1;font-size:12px;word-break:break-all;color:var(--text-primary);">${escapeHtml(f.url)}</span>
-                    <span style="font-size:10px;color:var(--text-secondary);">${f.last_fetched ? new Date(f.last_fetched).toLocaleString() : 'не получено'}</span>
+                    <span style="font-size:10px;color:var(--text-secondary);">${f.last_fetched ? new Date(f.last_fetched).toLocaleString() : t('channels.notFetched')}</span>
                     <button class="btn btn-danger" style="padding:2px 8px;font-size:11px;" onclick="window._channelDeleteFeed(${roomId},${f.id})">✕</button>
                 </div>
             `).join('');
@@ -38,7 +38,7 @@ window._channelLoadFeeds = async function(roomId) {
             webhookEl.textContent = `${base}/api/channels/${roomId}/webhook?secret=${webhookFeed.url}`;
             webhookEl.dataset.secret = webhookFeed.url;
         } else if (webhookEl) {
-            webhookEl.textContent = '— нет активного webhook';
+            webhookEl.textContent = t('channels.noActiveWebhook');
             webhookEl.dataset.secret = '';
         }
     } catch(e) {
@@ -51,23 +51,23 @@ window._channelAddRss = async function() {
     if (!roomId) return;
     const input = $('channel-rss-url-input');
     const url = input ? input.value.trim() : '';
-    if (!url) { alert('Введите URL RSS-ленты'); return; }
+    if (!url) { alert(t('errors.enterRssUrl')); return; }
     try {
         await api('POST', `/api/channels/${roomId}/feeds`, { type: 'rss', url });
         if (input) input.value = '';
         await window._channelLoadFeeds(roomId);
     } catch(e) {
-        alert(e.message || 'Ошибка при добавлении RSS');
+        alert(e.message || t('channels.addRssError'));
     }
 };
 
 window._channelDeleteFeed = async function(roomId, feedId) {
-    if (!confirm('Удалить эту RSS-ленту?')) return;
+    if (!confirm(t('channels.deleteRssConfirm'))) return;
     try {
         await api('DELETE', `/api/channels/${roomId}/feeds/${feedId}`);
         await window._channelLoadFeeds(roomId);
     } catch(e) {
-        alert(e.message || 'Ошибка при удалении');
+        alert(e.message || t('errors.generic'));
     }
 };
 
@@ -78,7 +78,7 @@ window._channelCreateWebhook = async function() {
         await api('POST', `/api/channels/${roomId}/feeds`, { type: 'webhook', url: '' });
         await window._channelLoadFeeds(roomId);
     } catch(e) {
-        alert(e.message || 'Ошибка при создании webhook');
+        alert(e.message || t('channels.webhookError'));
     }
 };
 

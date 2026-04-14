@@ -102,15 +102,13 @@ def _get_secret() -> bytes:
                     person=b"sealedsndr\x00\x00\x00\x00\x00\x00",
                 ).digest()
             else:
-                warnings.warn(
-                    "SEALED_SENDER_SECRET and SECRET_KEY are not set — "
-                    "using ephemeral per-process secret. "
-                    "sender_pseudo values will change on restart. "
-                    "In production: set SEALED_SENDER_SECRET from a Vault/HSM.",
-                    RuntimeWarning,
-                    stacklevel=3,
-                )
-                _SECRET = os.urandom(32)
+                # Auto-generate and persist to .env
+                from app.config import _auto_secret
+                generated = _auto_secret("SEALED_SENDER_SECRET")
+                try:
+                    _SECRET = bytes.fromhex(generated[:64])
+                except ValueError:
+                    _SECRET = os.urandom(32)
     return _SECRET
 
 

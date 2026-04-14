@@ -11,6 +11,14 @@
 const { test: base, expect } = require('@playwright/test');
 
 exports.test = base.extend({
+    // Skip language picker in browser tests by pre-setting locale in localStorage.
+    page: async ({ page }, use) => {
+        await page.addInitScript(() => {
+            localStorage.setItem('vortex_locale', 'en');
+        });
+        await use(page);
+    },
+
     // Per-test fresh (unauthenticated) request context.
     // Use this fixture — as `{ freshRequest }` — in tests that explicitly need
     // to verify unauthenticated behaviour.  Unlike `request`, it is test-scoped

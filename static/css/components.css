@@ -116,9 +116,11 @@
 .pin-pad-btn:hover {
     background: rgba(255,255,255,0.08);
 }
+@media (hover: hover) {
 .pin-pad-btn:active {
     background: var(--accent);
     transform: scale(0.93);
+}
 }
 .pin-pad-clear,
 .pin-pad-back {
@@ -402,4 +404,55 @@
     padding: 32px 16px;
     font-size: 13px;
 }
+
+/* ============================================================================
+ * Bot Detail Overlay
+ * ========================================================================== */
+.bot-detail-card {
+    position: fixed; inset: 0; z-index: 10000;
+    background: var(--bg, #0e0e18);
+    overflow-y: auto; padding: 24px 20px 32px;
+    -webkit-overflow-scrolling: touch;
+}
+.bd-close {
+    position: sticky; top: 0; float: right;
+    background: rgba(255,255,255,.08); border: none; color: var(--text); font-size: 22px; cursor: pointer;
+    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; margin-bottom: -36px; z-index: 1;
+}
+.bd-close:hover { background: rgba(255,255,255,.15); }
+.bd-hero { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; }
+.bd-hero-info { flex: 1; min-width: 0; }
+.bd-name { font-size: 20px; font-weight: 700; color: var(--text); }
+.bd-author { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.bd-category {
+    display: inline-block; margin-top: 6px; padding: 2px 8px;
+    background: rgba(124,58,237,.15); color: var(--accent, #7c3aed);
+    border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: .5px;
+}
+.bd-stats-row {
+    display: flex; gap: 24px; padding: 16px 0; border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border); margin-bottom: 16px;
+}
+.bd-stat { text-align: center; flex: 1; }
+.bd-stat-val { font-size: 18px; font-weight: 700; color: #fbbf24; }
+.bd-stat-label { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.bd-section { margin-bottom: 16px; }
+.bd-section-title { font-size: 12px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.bd-desc { font-size: 14px; color: var(--text2); line-height: 1.5; }
+.bd-cmd { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.bd-cmd-name { font-family: var(--mono, monospace); color: var(--accent); font-size: 13px; font-weight: 600; }
+.bd-cmd-desc { color: var(--text3); font-size: 12px; margin-left: 8px; }
+.bd-review { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.bd-review-header { display: flex; justify-content: space-between; align-items: center; }
+.bd-review-user { font-size: 13px; font-weight: 600; color: var(--text); }
+.bd-review-stars { color: #fbbf24; font-size: 14px; letter-spacing: 1px; }
+.bd-review-text { font-size: 13px; color: var(--text2); margin-top: 4px; line-height: 1.4; }
+.bd-install-btn {
+    width: 100%; padding: 14px; margin-top: 8px;
+    background: var(--accent, #7c3aed); color: #fff; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 700; cursor: pointer; transition: .15s;
+}
+.bd-install-btn:hover { filter: brightness(1.1); }
+.bd-install-btn:active { transform: scale(.98); }
 

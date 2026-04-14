@@ -51,6 +51,8 @@ import struct
 import time
 from typing import Optional, Callable, Awaitable
 
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 logger = logging.getLogger(__name__)
 
 
@@ -405,7 +407,12 @@ class ActiveProbeDetector:
         """
         ip = request_info.get("ip", "")
         headers = {k.lower(): v for k, v in request_info.get("headers", {}).items()}
+        path = request_info.get("path", "")
         reasons = []
+
+        # BMP endpoints use credentials:'omit' (no cookies) by design — skip probe detection
+        if path.startswith("/api/bmp/"):
+            return False, ""
 
         # 1. Проверка IP из известных DPI-диапазонов
         for prefix in self.PROBE_ASN_PREFIXES:
@@ -2109,9 +2116,12 @@ class MultiHopRelay:
             layer += struct.pack(">H", len(current))
             layer += current
 
-            # XOR-шифрование слоя (в реальности — AES-256-GCM с per-hop key)
+            # AES-256-GCM per-hop encryption
             key = hashlib.sha256(f"{circuit_id}:{i}".encode()).digest()
-            current = bytes(b ^ key[j % 32] for j, b in enumerate(layer))
+            nonce = os.urandom(12)
+            aesgcm = AESGCM(key)
+            ciphertext = aesgcm.encrypt(nonce, layer, None)
+            current = nonce + ciphertext  # prepend nonce for decryption
 
         return current
 
@@ -2122,7 +2132,12 @@ class MultiHopRelay:
         Возвращает (next_hop_id, inner_payload) или (None, data) если финальный хоп.
         """
         key = hashlib.sha256(f"{circuit_id}:{hop_idx}".encode()).digest()
-        decrypted = bytes(b ^ key[j % 32] for j, b in enumerate(encrypted_layer))
+        nonce = encrypted_layer[:12]
+        aesgcm = AESGCM(key)
+        try:
+            decrypted = aesgcm.decrypt(nonce, encrypted_layer[12:], None)
+        except Exception:
+            return None, encrypted_layer
 
         try:
             offset = 0

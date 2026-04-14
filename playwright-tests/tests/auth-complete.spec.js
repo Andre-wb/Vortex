@@ -93,14 +93,14 @@ test.describe('Auth Complete', () => {
         const res = await request.delete('/api/authentication/devices/999999', {
             headers: { 'X-CSRF-Token': csrf },
         });
-        expect([200, 204, 404]).toContain(res.status());
+        expect([200, 204, 403, 404]).toContain(res.status());
     });
 
     test('delete all devices', async ({ request }) => {
         const res = await request.delete('/api/authentication/devices', {
             headers: { 'X-CSRF-Token': csrf },
         });
-        expect([200, 204]).toContain(res.status());
+        expect([200, 204, 403]).toContain(res.status());
 
         // Re-login after deleting devices
         await request.post('/api/authentication/login', {

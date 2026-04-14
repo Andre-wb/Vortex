@@ -53,19 +53,31 @@ async def get_stories(u: User = Depends(get_current_user), db: Session = Depends
     """Active stories grouped by user: self first, then contacts."""
     from app.models.contact import Contact
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Use both aware and naive timestamps for DB compatibility (PostgreSQL vs SQLite)
+    now_aware = datetime.now(timezone.utc)
+    now_naive = now_aware.replace(tzinfo=None)
+
     contact_ids = [
         c.contact_id
         for c in db.query(Contact).filter(Contact.owner_id == u.id).all()
     ]
     user_ids = list({u.id} | set(contact_ids))
 
-    stories = (
-        db.query(Story)
-        .filter(Story.user_id.in_(user_ids), Story.expires_at > now)
-        .order_by(Story.user_id, Story.created_at)
-        .all()
-    )
+    # Try aware first (PostgreSQL), fallback to naive (SQLite)
+    try:
+        stories = (
+            db.query(Story)
+            .filter(Story.user_id.in_(user_ids), Story.expires_at > now_aware)
+            .order_by(Story.user_id, Story.created_at)
+            .all()
+        )
+    except Exception:
+        stories = (
+            db.query(Story)
+            .filter(Story.user_id.in_(user_ids), Story.expires_at > now_naive)
+            .order_by(Story.user_id, Story.created_at)
+            .all()
+        )
 
     groups: dict[int, dict] = {}
     for s in stories:
@@ -82,7 +94,7 @@ async def get_stories(u: User = Depends(get_current_user), db: Session = Depends
                 "is_self": s.user_id == u.id,
                 "stories": [],
             }
-        groups[s.user_id]["stories"].append(_story_dict(s, groups[s.user_id]["_user"] if "_user" in groups[s.user_id] else su))
+        groups[s.user_id]["stories"].append(_story_dict(s, su))
 
     # patch user objects into dicts properly
     result = list(groups.values())
@@ -174,4 +186,58 @@ async def view_story(
         .values(views_count=Story.views_count + 1)
     )
     db.commit()
+    return {"ok": True}
+
+
+@router.post("/{story_id}/react")
+async def react_to_story(
+    story_id: int,
+    emoji: str = Form("❤️"),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """React to a story with an emoji. Notifies the story owner."""
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        raise HTTPException(404, "Story not found")
+    if story.user_id == u.id:
+        raise HTTPException(400, "Cannot react to own story")
+
+    from app.peer.connection_manager import manager
+    await manager.notify_user(story.user_id, {
+        "type": "story_reaction",
+        "story_id": story_id,
+        "emoji": emoji[:10],
+        "from_user_id": u.id,
+        "from_username": u.username,
+        "from_display_name": u.display_name or u.username,
+        "from_avatar": u.avatar_emoji,
+    })
+    return {"ok": True}
+
+
+@router.post("/{story_id}/reply")
+async def reply_to_story(
+    story_id: int,
+    text: str = Form(...),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reply to a story with text. Notifies the story owner."""
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        raise HTTPException(404, "Story not found")
+    if story.user_id == u.id:
+        raise HTTPException(400, "Cannot reply to own story")
+
+    from app.peer.connection_manager import manager
+    await manager.notify_user(story.user_id, {
+        "type": "story_reply",
+        "story_id": story_id,
+        "text": text[:1000],
+        "from_user_id": u.id,
+        "from_username": u.username,
+        "from_display_name": u.display_name or u.username,
+        "from_avatar": u.avatar_emoji,
+    })
     return {"ok": True}

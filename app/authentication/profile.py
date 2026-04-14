@@ -42,6 +42,8 @@ async def me(current_user: User = Depends(get_current_user)):
         "birth_date": current_user.birth_date,
         "profile_bg": current_user.profile_bg,
         "profile_icon": current_user.profile_icon,
+        "reply_color": current_user.reply_color,
+        "reply_icon": current_user.reply_icon,
     }
 
 
@@ -55,6 +57,8 @@ class UpdateProfileBody(BaseModel):
     birth_date:   str | None = None
     profile_bg:   str | None = None
     profile_icon: str | None = None
+    reply_color:  str | None = None
+    reply_icon:   str | None = None
 
 
 _BIRTH_RE_NO_YEAR = re.compile(r'^--\d{2}-\d{2}$')
@@ -80,6 +84,10 @@ async def update_profile(body: UpdateProfileBody, u: User = Depends(get_current_
         u.profile_bg = body.profile_bg[:120] or None
     if body.profile_icon is not None:
         u.profile_icon = body.profile_icon[:50] or None
+    if body.reply_color is not None:
+        u.reply_color = body.reply_color[:20] or None
+    if body.reply_icon is not None:
+        u.reply_icon = body.reply_icon[:10] or None
     db.commit()
     return {
         "ok": True,
@@ -91,6 +99,7 @@ async def update_profile(body: UpdateProfileBody, u: User = Depends(get_current_
         "birth_date": u.birth_date,
         "profile_bg": u.profile_bg,
         "profile_icon": u.profile_icon,
+        "reply_color": u.reply_color,
     }
 
 

@@ -20,6 +20,9 @@ import * as webrtc      from './webrtc.js';
 import * as ui          from './ui.js';
 import * as chat        from './chat/chat.js';
 import * as fileUpload  from './chat/file-upload.js';
+import './chat/page-builder.js';
+import './sticker-manager.js';
+import { startBMP, registerBMPHandler, registerRoomSecret, MSG } from './bmp-client.js';
 import * as imageViewer from './chat/image-viewer.js';
 import * as contacts     from './contacts.js';
 import * as saved        from './saved.js';
@@ -44,6 +47,8 @@ import * as toast        from './toast.js';
 import * as netStatus    from './network_status.js';
 import * as preferences  from './preferences.js';
 import * as phonePassword from './phone_password.js';
+import * as federation   from './settings/federation.js';
+import * as zkCrypto     from './zk-crypto.js';
 import { t, setLocale, getLocale, initI18n, getSupportedLocales } from './i18n.js';
 import {_msgTexts } from './chat/messages.js';
 import './chat/ai-text.js';
@@ -58,6 +63,7 @@ window._openModalA11y = a11y.openModalA11y;
 window._closeModalA11y = a11y.closeModalA11y;
 window._announce = a11y.announce;
 window.t = t;
+window._i18n_t = t;  // separate ref for inline-handlers.js (avoids recursion with its own var t)
 window.setLocale = setLocale;
 window.getLocale = getLocale;
 
@@ -91,7 +97,7 @@ window.AppState = {
 
 // Экспортируем функции всех модулей в глобальную область видимости,
 // чтобы они были доступны из HTML-обработчиков (onclick и т.д.)
-Object.assign(window, auth, rooms, chat, peers, webrtc, ui, fileUpload, imageViewer, contacts, saved, tasks, notifications, notifSounds, voiceChannel, spaces, userProfile, fingerprint, groupCall, contactSync, stream, keyBackup, gestures, toast, netStatus, preferences, phonePassword);
+Object.assign(window, auth, rooms, chat, peers, webrtc, ui, fileUpload, imageViewer, contacts, saved, tasks, notifications, notifSounds, voiceChannel, spaces, userProfile, fingerprint, groupCall, contactSync, stream, keyBackup, gestures, toast, netStatus, preferences, phonePassword, federation, zkCrypto);
 window.openModal  = openModal;
 window.closeModal = closeModal;
 window.openStatusEditor = openStatusEditor;
@@ -117,10 +123,16 @@ window.bootApp = async function bootApp() {
         await window._checkPinLock();
     }
 
+    $('auth-screen').classList.remove('active');
     $('auth-screen').style.display = 'none';
     $('app').style.display         = 'flex';
     const _btabs = document.getElementById('bottom-tabs');
     if (_btabs) _btabs.style.display = '';
+
+    // Сохраняем текущий аккаунт в список мультиаккаунтов (ключ + данные)
+    if (typeof window._saveCurrentAccountOnBoot === 'function') {
+        window._saveCurrentAccountOnBoot();
+    }
 
     // Initialize i18n, keyboard shortcuts, accessibility, preferences, network
     await initI18n();
@@ -164,6 +176,19 @@ window.bootApp = async function bootApp() {
         console.log('🔑 X25519 pubkey:', AppState.nodePublicKey.slice(0, 16) + '...');
     } catch {}
 
+    // Zero-Knowledge: инициализируем ZK ключи из приватного ключа пользователя
+    try {
+        const privKey = AppState.x25519PrivateKey
+            || sessionStorage.getItem('vortex_x25519_priv')
+            || localStorage.getItem('vortex_x25519_priv');
+        if (privKey) {
+            await zkCrypto.initZKKeys(privKey);
+            console.log('🔒 ZK crypto initialized');
+        }
+    } catch (e) {
+        console.warn('ZK crypto init failed:', e.message);
+    }
+
     // Настраиваем UI в зависимости от режима сети
     const isGlobal = AppState.user?.network_mode === 'global';
     AppState.networkMode = isGlobal ? 'global' : 'local';
@@ -182,8 +207,9 @@ window.bootApp = async function bootApp() {
     spaces.loadMySpaces();  // async, non-blocking — renders icon bar when ready
     if (!isGlobal) startPeerPolling();
 
-    // Загружаем контакты и подключаем уведомления
+    // Загружаем контакты и избранные IDs
     await contacts.loadContacts();
+    saved.loadSavedIds?.();
 
     // Загружаем сторис (dynamic import — не блокирует приложение при ошибке)
     try {
@@ -250,14 +276,69 @@ window.bootApp = async function bootApp() {
     // Подписываемся на Web Push (если разрешено)
     subscribePush();
 
-    // Start cross-device sync polling + initial history migration
+    // Start cross-device sync polling + initial history migration + auto-backup
     keyBackup.startSyncPolling();
+    keyBackup.autoBackupIfNeeded().catch(() => {});
+
+    // BMP: always-on unified transport for all room types
+    startBMP();
+    // Register BMP secrets for ALL room types: rooms, channels, DMs, federated, spaces
+    const _allBmpRooms = [
+        ...(window.AppState?.rooms || []),
+        ...(window.AppState?.channels || []),
+        ...(window.AppState?.dmRooms || []),
+        ...(window.AppState?.federatedRooms || []),
+    ];
+    for (const room of _allBmpRooms) {
+        const rid = room.id || room.room_id;
+        if (rid) registerRoomSecret(rid).catch(() => {});
+    }
     keyBackup.runInitialHistoryMigration().catch(() => {});
 
     // Onboarding tour for first-time users (0 rooms, never dismissed)
     if (AppState.rooms.length === 0 && !isOnboardingDone()) {
         startOnboarding();
     }
+
+    // Prompt to set up security questions (once, only if not done yet)
+    if (!localStorage.getItem('vortex_sq_done')) {
+        setTimeout(() => {
+            if (typeof window._showSecurityQuestionsSetup === 'function') {
+                window._showSecurityQuestionsSetup();
+            }
+        }, 3000);
+    }
+
+    // Monthly password check reminder (every 30 days)
+    // On first ever login — set the timestamp so it doesn't trigger immediately
+    if (!localStorage.getItem('vortex_pw_check_ts')) {
+        localStorage.setItem('vortex_pw_check_ts', String(Date.now()));
+    } else {
+        const lastPwCheck = parseInt(localStorage.getItem('vortex_pw_check_ts'), 10);
+        const daysSince = (Date.now() - lastPwCheck) / 86400000;
+        if (daysSince >= 30) {
+            setTimeout(() => {
+                if (typeof window._showPasswordReminder === 'function') {
+                    window._showPasswordReminder();
+                }
+            }, 5000);
+        }
+    }
+
+    // Check unseen missed calls and show notification
+    try {
+        const missedData = await api('GET', '/api/calls/missed/unseen');
+        if (missedData.count > 0) {
+            const { t: _t } = await import('./i18n.js');
+            const n = missedData.count;
+            const label = _t('calls.missed');
+            if (typeof window.showToast === 'function') {
+                window.showToast(`${label}: ${n}`, 'info');
+            }
+            // Mark as seen
+            api('POST', '/api/calls/missed/mark-seen').catch(() => {});
+        }
+    } catch (e) { console.debug('missed calls check:', e); }
 };
 
 // Закрытие модальных окон при клике на затемнённый фон

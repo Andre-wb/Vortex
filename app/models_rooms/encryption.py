@@ -109,6 +109,44 @@ class PendingKeyRequest(Base):
         return datetime.now(timezone.utc) > self.expires_at
 
 
+class SealedKeyPackage(Base):
+    """
+    Pre-seeded encrypted room key package for offline key distribution.
+
+    Created by room creator/admin when room is created or key rotated.
+    Each package encrypts the room key for a one-time X25519 pubkey.
+    New member generates ephemeral keypair, uploads pubkey, server matches
+    with a prekey package encrypted for that pubkey.
+
+    Zero metadata: server stores only (room_id, anon_slot, encrypted_blob).
+    No user_id — package is claimed by whoever presents matching pubkey.
+
+    Flow:
+      1. Creator generates N prekey packages: ECIES(room_key, prekey_pub_i)
+      2. Stored on server as sealed blobs
+      3. New member joins → picks unclaimed slot → server returns blob
+      4. Member decrypts with their private key → gets room_key
+      5. Slot marked as claimed (deleted)
+
+    When all prekeys exhausted → any online member can generate more.
+    """
+    __tablename__ = "sealed_key_packages"
+
+    id            = Column(Integer,     primary_key=True, index=True)
+    room_id       = Column(Integer,     ForeignKey("rooms.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    slot_index    = Column(Integer,     nullable=False)  # 0..N-1
+    ephemeral_pub = Column(String(64),  nullable=False)  # ECIES ephemeral pub (hex)
+    ciphertext    = Column(String(120), nullable=False)  # ECIES encrypted room key (hex)
+    recipient_pub = Column(String(64),  nullable=False)  # one-time pubkey this is encrypted for
+    is_claimed    = Column(Integer,     default=0)       # 0=available, 1=claimed
+    created_at    = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_skp_room_avail", "room_id", "is_claimed"),
+    )
+
+
 class PendingNotification(Base):
     """
     Persistent queue for notifications that couldn't be delivered via WebSocket.

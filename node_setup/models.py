@@ -22,6 +22,7 @@ class SelfSignedRequest(BaseModel):
     hostname: str  = ""
     org_name: str  = "Vortex Node"
     install_ca: bool = True
+    admin_password: str = ""  # пароль администратора для установки CA без терминала
 
 
 class LetsEncryptRequest(BaseModel):

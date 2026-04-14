@@ -162,7 +162,7 @@ async def send_sealed_push(
         try:
             delivered = await up_manager.send(user_id, payload_bytes)
             if delivered:
-                logger.debug("Sealed push via UnifiedPush: user=%d", user_id)
+                logger.debug("Sealed push via UnifiedPush (sanitized)")
         except Exception as e:
             logger.debug("UP push failed: %s", str(e)[:100])
 

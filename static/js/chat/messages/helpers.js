@@ -9,7 +9,7 @@
 import { esc, fmtTime, fmtDate, fmtSize } from '../../utils.js';
 import { initLiquidGlass, createReplyQuote } from '../liquid-glass.js';
 import { loadEncryptedImage, downloadAndDecryptFile } from '../file-upload.js';
-import { _getRecentReactions, _openReactionPicker } from './reactions.js';
+import { _getRecentReactions, _openReactionPicker, _sendReaction } from './reactions.js';
 
 
 // =========================================================================
@@ -317,11 +317,27 @@ function _resetSwipe(groupEl, arrow) {
     arrow.style.left         = '';
 }
 
-// Пути к иконкам для контекстного меню
-const _ICON_REPLY  = '/static/elements/reply-svgrepo-com.svg';
-const _ICON_EDIT   = '/static/elements/edit-svgrepo-com.svg';
-const _ICON_DELETE = '/static/elements/delete-2-svgrepo-com.svg';
-const _ICON_SAVE   = '/static/elements/edit-svgrepo-com.svg'; // reuse edit icon for save/bookmark
+// Инлайновые SVG-иконки для контекстного меню
+const _SVG = (d, size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+
+const _ICON_REPLY    = _SVG('<polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>');
+const _ICON_COPY     = _SVG('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>');
+const _ICON_THREAD   = _SVG('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>');
+const _ICON_FORWARD  = _SVG('<polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/>');
+const _ICON_QUOTE    = _SVG('<path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 5v3z"/>');
+const _ICON_SAVE     = _SVG('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>');
+const _ICON_PIN      = _SVG('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 2-2H6a2 2 0 0 0 2 2 1 1 0 0 1 1 1z"/>');
+const _ICON_EDIT     = _SVG('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>');
+const _ICON_DELETE   = _SVG('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>');
+const _ICON_TRANSLATE = _SVG('<path d="M5 8l6 10"/><path d="M4 14h6"/><path d="M2 5h12"/><path d="M7 2v3"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/>');
+const _ICON_REMIND   = _SVG('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+const _ICON_REPORT   = _SVG('<path d="M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86L7.86 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>');
+const _ICON_SELECT   = _SVG('<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
+
+// Legacy — для совместимости
+const _ICON_REPLY_PATH = '/static/elements/reply-svgrepo-com.svg';
+const _ICON_EDIT_PATH  = '/static/elements/edit-svgrepo-com.svg';
+const _ICON_DELETE_PATH = '/static/elements/delete-2-svgrepo-com.svg';
 
 /**
  * Renders avatar HTML: photo if avatar_url exists, otherwise emoji fallback.
@@ -374,7 +390,7 @@ async function _translateMessage(msg) {
         div.textContent = data.translatedText || '';
         const label = document.createElement('span');
         label.className = 'msg-translation-label';
-        label.textContent = '\uD83C\uDF10 ' + (t('ctx.translationLabel') || 'Перевод');
+        label.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:2px;"><path d="M5 8l6 10M4 14h6M2 5h12M7 2v3M22 22l-5-10-5 10M14 18h6"/></svg>' + t('chat.translation');
         div.prepend(label, document.createTextNode(' '));
 
         // Insert after the text element inside the bubble
@@ -387,7 +403,152 @@ async function _translateMessage(msg) {
     }
 }
 
+// Translate modal — выбор языка
+const _TRANSLATE_LANGS = [
+    { code: 'ru', flag: '🇷🇺', name: 'Русский' },
+    { code: 'en', flag: '🇬🇧', name: 'English' },
+    { code: 'es', flag: '🇪🇸', name: 'Español' },
+    { code: 'fr', flag: '🇫🇷', name: 'Français' },
+    { code: 'de', flag: '🇩🇪', name: 'Deutsch' },
+    { code: 'zh', flag: '🇨🇳', name: '中文' },
+    { code: 'ja', flag: '🇯🇵', name: '日本語' },
+    { code: 'ko', flag: '🇰🇷', name: '한국어' },
+    { code: 'ar', flag: '🇸🇦', name: 'العربية' },
+    { code: 'pt', flag: '🇧🇷', name: 'Português' },
+    { code: 'it', flag: '🇮🇹', name: 'Italiano' },
+    { code: 'tr', flag: '🇹🇷', name: 'Türkçe' },
+    { code: 'hi', flag: '🇮🇳', name: 'हिन्दी' },
+    { code: 'uk', flag: '🇺🇦', name: 'Українська' },
+];
 
+function _showTranslateModal(msg) {
+    // Убираем старую модалку
+    document.getElementById('translate-lang-modal')?.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'translate-lang-modal';
+    backdrop.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;animation:vxFadeIn .15s ease;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px;min-width:280px;max-width:360px;width:90vw;box-shadow:0 16px 48px rgba(0,0,0,.4);animation:vxSlideUp .2s ease;';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:15px;font-weight:600;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px;';
+    title.textContent = t('chat.translate');
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:50vh;overflow-y:auto;';
+
+    const lastLang = localStorage.getItem('vortex_translate_lang') || 'en';
+
+    for (const lang of _TRANSLATE_LANGS) {
+        const btn = document.createElement('button');
+        const isActive = lang.code === lastLang;
+        btn.style.cssText = `display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid ${isActive ? 'var(--accent)' : 'transparent'};background:${isActive ? 'rgba(124,58,237,.12)' : 'var(--bg3)'};cursor:pointer;color:var(--text);font-size:13px;transition:all .12s;`;
+        btn.onmouseenter = () => { btn.style.background = 'rgba(124,58,237,.15)'; };
+        btn.onmouseleave = () => { btn.style.background = isActive ? 'rgba(124,58,237,.12)' : 'var(--bg3)'; };
+        btn.textContent = `${lang.flag} ${lang.name}`;
+        btn.addEventListener('click', () => {
+            localStorage.setItem('vortex_translate_lang', lang.code);
+            backdrop.remove();
+            _translateMessageToLang(msg, lang.code, lang.name);
+        });
+        grid.appendChild(btn);
+    }
+
+    box.append(title, grid);
+    backdrop.appendChild(box);
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.remove(); });
+    document.body.appendChild(backdrop);
+}
+
+async function _translateMessageToLang(msg, langCode, langName) {
+    const msgEl = document.querySelector(`.msg-group[data-msg-id="${msg.msg_id}"]`);
+    if (!msgEl) return;
+
+    msgEl.querySelector('.msg-translation')?.remove();
+
+    const textEl = msgEl.querySelector('.msg-text');
+    if (!textEl) return;
+    const rawText = msg.text || textEl.textContent || '';
+    if (!rawText.trim()) return;
+
+    const loader = document.createElement('div');
+    loader.className = 'msg-translation';
+    loader.style.cssText = 'opacity:0.5;';
+    loader.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px;"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg>' + t('chat.translation') + '...';
+    const bubble = textEl.closest('.msg-bubble');
+    if (bubble) bubble.appendChild(loader);
+
+    try {
+        const resp = await fetch('/api/translate', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: rawText, source: 'auto', target: langCode }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        // Красивая анимация появления перевода
+        loader.style.transition = 'all 0.3s ease';
+        loader.style.opacity = '0';
+        setTimeout(() => {
+            loader.textContent = '';
+            const label = document.createElement('span');
+            label.className = 'msg-translation-label';
+            label.textContent = `→ ${langName}`;
+            loader.appendChild(label);
+            loader.appendChild(document.createTextNode(' ' + (data.translatedText || data.translated_text || '')));
+            loader.style.opacity = '1';
+        }, 200);
+    } catch (err) {
+        loader.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' + (err.message || t('errors.translationFailed'));
+        loader.style.color = 'var(--red)';
+        setTimeout(() => loader.remove(), 3000);
+    }
+}
+
+
+// Chat-wide translate language picker (called from translate bar)
+window._showChatTranslateLangPicker = function(roomId, bar) {
+    document.getElementById('translate-lang-modal')?.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'translate-lang-modal';
+    backdrop.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;animation:vxFadeIn .15s ease;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px;min-width:280px;max-width:360px;width:90vw;box-shadow:0 16px 48px rgba(0,0,0,.4);animation:vxSlideUp .2s ease;';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:15px;font-weight:600;color:var(--text);margin-bottom:14px;';
+    title.textContent = t('chat.translateTo');
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:50vh;overflow-y:auto;';
+
+    const lastLang = localStorage.getItem('vortex_translate_lang') || 'en';
+
+    for (const lang of _TRANSLATE_LANGS) {
+        const btn = document.createElement('button');
+        const isLast = lang.code === lastLang;
+        btn.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid ' + (isLast ? 'var(--accent)' : 'transparent') + ';background:' + (isLast ? 'rgba(124,58,237,.12)' : 'var(--bg3)') + ';cursor:pointer;color:var(--text);font-size:13px;transition:all .12s;';
+        btn.textContent = lang.flag + ' ' + lang.name;
+        btn.addEventListener('click', () => {
+            localStorage.setItem('vortex_translate_lang', lang.code);
+            localStorage.setItem('vortex_translate_active_' + roomId, '1');
+            if (bar) bar.classList.add('active');
+            backdrop.remove();
+            window.showToast?.(t('chat.translationEnabled', {lang: lang.name}), 'success');
+        });
+        grid.appendChild(btn);
+    }
+
+    box.append(title, grid);
+    backdrop.appendChild(box);
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.remove(); });
+    document.body.appendChild(backdrop);
+};
 
 // =============================================================================
 // Вспомогательные функции для контекстного меню
@@ -428,16 +589,16 @@ function _ensureContextMenuStyles() {
     .ctx-item {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 11px 16px;
+        gap: 10px;
+        padding: 9px 14px;
         cursor: pointer;
         transition: background .12s;
         position: relative;
         z-index: 3;
         user-select: none;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 500;
-        color: rgba(255, 255, 255, 0.88);
+        color: rgba(255, 255, 255, 0.85);
         letter-spacing: 0.01em;
     }
     .ctx-item:hover {
@@ -449,6 +610,22 @@ function _ensureContextMenuStyles() {
     .ctx-item.danger {
         color: rgba(255, 90, 90, 0.90);
     }
+    .ctx-item .ctx-icon {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+        opacity: 0.7;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .ctx-item .ctx-icon svg {
+        color: rgba(255, 255, 255, 0.8);
+    }
+    .ctx-item.danger .ctx-icon svg {
+        color: rgba(255, 90, 90, 0.85);
+    }
+    /* Legacy img icons */
     .ctx-item img {
         width: 18px;
         height: 18px;
@@ -461,8 +638,8 @@ function _ensureContextMenuStyles() {
     }
     .ctx-divider {
         height: 1px;
-        margin: 4px 12px;
-        background: rgba(255, 255, 255, 0.10);
+        margin: 3px 12px;
+        background: rgba(255, 255, 255, 0.08);
         position: relative;
         z-index: 3;
     }
@@ -481,6 +658,43 @@ function _ensureContextMenuStyles() {
 
     .msg-bubble .lg-reply {
         margin-bottom: 6px;
+    }
+
+    .ctx-reactions-row {
+        display: flex;
+        gap: 2px;
+        padding: 6px 10px;
+        justify-content: center;
+        position: relative;
+        z-index: 3;
+        align-items: center;
+    }
+    .ctx-react-btn {
+        font-size: 22px;
+        cursor: pointer;
+        padding: 4px 5px;
+        border-radius: 8px;
+        transition: all .12s;
+        line-height: 1;
+    }
+    .ctx-react-btn:hover {
+        background: rgba(255,255,255,0.1);
+        transform: scale(1.3);
+    }
+    .ctx-react-plus {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 4px;
+        margin-left: 2px;
+        border-radius: 50%;
+        color: rgba(255,255,255,0.5);
+        transition: all .15s;
+    }
+    .ctx-react-plus:hover {
+        background: rgba(255,255,255,0.1);
+        color: rgba(255,255,255,0.8);
     }
     `;
     document.head.appendChild(s);
@@ -506,6 +720,9 @@ function _showContextMenu(e, msg, isOwn) {
     menu.appendChild(grain);
 
     const items = [];
+    const _isStickerMsg = msg.text && msg.text.startsWith('[STICKER] ');
+    const _isGifMsg = msg.text && msg.text.startsWith('[GIF] ');
+    const _isMediaOnly = _isStickerMsg || _isGifMsg;
 
     // Быстрые реакции (6 дефолтных + часто используемые + кнопка "+")
     const defaultEmojis = ['\uD83D\uDC4D', '\u2764\uFE0F', '\uD83D\uDE02', '\uD83D\uDE2E', '\uD83D\uDE22', '\uD83D\uDD25'];
@@ -518,46 +735,105 @@ function _showContextMenu(e, msg, isOwn) {
         msgId: msg.msg_id,
     });
 
-    items.push({ icon: _ICON_REPLY, label: t('ctx.reply'), danger: false, action: () => window.setReplyTo(msg) });
+    items.push({ svg: _ICON_REPLY, label: t('ctx.reply'), action: () => window.setReplyTo(msg) });
 
-    // Цитировать выделенный текст
-    const _sel = window.getSelection();
-    const _selectedText = _sel && _sel.toString().trim();
-    if (_selectedText) {
-        items.push({ icon: _ICON_REPLY, label: t('ctx.quote') || 'Цитировать', danger: false, action: () => {
-            window.setReplyTo(msg);
-            const input = document.getElementById('msg-input');
-            if (input) {
-                const quoted = _selectedText.split('\n').map(l => '> ' + l).join('\n');
-                input.value = quoted + '\n';
-                input.focus();
-                // Move cursor to end
-                input.selectionStart = input.selectionEnd = input.value.length;
-            }
+    // Копировать текст (not for stickers/GIF)
+    if (msg.text && !_isMediaOnly) {
+        items.push({ svg: _ICON_COPY, label: t('ctx.copy'), action: () => {
+            navigator.clipboard.writeText(msg.text).then(() => {
+                if (typeof window.showToast === 'function') window.showToast(t('ctx.copied') || 'Copied', 'success');
+            }).catch(() => {});
         }});
     }
 
-    // Тред
-    if (msg.msg_id) {
-        items.push({ icon: _ICON_REPLY, label: t('ctx.thread'), danger: false, action: () => window.openThread(msg.msg_id) });
+    // Цитировать выделенный текст (not for stickers/GIF)
+    if (!_isMediaOnly) {
+        const _sel = window.getSelection();
+        const _selectedText = _sel && _sel.toString().trim();
+        if (_selectedText) {
+            items.push({ svg: _ICON_QUOTE, label: t('ctx.quote'), action: () => {
+                window.setReplyTo(msg, _selectedText);
+            }});
+        }
+    }
+
+    // Тред (not for stickers/GIF)
+    if (msg.msg_id && !_isMediaOnly) {
+        items.push({ svg: _ICON_THREAD, label: t('ctx.thread'), action: () => window.openThread(msg.msg_id) });
     }
 
     // Переслать
-    items.push({ icon: _ICON_REPLY, label: t('ctx.forward'), danger: false, action: () => window.showForwardModal(msg.msg_id) });
+    items.push({ svg: _ICON_FORWARD, label: t('ctx.forward'), action: () => window.showForwardModal(msg.msg_id) });
 
-    // Перевести
-    if (msg.text && localStorage.getItem('vortex_translate_enabled') === 'true') {
-        items.push({ icon: _ICON_EDIT, label: '\uD83C\uDF10 ' + (t('ctx.translate') || 'Перевести'), danger: false, action: () => _translateMessage(msg) });
+    // Добавить в GIF (для gif файлов)
+    if (msg.file_name && msg.file_name.toLowerCase().endsWith('.gif') && msg.download_url) {
+        items.push({
+            svg: _SVG('<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>'),
+            label: t('ctx.addToGif'),
+            action: async () => {
+                const url = msg.download_url;
+                try {
+                    // Decrypt the GIF
+                    const resp = await fetch(url, { credentials: 'include' });
+                    let data = await resp.arrayBuffer();
+                    const { getRoomKey, decryptFile } = await import('../../crypto.js');
+                    const rk = getRoomKey(window.AppState?.currentRoom?.id);
+                    if (rk && data.byteLength > 28) {
+                        try { data = await decryptFile(data, rk); } catch {}
+                    }
+                    // Upload decrypted GIF to server saved collection
+                    const blob = new Blob([data], { type: 'image/gif' });
+                    const fd = new FormData();
+                    fd.append('file', blob, 'saved.gif');
+                    const csrf = window.AppState?.csrfToken;
+                    const headers = {};
+                    if (csrf) headers['X-CSRF-Token'] = csrf;
+                    const saveResp = await fetch('/api/gifs/saved', { method: 'POST', credentials: 'include', headers, body: fd });
+                    if (saveResp.ok) {
+                        window.showToast?.(t('chat.gifSaved'), 'success');
+                    } else {
+                        const err = await saveResp.json().catch(() => ({}));
+                        window.showToast?.(err.detail || t('errors.saveFailed'), 'error');
+                    }
+                } catch (e) {
+                    console.warn('Save GIF error:', e);
+                    window.showToast?.(t('errors.gifSaveFailed'), 'error');
+                }
+            },
+        });
     }
 
-    // В избранное (toggle)
-    if (msg.msg_id) {
-        items.push({ icon: _ICON_SAVE, label: '\u2B50 ' + t('ctx.addToSaved'), danger: false, action: () => window.toggleSavedMessage(msg.msg_id) });
+    // Добавить в стикеры (для изображений)
+    if (msg.download_url && msg.mime_type && msg.mime_type.startsWith('image/')) {
+        items.push({
+            svg: _SVG('<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'),
+            label: t('ctx.addToStickers'),
+            action: () => window.addImageToStickers?.(msg.download_url, msg.file_name),
+        });
     }
 
-    // Закрепить (если есть msg_id)
-    if (msg.msg_id) {
-        items.push({ icon: _ICON_EDIT, label: t('ctx.pin'), danger: false, action: () => {
+    // Перевести (not for stickers/GIF)
+    if (msg.text && !_isMediaOnly) {
+        items.push({ svg: _ICON_TRANSLATE, label: t('ctx.translate'), action: () => _showTranslateModal(msg) });
+    }
+
+    // В избранное / Убрать из избранного (not for stickers/GIF)
+    if (msg.msg_id && !_isMediaOnly) {
+        const _savedSet = window._savedMsgIds || new Set();
+        const _isSaved = _savedSet.has(msg.msg_id);
+        items.push({
+            svg: _isSaved ? _SVG('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" fill="currentColor" stroke="currentColor"/>') : _ICON_SAVE,
+            label: _isSaved ? t('ctx.removeFromSaved') : t('ctx.addToSaved'),
+            action: () => {
+                window.toggleSavedMessage(msg.msg_id);
+                if (_isSaved) _savedSet.delete(msg.msg_id); else _savedSet.add(msg.msg_id);
+            }
+        });
+    }
+
+    // Закрепить (not for stickers/GIF)
+    if (msg.msg_id && !_isMediaOnly) {
+        items.push({ svg: _ICON_PIN, label: t('ctx.pin'), action: () => {
             const S = window.AppState;
             if (S.ws?.readyState === WebSocket.OPEN) {
                 S.ws.send(JSON.stringify({action: 'pin_message', msg_id: msg.msg_id}));
@@ -565,11 +841,18 @@ function _showContextMenu(e, msg, isOwn) {
         }});
     }
 
-    if (isOwn && (!msg.msg_type || msg.msg_type === 'text')) {
-        items.push({ icon: _ICON_EDIT, label: t('ctx.edit'), danger: false, action: () => window.startEditMessage(msg) });
+    if (isOwn && (!msg.msg_type || msg.msg_type === 'text') && !_isMediaOnly) {
+        items.push({ svg: _ICON_EDIT, label: t('ctx.edit'), action: () => window.startEditMessage(msg) });
     }
 
-    // Удалить: свои сообщения или любые для admin/owner
+    // Напомнить (not for stickers/GIF)
+    if (msg.msg_id && !_isMediaOnly) {
+        items.push({ svg: _ICON_REMIND, label: t('ctx.remind'), action: () => _showReminderModal(msg) });
+    }
+
+    items.push({ divider: true });
+
+    // Удалить
     const _room = window.AppState?.currentRoom;
     const canDelete = isOwn
         || _room?.my_role === 'owner'
@@ -577,20 +860,13 @@ function _showContextMenu(e, msg, isOwn) {
         || _room?.is_owner
         || _room?.is_admin;
     if (canDelete) {
-        items.push({ divider: true });
-        items.push({ icon: _ICON_DELETE, label: t('ctx.delete'), danger: true, action: () => window.deleteMessage(msg.msg_id) });
+        items.push({ svg: _ICON_DELETE, label: t('ctx.delete'), danger: true, action: () => window.deleteMessage(msg.msg_id) });
     }
 
-    // Напомнить
-    if (msg.msg_id) {
-        items.push({ icon: _ICON_SAVE, label: '🔔 ' + (t('ctx.remind') || 'Напомнить'), danger: false, action: () => _showReminderModal(msg) });
-    }
-
-    // Report button (for messages from other users)
+    // Пожаловаться
     if (!isOwn && msg.sender_id) {
-        items.push({ divider: true });
         items.push({
-            icon: _ICON_DELETE,
+            svg: _ICON_REPORT,
             label: t('ctx.report'),
             danger: true,
             action: () => {
@@ -611,14 +887,10 @@ function _showContextMenu(e, msg, isOwn) {
         if (item.type === 'reactions') {
             const row = document.createElement('div');
             row.className = 'ctx-reactions-row';
-            row.style.cssText = 'display:flex;gap:4px;padding:8px 12px;justify-content:center;position:relative;z-index:3;align-items:center;';
             item.emojis.forEach(emoji => {
                 const eb = document.createElement('span');
                 eb.className = 'ctx-react-btn';
                 eb.textContent = emoji;
-                eb.style.cssText = 'font-size:20px;cursor:pointer;padding:4px 6px;border-radius:8px;transition:all .12s;';
-                eb.onmouseenter = () => { eb.style.background = 'rgba(255,255,255,0.1)'; eb.style.transform = 'scale(1.25)'; };
-                eb.onmouseleave = () => { eb.style.background = ''; eb.style.transform = ''; };
                 eb.addEventListener('click', (ev) => {
                     ev.stopPropagation();
                     _closeContextMenu();
@@ -647,7 +919,14 @@ function _showContextMenu(e, msg, isOwn) {
         }
         const btn = document.createElement('div');
         btn.className = `ctx-item${item.danger ? ' danger' : ''}`;
-        btn.innerHTML = `<img src="${item.icon}" alt=""><span>${item.label}</span>`;
+        if (item.svg) {
+            // SVG icons are static constants, safe to use innerHTML
+            btn.innerHTML = `<span class="ctx-icon">${item.svg}</span><span>${item.label}</span>`;
+        } else if (item.icon) {
+            btn.innerHTML = `<img src="${item.icon}" alt=""><span>${item.label}</span>`;
+        } else {
+            btn.textContent = item.label;
+        }
         btn.addEventListener('click', (ev) => {
             ev.stopPropagation();
             _closeContextMenu();
@@ -713,11 +992,11 @@ function _showReminderModal(msg) {
     document.getElementById('vx-reminder-modal')?.remove();
 
     const presets = [
-        { label: 'Через 20 минут', mins: 20 },
-        { label: 'Через 1 час',    mins: 60 },
-        { label: 'Через 2 часа',   mins: 120 },
-        { label: 'Через 4 часа',   mins: 240 },
-        { label: 'Завтра утром',   mins: null, special: 'tomorrow' },
+        { label: t('reminder.in20min'), mins: 20 },
+        { label: t('reminder.in1hour'),    mins: 60 },
+        { label: t('reminder.in2hours'),   mins: 120 },
+        { label: t('reminder.in4hours'),   mins: 240 },
+        { label: t('reminder.tomorrowMorning'),   mins: null, special: 'tomorrow' },
     ];
 
     const overlay = document.createElement('div');
@@ -731,12 +1010,12 @@ function _showReminderModal(msg) {
 
     const title = document.createElement('div');
     title.style.cssText = 'font-weight:600;font-size:15px;margin-bottom:14px;position:relative;z-index:2;';
-    title.textContent = '🔔 Напомнить о сообщении';
+    title.textContent = t('reminder.remindAboutMessage');
     box.appendChild(title);
 
     const preview = document.createElement('div');
     preview.style.cssText = 'font-size:12px;color:var(--text2);margin-bottom:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;position:relative;z-index:2;';
-    preview.textContent = msg.text ? msg.text.slice(0, 60) + (msg.text.length > 60 ? '…' : '') : '(медиа-сообщение)';
+    preview.textContent = msg.text ? msg.text.slice(0, 60) + (msg.text.length > 60 ? '…' : '') : t('chat.mediaMessage');
     box.appendChild(preview);
 
     presets.forEach(p => {
@@ -783,7 +1062,7 @@ function _showReminderModal(msg) {
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'btn btn-ghost';
     cancelBtn.style.cssText = 'width:100%;margin-top:10px;position:relative;z-index:2;';
-    cancelBtn.textContent = 'Отмена';
+    cancelBtn.textContent = t('common.cancel');
     cancelBtn.onclick = () => overlay.remove();
     box.appendChild(cancelBtn);
 
@@ -798,7 +1077,7 @@ function _scheduleReminder(msg, remindAt) {
         id: `r_${msg.msg_id}_${Date.now()}`,
         msg_id: msg.msg_id,
         room_id: window.AppState?.currentRoom?.id,
-        text: msg.text ? msg.text.slice(0, 100) : '(медиа)',
+        text: msg.text ? msg.text.slice(0, 100) : t('chat.media'),
         remind_at: remindAt,
     };
     reminders.push(entry);
@@ -810,7 +1089,7 @@ function _scheduleReminder(msg, remindAt) {
     // Показать тост с подтверждением
     const d = new Date(remindAt);
     const label = d.toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    if (window.showToast) window.showToast(`🔔 Напомним ${label}`);
+    if (window.showToast) window.showToast(t('reminder.willRemind', {time: label}));
 }
 
 function _fireReminder(reminderId) {
@@ -821,7 +1100,7 @@ function _fireReminder(reminderId) {
 
     // Web Notification
     const notify = () => {
-        new Notification('🔔 Напоминание — Vortex', {
+        new Notification(t('reminder.notificationTitle'), {
             body: entry.text,
             icon: '/static/icons/icon-192.png',
             tag: reminderId,
@@ -839,7 +1118,7 @@ function _fireReminder(reminderId) {
     banner.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;' +
         'background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 18px;' +
         'box-shadow:0 4px 24px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:360px;cursor:pointer;';
-    banner.innerHTML = `<span style="font-size:22px;">🔔</span><div><div style="font-weight:600;font-size:13px;">Напоминание</div><div style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px;">${entry.text}</div></div>`;
+    banner.innerHTML = `<span style="font-size:22px;">🔔</span><div><div style="font-weight:600;font-size:13px;">${t('reminder.reminder')}</div><div style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px;">${entry.text}</div></div>`;
     banner.onclick = () => {
         banner.remove();
         // Перейти к комнате если доступно
@@ -890,12 +1169,12 @@ async function _showEditHistory(msgId, roomId) {
 
     const title = document.createElement('div');
     title.style.cssText = 'font-weight:600;font-size:15px;margin-bottom:14px;position:relative;z-index:2;';
-    title.textContent = '📋 История изменений';
+    title.textContent = t('chat.editHistory');
     box.appendChild(title);
 
     const loading = document.createElement('div');
     loading.style.cssText = 'color:var(--text2);font-size:13px;position:relative;z-index:2;';
-    loading.textContent = 'Загрузка...';
+    loading.textContent = t('common.loading');
     box.appendChild(loading);
 
     overlay.appendChild(box);
@@ -904,7 +1183,7 @@ async function _showEditHistory(msgId, roomId) {
 
     try {
         const resp = await fetch(`/api/rooms/${roomId}/messages/${msgId}/history`, { credentials: 'include' });
-        if (!resp.ok) throw new Error('Ошибка ' + resp.status);
+        if (!resp.ok) throw new Error(t('errors.errorWithStatus', {status: resp.status}));
         const data = await resp.json();
         loading.remove();
 
@@ -913,7 +1192,7 @@ async function _showEditHistory(msgId, roomId) {
         if (versions.length === 1 && !data.history?.length) {
             const empty = document.createElement('div');
             empty.style.cssText = 'color:var(--text2);font-size:13px;position:relative;z-index:2;';
-            empty.textContent = 'История изменений пуста.';
+            empty.textContent = t('chat.editHistoryEmpty');
             box.appendChild(empty);
         } else {
             versions.reverse().forEach((v, i) => {
@@ -923,26 +1202,26 @@ async function _showEditHistory(msgId, roomId) {
                 const label = document.createElement('div');
                 label.style.cssText = 'font-size:11px;color:var(--text3);margin-bottom:4px;display:flex;justify-content:space-between;';
                 const timeStr = v.edited_at ? new Date(v.edited_at).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
-                label.innerHTML = `<span>${v.is_current ? '✅ Текущая версия' : `Версия ${versions.length - i}`}</span><span>${timeStr}</span>`;
+                label.innerHTML = `<span>${v.is_current ? t('chat.currentVersion') : t('chat.versionNumber', {num: versions.length - i})}</span><span>${timeStr}</span>`;
                 row.appendChild(label);
 
                 const cipher = document.createElement('div');
                 cipher.style.cssText = 'font-size:11px;font-family:var(--mono);color:var(--text2);word-break:break-all;overflow:hidden;max-height:60px;';
-                cipher.textContent = v.ciphertext_hex ? v.ciphertext_hex.slice(0, 120) + (v.ciphertext_hex.length > 120 ? '…' : '') : '(зашифровано)';
-                cipher.title = 'Зашифрованный текст (E2E). Расшифровка на стороне клиента.';
+                cipher.textContent = v.ciphertext_hex ? v.ciphertext_hex.slice(0, 120) + (v.ciphertext_hex.length > 120 ? '…' : '') : t('chat.encrypted');
+                cipher.title = t('chat.encryptedTooltip');
                 row.appendChild(cipher);
 
                 box.appendChild(row);
             });
         }
     } catch (e) {
-        loading.textContent = 'Ошибка загрузки: ' + e.message;
+        loading.textContent = t('errors.loadingError', {message: e.message});
     }
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'btn btn-ghost';
     closeBtn.style.cssText = 'width:100%;margin-top:10px;position:relative;z-index:2;';
-    closeBtn.textContent = 'Закрыть';
+    closeBtn.textContent = t('common.close');
     closeBtn.onclick = () => overlay.remove();
     box.appendChild(closeBtn);
 }

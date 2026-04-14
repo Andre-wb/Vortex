@@ -444,14 +444,14 @@ export async function createRoomInSpace() {
 // ── Create category in space ─────────────────────────────────────────────────
 export async function createCategory() {
     if (!_activeSpaceData) return;
-    const name = prompt(t('spaces.categoryName'));
+    const name = await window.vxPrompt(t('spaces.categoryName'));
     if (!name?.trim()) return;
 
     try {
         await api('POST', `/api/spaces/${_activeSpaceData.id}/categories`, { name: name.trim() });
         await _loadSpaceDetail(_activeSpaceData.id);
     } catch (e) {
-        alert(e.message || t('app.error'));
+        window.vxAlert(e.message || t('app.error'));
     }
 }
 

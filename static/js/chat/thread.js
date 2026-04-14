@@ -31,8 +31,10 @@ window.openThread = async function(msgId) {
         const data = await api('GET', `/api/rooms/${S.currentRoom.id}/thread/${msgId}`);
 
         if (titleEl) {
+            const rootAuthor = data.root?.display_name || data.root?.sender || '';
             const count = data.replies?.length || 0;
-            titleEl.textContent = count > 0 ? t('chat.threadCount').replace('{count}', count) : t('chat.thread');
+            const countText = count > 0 ? ` · ${count} ${_pluralRepliesThread(count)}` : '';
+            titleEl.textContent = rootAuthor ? `${t('chat.thread')} — ${rootAuthor}${countText}` : t('chat.thread') + countText;
         }
 
         if (messagesEl) {

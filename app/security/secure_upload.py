@@ -41,7 +41,8 @@ except (ImportError, OSError):
 
 class FileUploadConfig:
     """Настройки загрузки файлов."""
-    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 МБ
+    from app.config import Config as _Cfg
+    MAX_FILE_SIZE = _Cfg.MAX_FILE_BYTES  # from MAX_FILE_MB env (default 2 GB)
 
     # Ограничения для изображений
     MAX_IMAGE_DIMENSION = 10000
@@ -56,6 +57,8 @@ class FileUploadConfig:
         'image/gif':      ['.gif'],
         'image/bmp':      ['.bmp'],
         'image/tiff':     ['.tif', '.tiff'],
+        'image/x-adobe-dng': ['.dng'],
+        'image/svg+xml':  ['.svg'],
         # HEIC/HEIF (iPhone): magic возвращает разные строки в зависимости от libmagic версии
         'image/heic':     ['.heic', '.heif'],
         'image/heif':     ['.heic', '.heif'],
@@ -75,11 +78,44 @@ class FileUploadConfig:
         'audio/aac':        ['.aac', '.m4a'],
         'audio/flac':       ['.flac'],
         'audio/x-flac':     ['.flac'],
-        'audio/mp4':        ['.m4a', '.mp4'],
+        'audio/mp4':        ['.m4a'],
         # ── Документы ────────────────────────────────────────────────────
         'application/pdf':  ['.pdf'],
         'text/plain':       ['.txt', '.log', '.md', '.csv'],
         'text/csv':         ['.csv'],
+        'text/rtf':         ['.rtf'],
+        'application/rtf':  ['.rtf'],
+        'application/msword': ['.doc'],
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+        'application/vnd.ms-excel': ['.xls'],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+        'application/vnd.ms-powerpoint': ['.ppt'],
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+        'application/vnd.oasis.opendocument.text': ['.odt'],
+        'application/vnd.oasis.opendocument.spreadsheet': ['.ods'],
+        'application/vnd.oasis.opendocument.presentation': ['.odp'],
+        'text/html':        ['.html', '.htm', '.vxpage.html'],
+        'text/css':         ['.css'],
+        'text/javascript':  ['.js', '.mjs'],
+        'text/typescript':  ['.ts', '.tsx'],
+        'application/json': ['.json'],
+        'application/xml':  ['.xml'],
+        'text/xml':         ['.xml'],
+        'text/yaml':        ['.yaml', '.yml'],
+        'text/x-python':    ['.py'],
+        'text/x-php':       ['.php'],
+        'text/x-java':      ['.java'],
+        'text/x-c':         ['.c', '.h'],
+        'text/x-c++':       ['.cpp', '.cxx', '.hpp'],
+        'text/x-csharp':    ['.cs'],
+        'text/x-go':        ['.go'],
+        'text/x-rust':      ['.rs'],
+        'text/x-ruby':      ['.rb'],
+        'text/x-swift':     ['.swift'],
+        'text/x-kotlin':    ['.kt', '.kts'],
+        'text/x-shellscript': ['.sh', '.bash'],
+        'text/x-sql':       ['.sql'],
+        'application/x-vortex-sticker': ['.sticker'],
         # ── Архивы ───────────────────────────────────────────────────────
         'application/zip':                ['.zip'],
         'application/x-zip-compressed':   ['.zip'],
@@ -767,7 +803,8 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
             for ext in exts
         }
         if file_ext in ext_to_mime:
-            return True, 'application/octet-stream'
+            # E2E encrypted file — use extension-based mime (libmagic can't read encrypted bytes)
+            return True, ext_to_mime[file_ext]
 
     # ── Шаг 3: проверяем что MIME входит в белый список ─────────────────────
     if mime not in FileUploadConfig.ALLOWED_MIME_TYPES:

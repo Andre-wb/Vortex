@@ -112,7 +112,7 @@ export async function startGroupCall(roomId, withVideo = false) {
     _gcTopology = topology;
 
     const room = S.rooms?.find(r => r.id === roomId);
-    _gcRoomName = room?.name || 'Групповой звонок';
+    _gcRoomName = room?.name || t('call.groupCall');
 
     try {
         _gcLocalStream = await navigator.mediaDevices.getUserMedia({
@@ -148,7 +148,7 @@ export async function startGroupCall(roomId, withVideo = false) {
     }
 
     _showGcOverlay();
-    _updateGcStatus(_gcTopology === 'sfu' ? 'SFU — подключение...' : 'Ожидание участников...');
+    _updateGcStatus(_gcTopology === 'sfu' ? t('call.sfuConnecting') : t('call.waitingParticipants'));
     _renderGcGrid();
 }
 
@@ -172,7 +172,7 @@ export async function joinGroupCall(callId, roomId, withVideo = false) {
 
     const S = window.AppState;
     const room = S.rooms?.find(r => r.id === roomId);
-    _gcRoomName = room?.name || 'Групповой звонок';
+    _gcRoomName = room?.name || t('call.groupCall');
 
     try {
         _gcLocalStream = await navigator.mediaDevices.getUserMedia({
@@ -209,7 +209,7 @@ export async function joinGroupCall(callId, roomId, withVideo = false) {
     }
 
     _showGcOverlay();
-    _updateGcStatus(_gcTopology === 'sfu' ? 'SFU — подключение...' : 'Подключение...');
+    _updateGcStatus(_gcTopology === 'sfu' ? t('call.sfuConnecting') : t('call.connecting'));
     _renderGcGrid();
 }
 
@@ -469,11 +469,11 @@ async function _connectSfu() {
             if (_gcState === 'connecting') {
                 _gcState = 'connected';
                 _startGcTimer();
-                _updateGcStatus('SFU — звонок');
+                _updateGcStatus(t('call.sfuCall'));
             }
         }
         if (state === 'failed') {
-            _updateGcStatus('SFU — переподключение...');
+            _updateGcStatus(t('call.sfuReconnecting'));
         }
     };
 
@@ -491,7 +491,7 @@ async function _connectSfu() {
         _renderGcGrid();
     } catch (e) {
         console.error('[GroupCall/SFU] connect failed:', e);
-        _updateGcStatus('SFU — ошибка подключения');
+        _updateGcStatus(t('call.sfuConnectionError'));
     }
 }
 
@@ -603,7 +603,7 @@ async function _handleSignal(msg) {
             if (_connectedCount() >= 1 && _gcState === 'connecting') {
                 _gcState = 'connected';
                 _startGcTimer();
-                _updateGcStatus('Звонок');
+                _updateGcStatus(t('call.inCall'));
                 _startSpeakingDetection();
             }
             break;
@@ -616,7 +616,7 @@ async function _handleSignal(msg) {
             _adaptBitrate();
 
             if (_connectedCount() === 0 && _gcState === 'connected') {
-                _updateGcStatus('Все участники вышли');
+                _updateGcStatus(t('call.allLeft'));
                 setTimeout(() => {
                     if (_connectedCount() === 0) leaveGroupCall();
                 }, 5000);
@@ -750,7 +750,7 @@ function _createPeerConnection(peerId) {
             if (_gcState === 'connecting') {
                 _gcState = 'connected';
                 _startGcTimer();
-                _updateGcStatus('Звонок');
+                _updateGcStatus(t('call.inCall'));
                 _startSpeakingDetection();
             }
             _adaptBitrate();
@@ -1083,7 +1083,7 @@ function _showGcPip() {
     const countEl = $('gc-pip-count');
     if (countEl) {
         const count = Object.keys(_gcParticipants).length;
-        countEl.textContent = count + ' уч.';
+        countEl.textContent = t('call.participantsShort', { count });
     }
 
     pip.classList.add('show');
@@ -1238,7 +1238,7 @@ function _renderGcGrid() {
         if (p.is_self) {
             const youSpan = document.createElement('span');
             youSpan.className = 'gc-tile-you';
-            youSpan.textContent = '(вы)';
+            youSpan.textContent = t('call.you');
             label.appendChild(youSpan);
         }
 
@@ -1335,7 +1335,7 @@ async function _showAddModal() {
     list.textContent = '';
     const loadingDiv = document.createElement('div');
     loadingDiv.style.cssText = 'padding:20px;text-align:center;color:var(--text2)';
-    loadingDiv.textContent = 'Загрузка...';
+    loadingDiv.textContent = t('common.loading');
     list.appendChild(loadingDiv);
     modal.classList.add('show');
 
@@ -1366,12 +1366,12 @@ async function _showAddModal() {
             const inviteBtn = document.createElement('button');
             inviteBtn.className = 'gc-add-invite';
             inviteBtn.disabled = inCall;
-            inviteBtn.textContent = inCall ? 'В звонке' : 'Пригласить';
+            inviteBtn.textContent = inCall ? t('call.inCallStatus') : t('call.invite');
 
             if (!inCall) {
                 inviteBtn.addEventListener('click', async () => {
                     inviteBtn.disabled = true;
-                    inviteBtn.textContent = 'Отправлено';
+                    inviteBtn.textContent = t('call.sent');
                     await addParticipantToCall(userId);
                 });
             }
@@ -1383,14 +1383,14 @@ async function _showAddModal() {
         if (members.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.style.cssText = 'padding:20px;text-align:center;color:var(--text2)';
-            emptyDiv.textContent = 'Нет участников';
+            emptyDiv.textContent = t('call.noParticipants');
             list.appendChild(emptyDiv);
         }
     } catch (e) {
         list.textContent = '';
         const errDiv = document.createElement('div');
         errDiv.style.cssText = 'padding:20px;text-align:center;color:var(--red)';
-        errDiv.textContent = 'Ошибка загрузки';
+        errDiv.textContent = t('errors.loadFailed');
         list.appendChild(errDiv);
     }
 }

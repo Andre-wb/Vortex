@@ -346,12 +346,21 @@ async def file_stats(room_id: int, u: User = Depends(get_current_user),
         FileTransfer.room_id == room_id
     ).scalar() or 0
 
+    # Extract media type prefix (e.g., "image" from "image/jpeg")
+    # Use split_part for PostgreSQL, substr+instr for SQLite
+    from app.database import engine as _engine
+    _is_pg = 'postgresql' in str(_engine.url)
+    if _is_pg:
+        type_expr = func.split_part(FileTransfer.mime_type, '/', 1)
+    else:
+        type_expr = func.substr(FileTransfer.mime_type, 1, func.instr(FileTransfer.mime_type, "/") - 1)
+
     by_type = db.query(
-        func.substr(FileTransfer.mime_type, 1, func.instr(FileTransfer.mime_type, "/") - 1),
+        type_expr,
         func.count(FileTransfer.id),
         func.sum(FileTransfer.size_bytes),
     ).filter(FileTransfer.room_id == room_id).group_by(
-        func.substr(FileTransfer.mime_type, 1, func.instr(FileTransfer.mime_type, "/") - 1)
+        type_expr
     ).all()
 
     return {

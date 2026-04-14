@@ -172,9 +172,11 @@
     transition: transform .15s, box-shadow .15s;
     user-select: none;
 }
+@media (hover: hover) {
 .fp-emoji-cell:hover {
     transform: scale(1.12);
     box-shadow: 0 4px 16px rgba(0,0,0,.3);
+}
 }
 
 .fp-emoji-hint {
@@ -286,7 +288,9 @@
     cursor: pointer;
     transition: background .15s, transform .1s, box-shadow .15s;
 }
+@media (hover: hover) {
 .fp-btn:active { transform: scale(.97); }
+}
 
 .fp-btn-secondary {
     background: rgba(255,255,255,.06);
@@ -609,9 +613,11 @@
     padding: 0;
     margin-right: 2px;
 }
+@media (hover: hover) {
 .fp-shield-btn:hover {
     background: rgba(255,255,255,.08);
     transform: scale(1.1);
+}
 }
 
 .fp-shield-verified {

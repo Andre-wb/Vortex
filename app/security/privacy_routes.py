@@ -199,3 +199,34 @@ async def privacy_status(u: User = Depends(get_current_user)):
         },
         "zero_knowledge_membership": ZKMembership.get_info(),
     }
+
+
+# ── Show Last Seen toggle ──────────────────────────────────────────────────
+
+class _LastSeenRequest(BaseModel):
+    show_last_seen: bool
+
+
+@router.get("/last-seen")
+async def get_last_seen_setting(u: User = Depends(get_current_user)):
+    """Get show_last_seen setting."""
+    val = getattr(u, 'show_last_seen', True)
+    return {"show_last_seen": val if val is not None else True}
+
+
+@router.post("/last-seen")
+async def set_last_seen_setting(
+    body: _LastSeenRequest,
+    u: User = Depends(get_current_user),
+):
+    """Toggle show_last_seen."""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == u.id).first()
+        if user:
+            user.show_last_seen = body.show_last_seen
+            db.commit()
+    finally:
+        db.close()
+    return {"ok": True, "show_last_seen": body.show_last_seen}

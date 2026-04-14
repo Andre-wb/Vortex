@@ -37,6 +37,7 @@
     <link rel="stylesheet" href="/static/css/fingerprint.css">
     <link rel="stylesheet" href="/static/css/group-call.css">
     <link rel="stylesheet" href="/static/css/media-viewer.css">
+    <link rel="stylesheet" href="/static/css/video-editor.css">
     <link rel="stylesheet" href="/static/css/contact-sync.css">
     <link rel="stylesheet" href="/static/css/stream.css">
     <link rel="stylesheet" href="/static/css/onboarding.css">
@@ -113,6 +114,8 @@
 {% include 'components/fingerprint_modal.html' %}
 {% include 'components/group_call.html' %}
 {% include 'components/contact_sync.html' %}
+{% include 'components/page_viewer.html' %}
+{% include 'components/doc_viewer.html' %}
 {% include 'components/stream.html' %}
 
 {# ── Scripts ───────────────────────────────────────────────────────── #}
@@ -148,6 +151,9 @@ function _highlightLang(){
 document.addEventListener('DOMContentLoaded',_highlightLang);
 </script>
 <script src="/static/js/panic.js" defer></script>
+<script src="/static/js/inline-handlers.js" defer></script>
+<script src="/static/js/bot-constructor.js" defer></script>
+<link rel="stylesheet" href="/static/css/bot-constructor.css">
 <script type="module" src="/static/js/main.js"></script>
 <script type="module" src="/static/js/ux-enhancements.js"></script>
 <script src="/static/js/ide-dev-settings.js" defer></script>

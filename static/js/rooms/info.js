@@ -94,14 +94,14 @@ export async function openRoomInfo() {
     if (room.is_channel) {
         // Для каналов: скрыть invite-код, изменить заголовок, кнопку
         if (_inviteSection) _inviteSection.style.display = 'none';
-        if (_membersBtn) _membersBtn.textContent = t('channel.subscribers') || 'Подписчики';
-        if (_leaveBtn) _leaveBtn.textContent = t('channel.unsubscribe') || 'Отписаться';
+        if (_membersBtn) _membersBtn.textContent = t('channel.subscribers');
+        if (_leaveBtn) _leaveBtn.textContent = t('channel.unsubscribe');
         const topTitle = $('rss-topbar-title');
         if (topTitle) topTitle.textContent = isAdmin
-            ? (t('channel.settings') || 'Настройки канала')
-            : (t('channel.about') || 'О канале');
+            ? t('channel.settings')
+            : t('channel.about');
         const _metaEl = $('room-info-meta');
-        if (_metaEl) _metaEl.textContent = `${room.member_count} ${t('channel.subscribers') || 'подписчиков'} · ${createdDate}`;
+        if (_metaEl) _metaEl.textContent = `${room.member_count} ${t('channel.subscribers')} · ${createdDate}`;
 
         // Show discussion button for channels with discussion enabled
         const _discSection = $('rss-discussion-section');
@@ -113,12 +113,12 @@ export async function openRoomInfo() {
         const _discSection2 = $('rss-discussion-section');
         if (_discSection2) _discSection2.style.display = 'none';
         if (_inviteSection) _inviteSection.style.display = '';
-        if (_membersBtn) _membersBtn.textContent = t('chat.members') || 'Участники';
-        if (_leaveBtn) _leaveBtn.textContent = t('room.leaveShort') || 'Покинуть';
+        if (_membersBtn) _membersBtn.textContent = t('chat.members');
+        if (_leaveBtn) _leaveBtn.textContent = t('room.leaveShort');
         const topTitle = $('rss-topbar-title');
         if (topTitle) topTitle.textContent = room.is_channel
-            ? (t('channel.settings') || 'Настройки канала')
-            : (t('room.settings') || 'Настройки комнаты');
+            ? t('channel.settings')
+            : t('room.settings');
     }
 
     // Settings section (admin/owner only, never for DM)
@@ -142,7 +142,7 @@ export async function openRoomInfo() {
 
                 // Update section title
                 const secTitle = $('rss-settings-title');
-                if (secTitle) secTitle.textContent = t('channel.settings') || 'Настройки канала';
+                if (secTitle) secTitle.textContent = t('channel.settings');
 
                 // Channel type (public/private)
                 const pubToggle = $('channel-public-toggle');
@@ -542,7 +542,7 @@ window._searchChannelSubscribers = async function() {
         if (!subs.length) {
             const empty = document.createElement('div');
             empty.style.cssText = 'color:var(--text3);font-size:12px;padding:8px 0;';
-            empty.textContent = t('channel.noSubscribers') || 'Нет подписчиков';
+            empty.textContent = t('channel.noSubscribers');
             list.appendChild(empty);
             return;
         }
@@ -562,13 +562,13 @@ window._searchChannelSubscribers = async function() {
             info.appendChild(nameEl);
             const roleEl = document.createElement('div');
             roleEl.className = 'channel-author-role';
-            roleEl.textContent = s.role === 'owner' ? (t('channel.owner') || 'Владелец') : (s.role === 'admin' ? (t('channel.author') || 'Автор') : (t('channel.subscriber') || 'Подписчик'));
+            roleEl.textContent = s.role === 'owner' ? t('channel.owner') : (s.role === 'admin' ? t('channel.author') : t('channel.subscriber'));
             info.appendChild(roleEl);
             row.appendChild(info);
             if (s.role !== 'owner') {
                 const banBtn = document.createElement('button');
                 banBtn.className = 'btn btn-danger btn-sm';
-                banBtn.textContent = s.is_banned ? (t('channel.unban') || 'Разбан') : (t('channel.ban') || 'Бан');
+                banBtn.textContent = s.is_banned ? t('channel.unban') : t('channel.ban');
                 banBtn.style.cssText = 'padding:2px 8px;font-size:11px;';
                 banBtn.onclick = async () => {
                     try {
@@ -582,10 +582,10 @@ window._searchChannelSubscribers = async function() {
                     const rmBtn = document.createElement('button');
                     rmBtn.className = 'btn btn-secondary btn-sm';
                     rmBtn.textContent = '\u00D7';
-                    rmBtn.title = t('channel.removeSubscriber') || 'Удалить';
+                    rmBtn.title = t('channel.removeSubscriber');
                     rmBtn.style.cssText = 'width:24px;height:24px;padding:0;font-size:14px;margin-left:4px;';
                     rmBtn.onclick = async () => {
-                        if (!confirm(t('channel.removeConfirm') || `Удалить ${s.display_name}?`)) return;
+                        if (!confirm(t('channel.removeConfirm', { name: s.display_name }))) return;
                         try {
                             await api('DELETE', `/api/channels/${S.currentRoom.id}/subscribers/${s.user_id}`);
                             window._searchChannelSubscribers();
@@ -616,7 +616,7 @@ window._showBannedSubscribers = async function() {
         if (!banned.length) {
             const empty = document.createElement('div');
             empty.style.cssText = 'color:var(--text3);font-size:12px;padding:8px 0;';
-            empty.textContent = t('channel.noBanned') || 'Нет заблокированных';
+            empty.textContent = t('channel.noBanned');
             list.appendChild(empty);
             return;
         }
@@ -634,7 +634,7 @@ window._showBannedSubscribers = async function() {
             row.appendChild(nameEl);
             const unbanBtn = document.createElement('button');
             unbanBtn.className = 'btn btn-secondary btn-sm';
-            unbanBtn.textContent = t('channel.unban') || 'Разбан';
+            unbanBtn.textContent = t('channel.unban');
             unbanBtn.style.cssText = 'padding:2px 8px;font-size:11px;';
             unbanBtn.onclick = async () => {
                 try {
@@ -663,15 +663,15 @@ window._loadRecentActions = async function() {
         if (!actions.length) {
             const empty = document.createElement('div');
             empty.style.cssText = 'color:var(--text3);font-size:12px;padding:8px 0;';
-            empty.textContent = t('channel.noRecentActions') || 'Нет действий за 48 часов';
+            empty.textContent = t('channel.noRecentActions');
             list.appendChild(empty);
             return;
         }
         actions.forEach(a => {
             const row = document.createElement('div');
             row.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between;align-items:center;';
-            const typeLabel = a.type === 'join' ? (t('channel.actionJoin') || 'Вступил')
-                            : a.type === 'edit' ? (t('channel.actionEdit') || 'Редактировал пост')
+            const typeLabel = a.type === 'join' ? t('channel.actionJoin')
+                            : a.type === 'edit' ? t('channel.actionEdit')
                             : a.type;
             const left = document.createElement('span');
             left.textContent = `${esc(a.user)} — ${typeLabel}`;
@@ -806,6 +806,23 @@ export async function globalSearch(query) {
                         <div class="room-body">
                             <div style="font-weight:700;font-size:13px;">${esc(ch.name)}</div>
                             <div style="font-size:11px;color:var(--text3);">${ch.subscriber_count} ${label}</div>
+                        </div>
+                    </div>`;
+                });
+            }
+
+            // Bots
+            if (data.bots && data.bots.length) {
+                html += `<div class="search-section-label">${t('rooms.bots') || 'Bots'}</div>`;
+                data.bots.forEach(b => {
+                    const avatar = b.avatar_url
+                        ? `<img src="${esc(b.avatar_url)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">`
+                        : `<span style="font-size:20px;">${esc(b.avatar_emoji || '\u{1F916}')}</span>`;
+                    html += `<div class="search-result-item" onclick="openDM(${b.user_id})" style="cursor:pointer;">
+                        ${avatar}
+                        <div class="room-body">
+                            <div style="font-weight:700;font-size:13px;">${esc(b.display_name)}</div>
+                            <div style="font-size:11px;color:var(--text3);">@${esc(b.username)} \u00B7 Bot</div>
                         </div>
                     </div>`;
                 });

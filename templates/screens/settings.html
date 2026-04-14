@@ -2,8 +2,8 @@
 <div id="tab-view-settings" class="tab-view" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
 
     <!-- Header -->
-    <div style="padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
-        <h2 style="margin:0;font-size:20px;color:var(--text);" data-i18n="tabs.settings">Settings</h2>
+    <div class="set-main-header">
+        <h2 class="set-main-title" data-i18n="tabs.settings">Settings</h2>
     </div>
 
     <!-- Settings list OR sub-page -->
@@ -18,6 +18,9 @@
             </div>
             <svg width="20" height="20" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
         </div>
+
+        <!-- Multi-account switcher (под профилем) -->
+        <div id="settings-accounts-section" class="set-accounts-section"></div>
 
         <!-- Sections -->
         <div class="set-section-list">
@@ -47,11 +50,21 @@
                 <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
             </div>
 
+            <div class="set-divider"></div>
+
             <div class="set-item" onclick="openSettingsSection('security')">
                 <div class="set-icon" style="background:#ef4444;">
                     <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4m0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
                 </div>
                 <span data-i18n="settings.security">Security</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-item" onclick="openSettingsSection('sessions')">
+                <div class="set-icon" style="background:#8b5cf6;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+                </div>
+                <span data-i18n="settings.sessions">Сессии</span>
                 <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
             </div>
 
@@ -62,6 +75,16 @@
                 <span data-i18n="settings.privacy">Конфиденциальность</span>
                 <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
             </div>
+
+            <div class="set-item" onclick="openSettingsSection('federation')">
+                <div class="set-icon" style="background:#0ea5e9;">
+                    <svg width="20" height="20" fill="#fff" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                </div>
+                <span data-i18n="settings.federation">Federation</span>
+                <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+
+            <div class="set-divider"></div>
 
             <div class="set-item" onclick="openSettingsSection('storage')">
                 <div class="set-icon" style="background:#f97316;">
@@ -94,6 +117,8 @@
                 <span data-i18n="settings.bots">Bots</span>
                 <svg class="set-arrow" width="18" height="18" fill="var(--text3)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
             </div>
+
+            <div class="set-divider"></div>
 
             <div class="set-item" onclick="openSettingsSection('about')">
                 <div class="set-icon" style="background:#71717a;">
@@ -128,7 +153,7 @@
                 <svg class="set-arrow" width="18" height="18" fill="var(--red)" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
             </div>
 
-            <div style="height:20px;"></div>
+            <div class="set-divider"></div>
 
             <div class="set-item danger" onclick="doLogout()">
                 <div class="set-icon" style="background:var(--red);">
@@ -140,13 +165,12 @@
     </div><!-- /settings-main-list -->
 
     <!-- Language sub-page (hidden by default) -->
-    <div id="settings-lang-page" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
-        <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
-            <button style="width:32px;height:32px;border:none;background:none;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;"
-                    onclick="closeSettingsLangPage()">
+    <div id="settings-lang-page" class="set-sub-page" style="display:none;">
+        <div class="set-sub-header">
+            <button class="set-sub-back" onclick="closeSettingsLangPage()">
                 <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
             </button>
-            <h2 style="margin:0;font-size:18px;color:var(--text);" data-i18n="settings.language">Language</h2>
+            <h2 class="set-sub-title" data-i18n="settings.language">Language</h2>
         </div>
         <div style="padding:8px 16px;flex-shrink:0;">
             <div class="cs-search" style="margin:0;">
@@ -158,14 +182,13 @@
     </div>
 
     <!-- Sub-section content (appearance, security, etc) -->
-    <div id="settings-sub-page" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
-        <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
-            <button style="width:32px;height:32px;border:none;background:none;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;"
-                    onclick="closeSettingsSubPage()">
+    <div id="settings-sub-page" class="set-sub-page" style="display:none;">
+        <div class="set-sub-header">
+            <button class="set-sub-back" onclick="closeSettingsSubPage()">
                 <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
             </button>
-            <h2 id="settings-sub-title" style="margin:0;font-size:18px;color:var(--text);"></h2>
+            <h2 id="settings-sub-title" class="set-sub-title"></h2>
         </div>
-        <div id="settings-sub-content" style="flex:1;overflow-y:auto;padding:16px;"></div>
+        <div id="settings-sub-content" class="set-sub-content"></div>
     </div>
 </div>

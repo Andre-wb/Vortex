@@ -196,7 +196,8 @@ function _parseWidget(type, content, modsStr, line) {
         'text', 'header', 'button', 'input', 'image', 'card',
         'spacer', 'divider', 'label', 'icon', 'badge', 'avatar',
         'switch', 'slider', 'progressbar', 'chip',
-        'tabs', 'tab', 'video', 'audio', 'table'
+        'tabs', 'tab', 'video', 'audio', 'table',
+        'mathicon'
     ];
     if (!knownTypes.includes(type.toLowerCase())) return null;
 
@@ -551,6 +552,24 @@ function _renderWidget(w) {
             if (w.handler) el.onclick = () => _execHandler(w.handler);
             break;
 
+        case 'mathicon': {
+            const iconName = _resolveContent(w).toLowerCase();
+            const sz = parseInt(w.mods.size) || 36;
+            const clr = w.mods.color || '#7B5EFF';
+            el.style.display = 'flex';
+            el.style.alignItems = 'center';
+            el.style.justifyContent = 'center';
+            const svgEl = _buildMathSVG(iconName, sz, clr);
+            if (svgEl) {
+                el.appendChild(svgEl);
+            } else {
+                el.textContent = iconName;
+                el.style.fontSize = sz + 'px';
+                el.style.fontWeight = '700';
+            }
+            break;
+        }
+
         default:
             el.textContent = _resolveContent(w);
     }
@@ -603,6 +622,52 @@ function _applyMods(el, mods) {
         if (mods.align === 'center') el.style.textAlign = 'center';
         else if (mods.align === 'right' || mods.align === 'end') el.style.textAlign = 'right';
     }
+    // Glow effect: glow(#color)
+    if (mods.glow) {
+        const gc = mods.glow;
+        el.style.boxShadow = '0 0 20px ' + gc + '44, 0 0 40px ' + gc + '22, inset 0 0 12px ' + gc + '11';
+    }
+    // Gradient background: gradient(#from-#to) or gradient(#from-#mid-#to)
+    if (mods.gradient) {
+        const colors = mods.gradient.split('-');
+        if (colors.length >= 2) {
+            el.style.background = 'linear-gradient(135deg, ' + colors.join(', ') + ')';
+        }
+    }
+    // Animation: animate(pulse|glow|float|shake|fadeIn)
+    if (mods.animate) {
+        _ensurePreviewAnimations();
+        el.classList.add('arx-anim-' + mods.animate);
+    }
+    // Glass effect: glass
+    if (mods.glass) {
+        el.style.backdropFilter = 'blur(12px)';
+        el.style.webkitBackdropFilter = 'blur(12px)';
+        if (!mods.bg) el.style.background = 'rgba(255,255,255,.06)';
+    }
+}
+
+// Inject keyframe animations once
+let _previewAnimInjected = false;
+function _ensurePreviewAnimations() {
+    if (_previewAnimInjected) return;
+    _previewAnimInjected = true;
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes arxPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+        @keyframes arxGlow { 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.3)} }
+        @keyframes arxFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+        @keyframes arxShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+        @keyframes arxFadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes arxSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .arx-anim-pulse { animation: arxPulse 2s ease-in-out infinite; }
+        .arx-anim-glow { animation: arxGlow 2s ease-in-out infinite; }
+        .arx-anim-float { animation: arxFloat 3s ease-in-out infinite; }
+        .arx-anim-shake { animation: arxShake 0.5s ease-in-out; }
+        .arx-anim-fadeIn { animation: arxFadeIn 0.4s ease-out forwards; }
+        .arx-anim-spin { animation: arxSpin 2s linear infinite; }
+    `;
+    document.head.appendChild(style);
 }
 
 // ── Резолв контента и реактивных переменных ──────────────────
@@ -739,6 +804,119 @@ function _previewToast(msg) {
     container.appendChild(toast);
     setTimeout(() => toast.classList.remove('arx-toast-show'), 2000);
     setTimeout(() => toast.remove(), 2500);
+}
+
+// ── Math SVG Icons (built via DOM API, no innerHTML) ────────
+
+function _buildMathSVG(name, size, color) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.setAttribute('viewBox', '0 0 48 48');
+    svg.setAttribute('fill', 'none');
+
+    function path(d, opts) {
+        const p = document.createElementNS(ns, 'path');
+        p.setAttribute('d', d);
+        if (opts.stroke) { p.setAttribute('stroke', opts.stroke); p.setAttribute('stroke-width', opts.sw || '3'); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round'); }
+        if (opts.fill) p.setAttribute('fill', opts.fill);
+        svg.appendChild(p);
+    }
+    function text(x, y, txt, sz, opts) {
+        const t = document.createElementNS(ns, 'text');
+        t.setAttribute('x', x); t.setAttribute('y', y);
+        t.setAttribute('font-size', sz); t.setAttribute('font-weight', '700');
+        t.setAttribute('fill', opts.fill || color); t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('font-family', 'serif');
+        t.textContent = txt;
+        svg.appendChild(t);
+    }
+    function circle(cx, cy, r, opts) {
+        const c = document.createElementNS(ns, 'circle');
+        c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r);
+        if (opts.stroke) { c.setAttribute('stroke', opts.stroke); c.setAttribute('stroke-width', opts.sw || '2'); c.setAttribute('fill', opts.fill || 'none'); }
+        svg.appendChild(c);
+    }
+
+    switch (name) {
+        case 'derivative':
+            // d/dx — stylized derivative icon
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            text(24, 21, 'd', 18, {fill: color});
+            path('M14 30 L34 30', {stroke: color, sw: '2'});
+            text(24, 42, 'dx', 12, {fill: color});
+            break;
+
+        case 'integral':
+            // ∫ — stylized integral sign
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            path('M22 10 C18 10 16 14 16 18 L16 30 C16 34 14 38 10 38', {stroke: color, sw: '3'});
+            circle(22, 9, 2, {stroke: 'none', sw: '0', fill: color});
+            circle(10, 39, 2, {stroke: 'none', sw: '0', fill: color});
+            break;
+
+        case 'equation':
+            // x² — quadratic equation icon
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            text(20, 32, 'x', 22, {fill: color});
+            text(33, 22, '2', 14, {fill: color});
+            break;
+
+        case 'matrix':
+            // [ ] — matrix brackets with dots
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            path('M15 12 L11 12 L11 36 L15 36', {stroke: color, sw: '2.5'});
+            path('M33 12 L37 12 L37 36 L33 36', {stroke: color, sw: '2.5'});
+            circle(19, 18, 2, {stroke: 'none', sw: '0', fill: color});
+            circle(29, 18, 2, {stroke: 'none', sw: '0', fill: color});
+            circle(19, 30, 2, {stroke: 'none', sw: '0', fill: color});
+            circle(29, 30, 2, {stroke: 'none', sw: '0', fill: color});
+            break;
+
+        case 'limit':
+            // lim — limit icon with arrow
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            text(24, 28, 'lim', 14, {fill: color});
+            path('M14 36 L24 36', {stroke: color, sw: '2'});
+            path('M21 33 L24 36 L21 39', {stroke: color, sw: '2'});
+            break;
+
+        case 'sigma':
+        case 'reference':
+            // Σ — sigma/sum icon
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            path('M32 12 L16 12 L24 24 L16 36 L32 36', {stroke: color, sw: '3'});
+            break;
+
+        case 'function':
+            // f(x) — function icon
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            text(24, 30, 'f(x)', 14, {fill: color});
+            break;
+
+        case 'pi':
+            // π — pi icon
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            text(24, 32, '\u03C0', 24, {fill: color});
+            break;
+
+        case 'infinity':
+            // ∞ — infinity icon
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            path('M14 24 C14 18 20 18 24 24 C28 30 34 30 34 24 C34 18 28 18 24 24 C20 30 14 30 14 24', {stroke: color, sw: '2.5'});
+            break;
+
+        case 'sqrt':
+            // √ — square root
+            circle(24, 24, 20, {stroke: color, sw: '2.5'});
+            path('M10 28 L16 28 L22 38 L34 12 L38 12', {stroke: color, sw: '2.5'});
+            break;
+
+        default:
+            return null;
+    }
+    return svg;
 }
 
 function _previewShowPlaceholder() {

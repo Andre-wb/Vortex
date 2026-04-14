@@ -22,8 +22,21 @@ from app.chats.messages._router import utc_iso as _utc_iso, parse_client_ts as _
 from app.chats.messages.flood import check_flood as _check_flood, _FLOOD_THRESHOLD
 from app.chats.messages.push import send_web_push as _send_web_push
 from app.security.sealed_sender import compute_sender_pseudo, verify_sender_pseudo, resolve_pseudo
+from app.transport.blind_mailbox import deposit_envelope
 
 logger = logging.getLogger(__name__)
+
+
+async def _bmp_deposit(room_id: int, payload: dict):
+    """Deposit message payload into BMP mailbox for the room (hybrid mode)."""
+    from app.config import Config
+    if not Config.BMP_DELIVERY_ENABLED:
+        return
+    try:
+        import json
+        await deposit_envelope(room_id, json.dumps(payload))
+    except Exception as e:
+        logger.debug("[BMP] Deposit failed for room %d: %s", room_id, e)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -226,8 +239,16 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
     if client_created_at:
         msg.created_at = client_created_at
     db.add(msg)
-    db.commit()
-    db.refresh(msg)
+    try:
+        db.commit()
+        db.refresh(msg)
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to save message in room %s: %s", room_id, e)
+        await manager.send_to_user(room_id, user.id, {
+            "type": "error", "message": "Ошибка сохранения сообщения",
+        })
+        return
 
     # ── ACK — подтверждение доставки отправителю ──────────────────────────────
     await manager.send_to_user(room_id, user.id, {
@@ -255,9 +276,12 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         "is_bot":        bool(user.is_bot),
         "tag":           getattr(_sender_member, 'tag', None) if _sender_member else None,
         "tag_color":     getattr(_sender_member, 'tag_color', None) if _sender_member else None,
+        "reply_color":   user.reply_color,
+        "reply_icon":    user.reply_icon,
         "ciphertext":    ciphertext_hex,
         "hash":          hash_hex or (content_hash.hex() if content_hash else None),
         "reply_to_id":   reply_to_id,
+        "reply_quote":   data.get("reply_quote"),
         "status":        "sent",
         "forwarded_from": msg.forwarded_from,
         "expires_at":    _utc_iso(msg.expires_at),
@@ -271,8 +295,13 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         ).all()
     ]
 
-    # ── Рассылаем ВСЕМ подключённым к комнате (включая отправителя) ─────────
-    await manager.broadcast_to_room(room_id, payload, member_ids=_room_member_ids)
+    # ── Delivery: BMP-only (zero metadata leakage) ─────────────────────────
+    # WS broadcast removed — server no longer reveals who receives what.
+    # Messages are deposited into anonymous BMP mailboxes.
+    # Pending queue still works for offline users (fallback via WS on reconnect).
+    await _bmp_deposit(room_id, payload)
+    # Keep pending queue for offline delivery (BMP TTL = 2h, pending = 7d)
+    await manager.enqueue_pending(room_id, payload, member_ids=_room_member_ids)
 
     # ── Bot command forwarding ─────────────────────────────────────────────
     # Client may include plaintext_command when text starts with '/'
@@ -330,34 +359,41 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         RoomMember.room_id == room_id,
         RoomMember.is_banned == False,
     ).all()
-    online_in_room = set(manager._rooms.get(room_id, {}).keys())
-    for rm in room_members_full:
-        member_id = rm.user_id
-        if member_id not in online_in_room and member_id != user.id:
-            # Не отправляем уведомления для замьюченных чатов
-            if rm.is_muted:
-                continue
-            is_mention = (reply_to_user_id == member_id) or (member_id in _mentioned_user_ids)
-            delivered = await manager.notify_user(member_id, {
-                "type":             "notification",
-                "room_id":          room_id,
-                "room_name":        room_obj.name if room_obj else "",
-                "is_dm":            is_dm,
-                "sender_pseudo":    msg.sender_pseudo,
-                "sender_username":  user.username,
-                "sender_display_name": user.display_name or user.username,
-                "sender_avatar":    user.avatar_emoji,
-                "sender_avatar_url": user.avatar_url,
-                "is_mention":       is_mention,
-                "created_at":       _utc_iso(msg.created_at),
-            })
+    # BMP mode: notifications go through BMP deposit (already done above).
+    # Anonymous push proxy handles wake signals (Phase 6).
+    # No targeted notify_user — zero metadata leakage.
+    # Web Push via anonymous push proxy category signal:
+    from app.config import Config
+    if Config.BMP_DELIVERY_ENABLED:
+        pass  # BMP deposit already sends wake signal via _emit_wake_signal
+    else:
+        # Legacy fallback for non-BMP mode
+        online_in_room = set(manager._rooms.get(room_id, {}).keys())
+        for rm in room_members_full:
+            member_id = rm.user_id
+            if member_id not in online_in_room and member_id != user.id:
+                if rm.is_muted:
+                    continue
+                is_mention = (reply_to_user_id == member_id) or (member_id in _mentioned_user_ids)
+                delivered = await manager.notify_user(member_id, {
+                    "type":             "notification",
+                    "room_id":          room_id,
+                    "room_name":        room_obj.name if room_obj else "",
+                    "is_dm":            is_dm,
+                    "sender_pseudo":    msg.sender_pseudo,
+                    "sender_username":  user.username,
+                    "sender_display_name": user.display_name or user.username,
+                    "sender_avatar":    user.avatar_emoji,
+                    "sender_avatar_url": user.avatar_url,
+                    "is_mention":       is_mention,
+                    "created_at":       _utc_iso(msg.created_at),
+                })
 
-            # Web Push для полностью офлайн-пользователей
-            if not delivered:
-                await _send_web_push(
-                    member_id,
-                    user.display_name or user.username,
-                    room_id,
+                if not delivered:
+                    await _send_web_push(
+                        member_id,
+                        user.display_name or user.username,
+                        room_id,
                     is_dm,
                     db,
                 )
@@ -487,9 +523,17 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
             thread_count=Message.thread_count + 1
         )
     )
-    db.commit()
-    db.refresh(msg)
-    db.refresh(root_msg)
+    try:
+        db.commit()
+        db.refresh(msg)
+        db.refresh(root_msg)
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to save thread reply in room %s: %s", room_id, e)
+        await manager.send_to_user(room_id, user.id, {
+            "type": "error", "message": "Ошибка сохранения ответа в треде",
+        })
+        return
 
     # ACK отправителю
     await manager.send_to_user(room_id, user.id, {
@@ -520,11 +564,14 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         "ciphertext":    ciphertext_hex,
         "hash":          hash_hex or (content_hash.hex() if content_hash else None),
         "reply_to_id":   reply_to_id,
+        "reply_quote":   data.get("reply_quote"),
         "thread_id":     thread_id,
         "status":        "sent",
         "created_at":    _utc_iso(msg.created_at),
     }
-    await manager.broadcast_to_room(room_id, payload, member_ids=_thread_member_ids)
+    # BMP-only delivery (WS broadcast removed)
+    await _bmp_deposit(room_id, payload)
+    await manager.enqueue_pending(room_id, payload, member_ids=_thread_member_ids)
 
     # Обновляем badge thread_count для всех
     await manager.broadcast_to_room(room_id, {
@@ -581,14 +628,20 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
     msg.content_hash      = bytes(content_hash_result) if isinstance(content_hash_result, (bytes, bytearray)) else None
     msg.is_edited         = True
     msg.edited_at         = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to edit message %s: %s", msg_id, e)
+        return
 
-    await manager.broadcast_to_room(room_id, {
+    _edit_payload = {
         "type":       "message_edited",
         "msg_id":     msg_id,
         "ciphertext": ciphertext_hex,
         "is_edited":  True,
-    })
+    }
+    await manager.broadcast_to_room(room_id, _edit_payload)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -621,9 +674,12 @@ async def handle_delete_message(room_id: int, user: User, data: dict, db: Sessio
             return
 
     db.delete(msg)
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to delete message %s: %s", msg_id, e)
+        return
 
-    await manager.broadcast_to_room(room_id, {
-        "type":   "message_deleted",
-        "msg_id": msg_id,
-    })
+    _del_payload = {"type": "message_deleted", "msg_id": msg_id}
+    await manager.broadcast_to_room(room_id, _del_payload)

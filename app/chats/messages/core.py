@@ -33,6 +33,17 @@ from app.models_rooms import (
 )
 
 from app.peer.connection_manager import manager
+from app.transport.blind_mailbox import deposit_envelope
+
+
+async def _bmp(room_id, payload):
+    from app.config import Config
+    if not Config.BMP_DELIVERY_ENABLED:
+        return
+    try:
+        await deposit_envelope(room_id, json.dumps(payload))
+    except Exception:
+        pass
 from app.security.auth_jwt import get_current_user, get_user_ws
 
 # ── Shared router (all sub-modules register on this same instance) ────────────
@@ -301,21 +312,16 @@ async def ws_chat(
                     await _handle_key_response(room_id, user, data, db)
 
                 elif action == "typing":
-                    await manager.set_typing(room_id, user.id, bool(data.get("is_typing")))
+                    # BMP-only: typing goes client-to-client via BMP, server does nothing
+                    pass
 
                 elif action == "file_sending":
-                    await manager.broadcast_to_room(room_id, {
-                        "type":         "file_sending",
-                        "sender":       user.username,
-                        "display_name": user.display_name or user.username,
-                        "filename":     data.get("filename", ""),
-                    }, exclude=user.id)
+                    _fs = {"type": "file_sending", "sender": user.username, "display_name": user.display_name or user.username, "filename": data.get("filename", "")}
+                    await _bmp(room_id, _fs)
 
                 elif action == "stop_file_sending":
-                    await manager.broadcast_to_room(room_id, {
-                        "type":   "stop_file_sending",
-                        "sender": user.username,
-                    }, exclude=user.id)
+                    _sfs = {"type": "stop_file_sending", "sender": user.username}
+                    await _bmp(room_id, _sfs)
 
                 elif action == "signal":
                     await _handle_signal(room_id, user, data, db)
@@ -360,11 +366,8 @@ async def ws_chat(
                     await _handle_thread_reply(room_id, user, data, db)
 
                 elif action == "screenshot":
-                    await manager.broadcast_to_room(room_id, {
-                        "type":     "screenshot_taken",
-                        "user_id":  user.id,
-                        "username": user.display_name or user.username,
-                    }, exclude=user.id)
+                    _ss = {"type": "screenshot_taken", "user_id": user.id, "username": user.display_name or user.username}
+                    await _bmp(room_id, _ss)
 
             except Exception as _action_err:
                 logger.warning("WS action=%s error user=%s room=%s: %s", action, user.username, room_id, _action_err)
@@ -397,36 +400,12 @@ async def _handle_signal(room_id: int, user: User, data: dict, db: Session = Non
     payload["from"]     = user.id
     payload["username"] = user.username
 
-    # Targeted signaling: if "to" is specified, send only to that user (for group calls)
-    target_uid = data.get("to")
-    if target_uid:
-        await manager.send_to_user(room_id, target_uid, payload)
-    else:
-        await manager.broadcast_to_room(room_id, payload, exclude=user.id)
+    # BMP-only signal delivery (zero metadata leakage)
+    await _bmp(room_id, payload)
 
-    # При входящем звонке (invite) — уведомляем участников через notification WS
-    signal_type = data.get("type", "")
-    if signal_type == "invite" and db:
-        room_obj = db.query(Room).filter(Room.id == room_id).first()
-        room_members = db.query(RoomMember.user_id).filter(
-            RoomMember.room_id == room_id,
-            RoomMember.is_banned == False,
-        ).all()
-        online_in_room = set(manager._rooms.get(room_id, {}).keys())
-        for (member_id,) in room_members:
-            if member_id != user.id and member_id not in online_in_room:
-                await manager.notify_user(member_id, {
-                    "type":             "incoming_call",
-                    "room_id":          room_id,
-                    "room_name":        room_obj.name if room_obj else "",
-                    "is_dm":            room_obj.is_dm if room_obj else False,
-                    "caller_id":        user.id,
-                    "caller_username":  user.username,
-                    "caller_display_name": user.display_name or user.username,
-                    "caller_avatar":    user.avatar_emoji,
-                    "caller_avatar_url": user.avatar_url,
-                    "has_video":        data.get("hasVideo", False),
-                })
+    # BMP mode: incoming_call notification goes through BMP room deposit
+    # (already deposited above via _bmp). No targeted notify_user needed.
+    # Clients detect incoming calls by polling their room BMP mailbox.
 
     try:
         from app.federation.federation import relay

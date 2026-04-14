@@ -123,6 +123,42 @@ async def list_bots(
     }
 
 
+@router.get("/api/bots/{bot_id}/detail")
+async def get_bot_detail(
+    bot_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get detailed info about a bot owned by the current user."""
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.owner_id == user.id).first()
+    if not bot:
+        raise HTTPException(404, "Bot not found")
+    # Get linked user for username
+    bot_user = db.query(User).filter(User.id == bot.user_id).first() if bot.user_id else None
+    import json as _json
+    cmds = bot.commands
+    if isinstance(cmds, str):
+        try: cmds = _json.loads(cmds)
+        except Exception: cmds = []
+    return {
+        "bot": {
+            "bot_id": bot.id,
+            "name": bot.name,
+            "username": bot_user.username if bot_user else bot.name,
+            "description": bot.description or "",
+            "is_active": bot.is_active,
+            "is_public": getattr(bot, "is_public", False) or False,
+            "category": getattr(bot, "category", "other") or "other",
+            "commands": cmds if isinstance(cmds, list) else [],
+            "mini_app_url": bot.mini_app_url or "",
+            "mini_app_enabled": bool(bot.mini_app_url),
+            "installs": getattr(bot, "installs", 0) or 0,
+            "rating": getattr(bot, "rating", 0) or 0,
+            "rating_count": getattr(bot, "rating_count", 0) or 0,
+        }
+    }
+
+
 @router.put("/api/bots/{bot_id}")
 async def update_bot(
     bot_id: int,

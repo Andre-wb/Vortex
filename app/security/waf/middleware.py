@@ -26,6 +26,8 @@ class WAFMiddleware:
         '/api/files/upload-status/',
         '/api/link-preview',
         '/api/authentication/qr-',
+        '/api/bmp/',              # BMP has its own rate limiting (600/min per IP)
+        '/api/push-proxy/',       # Anonymous push proxy
         '/api/authentication/passkey/',
     }
 

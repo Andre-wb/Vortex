@@ -37,6 +37,33 @@ from typing import Optional, Callable
 
 logger = logging.getLogger(__name__)
 
+_WIFI_DIRECT_AVAILABLE: bool | None = None
+
+def is_wifi_direct_available() -> bool:
+    """Check if Wi-Fi Direct is supported on this platform."""
+    global _WIFI_DIRECT_AVAILABLE
+    if _WIFI_DIRECT_AVAILABLE is None:
+        if sys.platform == 'linux':
+            # Check for wpa_cli
+            try:
+                subprocess.run(['wpa_cli', '-v'], capture_output=True, timeout=3)
+                _WIFI_DIRECT_AVAILABLE = True
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                logger.info("Wi-Fi Direct unavailable: wpa_cli not found")
+                _WIFI_DIRECT_AVAILABLE = False
+        elif sys.platform == 'win32':
+            try:
+                import winrt  # noqa: F401
+                _WIFI_DIRECT_AVAILABLE = True
+            except ImportError:
+                logger.info("Wi-Fi Direct unavailable: winrt not installed")
+                _WIFI_DIRECT_AVAILABLE = False
+        else:
+            logger.info("Wi-Fi Direct unavailable on %s", sys.platform)
+            _WIFI_DIRECT_AVAILABLE = False
+    return _WIFI_DIRECT_AVAILABLE
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Структуры данных
 # ─────────────────────────────────────────────────────────────────────────────

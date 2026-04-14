@@ -21,9 +21,13 @@ use crypto::handshake::{
     derive_session_key, generate_keypair
 };
 
+pub mod bmp;
+use bmp::pybridge::*;
+
 
 #[pymodule]
 fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Existing crypto
     m.add_function(wrap_pyfunction!(hash_message, m)?)?;
     m.add_function(wrap_pyfunction!(generate_key, m)?)?;
     m.add_function(wrap_pyfunction!(encrypt_message, m)?)?;
@@ -37,6 +41,26 @@ fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(generate_keypair, m)?)?;
     m.add_function(wrap_pyfunction!(derive_session_key, m)?)?;
     m.add_class::<ChatStats>()?;
+
+    // BMP (Blind Mailbox Protocol) — high-performance Rust implementation
+    m.add_function(wrap_pyfunction!(bmp_deposit, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_fetch, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_fetch_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_gc, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_stats, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_compute_mailbox_id, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_compute_mailbox_ids, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_pair_jitter, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_set_room_secret, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_get_room_secret, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_remove_room_secret, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_deposit_envelope, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_check_rate, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_check_rate_fast, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_wake_category, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_start_gc, m)?)?;
+    m.add_function(wrap_pyfunction!(bmp_benchmark, m)?)?;
+
     m.add("VERSION", env!("CARGO_PKG_VERSION"))?;
     m.add("KEY_SIZE", 32usize)?;
     m.add("NONCE_SIZE", 12usize)?;

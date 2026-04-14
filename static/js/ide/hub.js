@@ -296,34 +296,11 @@ function ideCreateProject() {
 
     // For Architex projects, also add a Gravitix bridge file
     if (lang === 'architex') {
-        files['bot.grav'] = `// ${name} — Gravitix Bot Bridge
-// Handles messages from Architex UI via send()
-
-on msg {
-    match ctx.action {
-        "counter"  => emit "Counter value: {ctx.value}",
-        "from_ui"  => emit "Got from UI: {ctx.name} (count={ctx.count})",
-        _          => {}
-    }
-}
-`;
+        files['bot.grav'] = STARTER_CODE_GRAV(name);
     }
     // For Gravitix projects, add an Architex UI file
     if (lang === 'gravitix') {
-        files['ui.arx'] = `// ${name} — Architex Mini App UI
-// Companion UI for the Gravitix bot
-
-@screen Main
-
-  ~status = "Ready"
-
-  col :: pad(24) gap(16) center
-    header "${name}" :: bold size(22) color(#4f8ef7)
-    text ~status :: size(16) color(#666)
-
-    button "Ping Bot" :: pad(12) radius(12) bg(#4f8ef7) color(#fff)
-      => send(action: "ping")
-`;
+        files['ui.arx'] = STARTER_CODE_ARX(name);
     }
 
     const project = { id: Date.now(), name, token, username, lang, created: Date.now(), files, folders: [] };

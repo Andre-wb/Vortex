@@ -169,8 +169,10 @@
     border: none;
     transition: background 0.2s, color 0.2s, transform 0.15s;
 }
+@media (hover: hover) {
 .onboarding-btn:active {
     transform: scale(0.96);
+}
 }
 .onboarding-btn-next {
     background: var(--accent);

@@ -30,6 +30,8 @@ class User(Base):
     display_name     = Column(String(100), nullable=True)
     avatar_emoji     = Column(String(10),  default="👤")
     avatar_url       = Column(String(255), nullable=True)
+    reply_color      = Column(String(20),  nullable=True)   # Custom color for reply bubbles (hex, e.g. "#7c3aed")
+    reply_icon       = Column(String(10),  nullable=True)   # Custom emoji icon for reply bubbles
 
     # X25519 публичный ключ пользователя — генерируется НА КЛИЕНТЕ при регистрации.
     # Сервер никогда не видит приватный ключ.
@@ -75,6 +77,8 @@ class User(Base):
     global_muted_until = Column(DateTime, nullable=True)
     banned_until       = Column(DateTime, nullable=True)
     strike_count       = Column(Integer,  default=0)
+    auto_delete_days   = Column(Integer,  default=0)  # 0 = disabled
+    show_last_seen     = Column(Boolean,  default=True)  # показывать время последнего входа
 
     room_memberships = relationship(
         "RoomMember", back_populates="user", cascade="all, delete-orphan"

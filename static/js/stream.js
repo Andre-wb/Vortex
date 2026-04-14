@@ -27,6 +27,11 @@ let _reactionTimeout = null;
 let _scheduledTitle = null; // saved title for auto-start after countdown
 let _streamConfirmed = false; // bypass confirmation after user confirmed
 
+// Recording
+let _streamRecorder = null;
+let _streamRecordChunks = [];
+let _streamRecordEnabled = false;
+
 // ICE servers
 let _iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 let _iceLoaded = false;
@@ -180,6 +185,12 @@ export async function startStream() {
     _startStreamTimer();
     _updateStreamControls();
 
+    // Start recording if enabled
+    _streamRecordEnabled = $('stream-settings-record')?.checked || false;
+    if (_streamRecordEnabled && _streamLocalStream) {
+        _startStreamRecording(_streamLocalStream);
+    }
+
     console.log('[Stream] Started in room', _streamRoomId);
 }
 
@@ -267,13 +278,18 @@ export async function leaveStream() {
 export async function endStream() {
     if (!_streamRoomId) return;
 
+    // Stop recording and upload
+    if (_streamRecorder && _streamRecorder.state !== 'inactive') {
+        _streamRecorder.stop();
+        // Upload happens in onstop callback
+    }
+
     try {
         await api('POST', `/api/stream/${_streamRoomId}/stop`);
     } catch (e) {
         console.warn('[Stream] end error:', e);
     }
 
-    // leaveStream handles cleanup
     await leaveStream();
 }
 
@@ -1267,7 +1283,7 @@ function _appendStreamLog(text) {
     if (!mc) return;
     const now = new Date();
     const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const isEnded = text.toLowerCase().includes('end') || text.toLowerCase().includes('заверш');
+    const isEnded = text.toLowerCase().includes('end');
 
     const row = document.createElement('div');
     row.className = 'message-row';
@@ -1516,7 +1532,7 @@ function _showScheduledBanner(title, scheduledDate) {
     if (!banner) return;
 
     const textEl = $('stream-sched-text');
-    if (textEl) textEl.textContent = (t('stream.scheduled') || 'Запланирован стрим') + ': ' + (title || 'Live');
+    if (textEl) textEl.textContent = t('stream.scheduled') + ': ' + (title || 'Live');
 
     banner.style.display = '';
 
@@ -1579,4 +1595,128 @@ export function hideScheduledStreamBanner() {
     const banner = $('stream-scheduled-banner');
     if (banner) banner.style.display = 'none';
     if (_scheduledTimer) { clearInterval(_scheduledTimer); _scheduledTimer = null; }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STREAM RECORDING — MediaRecorder + upload as stream_recording message
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function _startStreamRecording(stream) {
+    _streamRecordChunks = [];
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+            ? 'video/webm;codecs=vp8,opus'
+            : 'video/webm';
+
+    try {
+        _streamRecorder = new MediaRecorder(stream, {
+            mimeType,
+            videoBitsPerSecond: 2_500_000, // 2.5 Mbps
+        });
+    } catch (e) {
+        console.warn('[Stream] MediaRecorder not supported:', e);
+        return;
+    }
+
+    _streamRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) _streamRecordChunks.push(e.data);
+    };
+
+    _streamRecorder.onstop = async () => {
+        if (!_streamRecordChunks.length) return;
+        const blob = new Blob(_streamRecordChunks, { type: mimeType });
+        _streamRecordChunks = [];
+        _streamRecorder = null;
+
+        // Hide REC badge
+        const badge = $('stream-rec-badge');
+        if (badge) badge.style.display = 'none';
+
+        // Upload as stream recording
+        await _uploadStreamRecording(blob);
+    };
+
+    // Record in 1-second chunks for progressive data
+    _streamRecorder.start(1000);
+
+    // Show REC badge
+    const badge = $('stream-rec-badge');
+    if (badge) badge.style.display = 'flex';
+
+    console.log('[Stream] Recording started:', mimeType);
+}
+
+async function _uploadStreamRecording(blob) {
+    if (!_streamRoomId) return;
+    const roomId = _streamRoomId;
+    const S = window.AppState;
+
+    // Show upload toast
+    if (window.showToast) window.showToast((window.t?.('stream.uploadingRecording')||'Uploading stream recording...'), 'info');
+
+    try {
+        const fileName = 'stream_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
+        const file = new File([blob], fileName, { type: blob.type });
+
+        // E2E encrypt
+        const { getRoomKey, encryptFile } = await import('./crypto.js');
+        let uploadBlob = file;
+        const roomKey = getRoomKey(roomId);
+        if (roomKey) {
+            const buf = await file.arrayBuffer();
+            const encrypted = await encryptFile(buf, roomKey);
+            uploadBlob = new File([encrypted], fileName, { type: 'application/octet-stream' });
+        }
+
+        // Upload via resumable API
+        const csrf = S.csrfToken || '';
+        const initResp = await fetch('/api/files/upload-init', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+            body: JSON.stringify({ filename: fileName, size: uploadBlob.size, room_id: roomId, mime_type: 'video/webm' }),
+        });
+        const initData = await initResp.json();
+        if (!initData.upload_id) throw new Error('Upload init failed');
+
+        // Single chunk upload (stream recordings are usually < 500MB)
+        const fd = new FormData();
+        fd.append('file', uploadBlob);
+        await fetch('/api/files/upload-chunk/' + initData.upload_id, {
+            method: 'PUT', credentials: 'include',
+            headers: { 'X-CSRF-Token': csrf },
+            body: fd,
+        });
+
+        // Complete
+        await fetch('/api/files/upload-complete/' + initData.upload_id, {
+            method: 'POST', credentials: 'include',
+            headers: { 'X-CSRF-Token': csrf },
+        });
+
+        // Send as special stream_recording message type
+        if (S.ws?.readyState === WebSocket.OPEN) {
+            S.ws.send(JSON.stringify({
+                action: 'message',
+                ciphertext: '', // file message, not text
+                msg_type: 'stream_recording',
+                file_name: fileName,
+            }));
+        }
+
+        if (window.showToast) window.showToast((window.t?.('stream.recordingSaved')||'Stream recording saved!'), 'success');
+        console.log('[Stream] Recording uploaded:', fileName, (blob.size / 1024 / 1024).toFixed(1) + 'MB');
+    } catch (e) {
+        console.error('[Stream] Recording upload failed:', e);
+        if (window.showToast) window.showToast((window.t?.('stream.recordingFailed')||'Recording upload failed'), 'error');
+
+        // Fallback: offer download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'stream_recording_' + Date.now() + '.webm';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
 }

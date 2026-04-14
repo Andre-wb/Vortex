@@ -35,6 +35,7 @@ os.environ.setdefault('LOG_FORMAT',               'console')
 os.environ.setdefault('LOG_LEVEL',                'WARNING')
 os.environ.setdefault('NETWORK_MODE',             'local')   # knock/cover disabled in tests
 os.environ.setdefault('OBFUSCATION_ENABLED',      'false')   # no obfuscation in tests
+os.environ['STEALTH_MODE'] = 'false'                          # stealth off in tests
 os.environ.setdefault('VORTEX_PQ_REQUIRED',       'false')   # allow tests without real PQ lib
 os.environ.setdefault('VORTEX_PQ_SIMULATE',        '1')      # enable PQ simulation for tests
 

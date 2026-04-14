@@ -68,7 +68,7 @@ function _toggleMessageSelection(msgId, groupEl, cbEl) {
 
 function _updateSelectionCount() {
     const el = document.getElementById('selection-count');
-    if (el) el.textContent = `Выбрано: ${_selectedMsgIds.size}`;
+    if (el) el.textContent = t('chat.selected', {count: _selectedMsgIds.size});
 }
 
 function _showSelectionToolbar() {
@@ -111,7 +111,7 @@ function _hideSelectionToolbar() {
 function _bulkDelete() {
     const ids = [..._selectedMsgIds];
     if (!ids.length) return;
-    if (ids.length > 3 && !confirm(`Удалить ${ids.length} сообщений?`)) return;
+    if (ids.length > 3 && !confirm(t('chat.deleteMessages', {count: ids.length}))) return;
 
     const S = window.AppState;
     if (!S.ws || S.ws.readyState !== WebSocket.OPEN) return;
@@ -137,7 +137,7 @@ function _bulkForward() {
             <span>${r.name || r.username || '?'}</span>
         </div>`;
     });
-    if (!html) html = '<div style="padding:14px;color:var(--text2);">Нет доступных чатов</div>';
+    if (!html) html = '<div style="padding:14px;color:var(--text2);">' + t('chat.noAvailableChats') + '</div>';
 
     let modal = document.getElementById('bulk-forward-modal');
     if (!modal) {

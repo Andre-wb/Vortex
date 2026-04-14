@@ -69,10 +69,6 @@ async function buildSummary() {
     </li>
   `;
 
-    if (state.caCmd) {
-        document.getElementById('ca-install-block').style.display = 'block';
-        document.getElementById('ca-cmd-text').textContent = state.caCmd;
-    }
 }
 
 // ── Шаг 6: Запуск узла ───────────────────────────────────────────────────────
@@ -104,11 +100,6 @@ async function launchNode() {
         if (!r2.ok) throw new Error(d2.detail || 'Ошибка');
 
         document.getElementById('node-url').textContent = state.nodeUrl;
-
-        if (state.caCmd) {
-            document.getElementById('ca-warn-block').style.display = 'block';
-            document.getElementById('ca-final').textContent = state.caCmd;
-        }
 
         _setStep(6);
         startRedirectCountdown();

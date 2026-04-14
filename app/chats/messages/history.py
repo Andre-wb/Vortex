@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import User
@@ -74,6 +75,37 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
         for rm in room_members
     }
 
+    # Pre-fetch all FileTransfer records for this room (batch, avoids N+1)
+    _all_ft = db.query(FileTransfer).filter(
+        FileTransfer.room_id == room_id
+    ).order_by(FileTransfer.created_at.asc()).all()
+    # Build name→list[FileTransfer] for duplicate filename handling
+    _ft_by_name_list: dict[str, list] = {}
+    for _ft in _all_ft:
+        if _ft.original_name:
+            _ft_by_name_list.setdefault(_ft.original_name, []).append(_ft)
+    # Simple name→FileTransfer (latest) — fallback
+    _ft_by_name: dict[str, FileTransfer] = {
+        name: fts[-1] for name, fts in _ft_by_name_list.items()
+    }
+
+    def _find_ft_for_msg(file_name: str, msg_created_at) -> FileTransfer | None:
+        """Find best matching FileTransfer: closest created_at to the message."""
+        fts = _ft_by_name_list.get(file_name)
+        if not fts:
+            return None
+        if len(fts) == 1:
+            return fts[0]
+        # Multiple files with same name — find closest by creation time
+        best = None
+        best_diff = float('inf')
+        for ft in fts:
+            diff = abs((ft.created_at - msg_created_at).total_seconds()) if ft.created_at and msg_created_at else 0
+            if diff < best_diff:
+                best_diff = diff
+                best = ft
+        return best
+
     history = []
     for m in messages:
         # Пропускаем запланированные сообщения
@@ -115,7 +147,12 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
             if m.sender_pseudo
             else m.sender_id
         )
-        _user = m.sender or _uid_to_user.get(_resolved_sender_id)
+        # Fallback: if pseudo didn't resolve, use sender_id (may be null for sealed sender)
+        if not _resolved_sender_id and m.sender_id:
+            _resolved_sender_id = m.sender_id
+        _user = _uid_to_user.get(_resolved_sender_id) if _resolved_sender_id else None
+        if not _user and m.sender:
+            _user = m.sender
         _sender_is_bot = bool(_user and _user.is_bot)
         _tag_info = _uid_to_tag.get(_resolved_sender_id, (None, None)) if _resolved_sender_id else (None, None)
         entry = {
@@ -153,18 +190,10 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
             entry["status"] = "read"
 
         if m.msg_type in (MessageType.IMAGE, MessageType.FILE, MessageType.VOICE):
-            # Resolve uploader_id via pseudo (sealed sender) or fallback
-            _uploader_id = (
-                _pseudo_to_uid.get(m.sender_pseudo)
-                if m.sender_pseudo
-                else m.sender_id
-            )
-            ft = db.query(FileTransfer).filter(
-                FileTransfer.room_id       == room_id,
-                FileTransfer.original_name == m.file_name,
-                FileTransfer.uploader_id   == _uploader_id,
-            ).order_by(FileTransfer.created_at.desc()).first()
-
+            ft = _find_ft_for_msg(m.file_name, m.created_at) if m.file_name else None
+            if not ft and m.file_name:
+                # Fallback: search by name only (last uploaded)
+                ft = _ft_by_name.get(m.file_name)
             if ft:
                 entry["download_url"] = f"/api/files/download/{ft.id}"
                 entry["mime_type"]    = ft.mime_type

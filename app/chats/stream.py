@@ -156,12 +156,14 @@ async def _check_scheduled_streams():
                     _scheduled_streams.pop(room_id, None)
                     continue
                 # Notify host via global WS to auto-start
-                await manager.notify_user(host_id, {
-                    "type": "stream_auto_start",
-                    "room_id": room_id,
-                    "title": sched.get("title", "Live"),
-                })
-                logger.info("Sent stream_auto_start to host %s for room %s", host_id, room_id)
+                from app.config import Config
+                if not Config.BMP_DELIVERY_ENABLED:
+                    await manager.notify_user(host_id, {
+                        "type": "stream_auto_start",
+                        "room_id": room_id,
+                        "title": sched.get("title", "Live"),
+                    })
+                logger.debug("Stream auto-start scheduled (sanitized)")
                 # Remove schedule — host will call /start
                 _scheduled_streams.pop(room_id, None)
         except Exception as e:

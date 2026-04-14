@@ -290,7 +290,7 @@ async def poll_rss_feeds(db: Session) -> None:
                 logger.warning("RSS feed %s (%s) skipped — URL points to private/internal address", feed.id, feed.url)
                 continue
             try:
-                resp = await client.get(feed.url, headers={"User-Agent": "Vortex-RSS/1.0"})
+                resp = await client.get(feed.url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
                 resp.raise_for_status()
             except Exception as e:
                 logger.warning("RSS fetch failed for feed %s (%s): %s", feed.id, feed.url, e)

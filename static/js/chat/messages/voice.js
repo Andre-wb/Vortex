@@ -294,11 +294,14 @@ window.toggleVoicePlay = () => {};
  * @param {string} msgId
  */
 export function _scrollToMsg(msgId) {
-    const el = _msgElements.get(msgId);
+    let el = _msgElements.get(msgId)
+          || _msgElements.get(String(msgId))
+          || _msgElements.get(Number(msgId));
+    if (!el) el = document.querySelector(`[data-msg-id="${msgId}"]`);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.classList.add('msg-highlight');
-    setTimeout(() => el.classList.remove('msg-highlight'), 1500);
+    setTimeout(() => el.classList.remove('msg-highlight'), 3000);
 }
 window._scrollToMsg = _scrollToMsg; // делаем доступной глобально для обработчиков
 
@@ -333,10 +336,27 @@ export function _guessMimeFromName(name) {
     const ext = name.split('.').pop().toLowerCase();
     return {
         jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-        gif: 'image/gif',  webp: 'image/webp',
-        mp4: 'video/mp4',  webm: 'audio/webm',
+        gif: 'image/gif',  webp: 'image/webp', bmp: 'image/bmp',
+        svg: 'image/svg+xml', tif: 'image/tiff', tiff: 'image/tiff',
+        mp4: 'video/mp4',  webm: 'video/webm', mov: 'video/quicktime',
+        avi: 'video/x-msvideo', mkv: 'video/x-matroska',
         mp3: 'audio/mpeg', ogg: 'audio/ogg',  wav: 'audio/wav',
-        m4a: 'audio/mp4',
+        m4a: 'audio/mp4',  flac: 'audio/flac', aac: 'audio/aac',
+        pdf: 'application/pdf',
+        doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        txt: 'text/plain', rtf: 'text/rtf', csv: 'text/csv', md: 'text/plain', log: 'text/plain',
+        css: 'text/css', js: 'text/javascript', ts: 'text/typescript',
+        yaml: 'text/yaml', yml: 'text/yaml',
+        py: 'text/x-python', php: 'text/x-php', java: 'text/x-java',
+        c: 'text/x-c', cpp: 'text/x-c++', cs: 'text/x-csharp',
+        go: 'text/x-go', rs: 'text/x-rust', rb: 'text/x-ruby',
+        swift: 'text/x-swift', kt: 'text/x-kotlin', dart: 'text/x-dart',
+        sh: 'text/x-shellscript', sql: 'text/x-sql',
+        odt: 'application/vnd.oasis.opendocument.text',
+        json: 'application/json', xml: 'application/xml', html: 'text/html',
+        zip: 'application/zip', rar: 'application/x-rar-compressed', '7z': 'application/x-7z-compressed',
     }[ext] || null;
 }
 

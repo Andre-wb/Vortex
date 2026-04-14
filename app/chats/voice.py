@@ -113,16 +113,8 @@ async def _broadcast_voice_update(
         "participants": participants,
     })
 
-    # Also send via global notification WS to members not connected to the room
-    # so their room list can update voice participant counts
-    for uid in list(manager._global_ws.keys()):
-        await manager.notify_user(uid, {
-            "type":                   "voice_state",
-            "room_id":                room_id,
-            "action":                 action,
-            "voice_participant_count": len(participants),
-            "participants":           participants,
-        })
+    # BMP mode: voice_state notifications suppressed (zero metadata leakage)
+    # Clients learn about voice activity through BMP room polling
 
 
 async def _remove_participant(room_id: int, user_id: int) -> Optional[dict]:

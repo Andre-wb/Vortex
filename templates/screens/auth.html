@@ -1,5 +1,22 @@
+<!-- Password eye toggle (must be non-module for onclick to work) -->
+<script>
+function togglePassEye(btn) {
+    var wrap = btn.closest('.form-input-icon') || btn.parentElement;
+    var input = wrap.querySelector('input[type="password"], input[type="text"]');
+    if (!input) return;
+    var isPass = input.type === 'password';
+    input.type = isPass ? 'text' : 'password';
+    var open = btn.querySelector('.eye-open');
+    var closed = btn.querySelector('.eye-closed');
+    if (open) open.style.display = isPass ? 'none' : '';
+    if (closed) closed.style.display = isPass ? '' : 'none';
+}
+window.togglePassEye = togglePassEye;
+</script>
+
 <!-- Auth Screen — Login / Register -->
-<div id="auth-screen" class="screen active" style="display:flex;">
+<div id="auth-screen" class="screen active">
+    <div class="auth-card-wrap">
     <div class="auth-card">
         <!-- Logo -->
         <div class="auth-logo">
@@ -31,10 +48,16 @@
                 <label class="form-label" data-i18n="auth.password">Пароль</label>
                 <div class="form-input-icon">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                    <input class="form-input" id="l-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+                    <input class="form-input" id="l-pass" type="password" placeholder="••••••••" autocomplete="current-password" style="padding-right:40px">
+                    <button type="button" class="pass-eye-btn" onclick="togglePassEye(this)" tabindex="-1" aria-label="Показать пароль">
+                        <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    </button>
                 </div>
             </div>
             <button class="btn btn-primary btn-login" onclick="doLogin()" data-i18n="auth.login">Войти</button>
+
+            <button class="auth-forgot-btn" onclick="switchTab('forgot')" data-i18n="auth.forgotPassword">Забыли пароль?</button>
 
             <!-- Divider -->
             <div class="auth-divider">
@@ -54,6 +77,10 @@
                 <button class="btn-alt-method" onclick="switchTab('seed')" title="Вход по seed-фразе (24 слова)">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 2a5 5 0 015 5c0 2-1 3-2 4l-1 1v2h-4v-2l-1-1c-1-1-2-2-2-4a5 5 0 015-5zM9 18h6M10 22h4"/></svg>
                     <span>Seed</span>
+                </button>
+                <button class="btn-alt-method" onclick="switchTab('link-device')" title="Связать устройство по 6-значному коду">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    <span data-i18n="auth.linkDevice">Связать</span>
                 </button>
             </div>
         </div>
@@ -116,6 +143,157 @@
             <button class="btn btn-primary" onclick="doSeedLogin()" style="width:100%;" data-i18n="security.restoreAccess">Восстановить доступ</button>
         </div>
 
+        <!-- ═══════════════ FORGOT PASSWORD ═══════════════ -->
+        <div id="forgot-form" style="display:none;">
+            <button class="auth-back-btn" onclick="switchTab('login')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                <span data-i18n="auth.backToLogin">Назад</span>
+            </button>
+            <div class="forgot-section">
+                <div class="forgot-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                    </svg>
+                </div>
+                <p class="forgot-title" data-i18n="auth.forgotTitle">Восстановление доступа</p>
+                <p class="forgot-desc" data-i18n="auth.forgotDesc">Выберите способ восстановления</p>
+
+                <div class="forgot-methods">
+                    <button class="forgot-method-btn" onclick="switchTab('seed')">
+                        <div class="forgot-method-icon" style="background:rgba(234,179,8,.12);color:#eab308;">
+                            <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a5 5 0 015 5c0 2-1 3-2 4l-1 1v2h-4v-2l-1-1c-1-1-2-2-2-4a5 5 0 015-5zM9 18h6M10 22h4"/></svg>
+                        </div>
+                        <div class="forgot-method-info">
+                            <div class="forgot-method-name" data-i18n="auth.recoverySeed">Seed-фраза</div>
+                            <div class="forgot-method-hint">24 слова при регистрации</div>
+                        </div>
+                    </button>
+                    <button class="forgot-method-btn" onclick="switchTab('forgot-questions')">
+                        <div class="forgot-method-icon" style="background:rgba(124,58,237,.12);color:#7c3aed;">
+                            <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+                        </div>
+                        <div class="forgot-method-info">
+                            <div class="forgot-method-name" data-i18n="auth.recoveryQuestions">Секретные вопросы</div>
+                            <div class="forgot-method-hint">3 вопроса которые вы задали</div>
+                        </div>
+                    </button>
+                    <button class="forgot-method-btn" onclick="switchTab('link-device')">
+                        <div class="forgot-method-icon" style="background:rgba(59,130,246,.12);color:#3b82f6;">
+                            <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+                        </div>
+                        <div class="forgot-method-info">
+                            <div class="forgot-method-name" data-i18n="auth.recoveryDevice">Связать устройство</div>
+                            <div class="forgot-method-hint">6-значный код с другого устройства</div>
+                        </div>
+                    </button>
+                    <button class="forgot-method-btn" onclick="switchTab('passkey')">
+                        <div class="forgot-method-icon" style="background:rgba(16,185,129,.12);color:#10b981;">
+                            <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M17.81 4.47c-.08 0-.16-.02-.23-.06C15.66 3.42 14 3 12.01 3c-1.98 0-3.86.47-5.57 1.41-.24.13-.54.04-.68-.2-.13-.24-.04-.55.2-.68C7.82 2.52 9.86 2 12.01 2c2.13 0 3.99.47 6.03 1.52.25.13.34.43.21.67-.09.18-.26.28-.44.28zM3.5 9.72a.499.499 0 0 1-.25-.93C5.39 7.33 8.46 6.25 12 6.25c3.54 0 6.62 1.08 8.75 2.54.21.14.26.44.12.64-.14.21-.43.26-.64.12C18.28 8.24 15.38 7.25 12 7.25c-3.38 0-6.28.99-8.25 2.35-.08.08-.16.12-.25.12zM12 21.5c-1.36 0-2.45-1.09-2.45-2.44 0-1.36 1.09-2.45 2.45-2.45s2.45 1.09 2.45 2.45c0 1.35-1.09 2.44-2.45 2.44zm0-3.89c-.8 0-1.45.65-1.45 1.45s.65 1.44 1.45 1.44 1.45-.65 1.45-1.44-.65-1.45-1.45-1.45zM12 17c-2.35 0-4.35-.93-5.92-2.49a.5.5 0 0 1 .7-.71c1.35 1.35 3.08 2.2 5.22 2.2 2.14 0 3.87-.85 5.22-2.2.2-.2.51-.19.71.01.19.2.19.51-.01.7C16.35 16.07 14.35 17 12 17z"/></svg>
+                        </div>
+                        <div class="forgot-method-info">
+                            <div class="forgot-method-name" data-i18n="auth.recoveryPasskey">Passkey / Биометрия</div>
+                            <div class="forgot-method-hint">Face ID, Touch ID, отпечаток</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════ SECURITY QUESTIONS RECOVERY ═══════════════ -->
+        <div id="forgot-questions-form" style="display:none;">
+            <button class="auth-back-btn" onclick="switchTab('forgot')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                <span data-i18n="auth.backToLogin">Назад</span>
+            </button>
+            <div class="forgot-section">
+                <p class="forgot-title" data-i18n="auth.recoveryQuestions">Секретные вопросы</p>
+                <div class="form-group" id="sq-username-group">
+                    <label class="form-label" data-i18n="auth.username">Имя пользователя</label>
+                    <input class="form-input" id="sq-username" type="text" placeholder="username" autocomplete="username">
+                </div>
+                <button class="btn btn-primary" style="width:100%;" onclick="loadSecurityQuestions()" id="sq-load-btn" data-i18n="auth.loadQuestions">Загрузить вопросы</button>
+                <div id="sq-questions-container" style="display:none;">
+                    <div class="form-group">
+                        <label class="form-label sq-question-label" id="sq-q1-label">Вопрос 1</label>
+                        <input class="form-input" id="sq-a1" type="text" placeholder="Ответ..." autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label sq-question-label" id="sq-q2-label">Вопрос 2</label>
+                        <input class="form-input" id="sq-a2" type="text" placeholder="Ответ..." autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label sq-question-label" id="sq-q3-label">Вопрос 3</label>
+                        <input class="form-input" id="sq-a3" type="text" placeholder="Ответ..." autocomplete="off">
+                    </div>
+                    <button class="btn btn-primary" style="width:100%;" onclick="doSecurityQuestionsRecovery()" data-i18n="auth.recover">Восстановить</button>
+                </div>
+                <div id="sq-status" class="forgot-status"></div>
+            </div>
+        </div>
+
+        <!-- ═══════════════ RESET PASSWORD ═══════════════ -->
+        <div id="reset-password-form" style="display:none;">
+            <div class="reset-pw-section">
+                <div class="reset-pw-icon">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                </div>
+                <p class="reset-pw-title">Установите новый пароль</p>
+                <p class="reset-pw-desc">Ответы верны. Придумайте новый надёжный пароль.</p>
+
+                <div class="form-group" style="width:100%;">
+                    <label class="form-label">Новый пароль</label>
+                    <div class="form-input-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                        <input class="form-input" id="rp-pass1" type="password" placeholder="Минимум 8 символов" autocomplete="new-password" style="padding-right:40px">
+                        <button type="button" class="pass-eye-btn" onclick="togglePassEye(this)" tabindex="-1"><svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+                    </div>
+                </div>
+                <div class="form-group" style="width:100%;">
+                    <label class="form-label">Подтвердите пароль</label>
+                    <div class="form-input-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+                        <input class="form-input" id="rp-pass2" type="password" placeholder="Повторите пароль" autocomplete="new-password" style="padding-right:40px"
+                               oninput="document.getElementById('rp-match-status').textContent=this.value&&this.value===document.getElementById('rp-pass1').value?'✓ Пароли совпадают':this.value?'✗ Не совпадают':'';document.getElementById('rp-match-status').style.color=this.value&&this.value===document.getElementById('rp-pass1').value?'var(--green)':'var(--red)'">
+                        <button type="button" class="pass-eye-btn" onclick="togglePassEye(this)" tabindex="-1"><svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+                    </div>
+                </div>
+                <div id="rp-match-status" class="reset-pw-match"></div>
+                <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px;" onclick="doResetPassword()" id="rp-submit-btn">Сохранить и войти</button>
+            </div>
+        </div>
+
+        <!-- ═══════════════ LINK DEVICE ═══════════════ -->
+        <div id="link-device-form" style="display:none;">
+            <button class="auth-back-btn" onclick="switchTab('login')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                <span data-i18n="auth.backToLogin">Назад</span>
+            </button>
+            <div class="link-device-section">
+                <div class="link-device-icon">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                </div>
+                <p class="link-device-title" data-i18n="auth.linkDeviceTitle">Связать устройство</p>
+                <p class="link-device-desc" data-i18n="auth.linkDeviceDesc">Введите 6-значный код с основного устройства.<br>Ключи будут переданы через E2E шифрование.</p>
+                <div class="link-code-inputs" id="link-code-inputs">
+                    <input type="text" maxlength="1" class="link-code-digit" data-idx="0" inputmode="numeric" autocomplete="off">
+                    <input type="text" maxlength="1" class="link-code-digit" data-idx="1" inputmode="numeric" autocomplete="off">
+                    <input type="text" maxlength="1" class="link-code-digit" data-idx="2" inputmode="numeric" autocomplete="off">
+                    <span class="link-code-dash">-</span>
+                    <input type="text" maxlength="1" class="link-code-digit" data-idx="3" inputmode="numeric" autocomplete="off">
+                    <input type="text" maxlength="1" class="link-code-digit" data-idx="4" inputmode="numeric" autocomplete="off">
+                    <input type="text" maxlength="1" class="link-code-digit" data-idx="5" inputmode="numeric" autocomplete="off">
+                </div>
+                <div id="link-device-status" class="link-device-status"></div>
+                <button class="btn btn-primary" style="width:100%;margin-top:12px;" onclick="doLinkDevice()" data-i18n="auth.linkDeviceSubmit">Связать</button>
+            </div>
+        </div>
+
         <!-- ═══════════════ REGISTER ═══════════════ -->
         <div id="register-form" style="display:none;">
             <div class="form-row">
@@ -157,7 +335,11 @@
                 <label class="form-label" data-i18n="auth.passwordHint">Пароль <span class="form-optional">(мин. 8 символов)</span></label>
                 <div class="form-input-icon">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                    <input class="form-input" id="r-pass" type="password" placeholder="••••••••" autocomplete="new-password">
+                    <input class="form-input" id="r-pass" type="password" placeholder="••••••••" autocomplete="new-password" style="padding-right:40px">
+                    <button type="button" class="pass-eye-btn" onclick="togglePassEye(this)" tabindex="-1" aria-label="Показать пароль">
+                        <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    </button>
                 </div>
                 <div class="password-strength-wrap" id="r-pass-strength">
                     <div class="pw-bar-track">
@@ -180,7 +362,11 @@
                 <label class="form-label" data-i18n="auth.passwordHint">Подтверждение пароля</label>
                 <div class="form-input-icon">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    <input class="form-input" id="r-pass-confirm" type="password" placeholder="••••••••" autocomplete="new-password">
+                    <input class="form-input" id="r-pass-confirm" type="password" placeholder="••••••••" autocomplete="new-password" style="padding-right:40px">
+                    <button type="button" class="pass-eye-btn" onclick="togglePassEye(this)" tabindex="-1" aria-label="Показать пароль">
+                        <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    </button>
                 </div>
                 <div class="pw-match-status" id="pw-match-status"></div>
             </div>
@@ -263,5 +449,6 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             <span>End-to-end encrypted</span>
         </div>
+    </div>
     </div>
 </div>

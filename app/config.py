@@ -48,8 +48,17 @@ class Config:
     DB_PATH = os.getenv("DB_PATH", "vortex.db")
     # If DATABASE_URL is set, use it directly (e.g. postgresql://user:pass@host/db).
     # If empty, fall back to sqlite:///<DB_PATH>.
+    # Alternatively, set POSTGRES_* env vars to auto-build a PostgreSQL URL.
     DATABASE_URL = os.getenv("DATABASE_URL", "")
-    DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "5"))
+
+    # ── PostgreSQL individual env vars (alternative to DATABASE_URL) ──────────
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+    POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
+    POSTGRES_DB = os.getenv("POSTGRES_DB", "vortex")
+    POSTGRES_USER = os.getenv("POSTGRES_USER", "vortex")
+    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
+
+    DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "20"))
     DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "10"))
     DB_POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "3600"))
     UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads"))
@@ -59,16 +68,27 @@ class Config:
     UDP_PORT = int(os.getenv("UDP_PORT", "4200"))
     UDP_INTERVAL_SEC = int(os.getenv("UDP_INTERVAL_SEC", "2"))
     PEER_TIMEOUT_SEC = int(os.getenv("PEER_TIMEOUT_SEC", "15"))
-    MAX_FILE_MB = int(os.getenv("MAX_FILE_MB", "2048"))  # 2 GB default
+    MAX_FILE_MB = int(os.getenv("MAX_FILE_MB", "3072"))  # 3 GB default
     MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024
-    WAF_RATE_LIMIT_REQUESTS = int(os.getenv("WAF_RATE_LIMIT_REQUESTS", "120"))
+    # ── Testing ──────────────────────────────────────────────────────────
+    TESTING = os.getenv("TESTING", "").lower() == "true"
+
+    _waf_default = "999999" if os.getenv("TESTING", "").lower() == "true" else "120"
+    WAF_RATE_LIMIT_REQUESTS = int(os.getenv("WAF_RATE_LIMIT_REQUESTS", _waf_default))
     WAF_RATE_LIMIT_WINDOW = int(os.getenv("WAF_RATE_LIMIT_WINDOW", "60"))
     WAF_BLOCK_DURATION = int(os.getenv("WAF_BLOCK_DURATION", "3600"))
 
     # ── Global Mode ───────────────────────────────────────────────────────
     NETWORK_MODE = os.getenv("NETWORK_MODE", "local")  # "local" или "global"
     BOOTSTRAP_PEERS = os.getenv("BOOTSTRAP_PEERS", "")  # ip:port через запятую
-    OBFUSCATION_ENABLED = os.getenv("OBFUSCATION_ENABLED", "true").lower() == "true"
+    # Obfuscation disabled in TESTING mode to avoid probe detector blocking test requests
+    OBFUSCATION_ENABLED = (
+        os.getenv("OBFUSCATION_ENABLED", "true").lower() == "true"
+        and os.getenv("TESTING", "").lower() != "true"
+    )
+
+    # BMP Delivery — route message delivery through Blind Mailbox Protocol
+    BMP_DELIVERY_ENABLED = os.getenv("BMP_DELIVERY", "true").lower() in ("true", "1", "yes")
 
     # ── VAPID (Web Push) ─────────────────────────────────────────────────────
     VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
@@ -85,14 +105,23 @@ class Config:
     REDIS_CHANNEL_PREFIX = os.getenv("REDIS_CHANNEL_PREFIX", "vortex")
 
     # ── Privacy ─────────────────────────────────────────────────────────────
-    STORE_IPS = os.getenv("STORE_IPS", "true").lower() != "false"
-    HASH_IPS  = os.getenv("HASH_IPS", "false").lower() == "true"
+    STORE_IPS = os.getenv("STORE_IPS", "false").lower() != "false"
+    HASH_IPS  = os.getenv("HASH_IPS", "true").lower() == "true"
     TOR_SOCKS_HOST = os.getenv("TOR_SOCKS_HOST", "127.0.0.1")
     TOR_SOCKS_PORT = int(os.getenv("TOR_SOCKS_PORT", "9050"))
     TOR_HIDDEN_SERVICE = os.getenv("TOR_HIDDEN_SERVICE", "false").lower() in ("1", "true", "yes")
     TOR_CONTROL_PORT = int(os.getenv("TOR_CONTROL_PORT", "9051"))
     EPHEMERAL_IDENTITIES = os.getenv("EPHEMERAL_IDENTITIES", "false").lower() == "true"
     METADATA_PADDING = os.getenv("METADATA_PADDING", "true").lower() == "true"
+
+    # ── Stealth Mode (disabled in TESTING to avoid blocking health/API endpoints) ─
+    STEALTH_MODE = (
+        os.getenv("STEALTH_MODE", "false").lower() in ("true", "1", "yes")
+        and os.getenv("TESTING", "").lower() != "true"
+    )
+    STEALTH_SECRET = _auto_secret("STEALTH_SECRET")
+    VORTEX_NETWORK_KEY = _auto_secret("VORTEX_NETWORK_KEY")
+    STEALTH_TURN_URL = os.getenv("STEALTH_TURN_URL", "")
 
     # ── Pluggable Transports ──────────────────────────────────────────────────
     import secrets as _secrets
@@ -109,10 +138,38 @@ class Config:
     TRANSLATE_URL = os.getenv("TRANSLATE_URL", "http://localhost:5000")
     TRANSLATE_ENABLED = os.getenv("TRANSLATE_ENABLED", "false").lower() == "true"
 
-    # ── AI Assistant (Ollama) ────────────────────────────────────────────────
+    # ── AI Assistant ────────────────────────────────────────────────────────
     OLLAMA_URL   = os.getenv("OLLAMA_URL",   "http://localhost:11434")
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
     AI_ENABLED   = os.getenv("AI_ENABLED",   "true").lower() != "false"
+    AI_PROVIDER  = os.getenv("AI_PROVIDER",  "auto")  # auto/ollama/openai/anthropic
+    AI_API_KEY   = os.getenv("AI_API_KEY",   "")
+    AI_API_URL   = os.getenv("AI_API_URL",   "")
+    AI_MODEL     = os.getenv("AI_MODEL",     "")
+
+    # ── SFU (Selective Forwarding Unit) ─────────────────────────────────────
+    SFU_MODE     = os.getenv("SFU_MODE",     "builtin")  # builtin/mediasoup/janus
+    SFU_URL      = os.getenv("SFU_URL",      "")
+    SFU_API_KEY  = os.getenv("SFU_API_KEY",  "")
+
+    @classmethod
+    def get_database_url(cls) -> str:
+        """Resolve effective DATABASE_URL.
+
+        Priority:
+          1. DATABASE_URL env var (explicit, used as-is)
+          2. POSTGRES_* env vars (auto-built postgresql:// URL)
+          3. sqlite:///<DB_PATH> (default for local development)
+        """
+        if cls.DATABASE_URL:
+            return cls.DATABASE_URL
+        if cls.POSTGRES_PASSWORD:
+            # POSTGRES_PASSWORD is set — build URL from individual vars
+            return (
+                f"postgresql://{cls.POSTGRES_USER}:{cls.POSTGRES_PASSWORD}"
+                f"@{cls.POSTGRES_HOST}:{cls.POSTGRES_PORT}/{cls.POSTGRES_DB}"
+            )
+        return f"sqlite:///{cls.DB_PATH}"
 
     @classmethod
     def ensure_dirs(cls) -> None:

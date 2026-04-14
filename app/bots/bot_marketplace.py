@@ -63,6 +63,7 @@ def _serialize_bot_card(b: Bot) -> dict:
     """Serialize a Bot to a marketplace card dict."""
     return {
         "bot_id": b.id,
+        "user_id": b.user_id,
         "name": b.name,
         "description": b.description or "",
         "avatar_url": b.avatar_url,
@@ -327,4 +328,4 @@ async def marketplace_install(
     db.commit()
 
     logger.info(f"Marketplace: bot {bot.name} installed to room {room_id} by {user.username}")
-    return {"ok": True}
+    return {"ok": True, "bot_user_id": bot.user_id}

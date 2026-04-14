@@ -15,6 +15,18 @@ from app.models_rooms import (
     Message, MessageReaction, Room, RoomMember, RoomRole,
 )
 from app.peer.connection_manager import manager
+from app.transport.blind_mailbox import deposit_envelope
+
+
+async def _bmp_deposit(room_id: int, payload: dict):
+    from app.config import Config
+    if not Config.BMP_DELIVERY_ENABLED:
+        return
+    try:
+        import json
+        await deposit_envelope(room_id, json.dumps(payload))
+    except Exception:
+        pass
 
 from app.chats.messages._router import utc_iso as _utc_iso
 from app.security.sealed_sender import compute_sender_pseudo
@@ -34,7 +46,10 @@ async def handle_mark_read(room_id: int, user: User, data: dict, db: Session) ->
     if not msg_ids:
         return
 
-    # Обновляем last_read_message_id для участника
+    # NOTE: last_read_message_id is a known metadata trade-off.
+    # Server needs it for unread badge counts. Stored per user+room.
+    # Mitigation: read receipts sent to peers via BMP (not WS), so server
+    # knows THAT a user read messages but peers learn via encrypted BMP envelope.
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user.id,
@@ -46,11 +61,8 @@ async def handle_mark_read(room_id: int, user: User, data: dict, db: Session) ->
             db.commit()
 
     # Рассылаем уведомление о прочтении
-    await manager.broadcast_to_room(room_id, {
-        "type":      "messages_read",
-        "reader_id": user.id,
-        "msg_ids":   msg_ids,
-    }, exclude=user.id)
+    _read_payload = {"type": "messages_read", "reader_id": user.id, "msg_ids": msg_ids}
+    await manager.broadcast_to_room(room_id, _read_payload)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -82,6 +94,14 @@ async def handle_reaction(room_id: int, user: User, data: dict, db: Session) -> 
         db.commit()
         added = False
     else:
+        # Лимит: максимум 2 разных реакции от одного пользователя на одно сообщение
+        user_reaction_count = db.query(MessageReaction).filter(
+            MessageReaction.message_id == msg_id,
+            MessageReaction.user_id    == user.id,
+        ).count()
+        if user_reaction_count >= 2:
+            return  # Молча отклоняем — лимит достигнут
+
         try:
             db.add(MessageReaction(
                 message_id=msg_id, user_id=user.id, emoji=emoji
@@ -101,7 +121,7 @@ async def handle_reaction(room_id: int, user: User, data: dict, db: Session) -> 
                 db.commit()
             added = False
 
-    await manager.broadcast_to_room(room_id, {
+    _react_payload = {
         "type":         "reaction",
         "msg_id":       msg_id,
         "user_id":      user.id,
@@ -110,7 +130,8 @@ async def handle_reaction(room_id: int, user: User, data: dict, db: Session) -> 
         "emoji":        emoji,
         "added":        added,
         "created_at":   datetime.now(timezone.utc).isoformat() + "Z" if added else None,
-    })
+    }
+    await manager.broadcast_to_room(room_id, _react_payload)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -224,7 +245,5 @@ async def handle_pin_message(room_id: int, user: User, data: dict, db: Session) 
 
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type":   "message_pinned",
-        "msg_id": msg_id,
-    })
+    _pin_payload = {"type": "message_pinned", "msg_id": msg_id}
+    await manager.broadcast_to_room(room_id, _pin_payload)

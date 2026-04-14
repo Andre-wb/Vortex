@@ -98,11 +98,13 @@
     background: rgba(255, 255, 255, 0.1);
     color: var(--text);
 }
+@media (hover: hover) {
 .toast-action:hover {
     background: rgba(255, 255, 255, 0.18);
     transform: scale(1.05);
 }
 .toast-action:active { transform: scale(0.95); }
+}
 
 .toast-undo {
     background: rgba(124, 58, 237, 0.2);

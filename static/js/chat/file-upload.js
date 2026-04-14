@@ -14,7 +14,9 @@
 // =============================================================================
 
 import { fmtSize, getCookie } from '../utils.js';
-import { encryptFile, decryptFile, getRoomKey } from '../crypto.js';
+import { encryptFile, decryptFile, getRoomKey, setRoomKey } from '../crypto.js';
+import { encryptFileMeta, isZKReady } from '../zk-crypto.js';
+
 
 // ── Константы ─────────────────────────────────────────────────────────────────
 const CHUNK_SIZE          = 1 * 1024 * 1024;   // 1 МБ
@@ -30,6 +32,57 @@ let _origW           = 0;
 let _origH           = 0;
 let _origDataUrl     = null;
 let _skipCompression = false;
+let _customVideoThumb = null; // data URL of custom thumbnail
+let _currentXhr      = null;  // for abort
+
+function _abortUpload() {
+    if (_currentXhr) { try { _currentXhr.abort(); } catch(_) {} _currentXhr = null; }
+    _sendingInProgress = false;
+}
+
+/**
+ * Extract thumbnail from video file — grabs frame at 0.5s (or 0s if shorter).
+ * Returns data URL (JPEG). Fast: uses offscreen video + canvas, no full decode needed.
+ */
+function _extractVideoThumbnail(fileOrBlob, seekTime = 0.5) {
+    return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        video.playsInline = true;
+        const objUrl = URL.createObjectURL(fileOrBlob);
+        video.src = objUrl;
+
+        const cleanup = () => { URL.revokeObjectURL(objUrl); };
+        const timeout = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 5000);
+
+        video.addEventListener('loadedmetadata', () => {
+            // Seek to 0.5s or 0 if video is shorter
+            video.currentTime = Math.min(seekTime, video.duration || 0);
+        }, { once: true });
+
+        video.addEventListener('seeked', () => {
+            clearTimeout(timeout);
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+                cleanup();
+                resolve(dataUrl);
+            } catch (e) {
+                cleanup();
+                reject(e);
+            }
+        }, { once: true });
+
+        video.addEventListener('error', () => { clearTimeout(timeout); cleanup(); reject(new Error('video error')); }, { once: true });
+    });
+}
+
+// Video thumbnail tools removed — replaced by full video editor (video-editor.js)
 
 // Состояние активной resumable-сессии (если есть)
 let _resumeSession = null;  // { upload_id, total_chunks, received: Set }
@@ -98,21 +151,34 @@ function _findExistingSession(fileName, fileSize) {
  * @param {function(number)} onProgress - колбэк прогресса (0-100)
  * @returns {Promise<object>} - ответ сервера
  */
-async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onProgress) {
+async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onProgress, captionCt) {
     const fileSize = fileOrBlob.size;
 
     if (fileSize < RESUMABLE_THRESHOLD) {
-        // Маленький файл — обычная загрузка
+        // Маленький файл — обычная загрузка (уже зашифрован на вызывающей стороне)
         const formData = new FormData();
-        formData.append('file', new File([fileOrBlob], fileName, { type: fileOrBlob.type }));
+        let blob = fileOrBlob;
+        formData.append('file', new File([blob], fileName, { type: blob.type }));
+        if (captionCt) formData.append('caption_ct', captionCt);
+        // ZK: шифруем имя файла room key, чтобы сервер не видел plaintext
+        if (isZKReady()) {
+            try {
+                const encMeta = await encryptFileMeta(roomId, { file_name: fileName });
+                if (encMeta.file_name_encrypted) {
+                    formData.append('file_name_encrypted', encMeta.file_name_encrypted);
+                }
+            } catch (e) { console.warn('[ZK] file_name encryption skipped:', e.message); }
+        }
         return _xhrUpload(`/api/files/upload/${roomId}`, formData, csrfToken, onProgress);
     }
 
     // ── Крупный файл — чанкованная загрузка ───────────────────────────────────
-    const fileBuffer = await fileOrBlob.arrayBuffer();
-    const fileHash   = await sha256Hex(fileBuffer);
+    // File already encrypted by caller — just chunk it
+    let fileBuffer = await fileOrBlob.arrayBuffer();
+    const fileHash = await sha256Hex(fileBuffer);
+    const encFileSize = fileBuffer.byteLength; // may differ from original after encryption
 
-    const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+    const totalChunks = Math.ceil(encFileSize / CHUNK_SIZE);
 
     // Проверяем, есть ли незавершённая сессия для этого файла
     let uploadId    = null;
@@ -146,7 +212,7 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
         const initForm = new FormData();
         initForm.append('room_id',   roomId);
         initForm.append('file_name', fileName);
-        initForm.append('file_size', fileSize);
+        initForm.append('file_size', encFileSize);
         initForm.append('file_hash', fileHash);
         initForm.append('chunk_size', CHUNK_SIZE);
 
@@ -157,7 +223,7 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
             headers:     { 'X-CSRF-Token': csrfToken },
         });
         if (!initResp.ok) {
-            throw new Error(`Ошибка инициализации загрузки: HTTP ${initResp.status}`);
+            throw new Error(t('upload.initError', {status: initResp.status}));
         }
         const initData = await initResp.json();
         uploadId       = initData.upload_id;
@@ -180,7 +246,7 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
 
     const uploadChunk = async (chunkIdx) => {
         const start    = chunkIdx * CHUNK_SIZE;
-        const end      = Math.min(start + CHUNK_SIZE, fileSize);
+        const end      = Math.min(start + CHUNK_SIZE, encFileSize);
         const chunkBuf = fileBuffer.slice(start, end);
         const chunkHash = await sha256Hex(chunkBuf);
 
@@ -211,7 +277,7 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
             }
             await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));   // exponential backoff
         }
-        throw new Error(`Чанк ${chunkIdx} не загружен после ${CHUNK_RETRY_MAX} попыток`);
+        throw new Error(t('upload.chunkFailed', {chunk: chunkIdx, retries: CHUNK_RETRY_MAX}));
     };
 
     // Semaphore для параллелизма
@@ -245,7 +311,7 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
 
     if (!completeResp.ok) {
         const errData = await completeResp.json().catch(() => ({}));
-        throw new Error(errData.error || errData.detail || `Ошибка сборки: HTTP ${completeResp.status}`);
+        throw new Error(errData.error || errData.detail || t('upload.assemblyError', {status: completeResp.status}));
     }
 
     _clearProgress(uploadId);
@@ -259,7 +325,7 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
 // Обработчик выбора файла
 // =============================================================================
 
-export function uploadFile(e) {
+export async function uploadFile(e) {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
@@ -327,13 +393,31 @@ export function uploadFile(e) {
             img.src = _origDataUrl;
         };
         reader.readAsDataURL(file);
+    } else if (file.type.startsWith('video/')) {
+        // Open full video editor
+        const { openVideoEditor } = await import('./video-editor.js');
+        openVideoEditor(file, async (result) => {
+            _pendingFile = result.file;
+            _customVideoThumb = result.thumbnail || null;
+            if (result.muted) _pendingFile._muted = true;
+            // Save thumbnail and timecodes to sessionStorage for render.js and player
+            if (_customVideoThumb) {
+                try { sessionStorage.setItem('vortex_vthumb_' + _pendingFile.name, _customVideoThumb); } catch(_) {}
+            }
+            if (result.timecodes?.length) {
+                try { sessionStorage.setItem('vortex_vtc_' + _pendingFile.name, JSON.stringify(result.timecodes)); } catch(_) {}
+            }
+            await sendPendingFile();
+        }, () => {
+            // cancelled
+            _pendingFile = null;
+        });
     } else {
-        const icon = file.type.startsWith('video/')
-            ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>'
-            : file.type.startsWith('audio/')
-                ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>'
-                : '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>';
-        _showAsFileCard(icon, file.name, file.size);
+        const isAudio = file.type.startsWith('audio/');
+        const iconSvg = isAudio
+            ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>';
+        _showAsFileCard(iconSvg, file.name, file.size);
         $('compress-section').style.display = 'none';
         $('file-preview-overlay').classList.add('show');
         closeDotMenu();
@@ -356,9 +440,9 @@ function _showResumeNotice(uploadId, fileSize) {
         if (actions) actions.parentNode.insertBefore(notice, actions);
     }
     notice.innerHTML =
-        `Найдена незавершённая загрузка этого файла. ` +
+        t('upload.resumeNotice') + ' ' +
         `<button onclick="window._resumeUpload && window._resumeUpload('${uploadId}')" ` +
-        `style="background:none;border:none;color:#4ecdc4;cursor:pointer;text-decoration:underline;padding:0">Возобновить</button>`;
+        `style="background:none;border:none;color:#4ecdc4;cursor:pointer;text-decoration:underline;padding:0">${t('upload.resume')}</button>`;
     notice.style.display = 'flex';
 }
 
@@ -366,38 +450,78 @@ function _showResumeNotice(uploadId, fileSize) {
 // Отправка файла
 // =============================================================================
 
+let _sendingInProgress = false;
 export async function sendPendingFile() {
-    if (!_pendingFile) return;
+    if (!_pendingFile || _sendingInProgress) return;
+    _sendingInProgress = true;
     const S = window.AppState;
-    if (!S?.currentRoom?.id) return;
+    if (!S?.currentRoom?.id) { _sendingInProgress = false; return; }
 
     const csrfToken = S.csrfToken || getCookie('csrf_token');
-    if (!csrfToken) { _showError('CSRF токен не найден — обновите страницу.'); return; }
+    if (!csrfToken) { _showError(t('upload.csrfNotFound')); return; }
 
     let blobToSend = (_resizedBlob && !_skipCompression) ? _resizedBlob : _pendingFile;
     const fileName   = _pendingFile.name;
     const mimeType   = _pendingFile.type;
     const localSrc   = _origDataUrl || null;
 
-    // E2E: шифруем содержимое файла ключом комнаты перед отправкой
-    const roomKey = getRoomKey(S.currentRoom.id);
-    if (roomKey) {
-        try {
-            const fileBuffer = await blobToSend.arrayBuffer();
-            const encryptedBuffer = await encryptFile(fileBuffer, roomKey);
-            blobToSend = new File([encryptedBuffer], fileName, { type: 'application/octet-stream' });
-        } catch (e) {
-            console.error('[E2E] Ошибка шифрования файла:', e);
+    // Generate video thumbnail before encryption (first frame at 0.5s or 0s)
+    let videoThumb = localSrc; // fallback for images
+    if (mimeType.startsWith('video/')) {
+        // Use custom thumbnail from editor, or extract automatically
+        if (_customVideoThumb) {
+            videoThumb = _customVideoThumb;
+        } else if (!localSrc) {
+            try { videoThumb = await _extractVideoThumbnail(blobToSend); } catch (_) {}
         }
     }
+
+    // E2E: шифруем содержимое файла ключом комнаты перед отправкой
+    let roomKey = getRoomKey(S.currentRoom.id);
+    if (!roomKey) {
+        // Generate key if missing — MUST encrypt all files
+        roomKey = crypto.getRandomValues(new Uint8Array(32));
+        setRoomKey(S.currentRoom.id, roomKey);
+        console.warn('[E2E] Generated room key for room', S.currentRoom.id);
+    }
+    try {
+        const fileBuffer = await blobToSend.arrayBuffer();
+        const encryptedBuffer = await encryptFile(fileBuffer, roomKey);
+        blobToSend = new File([encryptedBuffer], fileName, { type: 'application/octet-stream' });
+    } catch (e) {
+        console.error('[E2E] File encryption failed:', e);
+    }
+
+    // Grab caption before closing preview
+    const captionEl = $('fpo-caption');
+    const caption = (captionEl?.value || '').trim();
 
     $('file-preview-overlay')?.classList.remove('uploading');
     cancelFilePreview();
 
-    const pendingEl = _insertPendingBubble(fileName, blobToSend.size, mimeType, localSrc);
+    const pendingEl = _insertPendingBubble(fileName, blobToSend.size, mimeType, videoThumb || localSrc);
+
+    // Save video thumbnail for render.js to use as poster
+    if (mimeType.startsWith('video/') && videoThumb) {
+        try { sessionStorage.setItem('vortex_vthumb_' + fileName, videoThumb); } catch(_) {}
+    }
 
     if (S.ws?.readyState === WebSocket.OPEN) {
         S.ws.send(JSON.stringify({ action: 'file_sending', filename: fileName }));
+    }
+
+    // Encrypt caption if present
+    let captionCt = null;
+    if (caption) {
+        try {
+            const { ratchetEncrypt } = await import('../crypto.js');
+            captionCt = await ratchetEncrypt(caption, S.currentRoom.id, S.user.id, roomKey);
+        } catch {
+            try {
+                const { encryptText } = await import('../crypto.js');
+                captionCt = await encryptText(caption, roomKey);
+            } catch {}
+        }
     }
 
     try {
@@ -407,13 +531,16 @@ export async function sendPendingFile() {
             S.currentRoom.id,
             csrfToken,
             pct => _updatePendingProgress(pendingEl, pct),
+            captionCt,
         );
         _finishPendingBubble(pendingEl);
     } catch (err) {
         _failPendingBubble(pendingEl, err.message);
         if (S.ws?.readyState === WebSocket.OPEN) {
-            S.ws.send(JSON.stringify({ action: 'stop_file_sending' }));
+            try { S.ws.send(JSON.stringify({ action: 'stop_file_sending' })); } catch {}
         }
+    } finally {
+        _sendingInProgress = false;
     }
 }
 
@@ -435,7 +562,7 @@ function _showEditPhotoBtn(show) {
         btn.id        = 'fpo-edit-photo-btn';
         btn.className = 'fpo-cancel-btn';
         btn.style.cssText = 'display:none;';
-        btn.innerHTML   = '️<div><svg  xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24" ><path d="M19.67 2.61c-.81-.81-2.14-.81-2.95 0L3.38 15.95c-.13.13-.22.29-.26.46l-1.09 4.34c-.08.34.01.7.26.95.19.19.45.29.71.29.08 0 .16 0 .24-.03l4.34-1.09c.18-.04.34-.13.46-.26L21.38 7.27c.81-.81.81-2.14 0-2.95L19.66 2.6ZM6.83 19.01l-2.46.61.61-2.46 9.96-9.94 1.84 1.84zM19.98 5.86 18.2 7.64 16.36 5.8l1.78-1.78s.09-.03.12 0l1.72 1.72s.03.09 0 .12"></path></svg></div> <div>Редактировать</div>';
+        btn.innerHTML   = '️<div><svg  xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24" ><path d="M19.67 2.61c-.81-.81-2.14-.81-2.95 0L3.38 15.95c-.13.13-.22.29-.26.46l-1.09 4.34c-.08.34.01.7.26.95.19.19.45.29.71.29.08 0 .16 0 .24-.03l4.34-1.09c.18-.04.34-.13.46-.26L21.38 7.27c.81-.81.81-2.14 0-2.95L19.66 2.6ZM6.83 19.01l-2.46.61.61-2.46 9.96-9.94 1.84 1.84zM19.98 5.86 18.2 7.64 16.36 5.8l1.78-1.78s.09-.03.12 0l1.72 1.72s.03.09 0 .12"></path></svg></div> <div>' + t('upload.editPhoto') + '</div>';
         btn.onclick = () => {
             if (!_pendingFile) return;
             $('file-preview-overlay').classList.remove('show');
@@ -472,7 +599,7 @@ function _showEditPhotoBtn(show) {
 function _showAsFileCard(icon, name, size) {
     $('preview-img').style.display       = 'none';
     $('preview-file-card').style.display = 'flex';
-    $('fpo-file-icon').textContent       = icon;
+    $('fpo-file-icon').innerHTML          = icon;
     $('fpo-file-name').textContent       = name;
     $('fpo-file-size').textContent       = fmtSize(size);
     $('fpo-filename').textContent        = name;
@@ -559,10 +686,17 @@ export function cancelFilePreview() {
     if ($('file-preview-overlay')?.classList.contains('uploading')) return;
     _pendingFile = null; _resizedBlob = null; _origDataUrl = null;
     _skipCompression = false; _origW = 0; _origH = 0;
+    const captionEl = $('fpo-caption');
+    if (captionEl) captionEl.value = '';
 
     $('file-preview-overlay').classList.remove('show');
     $('preview-img').src           = '';
     $('preview-img').style.display = 'none';
+    // Stop video preview and cleanup thumbnail tools
+    const videoEl = document.getElementById('preview-video');
+    if (videoEl) { videoEl.pause(); videoEl.src = ''; videoEl.style.display = 'none'; }
+    document.getElementById('video-thumb-tools')?.remove();
+    _customVideoThumb = null;
     $('preview-file-card').style.display = 'none';
 
     const sec = $('compress-section');
@@ -606,6 +740,7 @@ function _xhrUpload(url, formData, csrfToken, onProgress) {
         xhr.withCredentials = true;
         xhr.setRequestHeader('X-CSRF-Token', csrfToken);
         xhr.timeout = 120_000;
+        _currentXhr = xhr;
 
         xhr.upload.onprogress = e => {
             if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100));
@@ -651,7 +786,8 @@ function _insertPendingBubble(fileName, fileSize, mimeType, localSrc) {
         <span class="msg-time">${_fmtNow()}</span>`;
     wrap.appendChild(header);
 
-    if (isImage && localSrc) {
+    const isVideo = mimeType.startsWith('video/');
+    if ((isImage || isVideo) && localSrc) {
         const bubble = document.createElement('div');
         bubble.className = 'pending-img-bubble';
         bubble.style.backgroundImage = `url(${localSrc})`;
@@ -664,6 +800,20 @@ function _insertPendingBubble(fileName, fileSize, mimeType, localSrc) {
             </svg>
             <span class="ucb-pct">0%</span>`;
         bubble.appendChild(badge);
+        // Cancel button
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'upload-cancel-btn';
+        cancelBtn.style.cssText = 'position:absolute;top:6px;right:6px;z-index:3;background:rgba(0,0,0,.6);';
+        cancelBtn.title = 'Cancel';
+        cancelBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+        cancelBtn.addEventListener('click', () => { _abortUpload(); wrap.remove(); });
+        bubble.appendChild(cancelBtn);
+        if (isVideo) {
+            const playIcon = document.createElement('div');
+            playIcon.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+            playIcon.innerHTML = '<svg width="40" height="40" viewBox="0 0 24 24" fill="white" opacity="0.7"><path d="M8 5v14l11-7z"/></svg>';
+            bubble.appendChild(playIcon);
+        }
         const meta = document.createElement('div');
         meta.className   = 'pending-img-meta';
         meta.textContent = `${fileName} · ${fmtSize(fileSize)}`;
@@ -683,7 +833,6 @@ function _insertPendingBubble(fileName, fileSize, mimeType, localSrc) {
                 <div class="file-name">${_esc(fileName)}</div>
                 <div class="file-size">${fmtSize(fileSize)}</div>
                 <div class="upload-bar-wrap"><div class="upload-bar-fill"></div></div>
-                ${fileSize >= RESUMABLE_THRESHOLD ? `<div class="file-size" style="color:#4ecdc4;font-size:10px"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:2px;"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg> ${t('file.chunkedUpload')}</div>` : ''}
             </div>
             <div class="upload-corner-badge" style="position:relative;bottom:auto;right:auto;flex-shrink:0;">
                 <svg class="ucb-ring" viewBox="0 0 20 20">
@@ -692,6 +841,13 @@ function _insertPendingBubble(fileName, fileSize, mimeType, localSrc) {
                 </svg>
                 <span class="ucb-pct">0%</span>
             </div>`;
+        // Add cancel button (safe DOM)
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'upload-cancel-btn';
+        cancelBtn.title = 'Cancel';
+        cancelBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+        cancelBtn.addEventListener('click', () => { _abortUpload(); wrap.remove(); });
+        bubble.appendChild(cancelBtn);
         wrap.appendChild(bubble);
     }
 
@@ -722,20 +878,27 @@ function _failPendingBubble(el, msg) {
     const badge = el.querySelector('.upload-corner-badge');
     const fill  = el.querySelector('.ucb-fill');
     const pctEl = el.querySelector('.ucb-pct');
+    const cancelBtn = el.querySelector('.upload-cancel-btn');
     if (badge) badge.classList.add('fail');
     if (fill)  { fill.style.strokeDashoffset = '0'; fill.style.stroke = 'var(--red)'; }
-    if (pctEl) pctEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
+    if (pctEl) pctEl.textContent = '!';
+    if (cancelBtn) cancelBtn.remove();
     const bubble = el.querySelector('.pending-img-bubble, .pending-file-bubble');
     if (bubble) bubble.classList.add('upload-fail');
+    // Error + retry inside bubble
+    const errWrap = document.createElement('div');
+    errWrap.style.cssText = 'width:100%;padding:6px 0 0;';
     const errDiv = document.createElement('div');
-    errDiv.className   = 'upload-error-label';
+    errDiv.className = 'upload-error-label';
     errDiv.textContent = msg;
-    el.appendChild(errDiv);
+    errWrap.appendChild(errDiv);
     const retryBtn = document.createElement('button');
-    retryBtn.className   = 'upload-retry-btn';
-    retryBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>' + t('file.retry');
-    retryBtn.onclick     = () => { el.remove(); sendPendingFile(); };
-    el.appendChild(retryBtn);
+    retryBtn.className = 'upload-retry-btn';
+    retryBtn.textContent = 'Retry';
+    retryBtn.addEventListener('click', () => { el.remove(); sendPendingFile(); });
+    errWrap.appendChild(retryBtn);
+    if (bubble) bubble.appendChild(errWrap);
+    else el.appendChild(errWrap);
 }
 
 function _fmtNow() {
@@ -822,28 +985,35 @@ export async function downloadAndDecryptFile(downloadUrl, fileName) {
  * @param {HTMLImageElement} imgEl — элемент img
  * @param {string} url — URL зашифрованного изображения
  */
-export async function loadEncryptedImage(imgEl, url) {
-    const roomKey = getRoomKey(window.AppState?.currentRoom?.id);
+// Cache decrypted blob URLs to avoid re-downloading
+const _blobCache = {};
 
+export async function loadEncryptedMedia(el, url, mimeHint) {
+    // Return cached blob URL if available
+    if (_blobCache[url]) {
+        el.src = _blobCache[url];
+        return _blobCache[url];
+    }
+    const roomKey = getRoomKey(window.AppState?.currentRoom?.id);
     try {
         const resp = await fetch(url, { credentials: 'include' });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-
         let data = await resp.arrayBuffer();
-
-        // Пытаемся расшифровать
-        if (roomKey && data.byteLength > 12) {
-            try {
-                data = await decryptFile(data, roomKey);
-            } catch {
-                // Legacy — используем как есть
-            }
+        if (roomKey && data.byteLength > 28) {
+            try { data = await decryptFile(data, roomKey); } catch { /* legacy */ }
         }
-
-        const blob = new Blob([data]);
-        imgEl.src = URL.createObjectURL(blob);
+        const blob = new Blob([data], mimeHint ? { type: mimeHint } : undefined);
+        const blobUrl = URL.createObjectURL(blob);
+        _blobCache[url] = blobUrl;
+        el.src = blobUrl;
+        return blobUrl;
     } catch (e) {
-        console.warn('[E2E] Не удалось загрузить зашифрованное изображение:', e);
-        imgEl.alt = '[не удалось загрузить изображение]';
+        console.warn('[E2E] Media load failed:', url, e);
+        if (el.tagName === 'IMG') el.alt = '[load failed]';
     }
+}
+
+// Backward-compatible alias
+export async function loadEncryptedImage(imgEl, url) {
+    return loadEncryptedMedia(imgEl, url);
 }

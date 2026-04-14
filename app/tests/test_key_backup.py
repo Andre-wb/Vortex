@@ -684,8 +684,11 @@ class TestFederatedBackup:
     def test_store_shard_peer_endpoint(self, client):
         u = make_user(client)
         h = login_user(client, u['username'], u['password'])
+        # Create a real owner user so FK constraint is satisfied
+        owner = make_user(client)
+        owner_id = owner['data']['user_id']
         r = client.post('/api/keys/federated-backup/store-shard', json={
-            'owner_user_id': 999,
+            'owner_user_id': owner_id,
             'shard_index': 1,
             'encrypted_shard': secrets.token_hex(64),
             'shard_hash': secrets.token_hex(32),
@@ -695,20 +698,25 @@ class TestFederatedBackup:
     def test_retrieve_shard_peer_endpoint(self, client):
         u = make_user(client)
         h = login_user(client, u['username'], u['password'])
+        # Create a real owner user so FK constraint is satisfied
+        owner = make_user(client)
+        owner_id = owner['data']['user_id']
         client.post('/api/keys/federated-backup/store-shard', json={
-            'owner_user_id': 888,
+            'owner_user_id': owner_id,
             'shard_index': 1,
             'encrypted_shard': secrets.token_hex(64),
             'shard_hash': secrets.token_hex(32),
         }, headers=h)
-        r = client.get('/api/keys/federated-backup/retrieve-shard/888', headers=h)
+        r = client.get(f'/api/keys/federated-backup/retrieve-shard/{owner_id}', headers=h)
         assert r.status_code == 200
         assert len(r.json()['shards']) >= 1
 
     def test_retrieve_no_shards_404(self, client):
         u = make_user(client)
         h = login_user(client, u['username'], u['password'])
-        r = client.get('/api/keys/federated-backup/retrieve-shard/777', headers=h)
+        # Use own user_id — guaranteed to exist but has no shards stored
+        own_id = u['data']['user_id']
+        r = client.get(f'/api/keys/federated-backup/retrieve-shard/{own_id}', headers=h)
         assert r.status_code == 404
 
     def test_threshold_gt_total_rejected(self, client):

@@ -336,7 +336,7 @@ async def deliver_webhook(bot_id: int, event: str, payload: dict) -> bool:
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post(wh["url"], content=body, headers={
                 "Content-Type": "application/json",
-                "X-Vortex-Signature": sig,
+                "X-Hook-Signature": sig,
             })
         return True
     except Exception as e:

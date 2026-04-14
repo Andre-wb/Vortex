@@ -4,7 +4,7 @@
 // открытие личных сообщений (DM), группы контактов (client-side).
 // ============================================================================
 
-import { $, api, esc, openModal, closeModal, showAlert } from './utils.js';
+import { $, api, esc, openModal, closeModal, showAlert, vxPrompt, vxConfirm, vxAlert } from './utils.js';
 import { eciesEncrypt, getRoomKey, setRoomKey } from './crypto.js';
 
 function _avatarEl(obj) {
@@ -43,9 +43,15 @@ function _nextGroupId() {
     return _contactGroups.length ? Math.max(..._contactGroups.map(g => g.id)) + 1 : 1;
 }
 
+export async function _addContactFolder() {
+    const name = await vxPrompt(t('contacts.newFolderName'));
+    if (name?.trim()) createGroup(name.trim());
+}
+window._addContactFolder = _addContactFolder;
+
 export function createGroup(name) {
     if (_contactGroups.length >= CG_MAX_GROUPS) {
-        alert(t('contacts.maxGroupsReached'));
+        vxAlert(t('contacts.maxGroupsReached'));
         return null;
     }
     name = (name || '').trim();
@@ -145,10 +151,10 @@ export function showGroupTabCtx(e, groupId) {
     `;
     document.body.appendChild(menu);
 
-    menu.querySelector('[data-action="rename"]').addEventListener('click', () => {
+    menu.querySelector('[data-action="rename"]').addEventListener('click', async () => {
         menu.remove();
         const g = _contactGroups.find(g => g.id === groupId);
-        const newName = prompt(t('folders.rename'), g?.name || '');
+        const newName = await vxPrompt(t('folders.rename'), g?.name || '');
         if (newName) renameGroup(groupId, newName);
     });
     menu.querySelector('[data-action="delete"]').addEventListener('click', () => {
@@ -250,11 +256,11 @@ function _renderManageGroupsBody() {
     }
 
     body.querySelectorAll('[data-action="rename"]').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             const row = btn.closest('[data-cg-manage-id]');
             const id = Number(row.dataset.cgManageId);
             const g = _contactGroups.find(g => g.id === id);
-            const newName = prompt(t('contacts.renameGroup'), g?.name || '');
+            const newName = await vxPrompt(t('contacts.renameGroup'), g?.name || '');
             if (newName && newName.trim()) {
                 renameGroup(id, newName.trim());
                 _renderManageGroupsBody();
@@ -281,6 +287,11 @@ export async function loadContacts() {
         const data = await api('GET', '/api/contacts');
         _contacts = data.contacts || [];
         window.AppState.contacts = _contacts;
+        // Кэшируем pubkey контактов для шифрования ключей DM
+        if (!window._cachedUserPubkeys) window._cachedUserPubkeys = {};
+        for (const c of _contacts) {
+            if (c.x25519_public_key) window._cachedUserPubkeys[c.user_id] = c.x25519_public_key;
+        }
         const badge = $('contacts-badge');
         if (badge) badge.textContent = _contacts.length;
         _loadGroups();
@@ -293,55 +304,113 @@ export async function loadContacts() {
 
 // ── Рендеринг списка контактов ───────────────────────────────────────────────
 
+function _renderContactCard(c) {
+    const name = c.nickname || c.display_name || c.username || t('rooms.member');
+    const phone = c.phone || '';
+    const statusLine = (c.status_emoji || c.custom_status)
+        ? `<div class="contact-status-line">${esc((c.status_emoji || '') + (c.status_emoji && c.custom_status ? ' ' : '') + (c.custom_status || ''))}</div>`
+        : '';
+    return `
+    <div class="contact-item" data-contact-id="${c.contact_id}">
+        ${_avatarEl(c)}
+        <div class="contact-info">
+            <div class="contact-name">${esc(name)}</div>
+            ${statusLine}
+            <div class="contact-meta">@${esc(c.username || '')}${phone ? ' · ' + esc(phone) : ''}</div>
+        </div>
+        <div class="contact-actions">
+            <button class="btn-icon" onclick="event.stopPropagation();openDM(${c.user_id})" title="${t('contacts.write')}">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+            </button>
+            <button class="btn-icon" onclick="event.stopPropagation();startCall(${c.user_id},false)" title="${t('contacts.call')}">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
+            </button>
+            <button class="btn-icon" onclick="event.stopPropagation();startCall(${c.user_id},true)" title="${t('notifications.videoCall')}">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+            </button>
+            <button class="btn-icon danger" onclick="event.stopPropagation();toggleContactMenu(this,${c.contact_id})" title="...">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+        </div>
+    </div>`;
+}
+
 export function renderContactsList() {
     const el = $('contacts-list');
     if (!el) return;
 
-    // Filter by active group
-    let visible = _contacts;
+    // If a specific group tab is selected — show only that group
     if (_activeGroupId !== null) {
         const g = _contactGroups.find(g => g.id === _activeGroupId);
-        if (g) {
-            const idSet = new Set(g.contactIds);
-            visible = _contacts.filter(c => idSet.has(c.contact_id));
+        const idSet = g ? new Set(g.contactIds) : new Set();
+        const visible = _contacts.filter(c => idSet.has(c.contact_id));
+        if (!visible.length) {
+            el.innerHTML = `<div style="padding:16px;color:var(--text2);font-size:12px;">${t('contacts.noContactsInGroup')}</div>`;
+            return;
         }
-    }
-
-    if (!visible.length) {
-        const msg = _activeGroupId !== null ? t('contacts.noContactsInGroup') : t('contacts.noContacts');
-        el.innerHTML = `<div style="padding:16px;color:var(--text2);font-size:12px;font-family:var(--mono);">${msg}</div>`;
+        el.innerHTML = visible.map(c => _renderContactCard(c)).join('');
         return;
     }
 
-    el.innerHTML = visible.map(c => {
-        const name = c.nickname || c.display_name || c.username || t('rooms.member');
-        const phone = c.phone || '';
-        const statusLine = (c.status_emoji || c.custom_status)
-            ? `<div class="contact-status-line">${esc((c.status_emoji || '') + (c.status_emoji && c.custom_status ? ' ' : '') + (c.custom_status || ''))}</div>`
-            : '';
+    // "All" view — show folders with contacts inside
+    if (!_contacts.length) {
+        el.innerHTML = `<div style="padding:16px;color:var(--text2);font-size:12px;">${t('contacts.noContacts')}</div>`;
+        return;
+    }
 
-        return `
-        <div class="contact-item" data-contact-id="${c.contact_id}">
-            ${_avatarEl(c)}
-            <div class="contact-info">
-                <div class="contact-name">${esc(name)}</div>
-                ${statusLine}
-                <div class="contact-meta">@${esc(c.username || '')}${phone ? ' · ' + esc(phone) : ''}</div>
+    let html = '';
+
+    // Render each folder
+    const assigned = new Set();
+    for (const g of _contactGroups) {
+        const folderContacts = _contacts.filter(c => g.contactIds.includes(c.contact_id));
+        if (!folderContacts.length) continue;
+        folderContacts.forEach(c => assigned.add(c.contact_id));
+
+        const collapsed = localStorage.getItem(`vortex_cf_${g.id}`) === '1';
+        html += `
+        <div class="cf-folder" data-folder-id="${g.id}">
+            <div class="cf-folder-header" onclick="window._toggleContactFolder(${g.id})">
+                <svg class="cf-folder-arrow${collapsed ? '' : ' cf-open'}" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="color:var(--accent);"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                <span class="cf-folder-name">${esc(g.name)}</span>
+                <span class="cf-folder-count">${folderContacts.length}</span>
             </div>
-            <div class="contact-actions">
-                <button class="btn-icon" onclick="event.stopPropagation();openDM(${c.user_id})" title="${t('contacts.write')}">
-                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-                </button>
-                <button class="btn-icon" onclick="event.stopPropagation();openDM(${c.user_id}).then(()=>startVoiceCall())" title="${t('contacts.call')}">
-                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
-                </button>
-                <button class="btn-icon danger" onclick="event.stopPropagation();toggleContactMenu(this,${c.contact_id})" title="...">
-                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-                </button>
+            <div class="cf-folder-body${collapsed ? ' cf-collapsed' : ''}">
+                ${folderContacts.map(c => _renderContactCard(c)).join('')}
             </div>
         </div>`;
-    }).join('');
+    }
+
+    // Ungrouped contacts
+    const ungrouped = _contacts.filter(c => !assigned.has(c.contact_id));
+    if (ungrouped.length) {
+        if (_contactGroups.length) {
+            html += `
+            <div class="cf-folder">
+                <div class="cf-folder-header cf-ungrouped">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="color:var(--text3);"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <span class="cf-folder-name">${t('contacts.ungrouped')}</span>
+                    <span class="cf-folder-count">${ungrouped.length}</span>
+                </div>
+                <div class="cf-folder-body">
+                    ${ungrouped.map(c => _renderContactCard(c)).join('')}
+                </div>
+            </div>`;
+        } else {
+            html += ungrouped.map(c => _renderContactCard(c)).join('');
+        }
+    }
+
+    el.innerHTML = html;
 }
+
+window._toggleContactFolder = function(folderId) {
+    const key = `vortex_cf_${folderId}`;
+    const collapsed = localStorage.getItem(key) === '1';
+    localStorage.setItem(key, collapsed ? '0' : '1');
+    renderContactsList();
+};
 
 // ── Поиск пользователей ──────────────────────────────────────────────────────
 
@@ -430,23 +499,23 @@ export async function addContact(userId) {
             btn.disabled = true;
         }
     } catch (e) {
-        alert(e.message);
+        vxAlert(e.message);
     }
 }
 
 export async function renameContact(contactId) {
-    const name = prompt(t('contacts.newName'));
+    const name = await vxPrompt(t('contacts.newName'));
     if (!name) return;
     try {
         await api('PUT', `/api/contacts/${contactId}`, { nickname: name });
         await loadContacts();
     } catch (e) {
-        alert(e.message);
+        vxAlert(e.message);
     }
 }
 
 export async function deleteContact(contactId) {
-    if (!confirm(t('contacts.deleteConfirm'))) return;
+    if (!await vxConfirm(t('contacts.deleteConfirm'), { danger: true })) return;
     try {
         await api('DELETE', `/api/contacts/${contactId}`);
         // Also remove from all groups
@@ -456,7 +525,7 @@ export async function deleteContact(contactId) {
         _saveGroups();
         await loadContacts();
     } catch (e) {
-        alert(e.message);
+        vxAlert(e.message);
     }
 }
 
@@ -474,7 +543,7 @@ export function toggleContactMenu(btn, contactId) {
     let groupSubmenuHtml = '';
     if (_contactGroups.length) {
         groupSubmenuHtml = `
-        <div style="padding:6px 12px;cursor:pointer;font-size:12px;color:var(--text);position:relative;" class="cg-submenu-trigger" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+        <div style="padding:6px 12px;cursor:pointer;font-size:12px;color:var(--text2);position:relative;border-radius:6px;transition:background .15s,color .15s;" class="cg-submenu-trigger" onmouseover="this.style.background='rgba(124,58,237,0.15)';this.style.color='var(--accent)'" onmouseout="this.style.background='';this.style.color='var(--text2)'">
             Groups &#9656;
             <div class="cg-ctx-submenu" style="display:none;">
                 ${_contactGroups.map(g => {
@@ -487,8 +556,8 @@ export function toggleContactMenu(btn, contactId) {
 
     menu.innerHTML = `
         ${groupSubmenuHtml}
-        <div style="padding:6px 12px;cursor:pointer;font-size:12px;color:var(--text);" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''" onclick="renameContact(${contactId});this.closest('.contact-ctx-menu').remove()">${t('folders.rename')}</div>
-        <div style="padding:6px 12px;cursor:pointer;font-size:12px;color:var(--red);" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''" onclick="deleteContact(${contactId});this.closest('.contact-ctx-menu').remove()">${t('app.delete')}</div>
+        <div style="padding:6px 12px;cursor:pointer;font-size:12px;color:var(--text2);border-radius:6px;transition:background .15s,color .15s;" onmouseover="this.style.background='rgba(124,58,237,0.15)';this.style.color='var(--accent)'" onmouseout="this.style.background='';this.style.color='var(--text2)'" onclick="renameContact(${contactId});this.closest('.contact-ctx-menu').remove()">${t('folders.rename')}</div>
+        <div style="padding:6px 12px;cursor:pointer;font-size:12px;color:var(--red);border-radius:6px;transition:background .15s;" onmouseover="this.style.background='rgba(239,68,68,0.15)'" onmouseout="this.style.background=''" onclick="deleteContact(${contactId});this.closest('.contact-ctx-menu').remove()">${t('app.delete')}</div>
     `;
 
     const parent = btn.parentElement;
@@ -603,9 +672,15 @@ export async function openDM(targetUserId) {
         // чтобы создатель мог отправлять сообщения сразу (не дожидаясь WS-доставки)
         if (encryptedKey && room.id) {
             setRoomKey(room.id, roomKeyBytes);
+            if (window.registerRoomSecret) window.registerRoomSecret(room.id);
+            // Upload sealed prekeys for offline key distribution
+            if (window._uploadSealedPrekeys) {
+                window._uploadSealedPrekeys(room.id, roomKeyBytes).catch(() => {});
+            }
             try {
                 const hex = Array.from(roomKeyBytes, b => b.toString(16).padStart(2, '0')).join('');
                 sessionStorage.setItem(`vortex_rk_${room.id}`, hex);
+                localStorage.setItem(`vortex_rk_${room.id}`, hex);
             } catch {}
         }
 
@@ -624,7 +699,7 @@ export async function openDM(targetUserId) {
         closeModal('contacts-modal');
         closeModal('search-modal');
     } catch (e) {
-        alert(e.message);
+        vxAlert(e.message);
     }
 }
 

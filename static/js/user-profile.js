@@ -7,10 +7,10 @@
 
 import { api } from './utils.js';
 
-const _MONTH_GEN = [
-    'января','февраля','марта','апреля','мая','июня',
-    'июля','августа','сентября','октября','ноября','декабря',
-];
+const _MONTH_GEN = () => {
+    const arr = t('time.monthsGen');
+    return Array.isArray(arr) ? arr : ['January','February','March','April','May','June','July','August','September','October','November','December'];
+};
 
 /**
  * Открывает модал профиля для userId.
@@ -293,7 +293,7 @@ function _renderUserProfile(data) {
                 fpIcon.classList.toggle('fp-pending', !verified);
             }
             if (fpStatus) {
-                fpStatus.textContent = verified ? 'Проверен' : 'Нажмите для проверки';
+                fpStatus.textContent = verified ? t('fingerprint.verified') : t('upm.tapToVerify');
                 fpStatus.classList.toggle('verified', verified);
             }
 

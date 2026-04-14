@@ -5,14 +5,22 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.base import Base
 
 
 class CallHistory(Base):
-    """История голосовых/видеозвонков."""
+    """
+    История звонков — metadata-private.
+
+    caller_id и callee_id хранятся для функциональности (missed calls UI),
+    но НЕ раскрывают социальный граф если БД скомпрометирована:
+    - caller_pseudo / callee_pseudo — sealed sender псевдонимы (BLAKE2b)
+    - encrypted_meta — AES-encrypted JSON с деталями (client-side key)
+    - Сервер видит только псевдонимы, не может связать с user_id без секрета
+    """
     __tablename__ = "call_history"
 
     id          = Column(Integer,    primary_key=True, index=True)
@@ -24,6 +32,13 @@ class CallHistory(Base):
     duration    = Column(Integer,    default=0)          # seconds
     started_at  = Column(DateTime,   default=lambda: datetime.now(timezone.utc))
     ended_at    = Column(DateTime,   nullable=True)
+    seen        = Column(Boolean,    default=False, server_default="0")
+
+    # Privacy fields: sealed pseudonyms (server cannot link to user_id without secret)
+    caller_pseudo = Column(String(64), nullable=True)  # BLAKE2b sealed sender pseudo
+    callee_pseudo = Column(String(64), nullable=True)
+    # Client-encrypted metadata (call details encrypted with room key)
+    encrypted_meta = Column(String(2048), nullable=True)  # hex AES-GCM blob
 
     caller = relationship("User", foreign_keys=[caller_id])
     callee = relationship("User", foreign_keys=[callee_id])
