@@ -1,3 +1,424 @@
+// Safe i18n wrapper — inline-handlers.js loads before main.js (which sets window.t)
+var _i18nRef = null;
+function t(key, params) {
+    if (!_i18nRef && window._i18n_t) _i18nRef = window._i18n_t;
+    if (_i18nRef) return _i18nRef(key, params);
+    var s = key.split('.').pop();
+    return params ? s.replace(/\{(\w+)\}/g, function(_, k) { return params[k] != null ? params[k] : k; }) : s;
+}
+
+// ── Vortex Custom Video Player ──
+window._openVideoViewer = async function(downloadUrl, fileName) {
+    document.getElementById('video-viewer-overlay')?.remove();
+
+    // Load timecodes from sessionStorage if available
+    var timecodes = [];
+    try {
+        var raw = sessionStorage.getItem('vortex_vtc_' + (fileName || ''));
+        if (raw) timecodes = JSON.parse(raw);
+    } catch(e) {}
+
+    var _hideTimer = null;
+    var _speedIdx = 3; // index in speeds array
+    var speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+
+    // ── Overlay ──
+    var overlay = document.createElement('div');
+    overlay.id = 'video-viewer-overlay';
+    overlay.className = 'vp-overlay';
+
+    // ── Video container ──
+    var container = document.createElement('div');
+    container.className = 'vp-container';
+
+    // ── Video element ──
+    var video = document.createElement('video');
+    video.className = 'vp-video';
+    video.playsInline = true;
+    video.preload = 'auto';
+
+    // ── Big play button (center) ──
+    var bigPlay = document.createElement('div');
+    bigPlay.className = 'vp-big-play';
+    bigPlay.innerHTML = '<svg width="64" height="64" viewBox="0 0 24 24" fill="white" opacity=".9"><path d="M8 5v14l11-7z"/></svg>';
+
+    // ── Header ──
+    var header = document.createElement('div');
+    header.className = 'vp-header';
+    var nameEl = document.createElement('div');
+    nameEl.className = 'vp-name';
+    nameEl.textContent = fileName || 'Video';
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'vp-close';
+    closeBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    header.append(nameEl, closeBtn);
+
+    // ── Controls bar ──
+    var controls = document.createElement('div');
+    controls.className = 'vp-controls';
+
+    // Progress bar
+    var progressWrap = document.createElement('div');
+    progressWrap.className = 'vp-progress-wrap';
+    var progressBuf = document.createElement('div');
+    progressBuf.className = 'vp-progress-buf';
+    var progressFill = document.createElement('div');
+    progressFill.className = 'vp-progress-fill';
+    var progressThumb = document.createElement('div');
+    progressThumb.className = 'vp-progress-thumb';
+    var progressHover = document.createElement('div');
+    progressHover.className = 'vp-progress-hover';
+    progressWrap.append(progressBuf, progressFill, progressThumb, progressHover);
+
+    // Timecode markers on progress bar
+    // (will be positioned after duration is known)
+
+    // Bottom row: play, time, spacer, volume, speed, pip, fullscreen
+    var bottomRow = document.createElement('div');
+    bottomRow.className = 'vp-bottom';
+
+    var playBtn = document.createElement('button');
+    playBtn.className = 'vp-btn';
+    var ICON_PLAY = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+    var ICON_PAUSE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+    playBtn.innerHTML = ICON_PLAY;
+
+    var timeEl = document.createElement('div');
+    timeEl.className = 'vp-time';
+    timeEl.textContent = '0:00 / 0:00';
+
+    var spacer = document.createElement('div');
+    spacer.style.flex = '1';
+
+    // Volume
+    var volWrap = document.createElement('div');
+    volWrap.className = 'vp-vol-wrap';
+    var volBtn = document.createElement('button');
+    volBtn.className = 'vp-btn';
+    volBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>';
+    var volSlider = document.createElement('input');
+    volSlider.type = 'range'; volSlider.min = '0'; volSlider.max = '1'; volSlider.step = '0.05'; volSlider.value = '1';
+    volSlider.className = 'vp-vol-slider';
+    volWrap.append(volBtn, volSlider);
+
+    // Speed
+    var speedBtn = document.createElement('button');
+    speedBtn.className = 'vp-btn vp-speed-btn';
+    speedBtn.textContent = '1x';
+
+    // PiP
+    var pipBtn = document.createElement('button');
+    pipBtn.className = 'vp-btn';
+    pipBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="12" y="10" width="8" height="6" rx="1" fill="currentColor" opacity=".3"/></svg>';
+
+    // Fullscreen
+    var fsBtn = document.createElement('button');
+    fsBtn.className = 'vp-btn';
+    fsBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>';
+
+    bottomRow.append(playBtn, timeEl, spacer, volWrap, speedBtn, pipBtn, fsBtn);
+    controls.append(progressWrap, bottomRow);
+
+    // ── Chapters panel ──
+    var chaptersPanel = null;
+    if (timecodes.length) {
+        chaptersPanel = document.createElement('div');
+        chaptersPanel.className = 'vp-chapters';
+        var chapTitle = document.createElement('div');
+        chapTitle.className = 'vp-chapters-title';
+        chapTitle.textContent = 'Chapters';
+        chaptersPanel.appendChild(chapTitle);
+        timecodes.forEach(function(tc) {
+            var row = document.createElement('div');
+            row.className = 'vp-chapter';
+            row.dataset.time = tc.time;
+            var badge = document.createElement('span');
+            badge.className = 'vp-chapter-time';
+            badge.textContent = _fmtTime(tc.time);
+            var label = document.createElement('span');
+            label.className = 'vp-chapter-label';
+            label.textContent = tc.label;
+            row.append(badge, label);
+            row.addEventListener('click', function() { video.currentTime = tc.time; if (video.paused) video.play(); });
+            chaptersPanel.appendChild(row);
+        });
+    }
+
+    container.append(video, bigPlay, header, controls);
+    overlay.appendChild(container);
+    if (chaptersPanel) overlay.appendChild(chaptersPanel);
+    document.body.appendChild(overlay);
+
+    // ── Format time helper ──
+    function _fmtTime(s) {
+        if (!s || isNaN(s)) return '0:00';
+        var h = Math.floor(s / 3600);
+        var m = Math.floor((s % 3600) / 60);
+        var sec = Math.floor(s % 60);
+        if (h > 0) return h + ':' + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+        return m + ':' + String(sec).padStart(2, '0');
+    }
+
+    // ── Show/hide controls ──
+    function showControls() {
+        container.classList.add('vp-show-ui');
+        clearTimeout(_hideTimer);
+        _hideTimer = setTimeout(function() {
+            if (!video.paused) container.classList.remove('vp-show-ui');
+        }, 3000);
+    }
+    container.addEventListener('mousemove', showControls);
+    container.addEventListener('touchstart', showControls, { passive: true });
+
+    // ── Load video ──
+    if (downloadUrl.startsWith('blob:')) {
+        // Already decrypted blob URL — use directly
+        video.src = downloadUrl;
+    } else {
+        try {
+            var resp = await fetch(downloadUrl, { credentials: 'include' });
+            var data = await resp.arrayBuffer();
+            try {
+                var mod = await import('./crypto.js');
+                var rk = mod.getRoomKey(window.AppState?.currentRoom?.id);
+                if (rk && data.byteLength > 12) data = await mod.decryptFile(data, rk);
+            } catch(e) {}
+            video.src = URL.createObjectURL(new Blob([data]));
+        } catch(e) {
+            video.src = downloadUrl;
+        }
+    }
+    video.play().catch(function() {});
+
+    // ── Add timecode markers to progress bar after duration known ──
+    video.addEventListener('loadedmetadata', function() {
+        if (timecodes.length && video.duration) {
+            timecodes.forEach(function(tc) {
+                var marker = document.createElement('div');
+                marker.className = 'vp-tc-marker';
+                marker.style.left = (tc.time / video.duration * 100) + '%';
+                marker.title = tc.label;
+                progressWrap.appendChild(marker);
+            });
+        }
+    });
+
+    // ── Event handlers ──
+    video.addEventListener('play', function() {
+        playBtn.innerHTML = ICON_PAUSE;
+        bigPlay.classList.add('hidden');
+        showControls();
+    });
+    video.addEventListener('pause', function() {
+        playBtn.innerHTML = ICON_PLAY;
+        bigPlay.classList.remove('hidden');
+        container.classList.add('vp-show-ui');
+        clearTimeout(_hideTimer);
+    });
+    video.addEventListener('ended', function() {
+        playBtn.innerHTML = ICON_PLAY;
+        bigPlay.classList.remove('hidden');
+        container.classList.add('vp-show-ui');
+    });
+    video.addEventListener('timeupdate', function() {
+        if (!video.duration) return;
+        var pct = video.currentTime / video.duration * 100;
+        progressFill.style.width = pct + '%';
+        progressThumb.style.left = pct + '%';
+        timeEl.textContent = _fmtTime(video.currentTime) + ' / ' + _fmtTime(video.duration);
+        // Highlight active chapter
+        if (chaptersPanel) {
+            var active = null;
+            timecodes.forEach(function(tc) { if (video.currentTime >= tc.time) active = tc; });
+            chaptersPanel.querySelectorAll('.vp-chapter').forEach(function(el) {
+                el.classList.toggle('active', active && parseFloat(el.dataset.time) === active.time);
+            });
+        }
+    });
+    video.addEventListener('progress', function() {
+        if (video.buffered.length && video.duration) {
+            progressBuf.style.width = (video.buffered.end(video.buffered.length - 1) / video.duration * 100) + '%';
+        }
+    });
+
+    // Play/Pause
+    function togglePlay() { video.paused ? video.play() : video.pause(); }
+    playBtn.addEventListener('click', togglePlay);
+    bigPlay.addEventListener('click', togglePlay);
+    video.addEventListener('click', togglePlay);
+
+    // Double-click fullscreen
+    video.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        if (document.fullscreenElement) document.exitFullscreen();
+        else container.requestFullscreen?.();
+    });
+
+    // Progress bar seek
+    function seekFromEvent(e) {
+        var rect = progressWrap.getBoundingClientRect();
+        var pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        video.currentTime = pct * video.duration;
+    }
+    progressWrap.addEventListener('click', seekFromEvent);
+    var _dragging = false;
+    progressWrap.addEventListener('mousedown', function(e) {
+        _dragging = true; seekFromEvent(e);
+        document.addEventListener('mousemove', onDragSeek);
+        document.addEventListener('mouseup', onDragEnd);
+    });
+    function onDragSeek(e) { if (_dragging) seekFromEvent(e); }
+    function onDragEnd() { _dragging = false; document.removeEventListener('mousemove', onDragSeek); document.removeEventListener('mouseup', onDragEnd); }
+    // Hover time tooltip
+    progressWrap.addEventListener('mousemove', function(e) {
+        var rect = progressWrap.getBoundingClientRect();
+        var pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        progressHover.style.left = (pct * 100) + '%';
+        progressHover.textContent = _fmtTime(pct * (video.duration || 0));
+        progressHover.classList.add('show');
+    });
+    progressWrap.addEventListener('mouseleave', function() { progressHover.classList.remove('show'); });
+
+    // Volume
+    volSlider.addEventListener('input', function() {
+        video.volume = parseFloat(volSlider.value);
+        video.muted = false;
+        updateVolIcon();
+    });
+    volBtn.addEventListener('click', function() {
+        video.muted = !video.muted;
+        if (!video.muted && video.volume === 0) { video.volume = 0.5; volSlider.value = '0.5'; }
+        updateVolIcon();
+    });
+    function updateVolIcon() {
+        var v = video.muted ? 0 : video.volume;
+        volSlider.value = String(video.muted ? 0 : video.volume);
+        if (v === 0) volBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+        else if (v < 0.5) volBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>';
+        else volBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>';
+    }
+
+    // Speed
+    speedBtn.addEventListener('click', function() {
+        _speedIdx = (_speedIdx + 1) % speeds.length;
+        video.playbackRate = speeds[_speedIdx];
+        speedBtn.textContent = speeds[_speedIdx] + 'x';
+    });
+
+    // PiP
+    pipBtn.addEventListener('click', function() {
+        if (document.pictureInPictureElement) document.exitPictureInPicture();
+        else video.requestPictureInPicture?.();
+    });
+    if (!document.pictureInPictureEnabled) pipBtn.style.display = 'none';
+
+    // Fullscreen
+    fsBtn.addEventListener('click', function() {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else container.requestFullscreen?.();
+    });
+
+    // Close
+    function closePlayer() {
+        video.pause(); video.src = '';
+        overlay.remove();
+        document.removeEventListener('keydown', keyHandler);
+    }
+    closeBtn.addEventListener('click', closePlayer);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closePlayer(); });
+
+    // Keyboard
+    function keyHandler(e) {
+        if (!overlay.isConnected) { document.removeEventListener('keydown', keyHandler); return; }
+        var k = e.key;
+        if (k === 'Escape') { closePlayer(); return; }
+        if (k === ' ' || k === 'k') { e.preventDefault(); togglePlay(); }
+        else if (k === 'ArrowLeft') { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - (e.shiftKey ? 10 : 5)); }
+        else if (k === 'ArrowRight') { e.preventDefault(); video.currentTime = Math.min(video.duration, video.currentTime + (e.shiftKey ? 10 : 5)); }
+        else if (k === 'ArrowUp') { e.preventDefault(); video.volume = Math.min(1, video.volume + 0.1); volSlider.value = String(video.volume); updateVolIcon(); }
+        else if (k === 'ArrowDown') { e.preventDefault(); video.volume = Math.max(0, video.volume - 0.1); volSlider.value = String(video.volume); updateVolIcon(); }
+        else if (k === 'm') { video.muted = !video.muted; updateVolIcon(); }
+        else if (k === 'f') { if (document.fullscreenElement) document.exitFullscreen(); else container.requestFullscreen?.(); }
+        else if (k === 'j') { video.currentTime = Math.max(0, video.currentTime - 10); }
+        else if (k === 'l') { video.currentTime = Math.min(video.duration, video.currentTime + 10); }
+    }
+    document.addEventListener('keydown', keyHandler);
+
+    showControls();
+};
+
+// ── Document Viewer ──
+window._openDocViewer = async function(downloadUrl, fileName, ext) {
+    var overlay = document.getElementById('doc-viewer-overlay');
+    var content = document.getElementById('doc-viewer-content');
+    var title = document.getElementById('doc-viewer-title');
+    var icon = document.getElementById('doc-viewer-icon');
+    var dl = document.getElementById('doc-viewer-dl');
+    if (!overlay || !content) return;
+
+    if (title) title.textContent = fileName || 'Document';
+    if (dl) dl.href = downloadUrl;
+
+    var colors = { pdf:'#ef4444', doc:'#2563eb', docx:'#2563eb', txt:'#6b7280', py:'#3572a5', js:'#eab308', css:'#2563eb', json:'#eab308', md:'#8b5cf6' };
+    if (icon) {
+        icon.style.background = colors[ext] || '#6b7280';
+        icon.textContent = (ext || '?').toUpperCase().slice(0, 4);
+    }
+
+    content.textContent = '';
+
+    var textExts = ['txt','md','log','csv','json','xml','yaml','yml','py','js','ts','css','html','htm','c','cpp','cs','go','rs','rb','java','php','sh','sql','swift','kt','dart','rtf'];
+    var isPdf = ext === 'pdf';
+    var isText = textExts.indexOf(ext) >= 0;
+
+    if (isPdf) {
+        var iframe = document.createElement('iframe');
+        iframe.src = downloadUrl;
+        iframe.style.cssText = 'width:100%;height:100%;border:none;background:#fff;';
+        content.appendChild(iframe);
+    } else if (isText) {
+        try {
+            var resp = await fetch(downloadUrl, { credentials: 'include' });
+            var data = await resp.arrayBuffer();
+            // Try E2E decrypt
+            try {
+                var mod = await import('./crypto.js');
+                var rk = mod.getRoomKey(window.AppState?.currentRoom?.id);
+                if (rk && data.byteLength > 12) data = await mod.decryptFile(data, rk);
+            } catch(e) {}
+            var text = new TextDecoder().decode(data);
+            var pre = document.createElement('pre');
+            pre.style.cssText = 'padding:20px;margin:0;font-family:var(--mono,monospace);font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;word-break:break-word;background:var(--bg);min-height:100%;';
+            // Add line numbers
+            var lines = text.split('\n');
+            for (var i = 0; i < lines.length; i++) {
+                var lineNum = document.createElement('span');
+                lineNum.style.cssText = 'color:var(--text3);user-select:none;display:inline-block;width:40px;text-align:right;margin-right:16px;font-size:11px;';
+                lineNum.textContent = String(i + 1);
+                pre.appendChild(lineNum);
+                pre.appendChild(document.createTextNode(lines[i] + '\n'));
+            }
+            content.appendChild(pre);
+        } catch(e) {
+            content.textContent = t('errors.loadError', {message: e.message});
+        }
+    } else {
+        content.textContent = t('files.previewUnavailable');
+        content.style.cssText = 'display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:14px;';
+    }
+
+    overlay.style.display = 'flex';
+};
+
+window._closeDocViewer = function() {
+    var overlay = document.getElementById('doc-viewer-overlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+        var content = document.getElementById('doc-viewer-content');
+        if (content) content.textContent = '';
+    }
+};
+
 // ── Space create/join tab switching ──
 window._switchCsTab = function(tab) {
     var createPanel = document.getElementById('cs-panel-create');
@@ -93,7 +514,7 @@ window.saveProfileSettings = async function() {
         if (resp.birth_date !== undefined) S.user.birth_date = resp.birth_date;
         if (resp.profile_bg  !== undefined) S.user.profile_bg  = resp.profile_bg;
         if (resp.profile_icon !== undefined) S.user.profile_icon = resp.profile_icon;
-        alert('Сохранено');
+        alert(window.t?.('notifications.saved')||'Saved');
     } catch(e) { alert(e.message); }
 };
 
@@ -164,12 +585,21 @@ window._selectProfileIcon = function(btn) {
     var _calWithYear = false;
     var _calAnimating = false;
 
-    var MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь',
-                  'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-    var MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня',
-                      'июля','августа','сентября','октября','ноября','декабря'];
+    var _t = function(k) { return typeof t === 'function' ? t(k) : (typeof window.t === 'function' ? window.t(k) : k); };
+    var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var MONTHS_GEN = MONTHS.slice();
+    // Lazy-init with i18n when t() becomes available
+    function _initCalendarMonths() {
+        if (typeof window.t === 'function') {
+            var m = window.t('time.months');
+            if (Array.isArray(m)) MONTHS = m;
+            var g = window.t('time.monthsGen');
+            if (Array.isArray(g)) MONTHS_GEN = g;
+        }
+    }
 
     window.openBirthdayPicker = function() {
+        _initCalendarMonths();
         var S = window.AppState;
         var bd = S && S.user && S.user.birth_date ? S.user.birth_date : '';
         _calSelDay = null; _calSelMonth = null; _calSelYear = null;
@@ -324,7 +754,7 @@ window._selectProfileIcon = function(btn) {
         if (!el) return;
         if (_calSelDay === null || _calSelMonth === null) { el.textContent = ''; return; }
         var text = _calSelDay + ' ' + MONTHS_GEN[_calSelMonth];
-        if (_calWithYear && _calSelYear) text += ' ' + _calSelYear + ' г.';
+        if (_calWithYear && _calSelYear) text += ' ' + _calSelYear + ' ' + t('calendar.yearSuffix');
         el.textContent = text;
     }
 
@@ -514,14 +944,14 @@ window._pinSettingsCancel = function() { _loadPinStatus(); };
 window._pinSettingsSave = async function() {
     var p1 = document.getElementById('pin-input-1').value.trim();
     var p2 = document.getElementById('pin-input-2').value.trim();
-    if (!/^\d{4}$/.test(p1)) { alert('PIN должен быть 4 цифры'); return; }
-    if (p1 !== p2) { alert('PIN-коды не совпадают'); return; }
+    if (!/^\d{4}$/.test(p1)) { alert(window.t?.('errors.pinMustBe4Digits')||'PIN must be 4 digits'); return; }
+    if (p1 !== p2) { alert(window.t?.('errors.pinsDoNotMatch')||'PINs do not match'); return; }
     await window._setPIN(p1);
-    alert('PIN-код установлен');
+    alert(window.t?.('notifications.pinSet')||'PIN set');
     _loadPinStatus();
 };
 window._pinSettingsRemove = function() {
-    if (!confirm('Убрать PIN-код?')) return;
+    if (!confirm(t('pin.removeConfirm'))) return;
     window._removePIN();
     _loadPinStatus();
 };
@@ -573,15 +1003,15 @@ async function _pinCheckEntry() {
             _pinLocked = true;
             var errEl = document.getElementById('pin-lock-error');
             var sec = 30;
-            errEl.textContent = 'Подождите ' + sec + ' секунд';
+            errEl.textContent = t('pin.waitSeconds', {sec: sec});
             var iv = setInterval(function(){
                 sec--;
                 if (sec <= 0) { clearInterval(iv); _pinLocked = false; _pinAttempts = 0; errEl.textContent = ''; }
-                else errEl.textContent = 'Подождите ' + sec + ' секунд';
+                else errEl.textContent = t('pin.waitSeconds', {sec: sec});
             }, 1000);
         } else {
             var e2 = document.getElementById('pin-lock-error');
-            e2.textContent = 'Неверный PIN';
+            e2.textContent = t('pin.wrongPin');
             setTimeout(function(){ e2.textContent = ''; }, 2000);
         }
     }
@@ -691,20 +1121,20 @@ window.setup2FA = async function() {
 
 window.confirm2FA = async function() {
     var code = document.getElementById('2fa-verify-code')?.value?.trim();
-    if (!code || code.length !== 6) { alert('Введите 6-значный код'); return; }
+    if (!code || code.length !== 6) { alert(window.t?.('errors.enter6DigitCode')||'Enter 6-digit code'); return; }
     try {
         await window.api('POST', '/api/authentication/2fa/enable', { code: code });
-        alert('2FA успешно включена!');
+        alert(window.t?.('notifications.twoFaEnabled')||'2FA enabled!');
         _load2FAStatus();
     } catch(e) { alert(e.message); }
 };
 
 window.disable2FA = async function() {
     var code = document.getElementById('2fa-disable-code')?.value?.trim();
-    if (!code || code.length !== 6) { alert('Введите 6-значный код'); return; }
+    if (!code || code.length !== 6) { alert(window.t?.('errors.enter6DigitCode')||'Enter 6-digit code'); return; }
     try {
         await window.api('POST', '/api/authentication/2fa/disable', { code: code });
-        alert('2FA отключена');
+        alert(window.t?.('notifications.twoFaDisabled')||'2FA disabled');
         _load2FAStatus();
     } catch(e) { alert(e.message); }
 };
@@ -788,7 +1218,60 @@ window.setAccentColor = function(color) {
     document.querySelectorAll('.accent-option').forEach(function(el) {
         el.classList.toggle('active', el.dataset.accent === color);
     });
+    // Update rainbow thumb
+    var thumb = document.getElementById('accent-rainbow-thumb');
+    if (thumb) thumb.style.background = color;
 };
+
+// Кастомный радужный color picker
+window._pickRainbowColor = function(e) {
+    var bar = document.getElementById('accent-rainbow-bar');
+    if (!bar) return;
+    var rect = bar.getBoundingClientRect();
+    var x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    var pct = x / rect.width;
+    var color = _hueToHex(pct * 360);
+    window.setAccentColor(color);
+    var thumb = document.getElementById('accent-rainbow-thumb');
+    if (thumb) {
+        thumb.style.left = (pct * 100) + '%';
+        thumb.style.background = color;
+    }
+};
+
+// Rainbow drag support
+(function() {
+    var dragging = false;
+    document.addEventListener('mousedown', function(e) {
+        if (e.target.closest('#accent-rainbow-bar')) { dragging = true; window._pickRainbowColor(e); }
+    });
+    document.addEventListener('mousemove', function(e) { if (dragging) window._pickRainbowColor(e); });
+    document.addEventListener('mouseup', function() { dragging = false; });
+    document.addEventListener('touchstart', function(e) {
+        if (e.target.closest('#accent-rainbow-bar')) { dragging = true; window._pickRainbowColor(e.touches[0]); }
+    }, { passive: true });
+    document.addEventListener('touchmove', function(e) { if (dragging) window._pickRainbowColor(e.touches[0]); }, { passive: true });
+    document.addEventListener('touchend', function() { dragging = false; });
+})();
+
+function _hueToHex(h) {
+    h = h % 360;
+    var s = 1, l = 0.5;
+    var c = (1 - Math.abs(2 * l - 1)) * s;
+    var x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    var m = l - c / 2;
+    var r, g, b;
+    if (h < 60)       { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else              { r = c; g = 0; b = x; }
+    r = Math.round((r + m) * 255);
+    g = Math.round((g + m) * 255);
+    b = Math.round((b + m) * 255);
+    return '#' + [r, g, b].map(function(v) { return v.toString(16).padStart(2, '0'); }).join('');
+}
 
 function _lightenColor(hex, amount) {
     hex = hex.replace('#', '');
@@ -836,6 +1319,15 @@ var _chatBgPresets = {
     'ocean-wave': 'linear-gradient(180deg,rgba(10,25,47,0.5) 0%,rgba(13,40,71,0.5) 40%,rgba(10,58,94,0.4) 70%,rgba(10,25,47,0.5) 100%)',
     mesh: 'repeating-linear-gradient(0deg,transparent,transparent 19px,rgba(255,255,255,0.03) 19px,rgba(255,255,255,0.03) 20px),repeating-linear-gradient(90deg,transparent,transparent 19px,rgba(255,255,255,0.03) 19px,rgba(255,255,255,0.03) 20px)',
     'deep-space': 'radial-gradient(ellipse at 50% 0%,rgba(88,28,135,0.2) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(30,64,175,0.15) 0%,transparent 50%)',
+    // Light backgrounds
+    'light-clean': 'linear-gradient(180deg,#f8f9fa 0%,#f1f3f5 100%)',
+    'light-lavender': 'linear-gradient(180deg,#f0e6ff 0%,#e8d5ff 50%,#f5eeff 100%)',
+    'light-sky': 'linear-gradient(180deg,#dbeafe 0%,#bfdbfe 50%,#e0f2fe 100%)',
+    'light-mint': 'linear-gradient(180deg,#d1fae5 0%,#a7f3d0 50%,#ecfdf5 100%)',
+    'light-peach': 'linear-gradient(180deg,#fef3c7 0%,#fde68a 50%,#fffbeb 100%)',
+    'light-rose': 'linear-gradient(180deg,#ffe4e6 0%,#fecdd3 50%,#fff1f2 100%)',
+    'light-dots': 'radial-gradient(circle,rgba(124,58,237,0.08) 1px,transparent 1px)',
+    'light-grid': 'repeating-linear-gradient(0deg,transparent,transparent 19px,rgba(0,0,0,0.04) 19px,rgba(0,0,0,0.04) 20px),repeating-linear-gradient(90deg,transparent,transparent 19px,rgba(0,0,0,0.04) 19px,rgba(0,0,0,0.04) 20px)',
 };
 
 window.setChatBackground = function(bgKey) {
@@ -852,9 +1344,15 @@ window.setChatBackground = function(bgKey) {
         var preset = _chatBgPresets[bgKey];
         if (!preset) return;
         mc.style.backgroundImage = preset;
-        mc.style.backgroundSize = '';
+        mc.style.backgroundSize = bgKey === 'light-dots' ? '16px 16px' : '';
         mc.style.backgroundPosition = '';
         mc.style.backgroundRepeat = '';
+        // Set background color for light backgrounds
+        if (bgKey.startsWith('light-')) {
+            mc.style.backgroundColor = bgKey === 'light-dots' || bgKey === 'light-grid' ? '#fafafa' : '';
+        } else {
+            mc.style.backgroundColor = '';
+        }
     }
     localStorage.setItem('vortex_chat_bg', bgKey);
     if (bgKey !== 'custom') {
@@ -869,7 +1367,7 @@ window.uploadChatBackground = function(input) {
     if (!input.files || !input.files[0]) return;
     var file = input.files[0];
     if (file.size > 2 * 1024 * 1024) {
-        alert('Файл слишком большой. Максимум 2 МБ.');
+        alert(window.t?.('errors.fileTooLarge')||'File too large');
         input.value = '';
         return;
     }
@@ -965,19 +1463,19 @@ window.uploadChatBackground = function(input) {
 
 window.shareLocation = function() {
     if (!navigator.geolocation) {
-        alert('Геолокация не поддерживается вашим браузером');
+        alert(window.t?.('errors.geolocationNotSupported')||'Geolocation not supported');
         return;
     }
     var S = window.AppState;
     if (!S.currentRoom) {
-        alert('Сначала откройте чат');
+        alert(window.t?.('errors.openChatFirst')||'Open a chat first');
         return;
     }
 
     navigator.geolocation.getCurrentPosition(function(pos) {
         var lat = pos.coords.latitude.toFixed(6);
         var lng = pos.coords.longitude.toFixed(6);
-        var text = '\ud83d\udccd Местоположение: ' + lat + ', ' + lng + '\nhttps://maps.google.com/maps?q=' + lat + ',' + lng;
+        var text = '\ud83d\udccd ' + t('location.location') + ': ' + lat + ', ' + lng + '\nhttps://maps.google.com/maps?q=' + lat + ',' + lng;
 
         var input = document.getElementById('msg-input');
         if (input) {
@@ -987,24 +1485,204 @@ window.shareLocation = function() {
     }, function(err) {
         if (err.code === 1) {
             var isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-            var msg = 'Доступ к геолокации запрещён.\n\n';
+            var msg = t('location.accessDenied') + '\n\n';
             if (isMac) {
-                msg += '1. macOS: Системные настройки → Конфиденциальность → Службы геолокации → включите для браузера\n';
-                msg += '2. Браузер: нажмите на замок в адресной строке → Местоположение → Разрешить\n';
-                msg += '3. Перезагрузите страницу';
+                msg += t('location.macStep1') + '\n';
+                msg += t('location.macStep2') + '\n';
+                msg += t('location.macStep3');
             } else {
-                msg += 'Нажмите на замок в адресной строке → Местоположение → Разрешить, затем перезагрузите страницу';
+                msg += t('location.otherBrowserHint');
             }
             alert(msg);
         } else if (err.code === 2) {
-            alert('Не удалось определить местоположение.\nПроверьте что GPS/Wi-Fi включены.');
+            alert(window.t?.('errors.locationFailed')||'Failed to determine location');
         } else {
-            alert('Таймаут определения местоположения.\nПопробуйте на открытом пространстве.');
+            alert(window.t?.('errors.locationTimeout')||'Location timeout');
         }
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// UNIFIED PICKER — Emoji / Stickers / GIF in one panel
+// ══════════════════════════════════════════════════════════════════════════════
+
+var _upOpen = false;
+var _upCurrentTab = 'emoji';
+
+// Bind expr-btn via addEventListener (more reliable than inline onclick)
+document.addEventListener('DOMContentLoaded', function() {
+    var exprBtn = document.getElementById('expr-btn');
+    if (exprBtn) {
+        exprBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            window.toggleUnifiedPicker();
+        });
+    }
+});
+
+window.closeUnifiedPicker = function() {
+    var panel = document.getElementById('unified-picker');
+    if (panel) { panel.classList.remove('open'); panel.style.display = 'none'; }
+    _upOpen = false;
+    document.removeEventListener('pointerdown', _upOutsideClick, true);
+    if (window._closeEmojiPicker) window._closeEmojiPicker();
+};
+
+window.toggleUnifiedPicker = function() {
+    var panel = document.getElementById('unified-picker');
+    if (!panel) return;
+    // Always remove stale listener first
+    document.removeEventListener('pointerdown', _upOutsideClick, true);
+    if (_upOpen) {
+        panel.classList.remove('open');
+        _upOpen = false;
+        if (window._closeEmojiPicker) window._closeEmojiPicker();
+    } else {
+        panel.classList.add('open');
+        _upOpen = true;
+        window.switchPickerTab(_upCurrentTab);
+        // Close on outside click — use pointerdown to avoid same-click race
+        setTimeout(function() {
+            document.addEventListener('pointerdown', _upOutsideClick, true);
+        }, 0);
+    }
+};
+
+function _upOutsideClick(e) {
+    var panel = document.getElementById('unified-picker');
+    var btn = document.getElementById('expr-btn');
+    if (panel && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
+        panel.classList.remove('open');
+        _upOpen = false;
+        if (window._closeEmojiPicker) window._closeEmojiPicker();
+        document.removeEventListener('pointerdown', _upOutsideClick, true);
+    }
+}
+
+window.switchPickerTab = function(tab, btn) {
+    _upCurrentTab = tab;
+    document.querySelectorAll('.up-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === tab); });
+    var content = document.getElementById('up-content');
+    if (!content) return;
+    content.textContent = '';
+
+    if (tab === 'emoji') {
+        // Embed emoji picker directly into content
+        if (window._renderEmojiInto) {
+            window._renderEmojiInto(content);
+        } else {
+            // Fallback: try loading the module
+            import('/static/js/chat/emoji-picker.js').then(function(m) {
+                if (m.renderInto) m.renderInto(content);
+                else if (m.openPicker) {
+                    // Use existing picker - move it into content
+                    m.openPicker();
+                    var picker = document.querySelector('.emoji-chat-picker');
+                    if (picker) {
+                        content.appendChild(picker);
+                        picker.classList.add('open');
+                    }
+                }
+            }).catch(function(e) { console.error('emoji load:', e); });
+        }
+    } else if (tab === 'stickers') {
+        _renderStickersInPicker(content);
+    } else if (tab === 'gif') {
+        _renderGifsInPicker(content);
+    }
+};
+
+function _renderStickersInPicker(container) {
+    container.style.cssText = 'padding:8px;';
+    // Load custom packs
+    (async function() {
+        try {
+            var resp = await fetch('/api/stickers/packs', { credentials: 'include' });
+            var data = resp.ok ? await resp.json() : {};
+            var packs = Array.isArray(data) ? data : (data.own || []).concat(data.favorited || []);
+            if (!packs.length) {
+                container.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">No sticker packs yet</div>';
+                return;
+            }
+            packs.forEach(function(pack) {
+                var stickers = pack.stickers || [];
+                if (!stickers.length) return;
+                var section = document.createElement('div');
+                section.style.cssText = 'margin-bottom:12px;';
+                var label = document.createElement('div');
+                label.style.cssText = 'font-size:11px;color:var(--text3);font-weight:600;padding:4px 0;';
+                label.textContent = pack.name;
+                section.appendChild(label);
+                var grid = document.createElement('div');
+                grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px;';
+                stickers.forEach(function(st) {
+                    var img = document.createElement('img');
+                    img.src = st.image_url;
+                    img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:contain;border-radius:8px;cursor:pointer;background:var(--bg3);padding:4px;box-sizing:border-box;';
+                    img.addEventListener('click', function() {
+                        if (window.sendStickerDirect) window.sendStickerDirect('[STICKER] img:' + st.image_url);
+                        if (window.closeUnifiedPicker) window.closeUnifiedPicker();
+                    });
+                    grid.appendChild(img);
+                });
+                section.appendChild(grid);
+                container.appendChild(section);
+            });
+        } catch(e) {
+            container.innerHTML = '<div style="text-align:center;color:var(--text3);padding:24px;font-size:13px;">Failed to load</div>';
+        }
+    })();
+}
+
+function _renderGifsInPicker(container) {
+    container.style.cssText = 'padding:8px;';
+    var loading = document.createElement('div');
+    loading.style.cssText = 'text-align:center;color:var(--text3);padding:24px;font-size:13px;';
+    loading.textContent = (window.t?.('ui.loading')||'Loading...');
+    container.appendChild(loading);
+    (async function() {
+        try {
+            var resp = await fetch('/api/gifs/saved', { credentials: 'include' });
+            var gifs = resp.ok ? await resp.json() : [];
+            container.textContent = '';
+            if (!gifs.length) {
+                container.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px 16px;font-size:13px;">No saved GIFs.<br>Right-click a GIF in chat \u2192 "Add to GIF"</div>';
+                return;
+            }
+            var grid = document.createElement('div');
+            grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:6px;';
+            gifs.forEach(function(g) {
+                var wrap = document.createElement('div');
+                wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#111;cursor:pointer;';
+                var img = document.createElement('img');
+                img.src = g.url;
+                img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+                img.addEventListener('click', function() {
+                    if (window.sendGif) window.sendGif(g.url);
+                    var panel = document.getElementById('unified-picker');
+                    if (panel) { panel.classList.remove('open'); _upOpen = false; }
+                });
+                var del = document.createElement('button');
+                del.style.cssText = 'position:absolute;top:3px;right:3px;background:rgba(0,0,0,.7);color:#fff;border:none;width:20px;height:20px;border-radius:50%;font-size:12px;cursor:pointer;display:none;align-items:center;justify-content:center;';
+                del.textContent = '\u00D7';
+                del.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    fetch('/api/gifs/saved/' + g.id, { method: 'DELETE', credentials: 'include', headers: { 'X-CSRF-Token': window.AppState?.csrfToken || '' } });
+                    wrap.remove();
+                });
+                wrap.addEventListener('mouseenter', function() { del.style.display = 'flex'; });
+                wrap.addEventListener('mouseleave', function() { del.style.display = 'none'; });
+                wrap.append(img, del);
+                grid.appendChild(wrap);
+            });
+            container.appendChild(grid);
+        } catch(e) {
+            container.innerHTML = '<div style="text-align:center;color:var(--red);padding:24px;font-size:13px;">Failed to load</div>';
+        }
+    })();
+}
+
 // FEATURE 4: GIF Search (Tenor API)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -1012,32 +1690,81 @@ var _gifSearchTimer = null;
 
 window.openGifPicker = function() {
     if (!window.AppState.currentRoom) {
-        alert('Сначала откройте чат');
+        window.vxAlert?.(t('chat.openChatFirst'));
         return;
     }
     window.openModal('gif-modal');
-    var el = document.getElementById('gif-search-input');
-    if (el) { el.value = ''; el.focus(); }
     var results = document.getElementById('gif-results');
-    if (results) results.innerHTML = '<div style="padding:16px;color:var(--text2);text-align:center;">Введите запрос для поиска</div>';
+    if (!results) return;
+    results.textContent = '';
+    var loading = document.createElement('div');
+    loading.style.cssText = 'text-align:center;color:var(--text3);padding:24px;font-size:13px;';
+    loading.textContent = (window.t?.('ui.loading')||'Loading...');
+    results.appendChild(loading);
+
+    (async function() {
+        try {
+            var resp = await fetch('/api/gifs/saved', { credentials: 'include' });
+            var gifs = resp.ok ? await resp.json() : [];
+            results.textContent = '';
+            if (!gifs.length) {
+                var empty = document.createElement('div');
+                empty.style.cssText = 'text-align:center;color:var(--text3);padding:32px 16px;font-size:13px;';
+                empty.textContent = 'No saved GIFs yet. Right-click a GIF in chat \u2192 "Add to GIF".';
+                results.appendChild(empty);
+                return;
+            }
+            var grid = document.createElement('div');
+            grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:6px;';
+            gifs.forEach(function(g) {
+                var wrap = document.createElement('div');
+                wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#111;cursor:pointer;';
+                var img = document.createElement('img');
+                img.src = g.url;
+                img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+                img.addEventListener('click', function() { window.sendGif(g.url); });
+                // Delete button
+                var del = document.createElement('button');
+                del.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,.7);color:#fff;border:none;width:22px;height:22px;border-radius:50%;font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;';
+                del.textContent = '\u00D7';
+                del.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    fetch('/api/gifs/saved/' + g.id, { method: 'DELETE', credentials: 'include', headers: { 'X-CSRF-Token': window.AppState?.csrfToken || '' } });
+                    wrap.remove();
+                });
+                wrap.addEventListener('mouseenter', function() { del.style.display = 'flex'; });
+                wrap.addEventListener('mouseleave', function() { del.style.display = 'none'; });
+                wrap.append(img, del);
+                grid.appendChild(wrap);
+            });
+            results.appendChild(grid);
+        } catch(e) {
+            console.error('Load saved GIFs error:', e);
+            results.textContent = '';
+            var err = document.createElement('div');
+            err.style.cssText = 'text-align:center;color:var(--red);padding:24px;font-size:13px;';
+            err.textContent = (window.t?.('gifs.failedToLoad')||'Failed to load GIFs');
+            results.appendChild(err);
+        }
+    })();
 };
 
 window.searchGifs = function(query) {
     clearTimeout(_gifSearchTimer);
     var el = document.getElementById('gif-results');
     if (!query || !query.trim()) {
-        if (el) el.innerHTML = '<div style="padding:16px;color:var(--text2);text-align:center;">Введите запрос для поиска</div>';
+        if (el) el.innerHTML = '<div style="padding:16px;color:var(--text2);text-align:center;">' + t('search.enterQuery') + '</div>';
         return;
     }
     _gifSearchTimer = setTimeout(async function() {
-        if (el) el.innerHTML = '<div style="padding:16px;color:var(--text2);text-align:center;">Поиск...</div>';
+        if (el) el.innerHTML = '<div style="padding:16px;color:var(--text2);text-align:center;">' + t('search.searching') + '</div>';
         try {
             var key = 'AIzaSyDvT6aTBbn1fJWEAqEz1Kht2xQN_pjUib0';
             var resp = await fetch('https://tenor.googleapis.com/v2/search?q=' + encodeURIComponent(query) + '&key=' + key + '&limit=20&media_filter=gif');
             var data = await resp.json();
             var results = data.results || [];
             if (results.length === 0) {
-                el.innerHTML = '<div style="padding:16px;color:var(--text2);text-align:center;">Ничего не найдено</div>';
+                el.innerHTML = '<div style="padding:16px;color:var(--text2);text-align:center;">' + t('search.nothingFound') + '</div>';
                 return;
             }
             el.innerHTML = results.map(function(gif) {
@@ -1047,13 +1774,14 @@ window.searchGifs = function(query) {
                        'style="width:calc(50% - 4px);cursor:pointer;border-radius:4px;object-fit:cover;max-height:150px;">';
             }).join('');
         } catch(e) {
-            if (el) el.innerHTML = '<div style="padding:16px;color:var(--red);text-align:center;">Ошибка поиска: ' + e.message + '</div>';
+            if (el) el.innerHTML = '<div style="padding:16px;color:var(--red);text-align:center;">' + t('search.searchError', {message: e.message}) + '</div>';
         }
     }, 500);
 };
 
 window.sendGif = function(url) {
     window.closeModal('gif-modal');
+    if (window.closeUnifiedPicker) window.closeUnifiedPicker();
     var input = document.getElementById('msg-input');
     if (input) {
         input.value = '[GIF] ' + url;
@@ -1071,12 +1799,12 @@ window.copyProfileLink = function() {
     var link = location.origin + '?contact=' + encodeURIComponent(u.username);
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(link).then(function() {
-            alert('Ссылка скопирована: ' + link);
+            window.showToast?.(t('common.linkCopied'), 'success');
         }).catch(function() {
-            prompt('Скопируйте ссылку:', link);
+            window.vxAlert(t('common.copyLink'), { token: link });
         });
     } else {
-        prompt('Скопируйте ссылку:', link);
+        window.vxAlert(t('common.copyLink'), { token: link });
     }
 };
 
@@ -1086,26 +1814,26 @@ window.copyProfileLink = function() {
 
 // Animated sticker definitions (vortex pack)
 var ANIMATED_STICKERS = [
-    { name: 'wave',     emoji: '\u{1F44B}', label: 'Привет' },
-    { name: 'heart',    emoji: '\u{2764}\u{FE0F}', label: 'Сердце' },
-    { name: 'fire',     emoji: '\u{1F525}', label: 'Огонь' },
-    { name: 'laugh',    emoji: '\u{1F602}', label: 'Смех' },
-    { name: 'cry',      emoji: '\u{1F62D}', label: 'Плач' },
-    { name: 'thumbsup', emoji: '\u{1F44D}', label: 'Класс' },
-    { name: 'party',    emoji: '\u{1F389}', label: 'Праздник' },
-    { name: 'rocket',   emoji: '\u{1F680}', label: 'Ракета' },
-    { name: 'star',     emoji: '\u{2B50}',  label: 'Звезда' },
-    { name: 'cool',     emoji: '\u{1F60E}', label: 'Круто' },
-    { name: 'love',     emoji: '\u{1F970}', label: 'Любовь' },
-    { name: 'clap',     emoji: '\u{1F44F}', label: 'Аплодисменты' },
-    { name: 'think',    emoji: '\u{1F914}', label: 'Думаю' },
-    { name: 'scared',   emoji: '\u{1F631}', label: 'Страх' },
-    { name: 'angry',    emoji: '\u{1F621}', label: 'Злость' },
-    { name: 'sleep',    emoji: '\u{1F634}', label: 'Сон' },
-    { name: 'money',    emoji: '\u{1F911}', label: 'Деньги' },
-    { name: 'ghost',    emoji: '\u{1F47B}', label: 'Призрак' },
+    { name: 'wave',     emoji: '\u{1F44B}', label: t('stickers.wave') },
+    { name: 'heart',    emoji: '\u{2764}\u{FE0F}', label: t('stickers.heart') },
+    { name: 'fire',     emoji: '\u{1F525}', label: t('stickers.fire') },
+    { name: 'laugh',    emoji: '\u{1F602}', label: t('stickers.laugh') },
+    { name: 'cry',      emoji: '\u{1F62D}', label: t('stickers.cry') },
+    { name: 'thumbsup', emoji: '\u{1F44D}', label: t('stickers.thumbsUp') },
+    { name: 'party',    emoji: '\u{1F389}', label: t('stickers.party') },
+    { name: 'rocket',   emoji: '\u{1F680}', label: t('stickers.rocket') },
+    { name: 'star',     emoji: '\u{2B50}',  label: t('stickers.star') },
+    { name: 'cool',     emoji: '\u{1F60E}', label: t('stickers.cool') },
+    { name: 'love',     emoji: '\u{1F970}', label: t('stickers.love') },
+    { name: 'clap',     emoji: '\u{1F44F}', label: t('stickers.applause') },
+    { name: 'think',    emoji: '\u{1F914}', label: t('stickers.thinking') },
+    { name: 'scared',   emoji: '\u{1F631}', label: t('stickers.fear') },
+    { name: 'angry',    emoji: '\u{1F621}', label: t('stickers.anger') },
+    { name: 'sleep',    emoji: '\u{1F634}', label: t('stickers.sleep') },
+    { name: 'money',    emoji: '\u{1F911}', label: t('stickers.money') },
+    { name: 'ghost',    emoji: '\u{1F47B}', label: t('stickers.ghost') },
     { name: 'hundred',  emoji: '\u{1F4AF}', label: '100' },
-    { name: 'eyes',     emoji: '\u{1F440}', label: 'Глаза' }
+    { name: 'eyes',     emoji: '\u{1F440}', label: t('stickers.eyes') }
 ];
 
 // Classic emoji sticker packs
@@ -1119,7 +1847,7 @@ var STICKER_PACKS = {
 
 window.openStickerPicker = function() {
     if (window.openModal) window.openModal('sticker-modal');
-    window.showStickerCategory('animated', document.querySelector('#sticker-modal .settings-tab'));
+    window.showStickerCategory('my_stickers', document.querySelector('#sticker-modal .settings-tab'));
 };
 
 window.showStickerCategory = function(cat, btn) {
@@ -1127,6 +1855,70 @@ window.showStickerCategory = function(cat, btn) {
     if (btn) btn.classList.add('active');
     var grid = document.getElementById('sticker-grid');
     if (!grid) return;
+
+    if (cat === 'my_stickers') {
+        // Render user's custom stickers (VXS1 format)
+        grid.className = '';
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px;max-height:280px;overflow-y:auto;';
+        grid.textContent = '';
+        var stickers = typeof window.getMyStickers === 'function' ? window.getMyStickers() : [];
+        if (stickers.length === 0) {
+            var empty = document.createElement('div');
+            empty.style.cssText = 'grid-column:1/-1;text-align:center;padding:24px;color:var(--text3);font-size:13px;';
+            empty.textContent = t('stickers.noStickersHint');
+            grid.appendChild(empty);
+        } else {
+            stickers.forEach(function(s) {
+                var item = document.createElement('div');
+                item.style.cssText = 'cursor:pointer;border-radius:8px;overflow:hidden;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:var(--bg3);position:relative;';
+                if (s.preview_url) {
+                    var img = document.createElement('img');
+                    img.src = s.preview_url;
+                    img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+                    img.loading = 'lazy';
+                    item.appendChild(img);
+                } else {
+                    item.textContent = s.emoji || s.name?.charAt(0) || '?';
+                    item.style.fontSize = '32px';
+                }
+                item.addEventListener('click', function() {
+                    window.sendMySticker?.(s.id);
+                    window.closeModal?.('sticker-modal');
+                });
+                // Long press to delete
+                var holdTimer = null;
+                item.addEventListener('touchstart', function() {
+                    holdTimer = setTimeout(function() {
+                        if (confirm(t('stickers.deleteConfirm'))) {
+                            window.removeMySticker?.(s.id);
+                            window.showStickerCategory('my_stickers', btn);
+                        }
+                    }, 600);
+                }, { passive: true });
+                item.addEventListener('touchend', function() { clearTimeout(holdTimer); });
+                grid.appendChild(item);
+            });
+        }
+        // Add sticker button
+        var addBtn = document.createElement('div');
+        addBtn.style.cssText = 'cursor:pointer;border-radius:8px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:var(--bg3);border:2px dashed var(--border);color:var(--text3);font-size:24px;';
+        addBtn.textContent = '+';
+        addBtn.title = t('stickers.addSticker');
+        var addInput = document.createElement('input');
+        addInput.type = 'file';
+        addInput.accept = 'image/*';
+        addInput.style.display = 'none';
+        addInput.addEventListener('change', function() {
+            if (addInput.files[0]) {
+                window.addToMyStickers?.(addInput.files[0]);
+                setTimeout(function() { window.showStickerCategory('my_stickers', btn); }, 500);
+            }
+        });
+        addBtn.addEventListener('click', function() { addInput.click(); });
+        addBtn.appendChild(addInput);
+        grid.appendChild(addBtn);
+        return;
+    }
 
     if (cat === 'animated') {
         // Render animated sticker grid (4 columns)
@@ -1152,11 +1944,13 @@ window.showStickerCategory = function(cat, btn) {
 
 window.sendAnimatedSticker = function(name) {
     if (window.closeModal) window.closeModal('sticker-modal');
+    if (window.closeUnifiedPicker) window.closeUnifiedPicker();
     if (window.sendStickerDirect) window.sendStickerDirect('[STICKER] vortex:' + name);
 };
 
 window.sendSticker = function(emoji) {
     if (window.closeModal) window.closeModal('sticker-modal');
+    if (window.closeUnifiedPicker) window.closeUnifiedPicker();
     if (window.sendStickerDirect) window.sendStickerDirect('[STICKER] ' + emoji);
 };
 
@@ -1211,18 +2005,18 @@ window.loadMyPacks = async function() {
         window._customStickerPacks = packs;
         _renderMyPacks(packs, list);
     } catch(e) {
-        list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Не удалось загрузить паки</div>';
+        list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.failedToLoadPacks') + '</div>';
         console.warn('loadMyPacks error:', e);
     }
 };
 
 function _renderMyPacks(packs, container) {
     if (!packs || packs.length === 0) {
-        container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">У вас пока нет стикерпаков</div>';
+        container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.noPacksYet') + '</div>';
         return;
     }
     var S = window.AppState;
-    var myId = S && S.user ? S.user.id : null;
+    var myId = S && S.user ? (S.user.user_id || S.user.id) : null;
     container.innerHTML = packs.map(function(pack) {
         var isOwner = pack.creator_id === myId;
         var stickerCount = (pack.stickers && pack.stickers.length) || 0;
@@ -1231,16 +2025,16 @@ function _renderMyPacks(packs, container) {
             : '<div class="sticker-pack-cover sticker-pack-cover--empty">📦</div>';
         var actions = '';
         if (isOwner) {
-            actions = '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();deleteStickerPack(\'' + pack.id + '\')" title="Удалить" style="color:var(--red);padding:4px 8px;font-size:11px;">Удалить</button>';
+            actions = '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();deleteStickerPack(\'' + pack.id + '\')" title="' + t('common.delete') + '" style="color:var(--red);padding:4px 8px;font-size:11px;">' + t('common.delete') + '</button>';
         } else {
-            actions = '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();unfavoritePack(\'' + pack.id + '\')" title="Убрать" style="padding:4px 8px;font-size:11px;">Убрать</button>';
+            actions = '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();unfavoritePack(\'' + pack.id + '\')" title="' + t('common.remove') + '" style="padding:4px 8px;font-size:11px;">' + t('common.remove') + '</button>';
         }
         return '<div class="sticker-pack-card" onclick="togglePackExpand(this,\'' + pack.id + '\',' + isOwner + ')">' +
             '<div class="sticker-pack-card-header">' +
                 coverHtml +
                 '<div class="sticker-pack-card-info">' +
                     '<div class="sticker-pack-card-name">' + _sesc(pack.name) + '</div>' +
-                    '<div class="sticker-pack-card-meta">' + stickerCount + ' стикер' + _pluralRu(stickerCount) + '</div>' +
+                    '<div class="sticker-pack-card-meta">' + t('stickers.stickerCount', {count: stickerCount}) + '</div>' +
                 '</div>' +
                 '<div class="sticker-pack-card-actions">' + actions + '</div>' +
             '</div>' +
@@ -1252,45 +2046,216 @@ function _renderMyPacks(packs, container) {
 function _pluralRu(n) {
     var m = n % 10, mm = n % 100;
     if (m === 1 && mm !== 11) return '';
-    if (m >= 2 && m <= 4 && (mm < 12 || mm > 14)) return 'а';
-    return 'ов';
+    if (m >= 2 && m <= 4 && (mm < 12 || mm > 14)) return 's';
+    return 's';
 }
 
-// ── Expand pack to show stickers ──
-window.togglePackExpand = async function(cardEl, packId, isOwner) {
-    var expandEl = cardEl.querySelector('.sticker-pack-expand');
-    if (!expandEl) return;
-    if (expandEl.style.display !== 'none') {
-        expandEl.style.display = 'none';
-        return;
-    }
-    expandEl.style.display = 'block';
-    expandEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:12px;">Загрузка...</div>';
+// ── Open fullscreen pack editor ──
+window.togglePackExpand = function(cardEl, packId, isOwner) {
+    window.openPackEditor(packId, isOwner);
+};
+
+window.openPackEditor = async function(packId, isOwner) {
+    document.getElementById('spe-root')?.remove();
+    var root = document.createElement('div');
+    root.id = 'spe-root'; root.className = 'spe-root';
+
+    // Loading state
+    // NOTE: all innerHTML below is static trusted HTML (SVG icons, layout strings). No user data is interpolated unsafely.
+    root.innerHTML = '<div class="spe-loading">Loading...</div>';
+    document.body.appendChild(root);
+
+    var pack;
     try {
         var resp = await fetch('/api/stickers/packs/' + packId, { credentials: 'include', headers: _stickerHeaders(false) });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        var pack = await resp.json();
-        _renderPackStickers(expandEl, pack, isOwner);
+        var _data = await resp.json();
+        pack = _data.pack || _data; // unwrap envelope
     } catch(e) {
-        expandEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:12px;">Ошибка загрузки</div>';
+        root.innerHTML = '<div class="spe-loading">Error loading pack</div>';
+        setTimeout(function() { root.remove(); }, 1500);
+        return;
     }
-};
 
-function _renderPackStickers(container, pack, isOwner) {
+    isOwner = String(pack.creator_id) === String(window.AppState?.user?.user_id || window.AppState?.user?.id || '');
     var stickers = pack.stickers || [];
-    var html = '<div class="sticker-pack-grid">';
-    stickers.forEach(function(st) {
-        html += '<div class="sticker-thumb-wrap">' +
-            '<img src="' + _sesc(st.image_url) + '" class="sticker-thumb" alt="sticker">' +
-            (isOwner ? '<button class="sticker-thumb-delete" onclick="event.stopPropagation();deleteStickerFromPack(\'' + pack.id + '\',\'' + st.id + '\')" title="Удалить">&times;</button>' : '') +
-        '</div>';
-    });
-    if (isOwner) {
-        html += '<div class="sticker-upload-btn" onclick="event.stopPropagation();triggerStickerUpload(\'' + pack.id + '\')" title="Добавить стикер">+</div>';
+
+    function _render() {
+        var coverSrc = pack.cover_url || '';
+        root.innerHTML = '';
+
+        // Header
+        var header = document.createElement('div'); header.className = 'spe-header';
+        var backBtn = document.createElement('button'); backBtn.className = 'spe-hdr-btn';
+        backBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>';
+        backBtn.addEventListener('click', function() { root.remove(); loadMyPacks(); });
+        var title = document.createElement('div'); title.className = 'spe-title';
+        title.textContent = pack.name;
+        header.append(backBtn, title);
+        if (isOwner) {
+            var delBtn = document.createElement('button'); delBtn.className = 'spe-hdr-btn spe-hdr-del';
+            delBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>';
+            delBtn.addEventListener('click', async function() {
+                if (!confirm((window.t?.('stickers.deleteConfirm')||'Delete this sticker pack?'))) return;
+                await fetch('/api/stickers/packs/' + packId, { method: 'DELETE', credentials: 'include', headers: _stickerHeaders(false) });
+                root.remove(); loadMyPacks();
+            });
+            header.appendChild(delBtn);
+        }
+        root.appendChild(header);
+
+        // Cover + info
+        var infoBox = document.createElement('div'); infoBox.className = 'spe-info';
+        var coverEl = document.createElement('div'); coverEl.className = 'spe-cover';
+        if (coverSrc) {
+            var img = document.createElement('img'); img.src = coverSrc; img.className = 'spe-cover-img';
+            coverEl.appendChild(img);
+        } else {
+            coverEl.textContent = '\u{1F4E6}';
+            coverEl.classList.add('spe-cover-empty');
+        }
+        if (isOwner) {
+            var coverBtn = document.createElement('button'); coverBtn.className = 'spe-cover-edit';
+            coverBtn.textContent = '+';
+            coverBtn.addEventListener('click', function() {
+                var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+                inp.addEventListener('change', async function() {
+                    if (!inp.files?.[0]) return;
+                    // Upload as first sticker, then set cover
+                    var fd = new FormData(); fd.append('file', inp.files[0]);
+                    var h = {}; if (window.AppState?.csrfToken) h['X-CSRF-Token'] = window.AppState.csrfToken;
+                    var r = await fetch('/api/stickers/packs/' + packId + '/stickers', { method: 'POST', credentials: 'include', headers: h, body: fd });
+                    if (r.ok) {
+                        var _coverData = await r.json();
+                        var _st = _coverData.sticker || _coverData;
+                        pack.cover_url = _st.image_url;
+                        await fetch('/api/stickers/packs/' + packId, { method: 'PUT', credentials: 'include', headers: _stickerHeaders(true), body: JSON.stringify({ cover_url: st.image_url }) });
+                        window.openPackEditor(packId, isOwner);
+                    }
+                }); inp.click();
+            });
+            coverEl.appendChild(coverBtn);
+        }
+        var details = document.createElement('div'); details.className = 'spe-details';
+
+        if (isOwner) {
+            var nameInp = document.createElement('input'); nameInp.className = 'spe-name-input';
+            nameInp.value = pack.name; nameInp.placeholder = 'Pack name';
+            nameInp.addEventListener('change', async function() {
+                var v = nameInp.value.trim(); if (!v) return;
+                await fetch('/api/stickers/packs/' + packId, { method: 'PUT', credentials: 'include', headers: _stickerHeaders(true), body: JSON.stringify({ name: v }) });
+                pack.name = v; title.textContent = v;
+            });
+            var descInp = document.createElement('input'); descInp.className = 'spe-desc-input';
+            descInp.value = pack.description || ''; descInp.placeholder = 'Description...';
+            descInp.addEventListener('change', async function() {
+                await fetch('/api/stickers/packs/' + packId, { method: 'PUT', credentials: 'include', headers: _stickerHeaders(true), body: JSON.stringify({ description: descInp.value.trim() }) });
+            });
+            details.append(nameInp, descInp);
+        } else {
+            var nameEl = document.createElement('div'); nameEl.className = 'spe-name'; nameEl.textContent = pack.name;
+            var descEl = document.createElement('div'); descEl.className = 'spe-desc'; descEl.textContent = pack.description || '';
+            details.append(nameEl, descEl);
+        }
+
+        var meta = document.createElement('div'); meta.className = 'spe-meta';
+        meta.textContent = stickers.length + ' sticker' + (stickers.length !== 1 ? 's' : '') + ' \u00B7 ' + (pack.is_public ? 'Public' : 'Private');
+        details.appendChild(meta);
+
+        // Public toggle for owner
+        if (isOwner) {
+            var pubRow = document.createElement('div'); pubRow.className = 'spe-pub-row';
+            var pubLabel = document.createElement('span'); pubLabel.textContent = (window.t?.('videoEditor.publicInCatalog')||'Public in catalog');
+            var pubToggle = document.createElement('button');
+            pubToggle.className = 'spe-toggle' + (pack.is_public ? ' active' : '');
+            pubToggle.innerHTML = '<span class="spe-toggle-knob"></span>';
+            pubToggle.addEventListener('click', async function() {
+                var newVal = !pack.is_public;
+                await fetch('/api/stickers/packs/' + packId, { method: 'PUT', credentials: 'include', headers: _stickerHeaders(true), body: JSON.stringify({ is_public: newVal }) });
+                pack.is_public = newVal;
+                pubToggle.classList.toggle('active', newVal);
+                meta.textContent = stickers.length + ' sticker' + (stickers.length !== 1 ? 's' : '') + ' \u00B7 ' + (newVal ? 'Public' : 'Private');
+            });
+            pubRow.append(pubLabel, pubToggle); details.appendChild(pubRow);
+        }
+
+        infoBox.append(coverEl, details);
+        root.appendChild(infoBox);
+
+        // Stickers grid
+        var gridLabel = document.createElement('div'); gridLabel.className = 'spe-section-label';
+        gridLabel.textContent = (window.t?.('ui.stickers')||'Stickers');
+        root.appendChild(gridLabel);
+
+        var grid = document.createElement('div'); grid.className = 'spe-grid';
+        stickers.forEach(function(st) {
+            var wrap = document.createElement('div'); wrap.className = 'spe-sticker';
+            var img = document.createElement('img'); img.src = st.image_url; img.className = 'spe-sticker-img';
+            wrap.appendChild(img);
+            if (isOwner) {
+                var del = document.createElement('button'); del.className = 'spe-sticker-del';
+                del.innerHTML = '&times;';
+                del.addEventListener('click', async function(e) {
+                    e.stopPropagation();
+                    await fetch('/api/stickers/packs/' + packId + '/stickers/' + st.id, { method: 'DELETE', credentials: 'include', headers: _stickerHeaders(false) });
+                    stickers = stickers.filter(function(s) { return s.id !== st.id; });
+                    pack.stickers = stickers;
+                    _render();
+                });
+                wrap.appendChild(del);
+            }
+            grid.appendChild(wrap);
+        });
+
+        // Upload button
+        if (isOwner) {
+            var addBtn = document.createElement('div'); addBtn.className = 'spe-sticker spe-sticker-add';
+            addBtn.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+            addBtn.addEventListener('click', function() {
+                var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/png,image/webp,image/gif,image/jpeg';
+                inp.multiple = true;
+                inp.addEventListener('change', async function() {
+                    if (!inp.files?.length) return;
+                    for (var i = 0; i < inp.files.length; i++) {
+                        var fd = new FormData(); fd.append('file', inp.files[i]);
+                        var h = {}; if (window.AppState?.csrfToken) h['X-CSRF-Token'] = window.AppState.csrfToken;
+                        var r = await fetch('/api/stickers/packs/' + packId + '/stickers', { method: 'POST', credentials: 'include', headers: h, body: fd });
+                        if (r.ok) { var _stData = await r.json(); stickers.push(_stData.sticker || _stData); pack.stickers = stickers; }
+                    }
+                    _render();
+                }); inp.click();
+            });
+            grid.appendChild(addBtn);
+
+            // Drag and drop zone
+            grid.addEventListener('dragover', function(e) { e.preventDefault(); grid.classList.add('spe-dragover'); });
+            grid.addEventListener('dragleave', function() { grid.classList.remove('spe-dragover'); });
+            grid.addEventListener('drop', async function(e) {
+                e.preventDefault(); grid.classList.remove('spe-dragover');
+                var files = e.dataTransfer?.files;
+                if (!files?.length) return;
+                for (var i = 0; i < files.length; i++) {
+                    if (!files[i].type.startsWith('image/')) continue;
+                    var fd = new FormData(); fd.append('file', files[i]);
+                    var h = {}; if (window.AppState?.csrfToken) h['X-CSRF-Token'] = window.AppState.csrfToken;
+                    var r = await fetch('/api/stickers/packs/' + packId + '/stickers', { method: 'POST', credentials: 'include', headers: h, body: fd });
+                    if (r.ok) { var _stData = await r.json(); stickers.push(_stData.sticker || _stData); pack.stickers = stickers; }
+                }
+                _render();
+            });
+        }
+
+        root.appendChild(grid);
+
+        if (stickers.length === 0) {
+            var empty = document.createElement('div'); empty.className = 'spe-empty';
+            empty.textContent = isOwner ? 'No stickers yet. Click + or drag images to add.' : (window.t?.('stickers.packEmpty')||'Pack is empty');
+            root.appendChild(empty);
+        }
     }
-    html += '</div>';
-    container.innerHTML = html;
-}
+
+    _render();
+};
 
 // ── Create pack ──
 window.createStickerPack = async function() {
@@ -1305,19 +2270,23 @@ window.createStickerPack = async function() {
             body: JSON.stringify({ name: name, description: desc, is_public: false })
         });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var data = await resp.json();
+        var newPackId = data.pack ? data.pack.id : data.id;
         document.getElementById('sticker-pack-name').value = '';
         document.getElementById('sticker-pack-desc').value = '';
         toggleStickerCreateForm();
-        loadMyPacks();
+        // Open the new pack in fullscreen editor immediately
+        if (newPackId) window.openPackEditor(newPackId, true);
+        else loadMyPacks();
     } catch(e) {
         console.warn('createStickerPack error:', e);
-        alert('Не удалось создать пак');
+        alert(window.t?.('stickers.failedToCreatePack')||'Failed to create pack');
     }
 };
 
 // ── Delete pack ──
 window.deleteStickerPack = async function(packId) {
-    if (!confirm('Удалить этот стикерпак?')) return;
+    if (!confirm(t('stickers.deletePackConfirm'))) return;
     try {
         await fetch('/api/stickers/packs/' + packId, {
             method: 'DELETE',
@@ -1357,7 +2326,7 @@ window.uploadStickerFile = async function(packId, file) {
         loadMyPacks();
     } catch(e) {
         console.warn('uploadStickerFile error:', e);
-        alert('Не удалось загрузить стикер');
+        alert(window.t?.('stickers.failedToLoadSticker')||'Failed to load sticker');
     }
 };
 
@@ -1407,14 +2376,14 @@ window.loadCatalogPacks = async function() {
         var packs = await resp.json();
         _renderCatalogPacks(packs, list);
     } catch(e) {
-        list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Не удалось загрузить каталог</div>';
+        list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.failedToLoadCatalog') + '</div>';
         console.warn('loadCatalogPacks error:', e);
     }
 };
 
 function _renderCatalogPacks(packs, container) {
     if (!packs || packs.length === 0) {
-        container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Каталог пуст</div>';
+        container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.catalogEmpty') + '</div>';
         return;
     }
     // Determine which packs user already has
@@ -1427,14 +2396,14 @@ function _renderCatalogPacks(packs, container) {
             ? '<img src="' + _sesc(pack.cover_url) + '" class="sticker-pack-cover">'
             : '<div class="sticker-pack-cover sticker-pack-cover--empty">📦</div>';
         var addBtn = ownedIds[pack.id]
-            ? '<span style="font-size:11px;color:var(--green);">Добавлен</span>'
-            : '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();favoritePack(\'' + pack.id + '\')" style="padding:4px 10px;font-size:11px;">Добавить</button>';
+            ? '<span style="font-size:11px;color:var(--green);">' + t('common.added') + '</span>'
+            : '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();favoritePack(\'' + pack.id + '\')" style="padding:4px 10px;font-size:11px;">' + t('common.add') + '</button>';
         return '<div class="sticker-pack-card">' +
             '<div class="sticker-pack-card-header">' +
                 coverHtml +
                 '<div class="sticker-pack-card-info">' +
                     '<div class="sticker-pack-card-name">' + _sesc(pack.name) + '</div>' +
-                    '<div class="sticker-pack-card-meta">' + stickerCount + ' стикер' + _pluralRu(stickerCount) +
+                    '<div class="sticker-pack-card-meta">' + t('stickers.stickerCount', {count: stickerCount}) +
                         (pack.description ? ' &mdash; ' + _sesc(pack.description) : '') + '</div>' +
                 '</div>' +
                 '<div class="sticker-pack-card-actions">' + addBtn + '</div>' +
@@ -1473,14 +2442,15 @@ window.showCustomPackInPicker = async function(packId, btn) {
     if (!grid) return;
     grid.className = '';
     grid.style.cssText = 'max-height:280px;overflow-y:auto;padding:4px;';
-    grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Загрузка...</div>';
+    grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('common.loading') + '</div>';
     try {
         var resp = await fetch('/api/stickers/packs/' + packId, { credentials: 'include', headers: _stickerHeaders(false) });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        var pack = await resp.json();
+        var _rawPack = await resp.json();
+        var pack = _rawPack.pack || _rawPack;
         var stickers = pack.stickers || [];
         if (stickers.length === 0) {
-            grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Пак пуст</div>';
+            grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('stickers.packEmpty') + '</div>';
             return;
         }
         grid.innerHTML = '<div class="custom-sticker-picker-grid">' +
@@ -1491,7 +2461,7 @@ window.showCustomPackInPicker = async function(packId, btn) {
             }).join('') +
         '</div>';
     } catch(e) {
-        grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">Ошибка загрузки</div>';
+        grid.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('errors.loadFailed') + '</div>';
     }
 };
 
@@ -1501,16 +2471,8 @@ window.sendCustomSticker = function(imageUrl) {
     if (window.sendStickerDirect) window.sendStickerDirect('[STICKER] img:' + imageUrl);
 };
 
-// ── Hook into sticker picker open to load custom tabs ──
-var _origOpenStickerPicker = window.openStickerPicker;
-window.openStickerPicker = function() {
-    window._loadCustomPackTabs();
-    if (_origOpenStickerPicker) _origOpenStickerPicker();
-    else {
-        if (window.openModal) window.openModal('sticker-modal');
-        window.showStickerCategory('animated', document.querySelector('#sticker-modal .sticker-picker-tabs .settings-tab'));
-    }
-};
+// openStickerPicker is defined in stickers.js (loaded last)
+// Do NOT wrap it here to avoid recursive call loops
 
 // Load packs when stickers tab is selected in settings
 var _origSwitchSettingsTab = window.switchSettingsTab;
@@ -1553,11 +2515,11 @@ window.startVideoMessage = async function() {
                 '<div class="vr-controls">' +
                     '<button class="vr-btn" onclick="stopVideoMessage(false)">' +
                         '<span class="vr-btn-icon vr-btn-cancel">&#x2715;</span>' +
-                        '<span class="vr-btn-label">Отмена</span>' +
+                        '<span class="vr-btn-label">' + t('common.cancel') + '</span>' +
                     '</button>' +
                     '<button class="vr-btn" onclick="stopVideoMessage(true)">' +
                         '<span class="vr-btn-icon vr-btn-send"><svg width="24" height="24" fill="#fff" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>' +
-                        '<span class="vr-btn-label">Отправить</span>' +
+                        '<span class="vr-btn-label">' + t('common.send') + '</span>' +
                     '</button>' +
                 '</div>' +
             '</div>';
@@ -1586,7 +2548,7 @@ window.startVideoMessage = async function() {
         overlay._tid = tid;
 
     } catch(e) {
-        alert('Нет доступа к камере: ' + e.message);
+        alert((window.t?.('errors.noCameraAccess')||'No camera access')+': '+e.message);
     }
 };
 
@@ -1686,11 +2648,11 @@ window.viewStatus = async function(userId) {
         var data = await window.api('GET', '/api/statuses');
         var userEntry = (data.users || []).find(function(u) { return u.user_id === userId; });
         if (!userEntry || !userEntry.statuses.length) {
-            alert('Нет активных статусов');
+            alert(window.t?.('statuses.noneActive')||'No active statuses');
             return;
         }
         var title = document.getElementById('status-viewer-title');
-        if (title) title.textContent = 'Статусы \u2014 ' + (userEntry.display_name || userEntry.username);
+        if (title) title.textContent = t('statuses.statusesOf', {name: userEntry.display_name || userEntry.username});
         var list = document.getElementById('status-viewer-list');
         if (list) {
             list.innerHTML = userEntry.statuses.map(function(s) {
@@ -1714,7 +2676,7 @@ window.openGallery = async function() {
     if (!S || !S.currentRoom) return;
     if (window.openModal) window.openModal('gallery-modal');
     var grid = document.getElementById('gallery-grid');
-    grid.innerHTML = '<div class="gallery-empty">Загрузка...</div>';
+    grid.innerHTML = '<div class="gallery-empty">' + t('common.loading') + '</div>';
     // Reset tab to photo
     window._galleryTab = 'photo';
     document.querySelectorAll('.gallery-tab').forEach(function(t) {
@@ -1725,7 +2687,7 @@ window.openGallery = async function() {
         window._galleryFiles = data.files || [];
         renderGallery();
     } catch(e) {
-        grid.innerHTML = '<div class="gallery-empty">Ошибка загрузки</div>';
+        grid.innerHTML = '<div class="gallery-empty">' + t('errors.loadFailed') + '</div>';
     }
 };
 
@@ -1754,8 +2716,8 @@ function renderGallery() {
     }
 
     if (!filtered.length) {
-        var labels = { photo: 'Нет фотографий', video: 'Нет видео', files: 'Нет файлов' };
-        grid.innerHTML = '<div class="gallery-empty">' + (labels[tab] || 'Пусто') + '</div>';
+        var labels = { photo: t('gallery.noPhotos'), video: t('gallery.noVideos'), files: t('gallery.noFiles') };
+        grid.innerHTML = '<div class="gallery-empty">' + (labels[tab] || (window.t?.('ui.empty')||'Empty')) + '</div>';
         return;
     }
 
@@ -1781,9 +2743,9 @@ function renderGallery() {
         grid.innerHTML = filtered.map(function(f) {
             var size = f.size_bytes;
             var sizeStr;
-            if (size < 1024) sizeStr = size + ' Б';
-            else if (size < 1024 * 1024) sizeStr = (size / 1024).toFixed(1) + ' КБ';
-            else sizeStr = (size / 1024 / 1024).toFixed(1) + ' МБ';
+            if (size < 1024) sizeStr = size + ' ' + t('files.bytes');
+            else if (size < 1024 * 1024) sizeStr = (size / 1024).toFixed(1) + ' ' + t('files.kb');
+            else sizeStr = (size / 1024 / 1024).toFixed(1) + ' ' + t('files.mb');
             var safeName = (f.file_name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             return '<a href="' + f.download_url + '" download class="gallery-file-item">' +
                 '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>' +
@@ -1850,7 +2812,7 @@ window.createBot = async function() {
     var name = document.getElementById('bot-name')?.value?.trim();
     var description = document.getElementById('bot-description')?.value?.trim() || '';
     if (!name || name.length < 2) {
-        alert('Имя бота должно быть не менее 2 символов');
+        window.vxAlert(t('bots.nameMinLength'));
         return;
     }
     try {
@@ -1858,11 +2820,10 @@ window.createBot = async function() {
         if (resp.ok) {
             window.hideCreateBotForm();
             window.loadMyBots();
-            // Show token once
-            alert('Бот создан!\n\nAPI Token (сохраните, он показывается один раз):\n' + resp.api_token);
+            await window.vxAlert(t('bots.botCreated'), { token: resp.api_token });
         }
     } catch (e) {
-        alert('Ошибка: ' + (e.message || e));
+        window.vxAlert(t('errors.errorWithMessage', {message: e.message || e}));
     }
 };
 
@@ -1873,7 +2834,7 @@ window.loadMyBots = async function() {
         var resp = await window.api('GET', '/api/bots');
         var bots = resp.bots || [];
         if (bots.length === 0) {
-            container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">У вас пока нет ботов</div>';
+            container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0;">' + t('bots.noBotsYet') + '</div>';
             return;
         }
         container.innerHTML = bots.map(function(b) {
@@ -1908,10 +2869,10 @@ window.loadMyBots = async function() {
                         (b.description ? '<div style="font-size:12px;color:var(--text2);margin-top:4px;">' + _escBot(b.description) + '</div>' : '') +
                     '</div>' +
                     '<div style="display:flex;gap:4px;">' +
-                        '<button class="btn btn-secondary" onclick="copyBotToken(' + b.bot_id + ')" style="font-size:11px;padding:2px 8px;" title="Copy token">Token</button>' +
+                        '<button class="btn btn-secondary" onclick="regenerateBotToken(' + b.bot_id + ')" style="font-size:11px;padding:2px 8px;" title="' + t('bots.getToken') + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Token</button>' +
                         '<button class="btn btn-secondary" onclick="editBotCommands(' + b.bot_id + ')" style="font-size:11px;padding:2px 8px;">Commands</button>' +
-                        '<button class="btn btn-secondary" onclick="regenerateBotToken(' + b.bot_id + ')" style="font-size:11px;padding:2px 8px;" title="Regenerate token">&#x1F504;</button>' +
-                        '<button class="btn btn-secondary" style="font-size:11px;padding:2px 8px;color:var(--danger);" onclick="deleteBot(' + b.bot_id + ')">&#x1F5D1;</button>' +
+                        '<button class="btn btn-secondary" onclick="regenerateBotToken(' + b.bot_id + ')" style="font-size:11px;padding:2px 8px;" title="' + t('bots.regenerate') + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>' +
+                        '<button class="btn btn-secondary" style="font-size:11px;padding:2px 8px;color:var(--danger);" onclick="deleteBot(' + b.bot_id + ')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' +
                     '</div>' +
                 '</div>' +
                 (cmds ? '<div style="margin-top:8px;font-size:12px;color:var(--text2);">' + cmds + '</div>' : '') +
@@ -1920,28 +2881,28 @@ window.loadMyBots = async function() {
                     '<div style="display:flex;align-items:center;gap:8px;">' +
                         '<label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">' +
                             '<input type="checkbox" ' + (b.is_public ? 'checked' : '') + ' onchange="toggleBotPublish(' + b.bot_id + ',this.checked,document.getElementById(\'bot-cat-' + b.bot_id + '\').value)" style="width:14px;height:14px;accent-color:var(--accent);">' +
-                            ' Маркетплейс' +
+                            ' ' + t('bots.marketplace') + '' +
                         '</label>' +
                         '<select id="bot-cat-' + b.bot_id + '" style="font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);" onchange="toggleBotPublish(' + b.bot_id + ',true,this.value)">' +
-                            '<option value="utilities"' + (b.category==='utilities'?' selected':'') + '>Утилиты</option>' +
-                            '<option value="games"' + (b.category==='games'?' selected':'') + '>Игры</option>' +
-                            '<option value="moderation"' + (b.category==='moderation'?' selected':'') + '>Модерация</option>' +
-                            '<option value="music"' + (b.category==='music'?' selected':'') + '>Музыка</option>' +
-                            '<option value="productivity"' + (b.category==='productivity'?' selected':'') + '>Продуктивность</option>' +
-                            '<option value="social"' + (b.category==='social'?' selected':'') + '>Соцсети</option>' +
-                            '<option value="fun"' + (b.category==='fun'?' selected':'') + '>Развлечения</option>' +
-                            '<option value="other"' + (b.category==='other'?' selected':'') + '>Другое</option>' +
+                            '<option value="utilities"' + (b.category==='utilities'?' selected':'') + '>' + t('bots.catUtilities') + '</option>' +
+                            '<option value="games"' + (b.category==='games'?' selected':'') + '>' + t('bots.catGames') + '</option>' +
+                            '<option value="moderation"' + (b.category==='moderation'?' selected':'') + '>' + t('bots.catModeration') + '</option>' +
+                            '<option value="music"' + (b.category==='music'?' selected':'') + '>' + t('bots.catMusic') + '</option>' +
+                            '<option value="productivity"' + (b.category==='productivity'?' selected':'') + '>' + t('bots.catProductivity') + '</option>' +
+                            '<option value="social"' + (b.category==='social'?' selected':'') + '>' + t('bots.catSocial') + '</option>' +
+                            '<option value="fun"' + (b.category==='fun'?' selected':'') + '>' + t('bots.catFun') + '</option>' +
+                            '<option value="other"' + (b.category==='other'?' selected':'') + '>' + t('bots.catOther') + '</option>' +
                         '</select>' +
                     '</div>' +
                     (b.is_public ? '<div style="font-size:10px;color:var(--text3);">' +
-                        _escBot(String(b.installs || 0)) + ' установок, ' +
-                        _escBot(String(b.rating || 0)) + ' (' + _escBot(String(b.rating_count || 0)) + ' оценок)' +
+                        t('bots.installsCount', {count: _escBot(String(b.installs || 0))}) + ', ' +
+                        _escBot(String(b.rating || 0)) + ' (' + t('bots.ratingsCount', {count: _escBot(String(b.rating_count || 0))}) + ')' +
                     '</div>' : '') +
                 '</div>' +
             '</div>';
         }).join('');
     } catch (e) {
-        container.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:12px;padding:24px 0;">Ошибка загрузки: ' + (e.message || e) + '</div>';
+        container.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:12px;padding:24px 0;">' + t('errors.loadError', {message: e.message || e}) + '</div>';
     }
 };
 
@@ -1956,36 +2917,35 @@ window.copyBotToken = async function(botId) {
     try {
         var resp = await window.api('GET', '/api/bots/' + botId + '/token');
         if (resp.api_token) {
-            await navigator.clipboard.writeText(resp.api_token);
-            alert('Токен скопирован в буфер обмена');
+            await window.vxAlert('API Token', { token: resp.api_token });
         }
     } catch (e) {
-        alert('Ошибка: ' + (e.message || e));
+        window.vxAlert(t('errors.errorWithMessage', {message: e.message || e}));
     }
 };
 
 window.regenerateBotToken = async function(botId) {
-    if (!confirm('Перегенерировать токен? Старый токен перестанет работать.')) return;
+    if (!await window.vxConfirm(t('bots.regenerateTokenConfirm'), { danger: true })) return;
     try {
         var resp = await window.api('POST', '/api/bots/' + botId + '/regenerate-token');
         if (resp.ok) {
-            alert('Новый токен:\n' + resp.api_token);
+            await window.vxAlert(t('bots.newToken'), { token: resp.api_token });
             window.loadMyBots();
         }
     } catch (e) {
-        alert('Ошибка: ' + (e.message || e));
+        window.vxAlert(t('errors.errorWithMessage', {message: e.message || e}));
     }
 };
 
 window.deleteBot = async function(botId) {
-    if (!confirm('Удалить бота? Это действие необратимо.')) return;
+    if (!await window.vxConfirm(t('bots.deleteBotConfirm'), { danger: true })) return;
     try {
         var resp = await window.api('DELETE', '/api/bots/' + botId);
         if (resp.ok) {
             window.loadMyBots();
         }
     } catch (e) {
-        alert('Ошибка: ' + (e.message || e));
+        window.vxAlert(t('errors.errorWithMessage', {message: e.message || e}));
     }
 };
 
@@ -1997,12 +2957,12 @@ window.showAddBotToRoom = async function() {
         return;
     }
     list.style.display = '';
-    list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:8px;">Загрузка...</div>';
+    list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:8px;">' + t('common.loading') + '</div>';
     try {
         var resp = await window.api('GET', '/api/bots');
         var bots = resp.bots || [];
         if (bots.length === 0) {
-            list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:8px;">У вас нет ботов. Создайте бота в Настройки &rarr; Боты</div>';
+            list.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:8px;">' + t('bots.noBotsCreateHint') + '</div>';
             return;
         }
         var S = window.AppState;
@@ -2010,7 +2970,7 @@ window.showAddBotToRoom = async function() {
         list.innerHTML = bots.map(function(b) {
             return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--bg3);border-radius:6px;margin-bottom:4px;">' +
                 '<span style="font-size:12px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7 13H6v-2h1v2zm5 4c-1.1 0-2-.9-2-2h4c0 1.1-.9 2-2 2zm4-4h-1v-2h1v2zm-6-2v-2h4v2h-4z"/></svg>' + _escBot(b.name) + '</span>' +
-                '<button class="btn btn-primary" style="font-size:11px;padding:2px 8px;" onclick="addBotToCurrentRoom(' + b.bot_id + ')">Добавить</button>' +
+                '<button class="btn btn-primary" style="font-size:11px;padding:2px 8px;" onclick="addBotToCurrentRoom(' + b.bot_id + ')">' + t('common.add') + '</button>' +
             '</div>';
         }).join('');
     } catch (e) {
@@ -2024,30 +2984,29 @@ window.addBotToCurrentRoom = async function(botId) {
     if (!roomId) return;
     try {
         await window.api('POST', '/api/bots/' + botId + '/rooms/' + roomId);
-        alert('Бот добавлен в комнату');
+        alert(window.t?.('notifications.botAddedToRoom')||'Bot added to room');
         document.getElementById('add-bot-to-room-list').style.display = 'none';
     } catch (e) {
-        alert('Ошибка: ' + (e.message || e));
+        alert((window.t?.('errors.generic')||'Error')+': '+(e.message||e));
     }
 };
 
-window.editBotCommands = function(botId) {
-    var cmdsJson = prompt(
-        'Введите команды в формате JSON:\n' +
-        '[{"command": "/help", "description": "Помощь"}, ...]\n\n' +
-        'Или оставьте пустым для очистки:'
+window.editBotCommands = async function(botId) {
+    var cmdsJson = await window.vxPrompt(
+        t('bots.enterCommandsJson'),
+        '', '[]'
     );
-    if (cmdsJson === null) return; // cancelled
+    if (cmdsJson === null) return;
     if (cmdsJson.trim() === '') cmdsJson = '[]';
     try {
-        JSON.parse(cmdsJson); // validate
+        JSON.parse(cmdsJson);
     } catch {
-        alert('Неверный формат JSON');
+        window.vxAlert(t('bots.invalidJsonFormat'));
         return;
     }
     window.api('PUT', '/api/bots/' + botId, { commands: cmdsJson })
         .then(function() { window.loadMyBots(); })
-        .catch(function(e) { alert('Ошибка: ' + (e.message || e)); });
+        .catch(function(e) { window.vxAlert(t('errors.errorWithMessage', {message: e.message || e})); });
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2062,7 +3021,7 @@ window.saveBotMiniAppUrl = async function(botId) {
         await window.api('PUT', '/api/bots/' + botId, { mini_app_url: url });
         window.loadMyBots();
     } catch (e) {
-        alert('Error: ' + (e.message || e));
+        alert((window.t?.('errors.generic')||'Error')+': '+(e.message||e));
     }
 };
 
@@ -2105,7 +3064,7 @@ window.testBotMiniApp = function(botId, url, title) {
 
     window.openMiniApp = function(botId, url, title) {
         if (!url) {
-            alert('No Mini App URL configured for this bot.');
+            alert(window.t?.('errors.noMiniAppUrl')||'No Mini App URL configured');
             return;
         }
 
@@ -2294,7 +3253,7 @@ window.toggleBotPublish = async function(botId, isPublic, category) {
         });
         window.loadMyBots();
     } catch (e) {
-        alert('Ошибка: ' + (e.message || e));
+        alert((window.t?.('errors.generic')||'Error')+': '+(e.message||e));
     }
 };
 
@@ -2310,14 +3269,14 @@ var _mpState = {
 };
 
 var _mpCatLabels = {
-    utilities: 'Утилиты',
-    games: 'Игры',
-    moderation: 'Модерация',
-    music: 'Музыка',
-    productivity: 'Продуктивность',
-    social: 'Соцсети',
-    fun: 'Развлечения',
-    other: 'Другое'
+    utilities: t('bots.catUtilities'),
+    games: t('bots.catGames'),
+    moderation: t('bots.catModeration'),
+    music: t('bots.catMusic'),
+    productivity: t('bots.catProductivity'),
+    social: t('bots.catSocial'),
+    fun: t('bots.catFun'),
+    other: t('bots.catOther')
 };
 
 window.openMarketplace = function() {
@@ -2342,7 +3301,7 @@ window.mpLoadCategories = async function() {
     try {
         var data = await window.api('GET', '/api/marketplace/categories');
         var cats = data.categories || [];
-        var html = '<button class="marketplace-cat-pill active" onclick="mpSetCategory(\'\',this)">Все<span class="cat-count">' + (data.total || 0) + '</span></button>';
+        var html = '<button class="marketplace-cat-pill active" onclick="mpSetCategory(\'\',this)">' + t('common.all') + '<span class="cat-count">' + (data.total || 0) + '</span></button>';
         cats.forEach(function(c) {
             html += '<button class="marketplace-cat-pill" onclick="mpSetCategory(\'' + c.id + '\',this)">' +
                 (_mpCatLabels[c.id] || c.id) +
@@ -2382,26 +3341,26 @@ window.mpSearch = function(q) {
 window.mpSearchBots = async function(q) {
     var grid = document.getElementById('mp-grid');
     if (!grid) return;
-    grid.innerHTML = '<div class="marketplace-loading">Поиск...</div>';
+    grid.innerHTML = '<div class="marketplace-loading">' + t('search.searching') + '</div>';
     try {
         var data = await window.api('GET', '/api/marketplace/search?q=' + encodeURIComponent(q));
         mpRenderGrid(data.bots || []);
     } catch (e) {
-        grid.innerHTML = '<div class="marketplace-empty">Ошибка поиска</div>';
+        grid.innerHTML = '<div class="marketplace-empty">' + t('search.searchFailed') + '</div>';
     }
 };
 
 window.mpLoadBots = async function() {
     var grid = document.getElementById('mp-grid');
     if (!grid) return;
-    grid.innerHTML = '<div class="marketplace-loading">Загрузка...</div>';
+    grid.innerHTML = '<div class="marketplace-loading">' + t('common.loading') + '</div>';
     try {
         var url = '/api/marketplace?sort=' + _mpState.sort + '&limit=50';
         if (_mpState.category) url += '&category=' + _mpState.category;
         var data = await window.api('GET', url);
         mpRenderGrid(data.bots || []);
     } catch (e) {
-        grid.innerHTML = '<div class="marketplace-empty">Ошибка загрузки</div>';
+        grid.innerHTML = '<div class="marketplace-empty">' + t('errors.loadFailed') + '</div>';
     }
 };
 
@@ -2409,7 +3368,7 @@ function mpRenderGrid(bots) {
     var grid = document.getElementById('mp-grid');
     if (!grid) return;
     if (bots.length === 0) {
-        grid.innerHTML = '<div class="marketplace-empty" style="grid-column:1/-1;">Ботов пока нет</div>';
+        grid.innerHTML = '<div class="marketplace-empty" style="grid-column:1/-1;">' + t('bots.noBotsInMarketplace') + '</div>';
         return;
     }
     grid.innerHTML = bots.map(function(b) {
@@ -2467,7 +3426,7 @@ window.mpOpenDetail = async function(botId) {
     document.getElementById('mp-detail-view').style.display = 'flex';
     var content = document.getElementById('mp-detail-content');
     if (!content) return;
-    content.innerHTML = '<div class="marketplace-loading">Загрузка...</div>';
+    content.innerHTML = '<div class="marketplace-loading">' + t('common.loading') + '</div>';
 
     try {
         var bot = await window.api('GET', '/api/marketplace/' + botId);
@@ -2480,7 +3439,7 @@ window.mpOpenDetail = async function(botId) {
         var cmdsHtml = '';
         var cmds = bot.commands || [];
         if (cmds.length > 0) {
-            cmdsHtml = '<div class="marketplace-detail-commands"><h4>Команды</h4>';
+            cmdsHtml = '<div class="marketplace-detail-commands"><h4>' + t('bots.commands') + '</h4>';
             cmds.forEach(function(c) {
                 cmdsHtml += '<div class="marketplace-detail-cmd"><code>' + _escBot(c.command) + '</code><span>' + _escBot(c.description || '') + '</span></div>';
             });
@@ -2493,13 +3452,13 @@ window.mpOpenDetail = async function(botId) {
         }).join('');
         var installHtml = roomOptions ?
             '<div class="marketplace-room-select">' +
-                '<label>Добавить в комнату</label>' +
+                '<label>' + t('bots.addToRoom') + '</label>' +
                 '<div style="display:flex;gap:8px;">' +
                     '<select id="mp-install-room" style="flex:1;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">' + roomOptions + '</select>' +
-                    '<button class="btn btn-primary" onclick="mpInstallBot(' + botId + ')" style="white-space:nowrap;font-size:12px;">Установить</button>' +
+                    '<button class="btn btn-primary" onclick="mpInstallBot(' + botId + ')" style="white-space:nowrap;font-size:12px;">' + t('bots.install') + '</button>' +
                 '</div>' +
             '</div>' :
-            '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Нет доступных комнат для установки</div>';
+            '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">' + t('bots.noRoomsAvailable') + '</div>';
 
         // Mini app button
         var miniAppHtml = '';
@@ -2507,25 +3466,25 @@ window.mpOpenDetail = async function(botId) {
             miniAppHtml = '<div style="margin-bottom:16px;">' +
                 '<button class="btn btn-secondary" onclick="window.open(\'' + _escBot(bot.mini_app_url) + '\',\'_blank\')" style="font-size:12px;">' +
                     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>' +
-                    'Открыть приложение</button>' +
+                    t('bots.openApp') + '</button>' +
             '</div>';
         }
 
         // Reviews
-        var reviewsHtml = '<div class="marketplace-reviews"><h4>Отзывы (' + (bot.rating_count || 0) + ')</h4>';
+        var reviewsHtml = '<div class="marketplace-reviews"><h4>' + t('bots.reviews', {count: bot.rating_count || 0}) + '</h4>';
 
         // Review form
         var existingRating = (bot.user_review && bot.user_review.rating) || 0;
         var existingText = (bot.user_review && bot.user_review.text) || '';
         reviewsHtml += '<div class="marketplace-review-form">' +
-            '<label>' + (existingRating ? 'Ваш отзыв (обновить)' : 'Оставить отзыв') + '</label>' +
+            '<label>' + (existingRating ? t('bots.yourReviewUpdate') : t('bots.leaveReview')) + '</label>' +
             '<div class="marketplace-star-input" id="mp-star-input" data-bot="' + botId + '">';
         for (var i = 1; i <= 5; i++) {
             reviewsHtml += '<span class="star' + (i <= existingRating ? ' active' : '') + '" data-val="' + i + '" onclick="mpSelectStar(this,' + i + ')">&#9733;</span>';
         }
         reviewsHtml += '</div>' +
-            '<textarea id="mp-review-text" placeholder="Комментарий (необязательно)" maxlength="500">' + _escBot(existingText) + '</textarea>' +
-            '<button class="btn btn-primary" onclick="mpSubmitReview(' + botId + ')" style="font-size:12px;margin-top:8px;">Отправить</button>' +
+            '<textarea id="mp-review-text" placeholder="' + t('bots.commentOptional') + '" maxlength="500">' + _escBot(existingText) + '</textarea>' +
+            '<button class="btn btn-primary" onclick="mpSubmitReview(' + botId + ')" style="font-size:12px;margin-top:8px;">' + t('common.send') + '</button>' +
         '</div>';
 
         // Existing reviews list
@@ -2549,7 +3508,7 @@ window.mpOpenDetail = async function(botId) {
                 '</div>';
             });
         } else {
-            reviewsHtml += '<div style="font-size:12px;color:var(--text3);padding:8px 0;">Пока нет отзывов</div>';
+            reviewsHtml += '<div style="font-size:12px;color:var(--text3);padding:8px 0;">' + t('bots.noReviewsYet') + '</div>';
         }
         reviewsHtml += '</div>';
 
@@ -2558,11 +3517,11 @@ window.mpOpenDetail = async function(botId) {
                 '<div class="marketplace-detail-avatar">' + avatarHtml + '</div>' +
                 '<div class="marketplace-detail-info">' +
                     '<div class="marketplace-detail-name">' + _escBot(bot.name) + '</div>' +
-                    '<div class="marketplace-detail-owner">от ' + _escBot(bot.owner_name) + '</div>' +
+                    '<div class="marketplace-detail-owner">' + t('bots.byOwner', {name: _escBot(bot.owner_name)}) + '</div>' +
                     '<div class="marketplace-detail-stats">' +
                         '<span class="marketplace-card-cat">' + (_mpCatLabels[bot.category] || bot.category) + '</span>' +
                         '<span>' + mpStarsHtml(bot.rating) + ' <span style="font-size:11px;color:var(--text3);">(' + (bot.rating_count || 0) + ')</span></span>' +
-                        '<span><svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> ' + (bot.installs || 0) + ' установок</span>' +
+                        '<span><svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> ' + t('bots.installsCount', {count: bot.installs || 0}) + '</span>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -2573,7 +3532,7 @@ window.mpOpenDetail = async function(botId) {
             reviewsHtml;
 
     } catch (e) {
-        content.innerHTML = '<div class="marketplace-empty">Ошибка загрузки: ' + _escBot(e.message || String(e)) + '</div>';
+        content.innerHTML = '<div class="marketplace-empty">' + t('errors.loadError', {message: _escBot(e.message || String(e))}) + '</div>';
     }
 };
 
@@ -2585,7 +3544,7 @@ window.mpBackToList = function() {
 window.mpInstallBot = async function(botId) {
     var sel = document.getElementById('mp-install-room');
     if (!sel || !sel.value) {
-        alert('Выберите комнату');
+        alert(window.t?.('errors.selectRoom')||'Select a room');
         return;
     }
     try {
@@ -2593,10 +3552,10 @@ window.mpInstallBot = async function(botId) {
         if (resp.message) {
             alert(resp.message);
         } else {
-            alert('Бот установлен в комнату!');
+            alert(window.t?.('notifications.botInstalledInRoom')||'Bot installed!');
         }
     } catch (e) {
-        alert('Ошибка: ' + (e.message || e));
+        alert((window.t?.('errors.generic')||'Error')+': '+(e.message||e));
     }
 };
 
@@ -2612,7 +3571,7 @@ window.mpSelectStar = function(el, val) {
 
 window.mpSubmitReview = async function(botId) {
     if (_mpSelectedRating < 1 || _mpSelectedRating > 5) {
-        alert('Выберите рейтинг (1-5 звёзд)');
+        alert(window.t?.('errors.selectRating')||'Select a rating (1-5)');
         return;
     }
     var text = (document.getElementById('mp-review-text')?.value || '').trim();
@@ -2623,7 +3582,7 @@ window.mpSubmitReview = async function(botId) {
         });
         mpOpenDetail(botId);
     } catch (e) {
-        alert('Ошибка: ' + (e.message || e));
+        alert((window.t?.('errors.generic')||'Error')+': '+(e.message||e));
     }
 };
 
@@ -2649,7 +3608,7 @@ window.submitReport = async function() {
     var submitBtn = document.getElementById('report-submit-btn');
 
     if (!targetId) {
-        alertEl.textContent = 'Не указан пользователь';
+        alertEl.textContent = (window.t?.('errors.userNotSpecified')||'User not specified');
         alertEl.style.display = 'block';
         alertEl.style.color = '#ef4444';
         return;
@@ -2660,14 +3619,14 @@ window.submitReport = async function() {
         var body = { reason: reason, description: description };
         if (messageId) body.message_id = parseInt(messageId);
         var resp = await window.api('POST', '/api/users/report/' + targetId, body);
-        alertEl.textContent = resp.message || 'Жалоба отправлена';
+        alertEl.textContent = resp.message || t('report.reportSent');
         alertEl.style.display = 'block';
         alertEl.style.color = '#22c55e';
         setTimeout(function() {
             document.getElementById('report-modal').classList.remove('show');
         }, 1500);
     } catch (e) {
-        alertEl.textContent = e.message || 'Ошибка отправки жалобы';
+        alertEl.textContent = e.message || t('report.reportFailed');
         alertEl.style.display = 'block';
         alertEl.style.color = '#ef4444';
         submitBtn.disabled = false;

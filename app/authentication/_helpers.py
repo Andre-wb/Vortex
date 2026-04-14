@@ -136,6 +136,9 @@ def _set_auth_cookies(response: Response, user: User, db: Session, request: Requ
     db.add(device)
     db.commit()
 
+    # Enforce session limit — only if user explicitly set one (0 = unlimited)
+    # Session limit is stored in localStorage on client, not on server by default
+
     for name, val, max_age in [
         ("access_token",  access_token, 3600),
         ("refresh_token", raw_refresh,  86400 * 30),

@@ -36,6 +36,24 @@ from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
+_BLE_AVAILABLE: bool | None = None
+
+def is_ble_available() -> bool:
+    """Check if BLE (bleak) is importable and platform is supported."""
+    global _BLE_AVAILABLE
+    if _BLE_AVAILABLE is None:
+        try:
+            import bleak  # noqa: F401
+            _BLE_AVAILABLE = True
+        except ImportError:
+            logger.info("BLE unavailable: bleak not installed")
+            _BLE_AVAILABLE = False
+        except Exception as e:
+            logger.info("BLE unavailable: %s", e)
+            _BLE_AVAILABLE = False
+    return _BLE_AVAILABLE
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Vortex BLE Service & Characteristics UUIDs
 # ─────────────────────────────────────────────────────────────────────────────

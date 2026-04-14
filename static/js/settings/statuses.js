@@ -55,11 +55,11 @@ window.viewStatus = async function(userId) {
         var data = await window.api('GET', '/api/statuses');
         var userEntry = (data.users || []).find(function(u) { return u.user_id === userId; });
         if (!userEntry || !userEntry.statuses.length) {
-            alert(window.t ? window.t('settings.noActiveStatuses') : 'Нет активных статусов');
+            alert(t('settings.noActiveStatuses'));
             return;
         }
         var title = document.getElementById('status-viewer-title');
-        if (title) title.textContent = 'Статусы \u2014 ' + (userEntry.display_name || userEntry.username);
+        if (title) title.textContent = t('statuses.title') + ' \u2014 ' + (userEntry.display_name || userEntry.username);
         var list = document.getElementById('status-viewer-list');
         if (list) {
             list.innerHTML = userEntry.statuses.map(function(s) {
@@ -83,7 +83,7 @@ window.openGallery = async function() {
     if (!S || !S.currentRoom) return;
     if (window.openModal) window.openModal('gallery-modal');
     var grid = document.getElementById('gallery-grid');
-    grid.innerHTML = '<div class="gallery-empty">Загрузка...</div>';
+    grid.innerHTML = '<div class="gallery-empty">' + t('common.loading') + '</div>';
     // Reset tab to photo
     window._galleryTab = 'photo';
     document.querySelectorAll('.gallery-tab').forEach(function(t) {
@@ -94,7 +94,7 @@ window.openGallery = async function() {
         window._galleryFiles = data.files || [];
         renderGallery();
     } catch(e) {
-        grid.innerHTML = '<div class="gallery-empty">Ошибка загрузки</div>';
+        grid.innerHTML = '<div class="gallery-empty">' + t('errors.loadingError') + '</div>';
     }
 };
 
@@ -123,8 +123,8 @@ function renderGallery() {
     }
 
     if (!filtered.length) {
-        var labels = { photo: 'Нет фотографий', video: 'Нет видео', files: 'Нет файлов' };
-        grid.innerHTML = '<div class="gallery-empty">' + (labels[tab] || 'Пусто') + '</div>';
+        var labels = { photo: t('gallery.noPhotos'), video: t('gallery.noVideos'), files: t('gallery.noFiles') };
+        grid.innerHTML = '<div class="gallery-empty">' + (labels[tab] || t('ui.empty')) + '</div>';
         return;
     }
 
@@ -150,9 +150,9 @@ function renderGallery() {
         grid.innerHTML = filtered.map(function(f) {
             var size = f.size_bytes;
             var sizeStr;
-            if (size < 1024) sizeStr = size + ' Б';
-            else if (size < 1024 * 1024) sizeStr = (size / 1024).toFixed(1) + ' КБ';
-            else sizeStr = (size / 1024 / 1024).toFixed(1) + ' МБ';
+            if (size < 1024) sizeStr = size + ' ' + t('files.bytes');
+            else if (size < 1024 * 1024) sizeStr = (size / 1024).toFixed(1) + ' ' + t('files.kb');
+            else sizeStr = (size / 1024 / 1024).toFixed(1) + ' ' + t('files.mb');
             var safeName = (f.file_name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             return '<a href="' + f.download_url + '" download class="gallery-file-item">' +
                 '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>' +

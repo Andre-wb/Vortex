@@ -225,10 +225,12 @@
     transition: all 0.15s;
     position: relative;
 }
+@media (hover: hover) {
 .gc-ctrl-btn:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
     transform: scale(1.05);
+}
 }
 .gc-ctrl-btn.active {
     background: var(--accent);
@@ -244,9 +246,11 @@
     border-color: var(--red) !important;
     color: #fff !important;
 }
+@media (hover: hover) {
 .gc-hangup:hover {
     background: #dc2626 !important;
     transform: scale(1.08);
+}
 }
 
 /* ── PIP (Picture-in-Picture) ─────────────────────────────────────────── */
@@ -324,10 +328,12 @@
     transition: background 0.13s, transform 0.1s;
     flex-shrink: 0;
 }
+@media (hover: hover) {
 .gc-pip-btn:hover {
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
     transform: scale(1.1);
+}
 }
 .gc-pip-hangup {
     color: var(--red);
@@ -420,16 +426,20 @@
 .gc-incoming-accept {
     background: var(--green);
 }
+@media (hover: hover) {
 .gc-incoming-accept:hover {
     background: #16a34a;
     transform: scale(1.1);
 }
+}
 .gc-incoming-decline {
     background: var(--red);
 }
+@media (hover: hover) {
 .gc-incoming-decline:hover {
     background: #dc2626;
     transform: scale(1.1);
+}
 }
 
 /* Pulsing ring animation on accept */

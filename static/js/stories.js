@@ -36,6 +36,7 @@ export async function loadStories() {
     for (const g of _groups) {
         if (g.user_id && g.stories?.length) storyUserIds.add(g.user_id);
     }
+    _sortGroups();
     renderStoriesStrip();
 }
 
@@ -165,14 +166,17 @@ function _renderCurrent() {
     const delBtn = document.getElementById('sv-delete-btn');
     if (delBtn) delBtn.style.display = group.is_self ? 'flex' : 'none';
 
-    // Views counter
+    // Views counter (own stories) / Actions bar (other's stories)
     const viewsEl = document.getElementById('sv-views');
     const viewsCount = document.getElementById('sv-views-count');
+    const actionsEl = document.getElementById('sv-actions');
     if (group.is_self) {
-        viewsEl.style.display = 'flex';
+        if (viewsEl) { viewsEl.style.display = 'flex'; }
         viewsCount.textContent = story.views_count || 0;
+        if (actionsEl) actionsEl.style.display = 'none';
     } else {
-        viewsEl.style.display = 'none';
+        if (viewsEl) viewsEl.style.display = 'none';
+        if (actionsEl) actionsEl.style.display = 'flex';
     }
 
     // Media
@@ -309,6 +313,22 @@ function _markViewed() {
     const story = group.stories[_si];
     if (!story) return;
     api('POST', `/api/stories/${story.id}/view`).catch(() => {});
+
+    // Mark group as seen and re-sort: viewed stories go to the end
+    group.has_unseen = false;
+    _sortGroups();
+    renderStoriesStrip();
+}
+
+function _sortGroups() {
+    // Self always first, then unseen, then seen
+    _groups.sort(function(a, b) {
+        if (a.is_self) return -1;
+        if (b.is_self) return 1;
+        var aUnseen = a.has_unseen !== false ? 1 : 0;
+        var bUnseen = b.has_unseen !== false ? 1 : 0;
+        return bUnseen - aUnseen;
+    });
 }
 
 // Hold to pause
@@ -361,6 +381,52 @@ window._deleteCurrentStory = async function() {
     }
 };
 
+// ── Story Reactions & Replies ────────────────────────────────────────────────
+
+window._svReact = async function(emoji) {
+    const group = _groups[_gi];
+    if (!group || group.is_self) return;
+    const story = group.stories[_si];
+    if (!story) return;
+    try {
+        const fd = new FormData();
+        fd.append('emoji', emoji);
+        await fetch('/api/stories/' + story.id + '/react', {
+            method: 'POST', credentials: 'include', body: fd,
+            headers: { 'X-CSRF-Token': window.AppState?.csrfToken || '' },
+        });
+        // Visual feedback
+        const btn = event?.target?.closest('.sv-react-btn');
+        if (btn) {
+            btn.style.transform = 'scale(1.5)';
+            setTimeout(() => { btn.style.transform = ''; }, 300);
+        }
+        window.showToast?.((window.t?.('notifications.reactionSent')||'Reaction sent'), 'success');
+    } catch {}
+};
+
+window._svSendReply = async function() {
+    const group = _groups[_gi];
+    if (!group || group.is_self) return;
+    const story = group.stories[_si];
+    if (!story) return;
+    const input = document.getElementById('sv-reply-input');
+    if (!input || !input.value.trim()) return;
+    try {
+        const fd = new FormData();
+        fd.append('text', input.value.trim());
+        await fetch('/api/stories/' + story.id + '/reply', {
+            method: 'POST', credentials: 'include', body: fd,
+            headers: { 'X-CSRF-Token': window.AppState?.csrfToken || '' },
+        });
+        input.value = '';
+        window.showToast?.((window.t?.('notifications.replySent')||'Reply sent'), 'success');
+    } catch {}
+};
+
+window._svPause = function() { _paused = true; _stopProgress(); };
+window._svResume = function() { _paused = false; _startProgress(); };
+
 function _timeAgo(iso) {
     if (!iso) return '';
     const d = new Date(/Z$|[+-]\d{2}/.test(iso) ? iso : iso + 'Z');
@@ -377,16 +443,16 @@ export function showStoryCreator() {
     _scFile = null;
     _scMusicFile = null;
     _scType = null;
-    const modal = document.getElementById('story-create-modal');
-    if (!modal) return;
-    modal.style.display = 'flex';
-    document.getElementById('sc-step-type').style.display = '';
+    const page = document.getElementById('story-create-modal');
+    if (!page) return;
+    page.style.display = 'flex';
+    document.getElementById('sc-step-type').style.display = 'flex';
     document.getElementById('sc-step-editor').style.display = 'none';
 }
 
 export function closeStoryCreator() {
-    const modal = document.getElementById('story-create-modal');
-    if (modal) modal.style.display = 'none';
+    const page = document.getElementById('story-create-modal');
+    if (page) page.style.display = 'none';
     _stopCamera();
     _scFile = null;
     _scMusicFile = null;
@@ -399,14 +465,14 @@ window.collapseStories = collapseStories;
 
 window._scBack = function() {
     _stopCamera();
-    document.getElementById('sc-step-type').style.display = '';
+    document.getElementById('sc-step-type').style.display = 'flex';
     document.getElementById('sc-step-editor').style.display = 'none';
 };
 
 window._scSelectType = async function(type) {
     _scType = type;
     document.getElementById('sc-step-type').style.display = 'none';
-    document.getElementById('sc-step-editor').style.display = '';
+    document.getElementById('sc-step-editor').style.display = 'flex';
 
     // Reset all editor sections
     ['sc-camera-wrap','sc-preview-wrap','sc-text-editor','sc-duration-group','sc-overlay-group'].forEach(id => {

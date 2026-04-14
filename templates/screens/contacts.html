@@ -15,8 +15,13 @@
         </button>
     </div>
 
-    <!-- Group tabs -->
-    <div id="contact-group-tabs" style="flex-shrink:0;padding:0 16px;"></div>
+    <!-- Group tabs + add folder -->
+    <div style="display:flex;align-items:center;gap:6px;padding:0 16px;flex-shrink:0;">
+        <div id="contact-group-tabs" style="flex:1;overflow:hidden;"></div>
+        <button class="cg-add-btn" onclick="window._addContactFolder()" title="Новая папка">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        </button>
+    </div>
 
     <!-- Contact list -->
     <div id="contacts-view-list" style="flex:1;overflow-y:auto;padding:4px 12px;">

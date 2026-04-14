@@ -313,21 +313,35 @@ async def add_participant(
         state="invited",
     )
 
-    # Notify the specific user
-    try:
-        await manager.notify_user(user_id, {
-            "type": "group_call_invite",
-            "call_id": call.call_id,
-            "room_id": call.room_id,
-            "call_type": call.call_type,
-            "initiator": {
-                "user_id": u.id,
-                "username": u.username,
-                "display_name": u.display_name or u.username,
-            },
-        })
-    except Exception as e:
-        logger.warning("Failed to notify user %s: %s", user_id, e)
+    # BMP mode: group call invite goes through BMP room deposit
+    from app.config import Config
+    if Config.BMP_DELIVERY_ENABLED:
+        try:
+            from app.transport.blind_mailbox import deposit_envelope
+            import json
+            await deposit_envelope(call.room_id, json.dumps({
+                "type": "group_call_invite",
+                "call_id": call.call_id,
+                "room_id": call.room_id,
+                "call_type": call.call_type,
+            }))
+        except Exception:
+            pass
+    else:
+        try:
+            await manager.notify_user(user_id, {
+                "type": "group_call_invite",
+                "call_id": call.call_id,
+                "room_id": call.room_id,
+                "call_type": call.call_type,
+                "initiator": {
+                    "user_id": u.id,
+                    "username": u.username,
+                    "display_name": u.display_name or u.username,
+                },
+            })
+        except Exception:
+            pass
 
     return {"ok": True}
 

@@ -173,7 +173,7 @@ export async function openFingerprintModal(opts) {
     if (toggleBtn) {
         toggleBtn.dataset.expanded = '0';
         const label = toggleBtn.querySelector('.fp-btn-label');
-        if (label) label.textContent = 'Посмотреть ключ';
+        if (label) label.textContent = (window.t?.('fingerprint.viewKey')||'View key');
     }
 
     // Verified state
@@ -258,7 +258,7 @@ export function toggleHexFingerprint() {
     section.style.display = expanded ? 'none' : '';
     btn.dataset.expanded = expanded ? '0' : '1';
     const label = btn.querySelector('.fp-btn-label');
-    if (label) label.textContent = expanded ? 'Посмотреть ключ' : 'Скрыть ключ';
+    if (label) label.textContent = expanded ? t('fingerprint.viewKey') : t('fingerprint.hideKey');
 }
 
 export async function copyFingerprint() {
@@ -270,7 +270,7 @@ export async function copyFingerprint() {
             const label = btn.querySelector('.fp-btn-label');
             if (label) {
                 const orig = label.textContent;
-                label.textContent = 'Скопировано';
+                label.textContent = (window.t?.('ui.copied')||'Copied');
                 setTimeout(() => { label.textContent = orig; }, 2000);
             }
         }
@@ -284,7 +284,7 @@ function _updateChatShield(verified) {
     if (!shield) return;
     shield.classList.toggle('fp-shield-verified', verified);
     shield.classList.toggle('fp-shield-unverified', !verified);
-    shield.title = verified ? 'Ключ проверен' : 'Ключ не проверен';
+    shield.title = verified ? t('fingerprint.verified') : t('fingerprint.notVerified');
 }
 
 /**
@@ -313,7 +313,7 @@ export async function updateShieldForRoom(room, otherUser) {
     const keyStatus = checkKeyChange(otherUser.id, otherUser.x25519_public_key);
     if (keyStatus === 'changed') {
         shield.classList.add('fp-shield-warning');
-        shield.title = 'Ключ безопасности изменился!';
+        shield.title = t('fingerprint.keyChanged');
     } else {
         shield.classList.remove('fp-shield-warning');
     }
@@ -386,7 +386,7 @@ export async function startQRScan() {
 
     // Check BarcodeDetector support
     if (typeof BarcodeDetector === 'undefined') {
-        if (status) status.textContent = 'Сканирование не поддерживается в этом браузере. Сравните эмодзи вручную.';
+        if (status) status.textContent = t('fingerprint.scanNotSupported');
         overlay.style.display = 'flex';
         return;
     }
@@ -398,7 +398,7 @@ export async function startQRScan() {
         video.srcObject = _scanStream;
         await video.play();
         overlay.style.display = 'flex';
-        if (status) status.textContent = 'Наведите камеру на QR-код собеседника';
+        if (status) status.textContent = t('fingerprint.pointCamera');
 
         const detector = new BarcodeDetector({ formats: ['qr_code'] });
 
@@ -413,14 +413,14 @@ export async function startQRScan() {
                         if (scannedHex === localHex) {
                             // Match! Auto-verify
                             if (status) {
-                                status.textContent = 'Ключи совпадают!';
+                                status.textContent = (window.t?.('fingerprint.keysMatch')||'Keys match!');
                                 status.classList.add('fp-scan-success');
                             }
                             await verifyCurrentFingerprint();
                             setTimeout(stopQRScan, 1500);
                         } else {
                             if (status) {
-                                status.textContent = 'Ключи НЕ совпадают! Возможен MITM.';
+                                status.textContent = (window.t?.('fingerprint.keysMismatch')||'Keys do NOT match!');
                                 status.classList.add('fp-scan-fail');
                             }
                             setTimeout(stopQRScan, 3000);
@@ -432,7 +432,7 @@ export async function startQRScan() {
         }, 300);
     } catch (e) {
         console.error('[fingerprint] camera error:', e);
-        if (status) status.textContent = 'Нет доступа к камере';
+        if (status) status.textContent = (window.t?.('errors.noCameraAccess')||'No camera access');
         overlay.style.display = 'flex';
     }
 }
@@ -459,7 +459,7 @@ export async function openDeviceVerification() {
 
     panel.style.display = '';
     const list = document.getElementById('fp-devices-list');
-    if (list) list.textContent = 'Загрузка...';
+    if (list) list.textContent = (window.t?.('ui.loading')||'Loading...');
 
     try {
         const data = await api('GET', '/api/authentication/devices');
@@ -468,7 +468,7 @@ export async function openDeviceVerification() {
         list.textContent = '';
 
         if (devices.length === 0) {
-            list.textContent = 'Нет устройств';
+            list.textContent = (window.t?.('fingerprint.noDevices')||'No devices');
             return;
         }
 
@@ -503,7 +503,7 @@ export async function openDeviceVerification() {
             if (dev.is_current) {
                 const badge = document.createElement('span');
                 badge.className = 'fp-device-current';
-                badge.textContent = 'это устройство';
+                badge.textContent = (window.t?.('fingerprint.thisDevice')||'this device');
                 name.appendChild(badge);
             }
             info.appendChild(name);
@@ -518,7 +518,7 @@ export async function openDeviceVerification() {
         }
     } catch (e) {
         console.error('[fingerprint] devices error:', e);
-        if (list) list.textContent = 'Ошибка загрузки';
+        if (list) list.textContent = (window.t?.('errors.loadingError')||'Loading error');
     }
 }
 

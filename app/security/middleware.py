@@ -94,8 +94,14 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             return PlainTextResponse("Internal Server Error", status_code=500)
 
         elapsed = (time.perf_counter() - start) * 1000
+        # Sanitize BMP paths to prevent metadata leakage in logs
+        _path = request.url.path
+        if _path.startswith("/api/bmp/"):
+            _path = "/api/bmp/***"
+        elif _path.startswith("/ws/") and not _path.startswith("/ws/notifications"):
+            _path = "/ws/***"
         logger.info(
-            f"{request.method:6s} {request.url.path:<40s} "
+            f"{request.method:6s} {_path:<40s} "
             f"{response.status_code} {elapsed:6.1f}ms  {ip}"
         )
         return response
@@ -111,6 +117,11 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         "/health", "/favicon.ico", "/robots.txt",
         "/api/authentication/login", "/api/authentication/register",
         "/api/authentication/refresh",
+        "/api/authentication/security-questions/load",
+        "/api/authentication/security-questions/recover",
+        "/api/authentication/security-questions/setup",
+        "/api/authentication/verify-password",
+        "/api/authentication/change-password",
         "/api/authentication/profile", "/api/authentication/avatar",
         "/api/peers/receive",
         "/api/peers/status",
@@ -141,6 +152,11 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         "/api/global/",       # P2P inter-node endpoints (no user session)
         "/api/transport/",    # Transport layer endpoints (JWT auth)
         "/api/ai/",           # AI assistant endpoints (JWT auth)
+        "/api/privacy/",      # Privacy settings (JWT auth)
+        "/api/authentication/account-ttl",  # Account TTL setting
+        "/api/authentication/session-limit", # Session limit setting
+        "/api/translate",     # Translation endpoint
+        "/api/bmp/",          # Blind Mailbox Protocol (anonymous by design)
         "/cover/",            # Cover traffic pages (public)
     )
 

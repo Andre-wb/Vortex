@@ -111,17 +111,14 @@ async def ssl_self_signed(body: SelfSignedRequest):
     Возвращает пути к файлам и инструкцию по установке CA.
     """
     result = generate_self_signed(
-        cert_dir    = CERT_DIR,
-        hostname    = body.hostname or socket.gethostname(),
-        org_name    = body.org_name,
-        install_ca  = body.install_ca,
+        cert_dir       = CERT_DIR,
+        hostname       = body.hostname or socket.gethostname(),
+        org_name       = body.org_name,
+        install_ca     = body.install_ca,
+        admin_password = body.admin_password,
     )
     if not result.ok:
         raise HTTPException(500, result.message)
-
-    ca_cmd = ""
-    if not result.trusted and result.ca:
-        ca_cmd = get_ca_install_instructions(Path(result.ca))
 
     return {
         "ok":          True,
@@ -130,7 +127,6 @@ async def ssl_self_signed(body: SelfSignedRequest):
         "ca":          result.ca,
         "trusted":     result.trusted,
         "message":     result.message,
-        "ca_install":  ca_cmd,
     }
 
 

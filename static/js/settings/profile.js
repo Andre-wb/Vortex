@@ -74,6 +74,13 @@ window.saveProfileSettings = async function() {
     if (window._settingsProfileIcon !== undefined) {
         body.profile_icon = window._settingsProfileIcon;
     }
+    // Reply bubble color + icon
+    if (window._settingsReplyColor !== undefined) {
+        body.reply_color = window._settingsReplyColor;
+    }
+    if (window._settingsReplyIcon !== undefined) {
+        body.reply_icon = window._settingsReplyIcon;
+    }
     try {
         var resp = await window.api('PUT', '/api/authentication/profile', body);
         if (resp.display_name !== undefined) {
@@ -93,6 +100,12 @@ window.saveProfileSettings = async function() {
         if (resp.birth_date !== undefined) S.user.birth_date = resp.birth_date;
         if (resp.profile_bg  !== undefined) S.user.profile_bg  = resp.profile_bg;
         if (resp.profile_icon !== undefined) S.user.profile_icon = resp.profile_icon;
+        if (resp.reply_color !== undefined) S.user.reply_color = resp.reply_color;
+        if (resp.reply_icon !== undefined) S.user.reply_icon = resp.reply_icon;
+
+        // Reset dirty flags
+        window._settingsReplyColor = undefined;
+        window._settingsReplyIcon = undefined;
         alert(window.t ? window.t('spaces.saved') : 'Saved');
     } catch(e) { alert(e.message); }
 };
@@ -108,6 +121,22 @@ window._selectProfileBg = function(btn) {
     // Sync icon preview background
     var piHero = document.getElementById('pi-preview-hero');
     if (piHero) piHero.style.background = btn.dataset.bg;
+};
+
+// ── Reply bubble color picker ──
+window._settingsReplyColor = undefined;
+window._selectReplyColor = function(btn) {
+    document.querySelectorAll('.rc-swatch').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    window._settingsReplyColor = btn.dataset.color || null;
+};
+
+// ── Reply icon picker ──
+window._settingsReplyIcon = undefined;
+window._selectReplyIcon = function(btn) {
+    document.querySelectorAll('.ri-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    window._settingsReplyIcon = btn.dataset.icon || null;
 };
 
 // ── Profile icon registry (shared with user-profile.js) ──
@@ -164,10 +193,10 @@ window._selectProfileIcon = function(btn) {
     var _calWithYear = false;
     var _calAnimating = false;
 
-    var MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь',
-                  'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-    var MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня',
-                      'июля','августа','сентября','октября','ноября','декабря'];
+    var _monthsArr = t('time.months');
+    var MONTHS = Array.isArray(_monthsArr) ? _monthsArr : ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var _monthsGenArr = t('time.monthsGen');
+    var MONTHS_GEN = Array.isArray(_monthsGenArr) ? _monthsGenArr : MONTHS;
 
     window.openBirthdayPicker = function() {
         var S = window.AppState;
@@ -324,7 +353,7 @@ window._selectProfileIcon = function(btn) {
         if (!el) return;
         if (_calSelDay === null || _calSelMonth === null) { el.textContent = ''; return; }
         var text = _calSelDay + ' ' + MONTHS_GEN[_calSelMonth];
-        if (_calWithYear && _calSelYear) text += ' ' + _calSelYear + ' г.';
+        if (_calWithYear && _calSelYear) text += ' ' + _calSelYear;
         el.textContent = text;
     }
 

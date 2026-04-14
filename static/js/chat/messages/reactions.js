@@ -8,8 +8,9 @@ function _fmtReactionTime(iso) {
     if (!iso) return '';
     try {
         const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
         return d.toLocaleString('ru', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', second:'2-digit'});
-    } catch { return iso; }
+    } catch { return ''; }
 }
 
 function _showReactionWhoPopover(btn) {
@@ -83,7 +84,7 @@ function _addRecentReaction(emoji) {
     localStorage.setItem(_RECENT_REACTIONS_KEY, JSON.stringify(recent));
 }
 
-function _sendReaction(msgId, emoji) {
+export function _sendReaction(msgId, emoji) {
     _addRecentReaction(emoji);
     const S = window.AppState;
     if (S.ws?.readyState === WebSocket.OPEN) {
@@ -132,20 +133,42 @@ export function _openReactionPicker(msgId) {
 
     // Position near the message bubble
     const msgEl = document.querySelector(`[data-msg-id="${msgId}"]`) || document.getElementById(`msg-${msgId}`);
-    if (msgEl) {
+    const isMobile = window.innerWidth <= 640;
+
+    document.body.appendChild(picker);
+
+    if (!isMobile) {
+        picker.style.position = 'fixed';
+        picker.style.zIndex = '9999';
+    }
+
+    if (msgEl && !isMobile) {
         const rect = msgEl.getBoundingClientRect();
-        const container = document.getElementById('messages-container');
-        if (container) {
-            container.appendChild(picker);
-            // Position above the message
-            const containerRect = container.getBoundingClientRect();
-            picker.style.top = (rect.top - containerRect.top - picker.offsetHeight - 8) + 'px';
-            picker.style.left = Math.max(8, Math.min(rect.left - containerRect.left, containerRect.width - 320)) + 'px';
+        const bubble = msgEl.querySelector('.msg-bubble');
+        const bubbleRect = bubble ? bubble.getBoundingClientRect() : rect;
+        const pickerH = picker.offsetHeight || 280;
+        const pickerW = picker.offsetWidth || 300;
+        const isOwn = msgEl.closest('.msg-group-own') || bubble?.classList.contains('own');
+
+        // Vertical: try below, fallback above
+        let top = bubbleRect.bottom + 4;
+        if (top + pickerH > window.innerHeight - 8) {
+            top = bubbleRect.top - pickerH - 4;
         }
-    } else {
-        // Fallback: append to messages container centered
-        const container = document.getElementById('messages-container');
-        if (container) container.appendChild(picker);
+        top = Math.max(8, Math.min(top, window.innerHeight - pickerH - 8));
+
+        // Horizontal: align to bubble side
+        let left;
+        if (isOwn) {
+            // Own message — align right edge of picker to right edge of bubble
+            left = bubbleRect.right - pickerW;
+        } else {
+            left = bubbleRect.left;
+        }
+        left = Math.max(8, Math.min(left, window.innerWidth - pickerW - 8));
+
+        picker.style.top = top + 'px';
+        picker.style.left = left + 'px';
     }
 
     requestAnimationFrame(() => picker.classList.add('open'));
@@ -154,8 +177,7 @@ export function _openReactionPicker(msgId) {
     picker.addEventListener('click', (e) => {
         const btn = e.target.closest('.rp-emoji');
         if (btn) {
-            const emoji = btn.dataset.emoji;
-            _sendReaction(_reactionMsgId, emoji);
+            _sendReaction(_reactionMsgId, btn.dataset.emoji);
             _closeReactionPicker();
         }
     });
@@ -173,21 +195,24 @@ export function _openReactionPicker(msgId) {
         if (e.key === 'Escape') { _closeReactionPicker(); e.preventDefault(); }
     });
 
-    // Close on outside click (delayed to avoid immediate close)
+    // Close on outside click/touch
     _reactionPickerEl = picker;
     setTimeout(() => {
-        document.addEventListener('click', _onReactionPickerOutsideClick);
-    }, 50);
+        document.addEventListener('mousedown', _onReactionPickerOutsideClick, true);
+        document.addEventListener('touchstart', _onReactionPickerOutsideClick, { capture: true, passive: true });
+    }, 300);
 }
 
 function _closeReactionPicker() {
-    if (_reactionPickerEl) {
-        _reactionPickerEl.classList.remove('open');
-        setTimeout(() => _reactionPickerEl?.remove(), 200);
-        _reactionPickerEl = null;
-    }
+    const el = _reactionPickerEl;
+    _reactionPickerEl = null;
     _reactionMsgId = null;
-    document.removeEventListener('click', _onReactionPickerOutsideClick);
+    document.removeEventListener('mousedown', _onReactionPickerOutsideClick, true);
+    document.removeEventListener('touchstart', _onReactionPickerOutsideClick, true);
+    if (el) {
+        el.classList.remove('open');
+        setTimeout(() => el.remove(), 200);
+    }
 }
 
 function _onReactionPickerOutsideClick(e) {

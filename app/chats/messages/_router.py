@@ -24,10 +24,14 @@ DANGEROUS_EXTS = frozenset({
 
 
 def utc_iso(dt: datetime | None) -> str | None:
-    """Serialize datetime to ISO 8601 with Z suffix so browsers always parse as UTC."""
+    """Serialize datetime to ISO 8601 with Z suffix (UTC)."""
     if dt is None:
         return None
-    return dt.strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
+    # All DB datetimes should be naive UTC (via datetime.utcnow defaults).
+    # If somehow aware, convert to UTC first.
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def parse_client_ts(raw: str | None) -> datetime | None:

@@ -45,9 +45,13 @@ from app.chats.search import router as search_router, messages_search_router
 from app.chats.spaces import router as spaces_router
 from app.chats.statuses import router as statuses_router
 from app.chats.stickers import router as stickers_router
+from app.chats.saved_gifs import router as saved_gifs_router
+from app.push.bmp_push_proxy import router as bmp_push_router
 from app.chats.tasks import router as tasks_router
 from app.chats.voice import router as voice_router, ws_router as voice_ws_router
 from app.federation.federation import router as federation_router, ws_router as fed_ws_router
+from app.federation.trusted_nodes import trusted_nodes_router
+from app.security.zero_knowledge import zk_router
 from app.keys.keys import router as keys_router
 from app.peer.peer_registry import router as peers_router
 from app.security.middleware import (
@@ -56,6 +60,7 @@ from app.security.middleware import (
     SecurityHeadersMiddleware,
     TokenRefreshMiddleware,
 )
+from app.transport.stealth import StealthMiddleware, is_stealth
 from app.security.waf import WAFMiddleware, init_waf_engine, waf_router
 
 # ── Structured Logging Setup ─────────────────────────────────────────────────
@@ -249,6 +254,10 @@ async def lifespan(app: FastAPI):
     else:
         start_discovery(name)
 
+    # ── Self-hosted TURN (coturn) ──────────────────────────────────────
+    from app.keys.keys import start_coturn
+    start_coturn()
+
     # ── Tor Hidden Service (.onion) ─────────────────────────────────────
     if Config.TOR_HIDDEN_SERVICE:
         from app.security.tor_hidden_service import tor_hidden_service
@@ -263,6 +272,11 @@ async def lifespan(app: FastAPI):
     _fed_restored = await _fed_relay.restore_from_db()
     if _fed_restored:
         logger.info("Federation: restored %d virtual room(s) from DB", _fed_restored)
+
+    # ── Start trusted nodes monitor (health checks + token rotation) ─────
+    from app.federation.trusted_nodes import start_federation_monitor
+    await start_federation_monitor()
+    logger.info("Federation: trusted nodes monitor started")
 
     # ── Background cleanup tasks ─────────────────────────────────────────
     _create_background_task(cleanup_sessions_loop(), "cleanup-upload-sessions")
@@ -316,9 +330,19 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass
 
+    async def _ws_cleanup_loop():
+        """Periodically remove stale WebSocket connections."""
+        while True:
+            await asyncio.sleep(30)
+            try:
+                await manager.cleanup_stale()
+            except Exception as e:
+                logger.debug("WS cleanup error: %s", e)
+
     _create_background_task(_expired_msg_loop(), "cleanup-expired-messages")
     _create_background_task(_expired_status_loop(), "cleanup-expired-statuses")
     _create_background_task(_punishment_cleanup_loop(), "cleanup-punishments")
+    _create_background_task(_ws_cleanup_loop(), "cleanup-stale-ws")
 
     async def _rss_poll_loop():
         from app.chats.channel_feeds import poll_rss_feeds
@@ -388,6 +412,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug("Store-forward init: %s", e)
 
+    # ── Blind Mailbox Protocol ────────────────────────────────────────
+    try:
+        from app.transport.blind_mailbox import start_bmp
+        await start_bmp()
+    except Exception as e:
+        logger.debug("BMP init: %s", e)
+
     if _PROMETHEUS_AVAILABLE:
         _create_background_task(_metrics_update_loop(), "metrics-updater")
 
@@ -424,6 +455,10 @@ async def lifespan(app: FastAPI):
         await asyncio.gather(*_background_tasks, return_exceptions=True)
     _background_tasks.clear()
 
+    # Stop trusted nodes monitor
+    from app.federation.trusted_nodes import stop_federation_monitor
+    await stop_federation_monitor()
+
     if Config.NETWORK_MODE == "global":
         from app.transport.global_transport import global_transport
         await global_transport.stop()
@@ -436,6 +471,9 @@ async def lifespan(app: FastAPI):
     # Close Redis
     from app.peer.redis_pubsub import close_redis
     await close_redis()
+
+    from app.keys.keys import stop_coturn
+    stop_coturn()
 
     logger.info("Vortex stopped")
 
@@ -584,6 +622,9 @@ app.add_middleware(TokenRefreshMiddleware)
 app.add_middleware(CSRFMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+if is_stealth():
+    app.add_middleware(StealthMiddleware)
+    logger.info("🛡️ Stealth mode ENABLED — traffic camouflage active")
 
 
 # ── Routers ──────────────────────────────────────────────────────────────────
@@ -608,10 +649,14 @@ app.include_router(saved_router)
 app.include_router(tasks_router)
 app.include_router(link_preview_router)
 app.include_router(stickers_router)
+app.include_router(saved_gifs_router)
+app.include_router(bmp_push_router)
 app.include_router(voice_router)
 app.include_router(voice_ws_router)
 app.include_router(federation_router)
 app.include_router(fed_ws_router)
+app.include_router(trusted_nodes_router)
+app.include_router(zk_router)
 app.include_router(bots_router)
 app.include_router(ide_router)
 app.include_router(ide_bot_call_router)
@@ -631,6 +676,9 @@ app.include_router(ai_router)
 from app.security.panic import router as panic_router
 app.include_router(panic_router)
 
+from app.transport.blind_mailbox import router as bmp_router
+app.include_router(bmp_router)
+
 from app.chats.calls import router as calls_router
 app.include_router(calls_router)
 
@@ -649,6 +697,12 @@ app.include_router(key_backup_router)
 
 from app.chats.stories import router as stories_router
 app.include_router(stories_router)
+
+from app.push.web_push import router as push_router
+app.include_router(push_router)
+
+from app.keys.prekeys import router as prekeys_router
+app.include_router(prekeys_router)
 
 # ── Bots Advanced (inline, keyboards, components, slash, webhooks, payments, store, scopes)
 from app.bots.bot_advanced import router as bots_adv_router
@@ -820,6 +874,7 @@ os.makedirs("uploads/avatars", exist_ok=True)
 os.makedirs("uploads/room_avatars", exist_ok=True)
 os.makedirs("uploads/space_avatars", exist_ok=True)
 os.makedirs("uploads/stickers", exist_ok=True)
+os.makedirs("uploads/saved_gifs", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
@@ -865,6 +920,11 @@ async def manifest():
 @app.get("/health")
 async def health():
     """Liveness probe — basic health status."""
+    # Stealth mode: return minimal info (handled by StealthMiddleware returning 404,
+    # but if called internally we still limit exposure)
+    if is_stealth():
+        return {"status": "ok"}
+
     from app.database import get_engine_info
     from app.peer.redis_pubsub import is_redis_available, get_instance_id
     result = {

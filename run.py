@@ -337,6 +337,7 @@ def cmd_first_launch() -> None:
         env_lines.append(f"INVITE_CODE_NODE={invite_code}")
     if network_mode == "global":
         env_lines.append("OBFUSCATION_ENABLED=true")
+    env_lines.append("STEALTH_MODE=true")
 
     # Дописываем к существующему .env (секреты уже там)
     with open(ENV_FILE, "a") as f:
@@ -467,6 +468,8 @@ def _has_cloudflared() -> bool:
         return False
 
 
+_tunnel_ready = threading.Event()
+
 def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
     """
     Запускает Cloudflare Tunnel в фоне.
@@ -490,8 +493,12 @@ def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
 
         while True:
             try:
+                cmd = ["cloudflared", "tunnel", "--url", f"{proto}://localhost:{port}", "--no-autoupdate"]
+                # Self-signed cert → cloudflared не доверяет → 502 Bad Gateway
+                if proto == "https":
+                    cmd.append("--no-tls-verify")
                 proc = subprocess.Popen(
-                    ["cloudflared", "tunnel", "--url", f"{proto}://localhost:{port}", "--no-autoupdate"],
+                    cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
@@ -504,11 +511,14 @@ def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
                         urls = _re.findall(r'https://[a-zA-Z0-9\-]+\.(?:trycloudflare\.com|cfargotunnel\.com)', line)
                         if urls:
                             url_found = True
+                            # Wait for tunnel to stabilize before showing URL
+                            time.sleep(10)
                             _p(f"\n  ╔══════════════════════════════════════════════════════╗", "green")
                             _p(f"  ║  🌍 Публичная ссылка:                                ║", "green")
                             _p(f"  ║  {urls[0]:<52s} ║", "cyan")
                             _p(f"  ╚══════════════════════════════════════════════════════╝", "green")
                             _p(f"  Отправьте эту ссылку пользователям.\n", "dim")
+                            _tunnel_ready.set()
 
                 # cloudflared завершился (сон Mac, обрыв сети)
                 exit_code = proc.wait()

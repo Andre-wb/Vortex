@@ -171,6 +171,13 @@ def _py_listener():
             if src_ip == registry.own_ip or src_ip.startswith("127."):
                 continue
 
+            # Stealth mode: try to decrypt UDP broadcast
+            from app.transport.stealth import is_stealth, decrypt_udp_broadcast
+            if is_stealth():
+                decrypted = decrypt_udp_broadcast(data)
+                if decrypted:
+                    data = decrypted
+
             info   = json.loads(data.decode())
             pubkey = info.get("pubkey")
             if pubkey and len(pubkey) != 64:
@@ -219,10 +226,17 @@ def _py_sender(name: str, node_pubkey_hex: Optional[str]):
                 payload_dict["pubkey"] = node_pubkey_hex
 
             payload = json.dumps(payload_dict).encode()
+
+            # Stealth mode: encrypt UDP broadcast
+            from app.transport.stealth import is_stealth, encrypt_udp_broadcast, get_stealth_udp_port
+            if is_stealth():
+                payload = encrypt_udp_broadcast(payload)
+            udp_port = get_stealth_udp_port() if is_stealth() else Config.UDP_PORT
+
             bcast   = _subnet_broadcast(own_ip)
-            sock.sendto(payload, (bcast, Config.UDP_PORT))
+            sock.sendto(payload, (bcast, udp_port))
             try:
-                sock.sendto(payload, ("255.255.255.255", Config.UDP_PORT))
+                sock.sendto(payload, ("255.255.255.255", udp_port))
             except Exception:
                 pass
         except Exception as e:

@@ -35,6 +35,7 @@ def _write_env(cfg: NodeConfig) -> None:
 
     jwt_secret  = existing.get("JWT_SECRET")  or secrets.token_hex(32)
     csrf_secret = existing.get("CSRF_SECRET") or secrets.token_hex(32)
+    sealed_secret = existing.get("SEALED_SENDER_SECRET") or secrets.token_hex(32)
 
     lines = [
         "# ⚡ VORTEX Node Configuration",
@@ -43,6 +44,7 @@ def _write_env(cfg: NodeConfig) -> None:
         "# Security (DO NOT SHARE)",
         f"JWT_SECRET={jwt_secret}",
         f"CSRF_SECRET={csrf_secret}",
+        f"SEALED_SENDER_SECRET={sealed_secret}",
         "",
         "# Tokens",
         f"ACCESS_TOKEN_EXPIRE_MIN=1440",
@@ -74,6 +76,12 @@ def _write_env(cfg: NodeConfig) -> None:
         f"NETWORK_MODE={cfg.network_mode}",
         f"OBFUSCATION_ENABLED={'true' if cfg.obfuscation_enabled and cfg.network_mode == 'global' else 'false'}",
         f"REGISTRATION_MODE={cfg.registration_mode}",
+        "",
+        "# Stealth Mode (anti-censorship / DPI bypass)",
+        f"STEALTH_MODE=true",
+        f"STEALTH_SECRET={existing.get('STEALTH_SECRET') or secrets.token_hex(32)}",
+        f"VORTEX_NETWORK_KEY={existing.get('VORTEX_NETWORK_KEY') or secrets.token_hex(32)}",
+        f"STEALTH_TURN_URL=",
     ]
     if cfg.invite_code:
         lines.append(f"INVITE_CODE_NODE={cfg.invite_code}")

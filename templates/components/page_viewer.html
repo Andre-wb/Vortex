@@ -1,0 +1,16 @@
+<!-- Sandbox Page Viewer — renders user HTML/CSS/JS in isolated iframe -->
+<div id="page-viewer-overlay" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:28px;height:28px;border-radius:8px;background:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">PAGE</div>
+            <span id="page-viewer-title" style="font-size:14px;font-weight:600;color:var(--text);"></span>
+        </div>
+        <button onclick="window.closePageViewer()" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:6px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+    </div>
+    <iframe id="page-viewer-iframe"
+            sandbox="allow-scripts"
+            style="flex:1;border:none;background:#fff;width:100%;"
+            srcdoc=""></iframe>
+</div>

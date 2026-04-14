@@ -68,10 +68,24 @@ async function generateSSL() {
 
             case 'self': {
                 log('⚡ Генерация CA и серверного сертификата...', 'line-info');
+                const installCa = document.getElementById('install-ca').checked;
+                const pwdEl = document.getElementById('admin-password');
+                const adminPwd = (pwdEl && pwdEl.value) || '';
+
+                // Валидация: если хочет установить CA — пароль обязателен
+                if (installCa && !adminPwd) {
+                    showAlert('s3', 'Введите пароль администратора для установки CA', 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Сгенерировать →';
+                    return;
+                }
+
                 const body = {
-                    org_name:   document.getElementById('ssl-org').value || 'Vortex Node',
-                    install_ca: document.getElementById('install-ca').checked,
+                    org_name:       document.getElementById('ssl-org').value || 'Vortex Node',
+                    install_ca:     installCa,
+                    admin_password: adminPwd,
                 };
+
                 const r = await fetch('/api/ssl/self-signed', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -80,15 +94,18 @@ async function generateSSL() {
                 const d = await r.json();
                 if (!r.ok) throw new Error(d.detail || d.message);
 
+                // Очищаем пароль из памяти
+                if (pwdEl) pwdEl.value = '';
+
                 log(`✓ CA:   ${d.ca}`,   'line-ok');
                 log(`✓ CERT: ${d.cert}`, 'line-ok');
                 log(`✓ KEY:  ${d.key}`,  'line-ok');
                 log(d.trusted
-                        ? '✓ CA установлен в системное хранилище'
-                        : '⚠ CA не установлен автоматически',
-                    d.trusted ? 'line-ok' : 'line-warn');
+                        ? '✓ CA установлен в системное хранилище — перезапустите браузер'
+                        : '✓ Сертификат создан (CA не устанавливался)',
+                    d.trusted ? 'line-ok' : 'line-info');
 
-                state.caCmd   = d.ca_install || '';
+                state.caCmd   = '';
                 state.sslDone = true;
                 _setStep(4);
                 break;

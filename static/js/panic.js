@@ -42,14 +42,14 @@ window.openPanicConfirm = async function() {
 
     if (!pw) {
         if (inp) inp.focus();
-        _showPanicError(inp, 'Сначала введите пароль');
+        _showPanicError(inp, t('panic.enterPassword'));
         return;
     }
 
     // Блокируем кнопку на время проверки
     var btn = document.getElementById('panic-btn');
     var origText = btn ? btn.innerHTML : '';
-    if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = window.t ? window.t('panic.checking') : 'Проверка...'; }
+    if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = t('panic.checking'); }
 
     // Проверяем пароль на сервере ДО показа модалки
     var csrfToken = window.AppState?.csrfToken
@@ -68,12 +68,12 @@ window.openPanicConfirm = async function() {
         try { data = await resp.json(); } catch(_) {}
         if (!resp.ok) {
             if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.innerHTML = origText; }
-            _showPanicError(inp, data.detail || 'Неверный пароль');
+            _showPanicError(inp, data.detail || t('panic.wrongPassword'));
             return;
         }
     } catch(e) {
         if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.innerHTML = origText; }
-        _showPanicError(inp, 'Ошибка соединения');
+        _showPanicError(inp, t('panic.connectionError'));
         return;
     }
 
@@ -89,12 +89,12 @@ window.openPanicConfirm = async function() {
     modal.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.8);backdrop-filter:blur(10px);';
     modal.innerHTML = '<div style="background:var(--panel);border:2px solid var(--red);border-radius:20px;padding:32px;max-width:380px;width:92%;text-align:center;">'
         + '<div style="width:72px;height:72px;margin:0 auto 16px;color:#ff3b30;filter:drop-shadow(0 0 16px rgba(255,59,48,.7));">' + _SHARK_SVG + '</div>'
-        + '<div style="font-size:19px;font-weight:800;color:var(--red);margin-bottom:8px;letter-spacing:.04em;">ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ</div>'
-        + '<div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px;">Вы собираетесь <b>безвозвратно уничтожить</b> все данные.<br><b style="color:var(--red);">Это действие нельзя отменить.</b></div>'
+        + '<div style="font-size:19px;font-weight:800;color:var(--red);margin-bottom:8px;letter-spacing:.04em;">' + t('panic.finalWarning') + '</div>'
+        + '<div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px;">' + t('panic.warningBody') + '</div>'
         + '<div id="panic-countdown" style="font-size:32px;font-weight:900;color:var(--red);font-family:monospace;margin:8px 0;">5</div>'
         + '<div style="display:flex;gap:12px;margin-top:16px;">'
-        + '<button onclick="document.getElementById(\'panic-confirm-modal\').remove()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;cursor:pointer;font-weight:600;">Отмена</button>'
-        + '<button id="panic-confirm-go" disabled onclick="executePanic()" style="flex:1;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,#ff3b30,#c0392b);color:#fff;font-size:14px;cursor:pointer;font-weight:700;letter-spacing:.04em;opacity:.4;transition:opacity .3s;">УНИЧТОЖИТЬ</button>'
+        + '<button onclick="document.getElementById(\'panic-confirm-modal\').remove()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;cursor:pointer;font-weight:600;">' + t('app.cancel') + '</button>'
+        + '<button id="panic-confirm-go" disabled onclick="executePanic()" style="flex:1;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,#ff3b30,#c0392b);color:#fff;font-size:14px;cursor:pointer;font-weight:700;letter-spacing:.04em;opacity:.4;transition:opacity .3s;">' + t('panic.destroy') + '</button>'
         + '</div></div>';
     document.body.appendChild(modal);
 
@@ -134,7 +134,7 @@ window.executePanic = async function() {
         });
         var data = {};
         try { data = await resp.json(); } catch(_) {}
-        if (!resp.ok) throw new Error(data.detail || ('Ошибка ' + resp.status));
+        if (!resp.ok) throw new Error(data.detail || (t('errors.generic') + ' ' + resp.status));
 
         try {
             localStorage.clear();
@@ -154,17 +154,17 @@ window.executePanic = async function() {
         document.getElementById('panic-confirm-modal')?.remove();
         document.body.innerHTML = '<div style="position:fixed;inset:0;background:#0a0a0a;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:monospace;">'
             + '<div style="width:96px;height:96px;color:#ff3b30;margin-bottom:24px;filter:drop-shadow(0 0 24px rgba(255,59,48,.8));">' + _SHARK_SVG + '</div>'
-            + '<div style="font-size:22px;font-weight:900;letter-spacing:.1em;color:#ff3b30;">ДАННЫЕ УНИЧТОЖЕНЫ</div>'
-            + '<div style="font-size:13px;color:#555;margin-top:12px;">Все следы удалены. Этот сеанс завершён.</div>'
+            + '<div style="font-size:22px;font-weight:900;letter-spacing:.1em;color:#ff3b30;">' + t('panic.dataDestroyed') + '</div>'
+            + '<div style="font-size:13px;color:#555;margin-top:12px;">' + t('panic.allTracesRemoved') + '</div>'
             + '</div>';
         setTimeout(function(){ location.href = '/'; }, 3000);
 
     } catch(e) {
-        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = window.t ? window.t('panic.destroy') : 'УНИЧТОЖИТЬ'; confirmBtn.style.opacity = '1'; }
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = t('panic.destroy'); confirmBtn.style.opacity = '1'; }
         if (cancelBtn)  cancelBtn.disabled = false;
         var cd = document.getElementById('panic-countdown');
         if (cd) {
-            cd.textContent = '❌ ' + (e.message || (window.t ? window.t('panic.errorGeneric') : 'Ошибка'));
+            cd.textContent = '❌ ' + (e.message || t('panic.errorGeneric'));
             cd.style.fontSize = '13px';
             cd.style.color = 'var(--red)';
         }

@@ -1,0 +1,256 @@
+/* ═══════════════════════════════════════════════════════════════
+   Bot Constructor — Visual No-Code Builder
+   ═══════════════════════════════════════════════════════════════ */
+
+.bot-constructor {
+    position: fixed; inset: 0; z-index: 600;
+    background: var(--bg);
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+    animation: bcFadeIn .2s ease;
+}
+@keyframes bcFadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
+/* ── Header ─────────────────────────────────────────────────── */
+.bc-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    position: sticky; top: 0; z-index: 10;
+}
+.bc-back {
+    background: none; border: none; color: var(--text2);
+    cursor: pointer; padding: 4px; border-radius: 8px;
+    transition: color .15s;
+}
+.bc-back:hover { color: var(--text); }
+.bc-title {
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    font-weight: 700; font-size: 16px; color: var(--text);
+}
+.bc-title svg { color: var(--accent); }
+.bc-save {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--accent); color: #fff; border: none;
+    padding: 8px 16px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: opacity .15s;
+}
+.bc-save:hover { opacity: 0.9; }
+.bc-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Blocks Container ───────────────────────────────────────── */
+.bc-blocks {
+    flex: 1; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+}
+
+/* ── Block Card ─────────────────────────────────────────────── */
+.bc-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--bc-color, var(--accent));
+    border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+    transition: box-shadow .15s;
+}
+.bc-block:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+
+.bc-block-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+}
+.bc-block-icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 14px; font-weight: 700;
+    flex-shrink: 0;
+}
+.bc-block-type {
+    font-weight: 600; font-size: 13px; color: var(--text);
+    flex: 1;
+}
+.bc-block-actions { display: flex; gap: 4px; }
+.bc-mini-btn {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text2); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .12s;
+}
+.bc-mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+.bc-del-btn:hover { border-color: var(--red, #ef4444); color: var(--red, #ef4444); }
+
+.bc-block-trigger { padding: 10px 14px 0; }
+.bc-block-body { padding: 8px 14px 14px; }
+
+/* ── Inputs ─────────────────────────────────────────────────── */
+.bc-input, .bc-select {
+    width: 100%; padding: 8px 10px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    font-size: 13px; font-family: var(--sub);
+    outline: none; transition: border-color .15s;
+    box-sizing: border-box;
+}
+.bc-input:focus, .bc-select:focus { border-color: var(--accent); }
+.bc-cmd {
+    font-family: var(--mono); font-weight: 600;
+    color: var(--accent); font-size: 14px;
+}
+.bc-textarea {
+    width: 100%; min-height: 60px; padding: 10px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    font-size: 13px; font-family: var(--sub);
+    resize: vertical; outline: none;
+    transition: border-color .15s;
+    box-sizing: border-box;
+    line-height: 1.5;
+}
+.bc-textarea:focus { border-color: var(--accent); }
+.bc-textarea::placeholder { color: var(--text3); }
+.bc-trigger-label {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--accent); font-weight: 600;
+    padding: 6px 0;
+}
+.bc-select {
+    width: auto; padding: 6px 10px; cursor: pointer;
+}
+
+/* ── Flow Steps ─────────────────────────────────────────────── */
+.bc-flow {
+    padding: 8px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.bc-step {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+}
+.bc-step-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 4px;
+}
+.bc-step-body {
+    flex: 1; display: flex; flex-direction: column; gap: 6px;
+}
+.bc-step-var {
+    font-family: var(--mono); font-size: 12px;
+    max-width: 150px;
+}
+.bc-step-del {
+    background: none; border: none;
+    color: var(--text3); cursor: pointer;
+    font-size: 18px; line-height: 1; padding: 2px;
+    transition: color .12s;
+}
+.bc-step-del:hover { color: var(--red, #ef4444); }
+
+/* ── Main layout ────────────────────────────────────────────── */
+.bc-main {
+    display: flex;
+}
+.bc-main .bc-blocks { flex: 1; }
+
+/* ── Docs panel ─────────────────────────────────────────────── */
+.bc-docs-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg3); color: var(--text2); border: 1px solid var(--border);
+    padding: 8px 12px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: all .15s;
+}
+.bc-docs-btn:hover { border-color: var(--accent); color: var(--accent); }
+.bc-docs-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.bc-docs {
+    width: 360px; flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    background: var(--bg2);
+    overflow-y: auto;
+    padding: 20px;
+}
+.bc-docs-inner h2 { font-size: 18px; margin: 0 0 16px; color: var(--text); }
+.bc-docs-inner h3 { font-size: 14px; margin: 20px 0 8px; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.bc-docs-inner h4 { font-size: 13px; margin: 12px 0 4px; }
+.bc-docs-inner p { font-size: 12px; color: var(--text2); line-height: 1.6; margin: 4px 0; }
+.bc-docs-inner code {
+    display: block; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; font-size: 11px;
+    font-family: var(--mono); color: var(--accent); margin: 6px 0;
+    line-height: 1.5; overflow-x: auto; white-space: pre-wrap;
+}
+.bc-docs-inner ul { font-size: 12px; color: var(--text2); padding-left: 20px; line-height: 1.8; }
+.bc-docs-inner ul code { display: inline; padding: 1px 4px; margin: 0; }
+.bc-doc-section { padding: 8px 0; }
+
+/* ── Add Block Bar ──────────────────────────────────────────── */
+.bc-add-bar {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+    flex-shrink: 0;
+}
+.bc-add-label {
+    font-size: 11px; font-weight: 600;
+    color: var(--text3); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 8px;
+}
+.bc-add-options {
+    display: flex; gap: 6px;
+    overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+}
+.bc-add-options::-webkit-scrollbar { display: none; }
+.bc-add-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 11px; font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap; flex-shrink: 0;
+}
+.bc-add-btn:hover {
+    border-color: var(--bc-color, var(--accent));
+    background: var(--bg3);
+    transform: translateY(-1px);
+}
+.bc-add-icon { font-size: 16px; }
+
+/* ── Light theme ────────────────────────────────────────────── */
+body[data-theme="light"] .bc-block { background: #fff; border-color: #e5e7eb; }
+body[data-theme="light"] .bc-block-header { background: #f9fafb; }
+body[data-theme="light"] .bc-input,
+body[data-theme="light"] .bc-textarea,
+body[data-theme="light"] .bc-select { background: #f9fafb; border-color: #e5e7eb; }
+body[data-theme="light"] .bc-step { background: #f9fafb; border-color: #d1d5db; }
+body[data-theme="light"] .bc-add-btn { background: #fff; border-color: #e5e7eb; }
+body[data-theme="light"] .bc-mini-btn { background: #fff; border-color: #e5e7eb; }
+body[data-theme="light"] .bc-docs { background: #fff; border-color: #e5e7eb; }
+body[data-theme="light"] .bc-docs-inner code { background: #f9fafb; border-color: #e5e7eb; }
+body[data-theme="light"] .bc-docs-btn { background: #fff; border-color: #e5e7eb; }
+body[data-theme="light"] .bc-add-btn { background: #fff; border-color: #e5e7eb; }
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .bc-add-options { grid-template-columns: repeat(2, 1fr); }
+    .bc-header { padding: 10px 12px; }
+    .bc-blocks { padding: 12px; }
+    .bc-save span { display: none; }
+}

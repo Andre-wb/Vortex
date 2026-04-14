@@ -33,6 +33,7 @@ def generate_self_signed(
         org_name: str = "Vortex Node",
         days: int = 825,
         install_ca: bool = True,
+        admin_password: str = "",
 ) -> SSLResult:
     """
     Генерирует самоподписанный корневой CA и сертификат сервера.
@@ -135,7 +136,7 @@ def generate_self_signed(
     logger.info(f"SSL: сгенерированы сертификаты в {cert_dir}")
     trusted = False
     if install_ca:
-        trusted = install_ca_to_trust_store(ca_path)
+        trusted = install_ca_to_trust_store(ca_path, password=admin_password or None)
 
     return SSLResult(
         ok=True,

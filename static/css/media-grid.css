@@ -105,9 +105,11 @@
     background: var(--bg3);
     transition: transform 0.15s, filter 0.15s;
 }
+@media (hover: hover) {
 .gallery-thumb:hover {
     transform: scale(1.03);
     filter: brightness(1.15);
+}
 }
 .gallery-thumb img,
 .gallery-thumb video {
@@ -523,8 +525,10 @@
     border: 2px solid transparent;
     transition: border-color 0.15s, transform 0.15s;
 }
+@media (hover: hover) {
 .folder-color-swatch:hover {
     transform: scale(1.15);
+}
 }
 .folder-color-swatch.selected {
     border-color: var(--text);

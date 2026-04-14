@@ -192,6 +192,11 @@ export function _showPinnedBar(msgId, ciphertext, senderName) {
     bar.style.display = 'flex';
     bar.onclick = async (e) => {
         if (e.target.classList.contains('pinned-close')) return;
+        // Use _scrollToMsg for consistent behavior
+        if (window._scrollToMsg) {
+            window._scrollToMsg(msgId);
+            return;
+        }
         let el = document.querySelector(`[data-msg-id="${msgId}"]`);
         if (el) {
             el.scrollIntoView({behavior: 'smooth', block: 'center'});

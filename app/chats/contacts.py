@@ -71,14 +71,24 @@ def _find_dm_room(owner_id: int, contact_id: int, db: Session) -> int | None:
     return dm_member[0] if dm_member else None
 
 
-def _is_user_online(user_id: int) -> bool:
+def _is_user_online(user_id: int, db: Session | None = None) -> bool:
     """Проверяет, подключён ли пользователь к какой-либо комнате или глобальному WS."""
-    # Проверяем глобальный WS
+    from starlette.websockets import WebSocketState
+
+    # Проверяем глобальный WS (с валидацией состояния)
     if hasattr(manager, '_global_ws') and user_id in manager._global_ws:
-        return True
-    # Проверяем подключение к любой комнате
+        ws = manager._global_ws[user_id]
+        if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
+            manager._global_ws.pop(user_id, None)
+        else:
+            return True
+    # Проверяем подключение к любой комнате (с валидацией)
     for room_users in manager._rooms.values():
-        if user_id in room_users:
+        conn = room_users.get(user_id)
+        if conn:
+            ws = conn.websocket
+            if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
+                continue  # stale — будет очищен при следующем broadcast
             return True
     return False
 
@@ -128,6 +138,9 @@ async def list_contacts(
         if not contact_user:
             continue
 
+        _show_ls = getattr(contact_user, 'show_last_seen', True)
+        if _show_ls is None:
+            _show_ls = True
         result.append({
             "contact_id":   c.id,
             "user_id":      contact_user.id,
@@ -138,6 +151,8 @@ async def list_contacts(
             "phone":        _mask_phone(contact_user.phone),
             "nickname":     c.nickname,
             "is_online":    _is_user_online(contact_user.id),
+            "last_seen":    contact_user.last_seen.isoformat() + "Z" if contact_user.last_seen and _show_ls else None,
+            "show_last_seen": _show_ls,
             "custom_status": contact_user.custom_status,
             "status_emoji":  contact_user.status_emoji,
             "presence":      contact_user.presence or "online",
@@ -368,6 +383,8 @@ async def get_user_profile(
             "profile_bg":    target.profile_bg,
             "profile_icon":  target.profile_icon,
             "is_online":     _is_user_online(target.id),
+            "last_seen":     target.last_seen.isoformat() + "Z" if target.last_seen and getattr(target, 'show_last_seen', True) not in (False,) else None,
+            "show_last_seen": getattr(target, 'show_last_seen', True) is not False,
             "x25519_public_key": target.x25519_public_key,
         },
         "dm_room_id":    dm_room_id,

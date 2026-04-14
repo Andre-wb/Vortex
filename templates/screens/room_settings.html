@@ -18,19 +18,25 @@
             <div class="room-info-meta" id="room-info-meta"></div>
         </div>
 
-        <!-- Invite-код (скрыто для каналов) -->
+        <!-- Invite-код -->
         <div class="room-info-section" id="rss-invite-section">
-            <div class="room-info-label" data-i18n="room.inviteCodeShort">Invite-код</div>
+            <div class="room-info-label" data-i18n="room.inviteCodeShort">КОД ПРИГЛАШЕНИЯ</div>
             <div style="display:flex;align-items:center;gap:8px;">
                 <span id="room-info-invite" style="font-size:16px;letter-spacing:3px;font-weight:700;color:var(--accent2);font-family:var(--mono);"></span>
-                <button class="btn btn-secondary btn-sm" onclick="window._roomInfoCopyInvite()" data-i18n="app.copy">Скопировать</button>
+                <button class="btn btn-secondary btn-sm" onclick="window._roomInfoCopyInvite()" data-i18n="app.copy">Копировать</button>
             </div>
         </div>
 
         <!-- Быстрые кнопки -->
-        <div class="room-info-section" id="rss-quick-buttons" style="display:flex;gap:8px;">
-            <button class="btn btn-secondary" style="flex:1;" onclick="showMembersModal()" id="rss-members-btn" data-i18n="chat.members">Участники</button>
-            <button class="btn btn-danger" style="flex:1;" id="room-info-leave-btn" onclick="leaveRoom();closeRoomSettingsScreen();" data-i18n="room.leaveShort">Покинуть</button>
+        <div id="rss-quick-buttons" style="display:flex;gap:8px;padding:0 0 12px;">
+            <button class="btn btn-secondary" style="flex:1;border-radius:12px;padding:10px;" onclick="showMembersModal()" id="rss-members-btn">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:4px;"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                <span data-i18n="chat.members">Участники</span>
+            </button>
+            <button class="btn btn-danger" style="flex:1;border-radius:12px;padding:10px;" id="room-info-leave-btn" onclick="leaveRoom();closeRoomSettingsScreen();">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:4px;"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+                <span data-i18n="room.leaveShort">Покинуть</span>
+            </button>
         </div>
 
         <!-- ═══ Кнопка "Обсуждение" (каналы с включённым discussion) ═══ -->

@@ -14,7 +14,21 @@ function ideDocsSearch(q) {
 function ideRenderDocs() {
     const el = document.getElementById('ide-docs-content');
     if (!el) return;
-    el.innerHTML = DOCS_HTML;
+    if (!IDE._docsTab) IDE._docsTab = 'gravitix';
+    // Static trusted content only — no user input involved
+    el.innerHTML = _docsTabsHTML() + (IDE._docsTab === 'architex' ? DOCS_ARX_HTML : DOCS_HTML);
+    el.querySelectorAll('.ide-docs-lang-tab').forEach(t => {
+        t.onclick = () => { IDE._docsTab = t.dataset.lang; ideRenderDocs(); };
+    });
+}
+
+function _docsTabsHTML() {
+    const g = IDE._docsTab === 'gravitix' ? 'active' : '';
+    const a = IDE._docsTab === 'architex' ? 'active' : '';
+    return '<div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,.1)">'
+        + '<div class="ide-docs-lang-tab ' + g + '" data-lang="gravitix" style="padding:10px 18px;cursor:pointer;font-weight:600;font-size:13px;color:' + (g ? '#7c3aed' : '#888') + ';border-bottom:2px solid ' + (g ? '#7c3aed' : 'transparent') + ';transition:.15s">Gravitix</div>'
+        + '<div class="ide-docs-lang-tab ' + a + '" data-lang="architex" style="padding:10px 18px;cursor:pointer;font-weight:600;font-size:13px;color:' + (a ? '#00b8d4' : '#888') + ';border-bottom:2px solid ' + (a ? '#00b8d4' : 'transparent') + ';transition:.15s">Architex</div>'
+        + '</div>';
 }
 
 
@@ -837,3 +851,468 @@ gravitix repl [bot.grav]    # interactive REPL
 gravitix doc bot.grav       # generate docs
 gravitix install package    # install plugin</pre>
 </div>`;
+
+
+// ── Architex Docs HTML ───────────────────────────────────────
+const DOCS_ARX_HTML = `
+<div class="ide-docs-section">
+  <div class="ide-docs-h1">Architex Language Reference</div>
+  <div class="ide-docs-p">Declarative UI language for building Mini Apps on Vortex. Reactive state, layout modifiers, navigation, theming.</div>
+</div>
+
+<!-- ═══════════════ SCREENS ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Screens</div>
+  <div class="ide-docs-p">Top-level views. The first @screen is the entry point.</div>
+  <pre class="ide-docs-code">@screen Main
+  col :: pad(24) gap(16)
+    header "Hello" :: bold size(22)
+    text "Welcome to my app!"
+
+@screen Settings
+  col :: pad(24) gap(16)
+    header "Settings" :: bold size(20)
+    button "← Back" :: pad(10) radius(8) bg(#eee)
+      =&gt; back()</pre>
+</div>
+
+<!-- ═══════════════ REACTIVE VARS ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Reactive Variables (~)</div>
+  <div class="ide-docs-p">Prefix with ~ to declare reactive state. UI auto-updates when values change.</div>
+  <pre class="ide-docs-code">@screen Main
+  ~count = 0            // number
+  ~name = "World"       // string
+  ~active = true        // boolean
+  ~progress = 75        // used in widgets
+
+  // Computed (auto-recalculates)
+  ~greeting := "Hello, {~name}!"
+
+  col :: pad(24) gap(16)
+    text ~greeting :: size(18)
+    text ~count :: bold size(36) center
+    text "Active: {~active}" :: size(14)</pre>
+</div>
+
+<!-- ═══════════════ WIDGETS ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Widgets</div>
+  <div class="ide-docs-p">All available widget types.</div>
+  <pre class="ide-docs-code">// Text &amp; Headers
+text "Hello world" :: size(16) color(#333)
+header "Title" :: bold size(24) color(#000)
+label "Subtitle" :: italic size(13) color(#999)
+
+// Interactive
+button "Click Me" :: pad(12) radius(8) bg(#7c3aed) color(#fff)
+  =&gt; ~count += 1
+input ~name :: pad(10) radius(8) placeholder("Type here")
+switch "Dark Mode" ~enabled :: pad(8)
+slider ~volume :: min(0) max(100)
+
+// Display
+image "https://..." :: radius(12) width(200)
+badge "New" :: radius(8) bg(#ff4081) color(#fff)
+icon "★" :: size(24) color(#ffd700)
+avatar "A" :: size(48)
+chip "Tag" :: radius(16) border(#ccc)
+progressbar ~progress
+
+// Structure
+card :: pad(16) radius(12) bg(#fff) border(#eee)
+  text "Inside a card"
+divider
+spacer :: size(20)</pre>
+</div>
+
+<!-- ═══════════════ LAYOUT ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Layout Containers</div>
+  <div class="ide-docs-p">Containers nest child widgets via indentation.</div>
+  <pre class="ide-docs-code">// Column (vertical stack)
+col :: pad(16) gap(12) center
+  text "Item 1"
+  text "Item 2"
+
+// Row (horizontal)
+row :: gap(8) center
+  button "A" :: pad(8) bg(#eee)
+  button "B" :: pad(8) bg(#eee)
+
+// Grid
+grid :: cols(3) gap(8) pad(16)
+  card :: pad(12) bg(#f0f0f0)
+    text "Cell 1"
+  card :: pad(12) bg(#f0f0f0)
+    text "Cell 2"
+  card :: pad(12) bg(#f0f0f0)
+    text "Cell 3"
+
+// Scrollable
+scroll :: pad(16) gap(8)
+  text "Many items..."
+
+// Stack (overlapping, absolute positioned)
+stack
+  image "bg.png" :: width(300) height(200)
+  text "Overlay" :: bold color(#fff)</pre>
+</div>
+
+<!-- ═══════════════ MODIFIERS ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Modifiers (::)</div>
+  <div class="ide-docs-p">Style and layout hints applied with :: syntax.</div>
+  <pre class="ide-docs-code">// Spacing
+pad(16)        padding(16)     margin(8)
+
+// Colors
+bg(#7c3aed)    color(#fff)     border(#ccc)
+
+// Shape
+radius(12)     shadow          opacity(0.8)
+
+// Size
+size(18)       width(200)      height(100)
+maxWidth(400)  maxHeight(300)
+
+// Typography
+bold           italic          center
+font(monospace)
+
+// Layout
+grow           // flex-grow: 1
+center         // centers content/text
+gap(12)        // gap between children
+cols(3)        // grid columns
+
+// Combinations
+button "Go" :: pad(14) radius(10) bg(#6C5CE7) color(#fff) bold size(14) center</pre>
+</div>
+
+<!-- ═══════════════ HANDLERS ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Handlers (=&gt;)</div>
+  <div class="ide-docs-p">Actions triggered by user interaction. Written on the next indented line.</div>
+  <pre class="ide-docs-code">// Modify reactive vars
+button "+" :: pad(12) bg(#e0f0e0)
+  =&gt; ~count += 1
+
+button "Reset" :: pad(12) bg(#fee)
+  =&gt; ~count = 0
+
+// Assign string
+button "Set Name" :: pad(12)
+  =&gt; ~name = "Alice"
+
+// Toggle boolean
+button "Toggle" :: pad(12)
+  =&gt; ~active = !~active
+
+// Navigate to another screen
+button "Settings →" :: pad(12)
+  =&gt; navigate(Settings)
+
+// Go back
+button "← Back" :: pad(10)
+  =&gt; back()
+
+// Send data to Gravitix bot
+button "Submit" :: pad(14) bg(#7c3aed) color(#fff)
+  =&gt; send(action: "submit", value: ~input_val)
+
+// Multiple actions (semicolon-separated)
+button "Reset All" :: pad(12)
+  =&gt; ~count = 0; ~name = ""; ~active = false</pre>
+</div>
+
+<!-- ═══════════════ CONDITIONS ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Conditional Rendering</div>
+  <div class="ide-docs-p">Show/hide widgets based on reactive state.</div>
+  <pre class="ide-docs-code">@if ~count &gt; 10
+  text "High count!" :: bold color(#e53935)
+  badge "Warning" :: bg(#fff0f0) color(#e53935)
+@else
+  text "Keep going..." :: italic color(#999)
+
+// Supported operators: &gt;  &lt;  &gt;=  &lt;=  ==  !=
+
+@if ~active == true
+  text "System is active" :: color(#00e676)
+
+@if ~name != ""
+  text "Hello, {~name}!" :: bold</pre>
+</div>
+
+<!-- ═══════════════ NAVIGATION ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Navigation</div>
+  <div class="ide-docs-p">Move between screens with a navigation stack.</div>
+  <pre class="ide-docs-code">// Navigate forward
+button "Go to Settings"
+  =&gt; navigate(Settings)
+
+// Go back (pop navigation stack)
+button "← Back"
+  =&gt; back()
+
+// Bottom tab navigation
+row :: pad(12) gap(0) center bg(#fff)
+  button "Home" :: pad(12) grow center color(#7c3aed) bold
+    =&gt; navigate(Main)
+  button "Stats" :: pad(12) grow center color(#999)
+    =&gt; navigate(Stats)
+  button "Settings" :: pad(12) grow center color(#999)
+    =&gt; navigate(Settings)</pre>
+</div>
+
+<!-- ═══════════════ COMPONENTS ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Components</div>
+  <div class="ide-docs-p">Reusable UI fragments defined with @component.</div>
+  <pre class="ide-docs-code">@component StatCard
+  card :: pad(16) radius(12) bg(~stat_bg) border(~stat_border)
+    col :: gap(6) center
+      text ~stat_value :: bold size(28) color(~stat_accent)
+      text ~stat_label :: size(12) color(#636E72)
+
+@component UserRow
+  row :: gap(12) center pad(12)
+    avatar ~user_initial :: size(36)
+    col :: grow
+      text ~user_name :: bold size(14)
+      text ~user_status :: size(12) color(#999)</pre>
+</div>
+
+<!-- ═══════════════ THEME ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Theming</div>
+  <div class="ide-docs-p">Define color palette with @theme (optional, affects preview).</div>
+  <pre class="ide-docs-code">@theme
+  primary   = #6C5CE7
+  secondary = #A29BFE
+  accent    = #FD79A8
+  success   = #00B894
+  warning   = #FDCB6E
+  danger    = #E17055
+  surface   = #F8F9FE
+  text      = #2D3436
+  muted     = #B2BEC3</pre>
+</div>
+
+<!-- ═══════════════ SEND ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Bot Communication (send)</div>
+  <div class="ide-docs-p">Send data from UI to the Gravitix bot backend.</div>
+  <pre class="ide-docs-code">// Simple action
+button "Ping"
+  =&gt; send(action: "ping")
+
+// With reactive var data
+button "Submit Order"
+  =&gt; send(action: "order", item: ~selected_item, qty: ~quantity)
+
+// Gravitix handler (in .grav file)
+on msg {
+    match ctx.action {
+        "ping"  =&gt; emit "pong",
+        "order" =&gt; {
+            emit "Order: {ctx.item} x{ctx.qty}";
+            ui_set("order_status", "confirmed");
+        },
+        _       =&gt; {}
+    }
+}
+
+// ui_set() pushes data back to Architex reactive vars</pre>
+</div>
+
+<!-- ═══════════════ INTERPOLATION ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">String Interpolation</div>
+  <div class="ide-docs-p">Embed reactive vars in text with {~varName} syntax.</div>
+  <pre class="ide-docs-code">~user = "Alice"
+~score = 42
+
+text "Hello, {~user}!" :: size(16)
+text "Score: {~score} points" :: bold
+text "{~user} has {~score} pts" :: size(14)
+
+// In computed values
+~summary := "{~user}: {~score} points"
+text ~summary :: italic</pre>
+</div>
+
+<!-- ═══════════════ PATTERNS ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Common Patterns</div>
+  <pre class="ide-docs-code">// ── Form with validation ──
+~email = ""
+~submitted = false
+
+col :: pad(20) gap(12)
+  input ~email :: pad(12) radius(8) placeholder("Email")
+  @if ~email != ""
+    button "Submit" :: pad(14) radius(10) bg(#7c3aed) color(#fff)
+      =&gt; send(action: "submit", email: ~email)
+  @else
+    button "Submit" :: pad(14) radius(10) bg(#ccc) color(#999)
+
+// ── Counter with limits ──
+~count = 0
+
+row :: gap(12) center
+  button "−" :: pad(12) radius(8) bg(#fee)
+    =&gt; ~count -= 1
+  text ~count :: bold size(36)
+  button "+" :: pad(12) radius(8) bg(#efe)
+    =&gt; ~count += 1
+
+@if ~count &gt; 99
+  text "Maximum reached!" :: color(#e53935)
+
+// ── Toggle details ──
+~show_details = false
+
+button "Show Details"
+  =&gt; ~show_details = !~show_details
+@if ~show_details == true
+  card :: pad(16) radius(12) bg(#f8f8f8)
+    text "Detailed information here..."
+
+// ── Tab navigation ──
+row :: gap(0) bg(#fff) pad(0)
+  button "Tab 1" :: pad(14) grow center bold color(#7c3aed)
+    =&gt; navigate(Tab1)
+  button "Tab 2" :: pad(14) grow center color(#999)
+    =&gt; navigate(Tab2)</pre>
+</div>
+
+<!-- ═══════════════ ARCHITEX + GRAVITIX ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Architex + Gravitix</div>
+  <div class="ide-docs-p">Full-stack pattern: Architex handles UI, Gravitix handles logic.</div>
+  <pre class="ide-docs-code">// ── ui.arx (frontend) ──────────────
+@screen Main
+  ~result = ""
+  ~input_expr = ""
+
+  col :: pad(20) gap(14)
+    input ~input_expr :: pad(12) placeholder("Enter expression")
+    button "Calculate" :: pad(14) bg(#7c3aed) color(#fff)
+      =&gt; send(action: "calc", expr: ~input_expr)
+    text ~result :: bold size(20)
+
+// ── bot.grav (backend) ─────────────
+on msg {
+    match ctx.action {
+        "calc" =&gt; {
+            let r = eval_math(ctx.expr);
+            ui_set("result", str(r));
+        },
+        _ =&gt; {}
+    }
+}
+
+// Data flow:
+// 1. User types in input → ~input_expr updates
+// 2. Button click → send() to Gravitix
+// 3. Gravitix processes → ui_set() back
+// 4. ~result updates → UI redraws</pre>
+</div>
+
+<!-- ═══════════════ WIDGET REFERENCE ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Widget Quick Reference</div>
+  <pre class="ide-docs-code">// Layout
+col    — vertical flex container
+row    — horizontal flex container
+grid   — CSS grid (cols modifier)
+stack  — overlapping children (absolute)
+scroll — scrollable container
+card   — styled container with bg/border
+list   — vertical list with scroll
+
+// Content
+text    — text paragraph
+header  — bold heading
+label   — small label text
+icon    — single emoji/symbol
+badge   — small colored label
+avatar  — circular avatar
+
+// Interactive
+button  — clickable button
+input   — text input field
+switch  — toggle switch
+slider  — range slider
+chip    — clickable tag/chip
+
+// Structural
+divider  — horizontal line
+spacer   — empty space (size modifier)
+progressbar — progress indicator
+
+// Media
+image   — image from URL
+video   — video player
+audio   — audio player
+table   — data table</pre>
+</div>
+
+<!-- ═══════════════ MODIFIER REFERENCE ═══════════════ -->
+
+<div class="ide-docs-section">
+  <div class="ide-docs-h2">Modifier Quick Reference</div>
+  <pre class="ide-docs-code">// Spacing
+pad(N)       — padding in pixels
+margin(N)    — margin in pixels
+gap(N)       — gap between children
+
+// Colors
+bg(#hex)     — background color
+color(#hex)  — text/foreground color
+border(#hex) — 1px solid border
+
+// Shape
+radius(N)    — border radius
+shadow       — drop shadow
+opacity(N)   — 0.0 to 1.0
+
+// Size
+size(N)      — font size
+width(N)     — explicit width
+height(N)    — explicit height
+maxWidth(N)  — max width
+maxHeight(N) — max height
+
+// Typography
+bold         — font-weight 700
+italic       — font-style italic
+center       — text-align center
+font(name)   — font family
+
+// Layout
+grow         — flex-grow: 1
+cols(N)      — grid columns
+min(N)       — slider/range min
+max(N)       — slider/range max
+placeholder(text) — input hint</pre>
+</div>
+`;

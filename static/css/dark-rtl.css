@@ -34,9 +34,11 @@
     border-left: none;
     transform: rotate(40deg);
 }
+@media (hover: hover) {
 .msg-select-checkbox:hover {
     border-color: var(--accent2, #a78bfa);
     transform: scale(1.1);
+}
 }
 
 /* Режим выбора: группы становятся flex-row */
@@ -105,7 +107,9 @@
     background: rgba(124, 58, 237, 0.32);
     transform: translateY(-1px);
 }
+@media (hover: hover) {
 .selection-btn:active { transform: scale(0.96); }
+}
 .selection-btn.danger {
     background: rgba(220, 53, 69, 0.16);
     color: rgba(255, 100, 100, 0.9);
@@ -162,7 +166,7 @@
     border-radius: 18px 4px 18px 18px;
     margin-left: 0;
     margin-right: auto;
-    background: var(--bubble-own, rgba(124,58,237,0.55));
+    background: var(--bubble-own, rgba(66,212,245,0.55));
 }
 [dir="rtl"] .msg-bubble:not(.own) {
     border-radius: 4px 18px 18px 18px;

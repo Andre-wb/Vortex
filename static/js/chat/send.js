@@ -22,8 +22,9 @@ let _draftTimer   = null;
 // Reply / Edit
 // =============================================================================
 
-window.setReplyTo = (msg) => {
+window.setReplyTo = (msg, quoteText) => {
     _replyTo   = msg;
+    _replyTo._quoteText = quoteText || null;
     _editingId = null;
     const bar  = document.getElementById('reply-bar');
     const name = document.getElementById('reply-bar-name');
@@ -31,7 +32,7 @@ window.setReplyTo = (msg) => {
     if (bar) {
         bar.classList.add('visible');
         if (name) name.textContent = msg.display_name || msg.sender || '?';
-        if (text) text.textContent = _truncate(msg.text || msg.file_name || t('chat.file'), 60);
+        if (text) text.textContent = _truncate(quoteText || msg.text || msg.file_name || t('chat.file'), 60);
     }
     document.getElementById('msg-input')?.focus();
 };
@@ -64,7 +65,9 @@ window.startEditMessage = (msg) => {
 window.deleteMessage = (msgId) => {
     const S = window.AppState;
     if (!msgId || !S.ws || S.ws.readyState !== WebSocket.OPEN) return;
-    S.ws.send(JSON.stringify({ action: 'delete_message', msg_id: msgId }));
+    try {
+        S.ws.send(JSON.stringify({ action: 'delete_message', msg_id: msgId }));
+    } catch (e) { console.warn('deleteMessage ws.send failed:', e.message); }
 };
 
 function _truncate(str, n) { return str?.length > n ? str.slice(0, n) + '…' : str || ''; }
@@ -127,7 +130,10 @@ export async function sendMessage() {
         }
 
         const payload    = { action: 'message', ciphertext, client_ts: new Date().toISOString() };
-        if (_replyTo?.msg_id) payload.reply_to_id = _replyTo.msg_id;
+        if (_replyTo?.msg_id) {
+            payload.reply_to_id = _replyTo.msg_id;
+            if (_replyTo._quoteText) payload.reply_quote = _replyTo._quoteText;
+        }
 
         // Pass @mentioned usernames so server can flag notifications
         const mentions = extractMentions(text);
@@ -216,12 +222,13 @@ export function handleTyping() {
     const S = window.AppState;
     if (!_typingActive && S.ws?.readyState === WebSocket.OPEN) {
         _typingActive = true;
-        S.ws.send(JSON.stringify({ action: 'typing', is_typing: true }));
+        try { S.ws.send(JSON.stringify({ action: 'typing', is_typing: true })); } catch {}
+        if (window.bmpMarkActivity) window.bmpMarkActivity('typing');
     }
     clearTimeout(S.typingTimeout);
     S.typingTimeout = setTimeout(() => {
         _typingActive = false;
-        S.ws?.send(JSON.stringify({ action: 'typing', is_typing: false }));
+        try { S.ws?.send(JSON.stringify({ action: 'typing', is_typing: false })); } catch {}
     }, 2000);
 
     // Debounced draft save (500ms)

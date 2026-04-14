@@ -59,6 +59,55 @@ export class SFUClient {
         this.onParticipantJoined = null;
         /** @type {function(string)|null} */
         this.onConnectionStateChange = null;
+        /** @type {function(number, number)|null} — dominant speaker changed */
+        this.onDominantSpeaker = null;
+        /** @type {Object<number, string>} — current viewport subscriptions */
+        this._viewportSubs = {};
+    }
+
+    /**
+     * Subscribe to specific quality per user (viewport selection).
+     * Only the focused/large user gets "high", others "medium" or "low".
+     * Users outside viewport get "none" (audio only, no video forwarded).
+     *
+     * @param {Object<number, string>} subs — { userId: "high"|"medium"|"low"|"none" }
+     */
+    setViewportSubscriptions(subs) {
+        this._viewportSubs = subs;
+        if (this.ws?.readyState === WebSocket.OPEN) {
+            try {
+                this.ws.send(JSON.stringify({
+                    type: 'sfu_subscribe',
+                    subscriptions: subs,
+                }));
+            } catch {}
+        }
+    }
+
+    /**
+     * Report simulcast SSRC mapping to SFU.
+     * Called after simulcast negotiation.
+     */
+    _reportSimulcastInfo() {
+        if (!this.pc || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        const senders = this.pc.getSenders();
+        const layers = {};
+        for (const sender of senders) {
+            if (sender.track?.kind !== 'video') continue;
+            const params = sender.getParameters();
+            if (params.encodings) {
+                for (const enc of params.encodings) {
+                    if (enc.rid && enc.ssrc) {
+                        layers[enc.rid] = enc.ssrc;
+                    }
+                }
+            }
+        }
+        if (Object.keys(layers).length > 0) {
+            try {
+                this.ws.send(JSON.stringify({ type: 'sfu_simulcast_info', layers }));
+            } catch {}
+        }
     }
 
     /**
@@ -72,10 +121,24 @@ export class SFUClient {
         }
         this.pc = new RTCPeerConnection(config);
 
-        // Добавляем локальные треки
+        // Добавляем локальные треки с simulcast для видео
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => {
-                this.pc.addTrack(track, this.localStream);
+                if (track.kind === 'video') {
+                    // Simulcast: 3 layers (high/medium/low) — SFU выбирает какой пересылать
+                    const sender = this.pc.addTrack(track, this.localStream);
+                    const params = sender.getParameters();
+                    params.encodings = [
+                        { rid: 'low',    maxBitrate: 150_000,   maxFramerate: 10, scaleResolutionDownBy: 4 },
+                        { rid: 'medium', maxBitrate: 600_000,   maxFramerate: 20, scaleResolutionDownBy: 2 },
+                        { rid: 'high',   maxBitrate: 2_500_000, maxFramerate: 30, scaleResolutionDownBy: 1 },
+                    ];
+                    sender.setParameters(params).catch(e => {
+                        console.warn('[SFU-Client] Simulcast params failed:', e.message);
+                    });
+                } else {
+                    this.pc.addTrack(track, this.localStream);
+                }
             });
         }
 
@@ -144,6 +207,12 @@ export class SFUClient {
                 this.ws.send(JSON.stringify(msg));
             }
             this._pendingIce = [];
+            // Report simulcast SSRC mapping
+            this._reportSimulcastInfo();
+            // Re-send viewport subscriptions if set
+            if (Object.keys(this._viewportSubs).length > 0) {
+                this.setViewportSubscriptions(this._viewportSubs);
+            }
         };
 
         this.ws.onmessage = async (event) => {
@@ -179,6 +248,10 @@ export class SFUClient {
 
             if (data.type === 'sfu_participant_left' && this.onParticipantLeft) {
                 this.onParticipantLeft(data.user_id, data.username);
+            }
+
+            if (data.type === 'sfu_dominant_speaker' && this.onDominantSpeaker) {
+                this.onDominantSpeaker(data.user_id, data.level);
             }
         };
 

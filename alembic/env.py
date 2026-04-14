@@ -24,7 +24,7 @@ from app.config import Config  # noqa: E402
 # Import all models so Base.metadata is fully populated
 import app.models  # noqa: E402, F401
 import app.models_rooms  # noqa: E402, F401
-import app.models_contacts  # noqa: E402, F401
+from app.models import contact as _contact  # noqa: E402, F401
 
 # Alembic Config object
 config = context.config
@@ -37,17 +37,15 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # ---------------------------------------------------------------------------
-# Resolve database URL — prefer DATABASE_URL (PostgreSQL), fallback to SQLite
+# Resolve database URL — prefer DATABASE_URL / POSTGRES_*, fallback to SQLite
 # ---------------------------------------------------------------------------
-if Config.DATABASE_URL:
-    _db_url = Config.DATABASE_URL
-    # Ensure sync driver for Alembic (replace asyncpg with psycopg2)
-    if "postgresql+asyncpg" in _db_url:
-        _db_url = _db_url.replace("postgresql+asyncpg", "postgresql+psycopg2", 1)
-    elif _db_url.startswith("postgresql://"):
-        _db_url = _db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
-else:
-    _db_url = f"sqlite:///{Config.DB_PATH}"
+_db_url = Config.get_database_url()
+
+# Ensure sync driver for Alembic (replace asyncpg with psycopg2)
+if "postgresql+asyncpg" in _db_url:
+    _db_url = _db_url.replace("postgresql+asyncpg", "postgresql+psycopg2", 1)
+elif _db_url.startswith("postgresql://"):
+    _db_url = _db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 config.set_main_option("sqlalchemy.url", _db_url)
 

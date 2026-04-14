@@ -42,7 +42,23 @@ router = APIRouter(tags=["sfu"])
 # ── Configuration ────────────────────────────────────────────────────────────
 
 SFU_THRESHOLD = int(os.getenv("SFU_THRESHOLD", "6"))
-SFU_MAX_PARTICIPANTS = int(os.getenv("SFU_MAX_PARTICIPANTS", "50"))
+SFU_MAX_PARTICIPANTS = int(os.getenv("SFU_MAX_PARTICIPANTS", "200"))
+
+# ── Simulcast layers ────────────────────────────────────────────────────────
+# Client sends 3 simultaneous video streams (high/medium/low)
+# SFU selects which layer to forward to each subscriber based on viewport
+
+SIMULCAST_LAYERS = {
+    "high":   {"maxBitrate": 2_500_000, "maxFramerate": 30, "scaleDown": 1},
+    "medium": {"maxBitrate":   600_000, "maxFramerate": 20, "scaleDown": 2},
+    "low":    {"maxBitrate":   150_000, "maxFramerate": 10, "scaleDown": 4},
+}
+
+# Default subscription quality per viewer position
+DEFAULT_VIEWPORT_QUALITY = "medium"
+
+# Dominant speaker detection interval (seconds)
+SPEAKER_DETECT_INTERVAL = 0.3
 
 # ── Conditional aiortc import ────────────────────────────────────────────────
 
@@ -120,6 +136,14 @@ class SFUParticipant:
     ws: WebSocket | None = None                             # renegotiation WS
     ready_sources: set = field(default_factory=set)         # UIDs whose media can be forwarded here
     pending_sources: list = field(default_factory=list)     # UIDs awaiting renegotiation
+    # Simulcast: which layer to forward per source user
+    # {source_uid: "high" | "medium" | "low" | "none"}
+    subscriptions: dict = field(default_factory=dict)
+    # Simulcast: SSRC → layer mapping from client's SDP (populated on join)
+    simulcast_ssrcs: dict = field(default_factory=dict)     # {(kind, layer): ssrc}
+    # Audio level tracking for dominant speaker detection
+    audio_level: float = 0.0
+    audio_level_ts: float = 0.0
 
 
 # ── SFU Room ─────────────────────────────────────────────────────────────────
@@ -143,7 +167,15 @@ class SFURoom:
         # payload_type → 'audio' | 'video'  (built from first negotiated SDP)
         self._pt_to_kind: dict[int, str] = {}
         self._lock = asyncio.Lock()
-        logger.info("[SFU] Room created: call=%s room=%s (opaque E2E mode)", call_id, room_id)
+        # Simulcast: source_uid → {ssrc → layer} mapping
+        self._simulcast_map: dict[int, dict[int, str]] = {}
+        # Dominant speaker state
+        self._dominant_speaker_id: int | None = None
+        self._speaker_task: asyncio.Task | None = None
+        # Stats
+        self._total_rtp_forwarded: int = 0
+        self._total_rtp_dropped: int = 0
+        logger.info("[SFU] Room created: call=%s room=%s (simulcast + viewport + E2E)", call_id, room_id)
 
     @property
     def participant_count(self) -> int:
@@ -288,7 +320,7 @@ class SFURoom:
     # ── RTP forwarding ───────────────────────────────────────────────────
 
     async def _forward_rtp(self, from_uid: int, rtp_data: bytes) -> None:
-        """Forward an RTP packet to all other participants with SSRC remapping."""
+        """Forward an RTP packet with simulcast layer selection and viewport filtering."""
         if len(rtp_data) < 12:
             return
 
@@ -297,11 +329,35 @@ class SFURoom:
         if not kind:
             return
 
+        # Extract source SSRC for simulcast layer detection
+        src_ssrc = struct.unpack_from(">I", rtp_data, 8)[0]
+
+        # Detect simulcast layer of this packet
+        source_layer = "high"  # default
+        layer_map = self._simulcast_map.get(from_uid, {})
+        if layer_map and src_ssrc in layer_map:
+            source_layer = layer_map[src_ssrc]
+
+        # Audio level extraction for dominant speaker (RTP header extension)
+        if kind == "audio":
+            self._update_audio_level(from_uid, rtp_data)
+
         for uid, peer in self.participants.items():
             if uid == from_uid or not peer.pc:
                 continue
             if from_uid not in peer.ready_sources:
                 continue
+
+            # Viewport selection: check what quality this viewer wants
+            if kind == "video":
+                wanted = peer.subscriptions.get(from_uid, DEFAULT_VIEWPORT_QUALITY)
+                if wanted == "none":
+                    self._total_rtp_dropped += 1
+                    continue  # Viewer doesn't want this source's video
+                # Only forward if this packet's layer matches or is the best available
+                if not self._layer_matches(source_layer, wanted):
+                    self._total_rtp_dropped += 1
+                    continue
 
             ssrc = self._send_ssrc_table.get((uid, from_uid, kind))
             if not ssrc:
@@ -315,8 +371,31 @@ class SFURoom:
                 target_transport = self._get_transport(peer.pc)
                 if target_transport:
                     await target_transport._send_rtp(bytes(rewritten))
+                    self._total_rtp_forwarded += 1
             except Exception:
                 pass
+
+    @staticmethod
+    def _layer_matches(source_layer: str, wanted_layer: str) -> bool:
+        """Check if source simulcast layer should be forwarded for wanted quality."""
+        layers = {"low": 0, "medium": 1, "high": 2}
+        return layers.get(source_layer, 2) == layers.get(wanted_layer, 1)
+
+    def _update_audio_level(self, uid: int, rtp_data: bytes) -> None:
+        """Extract audio level from RTP for dominant speaker detection."""
+        import time
+        p = self.participants.get(uid)
+        if not p:
+            return
+        # Simple heuristic: use payload size as rough volume proxy
+        # Real implementation would parse RFC 6464 header extension
+        payload_size = len(rtp_data) - 12
+        level = min(payload_size / 200.0, 1.0)  # normalize
+        # Exponential moving average
+        now = time.monotonic()
+        alpha = 0.3
+        p.audio_level = alpha * level + (1 - alpha) * p.audio_level
+        p.audio_level_ts = now
 
     # ── Renegotiation ────────────────────────────────────────────────────
 
@@ -400,12 +479,106 @@ class SFURoom:
                 _sfu_rooms.pop(self.call_id, None)
                 logger.info("[SFU] Room %s closed (empty)", self.call_id)
 
+    # ── Viewport subscription ───────────────────────────────────────────
+
+    async def handle_subscribe(self, user_id: int, subscriptions: dict) -> None:
+        """
+        Update viewport subscriptions for a participant.
+
+        subscriptions: { str(source_user_id): "high" | "medium" | "low" | "none" }
+
+        This determines which simulcast layer to forward for each source.
+        Unspecified sources default to DEFAULT_VIEWPORT_QUALITY.
+        """
+        p = self.participants.get(user_id)
+        if not p:
+            return
+        # Convert string keys to int
+        p.subscriptions = {int(k): v for k, v in subscriptions.items() if v in ("high", "medium", "low", "none")}
+        logger.debug("[SFU] user %s subscriptions: %s", user_id, p.subscriptions)
+
+    async def handle_simulcast_info(self, user_id: int, layers: dict) -> None:
+        """
+        Client reports SSRC → layer mapping for its simulcast streams.
+
+        layers: { "high": ssrc_int, "medium": ssrc_int, "low": ssrc_int }
+        """
+        mapping = {}
+        for layer_name, ssrc in layers.items():
+            if layer_name in ("high", "medium", "low") and isinstance(ssrc, int):
+                mapping[ssrc] = layer_name
+        self._simulcast_map[user_id] = mapping
+        logger.debug("[SFU] user %s simulcast map: %s", user_id, mapping)
+
+    # ── Dominant speaker detection ───────────────────────────────────────
+
+    async def _start_speaker_detection(self) -> None:
+        """Start the dominant speaker detection background loop."""
+        if self._speaker_task and not self._speaker_task.done():
+            return
+        self._speaker_task = asyncio.create_task(self._speaker_detection_loop())
+
+    async def _speaker_detection_loop(self) -> None:
+        """Periodically detect the loudest speaker and broadcast."""
+        import time
+        while self.participants:
+            await asyncio.sleep(SPEAKER_DETECT_INTERVAL)
+            try:
+                now = time.monotonic()
+                best_uid = None
+                best_level = 0.05  # threshold — ignore quiet
+
+                for uid, p in self.participants.items():
+                    # Only consider recent audio (last 2 seconds)
+                    if now - p.audio_level_ts > 2.0:
+                        continue
+                    if p.audio_level > best_level:
+                        best_level = p.audio_level
+                        best_uid = uid
+
+                if best_uid != self._dominant_speaker_id:
+                    self._dominant_speaker_id = best_uid
+                    # Broadcast to all participants
+                    for uid, p in self.participants.items():
+                        if p.ws:
+                            try:
+                                await p.ws.send_json({
+                                    "type": "sfu_dominant_speaker",
+                                    "user_id": best_uid,
+                                    "level": round(best_level, 3),
+                                })
+                            except Exception:
+                                pass
+            except Exception as e:
+                logger.debug("[SFU] Speaker detection error: %s", e)
+
+    # ── Stats ────────────────────────────────────────────────────────────
+
+    def get_stats(self) -> dict:
+        """Return SFU room statistics."""
+        return {
+            "call_id": self.call_id,
+            "room_id": self.room_id,
+            "participant_count": self.participant_count,
+            "dominant_speaker": self._dominant_speaker_id,
+            "rtp_forwarded": self._total_rtp_forwarded,
+            "rtp_dropped": self._total_rtp_dropped,
+            "simulcast_sources": len(self._simulcast_map),
+            "subscriptions": {
+                uid: dict(p.subscriptions)
+                for uid, p in self.participants.items()
+                if p.subscriptions
+            },
+        }
+
     def set_ws(self, user_id: int, ws: WebSocket) -> None:
         p = self.participants.get(user_id)
         if p:
             p.ws = ws
             if p.pending_sources:
                 asyncio.ensure_future(self._try_renegotiate(p))
+            # Start speaker detection on first WS
+            asyncio.ensure_future(self._start_speaker_detection())
 
     async def close(self) -> None:
         async with self._lock:
@@ -449,7 +622,20 @@ async def sfu_available():
         "available": _SFU_AVAILABLE,
         "threshold": SFU_THRESHOLD,
         "max_participants": SFU_MAX_PARTICIPANTS,
+        "simulcast": True,
+        "viewport_selection": True,
+        "dominant_speaker": True,
+        "layers": list(SIMULCAST_LAYERS.keys()),
     }
+
+
+@router.get("/api/sfu/{call_id}/stats")
+async def sfu_stats(call_id: str, user: User = Depends(get_current_user)):
+    """Get SFU room statistics (simulcast, viewport, speaker, bandwidth)."""
+    room = _sfu_rooms.get(call_id)
+    if not room:
+        raise HTTPException(404, "SFU room not found")
+    return room.get_stats()
 
 
 @router.post("/api/sfu/{call_id}/join")
@@ -540,6 +726,14 @@ async def ws_sfu(
                 await room.handle_answer(user.id, data.get("sdp", ""))
             elif msg_type == "sfu_ice":
                 await room.handle_ice(user.id, data.get("candidate", {}))
+            elif msg_type == "sfu_subscribe":
+                # Viewport selection: client tells SFU what quality per user
+                # { type: "sfu_subscribe", subscriptions: { "user_5": "high", "user_8": "medium", ... } }
+                await room.handle_subscribe(user.id, data.get("subscriptions", {}))
+            elif msg_type == "sfu_simulcast_info":
+                # Client reports its simulcast SSRC mapping
+                # { type: "sfu_simulcast_info", layers: { "high": ssrc1, "medium": ssrc2, "low": ssrc3 } }
+                await room.handle_simulcast_info(user.id, data.get("layers", {}))
             else:
                 logger.debug("[SFU-WS] unknown type from %s: %s", user.id, msg_type)
 

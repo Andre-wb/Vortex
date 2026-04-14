@@ -4,19 +4,19 @@
 
 window.shareLocation = function() {
     if (!navigator.geolocation) {
-        alert(window.t ? window.t('settings.geoNotSupported') : 'Геолокация не поддерживается вашим браузером');
+        alert(window.t ? window.t('settings.geoNotSupported') : 'Geolocation is not supported by your browser');
         return;
     }
     var S = window.AppState;
     if (!S.currentRoom) {
-        alert(window.t ? window.t('settings.openChatFirst') : 'Сначала откройте чат');
+        alert(window.t ? window.t('settings.openChatFirst') : 'Open a chat first');
         return;
     }
 
     navigator.geolocation.getCurrentPosition(function(pos) {
         var lat = pos.coords.latitude.toFixed(6);
         var lng = pos.coords.longitude.toFixed(6);
-        var text = '\ud83d\udccd Местоположение: ' + lat + ', ' + lng + '\nhttps://maps.google.com/maps?q=' + lat + ',' + lng;
+        var text = '\ud83d\udccd ' + (window.t ? window.t('settings.location') : 'Location') + ': ' + lat + ', ' + lng + '\nhttps://maps.google.com/maps?q=' + lat + ',' + lng;
 
         var input = document.getElementById('msg-input');
         if (input) {
@@ -26,19 +26,15 @@ window.shareLocation = function() {
     }, function(err) {
         if (err.code === 1) {
             var isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-            var msg = 'Доступ к геолокации запрещён.\n\n';
             if (isMac) {
-                msg += '1. macOS: Системные настройки → Конфиденциальность → Службы геолокации → включите для браузера\n';
-                msg += '2. Браузер: нажмите на замок в адресной строке → Местоположение → Разрешить\n';
-                msg += '3. Перезагрузите страницу';
+                alert(window.t ? window.t('settings.geoDeniedMac') : 'Geolocation access denied.\n\n1. macOS: System Settings → Privacy → Location Services → enable for browser\n2. Browser: click the lock icon in the address bar → Location → Allow\n3. Reload the page');
             } else {
-                msg += 'Нажмите на замок в адресной строке → Местоположение → Разрешить, затем перезагрузите страницу';
+                alert(window.t ? window.t('settings.geoDeniedOther') : 'Geolocation access denied.\n\nClick the lock icon in the address bar → Location → Allow, then reload the page');
             }
-            alert(msg);
         } else if (err.code === 2) {
-            alert(window.t ? window.t('settings.geoFailed') : 'Не удалось определить местоположение.\nПроверьте что GPS/Wi-Fi включены.');
+            alert(window.t ? window.t('settings.geoFailed') : 'Could not determine location.\nMake sure GPS/Wi-Fi is enabled.');
         } else {
-            alert(window.t ? window.t('settings.geoTimeout') : 'Таймаут определения местоположения.\nПопробуйте на открытом пространстве.');
+            alert(window.t ? window.t('settings.geoTimeout') : 'Location request timed out.\nTry in an open area.');
         }
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
 };
@@ -49,34 +45,35 @@ window.shareLocation = function() {
 
 var _gifSearchTimer = null;
 
-window.openGifPicker = function() {
-    if (!window.AppState.currentRoom) {
-        alert(window.t ? window.t('settings.openChatFirst') : 'Сначала откройте чат');
-        return;
-    }
-    window.openModal('gif-modal');
-    var el = document.getElementById('gif-search-input');
-    if (el) { el.value = ''; el.focus(); }
-    var results = document.getElementById('gif-results');
-    if (results) results.innerHTML = ("<div style='padding:16px;color:var(--text2);text-align:center;'>" + (window.t ? window.t('gif.enterQuery') : 'Введите запрос для поиска') + '</div>');
-};
+// Don't overwrite — inline-handlers.js has the full version with saved GIFs
+if (!window.openGifPicker) {
+    window.openGifPicker = function() {
+        if (!window.AppState.currentRoom) {
+            alert(window.t ? window.t('settings.openChatFirst') : 'Open a chat first');
+            return;
+        }
+        window.openModal('gif-modal');
+        var el = document.getElementById('gif-search-input');
+        if (el) { el.value = ''; el.focus(); }
+    };
+}
 
-window.searchGifs = function(query) {
+if (!window.searchGifs) window.searchGifs = function(query) {
     clearTimeout(_gifSearchTimer);
     var el = document.getElementById('gif-results');
     if (!query || !query.trim()) {
-        if (el) el.innerHTML = ("<div style='padding:16px;color:var(--text2);text-align:center;'>" + (window.t ? window.t('gif.enterQuery') : 'Введите запрос для поиска') + '</div>');
+        if (el) el.innerHTML = ("<div style='padding:16px;color:var(--text2);text-align:center;'>" + (window.t ? window.t('gif.enterQuery') : 'Enter a search query') + '</div>');
         return;
     }
     _gifSearchTimer = setTimeout(async function() {
-        if (el) el.innerHTML = ("<div style='padding:16px;color:var(--text2);text-align:center;'>" + (window.t ? window.t('gif.searching') : 'Поиск...') + '</div>');
+        if (el) el.innerHTML = ("<div style='padding:16px;color:var(--text2);text-align:center;'>" + (window.t ? window.t('gif.searching') : 'Searching...') + '</div>');
         try {
             var key = 'AIzaSyDvT6aTBbn1fJWEAqEz1Kht2xQN_pjUib0';
             var resp = await fetch('https://tenor.googleapis.com/v2/search?q=' + encodeURIComponent(query) + '&key=' + key + '&limit=20&media_filter=gif');
             var data = await resp.json();
             var results = data.results || [];
             if (results.length === 0) {
-                el.innerHTML = "<div style='padding:16px;color:var(--text2);text-align:center;'>" + (window.t ? window.t('gif.nothingFound') : 'Ничего не найдено') + '</div>';
+                el.innerHTML = "<div style='padding:16px;color:var(--text2);text-align:center;'>" + (window.t ? window.t('gif.nothingFound') : 'Nothing found') + '</div>';
                 return;
             }
             el.innerHTML = results.map(function(gif) {
@@ -86,12 +83,12 @@ window.searchGifs = function(query) {
                        'style="width:calc(50% - 4px);cursor:pointer;border-radius:4px;object-fit:cover;max-height:150px;">';
             }).join('');
         } catch(e) {
-            if (el) el.innerHTML = "<div style='padding:16px;color:var(--red);text-align:center;'>" + (window.t ? window.t('gif.searchError').replace('{error}', e.message) : 'Ошибка поиска: ' + e.message) + '</div>';
+            if (el) el.innerHTML = "<div style='padding:16px;color:var(--red);text-align:center;'>" + (window.t ? window.t('gif.searchError').replace('{error}', e.message) : 'Search error: ' + e.message) + '</div>';
         }
     }, 500);
 };
 
-window.sendGif = function(url) {
+if (!window.sendGif) window.sendGif = function(url) {
     window.closeModal('gif-modal');
     var input = document.getElementById('msg-input');
     if (input) {
@@ -110,12 +107,12 @@ window.copyProfileLink = function() {
     var link = location.origin + '?contact=' + encodeURIComponent(u.username);
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(link).then(function() {
-            alert((window.t ? window.t('settings.linkCopied') : 'Ссылка скопирована: {link}').replace('{link}', link));
+            window.showToast?.(window.t ? window.t('settings.linkCopied') : 'Link copied', 'success');
         }).catch(function() {
-            prompt('Скопируйте ссылку:', link);
+            window.vxAlert(window.t ? window.t('settings.copyLink') : 'Copy link:', { token: link });
         });
     } else {
-        prompt('Скопируйте ссылку:', link);
+        window.vxAlert(window.t ? window.t('settings.copyLink') : 'Copy link:', { token: link });
     }
 };
 
@@ -125,26 +122,26 @@ window.copyProfileLink = function() {
 
 // Animated sticker definitions (vortex pack)
 var ANIMATED_STICKERS = [
-    { name: 'wave',     emoji: '\u{1F44B}', label: 'Привет' },
-    { name: 'heart',    emoji: '\u{2764}\u{FE0F}', label: 'Сердце' },
-    { name: 'fire',     emoji: '\u{1F525}', label: 'Огонь' },
-    { name: 'laugh',    emoji: '\u{1F602}', label: 'Смех' },
-    { name: 'cry',      emoji: '\u{1F62D}', label: 'Плач' },
-    { name: 'thumbsup', emoji: '\u{1F44D}', label: 'Класс' },
-    { name: 'party',    emoji: '\u{1F389}', label: 'Праздник' },
-    { name: 'rocket',   emoji: '\u{1F680}', label: 'Ракета' },
-    { name: 'star',     emoji: '\u{2B50}',  label: 'Звезда' },
-    { name: 'cool',     emoji: '\u{1F60E}', label: 'Круто' },
-    { name: 'love',     emoji: '\u{1F970}', label: 'Любовь' },
-    { name: 'clap',     emoji: '\u{1F44F}', label: 'Аплодисменты' },
-    { name: 'think',    emoji: '\u{1F914}', label: 'Думаю' },
-    { name: 'scared',   emoji: '\u{1F631}', label: 'Страх' },
-    { name: 'angry',    emoji: '\u{1F621}', label: 'Злость' },
-    { name: 'sleep',    emoji: '\u{1F634}', label: 'Сон' },
-    { name: 'money',    emoji: '\u{1F911}', label: 'Деньги' },
-    { name: 'ghost',    emoji: '\u{1F47B}', label: 'Призрак' },
-    { name: 'hundred',  emoji: '\u{1F4AF}', label: '100' },
-    { name: 'eyes',     emoji: '\u{1F440}', label: 'Глаза' }
+    { name: 'wave',     emoji: '\u{1F44B}', label: (window.t ? window.t('stickers.wave') : 'Wave') },
+    { name: 'heart',    emoji: '\u{2764}\u{FE0F}', label: (window.t ? window.t('stickers.heart') : 'Heart') },
+    { name: 'fire',     emoji: '\u{1F525}', label: (window.t ? window.t('stickers.fire') : 'Fire') },
+    { name: 'laugh',    emoji: '\u{1F602}', label: (window.t ? window.t('stickers.laugh') : 'Laugh') },
+    { name: 'cry',      emoji: '\u{1F62D}', label: (window.t ? window.t('stickers.cry') : 'Cry') },
+    { name: 'thumbsup', emoji: '\u{1F44D}', label: (window.t ? window.t('stickers.thumbsup') : 'Thumbs up') },
+    { name: 'party',    emoji: '\u{1F389}', label: (window.t ? window.t('stickers.party') : 'Party') },
+    { name: 'rocket',   emoji: '\u{1F680}', label: (window.t ? window.t('stickers.rocket') : 'Rocket') },
+    { name: 'star',     emoji: '\u{2B50}',  label: (window.t ? window.t('stickers.star') : 'Star') },
+    { name: 'cool',     emoji: '\u{1F60E}', label: (window.t ? window.t('stickers.cool') : 'Cool') },
+    { name: 'love',     emoji: '\u{1F970}', label: (window.t ? window.t('stickers.love') : 'Love') },
+    { name: 'clap',     emoji: '\u{1F44F}', label: (window.t ? window.t('stickers.clap') : 'Applause') },
+    { name: 'think',    emoji: '\u{1F914}', label: (window.t ? window.t('stickers.think') : 'Thinking') },
+    { name: 'scared',   emoji: '\u{1F631}', label: (window.t ? window.t('stickers.scared') : 'Scared') },
+    { name: 'angry',    emoji: '\u{1F621}', label: (window.t ? window.t('stickers.angry') : 'Angry') },
+    { name: 'sleep',    emoji: '\u{1F634}', label: (window.t ? window.t('stickers.sleep') : 'Sleep') },
+    { name: 'money',    emoji: '\u{1F911}', label: (window.t ? window.t('stickers.money') : 'Money') },
+    { name: 'ghost',    emoji: '\u{1F47B}', label: (window.t ? window.t('stickers.ghost') : 'Ghost') },
+    { name: 'hundred',  emoji: '\u{1F4AF}', label: (window.t ? window.t('stickers.hundred') : '100') },
+    { name: 'eyes',     emoji: '\u{1F440}', label: (window.t ? window.t('stickers.eyes') : 'Eyes') }
 ];
 
 // Classic emoji sticker packs
@@ -156,10 +153,8 @@ var STICKER_PACKS = {
     objects: ['\u{2764}','\u{1F494}','\u{1F495}','\u{1F496}','\u{2728}','\u{2B50}','\u{1F31F}','\u{1F4AB}','\u{1F525}','\u{1F4A7}','\u{1F308}','\u{2600}','\u{1F319}','\u{26A1}','\u{1F48E}','\u{1F381}','\u{1F388}','\u{1F380}','\u{1F3E0}','\u{1F680}','\u{2708}','\u{1F6F8}','\u{1F4BB}','\u{1F4F1}'],
 };
 
-window.openStickerPicker = function() {
-    if (window.openModal) window.openModal('sticker-modal');
-    window.showStickerCategory('animated', document.querySelector('#sticker-modal .settings-tab'));
-};
+// openStickerPicker is defined in stickers.js (loaded after this file)
+// Do NOT redefine it here to avoid wrapper recursion
 
 window.showStickerCategory = function(cat, btn) {
     document.querySelectorAll('#sticker-modal .settings-tab').forEach(function(t) { t.classList.remove('active'); });

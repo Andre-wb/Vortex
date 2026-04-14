@@ -69,7 +69,7 @@ function _initAiText() {
       if (_busy) return;
       if (!text) {
         menu.classList.remove('open');
-        window.showToast?.(window.t?.('ai.enterText') || 'Введите текст');
+        window.showToast?.(t('ai.enterText'));
         return;
       }
 
@@ -88,7 +88,7 @@ function _initAiText() {
         }
       } catch (err) {
         const msg = err?.message || String(err);
-        window.showToast?.('AI ошибка: ' + msg) || alert('AI ошибка: ' + msg);
+        window.showToast?.(t('errors.aiError') + ': ' + msg) || alert(t('errors.aiError') + ': ' + msg);
       } finally {
         _setBusy(false);
       }
@@ -157,7 +157,7 @@ function _initAiText() {
     header.appendChild(icon);
     const headerText = document.createElement('span');
     headerText.setAttribute('data-i18n', 'ai.result');
-    headerText.textContent = 'Результат AI';
+    headerText.textContent = t('ai.result');
     header.appendChild(headerText);
 
     // Text content (safe textContent)
@@ -172,12 +172,12 @@ function _initAiText() {
     const acceptBtn = document.createElement('button');
     acceptBtn.className = 'ai-preview-btn accept';
     acceptBtn.setAttribute('data-i18n', 'ai.accept');
-    acceptBtn.textContent = 'Принять';
+    acceptBtn.textContent = t('ai.accept');
 
     const discardBtn = document.createElement('button');
     discardBtn.className = 'ai-preview-btn discard';
     discardBtn.setAttribute('data-i18n', 'ai.discard');
-    discardBtn.textContent = 'Отмена';
+    discardBtn.textContent = t('ai.discard');
 
     actions.appendChild(acceptBtn);
     actions.appendChild(discardBtn);

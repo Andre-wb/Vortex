@@ -135,19 +135,22 @@ export function getRoomKey(roomId) {
 
 export function setRoomKey(roomId, keyBytes) {
     _roomKeys[roomId] = keyBytes;
-    try {
-        if (keyBytes) {
-            const hex = _rkHex(keyBytes);
-            sessionStorage.setItem(`vortex_rk_${roomId}`, hex);
-            localStorage.setItem(`vortex_rk_${roomId}`, hex);
-            // Уведомляем другие вкладки
-            _rkChannel?.postMessage({ roomId, hex });
-        } else {
-            sessionStorage.removeItem(`vortex_rk_${roomId}`);
-            localStorage.removeItem(`vortex_rk_${roomId}`);
-            _rkChannel?.postMessage({ roomId, hex: null });
+    if (keyBytes) {
+        const hex = _rkHex(keyBytes);
+        // Try sessionStorage first, then localStorage, verify write
+        let stored = false;
+        try { sessionStorage.setItem(`vortex_rk_${roomId}`, hex); stored = true; } catch {}
+        try { localStorage.setItem(`vortex_rk_${roomId}`, hex); stored = true; } catch {}
+        if (!stored) {
+            console.error('[CRYPTO] CRITICAL: Failed to persist room key for room', roomId, '— key only in memory!');
         }
-    } catch {}
+        try { _rkChannel?.postMessage({ roomId, hex }); } catch {}
+    } else {
+        try { sessionStorage.removeItem(`vortex_rk_${roomId}`); } catch {}
+        try { localStorage.removeItem(`vortex_rk_${roomId}`); } catch {}
+        try { _rkChannel?.postMessage({ roomId, hex: null }); } catch {}
+        delete _roomKeys[roomId];
+    }
 }
 
 // ============================================================================

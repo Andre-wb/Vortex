@@ -102,7 +102,8 @@ def _room_to_dict(room: Room, other_user: User, has_key: bool) -> dict:
             "x25519_public_key": other_user.x25519_public_key,
             "kyber_public_key":  other_user.kyber_public_key,
             "is_online":         _is_user_online(other_user.id),
-            "last_seen":         other_user.last_seen.isoformat() if other_user.last_seen else None,
+            "last_seen":         other_user.last_seen.isoformat() if other_user.last_seen and getattr(other_user, 'show_last_seen', True) not in (False,) else None,
+            "show_last_seen":    getattr(other_user, 'show_last_seen', True) is not False,
             "custom_status":     other_user.custom_status,
             "status_emoji":      other_user.status_emoji,
             "presence":          other_user.presence or "online",
@@ -221,11 +222,15 @@ async def create_or_get_dm(
         Contact.contact_id == u.id,
     ).first() is not None
 
-    await manager.notify_user(target_user_id, {
-        "type":    "new_dm",
-        "room":    target_entry["room"],
-        "dm_user": target_entry["other_user"],
-    })
+    # BMP mode: new_dm notification goes through BMP room deposit
+    # Target user will see the DM when polling their room BMP mailbox
+    from app.config import Config
+    if not Config.BMP_DELIVERY_ENABLED:
+        await manager.notify_user(target_user_id, {
+            "type":    "new_dm",
+            "room":    target_entry["room"],
+            "dm_user": target_entry["other_user"],
+        })
 
     entry = _room_to_dict(room, target, has_key=True)
     entry["other_user"]["is_contact"] = db.query(Contact).filter(
@@ -252,9 +257,9 @@ async def store_key_for_user(
     Сохранить зашифрованный ключ комнаты для другого пользователя.
     Вызывается создателем DM, чтобы получатель мог расшифровать сразу.
     """
-    room = db.query(Room).filter(Room.id == room_id, Room.is_dm == True).first()
+    room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
-        raise HTTPException(404, "DM не найден")
+        raise HTTPException(404, "Комната не найдена")
 
     # Проверяем что вызывающий — участник комнаты
     is_member = db.query(RoomMember).filter(
@@ -309,9 +314,19 @@ async def store_key_for_user(
         "ephemeral_pub": body.ephemeral_pub,
         "ciphertext":    body.ciphertext,
     }
-    delivered = await manager.send_to_user(room_id, body.user_id, key_payload)
-    if not delivered:
-        await manager.notify_user(body.user_id, key_payload)
+    # BMP mode: key delivery through BMP room deposit
+    from app.config import Config
+    if Config.BMP_DELIVERY_ENABLED:
+        try:
+            from app.transport.blind_mailbox import deposit_envelope
+            import json
+            await deposit_envelope(room_id, json.dumps(key_payload))
+        except Exception:
+            pass
+    else:
+        delivered = await manager.send_to_user(room_id, body.user_id, key_payload)
+        if not delivered:
+            await manager.notify_user(body.user_id, key_payload)
 
     return {"ok": True}
 

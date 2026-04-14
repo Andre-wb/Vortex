@@ -492,19 +492,16 @@ window.showAutoDeleteMenu = async function() {
         { label: t('chat.hours').replace('{n}', 24), value: 86400 },
     ];
     const current = S.currentRoom.auto_delete_seconds || 0;
-    const choice = prompt(
-        t('chat.autoDeleteMessages') + '\n' +
-        options.map((o, i) => `${i}: ${o.label}${o.value === current ? ` (${t('chat.current')})` : ''}`).join('\n') +
-        '\n\n' + t('chat.enterNumber'),
-        '0'
+    const val = await window.vxSelect(
+        t('chat.autoDeleteMessages'),
+        options.map(o => ({ label: o.label, value: o.value })),
+        current
     );
-    if (choice === null) return;
-    const idx = parseInt(choice);
-    if (isNaN(idx) || idx < 0 || idx >= options.length) return;
+    if (val === null) return;
     try {
         const { api } = await import('../utils.js');
-        await api('POST', `/api/rooms/${S.currentRoom.id}/auto-delete`, { seconds: options[idx].value });
-    } catch (e) { alert(e.message); }
+        await api('POST', `/api/rooms/${S.currentRoom.id}/auto-delete`, { seconds: val });
+    } catch (e) { window.vxAlert?.(e.message) || alert(e.message); }
 };
 
 // =============================================================================
@@ -522,19 +519,16 @@ window.showSlowModeMenu = async function() {
         { label: t('chat.min').replace('{n}', 5), value: 300 },
     ];
     const current = S.currentRoom.slow_mode_seconds || 0;
-    const choice = prompt(
-        t('chat.slowModeInterval') + '\n' +
-        options.map((o, i) => `${i}: ${o.label}${o.value === current ? ` (${t('chat.current')})` : ''}`).join('\n') +
-        '\n\n' + t('chat.enterNumber'),
-        '0'
+    const val = await window.vxSelect(
+        t('chat.slowModeInterval'),
+        options.map(o => ({ label: o.label, value: o.value })),
+        current
     );
-    if (choice === null) return;
-    const idx = parseInt(choice);
-    if (isNaN(idx) || idx < 0 || idx >= options.length) return;
+    if (val === null) return;
     try {
         const { api } = await import('../utils.js');
-        await api('POST', `/api/rooms/${S.currentRoom.id}/slow-mode`, { seconds: options[idx].value });
-    } catch (e) { alert(e.message); }
+        await api('POST', `/api/rooms/${S.currentRoom.id}/slow-mode`, { seconds: val });
+    } catch (e) { window.vxAlert?.(e.message) || alert(e.message); }
 };
 
 // =============================================================================

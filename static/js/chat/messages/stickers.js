@@ -21,6 +21,15 @@ export function attachStickerClickHandler(msgEl) {
 async function _openStickerPackPopup(packId, anchorEl) {
     _closeStickerPackPopup();
 
+    // Pre-check: fetch pack data first to see if already owned
+    let packData;
+    try {
+        const r = await fetch(`/api/stickers/packs/${packId}`);
+        if (!r.ok) return;
+        packData = await r.json();
+        if (packData.pack?.is_favorited || packData.pack?.is_own) return; // already have it
+    } catch { return; }
+
     const popup = document.createElement('div');
     popup.id = 'sticker-pack-popup';
     popup.style.cssText = `
@@ -59,10 +68,7 @@ async function _openStickerPackPopup(packId, anchorEl) {
     setTimeout(() => document.addEventListener('click', _stickerOutsideClick), 10);
 
     try {
-        const r = await fetch(`/api/stickers/packs/${packId}`);
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const data = await r.json();
-        const pack = data.pack;
+        const pack = packData.pack;
 
         popup.querySelector('#spp-title').textContent = pack.name;
 
@@ -90,19 +96,19 @@ async function _openStickerPackPopup(packId, anchorEl) {
         // Добавить / убрать из избранного
         const favBtn = document.createElement('button');
         favBtn.style.cssText = 'flex:1;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;border:1px solid var(--border,rgba(255,255,255,.1));background:var(--accent,#7c6af7);color:#fff;transition:opacity .15s;';
-        favBtn.textContent = pack.is_favorited ? '✓ В избранном' : '+ Добавить пак';
+        favBtn.textContent = pack.is_favorited ? ('✓ ' + t('stickers.inFavorites')) : ('+ ' + t('stickers.addPack'));
         favBtn.style.opacity = pack.is_favorited ? '0.6' : '1';
 
         favBtn.onclick = async () => {
             if (pack.is_favorited) {
                 await fetch(`/api/stickers/packs/${packId}/favorite`, { method: 'DELETE' });
                 pack.is_favorited = false;
-                favBtn.textContent = '+ Добавить пак';
+                favBtn.textContent = '+ ' + t('stickers.addPack');
                 favBtn.style.opacity = '1';
             } else {
                 await fetch(`/api/stickers/packs/${packId}/favorite`, { method: 'POST' });
                 pack.is_favorited = true;
-                favBtn.textContent = '✓ В избранном';
+                favBtn.textContent = '✓ ' + t('stickers.inFavorites');
                 favBtn.style.opacity = '0.6';
             }
             // Сбрасываем кеш пикера
@@ -111,7 +117,7 @@ async function _openStickerPackPopup(packId, anchorEl) {
         footer.appendChild(favBtn);
 
     } catch {
-        popup.querySelector('#spp-title').textContent = 'Ошибка загрузки';
+        popup.querySelector('#spp-title').textContent = t('errors.loadingError');
     }
 }
 

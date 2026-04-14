@@ -28,6 +28,35 @@ import { _showNotContactBanner, _hideNotContactBanner, _showThemeProposalBanner 
 import { _updateAutoDeleteIndicator, _updateSlowModeIndicator, _startSlowModeCooldown } from './features.js';
 import { _updateThreadPanelCount, _appendToOpenThread } from './thread.js';
 import { queueHistoryMessage } from '../key_backup.js';
+import { registerBMPHandler, MSG } from '../bmp-client.js';
+
+// ─── BMP Handler Registration ─────────────────────────────────────────────
+// Messages arriving via BMP are dispatched to the same handlers as WS.
+// During hybrid mode, dedup by msg_id prevents double-processing.
+const _bmpProcessed = new Set(); // msg_id dedup
+
+function _bmpMsg(roomId, payload) {
+    // Dedup: if already received via WS
+    if (payload.msg_id && _bmpProcessed.has(payload.msg_id)) return;
+    if (payload.msg_id) {
+        _bmpProcessed.add(payload.msg_id);
+        if (_bmpProcessed.size > 2000) {
+            const arr = [..._bmpProcessed]; _bmpProcessed.clear();
+            arr.slice(-1000).forEach(id => _bmpProcessed.add(id));
+        }
+    }
+    // Ensure room_id is set on payload for proper routing
+    if (roomId && !payload.room_id) payload.room_id = roomId;
+    // Route to the same handler as WS messages
+    handleWsMessage(payload);
+}
+
+// Register handlers for all content message types
+[MSG.MESSAGE, MSG.EDIT, MSG.DELETE, MSG.THREAD, MSG.FORWARD,
+ MSG.REACTION, MSG.PIN, MSG.STICKER, MSG.FILE_META, MSG.FILE_SENDING,
+ MSG.POLL, MSG.SCREENSHOT, MSG.PRESENCE, MSG.TYPING, MSG.READ_RECEIPT,
+ MSG.SIGNAL, MSG.VOICE_EVENT,
+].forEach(type => registerBMPHandler(type, _bmpMsg));
 
 // ─── Детекция скриншотов ────────────────────────────────────────────────────
 document.addEventListener('keyup', e => {
@@ -66,6 +95,8 @@ async function _pullKeyFromServer(roomId) {
             const keyBytes = await eciesDecrypt(data.ephemeral_pub, data.ciphertext, privKey);
             setRoomKey(roomId, keyBytes);
             _saveRoomKeyToSession(roomId, keyBytes);
+            // Register BMP secret for this room
+            if (window.registerRoomSecret) window.registerRoomSecret(roomId);
             console.info('🔑 Ключ комнаты получен с сервера для room', roomId);
             // Если история ждёт ключ — расшифровываем
             if (_pendingHistory) {
@@ -105,6 +136,7 @@ export async function connectWS(roomId) {
     const cachedKey = _loadRoomKeyFromSession(roomId);
     if (cachedKey) {
         setRoomKey(roomId, cachedKey);
+        if (window.registerRoomSecret) window.registerRoomSecret(roomId);
         console.info('🔑 Ключ комнаты восстановлен из storage для room', roomId);
     } else {
         // 2) Авто-pull с сервера (зашифрованный ECIES ключ) — не блокируем подключение
@@ -129,6 +161,7 @@ export async function connectWS(roomId) {
 
     S.ws.onopen = () => {
         console.log('WS connected, room', roomId);
+        S._wsReconnectAttempt = 0;  // Reset backoff on successful connect
         showMessagesSkeleton();
         _flushOfflineQueue();
     };
@@ -145,9 +178,17 @@ export async function connectWS(roomId) {
 
     S.ws.onclose = e => {
         if (e.code === 4401) { window.doLogout(); return; }
-        if (e.code === 4403) { alert(t('chat.noAccess')); return; }
-        if (S.currentRoom?.id === roomId)
-            setTimeout(() => connectWS(roomId), 2000 + Math.random() * 6000);
+        if (e.code === 4403) { window.vxAlert?.(t('chat.noAccess')); return; }
+        if (S.currentRoom?.id === roomId) {
+            // Exponential backoff: 1s, 2s, 4s, 8s, 15s, 15s, ...
+            const attempt = (S._wsReconnectAttempt || 0);
+            const delay = Math.min(1000 * Math.pow(2, attempt), 15000) + Math.random() * 2000;
+            S._wsReconnectAttempt = attempt + 1;
+            console.info(`[WS] Reconnecting room ${roomId} in ${Math.round(delay)}ms (attempt ${attempt + 1})`);
+            setTimeout(() => {
+                if (S.currentRoom?.id === roomId) connectWS(roomId);
+            }, delay);
+        }
     };
 
     // Рандомизация ping-интервала (15-50 сек) — защита от timing fingerprint
@@ -155,7 +196,7 @@ export async function connectWS(roomId) {
         const interval = 15000 + Math.random() * 35000;
         S.ws._ping = setTimeout(() => {
             if (S.ws?.readyState === WebSocket.OPEN) {
-                S.ws.send(JSON.stringify({ action: 'ping' }));
+                try { S.ws.send(JSON.stringify({ action: 'ping' })); } catch {}
                 _schedulePing();
             }
         }, interval);
@@ -185,6 +226,7 @@ async function handleWsMessage(msg) {
                 const keyBytes = await eciesDecrypt(msg.ephemeral_pub, msg.ciphertext, privKey);
                 setRoomKey(roomId, keyBytes);
                 _saveRoomKeyToSession(roomId, keyBytes);
+                if (window.registerRoomSecret) window.registerRoomSecret(roomId);
                 console.info('🔑 Ключ комнаты получен и сохранён, room', roomId);
 
                 if (_pendingHistory) {
@@ -207,28 +249,61 @@ async function handleWsMessage(msg) {
         }
 
         case 'key_request': {
-            const roomId  = S.currentRoom?.id;
+            const roomId  = msg.room_id || S.currentRoom?.id;
+            if (!roomId) break;
             const roomKey = getRoomKey(roomId);
             if (!roomKey) break;
             try {
                 const enc = await eciesEncrypt(roomKey, msg.for_pubkey);
-                S.ws.send(JSON.stringify({
-                    action:        'key_response',
-                    for_user_id:   msg.for_user_id,
-                    ephemeral_pub: enc.ephemeral_pub,
-                    ciphertext:    enc.ciphertext,
-                }));
-            } catch (e) { console.error('Ошибка re-encryption:', e); }
+                // Always persist via REST API first (reliable delivery)
+                try {
+                    const { api } = await import('../utils.js');
+                    await api('POST', `/api/dm/store-key/${roomId}`, {
+                        user_id: msg.for_user_id,
+                        ephemeral_pub: enc.ephemeral_pub,
+                        ciphertext: enc.ciphertext,
+                    });
+                } catch {
+                    // REST failed — try WS as fallback
+                    try {
+                        S.ws.send(JSON.stringify({
+                            action:        'key_response',
+                            for_user_id:   msg.for_user_id,
+                            ephemeral_pub: enc.ephemeral_pub,
+                            ciphertext:    enc.ciphertext,
+                        }));
+                    } catch {}
+                }
+            } catch (e) { console.error('Key re-encryption error:', e); }
             break;
         }
 
         case 'waiting_for_key':
             appendSystemMessage(t('chat.waitingKeyDots'));
+            // Ретрай: через 3 и 8 секунд пробуем снова получить ключ с сервера
+            // (другой участник мог уже ответить на key_request)
+            {
+                const _wkRoomId = S.currentRoom?.id;
+                if (_wkRoomId) {
+                    setTimeout(() => _pullKeyFromServer(_wkRoomId).catch(() => {}), 3000);
+                    setTimeout(() => _pullKeyFromServer(_wkRoomId).catch(() => {}), 8000);
+                }
+            }
             break;
 
         case 'node_pubkey':
             S.nodePublicKey = msg.pubkey_hex;
             break;
+
+        case 'prekeys_low': {
+            // Replenish sealed prekeys when running low
+            const _pkRoomId = msg.room_id;
+            const _pkRoomKey = getRoomKey(_pkRoomId);
+            if (_pkRoomKey && window._uploadSealedPrekeys) {
+                window._uploadSealedPrekeys(_pkRoomId, _pkRoomKey).catch(() => {});
+            }
+            break;
+        }
 
         case 'history': {
             hideMessagesSkeleton();
@@ -386,6 +461,17 @@ async function handleWsMessage(msg) {
         }
 
         case 'file': {
+            // Decrypt caption if present
+            if (msg.ciphertext) {
+                const _fRoomKey = getRoomKey(S.currentRoom?.id);
+                if (_fRoomKey) {
+                    try {
+                        msg.text = await ratchetDecrypt(msg.ciphertext, S.currentRoom?.id, msg.sender_id, _fRoomKey);
+                    } catch {
+                        try { msg.text = await decryptText(msg.ciphertext, _fRoomKey); } catch {}
+                    }
+                }
+            }
             appendFileMessage(msg);
             const _mc2 = document.getElementById('messages-container');
             const _atBot2 = _mc2 && (_mc2.scrollHeight - _mc2.scrollTop - _mc2.clientHeight < 100);
@@ -412,13 +498,19 @@ async function handleWsMessage(msg) {
             _showTyping(msg.username, msg.is_typing);
             break;
 
-        case 'file_sending':
-            _showFileSending(msg.display_name || msg.username, msg.filename);
+        case 'file_sending': {
+            // Don't show "you are sending file" to yourself
+            const _fsSender = msg.display_name || msg.username || msg.sender;
+            const _fsMe = S.user?.display_name || S.user?.username;
+            if (_fsSender !== _fsMe) _showFileSending(_fsSender, msg.filename);
             break;
-
-        case 'stop_file_sending':
-            _showFileSending(msg.sender, null);
+        }
+        case 'stop_file_sending': {
+            const _sfsSender = msg.sender;
+            const _sfsMe = S.user?.display_name || S.user?.username;
+            if (_sfsSender !== _sfsMe) _showFileSending(_sfsSender, null);
             break;
+        }
 
         case 'kicked':
             alert(t('chat.kicked'));
@@ -461,32 +553,43 @@ async function handleWsMessage(msg) {
         case 'key_rotated': {
             const roomId = S.currentRoom?.id;
             if (roomId) {
-                // Clear old key and ratchet chains
-                setRoomKey(roomId, null);
-                clearRatchet(roomId);
-                _clearRoomKeyFromSession(roomId);
-
-                // Generate new room key and distribute to self
+                // DM: ключ не ротируется — просто обновляем с сервера
+                if (S.currentRoom?.is_dm) {
+                    appendSystemMessage(t('chat.keyUpdated'));
+                    _pullKeyFromServer(roomId).catch(() => {});
+                    break;
+                }
+                // Generate new key BEFORE clearing old (atomic swap)
                 const newKey   = crypto.getRandomValues(new Uint8Array(32));
                 const myPubkey = S.user?.x25519_public_key;
                 if (myPubkey) {
                     try {
                         const enc = await eciesEncrypt(newKey, myPubkey);
+                        // Only clear old key AFTER new key is ready
+                        clearRatchet(roomId);
                         setRoomKey(roomId, newKey);
                         _saveRoomKeyToSession(roomId, newKey);
-                        S.ws?.send(JSON.stringify({
-                            action:        'key_response',
-                            for_user_id:   S.user.id,
-                            ephemeral_pub: enc.ephemeral_pub,
-                            ciphertext:    enc.ciphertext,
-                        }));
+                        try {
+                            S.ws?.send(JSON.stringify({
+                                action:        'key_response',
+                                for_user_id:   S.user.id,
+                                ephemeral_pub: enc.ephemeral_pub,
+                                ciphertext:    enc.ciphertext,
+                            }));
+                        } catch {}
                         appendSystemMessage(t('chat.newRoomKey'));
                     } catch (e) {
                         console.error('key_rotated: ошибка генерации нового ключа', e);
+                        // Keep old key as fallback rather than losing all access
                         appendSystemMessage(t('chat.keyUpdated'));
                     }
                 } else {
+                    // No pubkey — clear and wait for key from other members
+                    setRoomKey(roomId, null);
+                    clearRatchet(roomId);
+                    _clearRoomKeyFromSession(roomId);
                     appendSystemMessage(t('chat.keyUpdated'));
+                    _pullKeyFromServer(roomId).catch(() => {});
                 }
             }
             break;
@@ -614,7 +717,7 @@ async function handleWsMessage(msg) {
                 if ('Notification' in window && Notification.permission === 'granted') {
                     const sTitle = msg.stream?.title || 'Live';
                     new Notification('🔴 ' + sTitle, {
-                        body: 'Стрим начался!',
+                        body: t('chat.streamStarted'),
                         icon: '/static/icons/icon-192x192.png',
                     });
                 }
@@ -659,11 +762,17 @@ async function _decryptAndAppend(msg) {
             }
         }
     }
-    if (msg.reply_to_id && !msg.reply_to_text) {
+    if (msg.reply_to_id) {
         const cached = window._msgTexts?.get(msg.reply_to_id);
-        if (cached) {
-            msg.reply_to_text   = cached.text;
+        // Always fill sender from cache
+        if (cached && !msg.reply_to_sender) {
             msg.reply_to_sender = cached.sender;
+        }
+        // Use reply_quote (selected text) if provided, otherwise full message text
+        if (msg.reply_quote) {
+            msg.reply_to_text = msg.reply_quote;
+        } else if (!msg.reply_to_text && cached) {
+            msg.reply_to_text = cached.text;
         }
     }
     appendMessage(msg);

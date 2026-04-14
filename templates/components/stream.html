@@ -15,6 +15,9 @@
             </div>
         </div>
         <div class="stream-header-right">
+            <div class="stream-rec-badge" id="stream-rec-badge" style="display:none;">
+                <span class="stream-rec-dot"></span> REC
+            </div>
             <div class="stream-timer" id="stream-timer">0:00</div>
             <button class="stream-minimize-btn" onclick="streamMinimizeOrExitZen()" title="Свернуть">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M19.5 3.09L15 7.59V4h-2v7h7V9h-3.59l4.5-4.5-1.41-1.41zM4 13v2h3.59l-4.5 4.5 1.41 1.41 4.5-4.5V20h2v-7H4z"/></svg>
@@ -142,6 +145,14 @@
                     <span data-i18n="stream.autoAccept">Auto-accept speakers</span>
                     <label class="stream-toggle">
                         <input type="checkbox" id="stream-settings-auto-accept">
+                        <span class="stream-toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="stream-toggle-row">
+                    <span>Record stream</span>
+                    <label class="stream-toggle">
+                        <input type="checkbox" id="stream-settings-record">
                         <span class="stream-toggle-slider"></span>
                     </label>
                 </div>

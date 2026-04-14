@@ -86,7 +86,9 @@ async def sse_stream(
                     break
 
                 try:
-                    msg = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    # Randomized timeout (25-35s) to prevent fixed-interval fingerprinting
+                    timeout = 25.0 + _sec.randbelow(10001) / 1000
+                    msg = await asyncio.wait_for(queue.get(), timeout=timeout)
                     yield f"data: {_pad_json(msg)}\n\n"
                     # Рандомная задержка (anti timing analysis)
                     jitter = _sec.randbelow(151) / 1000  # 0..150мс

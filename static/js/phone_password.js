@@ -287,12 +287,12 @@ let _dropdownBuilt = false;
 // ============================================================================
 const PW_LABELS = [
     '',
-    '\u041E\u0447\u0435\u043D\u044C \u0441\u043B\u0430\u0431\u044B\u0439',
-    '\u0421\u043B\u0430\u0431\u044B\u0439',
-    '\u0421\u0440\u0435\u0434\u043D\u0438\u0439',
-    '\u0425\u043E\u0440\u043E\u0448\u0438\u0439',
-    '\u041E\u0442\u043B\u0438\u0447\u043D\u044B\u0439',
-]; // Очень слабый, Слабый, Средний, Хороший, Отличный
+    window.t ? window.t('password.veryWeak') : 'Very weak',
+    window.t ? window.t('password.weak') : 'Weak',
+    window.t ? window.t('password.medium') : 'Medium',
+    window.t ? window.t('password.good') : 'Good',
+    window.t ? window.t('password.excellent') : 'Excellent',
+];
 
 function _calcStrength(pw) {
     if (!pw) return { level: 0, score: 0 };
@@ -369,10 +369,10 @@ function _updateMatchUI() {
         return;
     }
     if (pw === confirm) {
-        status.textContent = '\u2713 \u041F\u0430\u0440\u043E\u043B\u0438 \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u044E\u0442'; // ✓ Пароли совпадают
+        status.textContent = '\u2713 ' + (window.t ? window.t('password.match') : 'Passwords match');
         status.className = 'pw-match-status match';
     } else {
-        status.textContent = '\u2717 \u041F\u0430\u0440\u043E\u043B\u0438 \u043D\u0435 \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u044E\u0442'; // ✗ Пароли не совпадают
+        status.textContent = '\u2717 ' + (window.t ? window.t('password.mismatch') : 'Passwords do not match');
         status.className = 'pw-match-status mismatch';
     }
 }
@@ -421,7 +421,7 @@ function _buildDropdown() {
     const search = document.createElement('input');
     search.type = 'text';
     search.className = 'phone-country-search';
-    search.placeholder = '\u041F\u043E\u0438\u0441\u043A \u0441\u0442\u0440\u0430\u043D\u044B...'; // Поиск страны...
+    search.placeholder = window.t ? window.t('phone.searchCountry') : 'Search country...';
     search.autocomplete = 'off';
     dd.appendChild(search);
 
@@ -525,7 +525,7 @@ export function validatePasswords() {
     const pw = $('r-pass')?.value || '';
     const confirm = $('r-pass-confirm')?.value || '';
     if (pw !== confirm) {
-        return '\u041F\u0430\u0440\u043E\u043B\u0438 \u043D\u0435 \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u044E\u0442'; // Пароли не совпадают
+        return window.t ? window.t('password.mismatch') : 'Passwords do not match';
     }
     return null;
 }

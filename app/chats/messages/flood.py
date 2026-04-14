@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.models import User
-from app.models_rooms import Room, RoomMember
+from app.models_rooms import Room, RoomMember, RoomRole
 from app.peer.connection_manager import manager
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,14 @@ _flood_lock: asyncio.Lock = asyncio.Lock()
 async def check_flood(room_id: int, user: User, db: Session, threshold_override: int | None = None) -> bool:
     """Check flood threshold. Returns True if user is flooding and message should be dropped."""
     from app.bots.antispam_bot import antispam_bot_message, get_antispam_config, get_antispam_bot_user_id
+
+    # Skip flood check for room owners and admins
+    member = db.query(RoomMember).filter(
+        RoomMember.room_id == room_id,
+        RoomMember.user_id == user.id,
+    ).first()
+    if member and member.role in (RoomRole.OWNER, RoomRole.ADMIN):
+        return False
 
     key = f"{room_id}:{user.id}"
     now = time.monotonic()

@@ -7,10 +7,10 @@ app/models_rooms — Модели комнат, сообщений, файлов
 from app.models_rooms.enums import RoomRole, MessageType
 from app.models_rooms.spaces import Space, SpaceMember, SpaceCategory
 from app.models_rooms.rooms import Room, RoomMember
-from app.models_rooms.encryption import EncryptedRoomKey, PendingKeyRequest, PendingNotification
+from app.models_rooms.encryption import EncryptedRoomKey, PendingKeyRequest, PendingNotification, SealedKeyPackage
 from app.models_rooms.messages import Message, FileTransfer, MessageReaction, MessageEditHistory
 from app.models_rooms.collections import RoomTask, SavedMessage
-from app.models_rooms.stickers import StickerPack, Sticker, UserFavoritePack
+from app.models_rooms.stickers import StickerPack, Sticker, UserFavoritePack, SavedGif
 from app.models_rooms.discussions import Topic, ForumThread
 from app.models_rooms.permissions import Permission, PermissionFlags, AutoModRule
 from app.models_rooms.analytics import (
@@ -29,13 +29,13 @@ __all__ = [
     # rooms
     "Room", "RoomMember",
     # encryption
-    "EncryptedRoomKey", "PendingKeyRequest", "PendingNotification",
+    "EncryptedRoomKey", "PendingKeyRequest", "PendingNotification", "SealedKeyPackage",
     # messages
     "Message", "FileTransfer", "MessageReaction", "MessageEditHistory",
     # collections
     "RoomTask", "SavedMessage",
     # stickers
-    "StickerPack", "Sticker", "UserFavoritePack",
+    "StickerPack", "Sticker", "UserFavoritePack", "SavedGif",
     # discussions
     "Topic", "ForumThread",
     # permissions

@@ -38,7 +38,10 @@ async function _loadIceServers() {
 }
 
 let _isHangingUp      = false;
+let _iceRestartCount  = 0;
 let _incomingCallFrom = null;
+let _incomingCallerName  = null;
+let _incomingCallerEmoji = null;
 let _e2eMediaKey      = null;   // CryptoKey for E2E media frame encryption
 let _currentCallId    = null;   // shared between caller and callee for E2E key derivation
 let _statsInterval    = null;
@@ -47,6 +50,7 @@ let _callTimerInterval = null;
 let _callDurationSec   = 0;
 let _callHistoryId     = null;  // ID записи в истории звонков
 let _inviteRetryTimer  = null;  // periodically resend invite for new contacts
+let _ringbackAudio     = null;  // Audio element for outgoing call ringback
 
 // ─── Пороги качества ──────────────────────────────────────────────────────────
 const QUALITY = {
@@ -111,6 +115,68 @@ let _qualityStableCount  = 0;        // счётчик стабильных ит
 // Минимальное число итераций подряд с хорошей сетью прежде чем повысить качество
 const QUALITY_UPGRADE_THRESHOLD = 5;
 
+// ── Ringback (гудки исходящего звонка) ──────────────────────────────────────
+let _ringbackTimer = null;
+
+function _startRingback() {
+    _stopRingback();
+    try {
+        _ringbackAudio = new Audio('/static/sounds/freesound_community-phone-call-14472.mp3');
+        _ringbackAudio.volume = 0.5;
+        // Играем сразу, потом повторяем каждые 3 сек (гудок ~1с + пауза ~2с)
+        _ringbackAudio.play().catch(() => {});
+        _ringbackTimer = setInterval(() => {
+            if (!_ringbackAudio) { clearInterval(_ringbackTimer); _ringbackTimer = null; return; }
+            _ringbackAudio.currentTime = 0;
+            _ringbackAudio.play().catch(() => {});
+        }, 3000);
+    } catch (e) { console.warn('ringback error:', e.message); }
+}
+
+function _stopRingback() {
+    if (_ringbackTimer) { clearInterval(_ringbackTimer); _ringbackTimer = null; }
+    if (_ringbackAudio) {
+        _ringbackAudio.pause();
+        _ringbackAudio.src = '';
+        _ringbackAudio = null;
+    }
+}
+
+// ── Системное сообщение о звонке в чат ──────────────────────────────────────
+async function _appendCallLogMessage(status, duration, isVideo, isOutgoing) {
+    try {
+        const { appendSystemMessage } = await import('./chat/messages.js');
+        const typeLabel = isVideo ? t('notifications.videoCall') : t('notifications.voiceCall');
+        let text;
+        if (status === 'answered' && duration > 0) {
+            const m = Math.floor(duration / 60);
+            const s = String(duration % 60).padStart(2, '0');
+            text = `${typeLabel} · ${m}:${s}`;
+        } else if (status === 'declined') {
+            text = `${typeLabel} · ${t('calls.declined')}`;
+        } else {
+            // missed: для звонившего — "Нет ответа", для получателя — "Пропущенный"
+            text = `${typeLabel} · ${isOutgoing ? t('calls.noAnswer') : t('calls.missed')}`;
+        }
+        appendSystemMessage(text);
+    } catch (e) { console.debug('call log message error:', e); }
+}
+
+// ── startCall — универсальный вызов по userId из контактов ───────────────────
+export async function startCall(userId, isVideo = false) {
+    // Открываем DM (или находим существующий), затем звоним
+    if (typeof window.openDM === 'function') {
+        await window.openDM(userId);
+    }
+    // Ждём пока currentRoom обновится
+    await new Promise(r => setTimeout(r, 200));
+    if (isVideo) {
+        await startVideoCall();
+    } else {
+        await startVoiceCall();
+    }
+}
+
 // ----------------------------------------------------------------------------
 // Подключение к сигнальному WebSocket
 // ----------------------------------------------------------------------------
@@ -122,7 +188,21 @@ export async function connectSignal(roomId) {
 
     if (S.signalWs?.readyState === WebSocket.OPEN && S._signalRoomId === roomId) return;
 
-    if (S.signalWs) {
+    // Если идёт активный звонок — не закрывать signal WS, сохранить для звонка
+    const callActive = S.pc && S.pc.connectionState !== 'closed' && S.pc.connectionState !== 'failed';
+    if (S.signalWs && callActive && S._signalRoomId !== roomId) {
+        S._callSignalWs = S.signalWs;
+        S._callSignalRoomId = S._signalRoomId;
+        const callRoomId = S._signalRoomId;
+        S._callSignalWs.onclose = (e) => {
+            console.log('Call signal WS closed, code=', e.code);
+            S._callSignalWs = null;
+            if (e.code !== 1000 && S.pc && S.pc.connectionState !== 'closed') {
+                setTimeout(() => _reconnectCallSignal(callRoomId), 2000);
+            }
+        };
+        S.signalWs = null;
+    } else if (S.signalWs) {
         S.signalWs.onclose = null;
         S.signalWs.close();
         S.signalWs = null;
@@ -144,7 +224,7 @@ export async function connectSignal(roomId) {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     S.signalWs  = new WebSocket(`${proto}://${location.host}${wsSignalPath}${knockParam}`);
 
-    S.signalWs.onopen = () => console.log('Signal WS открыт, комната', roomId);
+    S.signalWs.onopen = () => console.log('Signal WS opened, room', roomId);
 
     S.signalWs.onmessage = async e => {
         try { await handleSignal(JSON.parse(e.data)); }
@@ -152,7 +232,7 @@ export async function connectSignal(roomId) {
     };
 
     S.signalWs.onclose = e => {
-        console.log('Signal WS закрыт, code=', e.code);
+        console.log('Signal WS closed, code=', e.code);
         S.signalWs = null;
         if (e.code !== 1000) {
             setTimeout(() => {
@@ -166,10 +246,29 @@ export async function connectSignal(roomId) {
     S.signalWs.onerror = err => console.error('Signal WS error:', err);
 }
 
+function _reconnectCallSignal(callRoomId) {
+    const S = window.AppState;
+    if (S._callSignalWs || !S.pc || S.pc.connectionState === 'closed') return;
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}/ws/signal/${callRoomId}`);
+    ws.onmessage = async e => {
+        try { await handleSignal(JSON.parse(e.data)); }
+        catch (err) { console.error('Call signal msg error:', err); }
+    };
+    ws.onclose = (e) => {
+        S._callSignalWs = null;
+        if (e.code !== 1000 && S.pc && S.pc.connectionState !== 'closed') {
+            setTimeout(() => _reconnectCallSignal(callRoomId), 3000);
+        }
+    };
+    ws.onerror = err => console.error('Call signal WS error:', err);
+    S._callSignalWs = ws;
+}
+
 function waitForSignalOpen(timeout = 5000) {
     return new Promise((resolve, reject) => {
         const S = window.AppState;
-        if (!S.signalWs) { reject(new Error('signalWs не создан')); return; }
+        if (!S.signalWs) { reject(new Error('signalWs not created')); return; }
         if (S.signalWs.readyState === WebSocket.OPEN) { resolve(); return; }
         const tid = setTimeout(() => reject(new Error('Signal WS timeout')), timeout);
         S.signalWs.addEventListener('open',  () => { clearTimeout(tid); resolve(); }, { once: true });
@@ -179,10 +278,13 @@ function waitForSignalOpen(timeout = 5000) {
 
 function signal(msg) {
     const S = window.AppState;
-    if (S.signalWs?.readyState === WebSocket.OPEN) {
-        S.signalWs.send(JSON.stringify(msg));
+    const ws = (S._callSignalWs?.readyState === WebSocket.OPEN) ? S._callSignalWs
+             : (S.signalWs?.readyState === WebSocket.OPEN) ? S.signalWs
+             : null;
+    if (ws) {
+        ws.send(JSON.stringify(msg));
     } else {
-        console.warn('signal(): WS не готов, тип=', msg.type);
+        console.warn('signal(): WS not ready, type=', msg.type);
     }
 }
 
@@ -197,14 +299,14 @@ export async function startVoiceCall() {
     const S = window.AppState;
     if (!S.currentRoom) return;
     if (S.pc && S.pc.connectionState !== 'closed') {
-        console.warn('[WebRTC] Call already in progress');
+        console.warn('[WebRTC] call already active, ignoring');
         return;
     }
 
     // Group call notice — all room members get the invite via signal broadcast
     if (S.currentRoom.member_count > 2 && !S.currentRoom.is_dm) {
         const { appendSystemMessage } = await import('./chat/messages.js');
-        appendSystemMessage('Group call — all room members will receive an invite. The first to accept will be connected.');
+        appendSystemMessage(t('call.groupCallNotice'));
     }
 
     console.log('currentRoom:', JSON.stringify(S.currentRoom));
@@ -228,8 +330,10 @@ export async function startVoiceCall() {
     const callAvatar = (S.currentRoom.is_dm && S.currentRoom.dm_user)
         ? (S.currentRoom.dm_user.avatar_emoji || '\u{1F464}')
         : '\u{1F464}';
-    _showCallOverlay({ name: callName, avatar: callAvatar, status: t('notifications.voiceCall') + '...', hasVideo: false });
+    _showCallOverlay({ name: callName, avatar: callAvatar, status: t('call.calling'), hasVideo: false });
+    _startRingback();
     _isHangingUp = false;
+    _iceRestartCount = 0;
     _currentQualityLevel = 'high';
     _qualityStableCount  = 0;
 
@@ -263,6 +367,10 @@ export async function startVoiceCall() {
         if (!S.pc || S.pc.connectionState === 'connected' || S.pc.connectionState === 'closed' || _isHangingUp) {
             clearInterval(_inviteRetryTimer); _inviteRetryTimer = null; return;
         }
+        // Stop retrying once we received an answer (signalingState stable = answer set)
+        if (S.pc.signalingState === 'stable') {
+            clearInterval(_inviteRetryTimer); _inviteRetryTimer = null; return;
+        }
         signal({ type: 'invite', hasVideo: false, callId: _currentCallId });
         signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
     }, 3000);
@@ -282,14 +390,14 @@ export async function startVideoCall() {
     const S = window.AppState;
     if (!S.currentRoom) return;
     if (S.pc && S.pc.connectionState !== 'closed') {
-        console.warn('[WebRTC] Call already in progress');
+        console.warn('[WebRTC] call already active, ignoring');
         return;
     }
 
     // Group call notice — all room members get the invite via signal broadcast
     if (S.currentRoom.member_count > 2 && !S.currentRoom.is_dm) {
         const { appendSystemMessage } = await import('./chat/messages.js');
-        appendSystemMessage('Group video call — all room members will receive an invite. The first to accept will be connected.');
+        appendSystemMessage(t('call.groupCallNotice'));
     }
 
     if (!S.signalWs || S.signalWs.readyState === WebSocket.CLOSED) {
@@ -309,7 +417,8 @@ export async function startVideoCall() {
     const vCallAvatar = (S.currentRoom.is_dm && S.currentRoom.dm_user)
         ? (S.currentRoom.dm_user.avatar_emoji || '\u{1F464}')
         : '\u{1F464}';
-    _showCallOverlay({ name: vCallName, avatar: vCallAvatar, status: t('notifications.videoCall') + '...', hasVideo: true });
+    _showCallOverlay({ name: vCallName, avatar: vCallAvatar, status: t('call.calling'), hasVideo: true });
+    _startRingback();
     _isHangingUp = false;
     S.isCamOff   = false;
     _currentQualityLevel = 'high';
@@ -344,6 +453,10 @@ export async function startVideoCall() {
     // Re-send invite periodically in case callee just connected signal WS
     _inviteRetryTimer = setInterval(() => {
         if (!S.pc || S.pc.connectionState === 'connected' || S.pc.connectionState === 'closed' || _isHangingUp) {
+            clearInterval(_inviteRetryTimer); _inviteRetryTimer = null; return;
+        }
+        // Stop retrying once we received an answer (signalingState stable = answer set)
+        if (S.pc.signalingState === 'stable') {
             clearInterval(_inviteRetryTimer); _inviteRetryTimer = null; return;
         }
         signal({ type: 'invite', hasVideo: true, callId: _currentCallId });
@@ -534,18 +647,66 @@ function createPeerConnection() {
         e.track.onunmute = () => _updateVideoVisibility();
     };
 
-    pc.onconnectionstatechange = () => {
+    pc.onconnectionstatechange = async () => {
         const state = pc.connectionState;
         console.log('RTCPeerConnection state:', state);
 
         if (state === 'connected') {
+            _stopRingback();
             $('call-status').textContent = t('call.inCall');
             _startStatsMonitor(pc);
+            // Start call duration timer only when actually connected
+            _callDurationSec = 0;
+            clearInterval(_callTimerInterval);
+            _callTimerInterval = setInterval(() => {
+                _callDurationSec++;
+                const m = Math.floor(_callDurationSec / 60);
+                const s = String(_callDurationSec % 60).padStart(2, '0');
+                const timerEl = document.getElementById('cp-timer');
+                if (timerEl) timerEl.textContent = `${m}:${s}`;
+                const overlayTimer = document.getElementById('call-overlay-timer');
+                if (overlayTimer) overlayTimer.textContent = `${m}:${s}`;
+            }, 1000);
         }
         if (state === 'disconnected') {
             _setQualityBadge('?', 'grey');
+            // Auto-reconnect after 5s if still disconnected (temporary network glitch)
+            setTimeout(() => {
+                if (pc.connectionState === 'disconnected' && !_isHangingUp) {
+                    console.warn('[WebRTC] Still disconnected after 5s — attempting ICE restart');
+                    pc.createOffer({ iceRestart: true }).then(offer => {
+                        pc.setLocalDescription(offer);
+                        signal({ type: 'offer', sdp: _maskSdp(offer.sdp) });
+                    }).catch(() => {});
+                }
+            }, 5000);
         }
-        if (['failed', 'closed'].includes(state) && !_isHangingUp) {
+        if (state === 'failed' && !_isHangingUp) {
+            _iceRestartCount = (_iceRestartCount || 0) + 1;
+            if (_iceRestartCount <= 3) {
+                const delay = _iceRestartCount * 1000; // 1s, 2s, 3s backoff
+                console.warn(`[WebRTC] ICE failed — restart attempt ${_iceRestartCount}/3 in ${delay}ms`);
+                setTimeout(async () => {
+                    if (pc.connectionState === 'failed') {
+                        try {
+                            const restartOffer = await pc.createOffer({ iceRestart: true });
+                            await pc.setLocalDescription(restartOffer);
+                            signal({ type: 'offer', sdp: _maskSdp(restartOffer.sdp) });
+                        } catch (e) {
+                            console.error('[WebRTC] ICE restart failed:', e.message);
+                            if (_iceRestartCount >= 3) hangup();
+                        }
+                    }
+                }, delay);
+            } else {
+                console.error('[WebRTC] ICE failed after 3 restarts — hanging up');
+                hangup();
+            }
+        }
+        if (state === 'connected') {
+            _iceRestartCount = 0; // reset on successful connection
+        }
+        if (state === 'closed' && !_isHangingUp) {
             hangup();
         }
     };
@@ -796,7 +957,7 @@ function _applyMetricsToUI(metrics) {
     if (upd) upd.textContent = t('call.statsUpdated').replace('{time}', new Date().toLocaleTimeString());
 
     console.debug('[WebRTC Stats]',
-        `RTT=${rtt?.toFixed(0)}мс jitter=${jitter?.toFixed(0)}мс ` +
+        `RTT=${rtt?.toFixed(0)}ms jitter=${jitter?.toFixed(0)}ms ` +
         `loss=${lossPercent?.toFixed(1)}% brate=${bitrateKbps?.toFixed(0)}kbps [${transport}] ` +
         `quality=${_currentQualityLevel}`);
 }
@@ -945,14 +1106,37 @@ async function handleSignal(msg) {
     if (msg.type === 'invite') {
         if ($('call-overlay').classList.contains('show')) return;
         _incomingCallFrom = from;
+        _incomingCallerName  = msg.display_name || msg.username || t('notifications.unknown');
+        _incomingCallerEmoji = msg.avatar_emoji || '👤';
         S._offerHasVideo  = !!msg.hasVideo;
         _currentCallId    = msg.callId || null;  // shared callId for E2E key
-        showIncomingCallUI(msg.username || t('notifications.unknown'));
+        showIncomingCallUI(_incomingCallerName);
         return;
     }
 
     if (msg.type === 'offer') {
         if (!S.pc) S.pc = createPeerConnection();
+
+        // Guard: ignore duplicate offer if we already have one pending (haven't answered yet)
+        if (S.pc.signalingState === 'have-remote-offer') {
+            console.log('[WebRTC] Ignoring duplicate offer (already have-remote-offer)');
+            return;
+        }
+
+        // Guard: if call is active (overlay showing) and we're in stable state,
+        // this is likely a retry offer — auto-answer to keep the connection alive
+        if (S.pc.signalingState === 'stable' && $('call-overlay')?.classList.contains('show')) {
+            console.log('[WebRTC] Re-offer during active call, auto-answering');
+            S._offerHasVideo = S._offerHasVideo ?? _sdpHasVideo(msg.sdp);
+            try {
+                await S.pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
+                const reAnswer = await S.pc.createAnswer();
+                await S.pc.setLocalDescription(reAnswer);
+                signal({ type: 'answer', sdp: _maskSdp(reAnswer.sdp), to: from });
+            } catch (e) { console.warn('[WebRTC] Auto-answer failed:', e.message); }
+            return;
+        }
+
         S._offerHasVideo = S._offerHasVideo ?? _sdpHasVideo(msg.sdp);
         await S.pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
         S._pendingOfferFrom = from;
@@ -961,6 +1145,15 @@ async function handleSignal(msg) {
     if (msg.type === 'answer') {
         if (S.pc?.signalingState === 'have-local-offer') {
             await S.pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp });
+            // Flush ICE candidates that arrived before the answer
+            if (S._pendingCandidates?.length) {
+                for (const c of S._pendingCandidates) {
+                    try { await S.pc.addIceCandidate(c); } catch (e) {
+                        console.warn('[WebRTC] Queued ICE candidate failed:', e.message);
+                    }
+                }
+                S._pendingCandidates = [];
+            }
         } else {
             console.warn('[WebRTC] Answer in unexpected state:', S.pc?.signalingState);
         }
@@ -988,7 +1181,7 @@ async function handleSignal(msg) {
 // ----------------------------------------------------------------------------
 function _showCallOverlay({ name, avatar, status, hasVideo }) {
     const overlay = $('call-overlay');
-    if (!overlay) { console.error('call-overlay не найден в DOM'); return; }
+    if (!overlay) { console.error('call-overlay not found in DOM'); return; }
 
     _ensureQualityBadge();
 
@@ -1000,6 +1193,9 @@ function _showCallOverlay({ name, avatar, status, hasVideo }) {
     if (peerName)   peerName.textContent   = name;
     if (peerAvatar) peerAvatar.textContent = avatar;
     if (callStatus) callStatus.textContent = status;
+    // Имя в topbar — видно всегда (и при видео, и при аудио)
+    const topbarName = document.getElementById('call-topbar-name');
+    if (topbarName) topbarName.textContent = name;
     if (localVideo) localVideo.srcObject   = window.AppState.localStream ?? null;
 
     // Hide pip if it was visible
@@ -1015,19 +1211,10 @@ function _showCallOverlay({ name, avatar, status, hasVideo }) {
     _updatePrivacyBadge();
     _updateVideoVisibility();
 
-    // Start call duration timer
+    // Reset timer — it will start when connection is established
     _callDurationSec = 0;
     clearInterval(_callTimerInterval);
-    _callTimerInterval = setInterval(() => {
-        _callDurationSec++;
-        const m = Math.floor(_callDurationSec / 60);
-        const s = String(_callDurationSec % 60).padStart(2, '0');
-        // Update both PIP timer and overlay timer
-        const timerEl = document.getElementById('cp-timer');
-        if (timerEl) timerEl.textContent = `${m}:${s}`;
-        const overlayTimer = document.getElementById('call-overlay-timer');
-        if (overlayTimer) overlayTimer.textContent = `${m}:${s}`;
-    }, 1000);
+    _callTimerInterval = null;
 }
 
 function showIncomingCallUI(callerName) {
@@ -1104,8 +1291,8 @@ export async function acceptCall() {
             try {
                 S.localStream = await navigator.mediaDevices.getUserMedia(_buildMediaConstraints(true, false));
                 $('local-video').srcObject = S.localStream;
-            } catch (e2) { console.warn('Нет микрофона:', e2.message); }
-        } else { console.warn('Нет микрофона:', e.message); }
+            } catch (e2) { console.warn('No microphone:', e2.message); }
+        } else { console.warn('No microphone:', e.message); }
     }
     if (S.pc && S.localStream) {
         S.localStream.getTracks().forEach(t => {
@@ -1143,10 +1330,20 @@ export async function acceptCall() {
     _qualityStableCount  = 0;
     _updateCamBtn(S.isCamOff);
 
+    // Определяем имя и аватар звонящего (из invite signal или DM user)
+    const _dmU = S.currentRoom?.dm_user;
+    const _callerName = _incomingCallerName
+        || (_dmU ? (_dmU.display_name || _dmU.username) : null)
+        || S.currentRoom?.name
+        || t('notifications.unknown');
+    const _callerAvatar = _incomingCallerEmoji
+        || _dmU?.avatar_emoji
+        || '👤';
+
     _showCallOverlay({
-        name:     t('notifications.unknown'),
-        avatar:   '\u{1F464}',
-        status:   'Connecting...',
+        name:     _callerName,
+        avatar:   _callerAvatar,
+        status:   t('call.connecting'),
         hasVideo: needVideo,
     });
     _isHangingUp = false;
@@ -1156,6 +1353,7 @@ export async function acceptCall() {
 export function declineCall() {
     const S = window.AppState;
     hideIncomingCallUI();
+    _stopRingback();
     signal({ type: 'bye', to: _incomingCallFrom });
     S._pendingAnswer     = null;
     S._pendingCandidates = [];
@@ -1169,6 +1367,8 @@ export function declineCall() {
         S.pc = null;
     }
     _incomingCallFrom    = null;
+    _incomingCallerName  = null;
+    _incomingCallerEmoji = null;
     _currentQualityLevel = 'high';
     _stopStatsMonitor();
 }
@@ -1202,7 +1402,104 @@ export function expandCall() {
     if (!overlay || !pip) return;
     pip.classList.remove('show');
     overlay.classList.add('show');
+    // Reset PIP position when expanding
+    pip.style.left = '';
+    pip.style.top = '';
+    pip.style.bottom = '';
+    pip.style.right = '';
 }
+
+// ── PIP drag logic ─────────────────────────────────────────────────────────
+(function _initPipDrag() {
+    let _dragging = false;
+    let _startX = 0, _startY = 0;
+    let _pipX = 0, _pipY = 0;
+    let _moved = false;
+
+    function _getPip() { return document.getElementById('call-pip'); }
+
+    function _onPointerDown(e) {
+        const pip = _getPip();
+        if (!pip || !pip.classList.contains('show')) return;
+        // Don't drag if clicking a button
+        if (e.target.closest('button')) return;
+
+        _dragging = true;
+        _moved = false;
+        const rect = pip.getBoundingClientRect();
+        _pipX = rect.left;
+        _pipY = rect.top;
+        _startX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+        _startY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+
+        pip.style.transition = 'none';
+        pip.classList.add('dragging');
+        e.preventDefault();
+    }
+
+    function _onPointerMove(e) {
+        if (!_dragging) return;
+        const pip = _getPip();
+        if (!pip) { _dragging = false; return; }
+
+        const cx = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+        const cy = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+        const dx = cx - _startX;
+        const dy = cy - _startY;
+
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) _moved = true;
+        if (!_moved) return;
+
+        let newX = _pipX + dx;
+        let newY = _pipY + dy;
+
+        // Clamp to viewport
+        const w = pip.offsetWidth, h = pip.offsetHeight;
+        const vw = window.innerWidth, vh = window.innerHeight;
+        newX = Math.max(0, Math.min(vw - w, newX));
+        newY = Math.max(0, Math.min(vh - h, newY));
+
+        pip.style.left = newX + 'px';
+        pip.style.top = newY + 'px';
+        pip.style.bottom = 'auto';
+        pip.style.right = 'auto';
+    }
+
+    function _onPointerUp() {
+        if (!_dragging) return;
+        _dragging = false;
+        const pip = _getPip();
+        if (!pip) return;
+
+        pip.classList.remove('dragging');
+        pip.style.transition = '';
+
+        if (_moved) {
+            // Snap to nearest horizontal edge
+            const rect = pip.getBoundingClientRect();
+            const vw = window.innerWidth;
+            const snapLeft = rect.left < (vw - rect.right);
+            pip.style.left = snapLeft ? '20px' : '';
+            pip.style.right = snapLeft ? '' : '20px';
+            // Keep vertical position as top
+            pip.style.bottom = 'auto';
+        }
+    }
+
+    document.addEventListener('mousedown', (e) => {
+        if (e.target.closest('#call-pip')) _onPointerDown(e);
+    });
+    document.addEventListener('mousemove', _onPointerMove);
+    document.addEventListener('mouseup', _onPointerUp);
+
+    document.addEventListener('touchstart', (e) => {
+        if (e.target.closest('#call-pip')) _onPointerDown(e);
+    }, { passive: false });
+    document.addEventListener('touchmove', (e) => {
+        if (_dragging) { e.preventDefault(); _onPointerMove(e); }
+    }, { passive: false });
+    document.addEventListener('touchend', _onPointerUp);
+})();
 
 function _syncPipMuteBtn() {
     const btn = document.getElementById('cp-mute-btn');
@@ -1210,6 +1507,8 @@ function _syncPipMuteBtn() {
     const muted = window.AppState?.isMuted;
     btn.classList.toggle('cp-muted', !!muted);
     btn.title = muted ? t('call.unmuteMic') : t('call.muteMic');
+    const svg = btn.querySelector('svg');
+    if (svg) svg.innerHTML = muted ? _SVG_MIC_OFF : _SVG_MIC_ON;
 }
 
 export function hangup() {
@@ -1234,6 +1533,14 @@ export function hangup() {
     _currentCallId = null;
     if (_inviteRetryTimer) { clearInterval(_inviteRetryTimer); _inviteRetryTimer = null; }
 
+    // Закрываем сохранённый signal WS звонка (если комната была переключена)
+    if (S._callSignalWs) {
+        S._callSignalWs.onclose = null;
+        S._callSignalWs.close();
+        S._callSignalWs = null;
+        S._callSignalRoomId = null;
+    }
+
     $('remote-video').srcObject = null;
     $('local-video').srcObject  = null;
     const _overlay = $('call-overlay');
@@ -1248,14 +1555,19 @@ export function hangup() {
     clearInterval(_callTimerInterval);
     _callTimerInterval = null;
 
-    // Save call end to history
+    _stopRingback();
+
+    // Save call end to history + log message in chat
     if (_callHistoryId) {
         const dur = _callDurationSec;
         const status = dur > 0 ? 'answered' : 'missed';
+        const wasVideo = !!S?._offerHasVideo;
+        const isOutgoing = !_incomingCallFrom;
         api('POST', '/api/calls/end', {
             call_id: _callHistoryId, status, duration: dur,
         }).catch(e => console.warn('[WebRTC] call history end failed:', e));
         _callHistoryId = null;
+        _appendCallLogMessage(status, dur, wasVideo, isOutgoing);
     }
     _callDurationSec   = 0;
 
@@ -1273,6 +1585,8 @@ export function hangup() {
     S._offerHasVideo     = null;
     S._pendingOfferFrom  = null;
     _incomingCallFrom    = null;
+    _incomingCallerName  = null;
+    _incomingCallerEmoji = null;
     S.isMuted            = false;
     S.isCamOff           = false;
     _isScreenSharing     = false;
@@ -1307,7 +1621,7 @@ export async function toggleCam() {
         _updateVideoVisibility();
         return;
     }
-    if (!S.pc) { console.warn('toggleCam: нет RTCPeerConnection'); return; }
+    if (!S.pc) { console.warn('toggleCam: no RTCPeerConnection'); return; }
 
     try {
         const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -1337,7 +1651,7 @@ let _originalVideoTrack = null;
 
 export async function toggleScreenShare() {
     const S = window.AppState;
-    if (!S.pc) { console.warn('toggleScreenShare: нет RTCPeerConnection'); return; }
+    if (!S.pc) { console.warn('toggleScreenShare: no RTCPeerConnection'); return; }
 
     if (_isScreenSharing) {
         // Выключаем демонстрацию — возвращаем камеру или убираем видео
@@ -1419,17 +1733,26 @@ function _updateScreenBtn(active) {
 // ----------------------------------------------------------------------------
 // Кнопки
 // ----------------------------------------------------------------------------
+const _SVG_MIC_ON  = '<path d="M16 12V6c0-2.21-1.79-4-4-4S8 3.79 8 6v6c0 2.21 1.79 4 4 4s4-1.79 4-4m-6 0V6c0-1.1.9-2 2-2s2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2"></path><path d="M18 12c0 3.31-2.69 6-6 6s-6-2.69-6-6H4c0 4.07 3.06 7.44 7 7.93V22h2v-2.07c3.94-.49 7-3.86 7-7.93z"></path>';
+const _SVG_MIC_OFF = '<path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28m-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99M4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>';
+const _SVG_CAM_ON  = '<path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>';
+const _SVG_CAM_OFF = '<path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>';
+
 function _updateMuteBtn(muted) {
     _syncPipMuteBtn();
     const btn = $('mute-btn');
     if (!btn) return;
     btn.classList.toggle('active', muted);
+    const svg = btn.querySelector('svg');
+    if (svg) svg.innerHTML = muted ? _SVG_MIC_OFF : _SVG_MIC_ON;
 }
 
 function _updateCamBtn(camOff) {
     const btn = $('cam-btn');
     if (!btn) return;
     btn.classList.toggle('active', camOff);
+    const svg = btn.querySelector('svg');
+    if (svg) svg.innerHTML = camOff ? _SVG_CAM_OFF : _SVG_CAM_ON;
 }
 
 // Экспортируем текущий уровень качества для внешнего использования
@@ -1463,7 +1786,7 @@ function _updateVideoVisibility() {
     const pipWrap    = document.getElementById('call-pip-wrap');
     const overlay    = $('call-overlay');
 
-    // Remote video: check if it has active video tracks
+    // Remote video: check if it has active video tracks (enabled AND not muted)
     const remoteStream = remoteEl?.srcObject;
     const hasRemoteVideo = remoteStream?.getVideoTracks().some(t => t.enabled && !t.muted) ?? false;
 
@@ -1478,7 +1801,6 @@ function _updateVideoVisibility() {
     if (localEl) localEl.classList.toggle('hidden-video', !hasLocalVideo);
 
     // PIP wrap: show only when local video is active
-    // For audio-only calls or when only remote has video — no PIP needed
     if (pipWrap) {
         pipWrap.classList.toggle('has-video', hasLocalVideo);
         pipWrap.style.display = hasLocalVideo ? '' : 'none';
@@ -1489,6 +1811,11 @@ function _updateVideoVisibility() {
     if (!bothActive && _videoSwapped) {
         _videoSwapped = false;
         if (overlay) overlay.classList.remove('video-swapped');
+    }
+
+    // No video at all — ensure peer info is visible (name, avatar)
+    if (!hasRemoteVideo && !hasLocalVideo && overlay) {
+        overlay.classList.remove('has-main-video');
     }
 
     // Disable pointer/cursor on wraps when swap isn't possible

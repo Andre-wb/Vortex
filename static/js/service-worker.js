@@ -189,7 +189,7 @@ async function cacheFirst(request, cacheName) {
         }
         return response;
     } catch {
-        return new Response('Ресурс недоступен офлайн', { status: 503 });
+        return new Response('Resource unavailable offline', { status: 503 });
     }
 }
 
@@ -214,7 +214,7 @@ async function networkFirst(request, cacheName, timeoutMs = 5000) {
         const cached = await caches.match(request);
         if (cached) return cached;
         return new Response(
-            JSON.stringify({ error: 'Сеть недоступна, узел VORTEX не отвечает' }),
+            JSON.stringify({ error: 'Network unavailable, VORTEX node not responding' }),
             { status: 503, headers: { 'Content-Type': 'application/json' } }
         );
     }
@@ -247,7 +247,7 @@ self.addEventListener('push', event => {
     catch { data = { title: 'VORTEX', body: event.data.text() }; }
 
     const options = {
-        body:    data.body    || 'Новое сообщение',
+        body:    data.body    || 'New message',
         icon:    data.icon    || '/static/icons/icon-192.png',
         badge:   data.badge   || '/static/icons/icon-72.png',
         tag:     data.tag     || 'vortex-message',
@@ -256,8 +256,8 @@ self.addEventListener('push', event => {
         vibrate: [100, 50, 100],
         data:    { url: data.url || '/', roomId: data.roomId || data.room_id },
         actions: [
-            { action: 'open',    title: 'Открыть', icon: '/static/icons/icon-72.png' },
-            { action: 'dismiss', title: 'Закрыть' },
+            { action: 'open',    title: 'Open', icon: '/static/icons/icon-72.png' },
+            { action: 'dismiss', title: 'Close' },
         ],
     };
 

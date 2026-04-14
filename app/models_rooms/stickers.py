@@ -44,6 +44,21 @@ class Sticker(Base):
     pack = relationship("StickerPack", back_populates="stickers")
 
 
+class SavedGif(Base):
+    """GIF сохранённый пользователем для быстрого доступа."""
+    __tablename__ = "saved_gifs"
+
+    id         = Column(Integer,  primary_key=True)
+    user_id    = Column(Integer,  ForeignKey("users.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    file_url   = Column(String(500), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_saved_gifs_user", "user_id"),
+    )
+
+
 class UserFavoritePack(Base):
     """Избранный набор стикеров пользователя."""
     __tablename__ = "user_favorite_packs"

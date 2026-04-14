@@ -33,7 +33,11 @@ async def ws_signal(
     token:     Optional[str] = None,
     db:        Session = Depends(get_db),
 ):
-    """WebRTC signalling relay — relays ICE/SDP between peers in a room."""
+    """
+    DEPRECATED: WebRTC signalling now goes through BMP for zero metadata leakage.
+    This endpoint is kept for backward compatibility with old clients.
+    New clients use BMP fast-poll (500ms) for signal delivery.
+    """
     import json as _json
 
     from app.transport.knock import is_knock_required, verify_knock
@@ -60,7 +64,10 @@ async def ws_signal(
 
     await websocket.accept()
     _signal_rooms.setdefault(room_id, {})[user.id] = websocket
-    logger.debug("Signal WS+ user=%s room=%s", user.username, room_id)
+    # Compute sealed pseudo for this room (used in relay instead of user.id)
+    from app.security.sealed_sender import compute_sender_pseudo
+    _user_pseudo = compute_sender_pseudo(room_id, user.id)
+    logger.debug("Signal WS+ (sanitized)")
 
     try:
         while True:
@@ -81,11 +88,11 @@ async def ws_signal(
             else:
                 _signal_rate[user.id] = [now, 1]
 
-            msg["from"]         = user.id
-            msg["username"]     = user.username
+            # Use sealed sender pseudo instead of real user.id for privacy
+            from app.security.sealed_sender import compute_sender_pseudo
+            msg["from"]         = compute_sender_pseudo(room_id, user.id)
             msg["display_name"] = user.display_name or user.username
             msg["avatar_emoji"] = user.avatar_emoji or "\U0001f464"
-            msg["avatar_url"]   = user.avatar_url
 
             # Padding для anti-DPI (размер фрейма рандомизирован)
             import secrets as _sec

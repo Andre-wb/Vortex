@@ -156,8 +156,10 @@
     justify-content: center;
     transition: background 0.15s, color 0.15s, transform 0.1s;
 }
+@media (hover: hover) {
 .bp-nav-btn:hover { background: color-mix(in srgb, var(--accent) 15%, var(--bg3)); color: var(--accent); transform: scale(1.08); }
 .bp-nav-btn:active { transform: scale(0.93); }
+}
 .bp-month-name {
     font-size: 18px;
     font-weight: 700;
@@ -215,7 +217,9 @@
     font-family: var(--sans);
     line-height: 1;
 }
+@media (hover: hover) {
 .bp-day:hover { background: var(--bg3); transform: scale(1.12); }
+}
 .bp-day.wknd { color: color-mix(in srgb, #ef4444 80%, var(--text)); }
 .bp-day.today {
     background: color-mix(in srgb, var(--accent) 12%, transparent);
@@ -229,7 +233,9 @@
     transform: scale(1.15);
     box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 60%, transparent);
 }
+@media (hover: hover) {
 .bp-day.selected:hover { transform: scale(1.15); }
+}
 
 /* Month slide animations */
 @keyframes bp-slide-out-left  { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-28px); opacity: 0; } }
@@ -308,11 +314,46 @@
     transition: transform 0.12s, border-color 0.15s, box-shadow 0.15s;
     flex-shrink: 0;
 }
+@media (hover: hover) {
 .pbg-swatch:hover { transform: scale(1.18); }
+}
 .pbg-swatch.active {
     border-color: var(--accent);
     transform: scale(1.2);
     box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* Reply color swatches */
+.reply-color-swatches {
+    display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0;
+}
+.rc-swatch {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid transparent; cursor: pointer;
+    transition: transform .12s, border-color .15s; flex-shrink: 0;
+}
+.rc-swatch:hover { transform: scale(1.15); }
+.rc-swatch.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px var(--accent), 0 0 8px rgba(124,58,237,.3);
+    transform: scale(1.2);
+}
+
+/* Reply icon grid — small scattered icons */
+.reply-icon-grid {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0;
+}
+.ri-btn {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: rgba(255,255,255,.04); border: 1px solid transparent;
+    font-size: 16px; cursor: pointer; transition: .15s;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text2);
+}
+.ri-btn:hover { background: rgba(255,255,255,.08); transform: scale(1.1); }
+.ri-btn.active {
+    border-color: var(--accent); background: rgba(124,58,237,.15);
+    transform: scale(1.15);
 }
 
 .profile-icon-grid {
@@ -334,7 +375,9 @@
     transition: background 0.12s, border-color 0.12s, transform 0.1s, box-shadow 0.15s;
     line-height: 1;
 }
+@media (hover: hover) {
 .pi-btn:hover { background: var(--bg); transform: scale(1.1); }
+}
 .pi-btn.active {
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 12%, var(--bg3));
@@ -557,7 +600,9 @@
     justify-content: center;
     transition: transform .12s, opacity .12s;
 }
+@media (hover: hover) {
 .upm-media-tile:hover { transform: scale(1.04); opacity: .9; }
+}
 .upm-media-icon { color: rgba(255,255,255,.35); }
 
 .upm-section-more {
@@ -689,7 +734,9 @@
     color: rgba(255,255,255,.55);
 }
 .pi-btn svg { width: 100%; height: 100%; display: block; }
+@media (hover: hover) {
 .pi-btn:hover { background: var(--bg); color: rgba(255,255,255,.85); transform: scale(1.08); }
+}
 .pi-btn.active {
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 14%, var(--bg3));
@@ -731,10 +778,12 @@
     transition: background .15s, color .15s, transform .12s;
     backdrop-filter: blur(8px);
 }
+@media (hover: hover) {
 .call-minimize-btn:hover {
     background: rgba(255,255,255,.14);
     color: #fff;
     transform: scale(1.05);
+}
 }
 
 /* ── Minimized call pip ─────────────────────────────────────────────────── */
@@ -757,8 +806,15 @@
     opacity: 0;
     transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .22s ease;
     user-select: none;
-    cursor: default;
+    cursor: grab;
     min-width: 220px;
+    touch-action: none;
+}
+#call-pip.dragging {
+    cursor: grabbing;
+    opacity: .85;
+    transform: scale(1.04);
+    transition: none !important;
 }
 #call-pip.show {
     display: flex;
@@ -818,7 +874,9 @@
     color: rgba(255,255,255,.7);
     background: rgba(255,255,255,.07);
 }
+@media (hover: hover) {
 .cp-btn:hover { background: rgba(255,255,255,.15); transform: scale(1.1); color: #fff; }
+}
 .cp-btn.cp-muted { color: var(--yellow, #f59e0b); background: rgba(245,158,11,.12); }
 .cp-btn.cp-expand { color: var(--accent); }
 .cp-btn.cp-expand:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }

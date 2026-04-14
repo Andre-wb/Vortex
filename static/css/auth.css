@@ -22,13 +22,16 @@
 /* ============================================================================
  * ЭКРАН АУТЕНТИФИКАЦИИ
  * ========================================================================== */
+#auth-screen.active {
+    display: block;
+}
 #auth-screen {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     z-index: 200;
-    align-items: center; justify-content: center;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     background: var(--bg);
     background-image:
         radial-gradient(circle at 20% 50%, rgba(124,58,237,0.08) 0%, transparent 50%),
@@ -38,15 +41,25 @@
 /* ---- Карточка ------------------------------------------------------------ */
 .auth-card {
     width: 420px; max-width: 94vw; padding: 36px 32px 28px;
+    /* Горизонтальное центрирование — margin auto.
+       Вертикальное — min-height на обёртке ниже. */
     margin: auto;
-    margin-top: 24px;
-    margin-bottom: 24px;
     background: var(--bg2);
     border: 1px solid var(--border);
     border-radius: 20px;
     animation: fadeUp 0.4s ease;
     position: relative;
-    flex-shrink: 0;
+}
+/* Обёртка-спейсер: центрирует карточку когда она короче экрана,
+   но НЕ обрезает верх при длинной форме (регистрация). */
+.auth-card-wrap {
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 0;
+    box-sizing: border-box;
 }
 @keyframes fadeUp {
     from { opacity: 0; transform: translateY(20px); }
@@ -106,21 +119,42 @@
 .form-input:focus { border-color: var(--accent); }
 .form-input::placeholder { color: var(--text3); }
 
-/* Input with icon */
+/* Input with left icon (lock, checkmark etc) */
 .form-input-icon {
     position: relative;
-    display: flex; align-items: center;
 }
-.form-input-icon svg {
+.form-input-icon > svg[aria-hidden] {
     position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
     color: var(--text3); pointer-events: none;
-    transition: color 0.15s;
-    flex-shrink: 0;
+    transition: color 0.15s; z-index: 1;
 }
 .form-input-icon .form-input {
     padding-left: 38px;
 }
-.form-input-icon:focus-within svg { color: var(--accent); }
+.form-input-icon:focus-within > svg[aria-hidden] { color: var(--accent); }
+
+/* Password eye toggle */
+button.pass-eye-btn {
+    all: unset;
+    position: absolute !important;
+    right: 8px !important;
+    left: auto !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    transform: none !important;
+    width: 32px;
+    cursor: pointer;
+    color: var(--text3);
+    z-index: 5;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+button.pass-eye-btn:hover { color: var(--text); }
+button.pass-eye-btn:active { opacity: 0.6; }
+button.pass-eye-btn svg { width: 18px; height: 18px; }
+button.pass-eye-btn:focus { outline: none; }
+button.pass-eye-btn:focus-visible { outline: none; }
 
 .form-textarea {
     resize: vertical; min-height: 72px;
@@ -378,6 +412,124 @@
     line-height: 1.5; max-width: 260px;
 }
 
+/* ── Forgot Password ─────────────────────────────────────────────────────── */
+.auth-forgot-btn {
+    display: block; width: 100%; text-align: center;
+    background: none; border: none; color: var(--accent);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    padding: 8px 0; margin-top: 4px;
+    transition: color .15s;
+}
+.auth-forgot-btn:hover { color: var(--accent2, var(--accent)); text-decoration: underline; }
+
+.forgot-section {
+    display: flex; flex-direction: column; align-items: center;
+}
+.forgot-icon {
+    width: 64px; height: 64px; margin-bottom: 16px; border-radius: 50%;
+    background: var(--bg3); display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+}
+.forgot-title {
+    font-size: 18px; color: var(--text); font-weight: 700; margin-bottom: 6px;
+}
+.forgot-desc {
+    font-size: 13px; color: var(--text2); margin-bottom: 20px;
+    line-height: 1.5; max-width: 280px; text-align: center;
+}
+.forgot-methods {
+    display: flex; flex-direction: column; gap: 8px; width: 100%;
+}
+.forgot-method-btn {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--bg3);
+    cursor: pointer; text-align: left; width: 100%;
+    transition: border-color .15s, background .15s, transform .1s;
+}
+.forgot-method-btn:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, var(--bg3));
+    transform: translateY(-1px);
+}
+.forgot-method-btn:active { transform: scale(.98); }
+.forgot-method-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.forgot-method-info { flex: 1; min-width: 0; }
+.forgot-method-name {
+    font-size: 14px; font-weight: 600; color: var(--text);
+}
+.forgot-method-hint {
+    font-size: 11px; color: var(--text3); margin-top: 2px;
+}
+.forgot-status {
+    font-size: 13px; margin-top: 12px; min-height: 20px; text-align: center;
+}
+.sq-question-label { font-weight: 600; color: var(--text); }
+
+/* ── Reset Password ──────────────────────────────────────────────────────── */
+.reset-pw-section {
+    display: flex; flex-direction: column; align-items: center;
+}
+.reset-pw-icon {
+    width: 72px; height: 72px; margin-bottom: 16px; border-radius: 50%;
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg3));
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+}
+.reset-pw-title {
+    font-size: 20px; color: var(--text); font-weight: 800; margin-bottom: 6px;
+    letter-spacing: -.02em;
+}
+.reset-pw-desc {
+    font-size: 13px; color: var(--text2); margin-bottom: 22px;
+    line-height: 1.5; max-width: 300px; text-align: center;
+}
+.reset-pw-match {
+    font-size: 12px; min-height: 20px; margin-bottom: 8px; text-align: center;
+}
+
+/* ── Link Device ─────────────────────────────────────────────────────────── */
+.link-device-section {
+    display: flex; flex-direction: column; align-items: center;
+}
+.link-device-icon {
+    width: 64px; height: 64px; margin-bottom: 16px; border-radius: 50%;
+    background: var(--bg3); display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+}
+.link-device-title {
+    font-size: 16px; color: var(--text); font-weight: 700; margin-bottom: 6px;
+}
+.link-device-desc {
+    font-size: 13px; color: var(--text2); margin-bottom: 22px;
+    line-height: 1.5; max-width: 280px; text-align: center;
+}
+.link-code-inputs {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 12px;
+}
+.link-code-digit {
+    width: 42px; height: 50px; text-align: center;
+    font-size: 22px; font-weight: 700; font-family: var(--mono, monospace);
+    color: var(--text); background: var(--bg3);
+    border: 2px solid var(--border); border-radius: 10px;
+    outline: none; caret-color: var(--accent);
+    transition: border-color .15s, box-shadow .15s;
+}
+.link-code-digit:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.link-code-dash {
+    font-size: 20px; color: var(--text3); font-weight: 700;
+}
+.link-device-status {
+    font-size: 13px; color: var(--text2); min-height: 20px;
+}
+
 /* ============================================================================
  * АВАТАР ПИКЕР (регистрация)
  * ========================================================================== */
@@ -414,7 +566,9 @@
     display: flex; align-items: center; justify-content: center;
     transition: all 0.12s;
 }
+@media (hover: hover) {
 .emoji-btn:hover { background: var(--bg3); transform: scale(1.15); }
+}
 .emoji-btn.emoji-selected,
 .emoji-btn.selected {
     border-color: var(--accent); background: rgba(124,58,237,0.1);

@@ -265,7 +265,7 @@ async function _serverSearchRooms(query) {
 
         const label = document.createElement('div');
         label.className = 'rooms-section-label server-search-label';
-        label.textContent = t('rooms.globalResults') || 'Найденные каналы';
+        label.textContent = t('rooms.globalResults');
         el.appendChild(label);
 
         for (const r of external) {
@@ -284,9 +284,19 @@ async function _serverSearchRooms(query) {
                 }
             });
 
+            const isChannel = r.is_channel || r.room_type === 'channel';
+            const isVoice = r.is_voice || r.room_type === 'voice';
             const icon = document.createElement('div');
             icon.className = 'room-icon';
-            icon.textContent = r.avatar_emoji || (r.is_channel ? '\u{1F4E2}' : '\u{1F4AC}');
+            if (r.avatar_url) {
+                const img = document.createElement('img');
+                img.src = r.avatar_url;
+                img.alt = r.name;
+                img.style.cssText = 'width:100%;height:100%;border-radius:50%;object-fit:cover;';
+                icon.appendChild(img);
+            } else {
+                icon.textContent = r.avatar_emoji || (isChannel ? '\u{1F4E2}' : isVoice ? '\u{1F3A4}' : '\u{1F4AC}');
+            }
             item.appendChild(icon);
 
             const body = document.createElement('div');
@@ -297,7 +307,8 @@ async function _serverSearchRooms(query) {
             body.appendChild(nameDiv);
             const metaDiv = document.createElement('div');
             metaDiv.className = 'room-meta';
-            metaDiv.textContent = r.description || '';
+            const typeLabel = isChannel ? t('shortcuts.typeChannel') : isVoice ? t('shortcuts.typeVoice') : t('shortcuts.typeRoom');
+            metaDiv.textContent = r.description ? typeLabel + ' · ' + r.description : typeLabel;
             body.appendChild(metaDiv);
             item.appendChild(body);
 
@@ -362,8 +373,8 @@ function _showRoomContextMenu(e, roomId) {
     items += isHidden
         ? `<div class="room-ctx-item" data-action="unhide">${t('hidden.showChat')}</div>`
         : `<div class="room-ctx-item" data-action="hide">${t('rooms.hideChat')}</div>`;
-    items += `<div class="room-ctx-item" data-action="mark_unread">${t('rooms.markUnread') || 'Пометить непрочитанным'}</div>`;
-    items += `<div class="room-ctx-item" data-action="clear_history" style="color:var(--red);">${t('rooms.clearHistory') || 'Очистить историю'}</div>`;
+    items += `<div class="room-ctx-item" data-action="mark_unread">${t('rooms.markUnread')}</div>`;
+    items += `<div class="room-ctx-item" data-action="clear_history" style="color:var(--red);">${t('rooms.clearHistory')}</div>`;
 
     // Folder assignment submenu
     const folders = _getFolders();
@@ -1032,6 +1043,50 @@ async function _ensureUserPubkey() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Sealed Prekey Packages — zero-metadata key distribution
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PREKEY_BATCH = 10;
+
+/**
+ * Generate and upload sealed prekey packages for a room.
+ * Each package encrypts the room key for a fresh one-time X25519 keypair.
+ * New members can claim a package without any online member present.
+ */
+export async function _uploadSealedPrekeys(roomId, roomKeyBytes) {
+    const packages = [];
+    for (let i = 0; i < PREKEY_BATCH; i++) {
+        // Generate one-time X25519 keypair for this prekey slot
+        const oneTimeKey = await crypto.subtle.generateKey(
+            { name: 'X25519' }, true, ['deriveBits']
+        );
+        const pubRaw = await crypto.subtle.exportKey('raw', oneTimeKey.publicKey);
+        const recipientPub = Array.from(new Uint8Array(pubRaw)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // ECIES encrypt room key for this one-time pubkey
+        const enc = await eciesEncrypt(roomKeyBytes, recipientPub);
+        packages.push({
+            ephemeral_pub: enc.ephemeral_pub,
+            ciphertext: enc.ciphertext,
+            recipient_pub: recipientPub,
+        });
+    }
+
+    await api('POST', `/api/rooms/${roomId}/sealed-prekeys`, { packages });
+    console.info(`[SealedKeys] ${packages.length} prekeys uploaded for room ${roomId}`);
+}
+
+// Handle prekeys_low event — replenish prekeys when running low
+window.addEventListener('message', (e) => {
+    if (e.data?.type === 'prekeys_low' && e.data.room_id) {
+        const roomKey = getRoomKey(e.data.room_id);
+        if (roomKey) {
+            _uploadSealedPrekeys(e.data.room_id, roomKey).catch(() => {});
+        }
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // CRUD комнат
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -1054,6 +1109,13 @@ export async function createRoom() {
         });
 
         setRoomKey(data.id, roomKeyBytes);
+        if (window.registerRoomSecret) window.registerRoomSecret(data.id);
+
+        // Generate sealed prekey packages for offline key distribution
+        _uploadSealedPrekeys(data.id, roomKeyBytes).catch(e =>
+            console.warn('[SealedKeys] Prekey upload failed:', e.message)
+        );
+
         window.AppState.rooms.unshift(data);
         renderRoomsList();
         closeModal('create-room-modal');

@@ -50,7 +50,7 @@
  * ------------------------------------------------------------------------- */
 html, body {
     height: 100%; background: var(--bg); color: var(--text);
-    font-family: var(--sub); overflow: hidden; font-size: 14px;
+    font-family: var(--sub); overflow: hidden; font-size: var(--font-size, 14px);
 }
 
 /* ----------------------------------------------------------------------------

@@ -50,108 +50,108 @@ export function openPhotoEditor(file, onSave) {
 }
 
 /**
- * Создаёт DOM-элементы редактора и вставляет их в body.
+ * Fullscreen photo editor with tab bar.
+ * NOTE: innerHTML usage is safe — only static SVG/HTML string literals, never user input.
  */
+let _activePhotoTab = 'color';
+
+function _peSliderRow(label, id, min, max, val, unit, step) {
+    return '<div class="pe-slider-row"><span class="pe-slider-label">' + label + '</span>'
+        + '<input type="range" class="pe-slider" id="ed-' + id + '" min="' + min + '" max="' + max
+        + '" value="' + val + '"' + (step ? ' step="' + step + '"' : '')
+        + ' oninput="window._peUpdate(\'' + id + '\',+this.value)">'
+        + '<span class="pe-slider-val" id="lbl-' + id + '">' + val + unit + '</span></div>';
+}
+
 function _buildEditorUI() {
     document.getElementById('photo-editor-modal')?.remove();
 
     const modal = document.createElement('div');
-    modal.id        = 'photo-editor-modal';
-    modal.className = 'photo-editor-modal';
+    modal.id = 'photo-editor-modal';
+    modal.className = 'pe-root';
 
-    modal.innerHTML = `
-    <div class="photo-editor-inner">
-        <div class="photo-editor-header">
-            <span class="photo-editor-title"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg> Редактор фото</span>
-            <button class="photo-editor-close" onclick="window.closePhotoEditor()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
-        </div>
-
-        <div class="photo-editor-body">
-            <div class="photo-editor-canvas-wrap">
-                <div class="photo-ed-canvas-container" id="photo-ed-canvas-container">
-                    <canvas id="photo-ed-canvas"></canvas>
-                    <!-- crop overlay, injected dynamically -->
-                </div>
-
-                <div class="crop-ratio-buttons" id="crop-ratio-bar" style="display:none;">
-                    <button class="crop-ratio-btn active" data-ratio="free" onclick="window._peCropRatio('free')">Свободно</button>
-                    <button class="crop-ratio-btn" data-ratio="1:1" onclick="window._peCropRatio('1:1')">1:1</button>
-                    <button class="crop-ratio-btn" data-ratio="4:3" onclick="window._peCropRatio('4:3')">4:3</button>
-                    <button class="crop-ratio-btn" data-ratio="16:9" onclick="window._peCropRatio('16:9')">16:9</button>
-                    <span class="crop-action-sep"></span>
-                    <button class="crop-ratio-btn crop-apply" onclick="window._peCropApply()">Применить</button>
-                    <button class="crop-ratio-btn crop-cancel" onclick="window._peCropCancel()">Отмена</button>
-                </div>
-            </div>
-
-            <div class="photo-editor-controls">
-
-                <div class="photo-ed-section">
-                    <div class="photo-ed-section-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-1-.01-.83.67-1.49 1.5-1.49H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg> Цвет</div>
-
-                    <label>Яркость <span id="lbl-brightness">100</span>%</label>
-                    <input type="range" id="ed-brightness" min="0" max="200" value="100"
-                        oninput="window._peUpdate('brightness',+this.value)">
-
-                    <label>Контраст <span id="lbl-contrast">100</span>%</label>
-                    <input type="range" id="ed-contrast" min="0" max="200" value="100"
-                        oninput="window._peUpdate('contrast',+this.value)">
-
-                    <label>Насыщенность <span id="lbl-saturation">100</span>%</label>
-                    <input type="range" id="ed-saturation" min="0" max="300" value="100"
-                        oninput="window._peUpdate('saturation',+this.value)">
-
-                    <label>Тон <span id="lbl-hue">0</span>°</label>
-                    <input type="range" id="ed-hue" min="0" max="360" value="0"
-                        oninput="window._peUpdate('hue',+this.value)">
-
-                    <label>Размытие <span id="lbl-blur">0</span>px</label>
-                    <input type="range" id="ed-blur" min="0" max="20" value="0" step="0.5"
-                        oninput="window._peUpdate('blur',+this.value)">
-                </div>
-
-                <div class="photo-ed-section">
-                    <div class="photo-ed-section-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> Трансформация</div>
-                    <div class="photo-ed-btns">
-                        <button class="photo-ed-btn" onclick="window._peRotate(-90)" title="Повернуть влево"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M7.11 8.53 5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/></svg> -90°</button>
-                        <button class="photo-ed-btn" onclick="window._peRotate(90)"  title="Повернуть вправо"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M15.55 5.55 11 1v3.07C7.06 4.56 4 7.92 4 12s3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45zM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02zM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03zm3.89-2.42 1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48z"/></svg> +90°</button>
-                        <button class="photo-ed-btn" onclick="window._peFlip('H')"  title="Зеркало по горизонтали"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M15 21h2v-2h-2v2zm4-12h2V7h-2v2zM3 5v14c0 1.1.9 2 2 2h4v-2H5V5h4V3H5c-1.1 0-2 .9-2 2zm16-2v2h2c0-1.1-.9-2-2-2zm-8 20h2V1h-2v22zm8-6h2v-2h-2v2zM15 5h2V3h-2v2zm4 8h2v-2h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2z"/></svg> Гор.</button>
-                        <button class="photo-ed-btn" onclick="window._peFlip('V')"  title="Зеркало по вертикали"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9h2V7H3v2zm0-4h2V3H3c0 1.1.9 2 2 2zm0 8h2v-2H3v2zm0 8c0 1.1.9 2 2 2v-2H3zm18 0h-2v2c1.1 0 2-.9 2-2zm-8 2h2V1h-2v22zm8-6h2v-2h-2v2zM21 3v2h2c0-1.1-.9-2-2-2zm0 6h2V7h-2v2zm-4 12h2v-2h-2v2zm4-8h2v-2h-2v2zm0-12v2h2c0-1.1-.9-2-2-2z"/></svg> Верт.</button>
-                        <button class="photo-ed-btn" id="btn-crop-toggle" onclick="window._peCropToggle()" title="Обрезать"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M17 15h2V7c0-1.1-.9-2-2-2H9v2h8v8zM7 17V1H5v4H1v2h4v10c0 1.1.9 2 2 2h10v4h2v-4h4v-2H7z"/></svg> Обрезка</button>
-                    </div>
-                </div>
-
-                <div class="photo-ed-section">
-                    <div class="photo-ed-section-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M17.66 7.93L12 2.27 6.34 7.93c-3.12 3.12-3.12 8.19 0 11.31A7.98 7.98 0 0012 21.58c2.05 0 4.1-.78 5.66-2.34 3.12-3.12 3.12-8.19 0-11.31zM12 19.59c-1.6 0-3.11-.62-4.24-1.76C6.62 16.69 6 15.19 6 13.59s.62-3.11 1.76-4.24L12 5.1v14.49z"/></svg> Фильтры</div>
-                    <div class="photo-ed-filters">
-                        <button class="photo-ed-filter-btn" onclick="window._peFilter('none')">Нет</button>
-                        <button class="photo-ed-filter-btn" onclick="window._peFilter('grayscale')">Ч/Б</button>
-                        <button class="photo-ed-filter-btn" onclick="window._peFilter('sepia')">Сепия</button>
-                        <button class="photo-ed-filter-btn" onclick="window._peFilter('vivid')">Яркий</button>
-                        <button class="photo-ed-filter-btn" onclick="window._peFilter('cold')">Холодный</button>
-                        <button class="photo-ed-filter-btn" onclick="window._peFilter('warm')">Тёплый</button>
-                        <button class="photo-ed-filter-btn" onclick="window._peFilter('drama')">Драма</button>
-                    </div>
-                </div>
-
-                <div class="photo-ed-section">
-                    <button class="photo-ed-btn secondary" onclick="window._peReset()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:2px;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> Сбросить</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="photo-editor-footer">
-            <button class="btn btn-secondary" onclick="window.closePhotoEditor()">Отмена</button>
-            <button class="btn btn-primary"   onclick="window.savePhotoEdit()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Сохранить и отправить</button>
-        </div>
-    </div>`;
+    // NOTE: all innerHTML below is static trusted content (SVG icons, layout).
+    // No user-supplied data is interpolated.
+    modal.innerHTML =
+    '<div class="pe-header">'
+    +   '<button class="pe-header-btn" onclick="window.closePhotoEditor()">Cancel</button>'
+    +   '<span class="pe-title">Photo Editor</span>'
+    +   '<button class="pe-header-btn pe-done" onclick="window.savePhotoEdit()">Done</button>'
+    + '</div>'
+    + '<div class="pe-canvas-area">'
+    +   '<div class="pe-canvas-container" id="photo-ed-canvas-container">'
+    +     '<canvas id="photo-ed-canvas"></canvas>'
+    +   '</div>'
+    +   '<div class="crop-ratio-buttons" id="crop-ratio-bar" style="display:none;">'
+    +     '<button class="crop-ratio-btn active" data-ratio="free" onclick="window._peCropRatio(\'free\')">Free</button>'
+    +     '<button class="crop-ratio-btn" data-ratio="1:1" onclick="window._peCropRatio(\'1:1\')">1:1</button>'
+    +     '<button class="crop-ratio-btn" data-ratio="4:3" onclick="window._peCropRatio(\'4:3\')">4:3</button>'
+    +     '<button class="crop-ratio-btn" data-ratio="16:9" onclick="window._peCropRatio(\'16:9\')">16:9</button>'
+    +     '<span class="crop-action-sep"></span>'
+    +     '<button class="crop-ratio-btn crop-apply" onclick="window._peCropApply()">Apply</button>'
+    +     '<button class="crop-ratio-btn crop-cancel" onclick="window._peCropCancel()">Cancel</button>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="pe-content" id="pe-content"></div>'
+    + '<div class="pe-tabs" id="pe-tabs">'
+    +   '<button class="pe-tab active" data-tab="color" onclick="window._peShowTab(\'color\')">'
+    +     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
+    +     '<span>Color</span></button>'
+    +   '<button class="pe-tab" data-tab="transform" onclick="window._peShowTab(\'transform\')">'
+    +     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>'
+    +     '<span>Transform</span></button>'
+    +   '<button class="pe-tab" data-tab="crop" onclick="window._peShowTab(\'crop\')">'
+    +     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.13 1L6 16a2 2 0 002 2h15M1 6.13L16 6a2 2 0 012 2v15"/></svg>'
+    +     '<span>Crop</span></button>'
+    +   '<button class="pe-tab" data-tab="filters" onclick="window._peShowTab(\'filters\')">'
+    +     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>'
+    +     '<span>Filters</span></button>'
+    + '</div>';
 
     document.body.appendChild(modal);
-    requestAnimationFrame(() => modal.classList.add('visible'));
-
     _canvas = document.getElementById('photo-ed-canvas');
     _ctx    = _canvas.getContext('2d');
+    _peShowTab('color');
 }
+
+/**
+ * Switch tab content in photo editor.
+ */
+window._peShowTab = (tab) => {
+    _activePhotoTab = tab;
+    document.querySelectorAll('.pe-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    const content = document.getElementById('pe-content');
+    if (!content) return;
+
+    if (tab !== 'crop' && _cropActive) _peCropDeactivate();
+
+    // NOTE: all innerHTML below is static trusted content. No user data is interpolated.
+    if (tab === 'color') {
+        content.innerHTML = '<div class="pe-tool-panel">'
+            + _peSliderRow((window.t?.('photoEditor.brightness')||'Brightness'), 'brightness', 0, 200, _state.brightness, '%')
+            + _peSliderRow((window.t?.('photoEditor.contrast')||'Contrast'), 'contrast', 0, 200, _state.contrast, '%')
+            + _peSliderRow((window.t?.('photoEditor.saturation')||'Saturation'), 'saturation', 0, 300, _state.saturation, '%')
+            + _peSliderRow((window.t?.('photoEditor.hue')||'Hue'), 'hue', 0, 360, _state.hue, '\u00B0')
+            + _peSliderRow((window.t?.('photoEditor.blur')||'Blur'), 'blur', 0, 20, _state.blur, 'px', '0.5')
+            + '</div>';
+    } else if (tab === 'transform') {
+        content.innerHTML = '<div class="pe-tool-panel"><div class="pe-btn-grid">'
+            + '<button class="pe-action-btn" onclick="window._peRotate(-90)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6M7 10L2.5 5.5A9 9 0 0120.49 9"/></svg><span>-90\u00B0</span></button>'
+            + '<button class="pe-action-btn" onclick="window._peRotate(90)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 4v6h-6M17 10l4.5-4.5A9 9 0 003.51 9"/></svg><span>+90\u00B0</span></button>'
+            + '<button class="pe-action-btn" onclick="window._peFlip(\'H\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 00-2 2v14a2 2 0 002 2h3M16 3h3a2 2 0 012 2v14a2 2 0 01-2 2h-3M12 2v20"/></svg><span>Flip H</span></button>'
+            + '<button class="pe-action-btn" onclick="window._peFlip(\'V\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8V5a2 2 0 012-2h14a2 2 0 012 2v3M3 16v3a2 2 0 002 2h14a2 2 0 002-2v-3M2 12h20"/></svg><span>Flip V</span></button>'
+            + '</div><button class="pe-reset-btn" onclick="window._peReset()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6M3.51 15a9 9 0 102.13-9.36L1 10"/></svg> Reset all</button></div>';
+    } else if (tab === 'crop') {
+        if (!_cropActive) _peCropActivate();
+        content.innerHTML = '<div class="pe-tool-panel"><div class="pe-note">Drag the handles to crop. Pick an aspect ratio above.</div></div>';
+    } else if (tab === 'filters') {
+        var html = '<div class="pe-tool-panel"><div class="pe-filter-grid">';
+        [['none',(window.t?.('photoEditor.none')||'None')],['grayscale',(window.t?.('photoEditor.bw')||'B&W')],['sepia',(window.t?.('photoEditor.sepia')||'Sepia')],['vivid',(window.t?.('photoEditor.vivid')||'Vivid')],['cold',(window.t?.('photoEditor.cold')||'Cold')],['warm',(window.t?.('photoEditor.warm')||'Warm')],['drama',(window.t?.('photoEditor.drama')||'Drama')]].forEach(function(f) {
+            html += '<button class="pe-filter-btn" onclick="window._peFilter(\'' + f[0] + '\')">' + f[1] + '</button>';
+        });
+        content.innerHTML = html + '</div></div>';
+    }
+};
 
 /**
  * Загружает изображение в canvas, масштабируя до 800px по большей стороне.
@@ -214,8 +214,11 @@ function _redraw() {
  */
 window._peUpdate = (key, val) => {
     _state[key] = val;
-    const lbl = document.getElementById(`lbl-${key}`);
-    if (lbl) lbl.textContent = Math.round(val);
+    const lbl = document.getElementById('lbl-' + key);
+    if (lbl) {
+        const units = { brightness: '%', contrast: '%', saturation: '%', hue: '\u00B0', blur: 'px' };
+        lbl.textContent = Math.round(val) + (units[key] || '');
+    }
     _redraw();
 };
 

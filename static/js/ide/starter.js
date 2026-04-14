@@ -5,576 +5,673 @@ function STARTER_CODE(name, lang) {
 }
 
 function STARTER_CODE_GRAV(name) {
-return `// ${name} — Gravitix Bot (Task Manager Backend)
-// Handles commands from the Architex Mini App via send()
+return `// ${name} — Gravitix Math Engine
+// Backend for the Architex Calculator Mini App
 
 state {
-    tasks:      map<int, list> = {},
-    categories: map<int, list> = {},
-    next_id:    int = 1,
-    stats:      map<str, int>  = {},
+    history: list = [],
+    history_id: int = 0,
 }
 
-// ── Helpers ──────────────────────────────────────────────────
+// ── Derivative Engine ───────────────────────────────────────
 
-fn get_tasks(user_id: int) -> list {
-    if state.tasks.has(user_id) {
-        return state.tasks[user_id];
+fn derivative(expr: str) -> str {
+    // Power rule: ax^n → n*a*x^(n-1)
+    let e = expr |> trim;
+    match e {
+        /^(-?\\d*\\.?\\d*)x\\^(\\d+)$/ => {
+            let coef = if ctx.match[1] == "" or ctx.match[1] == "-" {
+                if ctx.match[1] == "-" { -1 } else { 1 }
+            } else { float(ctx.match[1]) };
+            let exp = int(ctx.match[2]);
+            let nc = coef * exp;
+            let ne = exp - 1;
+            if ne == 0 { return str(nc) }
+            if ne == 1 { return "{nc}x" }
+            return "{nc}x^{ne}";
+        },
+        /^(-?\\d*\\.?\\d*)x$/ => {
+            let c = if ctx.match[1] == "" { "1" } else { ctx.match[1] };
+            return c;
+        },
+        /^(-?\\d+\\.?\\d*)$/ => return "0",
+        "sin(x)"  => return "cos(x)",
+        "cos(x)"  => return "-sin(x)",
+        "tan(x)"  => return "1/cos^2(x)",
+        "e^x"     => return "e^x",
+        "ln(x)"   => return "1/x",
+        "sqrt(x)" => return "1/(2*sqrt(x))",
+        _          => return "d/dx[{e}]"
     }
-    let empty = [];
-    state.tasks[user_id] = empty;
-    return empty;
 }
 
-fn count_by_status(tasks: list, status: str) -> int {
-    let n = 0;
-    for t in tasks {
-        if t.status == status { n += 1; }
+fn integral(expr: str) -> str {
+    let e = expr |> trim;
+    match e {
+        /^(-?\\d*\\.?\\d*)x\\^(\\d+)$/ => {
+            let coef = if ctx.match[1] == "" { 1.0 } else { float(ctx.match[1]) };
+            let exp = int(ctx.match[2]);
+            let ne = exp + 1;
+            let nc = coef / ne;
+            return "{nc}x^{ne} + C";
+        },
+        /^(-?\\d*\\.?\\d*)x$/ => {
+            let c = if ctx.match[1] == "" { 1.0 } else { float(ctx.match[1]) };
+            let nc = c / 2.0;
+            return "{nc}x^2 + C";
+        },
+        /^(-?\\d+\\.?\\d*)$/ => return "{e}x + C",
+        "sin(x)"  => return "-cos(x) + C",
+        "cos(x)"  => return "sin(x) + C",
+        "e^x"     => return "e^x + C",
+        "1/x"     => return "ln|x| + C",
+        _          => return "\\u222B {e} dx"
     }
-    return n;
 }
 
-fn count_by_category(tasks: list, cat: str) -> int {
-    let n = 0;
-    for t in tasks {
-        if t.category == cat { n += 1; }
+fn solve_quadratic(a: float, b: float, c: float) -> str {
+    let D = b * b - 4.0 * a * c;
+    if D < 0 {
+        let re = -b / (2.0 * a);
+        let im = sqrt(-D) / (2.0 * a);
+        return "x = {re} \\u00B1 {im}i  (D={D})";
     }
-    return n;
+    if D == 0 {
+        let x = -b / (2.0 * a);
+        return "x = {x}  (D=0, one root)";
+    }
+    let x1 = (-b + sqrt(D)) / (2.0 * a);
+    let x2 = (-b - sqrt(D)) / (2.0 * a);
+    return "x\\u2081 = {x1},  x\\u2082 = {x2}  (D={D})";
+}
+
+fn calc_limit(expr: str, point: str) -> str {
+    match expr {
+        "sin(x)/x"     => return "1",
+        "(1+1/x)^x"    => return "e \\u2248 2.71828",
+        "(e^x-1)/x"    => return "1",
+        "x/|x|"        => return "DNE (\\u00B11)",
+        "1/x"          => {
+            if point == "0" { return "\\u00B1\\u221E" }
+            return str(1.0 / float(point));
+        },
+        "ln(x)/x"      => return "0",
+        _               => return "lim({expr})"
+    }
+}
+
+fn matrix_det(a: float, b: float, c: float, d: float) -> float {
+    return a * d - b * c;
+}
+
+fn matrix_trace(a: float, d: float) -> float {
+    return a + d;
 }
 
 // ── Bot Commands ─────────────────────────────────────────────
 
 on /start {
-    emit "Welcome to {ctx.first_name}'s Task Manager!";
-    emit "Use the Mini App for the full UI, or try /stats";
-    ui_set("user_name", ctx.first_name);
-    ui_set("initialized", true);
+    emit "\\u{1F9EE} {ctx.first_name}, welcome to Math Calculator!";
+    emit "Open the Mini App for the full calculator UI.";
+    emit "Or type: /deriv x^3, /integ sin(x), /solve 1 -5 6";
 }
 
-on /help {
-    emit """Commands:
-/start  — initialize bot
-/stats  — your task statistics
-/clear  — remove completed tasks
-/export — export tasks as text""";
+on /deriv {
+    let expr = join(ctx.args, " ");
+    let result = derivative(expr);
+    emit "d/dx [{expr}] = {result}";
 }
 
-on /stats {
-    let tasks = get_tasks(ctx.user_id);
-    let total = len(tasks);
-    let done  = count_by_status(tasks, "done");
-    let active = total - done;
-    emit "📊 Stats for {ctx.first_name}:";
-    emit "  Active: {active}  |  Done: {done}  |  Total: {total}";
+on /integ {
+    let expr = join(ctx.args, " ");
+    let result = integral(expr);
+    emit "\\u222B {expr} dx = {result}";
 }
 
-on /clear {
-    let tasks = get_tasks(ctx.user_id);
-    let kept = [];
-    let removed = 0;
-    for t in tasks {
-        if t.status != "done" {
-            push(kept, t);
-        } else {
-            removed += 1;
-        }
-    }
-    state.tasks[ctx.user_id] = kept;
-    emit "Cleared {removed} completed task(s). {len(kept)} remaining.";
-    ui_set("tasks", kept);
-    ui_set("task_count", len(kept));
+on /solve {
+    if len(ctx.args) < 3 { emit "Usage: /solve a b c"; stop }
+    let a = float(ctx.args[0]);
+    let b = float(ctx.args[1]);
+    let c = float(ctx.args[2]);
+    emit solve_quadratic(a, b, c);
 }
 
-// ── Mini App Bridge (handles send() from Architex) ──────────
+// ── Mini App Bridge ─────────────────────────────────────────
 
 on msg {
-    match ctx.text {
-        /hello|hi/i => emit "Hey! Open the Mini App for the full task manager.",
-        "ping"      => emit "pong",
-        _           => {}
-    }
-}
-
-on callback "add_task" {
-    let tasks = get_tasks(ctx.user_id);
-    let task = {
-        id: state.next_id,
-        title: ctx.callback_data.title,
-        category: ctx.callback_data.category,
-        priority: ctx.callback_data.priority,
-        status: "active",
-        created: now_unix(),
-    };
-    state.next_id += 1;
-    push(tasks, task);
-    state.tasks[ctx.user_id] = tasks;
-
-    ui_set("tasks", tasks);
-    ui_set("task_count", len(tasks));
-    ui_set("last_action", "Task added: {task.title}");
-    emit "Added: {task.title} [{task.category}]";
-}
-
-on callback "toggle_task" {
-    let tasks = get_tasks(ctx.user_id);
-    let task_id = ctx.callback_data.id;
-    for t in tasks {
-        if t.id == task_id {
-            if t.status == "active" {
-                t.status = "done";
-            } else {
-                t.status = "active";
-            }
-        }
-    }
-    state.tasks[ctx.user_id] = tasks;
-
-    let done = count_by_status(tasks, "done");
-    let total = len(tasks);
-    let progress = 0;
-    if total > 0 { progress = (done * 100) / total; }
-
-    ui_set("tasks", tasks);
-    ui_set("done_count", done);
-    ui_set("progress", progress);
-}
-
-on callback "delete_task" {
-    let tasks = get_tasks(ctx.user_id);
-    let task_id = ctx.callback_data.id;
-    let updated = [];
-    for t in tasks {
-        if t.id != task_id {
-            push(updated, t);
-        }
-    }
-    state.tasks[ctx.user_id] = updated;
-    ui_set("tasks", updated);
-    ui_set("task_count", len(updated));
-    emit "Task deleted.";
-}
-
-on callback "get_stats" {
-    let tasks = get_tasks(ctx.user_id);
-    let total  = len(tasks);
-    let done   = count_by_status(tasks, "done");
-    let active = total - done;
-
-    let work_count     = count_by_category(tasks, "Work");
-    let personal_count = count_by_category(tasks, "Personal");
-    let urgent_count   = count_by_category(tasks, "Urgent");
-    let ideas_count    = count_by_category(tasks, "Ideas");
-
-    ui_set("stat_total", total);
-    ui_set("stat_done", done);
-    ui_set("stat_active", active);
-    ui_set("stat_work", work_count);
-    ui_set("stat_personal", personal_count);
-    ui_set("stat_urgent", urgent_count);
-    ui_set("stat_ideas", ideas_count);
-    ui_set("progress", if total > 0 { (done * 100) / total } else { 0 });
-}
-
-on callback "search_tasks" {
-    let tasks = get_tasks(ctx.user_id);
-    let query = ctx.callback_data.query |> trim |> lowercase;
-    let results = [];
-    for t in tasks {
-        if contains(lowercase(t.title), query) {
-            push(results, t);
-        }
-    }
-    ui_set("search_results", results);
-    ui_set("search_count", len(results));
-}
-
-// ── Daily reminder ───────────────────────────────────────────
-
-every 24 hours {
-    for user_id in state.tasks.keys() {
-        let tasks = state.tasks[user_id];
-        let active = count_by_status(tasks, "active");
-        if active > 0 {
-            emit_to(user_id, "You have {active} active task(s). Stay productive!");
-        }
+    match ctx.action {
+        "derivative" => {
+            let r = derivative(ctx.expr);
+            ui_set("deriv_result", r);
+            state.history_id += 1;
+            push(state.history, {id: state.history_id, op: "d/dx", expr: ctx.expr, result: r});
+            ui_set("history_count", len(state.history));
+        },
+        "integral" => {
+            let r = integral(ctx.expr);
+            ui_set("integ_result", r);
+            state.history_id += 1;
+            push(state.history, {id: state.history_id, op: "\\u222B", expr: ctx.expr, result: r});
+            ui_set("history_count", len(state.history));
+        },
+        "quadratic" => {
+            let r = solve_quadratic(float(ctx.a), float(ctx.b), float(ctx.c));
+            ui_set("quad_result", r);
+            state.history_id += 1;
+            push(state.history, {id: state.history_id, op: "ax\\u00B2+bx+c", expr: "{ctx.a}x\\u00B2+{ctx.b}x+{ctx.c}", result: r});
+        },
+        "limit" => {
+            let r = calc_limit(ctx.expr, ctx.point);
+            ui_set("limit_result", r);
+            state.history_id += 1;
+            push(state.history, {id: state.history_id, op: "lim", expr: ctx.expr, result: r});
+        },
+        "determinant" => {
+            let det = matrix_det(float(ctx.a), float(ctx.b), float(ctx.c), float(ctx.d));
+            let tr = matrix_trace(float(ctx.a), float(ctx.d));
+            ui_set("mat_det", str(det));
+            ui_set("mat_trace", str(tr));
+        },
+        "clear_history" => {
+            state.history = [];
+            ui_set("history_count", 0);
+        },
+        _ => {}
     }
 }
 `;
 }
 
 function STARTER_CODE_ARX(name) {
-return `// ${name} — Task Manager Mini App
-// A full-featured task manager with categories, search, and stats
+return `// ${name} — Advanced Math Calculator
+// Derivatives, Integrals, Equations, Matrices, Limits
 
 @theme
-  primary   = #6C5CE7
-  secondary = #A29BFE
-  accent    = #FD79A8
-  success   = #00B894
-  warning   = #FDCB6E
-  danger    = #E17055
-  surface   = #F8F9FE
-  text      = #2D3436
-  muted     = #B2BEC3
+  primary   = #0F0A2E
+  secondary = #1A1145
+  accent    = #7B5EFF
+  neon      = #00F0FF
+  gold      = #FFD700
+  success   = #00E676
+  danger    = #FF4081
+  surface   = #16103A
+  text      = #E8E0FF
+  muted     = #7B73A0
 
 // ══════════════════════════════════════════
-//  Reusable Components
-// ══════════════════════════════════════════
-
-@component TaskCard
-  card :: pad(16) radius(12) bg(#fff) border(#E8E8F0)
-    row :: gap(12) center
-      button ~task_icon :: pad(8) radius(20) bg(~task_color)
-        => send(action: "toggle_task", id: ~task_id)
-      col :: gap(4) grow
-        text ~task_title :: bold size(15) color(#2D3436)
-        row :: gap(8)
-          badge ~task_category :: size(11) radius(8) bg(#F0EFFF) color(#6C5CE7)
-          badge ~task_priority :: size(11) radius(8) bg(~priority_bg) color(~priority_color)
-      button "×" :: pad(8) radius(8) bg(#FFF0F0) color(#E17055) size(16)
-        => send(action: "delete_task", id: ~task_id)
-
-@component StatCard
-  card :: pad(16) radius(12) bg(~stat_bg) border(~stat_border)
-    col :: gap(6) center
-      text ~stat_value :: bold size(28) color(~stat_accent)
-      text ~stat_label :: size(12) color(#636E72)
-
-@component CategoryChip
-  button ~chip_label :: pad(10) radius(20) bg(~chip_bg) color(~chip_color) size(13)
-    => ~selected_category = ~chip_value
-
-// ══════════════════════════════════════════
-//  Main Screen — Task List
+//  Main — Calculator Dashboard
 // ══════════════════════════════════════════
 
 @screen Main
 
-  ~app_title = "${name}"
-  ~user_name = "User"
-  ~search_query = ""
-  ~selected_category = "All"
-  ~new_task_title = ""
-  ~new_task_category = "Work"
-  ~new_task_priority = "Medium"
-  ~show_add_form = false
-  ~task_count = 0
-  ~done_count = 0
-  ~progress = 0
-  ~filter_active = true
+  ~history_count = 0
 
-  col :: pad(0) gap(0) bg(#F8F9FE)
+  col :: pad(0) gap(0) bg(#0F0A2E)
 
-    // ── Top Bar ──────────────────────────
-    col :: pad(20) gap(12) bg(#6C5CE7)
-      row :: gap(12) center
-        col :: grow
-          text ~app_title :: bold size(22) color(#fff)
-          text "Stay organized, stay productive" :: size(13) color(#D5D0F7)
-        button "Stats" :: pad(10) radius(10) bg(#5A4BD1) color(#fff) size(13)
-          => navigate(Stats)
+    // ── Header with gradient ────────────
+    col :: pad(24) gap(8) gradient(#1A1145-#2A1060-#1A1145)
+      text "${name}" :: bold size(24) color(#fff) animate(fadeIn)
+      text "Advanced Mathematics Calculator" :: size(13) color(#7B73A0)
 
-      // ── Search Bar ───────────────────
-      row :: gap(8)
-        input ~search_query :: pad(12) radius(10) bg(#5A4BD1) color(#fff) placeholder("Search tasks...") grow
-          => send(action: "search_tasks", query: ~search_query)
-        button "+" :: pad(12) radius(10) bg(#FD79A8) color(#fff) bold size(18)
-          => ~show_add_form = !~show_add_form
+    col :: pad(20) gap(14)
 
-    // ── Quick Stats Row ──────────────────
-    row :: pad(16) gap(12) center
-      col :: gap(2) center grow
-        text ~task_count :: bold size(20) color(#6C5CE7)
-        text "Total" :: size(11) color(#B2BEC3)
-      col :: gap(2) center grow
-        text ~done_count :: bold size(20) color(#00B894)
-        text "Done" :: size(11) color(#B2BEC3)
-      col :: gap(2) center grow
-        text ~progress :: bold size(20) color(#FD79A8)
-        text "% Complete" :: size(11) color(#B2BEC3)
+      // ── Category Cards with SVG icons ──
+      row :: gap(12)
+        card :: pad(18) radius(14) bg(#1E1650) border(#2A2060) grow glow(#7B5EFF) animate(fadeIn)
+          col :: gap(10) center
+            mathicon "derivative" :: size(40) color(#7B5EFF) animate(float)
+            text "Derivatives" :: bold size(13) color(#C4B5FD)
+            button "Open" :: pad(8) radius(8) gradient(#7B5EFF-#6C4FEE) color(#fff) size(12)
+              => navigate(Derivative)
+        card :: pad(18) radius(14) bg(#1E1650) border(#2A2060) grow glow(#00F0FF) animate(fadeIn)
+          col :: gap(10) center
+            mathicon "integral" :: size(40) color(#00F0FF) animate(float)
+            text "Integrals" :: bold size(13) color(#67E8F9)
+            button "Open" :: pad(8) radius(8) gradient(#00B8D4-#00897B) color(#fff) size(12)
+              => navigate(Integral)
 
-    divider
+      row :: gap(12)
+        card :: pad(18) radius(14) bg(#1E1650) border(#2A2060) grow glow(#FFD700) animate(fadeIn)
+          col :: gap(10) center
+            mathicon "equation" :: size(40) color(#FFD700) animate(float)
+            text "Equations" :: bold size(13) color(#FDE68A)
+            button "Open" :: pad(8) radius(8) gradient(#FFD700-#F59E0B) color(#0F0A2E) size(12)
+              => navigate(Equations)
+        card :: pad(18) radius(14) bg(#1E1650) border(#2A2060) grow glow(#00E676) animate(fadeIn)
+          col :: gap(10) center
+            mathicon "matrix" :: size(40) color(#00E676) animate(float)
+            text "Matrices" :: bold size(13) color(#6EE7B7)
+            button "Open" :: pad(8) radius(8) gradient(#00E676-#059669) color(#fff) size(12)
+              => navigate(Matrix)
 
-    // ── Add Task Form (collapsible) ──────
-    @if ~show_add_form
-      card :: pad(16) radius(12) bg(#fff) border(#E8E8F0)
-        col :: gap(12)
-          text "New Task" :: bold size(16) color(#2D3436)
-          input ~new_task_title :: pad(12) radius(8) border(#DDD) placeholder("What needs to be done?")
-            => ~new_task_title = ~new_task_title
+      row :: gap(12)
+        card :: pad(18) radius(14) bg(#1E1650) border(#2A2060) grow glow(#FF4081) animate(fadeIn)
+          col :: gap(10) center
+            mathicon "limit" :: size(40) color(#FF4081) animate(float)
+            text "Limits" :: bold size(13) color(#FDA4AF)
+            button "Open" :: pad(8) radius(8) gradient(#FF4081-#E91E63) color(#fff) size(12)
+              => navigate(Limits)
+        card :: pad(18) radius(14) bg(#1E1650) border(#2A2060) grow glow(#FF9100) animate(fadeIn)
+          col :: gap(10) center
+            mathicon "sigma" :: size(40) color(#FF9100) animate(float)
+            text "Reference" :: bold size(13) color(#FDBA74)
+            button "Open" :: pad(8) radius(8) gradient(#FF9100-#E65100) color(#fff) size(12)
+              => navigate(Reference)
+
+      // ── Quick Formulas with glow ──────
+      card :: pad(18) radius(14) bg(#1E1650) border(#2A2060) glass
+        col :: gap(10)
+          text "Quick Formulas" :: bold size(15) color(#fff)
           row :: gap(8)
-            text "Category:" :: size(13) color(#636E72)
-            button "Work" :: pad(8) radius(8) bg(#F0EFFF) color(#6C5CE7) size(12)
-              => ~new_task_category = "Work"
-            button "Personal" :: pad(8) radius(8) bg(#E8F8F5) color(#00B894) size(12)
-              => ~new_task_category = "Personal"
-            button "Urgent" :: pad(8) radius(8) bg(#FFEEF0) color(#E17055) size(12)
-              => ~new_task_category = "Urgent"
-            button "Ideas" :: pad(8) radius(8) bg(#FFF8E1) color(#F39C12) size(12)
-              => ~new_task_category = "Ideas"
+            badge "(a+b)\\u00B2 = a\\u00B2+2ab+b\\u00B2" :: size(11) radius(8) bg(#2A1F6E) color(#7B5EFF)
           row :: gap(8)
-            text "Priority:" :: size(13) color(#636E72)
-            button "Low" :: pad(8) radius(8) bg(#E8F8F5) color(#00B894) size(12)
-              => ~new_task_priority = "Low"
-            button "Medium" :: pad(8) radius(8) bg(#FFF8E1) color(#F39C12) size(12)
-              => ~new_task_priority = "Medium"
-            button "High" :: pad(8) radius(8) bg(#FFEEF0) color(#E17055) size(12)
-              => ~new_task_priority = "High"
+            badge "sin\\u00B2+cos\\u00B2 = 1" :: size(11) radius(8) bg(#0A2A30) color(#00F0FF)
           row :: gap(8)
-            badge ~new_task_category :: size(12) radius(8) bg(#F0EFFF) color(#6C5CE7)
-            badge ~new_task_priority :: size(12) radius(8) bg(#FFF8E1) color(#F39C12)
-          button "Add Task" :: pad(14) radius(10) bg(#6C5CE7) color(#fff) bold size(14) center
-            => send(action: "add_task", title: ~new_task_title, category: ~new_task_category, priority: ~new_task_priority)
+            badge "e^(i\\u03C0) + 1 = 0" :: size(11) radius(8) bg(#2A0A20) color(#FF4081)
 
-    // ── Category Filter ──────────────────
-    row :: pad(16) gap(8)
-      button "All" :: pad(8) radius(20) bg(#6C5CE7) color(#fff) size(13)
-        => ~selected_category = "All"
-      button "Work" :: pad(8) radius(20) bg(#F0EFFF) color(#6C5CE7) size(13)
-        => ~selected_category = "Work"
-      button "Personal" :: pad(8) radius(20) bg(#E8F8F5) color(#00B894) size(13)
-        => ~selected_category = "Personal"
-      button "Urgent" :: pad(8) radius(20) bg(#FFEEF0) color(#E17055) size(13)
-        => ~selected_category = "Urgent"
-      button "Ideas" :: pad(8) radius(20) bg(#FFF8E1) color(#F39C12) size(13)
-        => ~selected_category = "Ideas"
-
-    // ── Task List ────────────────────────
-    col :: pad(16) gap(10)
-
-      // Sample tasks to preview the UI
-      card :: pad(16) radius(12) bg(#fff) border(#E8E8F0)
+      // ── History count ─────────────────
+      card :: pad(14) radius(12) bg(#16103A) border(#2A2060) glass
         row :: gap(12) center
-          button "○" :: pad(8) radius(20) bg(#F0EFFF) color(#6C5CE7)
-            => send(action: "toggle_task", id: 1)
-          col :: gap(4) grow
-            text "Design new landing page" :: bold size(15) color(#2D3436)
-            row :: gap(8)
-              badge "Work" :: size(11) radius(8) bg(#F0EFFF) color(#6C5CE7)
-              badge "High" :: size(11) radius(8) bg(#FFEEF0) color(#E17055)
-          button "×" :: pad(8) radius(8) bg(#FFF0F0) color(#E17055) size(16)
-            => send(action: "delete_task", id: 1)
-
-      card :: pad(16) radius(12) bg(#fff) border(#E8E8F0)
-        row :: gap(12) center
-          button "●" :: pad(8) radius(20) bg(#00B894) color(#fff)
-            => send(action: "toggle_task", id: 2)
-          col :: gap(4) grow
-            text "Buy groceries" :: bold size(15) color(#B2BEC3)
-            row :: gap(8)
-              badge "Personal" :: size(11) radius(8) bg(#E8F8F5) color(#00B894)
-              badge "Low" :: size(11) radius(8) bg(#E8F8F5) color(#00B894)
-          button "×" :: pad(8) radius(8) bg(#FFF0F0) color(#E17055) size(16)
-            => send(action: "delete_task", id: 2)
-
-      card :: pad(16) radius(12) bg(#fff) border(#E8E8F0)
-        row :: gap(12) center
-          button "○" :: pad(8) radius(20) bg(#F0EFFF) color(#6C5CE7)
-            => send(action: "toggle_task", id: 3)
-          col :: gap(4) grow
-            text "Fix authentication bug" :: bold size(15) color(#2D3436)
-            row :: gap(8)
-              badge "Urgent" :: size(11) radius(8) bg(#FFEEF0) color(#E17055)
-              badge "High" :: size(11) radius(8) bg(#FFEEF0) color(#E17055)
-          button "×" :: pad(8) radius(8) bg(#FFF0F0) color(#E17055) size(16)
-            => send(action: "delete_task", id: 3)
-
-      card :: pad(16) radius(12) bg(#fff) border(#E8E8F0)
-        row :: gap(12) center
-          button "○" :: pad(8) radius(20) bg(#F0EFFF) color(#6C5CE7)
-            => send(action: "toggle_task", id: 4)
-          col :: gap(4) grow
-            text "Brainstorm app features" :: bold size(15) color(#2D3436)
-            row :: gap(8)
-              badge "Ideas" :: size(11) radius(8) bg(#FFF8E1) color(#F39C12)
-              badge "Medium" :: size(11) radius(8) bg(#FFF8E1) color(#F39C12)
-          button "×" :: pad(8) radius(8) bg(#FFF0F0) color(#E17055) size(16)
-            => send(action: "delete_task", id: 4)
-
-    // ── Bottom Navigation ────────────────
-    divider
-    row :: pad(12) gap(0) center bg(#fff)
-      button "Tasks" :: pad(12) grow center color(#6C5CE7) bold size(13)
-        => navigate(Main)
-      button "Stats" :: pad(12) grow center color(#B2BEC3) size(13)
-        => navigate(Stats)
-      button "Settings" :: pad(12) grow center color(#B2BEC3) size(13)
-        => navigate(Settings)
+          text "History" :: size(14) color(#7B73A0)
+          text ~history_count :: bold size(14) color(#7B5EFF) animate(pulse)
+          text "calculations" :: size(14) color(#7B73A0) grow
+          button "Clear" :: pad(6) radius(6) bg(#2A0A20) color(#FF4081) size(11)
+            => send(action: "clear_history")
 
 // ══════════════════════════════════════════
-//  Stats Screen — Analytics Dashboard
+//  Derivative Calculator
 // ══════════════════════════════════════════
 
-@screen Stats
+@screen Derivative
 
-  ~stat_total = 0
-  ~stat_done = 0
-  ~stat_active = 0
-  ~stat_work = 0
-  ~stat_personal = 0
-  ~stat_urgent = 0
-  ~stat_ideas = 0
-  ~progress = 0
+  ~deriv_input = ""
+  ~deriv_result = ""
 
-  @onMount
-    send(action: "get_stats")
+  col :: pad(0) gap(0) bg(#0F0A2E)
 
-  col :: pad(0) gap(0) bg(#F8F9FE)
-
-    // ── Header ───────────────────────────
-    col :: pad(20) gap(8) bg(#6C5CE7)
+    // ── Header ──────────────────────────
+    col :: pad(20) gap(6) gradient(#1A1145-#1E1650)
       row :: gap(12) center
-        button "←" :: pad(8) radius(8) bg(#5A4BD1) color(#fff) size(16)
+        button "\\u2190" :: pad(8) radius(8) bg(#2A1F6E) color(#7B5EFF) size(16)
           => back()
-        text "Statistics" :: bold size(22) color(#fff) grow
-      text "Your productivity at a glance" :: size(13) color(#D5D0F7)
+        mathicon "derivative" :: size(28) color(#7B5EFF) animate(glow)
+        col :: grow
+          text "Derivatives" :: bold size(20) color(#fff)
+          text "d/dx — Differentiation" :: size(12) color(#7B73A0)
 
-    // ── Progress Overview ────────────────
     col :: pad(20) gap(16)
 
-      card :: pad(20) radius(16) bg(#fff) border(#E8E8F0)
-        col :: gap(12) center
-          text "Overall Progress" :: bold size(16) color(#2D3436)
-          text ~progress :: bold size(48) color(#6C5CE7)
-          text "percent complete" :: size(13) color(#B2BEC3)
-
-      // ── Stat Cards Grid ────────────────
-      row :: gap(12)
-        card :: pad(16) radius(12) bg(#F0EFFF) border(#E0DEFF) grow
-          col :: gap(6) center
-            text ~stat_total :: bold size(28) color(#6C5CE7)
-            text "Total" :: size(12) color(#636E72)
-        card :: pad(16) radius(12) bg(#E8F8F5) border(#C8F0E8) grow
-          col :: gap(6) center
-            text ~stat_done :: bold size(28) color(#00B894)
-            text "Completed" :: size(12) color(#636E72)
-      row :: gap(12)
-        card :: pad(16) radius(12) bg(#FFF0F5) border(#FFE0EA) grow
-          col :: gap(6) center
-            text ~stat_active :: bold size(28) color(#FD79A8)
-            text "Active" :: size(12) color(#636E72)
-        card :: pad(16) radius(12) bg(#FFF8E1) border(#FFE8A1) grow
-          col :: gap(6) center
-            text "0" :: bold size(28) color(#F39C12)
-            text "Overdue" :: size(12) color(#636E72)
-
-      // ── By Category ────────────────────
-      card :: pad(20) radius(12) bg(#fff) border(#E8E8F0)
+      // ── Input ─────────────────────────
+      card :: pad(20) radius(14) bg(#1E1650) border(#2A2060)
         col :: gap(14)
-          text "By Category" :: bold size(16) color(#2D3436)
-          row :: gap(12) center
-            badge "Work" :: size(12) radius(8) bg(#F0EFFF) color(#6C5CE7)
-            text ~stat_work :: bold size(16) color(#2D3436) grow
-          row :: gap(12) center
-            badge "Personal" :: size(12) radius(8) bg(#E8F8F5) color(#00B894)
-            text ~stat_personal :: bold size(16) color(#2D3436) grow
-          row :: gap(12) center
-            badge "Urgent" :: size(12) radius(8) bg(#FFEEF0) color(#E17055)
-            text ~stat_urgent :: bold size(16) color(#2D3436) grow
-          row :: gap(12) center
-            badge "Ideas" :: size(12) radius(8) bg(#FFF8E1) color(#F39C12)
-            text ~stat_ideas :: bold size(16) color(#2D3436) grow
+          text "f(x) =" :: bold size(14) color(#7B73A0)
+          input ~deriv_input :: pad(14) radius(10) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("e.g. 3x^2, sin(x), e^x")
 
-      button "Refresh Stats" :: pad(14) radius(10) bg(#6C5CE7) color(#fff) bold size(14) center
-        => send(action: "get_stats")
+          button "Calculate d/dx" :: pad(14) radius(10) bg(#7B5EFF) color(#fff) bold size(14) center
+            => send(action: "derivative", expr: ~deriv_input)
 
-    // ── Bottom Navigation ────────────────
-    divider
-    row :: pad(12) gap(0) center bg(#fff)
-      button "Tasks" :: pad(12) grow center color(#B2BEC3) size(13)
-        => navigate(Main)
-      button "Stats" :: pad(12) grow center color(#6C5CE7) bold size(13)
-        => navigate(Stats)
-      button "Settings" :: pad(12) grow center color(#B2BEC3) size(13)
-        => navigate(Settings)
+      // ── Result ────────────────────────
+      card :: pad(20) radius(14) bg(#16103A) border(#7B5EFF) glow(#7B5EFF) animate(fadeIn)
+        col :: gap(10) center
+          text "Result" :: size(12) color(#7B73A0)
+          text "f'(x) =" :: bold size(14) color(#7B5EFF)
+          text ~deriv_result :: bold size(22) color(#fff) animate(glow)
+
+      // ── Quick Examples ────────────────
+      card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
+        col :: gap(10)
+          text "Quick Examples" :: bold size(14) color(#fff)
+          row :: gap(8)
+            button "x^3" :: pad(8) radius(8) bg(#2A1F6E) color(#7B5EFF) size(12)
+              => ~deriv_input = "x^3"
+            button "5x^2" :: pad(8) radius(8) bg(#2A1F6E) color(#7B5EFF) size(12)
+              => ~deriv_input = "5x^2"
+            button "sin(x)" :: pad(8) radius(8) bg(#2A1F6E) color(#7B5EFF) size(12)
+              => ~deriv_input = "sin(x)"
+          row :: gap(8)
+            button "cos(x)" :: pad(8) radius(8) bg(#2A1F6E) color(#7B5EFF) size(12)
+              => ~deriv_input = "cos(x)"
+            button "e^x" :: pad(8) radius(8) bg(#2A1F6E) color(#7B5EFF) size(12)
+              => ~deriv_input = "e^x"
+            button "ln(x)" :: pad(8) radius(8) bg(#2A1F6E) color(#7B5EFF) size(12)
+              => ~deriv_input = "ln(x)"
+
+      // ── Rules Reference ───────────────
+      card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
+        col :: gap(8)
+          text "Differentiation Rules" :: bold size(14) color(#fff)
+          text "(x^n)' = n*x^(n-1)" :: size(12) color(#7B5EFF)
+          text "(sin x)' = cos x" :: size(12) color(#00F0FF)
+          text "(cos x)' = -sin x" :: size(12) color(#00F0FF)
+          text "(e^x)' = e^x" :: size(12) color(#FFD700)
+          text "(ln x)' = 1/x" :: size(12) color(#FFD700)
+          text "(tan x)' = 1/cos\\u00B2x" :: size(12) color(#FF4081)
 
 // ══════════════════════════════════════════
-//  Settings Screen
+//  Integral Calculator
 // ══════════════════════════════════════════
 
-@screen Settings
+@screen Integral
 
-  ~user_name = "User"
-  ~notifications = true
-  ~dark_mode = false
-  ~daily_reminder = true
+  ~integ_input = ""
+  ~integ_result = ""
 
-  col :: pad(0) gap(0) bg(#F8F9FE)
+  col :: pad(0) gap(0) bg(#0F0A2E)
 
-    // ── Header ───────────────────────────
-    col :: pad(20) gap(8) bg(#6C5CE7)
+    col :: pad(20) gap(6) gradient(#1A1145-#0A2A30)
       row :: gap(12) center
-        button "←" :: pad(8) radius(8) bg(#5A4BD1) color(#fff) size(16)
+        button "\\u2190" :: pad(8) radius(8) bg(#0A2A30) color(#00F0FF) size(16)
           => back()
-        text "Settings" :: bold size(22) color(#fff) grow
+        mathicon "integral" :: size(28) color(#00F0FF) animate(glow)
+        col :: grow
+          text "Integrals" :: bold size(20) color(#fff)
+          text "\\u222B — Indefinite Integration" :: size(12) color(#7B73A0)
 
-    col :: pad(20) gap(12)
+    col :: pad(20) gap(16)
 
-      // ── Profile Section ────────────────
-      card :: pad(20) radius(12) bg(#fff) border(#E8E8F0)
-        col :: gap(16)
-          text "Profile" :: bold size(16) color(#2D3436)
-          row :: gap(12) center
-            badge "U" :: pad(16) radius(24) bg(#6C5CE7) color(#fff) bold size(20)
+      card :: pad(20) radius(14) bg(#1E1650) border(#2A2060)
+        col :: gap(14)
+          text "\\u222B f(x) dx" :: bold size(14) color(#7B73A0)
+          input ~integ_input :: pad(14) radius(10) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("e.g. x^2, cos(x), 1/x")
+
+          button "Integrate" :: pad(14) radius(10) bg(#00B8D4) color(#fff) bold size(14) center
+            => send(action: "integral", expr: ~integ_input)
+
+      card :: pad(20) radius(14) bg(#16103A) border(#00F0FF) glow(#00F0FF) animate(fadeIn)
+        col :: gap(10) center
+          text "Result" :: size(12) color(#7B73A0)
+          text "F(x) =" :: bold size(14) color(#00F0FF)
+          text ~integ_result :: bold size(22) color(#fff) animate(glow)
+
+      card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
+        col :: gap(10)
+          text "Quick Examples" :: bold size(14) color(#fff)
+          row :: gap(8)
+            button "x^2" :: pad(8) radius(8) bg(#0A2A30) color(#00F0FF) size(12)
+              => ~integ_input = "x^2"
+            button "3x" :: pad(8) radius(8) bg(#0A2A30) color(#00F0FF) size(12)
+              => ~integ_input = "3x"
+            button "sin(x)" :: pad(8) radius(8) bg(#0A2A30) color(#00F0FF) size(12)
+              => ~integ_input = "sin(x)"
+          row :: gap(8)
+            button "cos(x)" :: pad(8) radius(8) bg(#0A2A30) color(#00F0FF) size(12)
+              => ~integ_input = "cos(x)"
+            button "e^x" :: pad(8) radius(8) bg(#0A2A30) color(#00F0FF) size(12)
+              => ~integ_input = "e^x"
+            button "1/x" :: pad(8) radius(8) bg(#0A2A30) color(#00F0FF) size(12)
+              => ~integ_input = "1/x"
+
+      card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
+        col :: gap(8)
+          text "Integration Rules" :: bold size(14) color(#fff)
+          text "\\u222B x^n dx = x^(n+1)/(n+1) + C" :: size(12) color(#00F0FF)
+          text "\\u222B sin x dx = -cos x + C" :: size(12) color(#00F0FF)
+          text "\\u222B cos x dx = sin x + C" :: size(12) color(#00F0FF)
+          text "\\u222B e^x dx = e^x + C" :: size(12) color(#FFD700)
+          text "\\u222B 1/x dx = ln|x| + C" :: size(12) color(#FFD700)
+
+// ══════════════════════════════════════════
+//  Quadratic Equations
+// ══════════════════════════════════════════
+
+@screen Equations
+
+  ~eq_a = ""
+  ~eq_b = ""
+  ~eq_c = ""
+  ~quad_result = ""
+
+  col :: pad(0) gap(0) bg(#0F0A2E)
+
+    col :: pad(20) gap(6) gradient(#1A1145-#2A2500)
+      row :: gap(12) center
+        button "\\u2190" :: pad(8) radius(8) bg(#2A2500) color(#FFD700) size(16)
+          => back()
+        mathicon "equation" :: size(28) color(#FFD700) animate(glow)
+        col :: grow
+          text "Equations" :: bold size(20) color(#fff)
+          text "ax\\u00B2 + bx + c = 0" :: size(12) color(#7B73A0)
+
+    col :: pad(20) gap(16)
+
+      card :: pad(20) radius(14) bg(#1E1650) border(#2A2060)
+        col :: gap(14)
+          text "Quadratic Equation Solver" :: bold size(15) color(#fff)
+          text "Enter coefficients a, b, c:" :: size(12) color(#7B73A0)
+          row :: gap(10)
             col :: gap(4) grow
-              text ~user_name :: bold size(16) color(#2D3436)
-              text "Manage your account" :: size(13) color(#B2BEC3)
+              text "a" :: size(12) color(#FFD700) center
+              input ~eq_a :: pad(12) radius(8) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("a")
+            col :: gap(4) grow
+              text "b" :: size(12) color(#FFD700) center
+              input ~eq_b :: pad(12) radius(8) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("b")
+            col :: gap(4) grow
+              text "c" :: size(12) color(#FFD700) center
+              input ~eq_c :: pad(12) radius(8) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("c")
 
-      // ── Preferences ────────────────────
-      card :: pad(20) radius(12) bg(#fff) border(#E8E8F0)
-        col :: gap(16)
-          text "Preferences" :: bold size(16) color(#2D3436)
+          button "Solve" :: pad(14) radius(10) bg(#FFD700) color(#0F0A2E) bold size(14) center
+            => send(action: "quadratic", a: ~eq_a, b: ~eq_b, c: ~eq_c)
 
-          row :: gap(12) center
-            col :: grow
-              text "Push Notifications" :: size(14) color(#2D3436)
-              text "Get notified about task deadlines" :: size(12) color(#B2BEC3)
-            button "On" :: pad(8) radius(8) bg(#E8F8F5) color(#00B894) size(12)
-              => ~notifications = !~notifications
+      card :: pad(20) radius(14) bg(#16103A) border(#FFD700) glow(#FFD700) animate(fadeIn)
+        col :: gap(10) center
+          text "Solution" :: size(12) color(#7B73A0)
+          text ~quad_result :: bold size(18) color(#fff) animate(glow)
 
+      // ── Preset examples ───────────────
+      card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
+        col :: gap(10)
+          text "Try These" :: bold size(14) color(#fff)
+          row :: gap(8)
+            button "x\\u00B2-5x+6" :: pad(8) radius(8) bg(#2A2500) color(#FFD700) size(12)
+              => ~eq_a = "1"; ~eq_b = "-5"; ~eq_c = "6"
+            button "x\\u00B2+1" :: pad(8) radius(8) bg(#2A2500) color(#FFD700) size(12)
+              => ~eq_a = "1"; ~eq_b = "0"; ~eq_c = "1"
+            button "2x\\u00B2-8" :: pad(8) radius(8) bg(#2A2500) color(#FFD700) size(12)
+              => ~eq_a = "2"; ~eq_b = "0"; ~eq_c = "-8"
+
+      card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
+        col :: gap(8)
+          text "Quadratic Formula" :: bold size(14) color(#fff)
+          text "x = (-b \\u00B1 \\u221AD) / 2a" :: size(14) color(#FFD700)
+          text "D = b\\u00B2 - 4ac" :: size(13) color(#7B73A0)
           divider
+          text "D > 0 \\u2192 two real roots" :: size(12) color(#00E676)
+          text "D = 0 \\u2192 one root" :: size(12) color(#FFD700)
+          text "D < 0 \\u2192 complex roots" :: size(12) color(#FF4081)
 
-          row :: gap(12) center
-            col :: grow
-              text "Daily Reminder" :: size(14) color(#2D3436)
-              text "Morning summary of active tasks" :: size(12) color(#B2BEC3)
-            button "On" :: pad(8) radius(8) bg(#E8F8F5) color(#00B894) size(12)
-              => ~daily_reminder = !~daily_reminder
+// ══════════════════════════════════════════
+//  Matrix Calculator (2x2)
+// ══════════════════════════════════════════
 
+@screen Matrix
+
+  ~m_a = ""
+  ~m_b = ""
+  ~m_c = ""
+  ~m_d = ""
+  ~mat_det = ""
+  ~mat_trace = ""
+
+  col :: pad(0) gap(0) bg(#0F0A2E)
+
+    col :: pad(20) gap(6) gradient(#1A1145-#0A2A15)
+      row :: gap(12) center
+        button "\\u2190" :: pad(8) radius(8) bg(#0A2A15) color(#00E676) size(16)
+          => back()
+        mathicon "matrix" :: size(28) color(#00E676) animate(glow)
+        col :: grow
+          text "Matrices" :: bold size(20) color(#fff)
+          text "2\\u00D72 Matrix Operations" :: size(12) color(#7B73A0)
+
+    col :: pad(20) gap(16)
+
+      card :: pad(20) radius(14) bg(#1E1650) border(#2A2060)
+        col :: gap(14)
+          text "Enter Matrix Elements" :: bold size(15) color(#fff)
+          text "| a  b |" :: size(13) color(#00E676) center
+          text "| c  d |" :: size(13) color(#00E676) center
+
+          row :: gap(10)
+            col :: gap(4) grow
+              text "a" :: size(11) color(#00E676) center
+              input ~m_a :: pad(12) radius(8) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("a")
+            col :: gap(4) grow
+              text "b" :: size(11) color(#00E676) center
+              input ~m_b :: pad(12) radius(8) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("b")
+          row :: gap(10)
+            col :: gap(4) grow
+              text "c" :: size(11) color(#00E676) center
+              input ~m_c :: pad(12) radius(8) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("c")
+            col :: gap(4) grow
+              text "d" :: size(11) color(#00E676) center
+              input ~m_d :: pad(12) radius(8) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("d")
+
+          button "Calculate" :: pad(14) radius(10) bg(#00E676) color(#0F0A2E) bold size(14) center
+            => send(action: "determinant", a: ~m_a, b: ~m_b, c: ~m_c, d: ~m_d)
+
+      row :: gap(12)
+        card :: pad(16) radius(12) bg(#16103A) border(#00E676) grow glow(#00E676) animate(fadeIn)
+          col :: gap(6) center
+            text "det(A)" :: size(12) color(#7B73A0)
+            text ~mat_det :: bold size(24) color(#00E676) animate(glow)
+        card :: pad(16) radius(12) bg(#16103A) border(#00E676) grow glow(#00E676) animate(fadeIn)
+          col :: gap(6) center
+            text "tr(A)" :: size(12) color(#7B73A0)
+            text ~mat_trace :: bold size(24) color(#00E676) animate(glow)
+
+      card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
+        col :: gap(8)
+          text "Formulas" :: bold size(14) color(#fff)
+          text "det(A) = ad - bc" :: size(12) color(#00E676)
+          text "tr(A) = a + d" :: size(12) color(#00E676)
+          text "A\\u207B\\u00B9 = (1/det) * adj(A)" :: size(12) color(#7B73A0)
+
+// ══════════════════════════════════════════
+//  Limits
+// ══════════════════════════════════════════
+
+@screen Limits
+
+  ~lim_expr = ""
+  ~lim_point = ""
+  ~limit_result = ""
+
+  col :: pad(0) gap(0) bg(#0F0A2E)
+
+    col :: pad(20) gap(6) gradient(#1A1145-#2A0A20)
+      row :: gap(12) center
+        button "\\u2190" :: pad(8) radius(8) bg(#2A0A20) color(#FF4081) size(16)
+          => back()
+        mathicon "limit" :: size(28) color(#FF4081) animate(glow)
+        col :: grow
+          text "Limits" :: bold size(20) color(#fff)
+          text "lim f(x) as x\\u2192a" :: size(12) color(#7B73A0)
+
+    col :: pad(20) gap(16)
+
+      card :: pad(20) radius(14) bg(#1E1650) border(#2A2060)
+        col :: gap(14)
+          text "Calculate Limit" :: bold size(15) color(#fff)
+          text "f(x) =" :: size(12) color(#7B73A0)
+          input ~lim_expr :: pad(14) radius(10) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("e.g. sin(x)/x")
+          text "x \\u2192" :: size(12) color(#7B73A0)
+          input ~lim_point :: pad(14) radius(10) bg(#0F0A2E) color(#fff) border(#2A2060) placeholder("e.g. 0, inf")
+
+          button "Find Limit" :: pad(14) radius(10) bg(#FF4081) color(#fff) bold size(14) center
+            => send(action: "limit", expr: ~lim_expr, point: ~lim_point)
+
+      card :: pad(20) radius(14) bg(#16103A) border(#FF4081) glow(#FF4081) animate(fadeIn)
+        col :: gap(10) center
+          text "Result" :: size(12) color(#7B73A0)
+          text "L =" :: bold size(14) color(#FF4081)
+          text ~limit_result :: bold size(22) color(#fff) animate(glow)
+
+      card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
+        col :: gap(10)
+          text "Famous Limits" :: bold size(14) color(#fff)
+          row :: gap(8)
+            button "sin(x)/x" :: pad(8) radius(8) bg(#2A0A20) color(#FF4081) size(11)
+              => ~lim_expr = "sin(x)/x"; ~lim_point = "0"
+            button "(1+1/x)^x" :: pad(8) radius(8) bg(#2A0A20) color(#FF4081) size(11)
+              => ~lim_expr = "(1+1/x)^x"; ~lim_point = "inf"
+          row :: gap(8)
+            button "(e^x-1)/x" :: pad(8) radius(8) bg(#2A0A20) color(#FF4081) size(11)
+              => ~lim_expr = "(e^x-1)/x"; ~lim_point = "0"
+            button "ln(x)/x" :: pad(8) radius(8) bg(#2A0A20) color(#FF4081) size(11)
+              => ~lim_expr = "ln(x)/x"; ~lim_point = "inf"
+
+      card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
+        col :: gap(8)
+          text "Key Limits" :: bold size(14) color(#fff)
+          text "lim sin(x)/x = 1  (x\\u21920)" :: size(12) color(#FF4081)
+          text "lim (1+1/x)^x = e  (x\\u2192\\u221E)" :: size(12) color(#FF4081)
+          text "lim (e^x-1)/x = 1  (x\\u21920)" :: size(12) color(#FFD700)
+          text "lim ln(x)/x = 0  (x\\u2192\\u221E)" :: size(12) color(#FFD700)
+
+// ══════════════════════════════════════════
+//  Reference — Formulas & Tables
+// ══════════════════════════════════════════
+
+@screen Reference
+
+  col :: pad(0) gap(0) bg(#0F0A2E)
+
+    col :: pad(20) gap(6) gradient(#1A1145-#2A1A00)
+      row :: gap(12) center
+        button "\\u2190" :: pad(8) radius(8) bg(#2A1A00) color(#FF9100) size(16)
+          => back()
+        mathicon "sigma" :: size(28) color(#FF9100) animate(glow)
+        col :: grow
+          text "Reference" :: bold size(20) color(#fff)
+          text "Formulas & Identities" :: size(12) color(#7B73A0)
+
+    col :: pad(20) gap(14)
+
+      card :: pad(18) radius(14) bg(#1E1650) border(#2A2060)
+        col :: gap(10)
+          text "Trigonometric Identities" :: bold size(15) color(#FF9100)
           divider
+          text "sin\\u00B2(x) + cos\\u00B2(x) = 1" :: size(13) color(#E8E0FF)
+          text "1 + tan\\u00B2(x) = sec\\u00B2(x)" :: size(13) color(#E8E0FF)
+          text "sin(2x) = 2 sin(x) cos(x)" :: size(13) color(#E8E0FF)
+          text "cos(2x) = cos\\u00B2(x) - sin\\u00B2(x)" :: size(13) color(#E8E0FF)
+          text "tan(x) = sin(x) / cos(x)" :: size(13) color(#E8E0FF)
 
-          row :: gap(12) center
-            col :: grow
-              text "Dark Mode" :: size(14) color(#2D3436)
-              text "Switch to dark theme" :: size(12) color(#B2BEC3)
-            button "Off" :: pad(8) radius(8) bg(#F0F0F0) color(#B2BEC3) size(12)
-              => ~dark_mode = !~dark_mode
+      card :: pad(18) radius(14) bg(#1E1650) border(#2A2060)
+        col :: gap(10)
+          text "Power & Log Rules" :: bold size(15) color(#7B5EFF)
+          divider
+          text "a^m * a^n = a^(m+n)" :: size(13) color(#E8E0FF)
+          text "(a^m)^n = a^(m*n)" :: size(13) color(#E8E0FF)
+          text "log(ab) = log(a) + log(b)" :: size(13) color(#E8E0FF)
+          text "log(a/b) = log(a) - log(b)" :: size(13) color(#E8E0FF)
+          text "log(a^n) = n * log(a)" :: size(13) color(#E8E0FF)
 
-      // ── Data Management ────────────────
-      card :: pad(20) radius(12) bg(#fff) border(#E8E8F0)
-        col :: gap(12)
-          text "Data" :: bold size(16) color(#2D3436)
-          button "Export Tasks" :: pad(14) radius(10) bg(#F0EFFF) color(#6C5CE7) size(14) center
-            => send(action: "export_tasks")
-          button "Clear Completed" :: pad(14) radius(10) bg(#FFF0F0) color(#E17055) size(14) center
-            => send(action: "clear_done")
+      card :: pad(18) radius(14) bg(#1E1650) border(#2A2060)
+        col :: gap(10)
+          text "Taylor Series" :: bold size(15) color(#00F0FF)
+          divider
+          text "e^x = 1 + x + x\\u00B2/2! + x\\u00B3/3! + ..." :: size(13) color(#E8E0FF)
+          text "sin(x) = x - x\\u00B3/3! + x\\u2075/5! - ..." :: size(13) color(#E8E0FF)
+          text "cos(x) = 1 - x\\u00B2/2! + x\\u2074/4! - ..." :: size(13) color(#E8E0FF)
+          text "ln(1+x) = x - x\\u00B2/2 + x\\u00B3/3 - ..." :: size(13) color(#E8E0FF)
 
-      // ── About ──────────────────────────
-      card :: pad(20) radius(12) bg(#fff) border(#E8E8F0)
-        col :: gap(8) center
-          text "${name}" :: bold size(14) color(#2D3436)
-          text "Built with Architex + Gravitix" :: size(12) color(#B2BEC3)
-          text "Vortex Platform" :: size(12) color(#6C5CE7)
-
-    // ── Bottom Navigation ────────────────
-    divider
-    row :: pad(12) gap(0) center bg(#fff)
-      button "Tasks" :: pad(12) grow center color(#B2BEC3) size(13)
-        => navigate(Main)
-      button "Stats" :: pad(12) grow center color(#B2BEC3) size(13)
-        => navigate(Stats)
-      button "Settings" :: pad(12) grow center color(#6C5CE7) bold size(13)
-        => navigate(Settings)
+      card :: pad(18) radius(14) bg(#1E1650) border(#2A2060)
+        col :: gap(10)
+          text "Constants" :: bold size(15) color(#00E676)
+          divider
+          row :: gap(12)
+            text "\\u03C0" :: bold size(18) color(#00E676)
+            text "= 3.14159265..." :: size(13) color(#E8E0FF)
+          row :: gap(12)
+            text "e" :: bold size(18) color(#00E676)
+            text "= 2.71828182..." :: size(13) color(#E8E0FF)
+          row :: gap(12)
+            text "\\u03C6" :: bold size(18) color(#00E676)
+            text "= 1.61803398... (golden ratio)" :: size(13) color(#E8E0FF)
+          row :: gap(12)
+            text "\\u221A2" :: bold size(18) color(#00E676)
+            text "= 1.41421356..." :: size(13) color(#E8E0FF)
 `;
 }
 

@@ -39,9 +39,9 @@ from app.security.auth_jwt import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/stickers", tags=["stickers"])
 
-_MAX_STICKER_BYTES = 512 * 1024  # 512 KB
+_MAX_STICKER_BYTES = 5 * 1024 * 1024  # 5 MB
 _MAX_SIDE = 256
-_ALLOWED_FORMATS = {"PNG", "WEBP", "GIF"}
+_ALLOWED_FORMATS = {"PNG", "WEBP", "GIF", "JPEG"}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -205,6 +205,7 @@ async def get_pack(
         UserFavoritePack.user_id == u.id,
         UserFavoritePack.pack_id == pack_id,
     ).first() is not None
+    d["is_own"] = pack.creator_id == u.id
     return {"pack": d}
 
 

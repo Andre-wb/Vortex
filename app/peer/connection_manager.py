@@ -150,11 +150,11 @@ class PendingDeliveryQueue:
     оно сохраняется здесь. При реконнекте — flush_pending() отдаёт накопленные.
 
     Лимиты:
-    - max_per_user_room: 200 сообщений на (user_id, room_id) — предотвращает OOM
-    - ttl_sec: 3600 (1 час) — старые сообщения удаляются
+    - max_per_user_room: 1000 сообщений на (user_id, room_id) — предотвращает OOM
+    - ttl_sec: 604800 (7 дней) — старые сообщения удаляются
     """
 
-    def __init__(self, max_per_user_room: int = 200, ttl_sec: float = 3600.0):
+    def __init__(self, max_per_user_room: int = 1000, ttl_sec: float = 604800.0):
         self._max    = max_per_user_room
         self._ttl    = ttl_sec
         # (room_id, user_id) → deque[(timestamp, payload)]
@@ -307,25 +307,15 @@ class ConnectionManager:
                 websocket    = ws,
                 room_id      = room_id,
             )
-        logger.info(f"WS+ {username}({user_id}) → room {room_id}")
+        logger.debug("WS+ connection (sanitized)")
 
         # Flush pending messages accumulated while user was offline
         flushed = await pending_queue.flush_pending(room_id, user_id, ws)
         if flushed > 0:
-            logger.info(f"Flushed {flushed} pending messages to {username}({user_id}) in room {room_id}")
+            logger.debug(f"Flushed {flushed} pending messages (sanitized)")
 
-        await self.broadcast_to_room(
-            room_id,
-            {
-                "type":         "user_joined",
-                "user_id":      user_id,
-                "username":     username,
-                "display_name": display_name,
-                "avatar_emoji": avatar_emoji,
-                "online_users": self.get_online_users(room_id),
-            },
-            exclude=user_id,
-        )
+        # BMP mode: suppress user_joined broadcast (zero metadata leakage)
+        # Presence is derived from BMP activity, not WS connections
 
     async def disconnect(self, room_id: int, user_id: int) -> None:
         async with self._lock:
@@ -334,16 +324,31 @@ class ConnectionManager:
                 del self._rooms[room_id]
 
         if user:
-            logger.info(f"WS- {user.username}({user_id}) ← room {room_id}")
-            await self.broadcast_to_room(
-                room_id,
-                {
-                    "type":         "user_left",
-                    "user_id":      user_id,
-                    "username":     user.username,
-                    "online_users": self.get_online_users(room_id),
-                },
-            )
+            logger.debug("WS- connection (sanitized)")
+            # BMP mode: suppress user_left broadcast (zero metadata leakage)
+
+    # Message types that are system/control (always go via WS)
+    _WS_ONLY_TYPES = frozenset({
+        "room_deleted", "key_rotated", "kicked", "room_updated", "ack", "error",
+        "pong", "system", "waiting_for_key", "node_pubkey", "room_key",
+        "key_request", "key_response", "online",
+    })
+
+    # Content types that go via BMP (zero metadata leakage)
+    # Content types: ALL go through BMP (zero metadata leakage)
+    # Covers: rooms, groups, channels, DMs, federated rooms, spaces
+    _BMP_TYPES = frozenset({
+        "message", "thread_message", "message_edited", "message_deleted",
+        "reaction", "messages_read", "message_pinned", "typing",
+        "file_sending", "stop_file_sending", "screenshot_taken",
+        "signal", "poll", "poll_update", "voice_update", "voice_state",
+        "file", "forward", "thread_update",
+        "stream_scheduled", "stream_update", "stream_state",
+        "auto_delete_changed", "slow_mode_changed",
+        "channel_feed", "space_update",
+        "group_call_invite", "group_call_update",
+        "notification", "new_dm", "incoming_call",
+    })
 
     async def broadcast_to_room(
             self,
@@ -352,11 +357,38 @@ class ConnectionManager:
             exclude: int | None = None,
             member_ids: list[int] | None = None,
     ) -> None:
+        msg_type = payload.get("type", "")
+
+        # BMP delivery for content messages
+        from app.config import Config
+        if Config.BMP_DELIVERY_ENABLED and msg_type in self._BMP_TYPES:
+            try:
+                from app.transport.blind_mailbox import deposit_envelope
+                import json
+                await deposit_envelope(room_id, json.dumps(payload))
+            except Exception as e:
+                logger.debug("BMP deposit failed (sanitized)")
+
+            # Enqueue pending for offline users (messages only)
+            if member_ids and msg_type in ("message", "thread_message"):
+                online = set(self._rooms.get(room_id, {}).keys())
+                for uid in member_ids:
+                    if uid not in online and uid != exclude:
+                        await pending_queue.enqueue(room_id, uid, payload)
+
+            # Edit/delete/reaction must also go via WS for instant UI update
+            # (BMP polling has latency; these actions need immediate feedback)
+            _ws_also = {"message_edited", "message_deleted", "reaction",
+                        "message_pinned", "typing", "messages_read"}
+            if msg_type not in _ws_also:
+                return  # BMP-only for content messages
+
+        # System/control messages: send via WS as before
         dead = []
         delivered_uids: set[int] = set()
         for uid, conn in dict(self._rooms.get(room_id, {})).items():
             if uid == exclude:
-                delivered_uids.add(uid)  # отправитель считается доставленным
+                delivered_uids.add(uid)
                 continue
             try:
                 await conn.websocket.send_text(self._pad_ws_frame(payload))
@@ -368,7 +400,7 @@ class ConnectionManager:
         for uid in dead:
             await self.disconnect(room_id, uid)
 
-        # Доставка в SSE-подписчиков (альтернативный транспорт)
+        # SSE fallback for system messages
         if self._sse_queues:
             prefix = f"sse:{room_id}:"
             for key, queue in list(self._sse_queues.items()):
@@ -382,11 +414,20 @@ class ConnectionManager:
                     except Exception:
                         pass
 
-        # Enqueue pending delivery for offline room members (only for messages)
-        if member_ids and payload.get("type") in ("message", "thread_message"):
+        # Pending for offline users (system messages that need delivery)
+        if member_ids and msg_type in ("message", "thread_message"):
             for uid in member_ids:
                 if uid not in delivered_uids and uid != exclude:
                     await pending_queue.enqueue(room_id, uid, payload)
+
+    async def enqueue_pending(self, room_id: int, payload: dict, member_ids: list[int] | None = None):
+        """Enqueue message for offline delivery without WS broadcast (BMP-only mode)."""
+        if not member_ids or payload.get("type") not in ("message", "thread_message"):
+            return
+        online = set(self._rooms.get(room_id, {}).keys())
+        for uid in member_ids:
+            if uid not in online:
+                await pending_queue.enqueue(room_id, uid, payload)
 
     async def send_to_user(self, room_id: int, user_id: int, payload: dict) -> bool:
         conn = self._rooms.get(room_id, {}).get(user_id)
@@ -408,20 +449,9 @@ class ConnectionManager:
         return json.dumps(payload)
 
     async def set_typing(self, room_id: int, user_id: int, is_typing: bool) -> None:
-        conn = self._rooms.get(room_id, {}).get(user_id)
-        if not conn:
-            return
-        conn.is_typing = is_typing
-        await self.broadcast_to_room(
-            room_id,
-            {
-                "type":         "typing",
-                "user_id":      user_id,
-                "username":     conn.display_name or conn.username,
-                "is_typing":    is_typing,
-            },
-            exclude=user_id,
-        )
+        # BMP mode: typing goes client-to-client via BMP, server does nothing
+        # Zero metadata leakage — server never knows who is typing
+        pass
 
     def check_rate_limit(self, room_id: int, user_id: int) -> bool:
         """
@@ -448,7 +478,7 @@ class ConnectionManager:
         """Подключает глобальный WS для уведомлений пользователя."""
         await ws.accept()
         self._global_ws[user_id] = ws
-        logger.info(f"Global WS+ user {user_id}")
+        logger.debug("Global WS+ (sanitized)")
 
         # Flush in-memory pending notifications
         flushed = await pending_notifications.flush(user_id, ws)
@@ -458,12 +488,12 @@ class ConnectionManager:
 
         total = flushed + db_flushed
         if total > 0:
-            logger.info(f"Flushed {total} pending notifications to user {user_id} (mem={flushed}, db={db_flushed})")
+            logger.debug(f"Flushed {total} pending notifications (sanitized)")
 
     def disconnect_global(self, user_id: int) -> None:
         """Отключает глобальный WS пользователя."""
         self._global_ws.pop(user_id, None)
-        logger.info(f"Global WS- user {user_id}")
+        logger.debug("Global WS- (sanitized)")
 
     async def notify_user(self, user_id: int, payload: dict) -> bool:
         """Отправляет уведомление через глобальный WS. Если WS нет — сохраняет в БД."""
@@ -482,6 +512,13 @@ class ConnectionManager:
     @staticmethod
     async def _persist_notification(user_id: int, payload: dict) -> None:
         """Сохраняет уведомление в БД для гарантированной доставки."""
+        # BMP mode: don't persist content notifications (they go through BMP)
+        from app.config import Config
+        if Config.BMP_DELIVERY_ENABLED:
+            _type = payload.get("type", "")
+            # Only persist system notifications (kicked, room_deleted)
+            if _type not in ("kicked", "room_deleted", "room_updated"):
+                return
         try:
             from app.database import SessionLocal
             from app.models_rooms.encryption import PendingNotification
@@ -496,7 +533,7 @@ class ConnectionManager:
             finally:
                 db.close()
         except Exception as e:
-            logger.warning("Failed to persist notification for user %s: %s", user_id, e)
+            logger.warning("Failed to persist notification (sanitized): %s", type(e).__name__)
             # Fallback — in-memory queue
             await pending_notifications.enqueue(user_id, payload)
 
@@ -569,6 +606,31 @@ class ConnectionManager:
 
     def total_connections(self) -> int:
         return sum(len(v) for v in self._rooms.values())
+
+    async def cleanup_stale(self) -> int:
+        """Remove stale WebSocket connections (disconnected but not cleaned up)."""
+        from starlette.websockets import WebSocketState
+        removed = 0
+        async with self._lock:
+            # Clean stale room connections
+            for room_id in list(self._rooms.keys()):
+                for uid in list(self._rooms[room_id].keys()):
+                    conn = self._rooms[room_id][uid]
+                    ws = conn.websocket
+                    if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
+                        del self._rooms[room_id][uid]
+                        removed += 1
+                if not self._rooms[room_id]:
+                    del self._rooms[room_id]
+            # Clean stale global WS
+            for uid in list(self._global_ws.keys()):
+                ws = self._global_ws[uid]
+                if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
+                    del self._global_ws[uid]
+                    removed += 1
+        if removed:
+            logger.info("Cleaned up %d stale WebSocket connections", removed)
+        return removed
 
     async def close_all(self) -> None:
         """Gracefully close all active WebSocket connections."""

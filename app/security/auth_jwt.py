@@ -101,7 +101,10 @@ def verify_refresh_token(raw: str, db: Session) -> User:
     if not user:
         raise HTTPException(401, "Пользователь не найден")
     rec.revoked_at = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
     return user
 
 

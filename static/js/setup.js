@@ -33,12 +33,12 @@ async function loadSysInfo() {
     try {
         const r    = await fetch('/api/info');
         state.sysInfo = await r.json();
-        const ip   = state.sysInfo.local_ips?.[0] || 'не определён';
-        const ok   = ip !== 'не определён';
+        const ip   = state.sysInfo.local_ips?.[0] || t('setup.ipNotDetected');
+        const ok   = ip !== t('setup.ipNotDetected');
         document.getElementById('ip-dot').className  = 'dot ' + (ok ? 'dot-green' : 'dot-yellow');
-        document.getElementById('ip-text').textContent = `Локальный IP: ${ip}`;
+        document.getElementById('ip-text').textContent = t('setup.localIp', {ip});
     } catch {
-        document.getElementById('ip-text').textContent = 'Не удалось определить IP';
+        document.getElementById('ip-text').textContent = t('setup.ipDetectionFailed');
     }
 }
 
@@ -60,11 +60,11 @@ function checkMkcert() {
     const opt   = document.getElementById('opt-mkcert');
     const badge = document.getElementById('mkcert-badge');
     if (avail) {
-        badge.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Установлен';
+        badge.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> ' + esc(t('setup.installed'));
         badge.className   = 'ssl-badge badge-recommended';
     } else {
         opt.classList.add('unavailable');
-        badge.textContent = 'Не установлен';
+        badge.textContent = t('setup.notInstalled');
         badge.className   = 'ssl-badge badge-advanced';
     }
 }
@@ -114,13 +114,13 @@ async function step1Next() {
     const udp  = parseInt(document.getElementById('udp-port').value);
     const mfmb = parseInt(document.getElementById('max-file').value);
 
-    if (!name) return showAlert('s1', 'Введите имя устройства', 'error');
+    if (!name) return showAlert('s1', t('errors.enterDeviceName'), 'error');
     if (isNaN(port) || port < 1024 || port > 65535)
-        return showAlert('s1', 'Неверный порт (1024–65535)', 'error');
+        return showAlert('s1', t('errors.invalidPort'), 'error');
 
     const btn = document.getElementById('btn-s1-next');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Проверка порта...';
+    btn.innerHTML = '<span class="spinner"></span> ' + esc(t('setup.checkingPort'));
 
     try {
         const r = await fetch(`/api/validate/port/${port}`);
@@ -128,13 +128,13 @@ async function step1Next() {
         if (!d.ok) {
             showAlert('s1', d.message, 'error');
             btn.disabled = false;
-            btn.textContent = 'Продолжить →';
+            btn.textContent = t('setup.continue');
             return;
         }
-    } catch { /* порт недоступен для проверки — пропускаем */ }
+    } catch { /* port unreachable for check — skip */ }
 
     btn.disabled = false;
-    btn.textContent = 'Продолжить →';
+    btn.textContent = t('setup.continue');
     hideAlert('s1');
 
     state.config = { device_name: name, port, udp_port: udp, max_file_mb: mfmb };
@@ -160,7 +160,7 @@ function selectSSL(mode) {
     document.getElementById('detail-' + mode).classList.add('active');
 
     document.getElementById('btn-ssl-gen').textContent =
-        mode === 'skip' ? 'Пропустить SSL →' : 'Сгенерировать \u2192';
+        mode === 'skip' ? t('setup.skipSsl') : t('setup.generate');
 }
 
 /**
@@ -173,7 +173,7 @@ async function generateSSL() {
     const terminal = document.getElementById('ssl-terminal');
 
     btn.disabled   = true;
-    btn.innerHTML  = '<span class="spinner"></span> Генерация...';
+    btn.innerHTML  = '<span class="spinner"></span> ' + esc(t('setup.generating'));
     block.style.display = 'block';
     terminal.innerHTML  = '';
 
@@ -187,7 +187,7 @@ async function generateSSL() {
         switch (state.sslMode) {
 
             case 'skip': {
-                log('⚡ SSL пропущен. Узел будет работать по HTTP.', 'line-warn');
+                log(t('ssl.skippedHttp'), 'line-warn');
                 state.sslDone    = true;
                 state.sslSkipped = true;
                 await buildSummary();
@@ -196,7 +196,7 @@ async function generateSSL() {
             }
 
             case 'self': {
-                log('⚡ Генерация CA и серверного сертификата...', 'line-info');
+                log(t('ssl.generatingCa'), 'line-info');
                 const body = {
                     org_name:   document.getElementById('ssl-org').value || 'Vortex Node',
                     install_ca: document.getElementById('install-ca').checked,
@@ -213,8 +213,8 @@ async function generateSSL() {
                 log(`✓ CERT: ${d.cert}`, 'line-ok');
                 log(`✓ KEY:  ${d.key}`,  'line-ok');
                 log(d.trusted
-                        ? '✓ CA установлен в системное хранилище'
-                        : '⚠ CA не установлен автоматически',
+                        ? t('ssl.caInstalledToStore')
+                        : t('ssl.caNotInstalledAuto'),
                     d.trusted ? 'line-ok' : 'line-warn');
 
                 state.caCmd   = d.ca_install || '';
@@ -225,7 +225,7 @@ async function generateSSL() {
             }
 
             case 'mkcert': {
-                log('⚡ Запуск mkcert...', 'line-info');
+                log(t('ssl.runningMkcert'), 'line-info');
                 const r = await fetch('/api/ssl/mkcert', { method: 'POST' });
                 const d = await r.json();
                 if (!r.ok) throw new Error(d.detail || d.message);
@@ -240,10 +240,10 @@ async function generateSSL() {
                 const domain  = document.getElementById('le-domain').value.trim();
                 const email   = document.getElementById('le-email').value.trim();
                 const staging = document.getElementById('le-staging').checked;
-                if (!domain) { showAlert('s2', 'Введите домен', 'error');  return; }
-                if (!email)  { showAlert('s2', 'Введите email', 'error');  return; }
+                if (!domain) { showAlert('s2', t('errors.enterDomain'), 'error');  return; }
+                if (!email)  { showAlert('s2', t('errors.enterEmail'), 'error');  return; }
 
-                log(`⚡ certbot: получение сертификата для ${domain}...`, 'line-info');
+                log(t('ssl.certbotObtaining', {domain}), 'line-info');
                 const r = await fetch('/api/ssl/letsencrypt', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -260,12 +260,12 @@ async function generateSSL() {
         }
 
     } catch (e) {
-        log(`✗ Ошибка: ${e.message}`, 'line-err');
+        log(t('errors.errorWithMessage', {message: e.message}), 'line-err');
         showAlert('s2', e.message, 'error');
 
     } finally {
         btn.disabled    = false;
-        btn.textContent = state.sslMode === 'skip' ? 'Пропустить SSL →' : 'Сгенерировать \u2192';
+        btn.textContent = state.sslMode === 'skip' ? t('setup.skipSsl') : t('setup.generate');
     }
 }
 
@@ -279,39 +279,39 @@ async function buildSummary() {
     const cfg   = state.config;
     const proto = state.sslSkipped ? 'http' : 'https';
     const ssl   = state.sslSkipped
-        ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> HTTP (без SSL)'
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> ' + esc(t('ssl.httpNoSsl'))
         : '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> HTTPS';
-    const modes = { self: 'Самоподписанный', mkcert: 'mkcert', le: "Let's Encrypt", skip: 'Отключён' };
+    const modes = { self: t('ssl.modeSelfSigned'), mkcert: 'mkcert', le: "Let's Encrypt", skip: t('ssl.modeDisabled') };
     const ip    = state.sysInfo?.local_ips?.[0] || '—';
 
     state.nodeUrl = `${proto}://localhost:${cfg.port}`;
 
     document.getElementById('summary-list').innerHTML = `
     <li>
-      <span class="label">Имя устройства</span>
+      <span class="label">${esc(t('summary.deviceName'))}</span>
       <span class="value">${esc(cfg.device_name)}</span>
     </li>
     <li>
-      <span class="label">Адрес</span>
-      <span class="value" style="color:var(--teal)">${state.nodeUrl}</span>
+      <span class="label">${esc(t('summary.address'))}</span>
+      <span class="value" style="color:var(--teal)">${esc(state.nodeUrl)}</span>
     </li>
     <li>
-      <span class="label">Локальный IP</span>
-      <span class="value">${ip}:${cfg.port}</span>
+      <span class="label">${esc(t('summary.localIp'))}</span>
+      <span class="value">${esc(ip)}:${cfg.port}</span>
     </li>
     <li>
       <span class="label">SSL</span>
       <span class="value" style="color:${state.sslSkipped ? 'var(--yellow)' : 'var(--green)'}">
-        ${ssl} (${modes[state.sslMode]})
+        ${ssl} (${esc(modes[state.sslMode])})
       </span>
     </li>
     <li>
-      <span class="label">P2P UDP порт</span>
+      <span class="label">${esc(t('summary.p2pUdpPort'))}</span>
       <span class="value">${cfg.udp_port}</span>
     </li>
     <li>
-      <span class="label">Макс. файл</span>
-      <span class="value">${cfg.max_file_mb} МБ</span>
+      <span class="label">${esc(t('summary.maxFile'))}</span>
+      <span class="value">${cfg.max_file_mb} ${esc(t('summary.mb'))}</span>
     </li>
   `;
 
@@ -330,7 +330,7 @@ async function buildSummary() {
 async function launchNode() {
     const btn = document.getElementById('btn-launch');
     btn.disabled  = true;
-    btn.innerHTML = '<span class="spinner"></span> Сохранение...';
+    btn.innerHTML = '<span class="spinner"></span> ' + esc(t('setup.saving'));
 
     try {
         const r1 = await fetch('/api/config/save', {
@@ -338,11 +338,11 @@ async function launchNode() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(state.config),
         });
-        if (!r1.ok) throw new Error((await r1.json()).detail || 'Ошибка сохранения конфига');
+        if (!r1.ok) throw new Error((await r1.json()).detail || t('errors.configSaveFailed'));
 
         const r2 = await fetch('/api/setup/complete', { method: 'POST' });
         const d2 = await r2.json();
-        if (!r2.ok) throw new Error(d2.detail || 'Ошибка');
+        if (!r2.ok) throw new Error(d2.detail || t('errors.genericError'));
 
         document.getElementById('node-url').textContent = state.nodeUrl;
 
@@ -357,7 +357,7 @@ async function launchNode() {
     } catch (e) {
         showAlert('s3', e.message, 'error');
         btn.disabled    = false;
-        btn.textContent = '⚡ Запустить узел';
+        btn.textContent = t('setup.launchNode');
     }
 }
 
@@ -371,7 +371,7 @@ function startRedirectCountdown() {
     const tick   = setInterval(() => {
         secs--;
         bar.style.width  = ((5 - secs) / 5 * 100) + '%';
-        text.textContent = `Переход через ${secs} секунд...`;
+        text.textContent = t('setup.redirectCountdown', {secs});
         if (secs <= 0) {
             clearInterval(tick);
             if (state.nodeUrl) window.location.href = state.nodeUrl;

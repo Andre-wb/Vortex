@@ -390,8 +390,10 @@ async def leave_room(
     db.commit()
 
     # Ротация ключа — покинувший участник не сможет расшифровать новые сообщения
-    await manager.broadcast_to_room(room_id, {"type": "key_rotated"})
-    logger.info(f"Room key rotated after leave in room {room_id}")
+    # Для DM ротация не нужна — комната удаляется вместе с участником
+    if r and not r.is_dm:
+        await manager.broadcast_to_room(room_id, {"type": "key_rotated"})
+        logger.info(f"Room key rotated after leave in room {room_id}")
 
     return {"left": True, "room_deleted": False}
 

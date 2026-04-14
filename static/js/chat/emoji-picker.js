@@ -669,12 +669,12 @@ const EMOJI_DATA = {
 
 // Skin tones
 const SKIN_TONES = [
-    { mod: '', label: 'По умолчанию', color: '#ffcc4d' },
-    { mod: '\u{1F3FB}', label: 'Светлый', color: '#fadcbc' },
-    { mod: '\u{1F3FC}', label: 'Средне-светлый', color: '#e0bb95' },
-    { mod: '\u{1F3FD}', label: 'Средний', color: '#bf8f68' },
-    { mod: '\u{1F3FE}', label: 'Средне-тёмный', color: '#9b643d' },
-    { mod: '\u{1F3FF}', label: 'Тёмный', color: '#594539' },
+    { mod: '', label: '\u{1F44B} Default', color: '#ffcc4d' },
+    { mod: '\u{1F3FB}', label: '\u{1F44B}\u{1F3FB} Light', color: '#fadcbc' },
+    { mod: '\u{1F3FC}', label: '\u{1F44B}\u{1F3FC} Medium-Light', color: '#e0bb95' },
+    { mod: '\u{1F3FD}', label: '\u{1F44B}\u{1F3FD} Medium', color: '#bf8f68' },
+    { mod: '\u{1F3FE}', label: '\u{1F44B}\u{1F3FE} Medium-Dark', color: '#9b643d' },
+    { mod: '\u{1F3FF}', label: '\u{1F44B}\u{1F3FF} Dark', color: '#594539' },
 ];
 
 // Emoji that support skin tones (ZWJ-safe subset)
@@ -744,11 +744,11 @@ function _buildPicker() {
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
                 <input type="text" id="ecp-search" class="ecp-search"
-                       placeholder="Поиск эмодзи..." autocomplete="off" spellcheck="false">
+                       placeholder="${typeof window.t === 'function' ? window.t('emoji.searchPlaceholder') : 'Search emoji...'}" autocomplete="off" spellcheck="false">
                 <button class="ecp-search-clear" id="ecp-search-clear" style="display:none">&times;</button>
             </div>
-            <div class="ecp-skin-btn" id="ecp-skin-btn" title="Тон кожи">
-                <span id="ecp-skin-preview">${SKIN_TONES.find(s => s.mod === _skinTone)?.label?.charAt(0) || '👋'}</span>
+            <div class="ecp-skin-btn" id="ecp-skin-btn" title="${typeof window.t === 'function' ? window.t('emoji.skinTone') : 'Skin tone'}">
+                <span id="ecp-skin-preview"><svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M17.8 2.2c-1-1-2.6-1-3.6 0L12.4 4l-.7-.7c-.4-.4-1-.4-1.4 0l-.8.7c-.4.4-.4 1 0 1.4l5 5c.4.4 1 .4 1.4 0l.7-.7c.4-.4.4-1 0-1.4l-.6-.7 1.8-1.8c1-1 1-2.6 0-3.6zM4.4 12c-2.2 2.2-.9 3.2-2.9 5.8l.7.7c2.6-2 3.6-.7 5.8-2.9l5.1-5.1-3.6-3.6L4.4 12z"/></svg></span>
             </div>
         </div>
         <div class="ecp-categories" id="ecp-categories"></div>
@@ -1075,9 +1075,27 @@ export function togglePicker() {
     _isOpen ? closePicker() : openPicker();
 }
 
+/**
+ * Render emoji picker into an external container (for unified picker).
+ */
+export function renderInto(container) {
+    _loadSkinTone();
+    if (!_pickerEl) _pickerEl = _buildPicker();
+    container.appendChild(_pickerEl);
+    _pickerEl.classList.add('open');
+    _isOpen = true;
+    _renderEmojis();
+    requestAnimationFrame(() => _pickerEl?.querySelector('#ecp-search')?.focus());
+}
+
+window._renderEmojiInto = renderInto;
+window._closeEmojiPicker = closePicker;
+
 function _onOutsideClick(e) {
     if (_pickerEl && !_pickerEl.contains(e.target) &&
-        !e.target.closest('#emoji-input-btn')) {
+        !e.target.closest('#emoji-input-btn') &&
+        !e.target.closest('#unified-picker') &&
+        !e.target.closest('#expr-btn')) {
         closePicker();
     }
 }

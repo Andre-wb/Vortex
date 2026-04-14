@@ -255,6 +255,8 @@ function switchBottomTab(tab) {
     } else {
         // Скрываем sidebar на всех не-chats табах
         document.body.classList.add('mobile-tab-other');
+        // Снимаем mobile-chat-open чтобы вернуть bottom-tabs
+        document.body.classList.remove('mobile-chat-open');
         if (window.innerWidth > 640) {
             if (sidebar) sidebar.style.display = 'none';
         }
@@ -356,8 +358,8 @@ function openRoomInfo() {
     if (meta) {
         const count = room.subscriber_count || room.member_count || 0;
         meta.textContent = isChannel
-            ? `${count} подписчиков`
-            : `${count} участников`;
+            ? `${count} ${t('rooms.subscribers')}`
+            : `${count} ${t('rooms.membersShort')}`;
     }
     if (desc) desc.textContent = room.description || '';
 
@@ -368,12 +370,12 @@ function openRoomInfo() {
     // Кнопка "Участники" → "Подписчики" для каналов
     const membersLabels = panel.querySelectorAll('[data-i18n="chat.members"], [data-i18n="roomInfo.members"]');
     membersLabels.forEach(el => {
-        el.textContent = isChannel ? 'Подписчики' : el.getAttribute('data-i18n') === 'chat.members' ? 'Все участники' : 'Участники';
+        el.textContent = isChannel ? t('channel.subscribers') : t('roomInfo.members');
     });
 
     // Кнопка "Покинуть" → "Отписаться" для каналов
     const leaveBtn = panel.querySelector('[data-i18n="roomInfo.leave"]');
-    if (leaveBtn) leaveBtn.textContent = isChannel ? 'Отписаться' : 'Покинуть комнату';
+    if (leaveBtn) leaveBtn.textContent = isChannel ? t('channel.unsubscribe') : t('roomInfo.leave');
 
     // Sync mute button state
     const muteBtn   = document.getElementById('ri-mute-btn');
@@ -381,7 +383,7 @@ function openRoomInfo() {
     if (muteBtn) {
         const muted = !!room.is_muted;
         muteBtn.classList.toggle('active', muted);
-        if (muteLabel) muteLabel.textContent = muted ? 'Мьют' : 'Звук';
+        if (muteLabel) muteLabel.textContent = muted ? t('roomInfo.muted') : t('roomInfo.sound');
     }
 
     panel.classList.add('open');
@@ -429,6 +431,13 @@ function toggleExprPanel() {
     panel.classList.toggle('open');
     Haptic.light();
     if (opening) {
+        // Position above the button
+        const btn = document.getElementById('expr-btn');
+        if (btn) {
+            const r = btn.getBoundingClientRect();
+            panel.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+            panel.style.right = (window.innerWidth - r.right) + 'px';
+        }
         const onOutside = e => {
             if (!panel.contains(e.target) && !e.target.closest('#expr-btn')) {
                 panel.classList.remove('open');
@@ -484,7 +493,8 @@ async function loadRecentCalls() {
             const dirIcon = c.direction === 'outgoing'
                 ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M21 3H3v2h14.59L3 19.59 4.41 21 19 6.41V21h2V3z"/></svg>'
                 : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19H6.41L21 4.41 19.59 3 5 17.59V3H3v18h18v-2z"/></svg>';
-            const dur = c.duration > 0 ? _fmtCallDur(c.duration) : t('calls.' + c.status);
+            const statusLabel = (c.status === 'missed' && c.direction === 'outgoing') ? 'calls.noAnswer' : 'calls.' + c.status;
+            const dur = c.duration > 0 ? _fmtCallDur(c.duration) : t(statusLabel);
             const time = _fmtCallTime(c.started_at);
             const typeIcon = isVideo
                 ? '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>'
@@ -511,6 +521,9 @@ async function loadRecentCalls() {
                 <button class="call-back-btn" onclick="event.stopPropagation();callUser(${user.user_id || 0},'${c.call_type}')" title="${t('calls.callBack')}">
                     ${typeIcon}
                 </button>
+                <button class="call-delete-btn" onclick="event.stopPropagation();window._deleteCall(${c.id})" title="${t('app.delete')}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
             </div>`;
         });
 
@@ -529,9 +542,15 @@ function filterCalls(filter) {
 }
 
 async function clearCallHistory() {
-    if (!confirm(t('calls.clearConfirm'))) return;
+    const ok = await window.vxConfirm?.(t('calls.clearConfirm'), { danger: true });
+    if (!ok) return;
     try {
-        await fetch('/api/calls/clear', { method: 'DELETE', credentials: 'include' });
+        const csrf = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+        await fetch('/api/calls/clear', {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'X-CSRF-Token': csrf },
+        });
         loadRecentCalls();
     } catch {}
 }
@@ -548,7 +567,11 @@ function _fmtCallDur(s) {
 
 function _fmtCallTime(iso) {
     if (!iso) return '';
-    const d = new Date(iso);
+    // Ensure UTC parsing: remove duplicate Z, add Z if missing
+    let clean = iso.replace(/\+00:00Z$/, 'Z').replace(/\+00:00$/, 'Z');
+    if (!clean.endsWith('Z') && !clean.includes('+') && !clean.includes('-', 10)) clean += 'Z';
+    const d = new Date(clean);
+    if (isNaN(d.getTime())) return '';
     const now = new Date();
     const diff = now - d;
     if (diff < 86400000) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
@@ -558,7 +581,9 @@ function _fmtCallTime(iso) {
 
 function _fmtCallDate(iso) {
     if (!iso) return '';
-    const d = new Date(iso);
+    let clean = iso.replace(/\+00:00Z$/, 'Z').replace(/\+00:00$/, 'Z');
+    if (!clean.endsWith('Z') && !clean.includes('+') && !clean.includes('-', 10)) clean += 'Z';
+    const d = new Date(clean);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const callDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -571,5 +596,16 @@ function _fmtCallDate(iso) {
 
 function _esc(s) { return String(s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
+async function _deleteCall(callId) {
+    try {
+        const csrf = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+        await fetch('/api/calls/' + callId, {
+            method: 'DELETE', credentials: 'include',
+            headers: { 'X-CSRF-Token': csrf },
+        });
+        loadRecentCalls();
+    } catch {}
+}
+window._deleteCall = _deleteCall;
 
 export { Haptic, ThemeManager, togglePiP, transitionTo, initUXEnhancements, switchBottomTab, openRoomInfo, closeRoomInfo, loadRecentCalls, filterCalls, clearCallHistory, callUser };
