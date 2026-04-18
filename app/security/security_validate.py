@@ -34,9 +34,9 @@ def validate_password(password: str) -> Tuple[bool, str]:
     Возвращает (ok, error_message).
     """
     if len(password) < 8:
-        return False, "Пароль минимум 8 символов"
+        return False, "Password must be at least 8 characters"
     if len(password) > 128:
-        return False, "Пароль максимум 128 символов"
+        return False, "Password must not exceed 128 characters"
 
     checks = [
         (r"[A-ZА-Я]",                          "хотя бы одну заглавную букву"),
@@ -46,17 +46,17 @@ def validate_password(password: str) -> Tuple[bool, str]:
     ]
     for pattern, msg in checks:
         if not re.search(pattern, password):
-            return False, f"Пароль должен содержать {msg}"
+            return False, f"Password must contain {msg}"
 
     if password.lower() in _COMMON_PASSWORDS:
-        return False, "Пароль слишком простой"
+        return False, "Password is too simple"
 
     if re.search(r"(.)\1{3,}", password):
-        return False, "Слишком много повторяющихся символов"
+        return False, "Too many repeating characters"
 
     for seq in _SEQUENCES:
         if re.search(seq, password.lower()):
-            return False, "Пароль содержит простую последовательность"
+            return False, "Password contains a simple sequence"
 
     return True, ""
 
@@ -68,7 +68,7 @@ def validate_password_with_context(
     if not ok:
         return ok, msg
     if username and len(username) > 2 and username.lower() in password.lower():
-        return False, "Пароль не должен содержать ваш никнейм"
+        return False, "Password must not contain your username"
     return True, ""
 
 

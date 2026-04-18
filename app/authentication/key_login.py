@@ -71,17 +71,17 @@ async def login_with_key(body: KeyLoginRequest, request: Request,
     """Шаг 2 беспарольного X25519 входа — проверка HMAC proof."""
     ip = raw_ip_for_ratelimit(request)
     if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
-        raise HTTPException(429, "Слишком много попыток входа. Подождите минуту.")
+        raise HTTPException(429, "Too many login attempts. Please wait a minute.")
 
     with _challenges_lock:
         ch = _challenges.pop(body.challenge_id, None)
 
     if not ch:
-        raise HTTPException(401, "Challenge не найден или уже использован")
+        raise HTTPException(401, "Challenge not found or already used")
     if time.monotonic() > ch.expires_at:
-        raise HTTPException(401, "Challenge истёк (60 секунд)")
+        raise HTTPException(401, "Challenge expired (60 seconds)")
     if not secrets.compare_digest(ch.pubkey_hex, body.pubkey):
-        raise HTTPException(401, "Публичный ключ не совпадает с зарегистрированным")
+        raise HTTPException(401, "Public key does not match the registered one")
 
     server_priv, _ = load_or_create_node_keypair(Config.KEYS_DIR)
     client_pub = bytes.fromhex(body.pubkey)
@@ -92,18 +92,18 @@ async def login_with_key(body: KeyLoginRequest, request: Request,
             shared = bytes(shared)
     except Exception as e:
         logger.warning(f"Key derivation failed: {e}")
-        raise HTTPException(401, "Ошибка вычисления общего секрета")
+        raise HTTPException(401, "Shared secret computation error")
 
     expected_proof = hmac.new(shared, ch.challenge, hashlib.sha256).hexdigest()
 
     if not secrets.compare_digest(body.proof, expected_proof):
-        raise HTTPException(401, "Неверный proof — возможно неверный приватный ключ")
+        raise HTTPException(401, "Invalid proof — possibly wrong private key")
 
     user = db.query(User).filter(
         User.id == ch.user_id, User.is_active == True
     ).first()
     if not user:
-        raise HTTPException(401, "Пользователь не найден или деактивирован")
+        raise HTTPException(401, "User not found or deactivated")
 
     user.last_seen = datetime.now(timezone.utc)
     db.commit()

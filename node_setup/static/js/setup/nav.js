@@ -17,10 +17,11 @@ function _setStep(n) {
     document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
     document.getElementById('step-' + n).classList.add('active');
 
-    // Обновляем кружки и линии в шапке (stepbar)
-    for (let i = 1; i <= 6; i++) {
+    // Update step dots and lines in stepbar (0 = lang, 1-6 = main steps)
+    for (let i = 0; i <= 6; i++) {
         const dot  = document.getElementById('sdot-' + i);
         const line = document.getElementById('sline-' + i);
+        if (!dot) continue;
         dot.classList.remove('active', 'done');
         if (line) line.classList.remove('done');
         if (i < n)  { dot.classList.add('done');   if (line) line.classList.add('done'); }

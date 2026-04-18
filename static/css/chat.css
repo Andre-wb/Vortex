@@ -134,6 +134,101 @@ body[data-theme="light"] .msg-translation {
     letter-spacing: .03em;
     white-space: nowrap;
 }
+/* Tag badge floating in top-right corner of message bubble */
+.msg-bubble-tag {
+    position: absolute;
+    top: 4px; right: 8px;
+    font-size: 9px; font-weight: 700;
+    padding: 1px 8px; border-radius: 10px;
+    background: rgba(124,58,237,0.12);
+    color: var(--accent, #7c3aed);
+    border: 1px solid rgba(124,58,237,0.25);
+    letter-spacing: .04em;
+    white-space: nowrap;
+    z-index: 5;
+    pointer-events: none;
+    text-transform: uppercase;
+}
+/* Add top padding to bubble when tag is present so text doesn't overlap */
+.msg-bubble:has(.msg-bubble-tag) { padding-top: 20px; }
+
+/* ── Tag Picker Modal ── */
+.tag-picker-overlay {
+    position: fixed; inset: 0; z-index: 10001;
+    background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s;
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.tag-picker-overlay.active { opacity: 1; }
+.tag-picker-card {
+    background: var(--bg2, #1a1a2e);
+    border-radius: 16px;
+    padding: 20px;
+    min-width: 280px; max-width: 340px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.tag-picker-title {
+    font-weight: 700; font-size: 15px;
+    color: var(--text);
+    margin-bottom: 14px;
+}
+.tag-picker-input {
+    width: 100%; box-sizing: border-box;
+    padding: 10px 12px;
+    background: var(--bg3, #12121e);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    color: var(--text); font-size: 14px;
+    outline: none;
+}
+.tag-picker-input:focus { border-color: var(--accent, #7c3aed); }
+.tag-picker-preview-wrap {
+    display: flex; justify-content: center;
+    padding: 14px 0 10px;
+}
+.tag-picker-colors {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    justify-content: center;
+    padding: 6px 0 16px;
+}
+.tag-picker-color {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+}
+.tag-picker-color:hover { transform: scale(1.15); }
+.tag-picker-color.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.3);
+    transform: scale(1.15);
+}
+.tag-picker-actions {
+    display: flex; gap: 8px;
+}
+.tag-picker-btn {
+    flex: 1; padding: 10px;
+    border: none; border-radius: 10px;
+    font-weight: 600; font-size: 13px;
+    cursor: pointer; transition: background 0.15s;
+}
+.tag-picker-btn-remove {
+    background: rgba(239,68,68,0.1);
+    color: #ef4444;
+}
+.tag-picker-btn-remove:hover { background: rgba(239,68,68,0.2); }
+.tag-picker-btn-save {
+    background: rgba(16,185,129,0.15);
+    color: #10b981;
+}
+.tag-picker-btn-save:hover { background: rgba(16,185,129,0.25); }
+
+body[data-theme="light"] .tag-picker-card { background: #fff; border-color: #e4e4e7; }
+body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: #e4e4e7; }
+
 .msg-time { font-size: 11px; color: var(--text3); font-family: var(--mono); }
 /* Бейдж P2P для сообщений, отправленных напрямую */
 .msg-peer-badge {

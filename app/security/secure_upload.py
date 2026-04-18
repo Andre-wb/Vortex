@@ -597,7 +597,7 @@ class FileAnomalyDetector:
         """
         try:
             if len(content) < 12:
-                return False, "Файл слишком мал для проверки"
+                return False, "File too small for verification"
 
             img = Image.open(io.BytesIO(content))
 
@@ -608,23 +608,23 @@ class FileAnomalyDetector:
 
             width, height = img.size
             if width > FileUploadConfig.MAX_IMAGE_DIMENSION or height > FileUploadConfig.MAX_IMAGE_DIMENSION:
-                return False, f"Размер изображения слишком большой: {width}x{height}"
+                return False, f"Image too large: {width}x{height}"
 
             if width < FileUploadConfig.MIN_IMAGE_DIMENSION or height < FileUploadConfig.MIN_IMAGE_DIMENSION:
-                return False, f"Размер изображения слишком маленький: {width}x{height}"
+                return False, f"Image too small: {width}x{height}"
 
             aspect_ratio = width / height if height > 0 else 0
             if aspect_ratio > 10 or aspect_ratio < 0.1:
-                return False, f"Некорректное соотношение сторон: {aspect_ratio:.2f}"
+                return False, f"Invalid aspect ratio: {aspect_ratio:.2f}"
 
             img.close()
             return True, None
 
         except PIL.UnidentifiedImageError:
-            return False, "Невозможно идентифицировать изображение"
+            return False, "Cannot identify image"
         except Exception as e:
             logger.warning(f"Ошибка валидации изображения: {str(e)}")
-            return False, f"Ошибка обработки изображения: {str(e)[:100]}"
+            return False, f"Image processing error: {str(e)[:100]}"
 
     @staticmethod
     def calculate_file_complexity(content: bytes) -> float:
@@ -705,7 +705,7 @@ class UploadQuotaManager:
                 ).scalar() or 0
 
                 if hour_count >= FileUploadConfig.MAX_FILES_PER_HOUR:
-                    return False, "Превышена часовая квота загрузок"
+                    return False, "Hourly upload quota exceeded"
 
                 # Дневная квота для пользователя
                 day_count = self.db.query(func.count(UploadQuota.id)).filter(
@@ -714,7 +714,7 @@ class UploadQuotaManager:
                 ).scalar() or 0
 
                 if day_count >= FileUploadConfig.MAX_FILES_PER_DAY:
-                    return False, "Превышена дневная квота загрузок"
+                    return False, "Daily upload quota exceeded"
 
             # Проверка квоты по IP (более строгая: в два раза больше лимита пользователя)
             ip_hour_count = self.db.query(func.count(UploadQuota.id)).filter(
@@ -723,12 +723,12 @@ class UploadQuotaManager:
             ).scalar() or 0
 
             if ip_hour_count >= FileUploadConfig.MAX_FILES_PER_HOUR * 2:
-                return False, "Превышен лимит загрузок с вашего IP"
+                return False, "Upload limit exceeded for your IP"
 
             return True, None
         except Exception as e:
             logger.error(f"Ошибка проверки квот: {e}")
-            return False, "Ошибка проверки квот"
+            return False, "Quota check error"
 
     async def record_upload(self, user_id: Optional[int], client_ip: str, file_size: int, file_hash: Optional[str] = None):
         """
@@ -791,7 +791,7 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
         }
         mime = ext_to_mime.get(file_ext)
         if mime is None:
-            return False, f"Неподдерживаемое расширение файла: {file_ext}"
+            return False, f"Unsupported file extension: {file_ext}"
 
     # ── Шаг 2.5: encrypted files (E2E) — magic bytes unrecognisable ────────
     # If libmagic reports octet-stream but the original extension is a known
@@ -814,7 +814,7 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
         if normalized in FileUploadConfig.ALLOWED_MIME_TYPES:
             mime = normalized
         else:
-            return False, f"Неподдерживаемый тип файла: {mime}"
+            return False, f"Unsupported file type: {mime}"
 
     # ── Шаг 4: проверяем расширение — мягкая проверка ───────────────────────
     expected_exts = FileUploadConfig.ALLOWED_MIME_TYPES.get(mime, [])

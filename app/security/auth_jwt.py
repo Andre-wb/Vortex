@@ -1,7 +1,7 @@
 """
-JWT аутентификация — HMAC-HS256 с локальным секретом.
-X25519 используется для E2E шифрования между устройствами, не для JWT.
-Никаких RSA, никаких внешних CA.
+JWT authentication — HMAC-HS256 with a local secret.
+X25519 is used for E2E encryption between devices, not for JWT.
+No RSA, no external CAs.
 """
 from __future__ import annotations
 
@@ -53,13 +53,13 @@ def decode_access_token(token: str) -> dict[str, Any]:
             leeway=30,
         )
     except jwt.ExpiredSignatureError:
-        raise HTTPException(401, "Токен истёк")
+        raise HTTPException(401, "Token expired")
     except jwt.InvalidTokenError as e:
-        raise HTTPException(401, f"Неверный токен: {e}")
+        raise HTTPException(401, f"Invalid token: {e}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Refresh Token (opaque, SHA-256 hash в БД через Rust)
+# Refresh Token (opaque, SHA-256 hash stored in DB via Rust)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def create_refresh_token(
@@ -67,7 +67,7 @@ def create_refresh_token(
         ip: str | None = None,
         ua: str | None = None,
 ) -> tuple[str, datetime]:
-    # Чистим просроченные
+    # Clean up expired tokens
     db.query(RefreshToken).filter(
         RefreshToken.user_id == user_id,
         RefreshToken.expires_at < datetime.now(timezone.utc),
@@ -76,7 +76,7 @@ def create_refresh_token(
     raw = secrets.token_urlsafe(64)
     exp = datetime.now(timezone.utc) + timedelta(days=Config.REFRESH_TOKEN_EXPIRE_DAYS)
 
-    # hash_token → SHA-256 через Rust (constant-time)
+    # hash_token -> SHA-256 via Rust (constant-time)
     db.add(RefreshToken(
         user_id=user_id,
         token_hash=hash_token(raw),
@@ -96,10 +96,10 @@ def verify_refresh_token(raw: str, db: Session) -> User:
         RefreshToken.expires_at > datetime.now(timezone.utc),
         ).first()
     if not rec:
-        raise HTTPException(401, "Refresh-токен недействителен или истёк")
+        raise HTTPException(401, "Refresh token is invalid or expired")
     user = db.query(User).filter(User.id == rec.user_id, User.is_active == True).first()
     if not user:
-        raise HTTPException(401, "Пользователь не найден")
+        raise HTTPException(401, "User not found")
     rec.revoked_at = datetime.now(timezone.utc)
     try:
         db.commit()
@@ -122,24 +122,24 @@ async def get_current_user(
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
     if not token:
-        raise HTTPException(401, "Не авторизован")
+        raise HTTPException(401, "Unauthorized")
     payload = decode_access_token(token)
     user = db.query(User).filter(
         User.id == int(payload["sub"]),
         User.is_active == True,
         ).first()
     if not user:
-        raise HTTPException(401, "Пользователь не найден")
+        raise HTTPException(401, "User not found")
     return user
 
 
 async def get_user_ws(token: str, db: Session) -> User:
-    """Для WebSocket — токен передаётся как query-параметр."""
+    """For WebSocket — token is passed as a query parameter."""
     payload = decode_access_token(token)
     user = db.query(User).filter(
         User.id == int(payload["sub"]),
         User.is_active == True,
         ).first()
     if not user:
-        raise HTTPException(401, "Пользователь не найден")
+        raise HTTPException(401, "User not found")
     return user

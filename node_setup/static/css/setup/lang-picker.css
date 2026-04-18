@@ -1,0 +1,240 @@
+/* ============================================================================
+ * WIZARD LANGUAGE PICKER (Step 0)
+ * Purple theme, typewriter cursor, Syne font.
+ * ========================================================================== */
+
+/* ── Card transparent on step 0 so wizard grid shows through ── */
+.card:has(#step-0.active) {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* ── Step 0 container ── */
+#step-0 {
+    position: relative;
+    overflow: hidden;
+    font-family: var(--display), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ── Inner content wrapper ── */
+.wiz-lp-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    animation: wizLpFadeIn 0.8s ease-out;
+}
+
+@keyframes wizLpFadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Typewriter title ── */
+.wiz-lp-title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 4px;
+    min-height: 1.4em;
+    font-family: var(--display), sans-serif;
+}
+
+.wiz-lp-title::after {
+    content: '|';
+    animation: wizLpBlink 0.6s step-end infinite;
+    color: rgba(124, 58, 237, 0.8);
+    font-weight: 300;
+    margin-left: 1px;
+}
+
+@keyframes wizLpBlink {
+    50% { opacity: 0; }
+}
+
+/* ── Subtitle ── */
+.wiz-lp-subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text2);
+    margin: 0 0 20px;
+    font-family: var(--display), sans-serif;
+}
+
+/* ── Search box ── */
+.wiz-lp-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0 12px;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+    color: var(--text3);
+}
+
+.wiz-lp-search-wrap:focus-within {
+    border-color: var(--teal);
+    color: var(--text2);
+}
+
+.wiz-lp-search {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    color: #fff;
+    font-size: 14px;
+    padding: 10px 0;
+    font-family: var(--display), sans-serif;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.wiz-lp-search:focus-visible {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
+
+.wiz-lp-search::-webkit-search-cancel-button,
+.wiz-lp-search::-webkit-search-decoration,
+.wiz-lp-search::-webkit-search-results-button,
+.wiz-lp-search::-webkit-search-results-decoration {
+    display: none;
+    -webkit-appearance: none;
+}
+
+.wiz-lp-search::placeholder {
+    color: var(--text3);
+}
+
+/* ── Language list ── */
+.wiz-lp-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 200px;
+    max-height: 45vh;
+    border-radius: 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    scrollbar-width: thin;
+    scrollbar-color: var(--text3) transparent;
+}
+
+.wiz-lp-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.12s;
+    border-bottom: 1px solid var(--border);
+}
+
+.wiz-lp-item:last-child {
+    border-bottom: none;
+}
+
+.wiz-lp-item:hover {
+    background: rgba(124, 58, 237, 0.06);
+}
+
+.wiz-lp-item:active {
+    background: rgba(124, 58, 237, 0.15);
+}
+
+.wiz-lp-item.selected {
+    background: rgba(124, 58, 237, 0.12);
+}
+
+/* ── Radio circle ── */
+.wiz-lp-radio {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.wiz-lp-item.selected .wiz-lp-radio {
+    border-color: #7c3aed;
+    background: #7c3aed;
+    box-shadow: 0 0 12px rgba(124, 58, 237, 0.4);
+}
+
+.wiz-lp-item.selected .wiz-lp-radio::after {
+    content: '';
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #fff;
+}
+
+/* ── Language name + code ── */
+.wiz-lp-name {
+    flex: 1;
+    font-size: 15px;
+    color: #fff;
+    font-weight: 500;
+    font-family: var(--display), sans-serif;
+}
+
+.wiz-lp-code {
+    font-size: 11px;
+    color: var(--text3);
+    font-family: var(--mono, monospace);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ── Continue button (purple gradient) ── */
+.wiz-lp-continue-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 16px;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    opacity: 0.4;
+    pointer-events: none;
+    font-family: var(--display), sans-serif;
+}
+
+.wiz-lp-continue-btn:not(:disabled) {
+    opacity: 1;
+    pointer-events: auto;
+    box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
+}
+
+.wiz-lp-continue-btn:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(124, 58, 237, 0.5);
+}
+
+.wiz-lp-continue-btn:not(:disabled):active {
+    transform: translateY(0);
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+    .wiz-lp-list {
+        max-height: 50vh;
+    }
+}

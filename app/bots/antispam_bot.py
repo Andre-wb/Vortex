@@ -88,7 +88,7 @@ def ensure_antispam_bot(db: Session) -> int:
     bot_user = User(
         phone=f"+0{secrets.token_hex(7)}",
         username=ANTISPAM_USERNAME,
-        display_name="\u0410\u043d\u0442\u0438\u0441\u043f\u0430\u043c",
+        display_name="Antispam",
         avatar_emoji="\U0001f6e1\ufe0f",
         password_hash="!" + secrets.token_hex(32),
         is_bot=True,
@@ -104,12 +104,12 @@ def ensure_antispam_bot(db: Session) -> int:
         user_id=bot_user.id,
         owner_id=bot_user.id,
         api_token=_hash_token(api_token),
-        name="\u0410\u043d\u0442\u0438\u0441\u043f\u0430\u043c",
-        description="\u0412\u0441\u0442\u0440\u043e\u0435\u043d\u043d\u044b\u0439 \u0431\u043e\u0442 \u0437\u0430\u0449\u0438\u0442\u044b \u043e\u0442 \u0441\u043f\u0430\u043c\u0430",
+        name="Antispam",
+        description="Built-in spam protection bot",
         is_active=True,
         commands=json.dumps([
-            {"command": "/antispam_status", "description": "\u041f\u043e\u043a\u0430\u0437\u0430\u0442\u044c \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0430\u043d\u0442\u0438\u0441\u043f\u0430\u043c\u0430"},
-            {"command": "/antispam_help", "description": "\u041f\u043e\u043c\u043e\u0449\u044c \u043f\u043e \u0430\u043d\u0442\u0438\u0441\u043f\u0430\u043c-\u0431\u043e\u0442\u0443"},
+            {"command": "/antispam_status", "description": "Show antispam settings"},
+            {"command": "/antispam_help", "description": "Antispam bot help"},
         ]),
     )
     db.add(bot_record)
@@ -229,12 +229,12 @@ async def antispam_bot_message(room_id: int, text: str, db: Session) -> Message 
         "msg_id":       msg.id,
         "sender_id":    bot_uid,
         "sender":       bot_user.username,
-        "display_name": bot_user.display_name or "\u0410\u043d\u0442\u0438\u0441\u043f\u0430\u043c",
+        "display_name": bot_user.display_name or "Antispam",
         "avatar_emoji": bot_user.avatar_emoji or "\U0001f6e1\ufe0f",
         "avatar_url":   bot_user.avatar_url,
         "is_bot":       True,
         "bot_id":       bot_id,
-        "bot_name":     "\u0410\u043d\u0442\u0438\u0441\u043f\u0430\u043c",
+        "bot_name":     "Antispam",
         "plaintext":    text,
         "msg_type":     "text",
         "reply_to_id":  None,
@@ -320,8 +320,8 @@ async def check_repeat_spam(
         await antispam_bot_message(
             room_id,
             f"\u26a0\ufe0f {user.display_name or user.username}: "
-            f"\u043f\u043e\u0432\u0442\u043e\u0440\u044f\u044e\u0449\u0438\u0435\u0441\u044f \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u044f \u0437\u0430\u0431\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u0430\u043d\u044b. "
-            f"\u041f\u0440\u0435\u043a\u0440\u0430\u0442\u0438\u0442\u0435 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0443 \u043e\u0434\u0438\u043d\u0430\u043a\u043e\u0432\u044b\u0445 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0439.",
+            f"repeated messages blocked. "
+            f"Please stop sending identical messages.",
             db,
         )
         return True
@@ -353,8 +353,8 @@ async def check_link_spam(
         await antispam_bot_message(
             room_id,
             f"\u26a0\ufe0f {user.display_name or user.username}: "
-            f"\u0441\u043b\u0438\u0448\u043a\u043e\u043c \u043c\u043d\u043e\u0433\u043e \u0441\u0441\u044b\u043b\u043e\u043a. "
-            f"\u041e\u0442\u043f\u0440\u0430\u0432\u043a\u0430 \u0441\u0441\u044b\u043b\u043e\u043a \u0432\u0440\u0435\u043c\u0435\u043d\u043d\u043e \u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0430.",
+            f"too many links. "
+            f"Link sending is temporarily restricted.",
             db,
         )
         return True
@@ -378,7 +378,7 @@ async def check_caps_spam(
         await antispam_bot_message(
             room_id,
             f"\u26a0\ufe0f {user.display_name or user.username}: "
-            f"\u043f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, \u043d\u0435 \u043f\u0438\u0448\u0438\u0442\u0435 \u0412\u0421\u0415\u041c\u0418 \u0417\u0410\u0413\u041b\u0410\u0412\u041d\u042b\u041c\u0418 \u0431\u0443\u043a\u0432\u0430\u043c\u0438.",
+            f"please do not write in ALL CAPS.",
             db,
         )
         return True
@@ -390,16 +390,16 @@ async def check_caps_spam(
 # ══════════════════════════════════════════════════════════════════════════════
 
 _ACTION_LABELS = {
-    "warn": "\u041f\u0440\u0435\u0434\u0443\u043f\u0440\u0435\u0434\u0438\u0442\u044c",
-    "mute": "\u0417\u0430\u0433\u043b\u0443\u0448\u0438\u0442\u044c \u043d\u0430 5 \u043c\u0438\u043d",
-    "kick": "\u0418\u0441\u043a\u043b\u044e\u0447\u0438\u0442\u044c \u0438\u0437 \u043a\u043e\u043c\u043d\u0430\u0442\u044b",
-    "ban":  "\u0417\u0430\u0431\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u0430\u0442\u044c",
+    "warn": "Warning",
+    "mute": "Mute for 5 min",
+    "kick": "Kick from room",
+    "ban":  "Ban",
 }
 
 _THRESHOLD_LABELS = {
-    5:  "\u0421\u0442\u0440\u043e\u0433\u0438\u0439 (5)",
-    10: "\u0421\u0440\u0435\u0434\u043d\u0438\u0439 (10)",
-    15: "\u041c\u044f\u0433\u043a\u0438\u0439 (15)",
+    5:  "Strict (5)",
+    10: "Medium (10)",
+    15: "Gentle (15)",
 }
 
 
@@ -414,33 +414,33 @@ async def handle_antispam_command(
     if command == "/antispam_status":
         cfg = get_antispam_config(room)
         enabled = room.antispam_enabled if room.antispam_enabled is not None else True
-        status = "\u2705 \u0412\u043a\u043b\u044e\u0447\u0435\u043d" if enabled else "\u274c \u0412\u044b\u043a\u043b\u044e\u0447\u0435\u043d"
+        status = "\u2705 Enabled" if enabled else "\u274c Disabled"
         threshold = cfg.get("threshold", 15)
         action = cfg.get("action", "mute")
         block_repeats = cfg.get("block_repeats", True)
         block_links = cfg.get("block_links", True)
 
         text = (
-            f"\U0001f6e1\ufe0f \u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0430\u043d\u0442\u0438\u0441\u043f\u0430\u043c\u0430\n"
-            f"\u0421\u0442\u0430\u0442\u0443\u0441: {status}\n"
-            f"\u041f\u043e\u0440\u043e\u0433 \u0444\u043b\u0443\u0434\u0430: {_THRESHOLD_LABELS.get(threshold, str(threshold))} \u0441\u043e\u043e\u0431\u0449./10\u0441\u0435\u043a\n"
-            f"\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435: {_ACTION_LABELS.get(action, action)}\n"
-            f"\u0411\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u043a\u0430 \u043f\u043e\u0432\u0442\u043e\u0440\u043e\u0432: {'\u2705' if block_repeats else '\u274c'}\n"
-            f"\u0411\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u043a\u0430 \u0441\u0441\u044b\u043b\u043e\u043a: {'\u2705' if block_links else '\u274c'}"
+            f"\U0001f6e1\ufe0f Antispam Settings\n"
+            f"Status: {status}\n"
+            f"Flood threshold: {_THRESHOLD_LABELS.get(threshold, str(threshold))} msg/10sec\n"
+            f"Action: {_ACTION_LABELS.get(action, action)}\n"
+            f"Block repeats: {'\u2705' if block_repeats else '\u274c'}\n"
+            f"Block links: {'\u2705' if block_links else '\u274c'}"
         )
         await antispam_bot_message(room_id, text, db)
 
     elif command == "/antispam_help":
         text = (
-            "\U0001f6e1\ufe0f \u0410\u043d\u0442\u0438\u0441\u043f\u0430\u043c-\u0431\u043e\u0442 \u2014 \u043f\u043e\u043c\u043e\u0449\u044c\n\n"
-            "\u0411\u043e\u0442 \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438 \u0437\u0430\u0449\u0438\u0449\u0430\u0435\u0442 \u043a\u043e\u043c\u043d\u0430\u0442\u0443 \u043e\u0442:\n"
-            "\u2022 \u0424\u043b\u0443\u0434\u0430 (\u0441\u043b\u0438\u0448\u043a\u043e\u043c \u043c\u043d\u043e\u0433\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0439 \u0437\u0430 \u043a\u043e\u0440\u043e\u0442\u043a\u043e\u0435 \u0432\u0440\u0435\u043c\u044f)\n"
-            "\u2022 \u041f\u043e\u0432\u0442\u043e\u0440\u044f\u044e\u0449\u0438\u0445\u0441\u044f \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0439\n"
-            "\u2022 \u0421\u043f\u0430\u043c\u0430 \u0441\u0441\u044b\u043b\u043a\u0430\u043c\u0438\n"
-            "\u2022 \u041f\u0438\u0441\u044c\u043c\u0430 \u0412\u0421\u0415\u041c\u0418 \u0417\u0410\u0413\u041b\u0410\u0412\u041d\u042b\u041c\u0418\n\n"
-            "\u041a\u043e\u043c\u0430\u043d\u0434\u044b:\n"
-            "/antispam_status \u2014 \u0442\u0435\u043a\u0443\u0449\u0438\u0435 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438\n"
-            "/antispam_help \u2014 \u044d\u0442\u0430 \u0441\u043f\u0440\u0430\u0432\u043a\u0430\n\n"
-            "\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u043c\u0435\u043d\u044f\u044e\u0442\u0441\u044f \u0432 \u043f\u0430\u043d\u0435\u043b\u0438 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438 \u043a\u043e\u043c\u043d\u0430\u0442\u044b (owner/admin)."
+            "\U0001f6e1\ufe0f Antispam Bot \u2014 Help\n\n"
+            "The bot automatically protects the room from:\n"
+            "\u2022 Flooding (too many messages in a short time)\n"
+            "\u2022 Repeated messages\n"
+            "\u2022 Link spam\n"
+            "\u2022 ALL CAPS messages\n\n"
+            "Commands:\n"
+            "/antispam_status \u2014 current settings\n"
+            "/antispam_help \u2014 this help\n\n"
+            "Settings can be changed in the room info panel (owner/admin)."
         )
         await antispam_bot_message(room_id, text, db)

@@ -1,0 +1,10 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.0.0
+cryptography>=41.0.0
+httpx>=0.27.0
+pywebview>=5.0
+mnemonic>=0.20              # BIP39 24-word seed phrase generation
+base58>=2.1.1               # Solana wallet address encoding
+# Bundled even though the running node already has them — Wizard needs the
+# crypto helpers to read identity keys.

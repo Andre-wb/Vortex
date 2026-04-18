@@ -59,7 +59,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
             continue
 
     if not remote_base:
-        raise HTTPException(503, f"Узел {body.peer_ip}:{body.peer_port} недоступен")
+        raise HTTPException(503, f"Node {body.peer_ip}:{body.peer_port} is unreachable")
 
     # ── Cached guest-login JWT (skip if recently authenticated) ──────────
     cache_key = f"{remote_base}:{u.username}"
@@ -79,7 +79,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
                 },
             )
         except Exception as e:
-            raise HTTPException(502, f"Ошибка подключения к узлу: {e}")
+            raise HTTPException(502, f"Node connection error: {e}")
 
         if resp.status_code == 403:
             raise HTTPException(
@@ -100,7 +100,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
             json={},
             )
     except Exception as e:
-        raise HTTPException(502, f"Ошибка при вступлении: {e}")
+        raise HTTPException(502, f"Join error: {e}")
 
     if join_resp.status_code not in (200, 201):
         raise HTTPException(join_resp.status_code, join_resp.text[:200])
@@ -108,7 +108,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
     room_info      = join_resp.json().get("room", {})
     remote_room_id = room_info.get("id")
     if not remote_room_id:
-        raise HTTPException(502, "Удалённый узел не вернул room_id")
+        raise HTTPException(502, "Remote node did not return room_id")
 
     from app.federation.federation import relay
 
@@ -185,7 +185,7 @@ async def multihop_join(
             continue
 
     if not via_base:
-        raise HTTPException(503, f"Промежуточный узел {body.via_ip} недоступен")
+        raise HTTPException(503, f"Intermediate node {body.via_ip} is unreachable")
 
     # ── Cached guest-login JWT on via-node ──────────────────────────────
     via_cache_key = f"{via_base}:{u.username}"
@@ -205,10 +205,10 @@ async def multihop_join(
                 },
             )
         except Exception as e:
-            raise HTTPException(502, f"guest-login на B ({body.via_ip}) failed: {e}")
+            raise HTTPException(502, f"guest-login on B ({body.via_ip}) failed: {e}")
 
         if gr.status_code != 200:
-            raise HTTPException(502, f"guest-login на B: {gr.status_code}")
+            raise HTTPException(502, f"guest-login on B: {gr.status_code}")
 
         via_jwt = gr.json()["access_token"]
         _jwt_cache[via_cache_key] = {"jwt": via_jwt, "expires": time.monotonic() + _JWT_CACHE_TTL}

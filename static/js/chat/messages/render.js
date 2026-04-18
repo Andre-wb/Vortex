@@ -256,6 +256,19 @@ export function appendMessage(msg) {
         bubble.appendChild(grain);
     }
 
+    // Tag badge in top-right corner of bubble
+    if (msg.tag) {
+        const tagBadge = document.createElement('span');
+        tagBadge.className = 'msg-bubble-tag';
+        if (msg.tag_color) {
+            tagBadge.style.background = msg.tag_color + '22';
+            tagBadge.style.color = msg.tag_color;
+            tagBadge.style.borderColor = msg.tag_color + '44';
+        }
+        tagBadge.textContent = msg.tag;
+        bubble.appendChild(tagBadge);
+    }
+
     if (msg.reply_to_id && msg.reply_to_text) {
         bubble.appendChild(_buildReplyQuote(msg.reply_to_id, msg.reply_to_text, msg.reply_to_sender, isOwn));
     }
@@ -372,6 +385,39 @@ export function appendMessage(msg) {
 
             // Pay button
             h += `<button class="invoice-pay-btn" onclick="this.classList.toggle('paid');this.innerHTML=this.classList.contains('paid')?'<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'14\\' height=\\'14\\' fill=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path d=\\'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z\\'/></svg> '+t('invoice.markPaid'):t('invoice.markPaid')">${t('invoice.markPaid')}</button>`;
+            h += `</div>`;
+            textEl.innerHTML = h;
+        } catch (_e) {
+            textEl.textContent = msg.text;
+        }
+    }
+    // Task receipt card — [TASK] {"text":"...", "assignee":"...", "creator":"...", "task_id":1}
+    else if (msg.text && msg.text.startsWith('[TASK] ')) {
+        const taskJson = msg.text.substring(7).trim();
+        try {
+            const tk = JSON.parse(taskJson);
+            const _fmtNow = () => { try { return new Date().toLocaleDateString(undefined, {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch { return ''; } };
+            let h = `<div class="task-receipt">`;
+            // Header with icon
+            h += `<div class="task-receipt-header">`;
+            h += `<div class="task-receipt-icon"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>`;
+            h += `<div class="task-receipt-header-text">`;
+            h += `<div class="task-receipt-title">${t('tasks.newTask') || 'New Task'}</div>`;
+            if (tk.creator) h += `<div class="task-receipt-from">${t('tasks.assignedBy') || 'Assigned by'} ${esc(tk.creator)}</div>`;
+            h += `</div>`;
+            h += `</div>`;
+            // Task text
+            h += `<div class="task-receipt-body">${esc(tk.text || '')}</div>`;
+            // Details
+            h += `<div class="task-receipt-details">`;
+            if (tk.assignee) h += `<div class="task-receipt-row"><span class="task-receipt-label">${t('tasks.assignee') || 'Assignee'}</span><span class="task-receipt-value">${esc(tk.assignee)}</span></div>`;
+            h += `<div class="task-receipt-row"><span class="task-receipt-label">${t('tasks.status') || 'Status'}</span><span class="task-receipt-value task-receipt-status-pending">${t('tasks.pending') || 'Pending'}</span></div>`;
+            h += `</div>`;
+            // Toggle button
+            const tid = tk.task_id || 0;
+            h += `<button class="task-receipt-btn" onclick="this.classList.toggle('done');if(this.classList.contains('done')){this.innerHTML='<svg width=\\'14\\' height=\\'14\\' fill=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path d=\\'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z\\'/></svg> ${t('tasks.done') || 'Done'}';if(window.toggleTask)window.toggleTask(${tid},true);}else{this.textContent='${t('tasks.markDone') || 'Mark as done'}';if(window.toggleTask)window.toggleTask(${tid},false);}">${t('tasks.markDone') || 'Mark as done'}</button>`;
+            // Dashed border footer (receipt style)
+            h += `<div class="task-receipt-tear"></div>`;
             h += `</div>`;
             textEl.innerHTML = h;
         } catch (_e) {

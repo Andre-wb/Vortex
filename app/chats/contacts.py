@@ -175,18 +175,18 @@ async def add_contact(
 ):
     """Добавить пользователя в контакты."""
     if body.user_id == u.id:
-        raise HTTPException(400, "Нельзя добавить себя в контакты")
+        raise HTTPException(400, "Cannot add yourself to contacts")
 
     target = db.query(User).filter(User.id == body.user_id, User.is_active == True).first()
     if not target:
-        raise HTTPException(404, "Пользователь не найден")
+        raise HTTPException(404, "User not found")
 
     existing = db.query(Contact).filter(
         Contact.owner_id == u.id,
         Contact.contact_id == body.user_id,
     ).first()
     if existing:
-        raise HTTPException(409, "Контакт уже добавлен")
+        raise HTTPException(409, "Contact already added")
 
     contact = Contact(owner_id=u.id, contact_id=body.user_id)
     db.add(contact)
@@ -223,7 +223,7 @@ async def update_contact(
         Contact.owner_id == u.id,
     ).first()
     if not contact:
-        raise HTTPException(404, "Контакт не найден")
+        raise HTTPException(404, "Contact not found")
 
     contact.nickname = body.nickname
     db.commit()
@@ -243,7 +243,7 @@ async def delete_contact(
         Contact.owner_id == u.id,
     ).first()
     if not contact:
-        raise HTTPException(404, "Контакт не найден")
+        raise HTTPException(404, "Contact not found")
 
     db.delete(contact)
     db.commit()
@@ -272,7 +272,7 @@ async def verify_fingerprint(
         Contact.owner_id == u.id,
     ).first()
     if not contact:
-        raise HTTPException(404, "Контакт не найден")
+        raise HTTPException(404, "Contact not found")
 
     contact.fingerprint_verified = True
     contact.fingerprint_verified_at = datetime.now(timezone.utc)
@@ -294,7 +294,7 @@ async def unverify_fingerprint(
         Contact.owner_id == u.id,
     ).first()
     if not contact:
-        raise HTTPException(404, "Контакт не найден")
+        raise HTTPException(404, "Contact not found")
 
     contact.fingerprint_verified = False
     contact.fingerprint_verified_at = None
@@ -319,7 +319,7 @@ async def get_user_profile(
 
     target = db.query(User).filter(User.id == user_id, User.is_active == True).first()
     if not target:
-        raise HTTPException(404, "Пользователь не найден")
+        raise HTTPException(404, "User not found")
 
     dm_room_id = _find_dm_room(u.id, user_id, db)
 
@@ -404,11 +404,11 @@ async def block_user(
 ):
     """Заблокировать пользователя — запрещает ему отправлять DM."""
     if user_id == u.id:
-        raise HTTPException(400, "Нельзя заблокировать себя")
+        raise HTTPException(400, "Cannot block yourself")
 
     target = db.query(User).filter(User.id == user_id).first()
     if not target:
-        raise HTTPException(404, "Пользователь не найден")
+        raise HTTPException(404, "User not found")
 
     # Находим DM комнату и баним заблокированного пользователя
     dm_room_id = _find_dm_room(u.id, user_id, db)

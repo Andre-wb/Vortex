@@ -1,13 +1,13 @@
 """
-app/transport/routes.py — REST API для управления транспортами.
+app/transport/routes.py — REST API for transport management.
 
 Endpoints:
-  GET  /api/transport/status          — статус всех транспортов
-  POST /api/transport/signal          — принять ICE кандидаты (signaling для hole punch)
-  POST /api/transport/punch/{peer_ip} — инициировать NAT hole punch к пиру
-  GET  /api/transport/ble/peers       — список BLE пиров
-  GET  /api/transport/wifi-direct/peers — список Wi-Fi Direct пиров
-  POST /api/transport/wifi-direct/connect — подключиться к P2P пиру
+  GET  /api/transport/status          — status of all transports
+  POST /api/transport/signal          — accept ICE candidates (signaling for hole punch)
+  POST /api/transport/punch/{peer_ip} — initiate NAT hole punch to a peer
+  GET  /api/transport/ble/peers       — list of BLE peers
+  GET  /api/transport/wifi-direct/peers — list of Wi-Fi Direct peers
+  POST /api/transport/wifi-direct/connect — connect to a P2P peer
 """
 from __future__ import annotations
 
@@ -29,11 +29,11 @@ router = APIRouter(prefix="/api/transport", tags=["transport"])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Pydantic схемы
+# Pydantic schemas
 # ─────────────────────────────────────────────────────────────────────────────
 
 class SignalRequest(BaseModel):
-    """Входящие ICE кандидаты от пира (для NAT hole punch signaling)."""
+    """Incoming ICE candidates from a peer (for NAT hole punch signaling)."""
     session_id: str
     role:       str        # "initiator" | "responder"
     candidates: list[dict]
@@ -57,10 +57,10 @@ class WifiDirectConnectRequest(BaseModel):
 @router.get("/status")
 async def transport_status(u: User = Depends(get_current_user)):
     """
-    Возвращает полный статус всех транспортных подсистем:
-      - NAT: внешний IP (STUN), активные hole punch сессии
-      - BLE: доступность, список пиров, RSSI
-      - Wi-Fi Direct: доступность, интерфейс, пиры
+    Returns full status of all transport subsystems:
+      - NAT: external IP (STUN), active hole punch sessions
+      - BLE: availability, peer list, RSSI
+      - Wi-Fi Direct: availability, interface, peers
     """
     return transport_manager.full_status()
 
@@ -68,8 +68,8 @@ async def transport_status(u: User = Depends(get_current_user)):
 @router.get("/status/public")
 async def transport_status_public():
     """
-    Публичный статус без аутентификации.
-    Используется другими узлами для проверки доступных транспортов.
+    Public status without authentication.
+    Used by other nodes to check available transports.
     """
     status = transport_manager.full_status()
     return {
@@ -83,12 +83,12 @@ async def transport_status_public():
 @router.post("/signal")
 async def receive_signal(body: SignalRequest):
     """
-    Принимает ICE кандидаты от другого узла.
+    Accepts ICE candidates from another node.
 
-    Этот endpoint вызывается в процессе NAT hole punching:
-      Node A собирает кандидатов → POST /api/transport/signal на Node B
-      Node B собирает кандидатов → POST /api/transport/signal на Node A
-      Оба запускают punch() одновременно
+    This endpoint is called during the NAT hole punching process:
+      Node A gathers candidates -> POST /api/transport/signal to Node B
+      Node B gathers candidates -> POST /api/transport/signal to Node A
+      Both run punch() simultaneously
     """
     transport_manager.accept_signal(
         session_id = body.session_id,
@@ -105,10 +105,10 @@ async def initiate_hole_punch(
         u: User = Depends(get_current_user),
 ):
     """
-    Инициирует NAT hole punch к указанному пиру.
+    Initiates NAT hole punch to the specified peer.
 
-    Процесс занимает несколько секунд, поэтому статус можно проверить
-    через GET /api/transport/status после завершения.
+    The process takes several seconds, so the status can be checked
+    via GET /api/transport/status after completion.
     """
     background_tasks.add_task(
         transport_manager.initiate_hole_punch,
@@ -117,7 +117,7 @@ async def initiate_hole_punch(
     )
     return {
         "ok":      True,
-        "message": f"Hole punch к {body.peer_ip}:{body.peer_port} запущен",
+        "message": f"Hole punch to {body.peer_ip}:{body.peer_port} started",
     }
 
 
@@ -127,8 +127,8 @@ async def initiate_hole_punch_sync(
         u: User = Depends(get_current_user),
 ):
     """
-    Синхронный hole punch — ждёт результата (до 15 секунд).
-    Удобно для UI: можно показать сразу успех/неудачу.
+    Synchronous hole punch — waits for the result (up to 15 seconds).
+    Convenient for UI: can show success/failure immediately.
     """
     success = await transport_manager.initiate_hole_punch(
         peer_ip   = body.peer_ip,
@@ -147,7 +147,7 @@ async def initiate_hole_punch_sync(
 
 @router.get("/ble/peers")
 async def ble_peers(u: User = Depends(get_current_user)):
-    """Список BLE пиров с уровнем сигнала (RSSI)."""
+    """List of BLE peers with signal strength (RSSI)."""
     peers = ble_manager.get_peers()
     return {
         "available": ble_manager.available,
@@ -158,10 +158,10 @@ async def ble_peers(u: User = Depends(get_current_user)):
 
 @router.post("/ble/scan")
 async def ble_scan_now(u: User = Depends(get_current_user)):
-    """Принудительный немедленный BLE-скан."""
+    """Force an immediate BLE scan."""
     if not ble_manager.available:
-        raise HTTPException(503, "BLE недоступен на этом устройстве")
-    # Запускаем внеплановый скан
+        raise HTTPException(503, "BLE is not available on this device")
+    # Run an unscheduled scan
     await ble_manager._do_scan()
     return {"ok": True, "peers": len(ble_manager.get_peers())}
 
@@ -172,13 +172,13 @@ async def ble_send_message(
         payload: dict,
         u: User = Depends(get_current_user),
 ):
-    """Отправить сообщение конкретному BLE пиру (MAC адрес)."""
+    """Send a message to a specific BLE peer (MAC address)."""
     if not ble_manager.available:
-        raise HTTPException(503, "BLE недоступен")
+        raise HTTPException(503, "BLE is not available")
 
     ok = await ble_manager.send_message(peer_address, payload)
     if not ok:
-        raise HTTPException(502, f"Не удалось отправить через BLE к {peer_address}")
+        raise HTTPException(502, f"Failed to send via BLE to {peer_address}")
     return {"ok": True}
 
 
@@ -188,7 +188,7 @@ async def ble_send_message(
 
 @router.get("/wifi-direct/peers")
 async def wifi_direct_peers(u: User = Depends(get_current_user)):
-    """Список обнаруженных Wi-Fi Direct пиров."""
+    """List of discovered Wi-Fi Direct peers."""
     return wifi_direct_manager.status()
 
 
@@ -198,13 +198,13 @@ async def wifi_direct_connect(
         u: User = Depends(get_current_user),
 ):
     """
-    Подключиться к Wi-Fi Direct пиру.
+    Connect to a Wi-Fi Direct peer.
 
-    PBC (Push Button): обе стороны должны инициировать подключение одновременно.
-    PIN: передать PIN код пира.
+    PBC (Push Button): both sides must initiate the connection simultaneously.
+    PIN: provide the peer's PIN code.
     """
     if not wifi_direct_manager.available:
-        raise HTTPException(503, "Wi-Fi Direct недоступен на этом устройстве")
+        raise HTTPException(503, "Wi-Fi Direct is not available on this device")
 
     if body.method == "pin" and body.pin:
         # Linux PIN connect
@@ -217,7 +217,7 @@ async def wifi_direct_connect(
         ip = await wifi_direct_manager.connect_pbc(body.peer_mac)
         if ip:
             return {"ok": True, "method": "pbc", "peer_ip": ip}
-        raise HTTPException(502, f"P2P PBC connect к {body.peer_mac} не удался")
+        raise HTTPException(502, f"P2P PBC connect to {body.peer_mac} failed")
 
     return {"ok": False}
 
@@ -225,15 +225,15 @@ async def wifi_direct_connect(
 @router.post("/wifi-direct/create-group")
 async def wifi_direct_create_group(u: User = Depends(get_current_user)):
     """
-    Создать Wi-Fi Direct группу (этот узел становится Group Owner).
-    Другие устройства могут подключаться без точки доступа.
+    Create a Wi-Fi Direct group (this node becomes Group Owner).
+    Other devices can connect without an access point.
     """
     if not wifi_direct_manager.available or not wifi_direct_manager._wpa:
-        raise HTTPException(503, "Wi-Fi Direct недоступен")
+        raise HTTPException(503, "Wi-Fi Direct is not available")
 
     iface = await wifi_direct_manager._wpa.p2p_group_add()
     if not iface:
-        raise HTTPException(502, "Не удалось создать P2P группу")
+        raise HTTPException(502, "Failed to create P2P group")
 
     ip = await wifi_direct_manager._wpa.get_p2p_ip(iface)
     return {
@@ -249,8 +249,8 @@ async def wifi_direct_create_group(u: User = Depends(get_current_user)):
 
 @router.get("/nat/info")
 async def nat_info(u: User = Depends(get_current_user)):
-    """Информация о NAT: внешний IP, порт, активные hole punch сессии."""
-    # Свежий STUN запрос
+    """NAT info: external IP, port, active hole punch sessions."""
+    # Fresh STUN request
     external = await StunClient.discover_external()
 
     return {
@@ -271,9 +271,9 @@ async def nat_info(u: User = Depends(get_current_user)):
 
 @router.post("/nat/refresh-stun")
 async def refresh_stun(u: User = Depends(get_current_user)):
-    """Принудительно обновить внешний IP через STUN."""
+    """Force refresh external IP via STUN."""
     result = await StunClient.discover_external()
     if result:
         transport_manager._external_ip, transport_manager._external_port = result
         return {"ok": True, "external_ip": result[0], "external_port": result[1]}
-    raise HTTPException(503, "STUN серверы недоступны")
+    raise HTTPException(503, "STUN servers are unavailable")

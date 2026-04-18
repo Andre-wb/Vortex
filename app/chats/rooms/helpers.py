@@ -1,8 +1,8 @@
 """
-rooms_helpers — Общий router, Pydantic-модели, вспомогательные функции для модуля rooms.
+rooms_helpers — Shared router, Pydantic models, and helper functions for the rooms module.
 
-Все route-модули (rooms_crud, rooms_members, rooms_keys, rooms_theme)
-импортируют ``router`` отсюда, чтобы маршруты регистрировались на одном APIRouter.
+All route modules (rooms_crud, rooms_members, rooms_keys, rooms_theme)
+import ``router`` from here so that routes are registered on a single APIRouter.
 """
 from __future__ import annotations
 
@@ -22,11 +22,11 @@ router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Pydantic схемы
+# Pydantic schemas
 # ══════════════════════════════════════════════════════════════════════════════
 
 class EncryptedKeyPayload(BaseModel):
-    """ECIES-зашифрованный ключ комнаты."""
+    """ECIES-encrypted room key."""
     ephemeral_pub: str = Field(..., min_length=64, max_length=64,
                                description="X25519 ephemeral pubkey hex (32 bytes)")
     ciphertext:    str = Field(..., min_length=24,
@@ -39,23 +39,23 @@ class RoomCreate(BaseModel):
     is_private:  bool             = False
     is_voice:    bool             = False   # True = voice channel (persistent, join/leave)
 
-    # Клиент генерирует room_key(32 bytes) локально и шифрует ECIES своим X25519 pubkey.
-    # Сервер сохраняет этот зашифрованный blob — не может расшифровать без приватного ключа клиента.
+    # Client generates room_key(32 bytes) locally and encrypts with ECIES using its X25519 pubkey.
+    # Server stores the encrypted blob — cannot decrypt without the client's private key.
     encrypted_room_key: EncryptedKeyPayload = Field(
         ...,
-        description="room_key(32 bytes), зашифрованный ECIES публичным ключом X25519 создателя"
+        description="room_key(32 bytes), encrypted with ECIES using the creator's X25519 public key"
     )
 
 
 class ProvideKeyRequest(BaseModel):
-    """Запрос на передачу ключа ожидающему участнику (от online-участника)."""
-    for_user_id:   int = Field(..., description="user_id участника, которому нужен ключ")
+    """Request to provide a key to a waiting member (from an online member)."""
+    for_user_id:   int = Field(..., description="user_id of the member who needs the key")
     ephemeral_pub: str = Field(..., min_length=64, max_length=64)
     ciphertext:    str = Field(..., min_length=24)
 
 
 class RoomUpdate(BaseModel):
-    """Обновление настроек комнаты (только owner/admin)."""
+    """Room settings update (owner/admin only)."""
     name:                Optional[str]  = Field(None, min_length=1, max_length=100)
     description:         Optional[str]  = Field(None, max_length=500)
     avatar_emoji:        Optional[str]  = Field(None, max_length=10)
@@ -85,7 +85,7 @@ class RoomThemeBody(BaseModel):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Вспомогательные функции
+# Helper functions
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _room_dict(r: Room) -> dict:
@@ -133,16 +133,16 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
         RoomMember.is_banned == False,
         ).first()
     if not m:
-        raise HTTPException(403, "Вы не участник этой комнаты")
+        raise HTTPException(403, "You are not a member of this room")
     return m
 
 
 async def _broadcast_key_request(room_id: int, for_user_id: int, for_pubkey: str,
                                   for_kyber_pubkey: str | None = None) -> None:
     """
-    Рассылает всем online-участникам комнаты запрос на re-encryption ключа.
-    Любой участник, у которого есть room_key, должен зашифровать его для нового участника.
-    Включает kyber_public_key для гибридного PQ шифрования (если доступен).
+    Broadcasts a key re-encryption request to all online room members.
+    Any member who has the room_key should encrypt it for the new member.
+    Includes kyber_public_key for hybrid PQ encryption (if available).
     """
     payload = {
         "type":        "key_request",
@@ -165,7 +165,7 @@ def _validate_theme(body: RoomThemeBody) -> str:
     if body.wallpaper is not None:
         # Allow preset names or custom URLs
         if body.wallpaper not in _VALID_WALLPAPERS and not body.wallpaper.startswith("https://"):
-            raise HTTPException(400, f"Недопустимый wallpaper: {body.wallpaper}")
+            raise HTTPException(400, f"Invalid wallpaper: {body.wallpaper}")
         d["wallpaper"] = body.wallpaper
     if body.accent is not None:
         d["accent"] = body.accent

@@ -126,7 +126,7 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
         chaptersPanel.className = 'vp-chapters';
         var chapTitle = document.createElement('div');
         chapTitle.className = 'vp-chapters-title';
-        chapTitle.textContent = 'Chapters';
+        chapTitle.textContent = (typeof t==='function'?t('video.chapters'):'Chapters');
         chaptersPanel.appendChild(chapTitle);
         timecodes.forEach(function(tc) {
             var row = document.createElement('div');
@@ -860,19 +860,19 @@ window._refreshDeviceList = async function() {
         if (audioIn) {
             audioIn.textContent = '';
             var defOpt = document.createElement('option');
-            defOpt.value = ''; defOpt.textContent = 'Default';
+            defOpt.value = ''; defOpt.textContent = (typeof t==='function'?t('app.default'):'Default');
             audioIn.appendChild(defOpt);
         }
         if (audioOut) {
             audioOut.textContent = '';
             var defOpt2 = document.createElement('option');
-            defOpt2.value = ''; defOpt2.textContent = 'Default';
+            defOpt2.value = ''; defOpt2.textContent = (typeof t==='function'?t('app.default'):'Default');
             audioOut.appendChild(defOpt2);
         }
         if (videoIn) {
             videoIn.textContent = '';
             var defOpt3 = document.createElement('option');
-            defOpt3.value = ''; defOpt3.textContent = 'Default';
+            defOpt3.value = ''; defOpt3.textContent = (typeof t==='function'?t('app.default'):'Default');
             videoIn.appendChild(defOpt3);
         }
 
@@ -2249,7 +2249,7 @@ window.openPackEditor = async function(packId, isOwner) {
 
         if (stickers.length === 0) {
             var empty = document.createElement('div'); empty.className = 'spe-empty';
-            empty.textContent = isOwner ? 'No stickers yet. Click + or drag images to add.' : (window.t?.('stickers.packEmpty')||'Pack is empty');
+            empty.textContent = isOwner ? (typeof t==='function'?t('stickers.noStickersHint'):'No stickers yet. Click + or drag images to add.') : (window.t?.('stickers.packEmpty')||'Pack is empty');
             root.appendChild(empty);
         }
     }

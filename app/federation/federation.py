@@ -585,7 +585,7 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
 
     if not _is_private_ip(src_ip):
         logger.warning(f"guest-login rejected from public IP: {src_ip}")
-        raise HTTPException(403, "Федеративный вход разрешён только из локальной сети")
+        raise HTTPException(403, "Federated login is only allowed from the local network")
 
     from app.peer.peer_registry import registry as peer_registry
     if not peer_registry.get(src_ip):
@@ -619,7 +619,7 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
 
         if password_hash is None:
             logger.error(f"guest-login: не удалось хешировать пароль: {hash_error}")
-            raise HTTPException(500, "Внутренняя ошибка сервера")
+            raise HTTPException(500, "Internal server error")
 
         try:
             import secrets as _s2
@@ -645,7 +645,7 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
         except Exception as _e:
             db.rollback()
             logger.error(f"guest-login: DB error for {fed_username}: {_e}", exc_info=True)
-            raise HTTPException(500, "Внутренняя ошибка сервера")
+            raise HTTPException(500, "Internal server error")
     else:
         user.display_name = body.display_name[:64]
         user.avatar_emoji = body.avatar_emoji or "👤"
@@ -656,14 +656,14 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
         except Exception as _e:
             db.rollback()
             logger.error(f"guest-login: DB update error: {_e}", exc_info=True)
-            raise HTTPException(500, "Внутренняя ошибка сервера")
+            raise HTTPException(500, "Internal server error")
 
     try:
         from app.security.auth_jwt import create_access_token
         token = create_access_token(user.id, getattr(user, 'phone', ''), user.username)
     except Exception as _e:
         logger.error(f"guest-login: JWT error: {_e}", exc_info=True)
-        raise HTTPException(500, "Внутренняя ошибка сервера")
+        raise HTTPException(500, "Internal server error")
 
     return {
         "access_token": token,

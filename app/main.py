@@ -54,6 +54,9 @@ from app.federation.trusted_nodes import trusted_nodes_router
 from app.security.zero_knowledge import zk_router
 from app.keys.keys import router as keys_router
 from app.peer.peer_registry import router as peers_router
+# Side-effect import: registers /api/peers/controller-proxy on peers_router
+from app.peer import controller_proxy as _controller_proxy  # noqa: F401
+from app.session.migration import router as session_router
 from app.security.middleware import (
     CSRFMiddleware,
     LoggingMiddleware,
@@ -455,11 +458,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug("Stealth L4 init: %s", e)
 
+    # Start the migration pusher (Phase 6): watches for sustained overload and
+    # proactively nudges connected users toward verified alternative nodes.
+    try:
+        from app.session.migration_pusher import pusher as _migration_pusher
+        await _migration_pusher.start()
+    except Exception as e:
+        logger.debug("migration pusher start failed: %s", e)
+
     startup_duration = time.monotonic() - _startup_time
     logger.info("Vortex started in %.2fs (mode=%s, peers=%d)",
                 startup_duration, Config.NETWORK_MODE, len(registry.active()))
 
     yield
+
+    try:
+        from app.session.migration_pusher import pusher as _migration_pusher
+        await _migration_pusher.stop()
+    except Exception as e:
+        logger.debug("migration pusher stop failed: %s", e)
+
 
     # ── Graceful shutdown ────────────────────────────────────────────────
     ws_count = manager.total_connections()
@@ -680,6 +698,7 @@ if is_stealth():
 app.include_router(keys_router)
 app.include_router(resumable_router)
 app.include_router(auth_router)
+app.include_router(session_router)
 app.include_router(rooms_router)
 app.include_router(chat_router)
 app.include_router(peers_router)

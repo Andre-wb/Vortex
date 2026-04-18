@@ -13,6 +13,33 @@ from .models import NodeConfig, SSOConfig
 from ._app import ENV_FILE
 
 
+# Defaults for the "global" network mode — official vortexx.sol controller.
+# Leave as empty strings until release; wizard users can't reach a real instance
+# during development.
+_OFFICIAL_CONTROLLER_URL    = ""
+_OFFICIAL_CONTROLLER_PUBKEY = ""
+
+
+def _default_controller_url(cfg) -> str:
+    if cfg.network_mode == "global":
+        return _OFFICIAL_CONTROLLER_URL
+    return ""
+
+
+def _default_controller_pubkey(cfg) -> str:
+    if cfg.network_mode == "global":
+        return _OFFICIAL_CONTROLLER_PUBKEY
+    return ""
+
+
+def _normalize_endpoints(raw: str) -> str:
+    """Accept newline- or comma-separated URLs; output comma-separated."""
+    if not raw:
+        return ""
+    parts = [p.strip() for p in raw.replace("\n", ",").split(",")]
+    return ",".join(p for p in parts if p)
+
+
 def _read_env_dict() -> dict[str, str]:
     """Читает текущий .env файл и возвращает словарь переменных."""
     if not ENV_FILE.exists():
@@ -74,8 +101,14 @@ def _write_env(cfg: NodeConfig) -> None:
         "",
         "# Network Mode",
         f"NETWORK_MODE={cfg.network_mode}",
-        f"OBFUSCATION_ENABLED={'true' if cfg.obfuscation_enabled and cfg.network_mode == 'global' else 'false'}",
+        f"OBFUSCATION_ENABLED={'true' if cfg.obfuscation_enabled and cfg.network_mode in ('global', 'custom') else 'false'}",
         f"REGISTRATION_MODE={cfg.registration_mode}",
+        "",
+        "# Controller (only used when NETWORK_MODE is global/custom)",
+        f"CONTROLLER_URL={_default_controller_url(cfg) or cfg.controller_url}",
+        f"CONTROLLER_PUBKEY={_default_controller_pubkey(cfg) or cfg.controller_pubkey}",
+        f"NODE_ANNOUNCE_ENDPOINTS={_normalize_endpoints(cfg.announce_endpoints)}",
+        f"CONTROLLER_HEARTBEAT_SEC=60",
         "",
         "# Stealth Mode (anti-censorship / DPI bypass)",
         f"STEALTH_MODE=true",

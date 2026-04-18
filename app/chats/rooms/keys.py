@@ -48,11 +48,11 @@ async def join_room(
     has_key=False означает: нужно дождаться {type: "room_key"} через WebSocket.
     """
     if not u.x25519_public_key:
-        raise HTTPException(400, "Необходим X25519 публичный ключ для вступления в комнату")
+        raise HTTPException(400, "X25519 public key required to join a room")
 
     room = db.query(Room).filter(Room.invite_code == invite_code.upper()).first()
     if not room:
-        raise HTTPException(404, "Комната не найдена")
+        raise HTTPException(404, "Room not found")
 
     # Проверяем существующее членство
     existing = db.query(RoomMember).filter(
@@ -62,7 +62,7 @@ async def join_room(
 
     if existing:
         if existing.is_banned:
-            raise HTTPException(403, "Вы заблокированы в этой комнате")
+            raise HTTPException(403, "You are blocked in this room")
         # Уже участник — проверяем наличие ключа
         has_key = db.query(EncryptedRoomKey).filter(
             EncryptedRoomKey.room_id == room.id,
@@ -71,7 +71,7 @@ async def join_room(
         return {"joined": False, "room": _room_dict(room), "has_key": has_key}
 
     if room.is_full():
-        raise HTTPException(409, "Комната заполнена")
+        raise HTTPException(409, "Room is full")
 
     # Добавляем участника
     db.add(RoomMember(room_id=room.id, user_id=u.id, role=RoomRole.MEMBER))
@@ -98,7 +98,7 @@ async def join_room(
         "joined":   True,
         "room":     _room_dict(room),
         "has_key":  False,   # ключ придёт через WebSocket
-        "message":  "Ожидайте ключ от участника комнаты через WebSocket",
+        "message":  "Await room key from a member via WebSocket",
     }
 
 
@@ -135,18 +135,18 @@ async def provide_key(
         RoomMember.is_banned == False,
         ).first()
     if not target_member:
-        raise HTTPException(404, "Получатель не является участником комнаты")
+        raise HTTPException(404, "Recipient is not a room member")
 
     # Получаем публичный ключ получателя
     from app.models import User as UserModel
     target_user = db.query(UserModel).filter(UserModel.id == body.for_user_id).first()
     if not target_user or not target_user.x25519_public_key:
-        raise HTTPException(400, "У получателя нет X25519 публичного ключа")
+        raise HTTPException(400, "Recipient has no X25519 public key")
 
     # Валидируем ECIES payload
     payload = {"ephemeral_pub": body.ephemeral_pub, "ciphertext": body.ciphertext}
     if not validate_ecies_payload(payload):
-        raise HTTPException(400, "Некорректный формат ключа")
+        raise HTTPException(400, "Invalid key format")
 
     # Сохраняем или обновляем EncryptedRoomKey для получателя
     existing_key = db.query(EncryptedRoomKey).filter(
@@ -240,7 +240,7 @@ async def get_key_bundle(
 
         return {
             "has_key": False,
-            "message": "Ключ ожидается. Дождитесь {type: 'room_key'} через WebSocket",
+            "message": "Key pending. Await {type: 'room_key'} via WebSocket",
         }
 
     return {
@@ -295,7 +295,7 @@ async def rotate_room_key(
     # Уведомляем всех online: "ключ сброшен, нужен новый"
     await manager.broadcast_to_room(room_id, {
         "type": "key_rotated",
-        "message": "Ключ комнаты обновлён. Новый ключ будет доставлен.",
+        "message": "Room key updated. New key will be delivered.",
     })
 
     logger.info(f"Room key rotated for room {room_id} by {u.username}")

@@ -118,7 +118,7 @@ async def mark_room_read(
         RoomMember.user_id == u.id,
     ).first()
     if not member:
-        raise HTTPException(403, "Не участник")
+        raise HTTPException(403, "Not a member")
 
     last_msg = (
         db.query(Message.id)
@@ -150,14 +150,14 @@ async def get_thread_messages(
         RoomMember.user_id == u.id,
     ).first()
     if not member:
-        raise HTTPException(403, "Не участник")
+        raise HTTPException(403, "Not a member")
 
     # Корневое сообщение
     root = db.query(Message).filter(
         Message.id == msg_id, Message.room_id == room_id,
     ).first()
     if not root:
-        raise HTTPException(404, "Сообщение не найдено")
+        raise HTTPException(404, "Message not found")
 
     # Ответы в треде
     replies = (
@@ -197,13 +197,13 @@ async def get_message_edit_history(
         RoomMember.user_id == u.id,
     ).first()
     if not member:
-        raise HTTPException(403, "Не участник")
+        raise HTTPException(403, "Not a member")
 
     msg = db.query(Message).filter(
         Message.id == msg_id, Message.room_id == room_id,
     ).first()
     if not msg:
-        raise HTTPException(404, "Сообщение не найдено")
+        raise HTTPException(404, "Message not found")
 
     history = (
         db.query(MessageEditHistory)
@@ -377,7 +377,7 @@ async def ws_chat(
                     pass
                 try:
                     await manager.send_to_user(room_id, user.id, {
-                        "type": "error", "message": "Ошибка обработки действия",
+                        "type": "error", "message": "Action processing error",
                     })
                 except Exception:
                     pass

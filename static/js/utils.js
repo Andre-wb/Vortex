@@ -327,7 +327,7 @@ export function vxPrompt(title, defaultValue = '', placeholder = '') {
         cancelBtn.textContent = window.t?.('app.cancel') || 'Cancel';
         const okBtn = document.createElement('button');
         okBtn.className = 'vx-modal-btn primary';
-        okBtn.textContent = 'OK';
+        okBtn.textContent = (typeof t==='function'?t('app.ok'):'OK');
         btns.append(cancelBtn, okBtn);
         box.append(titleEl, inputWrap, btns);
         backdrop.appendChild(box);
@@ -427,7 +427,7 @@ export function vxAlert(title, opts = {}) {
         }
         const okBtn = document.createElement('button');
         okBtn.className = 'vx-modal-btn primary';
-        okBtn.textContent = 'OK';
+        okBtn.textContent = (typeof t==='function'?t('app.ok'):'OK');
         btns.appendChild(okBtn);
         box.appendChild(btns);
         backdrop.appendChild(box);

@@ -223,7 +223,7 @@ def _require_channel(room_id: int, db: Session) -> Room:
     if not room:
         raise HTTPException(404, "Room not found")
     if not room.is_channel:
-        raise HTTPException(400, "Стримы доступны только для каналов")
+        raise HTTPException(400, "Streams are only available for channels")
     return room
 
 
@@ -234,7 +234,7 @@ def _require_admin(room_id: int, user_id: int, db: Session) -> RoomMember:
         RoomMember.is_banned == False,
     ).first()
     if not m or m.role not in (RoomRole.OWNER, RoomRole.ADMIN):
-        raise HTTPException(403, "Только владелец или админ канала может управлять стримом")
+        raise HTTPException(403, "Only channel owner or admin can manage streams")
     return m
 
 
@@ -245,7 +245,7 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
         RoomMember.is_banned == False,
     ).first()
     if not m:
-        raise HTTPException(403, "Вы не участник этого канала")
+        raise HTTPException(403, "You are not a member of this channel")
     return m
 
 
@@ -343,7 +343,7 @@ async def start_stream(
     _require_admin(room_id, u.id, db)
 
     if room_id in _active_streams:
-        raise HTTPException(409, "Стрим уже запущен в этом канале")
+        raise HTTPException(409, "Stream already started in this channel")
 
     stream = StreamState(
         room_id=room_id,
@@ -374,12 +374,12 @@ async def stop_stream(
     """Остановка стрима. Только host или admin канала."""
     stream = _active_streams.get(room_id)
     if not stream:
-        raise HTTPException(404, "Нет активного стрима")
+        raise HTTPException(404, "No active stream")
 
     # Host or channel admin can stop
     member = _require_member(room_id, u.id, db)
     if u.id != stream.host_id and member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
-        raise HTTPException(403, "Только хост или админ может остановить стрим")
+        raise HTTPException(403, "Only host or admin can stop the stream")
 
     # Notify all viewers
     await _broadcast_stream(room_id, {"type": "stream_ended", "ended_by": u.username})
@@ -403,7 +403,7 @@ async def join_stream(
     _require_member(room_id, u.id, db)
     stream = _active_streams.get(room_id)
     if not stream:
-        raise HTTPException(404, "Нет активного стрима")
+        raise HTTPException(404, "No active stream")
 
     if u.id in stream.participants:
         return {"joined": True, "already_in": True, "stream": stream.to_dict()}
@@ -444,11 +444,11 @@ async def leave_stream(
     """Покинуть стрим."""
     stream = _active_streams.get(room_id)
     if not stream:
-        raise HTTPException(404, "Нет активного стрима")
+        raise HTTPException(404, "No active stream")
 
     removed = stream.participants.pop(u.id, None)
     if not removed:
-        raise HTTPException(400, "Вы не в стриме")
+        raise HTTPException(400, "You are not in the stream")
 
     # Remove from hand queue
     if u.id in stream.hand_queue:
@@ -501,14 +501,14 @@ async def raise_hand(
     """Зритель поднимает руку (запрос на выступление)."""
     stream = _active_streams.get(room_id)
     if not stream:
-        raise HTTPException(404, "Нет активного стрима")
+        raise HTTPException(404, "No active stream")
 
     p = stream.participants.get(u.id)
     if not p:
-        raise HTTPException(400, "Вы не в стриме")
+        raise HTTPException(400, "You are not in the stream")
 
     if p.role in (StreamRole.HOST, StreamRole.CO_HOST):
-        raise HTTPException(400, "Вы уже можете говорить")
+        raise HTTPException(400, "You can already speak")
 
     p.hand_raised = True
     if u.id not in stream.hand_queue:
@@ -575,20 +575,20 @@ async def grant_permission(
     """Управление правами участника стрима (host/co_host)."""
     stream = _active_streams.get(room_id)
     if not stream:
-        raise HTTPException(404, "Нет активного стрима")
+        raise HTTPException(404, "No active stream")
 
     # Only host/co_host can manage permissions
     actor = stream.participants.get(u.id)
     if not actor or actor.role not in (StreamRole.HOST, StreamRole.CO_HOST):
-        raise HTTPException(403, "Только хост может управлять правами")
+        raise HTTPException(403, "Only host can manage permissions")
 
     target = stream.participants.get(body.user_id)
     if not target:
-        raise HTTPException(404, "Участник не найден в стриме")
+        raise HTTPException(404, "Participant not found in stream")
 
     # Can't change host permissions
     if target.role == StreamRole.HOST and u.id != stream.host_id:
-        raise HTTPException(403, "Нельзя изменить права хоста")
+        raise HTTPException(403, "Cannot change host permissions")
 
     # Update role
     if body.role:
@@ -648,14 +648,14 @@ async def kick_from_stream(
 
     actor = stream.participants.get(u.id)
     if not actor or actor.role not in (StreamRole.HOST, StreamRole.CO_HOST):
-        raise HTTPException(403, "Только хост может выгонять")
+        raise HTTPException(403, "Only host can kick participants")
 
     if target_id == stream.host_id:
-        raise HTTPException(403, "Нельзя выгнать хоста")
+        raise HTTPException(403, "Cannot kick the host")
 
     removed = stream.participants.pop(target_id, None)
     if not removed:
-        raise HTTPException(404, "Участник не найден")
+        raise HTTPException(404, "Participant not found")
 
     stream.hand_queue = [uid for uid in stream.hand_queue if uid != target_id]
 
@@ -691,10 +691,10 @@ async def send_reaction(
         raise HTTPException(404)
 
     if not stream.allow_reactions:
-        raise HTTPException(400, "Реакции отключены на этом стриме")
+        raise HTTPException(400, "Reactions are disabled for this stream")
 
     if u.id not in stream.participants:
-        raise HTTPException(400, "Вы не в стриме")
+        raise HTTPException(400, "You are not in the stream")
 
     # Sanitize emoji (max 10 chars)
     emoji = emoji[:10]
@@ -723,10 +723,10 @@ async def send_donation(
         raise HTTPException(404)
 
     if not stream.allow_donations:
-        raise HTTPException(400, "Донаты отключены на этом стриме")
+        raise HTTPException(400, "Donations are disabled for this stream")
 
     if u.id not in stream.participants:
-        raise HTTPException(400, "Вы не в стриме")
+        raise HTTPException(400, "You are not in the stream")
 
     donation = {
         "user_id": u.id,
@@ -941,7 +941,7 @@ async def ws_stream(
             elif msg_type == "stream_screen_share":
                 if not participant.can_screen_share:
                     await websocket.send_text(_json.dumps({
-                        "type": "stream_error", "message": "Нет разрешения на демонстрацию экрана",
+                        "type": "stream_error", "message": "Screen sharing permission denied",
                     }))
                     continue
                 participant.is_screen_sharing = msg.get("sharing", False)

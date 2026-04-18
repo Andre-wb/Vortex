@@ -39,7 +39,7 @@ async def set_auto_delete(
         RoomMember.user_id == u.id,
     ).first()
     if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
 
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
@@ -74,7 +74,7 @@ async def set_slow_mode(
         RoomMember.user_id == u.id,
     ).first()
     if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
 
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
@@ -104,7 +104,7 @@ async def toggle_mute(
         RoomMember.user_id == u.id,
     ).first()
     if not member:
-        raise HTTPException(403, "Не участник")
+        raise HTTPException(403, "Not a member")
 
     member.is_muted = not member.is_muted
     db.commit()
@@ -130,7 +130,7 @@ async def pin_message_rest(
         RoomMember.user_id == u.id,
     ).first()
     if not member or member.role not in (RoomRole.ADMIN, RoomRole.OWNER):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
 
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
@@ -141,7 +141,7 @@ async def pin_message_rest(
             Message.id == body.msg_id, Message.room_id == room_id
         ).first()
         if not msg:
-            raise HTTPException(404, "Сообщение не найдено")
+            raise HTTPException(404, "Message not found")
 
     room.pinned_message_id = body.msg_id
     db.commit()
@@ -165,7 +165,7 @@ async def get_pinned_messages(
         RoomMember.user_id == u.id,
     ).first()
     if not member:
-        raise HTTPException(403, "Не участник")
+        raise HTTPException(403, "Not a member")
 
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
@@ -247,7 +247,7 @@ async def export_chat(
         RoomMember.user_id == u.id,
     ).first()
     if not member:
-        raise HTTPException(403, "Не участник")
+        raise HTTPException(403, "Not a member")
 
     messages = db.query(Message).filter(
         Message.room_id == room_id,

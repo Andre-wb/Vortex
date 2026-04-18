@@ -2,7 +2,7 @@
 
 // ── Состояние приложения ─────────────────────────────────────────────────────
 const state = {
-    step:       1,          // текущий шаг (1–6)
+    step:       0,          // current step (0=lang, 1-6=main steps)
     sslMode:    'self',     // выбранный способ SSL: 'self', 'mkcert', 'le', 'skip'
     sslDone:    false,      // был ли SSL успешно сгенерирован (или пропущен)
     sslSkipped: false,      // true, если выбран пропуск SSL
@@ -33,11 +33,11 @@ async function loadSysInfo() {
     try {
         const r    = await fetch('/api/info');
         state.sysInfo = await r.json();
-        const ip   = state.sysInfo.local_ips?.[0] || 'не определён';
-        const ok   = ip !== 'не определён';
+        const ip   = state.sysInfo.local_ips?.[0] || 'unknown';
+        const ok   = ip !== 'unknown';
         document.getElementById('ip-dot').className  = 'dot ' + (ok ? 'dot-green' : 'dot-yellow');
-        document.getElementById('ip-text').textContent = `Локальный IP: ${ip}`;
+        document.getElementById('ip-text').textContent = `Local IP: ${ip}`;
     } catch {
-        document.getElementById('ip-text').textContent = 'Не удалось определить IP';
+        document.getElementById('ip-text').textContent = 'Could not detect IP';
     }
 }

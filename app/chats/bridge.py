@@ -288,22 +288,22 @@ async def import_telegram(
     Загрузите result.json из Telegram → Настройки → Экспорт данных (формат JSON).
     """
     if not file.filename or not file.filename.endswith(".json"):
-        raise HTTPException(400, "Ожидается файл result.json от Telegram")
+        raise HTTPException(400, "Expected result.json file from Telegram")
 
     raw = await file.read(_MAX_FILE_SIZE + 1)
     if len(raw) > _MAX_FILE_SIZE:
-        raise HTTPException(413, "Файл слишком большой (максимум 50 МБ)")
+        raise HTTPException(413, "File too large (max 50 MB)")
 
     try:
         data = json.loads(raw)
     except Exception:
-        raise HTTPException(400, "Невалидный JSON")
+        raise HTTPException(400, "Invalid JSON")
 
     try:
         stats = _import_telegram(data, u, db)
     except Exception as e:
         logger.exception("Telegram import error")
-        raise HTTPException(500, f"Ошибка импорта: {e}")
+        raise HTTPException(500, f"Import error: {e}")
 
     return {
         "ok": True,
@@ -324,22 +324,22 @@ async def import_matrix(
     Загрузите JSON-экспорт из Element → Room settings → Export chat history.
     """
     if not file.filename or not file.filename.endswith(".json"):
-        raise HTTPException(400, "Ожидается .json файл экспорта Matrix/Element")
+        raise HTTPException(400, "Expected Matrix/Element export .json file")
 
     raw = await file.read(_MAX_FILE_SIZE + 1)
     if len(raw) > _MAX_FILE_SIZE:
-        raise HTTPException(413, "Файл слишком большой (максимум 50 МБ)")
+        raise HTTPException(413, "File too large (max 50 MB)")
 
     try:
         data = json.loads(raw)
     except Exception:
-        raise HTTPException(400, "Невалидный JSON")
+        raise HTTPException(400, "Invalid JSON")
 
     try:
         stats = _import_matrix(data, u, db)
     except Exception as e:
         logger.exception("Matrix import error")
-        raise HTTPException(500, f"Ошибка импорта: {e}")
+        raise HTTPException(500, f"Import error: {e}")
 
     return {
         "ok": True,

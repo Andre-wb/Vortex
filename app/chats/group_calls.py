@@ -95,7 +95,7 @@ _room_active_call: dict[int, str] = {}
 def _get_call(call_id: str) -> GroupCall:
     call = _active_group_calls.get(call_id)
     if not call or call.state == "ended":
-        raise HTTPException(404, "Звонок не найден или завершён")
+        raise HTTPException(404, "Call not found or ended")
     return call
 
 
@@ -148,13 +148,13 @@ async def start_group_call(
     """Создать групповой звонок и уведомить всех участников комнаты."""
     room = db.get(Room, room_id)
     if not room:
-        raise HTTPException(404, "Комната не найдена")
+        raise HTTPException(404, "Room not found")
 
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == u.id
     ).first()
     if not member:
-        raise HTTPException(403, "Вы не участник комнаты")
+        raise HTTPException(403, "You are not a room member")
 
     if room_id in _room_active_call:
         existing = _active_group_calls.get(_room_active_call[room_id])
@@ -225,7 +225,7 @@ async def join_group_call(
 
     p = call.participants.get(u.id)
     if not p:
-        raise HTTPException(403, "Вы не приглашены в этот звонок")
+        raise HTTPException(403, "You are not invited to this call")
 
     if p.state in ("connected", "connecting"):
         return {"ok": True, "call": call.to_dict()}
@@ -295,14 +295,14 @@ async def add_participant(
     call = _get_call(call_id)
 
     if u.id not in call.participants:
-        raise HTTPException(403, "Вы не участник этого звонка")
+        raise HTTPException(403, "You are not a participant in this call")
 
     if user_id in call.participants and call.participants[user_id].state not in ("left", "declined"):
-        raise HTTPException(400, "Пользователь уже в звонке")
+        raise HTTPException(400, "User is already in the call")
 
     target_user = db.get(User, user_id)
     if not target_user:
-        raise HTTPException(404, "Пользователь не найден")
+        raise HTTPException(404, "User not found")
 
     call.participants[user_id] = GroupCallParticipant(
         user_id=user_id,
@@ -364,7 +364,7 @@ async def end_group_call(
     """Завершить звонок для всех (инициатор или admin)."""
     call = _get_call(call_id)
     if u.id != call.initiator_id:
-        raise HTTPException(403, "Только инициатор может завершить звонок для всех")
+        raise HTTPException(403, "Only the initiator can end the call for everyone")
 
     await _broadcast_call_event(call, "group_call_ended", {"reason": "ended_by_initiator"})
     _end_call(call)

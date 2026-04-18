@@ -246,3 +246,38 @@ function _buildTaskItem(task) {
 
     return el;
 }
+
+/**
+ * Create a task directly from a message context menu.
+ * Extracts text from the message and creates a task via API.
+ * @param {Object} msg — message object from context menu
+ */
+async function addTaskFromMessage(msg) {
+    const S = window.AppState;
+    if (!S.currentRoom) return;
+
+    // Extract text: try DOM element first (decrypted), then msg fields
+    let text = '';
+    if (msg.msg_id) {
+        const msgEl = document.querySelector(`[data-msg-id="${msg.msg_id}"] .msg-text`);
+        if (msgEl) text = msgEl.textContent?.trim() || '';
+    }
+    if (!text) text = msg.decryptedText || msg.text || '';
+    if (!text) text = `[${msg.msg_type || 'message'}]`;
+    if (text.length > 200) text = text.slice(0, 200) + '…';
+
+    try {
+        await api('POST', `/api/rooms/${S.currentRoom.id}/tasks`, { text });
+        if (typeof window.showToast === 'function') {
+            window.showToast(t('tasks.taskCreated') || 'Task created', 'success');
+        }
+    } catch (err) {
+        console.error('addTaskFromMessage error:', err);
+        if (typeof window.showToast === 'function') {
+            window.showToast(t('tasks.createError') || 'Failed to create task', 'error');
+        }
+    }
+}
+
+// Expose for context menu
+window._addTaskFromMessage = addTaskFromMessage;

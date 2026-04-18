@@ -131,13 +131,13 @@ async def create_or_get_dm(
     сохраняет зашифрованный ключ для создателя и PendingKeyRequest для получателя.
     """
     if target_user_id == u.id:
-        raise HTTPException(400, "Нельзя создать DM с самим собой")
+        raise HTTPException(400, "Cannot create DM with yourself")
 
     target = db.query(User).filter(
         User.id == target_user_id, User.is_active == True,
     ).first()
     if not target:
-        raise HTTPException(404, "Пользователь не найден или деактивирован")
+        raise HTTPException(404, "User not found or deactivated")
 
     # Проверяем существующий DM
     existing = _find_existing_dm(u.id, target_user_id, db)
@@ -260,7 +260,7 @@ async def store_key_for_user(
     """
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
-        raise HTTPException(404, "Комната не найдена")
+        raise HTTPException(404, "Room not found")
 
     # Проверяем что вызывающий — участник комнаты
     is_member = db.query(RoomMember).filter(
@@ -268,7 +268,7 @@ async def store_key_for_user(
         RoomMember.user_id == u.id,
     ).first()
     if not is_member:
-        raise HTTPException(403, "Вы не участник этой комнаты")
+        raise HTTPException(403, "You are not a member of this room")
 
     # Проверяем что целевой пользователь — тоже участник
     target_member = db.query(RoomMember).filter(
@@ -276,7 +276,7 @@ async def store_key_for_user(
         RoomMember.user_id == body.user_id,
     ).first()
     if not target_member:
-        raise HTTPException(400, "Пользователь не участник этой комнаты")
+        raise HTTPException(400, "User is not a member of this room")
 
     # Не перезаписываем если ключ уже есть
     existing = db.query(EncryptedRoomKey).filter(
@@ -284,11 +284,11 @@ async def store_key_for_user(
         EncryptedRoomKey.user_id == body.user_id,
     ).first()
     if existing:
-        return {"ok": True, "message": "Ключ уже существует"}
+        return {"ok": True, "message": "Key already exists"}
 
     payload = {"ephemeral_pub": body.ephemeral_pub, "ciphertext": body.ciphertext}
     if not validate_ecies_payload(payload):
-        raise HTTPException(400, "Невалидный ECIES payload")
+        raise HTTPException(400, "Invalid ECIES payload")
 
     target_user = db.query(User).filter(User.id == body.user_id).first()
     db.add(EncryptedRoomKey(

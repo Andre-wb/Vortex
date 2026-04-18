@@ -46,3 +46,7 @@ class NodeConfig(BaseModel):
     registration_mode: str = "open"
     invite_code: str = ""
     obfuscation_enabled: bool = True
+    # Controller settings (only used when network_mode in {"global", "custom"})
+    controller_url: str = ""
+    controller_pubkey: str = ""
+    announce_endpoints: str = ""  # newline- or comma-separated URLs

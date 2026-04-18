@@ -33,11 +33,28 @@ CODE_MAP = {
 }
 
 # ── Term protection ──────────────────────────────────────────────────────
-# Gravitix language keywords, product names, and syntax that must NEVER
-# be translated. Sorted longest-first so "emit_to" matches before "emit".
-_PROTECTED_TERMS = sorted([
-    # Product / language names
-    'Gravitix', 'Vortex', 'Rust', 'Python', 'JavaScript', 'Go', 'IEEE 754',
+
+# GLOBAL terms: protected in ALL sections — technical terms that should
+# never be translated regardless of context.
+_GLOBAL_TERMS = sorted([
+    # Product / brand names
+    'Gravitix', 'Vortex', 'Cloudflare', "Let's Encrypt", 'Telegram',
+    'GitHub', 'Google', 'Apple', 'Microsoft', 'Azure AD',
+    'Keycloak', 'Authentik', 'Ollama', 'Matrix', 'Element',
+    # Technical product terms (CamelCase / mixed case)
+    'WebSocket', 'WebRTC', 'WebAuthn', 'Passkey', 'Passkeys',
+    'Mini App', 'Bot Store', 'mkcert', 'cloudflared', 'certbot',
+    # Protocols / standards (mixed case)
+    'OAuth', 'OIDC', 'FIDO2', 'ECIES', 'X25519', 'BIP39',
+    'Wi-Fi', 'Wi-Fi Direct',
+    # Programming language names
+    'Rust', 'Python', 'JavaScript', 'Go', 'HTML', 'CSS',
+], key=len, reverse=True)
+
+# GRAVITIX-ONLY terms: protected only in gravitixDocs/gxd sections.
+# These are short keywords that are too common in normal English to
+# protect globally (e.g. "match", "state", "flow", "guard", "let").
+_GRAVITIX_TERMS = sorted([
     # Gravitix keywords (lowercase — used in code/syntax)
     'emit_to', 'emit', 'state', 'flow', 'guard', 'match', 'wait',
     'break', 'continue', 'elif', 'struct', 'enum', 'impl', 'self',
@@ -53,12 +70,10 @@ _PROTECTED_TERMS = sorted([
     '/start', '/help', '/echo', '/buy',
     # Style conventions
     'snake_case',
-    # Technical abbreviations
-    'DSL', 'FFT', 'DFT', 'UTC',
 ], key=len, reverse=True)
 
-# Sections where Gravitix term protection is applied
-_TERM_PROTECT_SECTIONS = {'gravitixDocs', 'gxd'}
+# Sections where Gravitix-specific term protection is applied
+_GRAVITIX_SECTIONS = {'gravitixDocs', 'gxd'}
 
 
 def _protect_value(text, section):
@@ -66,10 +81,12 @@ def _protect_value(text, section):
     Protect a value before sending to Google Translate.
     Returns (protected_text, replacements_list).
 
-    Three layers:
-    1. <code>content</code> → single placeholder (content is code, never translate)
-    2. Standalone HTML tags (<strong>, </strong>, <em>, <br>) → placeholder each
-    3. Gravitix keywords (only for _TERM_PROTECT_SECTIONS)
+    Five layers (applied in order):
+    1. <code>content</code> → single placeholder (code = never translate)
+    2. Standalone HTML tags → placeholder each
+    3. ALL-CAPS words (2+ chars) → placeholder (HTTP, SSL, API, QR, P2P, etc.)
+    4. Global technical terms (WebSocket, Cloudflare, mkcert, etc.) → placeholder
+    5. Gravitix-specific keywords (only for gravitixDocs/gxd sections)
     """
     replacements = []
 
@@ -93,9 +110,26 @@ def _protect_value(text, section):
         text
     )
 
-    # Layer 3: Gravitix keywords (only for docs sections)
-    if section in _TERM_PROTECT_SECTIONS:
-        for term in _PROTECTED_TERMS:
+    # Layer 3: ALL-CAPS words (2+ letters, optionally with digits/hyphens).
+    # Catches: HTTP, HTTPS, SSL, API, URL, JSON, P2P, E2E, QR, PDF, GIF,
+    #          UDP, TCP, DNS, SFU, BLE, SSO, JWT, CSRF, TOTP, HMAC, etc.
+    # Skips single-letter caps and normal short words in sentences.
+    text = re.sub(
+        r'\b[A-Z][A-Z0-9]{1,}(?:[-/][A-Z0-9]+)*\b',
+        lambda m: _add(m.group(0)),
+        text
+    )
+
+    # Layer 4: global technical terms (applied to ALL sections)
+    for term in _GLOBAL_TERMS:
+        if term not in text:
+            continue
+        while term in text:
+            text = text.replace(term, _add(term), 1)
+
+    # Layer 5: Gravitix-specific keywords (only for docs sections)
+    if section in _GRAVITIX_SECTIONS:
+        for term in _GRAVITIX_TERMS:
             if term not in text:
                 continue
             if len(term) <= 3 and term.isalpha():
@@ -103,7 +137,6 @@ def _protect_value(text, section):
                 if re.search(pattern, text):
                     text = re.sub(pattern, lambda m: _add(term), text)
             else:
-                # Replace all occurrences
                 while term in text:
                     text = text.replace(term, _add(term), 1)
 

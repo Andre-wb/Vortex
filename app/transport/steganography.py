@@ -94,7 +94,7 @@ def generate_cover_image(
     fmt: "PNG" (default), "WEBP", "BMP".
     """
     if not _PIL_AVAILABLE:
-        raise RuntimeError("PIL не доступен для стеганографии")
+        raise RuntimeError("PIL is not available for steganography")
 
     import random
     img = Image.new("RGB", (width, height))
@@ -179,7 +179,7 @@ def embed_data(
     различает cover/stego изображения.
     """
     if not _PIL_AVAILABLE:
-        raise RuntimeError("PIL не доступен")
+        raise RuntimeError("PIL is not available")
 
     key = key or _STEG_KEY
 
@@ -192,7 +192,7 @@ def embed_data(
     max_data = total_bits // 8 - 36  # -16 nonce -16 marker -4 length
 
     if len(data) > max_data:
-        raise ValueError(f"Данные ({len(data)}B) не помещаются в изображение ({max_data}B макс)")
+        raise ValueError(f"Data ({len(data)}B) does not fit in image ({max_data}B max)")
 
     # ── Build payload ────────────────────────────────────────────────────
     nonce = os.urandom(16)

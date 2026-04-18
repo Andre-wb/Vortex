@@ -614,6 +614,96 @@ body[data-theme="light"] .member-actions-btn:hover {
 }
 
 /* ============================================================================
+ * FEATURE: Permissions Modal
+ * ========================================================================== */
+.perm-modal-overlay {
+    position: fixed; inset: 0; z-index: 10001;
+    background: rgba(0,0,0,0.55);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s;
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.perm-modal-overlay.active { opacity: 1; }
+.perm-modal-card {
+    background: var(--bg2, #1a1a2e);
+    border-radius: 18px;
+    width: 380px; max-width: 92vw;
+    max-height: 85vh; overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+}
+.perm-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.perm-modal-title { font-weight: 700; font-size: 16px; color: var(--text); }
+.perm-modal-close {
+    background: none; border: none; color: var(--text3); font-size: 22px;
+    cursor: pointer; padding: 4px; line-height: 1;
+}
+.perm-modal-section { padding: 14px 20px 8px; }
+.perm-modal-section-title {
+    font-weight: 600; font-size: 11px; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 10px;
+}
+.perm-modal-hint {
+    font-size: 11px; color: var(--text3);
+    margin: -4px 0 12px; line-height: 1.4;
+}
+
+/* Role selector */
+.perm-role-selector {
+    display: flex; gap: 8px;
+}
+.perm-role-btn {
+    flex: 1; padding: 12px 8px;
+    background: var(--bg3); border: 2px solid transparent;
+    border-radius: 12px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-weight: 600; font-size: 13px; color: var(--text);
+    transition: all 0.15s;
+}
+.perm-role-btn:hover { border-color: rgba(255,255,255,0.15); }
+.perm-role-btn.active {
+    border-color: var(--accent, #7c3aed);
+    background: rgba(124,58,237,0.08);
+}
+.perm-role-icon { font-size: 18px; }
+
+/* Permission toggles */
+.perm-toggles { display: flex; flex-direction: column; gap: 2px; }
+.perm-toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.perm-toggle-row:last-child { border-bottom: none; }
+.perm-toggle-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.perm-toggle-icon { font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
+.perm-toggle-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.perm-toggle-desc { font-size: 11px; color: var(--text3); margin-top: 1px; }
+
+/* Actions */
+.perm-modal-actions {
+    display: flex; gap: 8px; padding: 12px 20px 18px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.perm-modal-btn {
+    flex: 1; padding: 11px; border: none; border-radius: 10px;
+    font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.15s;
+}
+.perm-modal-btn-cancel { background: var(--bg3); color: var(--text3); }
+.perm-modal-btn-cancel:hover { background: rgba(255,255,255,0.1); }
+.perm-modal-btn-save { background: var(--accent, #7c3aed); color: #fff; }
+.perm-modal-btn-save:hover { opacity: 0.9; }
+
+body[data-theme="light"] .perm-modal-card { background: #fff; border-color: #e4e4e7; }
+body[data-theme="light"] .perm-role-btn { background: #f4f4f5; }
+body[data-theme="light"] .perm-toggle-row { border-bottom-color: rgba(0,0,0,0.05); }
+
+/* ============================================================================
  * FEATURE: Custom Sticker Packs — Manager UI (Settings)
  * ========================================================================== */
 
@@ -1010,6 +1100,122 @@ body[data-theme="light"] .invoice-card { background: #fff; border-color: #e4e4e7
 body[data-theme="light"] .invoice-row { border-bottom-color: rgba(0,0,0,0.04); }
 body[data-theme="light"] .invoice-address-row { background: #f4f4f5; }
 body[data-theme="light"] .invoice-qr img { box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+
+/* ============================================================================
+ * Task Receipt Card (displayed in chat like an invoice/check)
+ * ========================================================================== */
+.task-receipt {
+    background: var(--bg3);
+    border-radius: 14px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+    min-width: 260px;
+    max-width: 340px;
+    font-size: 13px;
+}
+.task-receipt-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px 10px;
+    border-bottom: 1px dashed rgba(255,255,255,0.08);
+}
+.task-receipt-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: rgba(16,185,129,0.12);
+    color: #10b981;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.task-receipt-header-text { flex: 1; min-width: 0; }
+.task-receipt-title {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text);
+    letter-spacing: 0.01em;
+}
+.task-receipt-from {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 1px;
+}
+.task-receipt-body {
+    padding: 12px 16px;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    word-break: break-word;
+    border-bottom: 1px dashed rgba(255,255,255,0.08);
+}
+.task-receipt-details {
+    padding: 8px 16px;
+}
+.task-receipt-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.task-receipt-row:last-child { border-bottom: none; }
+.task-receipt-label {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.task-receipt-value {
+    font-size: 12px;
+    color: var(--text);
+    font-weight: 500;
+}
+.task-receipt-status-pending {
+    color: #f59e0b;
+    background: rgba(245,158,11,0.1);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.task-receipt-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: calc(100% - 32px);
+    margin: 8px 16px 4px;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: rgba(16,185,129,0.12);
+    color: #10b981;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.task-receipt-btn:hover { background: rgba(16,185,129,0.2); }
+.task-receipt-btn.done {
+    background: rgba(16,185,129,0.15);
+    color: #34d399;
+}
+.task-receipt-tear {
+    height: 12px;
+    margin-top: 4px;
+    background-image: radial-gradient(circle, transparent 5px, var(--bg3) 5px);
+    background-size: 14px 12px;
+    background-position: 0 0;
+    background-repeat: repeat-x;
+    opacity: 0.5;
+}
+
+body[data-theme="light"] .task-receipt { background: #fff; border-color: #e4e4e7; }
+body[data-theme="light"] .task-receipt-header { border-bottom-color: rgba(0,0,0,0.06); }
+body[data-theme="light"] .task-receipt-body { border-bottom-color: rgba(0,0,0,0.06); }
+body[data-theme="light"] .task-receipt-row { border-bottom-color: rgba(0,0,0,0.04); }
 
 
 /* ============================================================================

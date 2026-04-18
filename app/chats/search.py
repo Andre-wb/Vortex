@@ -87,7 +87,7 @@ async def search_users(
     """
     q = q.strip()
     if not q:
-        raise HTTPException(400, "Пустой запрос")
+        raise HTTPException(400, "Empty query")
 
     filters = []
 
@@ -313,7 +313,7 @@ async def search_messages(
         RoomMember.is_banned == False,
     ).first()
     if not member:
-        raise HTTPException(403, "Вы не участник этой комнаты")
+        raise HTTPException(403, "You are not a member of this room")
 
     query = db.query(Message).filter(Message.room_id == room_id)
 
@@ -331,21 +331,21 @@ async def search_messages(
         try:
             msg_type = MessageType(type)
         except ValueError:
-            raise HTTPException(400, f"Неизвестный тип сообщения: {type}")
+            raise HTTPException(400, f"Unknown message type: {type}")
         query = query.filter(Message.msg_type == msg_type)
 
     if date_from is not None:
         try:
             dt_from = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
         except ValueError:
-            raise HTTPException(400, "Неверный формат date_from (ожидается ISO)")
+            raise HTTPException(400, "Invalid date_from format (ISO expected)")
         query = query.filter(Message.created_at >= dt_from)
 
     if date_to is not None:
         try:
             dt_to = datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
         except ValueError:
-            raise HTTPException(400, "Неверный формат date_to (ожидается ISO)")
+            raise HTTPException(400, "Invalid date_to format (ISO expected)")
         query = query.filter(Message.created_at <= dt_to)
 
     total = query.count()

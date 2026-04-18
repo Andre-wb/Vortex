@@ -159,7 +159,7 @@ async function openBotDetail(botId) {
         heroInfo.appendChild(nameEl);
         const authorEl = document.createElement('div');
         authorEl.className = 'bd-author';
-        authorEl.textContent = 'by ' + (bot.owner_name || 'Unknown');
+        authorEl.textContent = (typeof t==='function'?t('bots.by'):'by ') + (bot.owner_name || 'Unknown');
         heroInfo.appendChild(authorEl);
         const catEl = document.createElement('div');
         catEl.className = 'bd-category';
@@ -191,7 +191,7 @@ async function openBotDetail(botId) {
         stat2.appendChild(stat2Val);
         const stat2Label = document.createElement('div');
         stat2Label.className = 'bd-stat-label';
-        stat2Label.textContent = 'Downloads';
+        stat2Label.textContent = (typeof t==='function'?t('bots.downloads'):'Downloads');
         stat2.appendChild(stat2Label);
         statsRow.appendChild(stat2);
         page.appendChild(statsRow);
@@ -201,7 +201,7 @@ async function openBotDetail(botId) {
         descSection.className = 'bd-section';
         const descTitle = document.createElement('div');
         descTitle.className = 'bd-section-title';
-        descTitle.textContent = 'Description';
+        descTitle.textContent = (typeof t==='function'?t('app.description'):'Description');
         descSection.appendChild(descTitle);
         const descText = document.createElement('div');
         descText.className = 'bd-desc';
@@ -214,7 +214,7 @@ async function openBotDetail(botId) {
         cmdSection.className = 'bd-section';
         const cmdTitle = document.createElement('div');
         cmdTitle.className = 'bd-section-title';
-        cmdTitle.textContent = 'Commands';
+        cmdTitle.textContent = (typeof t==='function'?t('bots.commands'):'Commands');
         cmdSection.appendChild(cmdTitle);
         (bot.commands || []).forEach(c => {
             const row = document.createElement('div');
@@ -232,7 +232,7 @@ async function openBotDetail(botId) {
         if (!bot.commands?.length) {
             const empty = document.createElement('div');
             empty.style.cssText = 'color:var(--text3);font-size:13px;';
-            empty.textContent = 'No commands';
+            empty.textContent = (typeof t==='function'?t('bots.noCommands'):'No commands');
             cmdSection.appendChild(empty);
         }
         page.appendChild(cmdSection);
@@ -242,7 +242,7 @@ async function openBotDetail(botId) {
         revSection.className = 'bd-section';
         const revTitle = document.createElement('div');
         revTitle.className = 'bd-section-title';
-        revTitle.textContent = 'Reviews';
+        revTitle.textContent = (typeof t==='function'?t('bots.reviews'):'Reviews');
         revSection.appendChild(revTitle);
         (revData.reviews || []).forEach(r => {
             const rev = document.createElement('div');
@@ -269,7 +269,7 @@ async function openBotDetail(botId) {
         if (!(revData.reviews || []).length) {
             const empty = document.createElement('div');
             empty.style.cssText = 'color:var(--text3);font-size:13px;padding:8px 0;';
-            empty.textContent = 'No reviews yet';
+            empty.textContent = (typeof t==='function'?t('bots.noReviews'):'No reviews yet');
             revSection.appendChild(empty);
         }
         page.appendChild(revSection);
@@ -277,7 +277,7 @@ async function openBotDetail(botId) {
         // Install button
         const installBtn = document.createElement('button');
         installBtn.className = 'bd-install-btn';
-        installBtn.textContent = 'Install Bot';
+        installBtn.textContent = (typeof t==='function'?t('bots.installBot'):'Install Bot');
         installBtn.addEventListener('click', () => installBot(bot.bot_id));
         page.appendChild(installBtn);
 

@@ -26,6 +26,11 @@ wizard_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 _STATIC_DIR = Path(__file__).parent / "static"
 wizard_app.mount("/setup", StaticFiles(directory=str(_STATIC_DIR)), name="setup_static")
 
+# Serve main app's static files (locales) for i18n in wizard
+_MAIN_STATIC = Path(__file__).parent.parent / "static"
+if _MAIN_STATIC.is_dir():
+    wizard_app.mount("/static", StaticFiles(directory=str(_MAIN_STATIC)), name="main_static")
+
 # Глобальная переменная для управления сервером
 _server_instance: uvicorn.Server | None = None
 # Событие, сигнализирующее о завершении настройки (остановка сервера)

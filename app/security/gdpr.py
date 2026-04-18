@@ -199,7 +199,7 @@ async def erase_user_data(
     except Exception as e:
         db.rollback()
         logger.error("GDPR erasure failed for user %d: %s", u.id, e)
-        raise HTTPException(500, "Ошибка удаления данных")
+        raise HTTPException(500, "Data deletion error")
 
     return {
         "erased": True,

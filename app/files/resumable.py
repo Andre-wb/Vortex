@@ -198,11 +198,11 @@ def _validate_hex_hash(value: str, field_name: str = "hash") -> str:
     """Проверяет, что строка является корректным SHA-256 hex (64 символа)."""
     value = value.strip().lower()
     if len(value) != 64:
-        raise HTTPException(400, f"{field_name}: ожидается 64 hex-символа, получено {len(value)}")
+        raise HTTPException(400, f"{field_name}: expected 64 hex chars, got {len(value)}")
     try:
         bytes.fromhex(value)
     except ValueError:
-        raise HTTPException(400, f"{field_name}: некорректный hex")
+        raise HTTPException(400, f"{field_name}: invalid hex")
     return value
 
 
@@ -215,7 +215,7 @@ def _check_room_access(room_id: int, user_id: int, db: Session) -> None:
             RoomMember.is_banned == False,
             ).first()
         if not member:
-            raise HTTPException(403, "Нет доступа к комнате")
+            raise HTTPException(403, "No access to room")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -254,15 +254,15 @@ async def upload_init(
     if file_size <= 0 or file_size > FileUploadConfig.MAX_FILE_SIZE:
         raise HTTPException(
             400,
-            f"Недопустимый размер файла: {file_size}. "
-            f"Максимум: {FileUploadConfig.MAX_FILE_SIZE // 1024 // 1024} МБ"
+            f"Invalid file size: {file_size}. "
+            f"Maximum: {FileUploadConfig.MAX_FILE_SIZE // 1024 // 1024} MB"
         )
 
     # Валидация имени файла
     if FileAnomalyDetector.detect_null_bytes(file_name):
-        raise HTTPException(400, "Недопустимые символы в имени файла")
+        raise HTTPException(400, "Invalid characters in filename")
     if FileAnomalyDetector.detect_path_traversal(file_name):
-        raise HTTPException(400, "Недопустимое имя файла")
+        raise HTTPException(400, "Invalid filename")
 
     # Валидация хеша
     file_hash = _validate_hex_hash(file_hash, "file_hash")
@@ -274,8 +274,8 @@ async def upload_init(
     if total_chunks > MAX_CHUNKS:
         raise HTTPException(
             400,
-            f"Слишком много чанков: {total_chunks} (максимум {MAX_CHUNKS}). "
-            f"Увеличьте chunk_size."
+            f"Too many chunks: {total_chunks} (maximum {MAX_CHUNKS}). "
+            f"Increase chunk_size."
         )
 
     # Создаём временную директорию
@@ -333,13 +333,13 @@ async def upload_chunk(
     """
     session = await _store.get(upload_id)
     if not session:
-        raise HTTPException(404, "Сессия загрузки не найдена или истекла. Начните заново.")
+        raise HTTPException(404, "Upload session not found or expired. Start over.")
     if session.user_id != u.id:
-        raise HTTPException(403, "Нет доступа к сессии загрузки")
+        raise HTTPException(403, "No access to upload session")
 
     if not (0 <= chunk_index < session.total_chunks):
-        raise HTTPException(400, f"Недопустимый номер чанка: {chunk_index} "
-                                 f"(ожидается 0–{session.total_chunks - 1})")
+        raise HTTPException(400, f"Invalid chunk index: {chunk_index} "
+                                 f"(expected 0-{session.total_chunks - 1})")
 
     # Идемпотентность: чанк уже принят
     if chunk_index in session.received:
@@ -353,7 +353,7 @@ async def upload_chunk(
     # Читаем данные
     raw = await data.read()
     if not raw:
-        raise HTTPException(400, f"Пустой чанк {chunk_index}")
+        raise HTTPException(400, f"Empty chunk {chunk_index}")
 
     # Проверяем хеш чанка
     chunk_hash    = _validate_hex_hash(chunk_hash, "chunk_hash")
@@ -361,8 +361,8 @@ async def upload_chunk(
     if actual_hash != chunk_hash:
         raise HTTPException(
             400,
-            f"Хеш чанка {chunk_index} не совпадает. "
-            f"Ожидался: {chunk_hash[:16]}…, получен: {actual_hash[:16]}…"
+            f"Chunk {chunk_index} hash mismatch. "
+            f"Expected: {chunk_hash[:16]}..., got: {actual_hash[:16]}..."
         )
 
     # Атомарная запись: сначала во временный файл, потом rename
@@ -404,9 +404,9 @@ async def upload_status(
     """
     session = await _store.get(upload_id)
     if not session:
-        raise HTTPException(404, "Сессия загрузки не найдена или истекла")
+        raise HTTPException(404, "Upload session not found or expired")
     if session.user_id != u.id:
-        raise HTTPException(403, "Нет доступа к сессии загрузки")
+        raise HTTPException(403, "No access to upload session")
 
     return {
         "upload_id":    upload_id,
@@ -444,16 +444,16 @@ async def upload_complete(
     """
     session = await _store.get(upload_id)
     if not session:
-        raise HTTPException(404, "Сессия загрузки не найдена или истекла")
+        raise HTTPException(404, "Upload session not found or expired")
     if session.user_id != u.id:
-        raise HTTPException(403, "Нет доступа к сессии загрузки")
+        raise HTTPException(403, "No access to upload session")
 
     missing = session.missing_chunks()
     if missing:
         raise HTTPException(
             400,
             {
-                "error":   "Загрузка не завершена — есть незагруженные чанки",
+                "error":   "Upload incomplete — there are missing chunks",
                 "missing": missing[:20],
                 "count":   len(missing),
             }
@@ -465,7 +465,7 @@ async def upload_complete(
         chunk_path = session.chunk_dir / f"{idx:06d}.chunk"
         if not chunk_path.exists():
             # Это не должно произойти, но защищаемся
-            raise HTTPException(500, f"Чанк {idx} отсутствует на диске — повторите загрузку")
+            raise HTTPException(500, f"Chunk {idx} missing on disk — retry upload")
         assembled.extend(chunk_path.read_bytes())
 
     content = bytes(assembled)
@@ -477,19 +477,19 @@ async def upload_complete(
         await _store.delete(upload_id)
         raise HTTPException(
             400,
-            f"Хеш файла не совпадает. "
-            f"Ожидался: {session.file_hash[:16]}…, получен: {actual_hash[:16]}…"
+            f"File hash mismatch. "
+            f"Expected: {session.file_hash[:16]}..., got: {actual_hash[:16]}..."
         )
 
     # ── Проверки безопасности ─────────────────────────────────────────────────
     if FileAnomalyDetector.detect_zip_bomb_indicators(content):
         await _store.delete(upload_id)
-        raise HTTPException(400, "Файл имеет признаки архивной бомбы")
+        raise HTTPException(400, "File appears to be an archive bomb")
 
     mime_ok, mime_result = validate_file_mime_type(content, session.file_name)
     if not mime_ok:
         await _store.delete(upload_id)
-        raise HTTPException(415, mime_result or "Неподдерживаемый тип файла")
+        raise HTTPException(415, mime_result or "Unsupported file type")
     mime_type = mime_result
 
     is_image = mime_type and mime_type.startswith("image/")
@@ -500,7 +500,7 @@ async def upload_complete(
         img_ok, img_err = await FileAnomalyDetector.validate_image_content(content)
         if not img_ok:
             await _store.delete(upload_id)
-            raise HTTPException(400, img_err or "Неверное содержимое изображения")
+            raise HTTPException(400, img_err or "Invalid image content")
 
     # ── Сохранение файла ──────────────────────────────────────────────────────
     ext        = Path(session.file_name).suffix.lower()
@@ -598,9 +598,9 @@ async def upload_cancel(
     """
     session = await _store.get(upload_id)
     if not session:
-        return {"ok": True, "message": "Сессия не найдена (уже завершена или истекла)"}
+        return {"ok": True, "message": "Session not found (already completed or expired)"}
     if session.user_id != u.id:
-        raise HTTPException(403, "Нет доступа к сессии загрузки")
+        raise HTTPException(403, "No access to upload session")
 
     await _store.delete(upload_id)
     logger.info(f"[UploadCancel] user={u.username} upload_id={upload_id}")
@@ -624,6 +624,6 @@ async def cleanup_sessions_loop(interval_sec: int = 3600) -> None:
         try:
             n = await _store.cleanup_expired()
             if n:
-                logger.info(f"[ResumableCleanup] Удалено {n} протухших сессий")
+                logger.info(f"[ResumableCleanup] Removed {n} expired sessions")
         except Exception as exc:
-            logger.error(f"[ResumableCleanup] Ошибка очистки: {exc}")
+            logger.error(f"[ResumableCleanup] Cleanup error: {exc}")

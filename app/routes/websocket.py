@@ -129,7 +129,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
-                await client.send({"type": "error", "message": "Неверный JSON"})
+                await client.send({"type": "error", "message": "Invalid JSON"})
                 continue
 
             msg_type = msg.get("type", "")
@@ -137,13 +137,13 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             if msg_type == "hello":
                 raw_key = msg.get("public_key")
                 if not raw_key:
-                    await client.send({"type": "error", "message": "Нет public_key в hello"})
+                    await client.send({"type": "error", "message": "Missing public_key in hello"})
                     continue
 
                 try:
                     client.public_key = base64.b64decode(raw_key)
                 except Exception:
-                    await client.send({"type": "error", "message": "Неверный base64 в public_key"})
+                    await client.send({"type": "error", "message": "Invalid base64 in public_key"})
                     continue
 
                 client.handshake_done = True
@@ -157,7 +157,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             elif msg_type == "join":
                 room_id = msg.get("room_id")
                 if not isinstance(room_id, int):
-                    await client.send({"type": "error", "message": "room_id должен быть int"})
+                    await client.send({"type": "error", "message": "room_id must be an integer"})
                     continue
 
                 client.room_id = room_id
@@ -182,16 +182,16 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
             elif msg_type == "message":
                 if not client.handshake_done:
-                    await client.send({"type": "error", "message": "Сначала выполни hello"})
+                    await client.send({"type": "error", "message": "Send hello first"})
                     continue
 
                 if client.room_id is None:
-                    await client.send({"type": "error", "message": "Сначала выполни join"})
+                    await client.send({"type": "error", "message": "Send join first"})
                     continue
 
                 ciphertext_b64 = msg.get("ciphertext")
                 if not ciphertext_b64:
-                    await client.send({"type": "error", "message": "Нет ciphertext в message"})
+                    await client.send({"type": "error", "message": "Missing ciphertext in message"})
                     continue
 
                 target_id: Optional[str] = msg.get("to")
@@ -208,7 +208,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     if target and target.room_id == client.room_id:
                         await target.send(relay_payload)
                     else:
-                        await client.send({"type": "error", "message": f"Клиент {target_id} не найден"})
+                        await client.send({"type": "error", "message": f"Client {target_id} not found"})
                 else:
                     for peer in _clients_in_room(client.room_id):
                         if peer.client_id != client_id:
@@ -233,7 +233,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         })
 
             else:
-                await client.send({"type": "error", "message": f"Неизвестный тип: {msg_type}"})
+                await client.send({"type": "error", "message": f"Unknown type: {msg_type}"})
 
     except WebSocketDisconnect:
         logger.info(f"WS отключился: {client_id}")

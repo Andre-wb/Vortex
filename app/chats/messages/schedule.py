@@ -78,14 +78,14 @@ async def handle_schedule_message(room_id: int, user: User, data: dict, db: Sess
         days  = remaining.days
         hours = remaining.seconds // 3600
         if days > 0:
-            time_str = f"{days} дн. {hours} ч."
+            time_str = f"{days}d {hours}h"
         elif hours > 0:
-            time_str = f"{hours} ч. {remaining.seconds % 3600 // 60} мин."
+            time_str = f"{hours}h {remaining.seconds % 3600 // 60}m"
         else:
-            time_str = f"{remaining.seconds // 60} мин."
+            time_str = f"{remaining.seconds // 60}m"
         await manager.send_to_user(room_id, user.id, {
             "type":    "error",
-            "message": f"Вы заглушены на платформе. Осталось: {time_str}",
+            "message": f"You are muted on the platform. Remaining: {time_str}",
             "code":    "global_muted",
         })
         return
@@ -102,11 +102,11 @@ async def handle_schedule_message(room_id: int, user: User, data: dict, db: Sess
         if scheduled_at.tzinfo is None:
             scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
     except (ValueError, AttributeError):
-        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Некорректная дата"})
+        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Invalid date"})
         return
 
     if scheduled_at <= datetime.now(timezone.utc):
-        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Дата должна быть в будущем"})
+        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Date must be in the future"})
         return
 
     try:
@@ -136,7 +136,7 @@ async def handle_schedule_message(room_id: int, user: User, data: dict, db: Sess
     })
     await manager.send_to_user(room_id, user.id, {
         "type":    "system",
-        "message": f"Сообщение запланировано на {scheduled_at.strftime('%d.%m.%Y %H:%M')}",
+        "message": f"Message scheduled for {scheduled_at.strftime('%Y-%m-%d %H:%M')}",
     })
 
 

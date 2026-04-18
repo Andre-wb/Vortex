@@ -224,20 +224,20 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         except Exception as e:
             logger.error(f"CSRF read error: {e}", exc_info=True)
-            return JSONResponse({"error": "Ошибка проверки CSRF"}, status_code=500)
+            return JSONResponse({"error": "CSRF verification error"}, status_code=500)
 
         if not submitted:
             logger.warning(f"CSRF: нет токена для {request.method} {path}")
             return JSONResponse(
-                {"error": "CSRF токен не предоставлен",
-                 "hint": "Добавьте X-CSRF-Token заголовок или поле csrf_token"},
+                {"error": "CSRF token not provided",
+                 "hint": "Add X-CSRF-Token header or csrf_token field"},
                 status_code=403, headers={"X-CSRF-Required": "true"}
             )
 
         if not secrets.compare_digest(str(submitted), str(csrf_cookie)):
             logger.warning(f"CSRF: неверный токен для {path}")
             return JSONResponse(
-                {"error": "Недействительный CSRF токен"},
+                {"error": "Invalid CSRF token"},
                 status_code=403, headers={"X-CSRF-Required": "true"}
             )
 

@@ -50,14 +50,14 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         days = remaining.days
         hours = remaining.seconds // 3600
         if days > 0:
-            time_str = f"{days} дн. {hours} ч."
+            time_str = f"{days}d {hours}h"
         elif hours > 0:
-            time_str = f"{hours} ч. {remaining.seconds % 3600 // 60} мин."
+            time_str = f"{hours}h {remaining.seconds % 3600 // 60}m"
         else:
-            time_str = f"{remaining.seconds // 60} мин."
+            time_str = f"{remaining.seconds // 60}m"
         await manager.send_to_user(room_id, user.id, {
             "type":    "error",
-            "message": f"Вы заглушены на платформе. Осталось: {time_str}",
+            "message": f"You are muted on the platform. Remaining: {time_str}",
             "code":    "global_muted",
         })
         return
@@ -66,7 +66,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
     if not manager.check_rate_limit(room_id, user.id):
         await manager.send_to_user(room_id, user.id, {
             "type":    "error",
-            "message": "Слишком много сообщений. Пожалуйста, подождите.",
+            "message": "Too many messages. Please wait.",
             "code":    "rate_limited",
         })
         return
@@ -95,7 +95,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
                 remaining = int((member_flood.muted_until - datetime.now(timezone.utc)).total_seconds())
                 await manager.send_to_user(room_id, user.id, {
                     "type":    "error",
-                    "message": f"\u0412\u044b \u0437\u0430\u0433\u043b\u0443\u0448\u0435\u043d\u044b. \u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c {remaining} \u0441\u0435\u043a.",
+                    "message": f"You are muted. Remaining: {remaining} sec.",
                     "code":    "flood_muted",
                 })
                 return
@@ -130,7 +130,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         ).first()
         if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
             await manager.send_to_user(room_id, user.id, {
-                "type": "error", "message": "Только администраторы могут публиковать в канале"
+                "type": "error", "message": "Only admins can post in channels"
             })
             return
 
@@ -152,7 +152,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
                     remaining = int(room_obj.slow_mode_seconds - elapsed)
                     await manager.send_to_user(room_id, user.id, {
                         "type": "error",
-                        "message": f"Подождите {remaining} сек (slow mode)",
+                        "message": f"Please wait {remaining} sec (slow mode)",
                         "code": "slow_mode",
                     })
                     return
@@ -165,11 +165,11 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
 
     if len(ciphertext_hex) < 48:
         await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext слишком короткий"
+            "type": "error", "message": "Ciphertext too short"
         })
         return
 
-    # ── Дедупликация по client_msg_id ─────────────────────────────────────────
+    # ── Deduplication by client_msg_id ─────────────────────────────────────────
     if client_msg_id:
         dedup_key = f"msg:{room_id}:{client_msg_id}"
         if await manager.is_duplicate_message(dedup_key):
@@ -185,7 +185,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         ciphertext_bytes = bytes.fromhex(ciphertext_hex)
     except ValueError:
         await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext не является корректным hex"
+            "type": "error", "message": "Ciphertext is not valid hex"
         })
         return
 
@@ -250,7 +250,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         db.rollback()
         logger.error("Failed to save message in room %s: %s", room_id, e)
         await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ошибка сохранения сообщения",
+            "type": "error", "message": "Failed to save message",
         })
         return
 
@@ -418,7 +418,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
 
     if len(ciphertext_hex) < 48:
         await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext слишком короткий"
+            "type": "error", "message": "Ciphertext too short"
         })
         return
 
@@ -428,14 +428,14 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         days = remaining.days
         hours = remaining.seconds // 3600
         if days > 0:
-            time_str = f"{days} дн. {hours} ч."
+            time_str = f"{days}d {hours}h"
         elif hours > 0:
-            time_str = f"{hours} ч. {remaining.seconds % 3600 // 60} мин."
+            time_str = f"{hours}h {remaining.seconds % 3600 // 60}m"
         else:
-            time_str = f"{remaining.seconds // 60} мин."
+            time_str = f"{remaining.seconds // 60}m"
         await manager.send_to_user(room_id, user.id, {
             "type":    "error",
-            "message": f"Вы заглушены на платформе. Осталось: {time_str}",
+            "message": f"You are muted on the platform. Remaining: {time_str}",
             "code":    "global_muted",
         })
         return
@@ -443,7 +443,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     # Rate limiting
     if not manager.check_rate_limit(room_id, user.id):
         await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Слишком много сообщений.", "code": "rate_limited",
+            "type": "error", "message": "Too many messages. Please wait.", "code": "rate_limited",
         })
         return
 
@@ -461,7 +461,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
             if member_flood and member_flood.muted_until and member_flood.muted_until > datetime.now(timezone.utc):
                 remaining = int((member_flood.muted_until - datetime.now(timezone.utc)).total_seconds())
                 await manager.send_to_user(room_id, user.id, {
-                    "type": "error", "message": f"\u0412\u044b \u0437\u0430\u0433\u043b\u0443\u0448\u0435\u043d\u044b. \u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c {remaining} \u0441\u0435\u043a.", "code": "flood_muted",
+                    "type": "error", "message": f"You are muted. Remaining: {remaining} sec.", "code": "flood_muted",
                 })
                 return
             _cfg2 = _get_as_cfg2(_room_for_flood) if _room_for_flood else {}
@@ -475,7 +475,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     ).first()
     if not root_msg:
         await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Корневое сообщение треда не найдено"
+            "type": "error", "message": "Thread root message not found"
         })
         return
 
@@ -492,7 +492,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         ciphertext_bytes = bytes.fromhex(ciphertext_hex)
     except ValueError:
         await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext не является корректным hex"
+            "type": "error", "message": "Ciphertext is not valid hex"
         })
         return
 
@@ -535,7 +535,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         db.rollback()
         logger.error("Failed to save thread reply in room %s: %s", room_id, e)
         await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ошибка сохранения ответа в треде",
+            "type": "error", "message": "Failed to save thread reply",
         })
         return
 

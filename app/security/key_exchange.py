@@ -105,7 +105,7 @@ def ecies_encrypt(plaintext: bytes, recipient_pub_hex: str) -> dict:
         Для JSON payload размер ciphertext будет больше.
     """
     if len(recipient_pub_hex) != 64:
-        raise ValueError(f"recipient_pub_hex должен быть 64 hex chars, получено {len(recipient_pub_hex)}")
+        raise ValueError(f"recipient_pub_hex must be 64 hex chars, got {len(recipient_pub_hex)}")
 
     recipient_pub = bytes.fromhex(recipient_pub_hex)
 
@@ -200,7 +200,7 @@ def decrypt_p2p_payload(ephemeral_pub_hex: str, ciphertext_hex: str,
         raw   = ecies_decrypt_node(ephemeral_pub_hex, ciphertext_hex, our_node_private)
         return json.loads(raw.decode("utf-8"))
     except Exception as e:
-        raise ValueError(f"Не удалось расшифровать P2P payload: {e}") from e
+        raise ValueError(f"Failed to decrypt P2P payload: {e}") from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════

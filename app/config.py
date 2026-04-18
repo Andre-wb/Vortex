@@ -79,8 +79,37 @@ class Config:
     WAF_BLOCK_DURATION = int(os.getenv("WAF_BLOCK_DURATION", "3600"))
 
     # ── Global Mode ───────────────────────────────────────────────────────
-    NETWORK_MODE = os.getenv("NETWORK_MODE", "local")  # "local" или "global"
+    # NETWORK_MODE: how the node discovers others
+    #   "local"  — LAN-only via UDP broadcast (default, fully offline-capable)
+    #   "global" — register with the official vortexx.sol controller
+    #   "custom" — register with a user-specified controller (see CONTROLLER_URL)
+    NETWORK_MODE = os.getenv("NETWORK_MODE", "local")
     BOOTSTRAP_PEERS = os.getenv("BOOTSTRAP_PEERS", "")  # ip:port через запятую
+
+    # Controller for "global" / "custom" modes
+    CONTROLLER_URL = os.getenv("CONTROLLER_URL", "").strip()
+    # Pinned controller public key (hex). Set per release for "global".
+    # For "custom" mode the user pastes it in the wizard.
+    CONTROLLER_PUBKEY = os.getenv("CONTROLLER_PUBKEY", "").strip()
+    # Heartbeat interval to controller (seconds)
+    CONTROLLER_HEARTBEAT_SEC = int(os.getenv("CONTROLLER_HEARTBEAT_SEC", "60"))
+    # Endpoints this node announces to the controller (comma-separated URLs)
+    # Example: "wss://my.node.example:9000,http://abc.trycloudflare.com"
+    NODE_ANNOUNCE_ENDPOINTS = os.getenv("NODE_ANNOUNCE_ENDPOINTS", "").strip()
+
+    # Comma-separated alternative controller URLs for auto-failover. Used
+    # when the primary controller reports integrity failure or is overloaded.
+    CONTROLLER_FALLBACK_URLS = os.getenv("CONTROLLER_FALLBACK_URLS", "").strip()
+    # Expected release public key (hex) — the Ed25519 key that must have signed
+    # the controller's INTEGRITY.sig.json manifest. Pin this in your build so
+    # a swapped-key controller can't impersonate the real one.
+    CONTROLLER_RELEASE_PUBKEY = os.getenv("CONTROLLER_RELEASE_PUBKEY", "").strip().lower()
+
+    # Solana on-chain registry (Phase 5) — optional, adds peer discovery via
+    # the Anchor program at SOLANA_PROGRAM_ID. When both are set, migration-
+    # hint merges on-chain peers with controller-sourced peers.
+    SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL", "").strip()
+    SOLANA_PROGRAM_ID = os.getenv("SOLANA_PROGRAM_ID", "").strip()
     # Obfuscation disabled in TESTING mode to avoid probe detector blocking test requests
     OBFUSCATION_ENABLED = (
         os.getenv("OBFUSCATION_ENABLED", "true").lower() == "true"
@@ -188,8 +217,16 @@ class Config:
         db_parent = Path(cls.DB_PATH).parent
         if str(db_parent) != "." and not db_parent.exists():
             logger.warning("Config: DB_PATH parent directory does not exist: %s", db_parent)
-        if cls.NETWORK_MODE not in ("local", "global"):
-            logger.warning("Config: NETWORK_MODE=%r is invalid (expected 'local' or 'global')", cls.NETWORK_MODE)
+        if cls.NETWORK_MODE not in ("local", "global", "custom"):
+            logger.warning(
+                "Config: NETWORK_MODE=%r is invalid (expected 'local', 'global', or 'custom')",
+                cls.NETWORK_MODE,
+            )
+        if cls.NETWORK_MODE in ("global", "custom") and not cls.CONTROLLER_URL:
+            logger.warning(
+                "Config: NETWORK_MODE=%r but CONTROLLER_URL is empty — node won't register",
+                cls.NETWORK_MODE,
+            )
         if cls.REGISTRATION_MODE not in ("open", "invite", "closed"):
             logger.warning("Config: REGISTRATION_MODE=%r is invalid (expected 'open', 'invite', or 'closed')", cls.REGISTRATION_MODE)
         if not (1 <= cls.MAX_FILE_MB <= 10000):

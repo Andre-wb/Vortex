@@ -36,7 +36,7 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
         RoomMember.is_banned == False,
     ).first()
     if not m:
-        raise HTTPException(403, "Вы не участник этой комнаты")
+        raise HTTPException(403, "You are not a member of this room")
     return m
 
 
@@ -105,7 +105,7 @@ async def create_task(
             RoomMember.is_banned == False,
         ).first()
         if not assignee_member:
-            raise HTTPException(400, "Назначенный пользователь не является участником комнаты")
+            raise HTTPException(400, "Assigned user is not a room member")
 
     task = RoomTask(
         room_id=room_id,
@@ -135,7 +135,7 @@ async def update_task(
         RoomTask.room_id == room_id,
     ).first()
     if not task:
-        raise HTTPException(404, "Задача не найдена")
+        raise HTTPException(404, "Task not found")
 
     if body.is_done is not None:
         task.is_done = body.is_done
@@ -150,7 +150,7 @@ async def update_task(
                 RoomMember.is_banned == False,
             ).first()
             if not assignee_member:
-                raise HTTPException(400, "Назначенный пользователь не является участником комнаты")
+                raise HTTPException(400, "Assigned user is not a room member")
             task.assignee_id = body.assignee_id
         else:
             task.assignee_id = None
@@ -175,11 +175,11 @@ async def delete_task(
         RoomTask.room_id == room_id,
     ).first()
     if not task:
-        raise HTTPException(404, "Задача не найдена")
+        raise HTTPException(404, "Task not found")
 
     # Only creator, admin, or owner can delete
     if task.creator_id != u.id and member.role not in (RoomRole.ADMIN, RoomRole.OWNER):
-        raise HTTPException(403, "Только создатель задачи или администратор может удалить её")
+        raise HTTPException(403, "Only the task creator or an admin can delete it")
 
     db.delete(task)
     db.commit()
