@@ -69,6 +69,31 @@ target/
 node_modules/
 package-lock.json
 
+# Anchor / Solana build artifacts
+.anchor/
+test-ledger/
+solana_program/target/
+solana_program/target/idl/
+solana_program/target/types/
+solana_program/target/deploy/*.json
+!solana_program/target/deploy/vortex_registry-keypair.json.example
+
+# Wizard user-state (desktop app writes env + keys into OS-standard dirs;
+# when developing in-tree we sometimes point it at ./local/ instead)
+.vortex/
+vortex_wizard/dist/
+vortex_wizard/build/
+vortex_wizard/.vortex/
+
+# 24-word recovery phrases — anything that looks like a seed download
+# must never be committed. The wizard's "Download .txt" button writes
+# vortex-seed.txt in particular.
+vortex-seed.txt
+*-seed.txt
+*-mnemonic.txt
+mnemonic-*.txt
+seed-phrase*.txt
+
 # Docker
 docker-compose.override.yml
 
