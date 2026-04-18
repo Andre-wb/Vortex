@@ -26,9 +26,13 @@ env/
 file::memory:
 :file::memory:
 
-# User Data
+# User Data — matches these dirs anywhere in the tree (e.g. runtime
+# uploads/ written under static/ or Gravitix/). The `!app/keys/` line
+# carves out the Python package from the broad `keys/` rule so source
+# files like app/keys/prekeys.py stay tracked.
 uploads/
 keys/
+!app/keys/
 certs/
 backups/
 logs/
