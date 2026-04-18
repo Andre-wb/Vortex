@@ -93,15 +93,15 @@ async def validate_port(port: int):
     Возвращает ok: True/False и сообщение.
     """
     if not (1024 <= port <= 65535):
-        return {"ok": False, "message": "Порт должен быть от 1024 до 65535"}
+        return {"ok": False, "message": "Port must be between 1024 and 65535"}
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         s.bind(("127.0.0.1", port))
         s.close()
-        return {"ok": True, "message": f"Порт {port} свободен"}
+        return {"ok": True, "message": f"Port {port} is available"}
     except OSError:
-        return {"ok": False, "message": f"Порт {port} уже занят"}
+        return {"ok": False, "message": f"Port {port} is already in use"}
 
 
 @wizard_app.post("/api/ssl/self-signed")
@@ -137,7 +137,7 @@ async def ssl_letsencrypt(body: LetsEncryptRequest):
     Требует указания домена и email.
     """
     if not body.domain:
-        raise HTTPException(400, "Укажите домен")
+        raise HTTPException(400, "Please specify a domain")
     result = generate_letsencrypt(
         cert_dir = CERT_DIR,
         domain   = body.domain,
@@ -193,7 +193,7 @@ async def ssl_status():
 @wizard_app.get("/api/ssl/skip")
 async def ssl_skip():
     """Пропустить SSL — запускать по HTTP."""
-    return {"ok": True, "message": "SSL пропущен, узел будет работать по HTTP"}
+    return {"ok": True, "message": "SSL skipped, node will run on HTTP"}
 
 
 @wizard_app.get("/api/check-cloudflared")
@@ -210,7 +210,7 @@ async def check_cloudflared():
 async def save_sso(body: SSOConfig):
     """Сохраняет конфигурацию SSO/OAuth провайдеров в .env файл."""
     _write_sso_env(body)
-    return {"ok": True, "message": "SSO конфигурация сохранена"}
+    return {"ok": True, "message": "SSO configuration saved"}
 
 
 @wizard_app.post("/api/config/save")
@@ -220,12 +220,12 @@ async def save_config(body: NodeConfig):
     Генерирует секреты JWT и CSRF, если их ещё нет.
     """
     if not body.device_name.strip():
-        raise HTTPException(400, "Укажите имя устройства")
+        raise HTTPException(400, "Please specify a device name")
     if not (1024 <= body.port <= 65535):
-        raise HTTPException(400, "Неверный порт")
+        raise HTTPException(400, "Invalid port")
 
     _write_env(body)
-    return {"ok": True, "message": "Конфигурация сохранена"}
+    return {"ok": True, "message": "Configuration saved"}
 
 
 @wizard_app.post("/api/setup/complete")
@@ -250,6 +250,6 @@ async def complete_setup():
 
     return {
         "ok": True,
-        "message": "Настройка завершена! Запускаем узел...",
+        "message": "Setup complete! Launching node...",
         "url": f"{proto}://localhost:{port}",
     }

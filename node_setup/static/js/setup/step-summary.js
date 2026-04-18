@@ -11,7 +11,7 @@ async function buildSummary() {
         ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> HTTP (no SSL)'
         : '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> HTTPS';
     const modes    = { self: 'Self-signed', mkcert: 'mkcert', le: "Let's Encrypt", skip: 'Disabled' };
-    const netModes = { local: 'Local', global: 'Global' };
+    const netModes = { local: 'Local', global: 'Global (vortexx.sol)', custom: 'Custom controller' };
     const regModes = { open: 'Open', invite: 'Invite code', closed: 'Closed' };
     const ip       = state.sysInfo?.local_ips?.[0] || '—';
 
@@ -82,10 +82,25 @@ async function launchNode() {
     btn.innerHTML = '<span class="spinner"></span> Saving...';
 
     try {
+        const controllerUrl = _networkMode === 'custom'
+            ? (document.getElementById('controller-url')?.value.trim() || '')
+            : '';
+        const controllerPubkey = _networkMode === 'custom'
+            ? (document.getElementById('controller-pubkey')?.value.trim() || '')
+            : '';
+        const announceEndpoints = _networkMode === 'global'
+            ? (document.getElementById('announce-endpoints')?.value.trim() || '')
+            : _networkMode === 'custom'
+                ? (document.getElementById('announce-endpoints-custom')?.value.trim() || '')
+                : '';
+
         const configBody = Object.assign({}, state.config, {
-            network_mode:      _networkMode,
-            registration_mode: _regMode,
-            invite_code:       _inviteCode,
+            network_mode:       _networkMode,
+            registration_mode:  _regMode,
+            invite_code:        _inviteCode,
+            controller_url:     controllerUrl,
+            controller_pubkey:  controllerPubkey,
+            announce_endpoints: announceEndpoints,
         });
 
         const r1 = await fetch('/api/config/save', {

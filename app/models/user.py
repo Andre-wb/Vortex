@@ -1,5 +1,5 @@
 """
-app/models/user.py — Модели пользователей, устройств и Pydantic-схемы аутентификации.
+app/models/user.py — User models, device models, and Pydantic authentication schemas.
 """
 from __future__ import annotations
 
@@ -33,11 +33,11 @@ class User(Base):
     reply_color      = Column(String(20),  nullable=True)   # Custom color for reply bubbles (hex, e.g. "#7c3aed")
     reply_icon       = Column(String(10),  nullable=True)   # Custom emoji icon for reply bubbles
 
-    # X25519 публичный ключ пользователя — генерируется НА КЛИЕНТЕ при регистрации.
-    # Сервер никогда не видит приватный ключ.
+    # X25519 public key of the user — generated ON THE CLIENT during registration.
+    # Server never sees the private key.
     x25519_public_key = Column(String(64), nullable=True, index=True)  # hex(32 bytes)
 
-    # Kyber-768 (ML-KEM) публичный ключ — для гибридного пост-квантового обмена ключами.
+    # Kyber-768 (ML-KEM) public key — for hybrid post-quantum key exchange.
     kyber_public_key = Column(Text, nullable=True)
 
     # Rich status: custom text + emoji + presence
@@ -78,7 +78,7 @@ class User(Base):
     banned_until       = Column(DateTime, nullable=True)
     strike_count       = Column(Integer,  default=0)
     auto_delete_days   = Column(Integer,  default=0)  # 0 = disabled
-    show_last_seen     = Column(Boolean,  default=True)  # показывать время последнего входа
+    show_last_seen     = Column(Boolean,  default=True)  # show last seen time
 
     room_memberships = relationship(
         "RoomMember", back_populates="user", cascade="all, delete-orphan"
@@ -95,7 +95,7 @@ class User(Base):
 
 
 class UserDevice(Base):
-    """Активное устройство/сессия пользователя."""
+    """Active user device/session."""
     __tablename__ = "user_devices"
 
     id                 = Column(Integer,     primary_key=True, autoincrement=True)
@@ -190,7 +190,7 @@ class SecretShare(Base):
     encrypted_share = Column(Text,        nullable=False)          # ECIES-encrypted share (hex)
     threshold       = Column(Integer,     nullable=False)          # M (min to reconstruct)
     total_shares    = Column(Integer,     nullable=False)          # N
-    label           = Column(String(100), nullable=True)           # e.g. "Алиса"
+    label           = Column(String(100), nullable=True)           # e.g. "Alice"
     status          = Column(String(20),  default="active")        # active, used, revoked
     created_at      = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
 
@@ -269,7 +269,7 @@ class UserStatus(Base):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Pydantic схемы
+# Pydantic schemas
 # ══════════════════════════════════════════════════════════════════════════════
 
 class RegisterRequest(BaseModel):
@@ -281,7 +281,7 @@ class RegisterRequest(BaseModel):
     email:             str | None = Field(None, max_length=255)
     invite_code:       str | None = Field(None, max_length=64)
     x25519_public_key: str = Field(..., min_length=64, max_length=64,
-                                   description="X25519 публичный ключ клиента в hex (32 bytes = 64 chars)")
+                                   description="X25519 client public key in hex (32 bytes = 64 chars)")
 
     @field_validator("phone")
     @classmethod
@@ -290,14 +290,14 @@ class RegisterRequest(BaseModel):
             return None
         c = re.sub(r"[\s\-\(\)]", "", v)
         if not _PHONE_RE.match(c):
-            raise ValueError("Неверный формат номера телефона")
+            raise ValueError("Invalid phone number format")
         return c
 
     @field_validator("username")
     @classmethod
     def v_username(cls, v: str) -> str:
         if not _USER_RE.match(v):
-            raise ValueError("Только буквы, цифры и _ (3–30 символов)")
+            raise ValueError("Only letters, digits and _ (3-30 characters)")
         return v.lower()
 
     @field_validator("email")
@@ -306,7 +306,7 @@ class RegisterRequest(BaseModel):
         if v is None:
             return v
         if not _EMAIL_RE.match(v):
-            raise ValueError("Неверный формат email")
+            raise ValueError("Invalid email format")
         return v.lower()
 
     @field_validator("x25519_public_key")
@@ -315,7 +315,7 @@ class RegisterRequest(BaseModel):
         try:
             key_bytes = bytes.fromhex(v)
             if len(key_bytes) != 32:
-                raise ValueError("Ключ должен быть 32 bytes")
+                raise ValueError("Key must be 32 bytes")
         except ValueError as e:
             raise ValueError(f"x25519_public_key: {e}") from e
         return v.lower()
@@ -327,7 +327,7 @@ class LoginRequest(BaseModel):
 
 
 class KeyLoginRequest(BaseModel):
-    """Беспарольный вход через X25519 challenge-response."""
+    """Passwordless login via X25519 challenge-response."""
     challenge_id: str = Field(..., min_length=32, max_length=32)
     pubkey:       str = Field(..., min_length=64, max_length=64)
     proof:        str = Field(..., min_length=64, max_length=64)
@@ -338,7 +338,7 @@ class KeyLoginRequest(BaseModel):
         try:
             bytes.fromhex(v)
         except ValueError:
-            raise ValueError("Поле должно быть hex строкой")
+            raise ValueError("Field must be a hex string")
         return v.lower()
 
 
@@ -367,7 +367,7 @@ class PasswordStrengthRequest(BaseModel):
 
 
 class SeedLoginRequest(BaseModel):
-    """Вход по username + seed phrase (для анонимных аккаунтов без телефона)."""
+    """Login by username + seed phrase (for anonymous accounts without a phone)."""
     username:    str = Field(..., min_length=3, max_length=30)
     seed_phrase: str = Field(..., min_length=10, max_length=512)
 

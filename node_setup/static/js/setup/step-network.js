@@ -1,17 +1,38 @@
 // node_setup/static/js/setup/step-network.js — шаг 2: режим сети и регистрации
 
 /**
- * Выбирает режим сети (local / global) и обновляет интерфейс.
+ * Выбирает режим сети (local / global / custom) и обновляет интерфейс.
  * @param {string} mode
  */
 function selectNetworkMode(mode) {
     _networkMode = mode;
-    document.getElementById('opt-local').classList.toggle('selected', mode === 'local');
-    document.getElementById('opt-global').classList.toggle('selected', mode === 'global');
-    document.getElementById('global-details').style.display = mode === 'global' ? '' : 'none';
+    ['local', 'global', 'custom'].forEach(m => {
+        const el = document.getElementById('opt-' + m);
+        if (el) el.classList.toggle('selected', mode === m);
+    });
+    document.getElementById('global-details').style.display  = mode === 'global' ? '' : 'none';
+    document.getElementById('custom-details').style.display  = mode === 'custom' ? '' : 'none';
 
     if (mode === 'global') {
         _checkCloudflared();
+        _prefillAnnounceEndpoints('announce-endpoints');
+    } else if (mode === 'custom') {
+        _prefillAnnounceEndpoints('announce-endpoints-custom');
+    }
+}
+
+/**
+ * Подставляет разумные значения по умолчанию в announce endpoints
+ * на основе local IP и порта узла.
+ */
+function _prefillAnnounceEndpoints(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el || el.value.trim()) return;
+
+    const ip = state.sysInfo?.local_ips?.[0];
+    const port = document.getElementById('node-port')?.value || '9000';
+    if (ip) {
+        el.value = `wss://${ip}:${port}`;
     }
 }
 

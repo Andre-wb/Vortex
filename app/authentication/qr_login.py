@@ -117,26 +117,26 @@ async def qr_confirm(body: QRConfirmRequest, request: Request, db: Session = Dep
     """Шаг 2 QR-входа — телефон подтверждает вход через X25519 proof."""
     ip = raw_ip_for_ratelimit(request)
     if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
-        raise HTTPException(429, "Слишком много попыток")
+        raise HTTPException(429, "Too many attempts")
 
     with _qr_lock:
         qs = _qr_sessions.get(body.session_id)
     if not qs or time.monotonic() > qs.expires_at:
-        raise HTTPException(401, "QR-сессия не найдена или истекла")
+        raise HTTPException(401, "QR session not found or expired")
     if qs.confirmed:
-        raise HTTPException(409, "QR-сессия уже использована")
+        raise HTTPException(409, "QR session already used")
 
     with _challenges_lock:
         ch = _challenges.pop(qs.challenge_id, None)
     if not ch or time.monotonic() > ch.expires_at:
-        raise HTTPException(401, "Challenge истёк")
+        raise HTTPException(401, "Challenge expired")
 
     if ch.pubkey_hex != f"QR:{body.session_id}":
-        raise HTTPException(401, "Несоответствие QR-сессии")
+        raise HTTPException(401, "QR session mismatch")
 
     user = db.query(User).filter(User.x25519_public_key == body.pubkey, User.is_active == True).first()
     if not user:
-        raise HTTPException(401, "Пользователь с таким ключом не найден")
+        raise HTTPException(401, "User with this key not found")
 
     server_priv, _ = load_or_create_node_keypair(Config.KEYS_DIR)
     try:
@@ -145,11 +145,11 @@ async def qr_confirm(body: QRConfirmRequest, request: Request, db: Session = Dep
         if isinstance(shared, list):
             shared = bytes(shared)
     except Exception:
-        raise HTTPException(401, "Ошибка вычисления ключа")
+        raise HTTPException(401, "Key computation error")
 
     expected = hmac.new(shared, ch.challenge, hashlib.sha256).hexdigest()
     if not secrets.compare_digest(body.proof, expected):
-        raise HTTPException(401, "Неверный proof")
+        raise HTTPException(401, "Invalid proof")
 
     access_token = create_access_token(user.id, user.phone, user.username)
     raw_refresh, _exp = create_refresh_token(user.id, db,
@@ -172,18 +172,18 @@ async def qr_check(session_id: str, request: Request, db: Session = Depends(get_
     with _qr_lock:
         qs = _qr_sessions.get(session_id)
     if not qs:
-        raise HTTPException(404, "Сессия не найдена")
+        raise HTTPException(404, "Session not found")
     if time.monotonic() > qs.expires_at:
         with _qr_lock:
             _qr_sessions.pop(session_id, None)
-        raise HTTPException(401, "QR-сессия истекла")
+        raise HTTPException(401, "QR session expired")
 
     if not qs.confirmed:
         return {"confirmed": False}
 
     user = db.query(User).filter(User.id == qs.user_id, User.is_active == True).first()
     if not user:
-        raise HTTPException(401, "Пользователь не найден")
+        raise HTTPException(401, "User not found")
 
     with _qr_lock:
         _qr_sessions.pop(session_id, None)

@@ -75,21 +75,21 @@ class ReportRequest(BaseModel):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _format_remaining(td: timedelta) -> str:
-    """Format timedelta as human-readable Russian string."""
+    """Format timedelta as human-readable string."""
     total_secs = int(td.total_seconds())
     if total_secs < 0:
-        return "0 сек"
+        return "0 sec"
     days = total_secs // 86400
     hours = (total_secs % 86400) // 3600
     mins = (total_secs % 3600) // 60
     parts = []
     if days > 0:
-        parts.append(f"{days} дн.")
+        parts.append(f"{days}d")
     if hours > 0:
-        parts.append(f"{hours} ч.")
+        parts.append(f"{hours}h")
     if mins > 0 and days == 0:
-        parts.append(f"{mins} мин.")
-    return " ".join(parts) if parts else "< 1 мин."
+        parts.append(f"{mins}m")
+    return " ".join(parts) if parts else "< 1m"
 
 
 async def _check_and_apply_punishment(user_id: int, db: Session) -> dict | None:
@@ -183,11 +183,11 @@ def _apply_strike(
     db.commit()
 
     punishment_desc = {
-        "mute_3d":       "Глобальный мьют на 3 дня",
-        "mute_7d":       "Глобальный мьют на 7 дней",
-        "mute_30d":      "Глобальный мьют на 30 дней",
-        "ban_3y":        "Бан на платформе на 3 года",
-        "ban_permanent": "Перманентный бан на платформе",
+        "mute_3d":       "Global mute for 3 days",
+        "mute_7d":       "Global mute for 7 days",
+        "mute_30d":      "Global mute for 30 days",
+        "ban_3y":        "Platform ban for 3 years",
+        "ban_permanent": "Permanent platform ban",
     }
 
     logger.warning(
@@ -222,23 +222,23 @@ async def report_user(
     """
     # 1. Self-report protection
     if user_id == u.id:
-        raise HTTPException(400, "Нельзя пожаловаться на себя")
+        raise HTTPException(400, "Cannot report yourself")
 
     # 2. Target exists
     target = db.query(User).filter(User.id == user_id).first()
     if not target:
-        raise HTTPException(404, "Пользователь не найден")
+        raise HTTPException(404, "User not found")
 
     # 3. Bot immunity
     if target.is_bot:
-        raise HTTPException(400, "Нельзя пожаловаться на бота")
+        raise HTTPException(400, "Cannot report a bot")
 
     # 4. Valid reason
     reason = body.reason.strip().lower()
     if reason not in _VALID_REASONS:
         raise HTTPException(
             422,
-            f"Недопустимая причина. Допустимые: {', '.join(sorted(_VALID_REASONS))}",
+            f"Invalid reason. Allowed: {', '.join(sorted(_VALID_REASONS))}",
         )
 
     # 5. Same reporter cooldown (24h)
@@ -256,7 +256,7 @@ async def report_user(
         remaining = recent.created_at + timedelta(hours=_REPORTER_COOLDOWN_HOURS) - datetime.now(timezone.utc)
         raise HTTPException(
             429,
-            f"Вы уже подавали жалобу на этого пользователя. Повторить можно через {_format_remaining(remaining)}",
+            f"You have already reported this user. You can report again in {_format_remaining(remaining)}",
         )
 
     # 6. Check if reporter is admin/owner in any shared room with the target
@@ -319,7 +319,7 @@ async def report_user(
 
     result = {
         "ok":      True,
-        "message": "Жалоба отправлена. Спасибо за помощь в модерации.",
+        "message": "Report submitted. Thank you for helping with moderation.",
     }
     if strike_info:
         result["strike_applied"] = strike_info

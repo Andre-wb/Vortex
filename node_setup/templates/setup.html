@@ -20,7 +20,11 @@
 </div>
 
 <div class="stepbar">
-    <div class="step-dot active" data-n="1" id="sdot-1" onclick="goStep(1)">
+    <div class="step-dot done" data-n="0" id="sdot-0" onclick="goStep(0)">
+        <div class="step-label">🌐</div>
+    </div>
+    <div class="step-line" id="sline-0"></div>
+    <div class="step-dot" data-n="1" id="sdot-1" onclick="goStep(1)">
         <div class="step-label" data-i18n="wizard.stepNode">Node</div>
     </div>
     <div class="step-line" id="sline-1"></div>
@@ -46,6 +50,7 @@
 </div>
 
 <div class="card">
+    <!-- include: partials/step-lang.html -->
     <!-- include: partials/step-1.html -->
     <!-- include: partials/step-2.html -->
     <!-- include: partials/step-3.html -->
@@ -57,6 +62,7 @@
 <script src="/setup/js/setup/utils.js"></script>
 <script src="/setup/js/setup/state.js"></script>
 <script src="/setup/js/setup/nav.js"></script>
+<script src="/setup/js/setup/step-lang.js"></script>
 <script src="/setup/js/setup/step-node.js"></script>
 <script src="/setup/js/setup/step-network.js"></script>
 <script src="/setup/js/setup/step-ssl.js"></script>

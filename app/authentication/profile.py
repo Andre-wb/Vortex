@@ -141,7 +141,7 @@ async def upload_avatar(file: UploadFile = File(...), u: User = Depends(get_curr
             break
         total += len(chunk)
         if total > max_size:
-            raise HTTPException(413, "Макс. 5 МБ")
+            raise HTTPException(413, "Max 5 MB")
         chunks.append(chunk)
     content = b"".join(chunks)
 
@@ -150,7 +150,7 @@ async def upload_avatar(file: UploadFile = File(...), u: User = Depends(get_curr
         img = img.convert("RGB")
         img.thumbnail((256, 256))
     except Exception:
-        raise HTTPException(400, "Неверный формат изображения")
+        raise HTTPException(400, "Invalid image format")
 
     os.makedirs("uploads/avatars", exist_ok=True)
     filename = f"{secrets.token_hex(16)}.jpg"

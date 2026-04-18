@@ -272,7 +272,7 @@ async def panic_verify_password(
 ):
     """Проверяет пароль перед показом модалки подтверждения — не удаляет данные."""
     if not verify_password(body.password, u.password_hash):
-        raise HTTPException(401, "Неверный пароль")
+        raise HTTPException(401, "Invalid password")
     return {"ok": True}
 
 
@@ -290,7 +290,7 @@ async def panic_wipe(
     """
     # 1. Проверяем пароль
     if not verify_password(body.password, u.password_hash):
-        raise HTTPException(401, "Неверный пароль")
+        raise HTTPException(401, "Invalid password")
 
     user_id = u.id
     from app.security.ip_privacy import raw_ip_for_ratelimit
@@ -403,7 +403,7 @@ async def panic_wipe(
     except Exception as e:
         db.rollback()
         logger.error(f"PANIC WIPE failed for user_id={user_id}: {e}", exc_info=True)
-        raise HTTPException(500, f"Ошибка удаления данных: {e}")
+        raise HTTPException(500, f"Data deletion error: {e}")
 
     logger.warning(f"PANIC WIPE completed for user_id={user_id}")
 

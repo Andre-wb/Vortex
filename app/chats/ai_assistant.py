@@ -227,15 +227,15 @@ async def ai_chat(
     Поддерживает streaming.
     """
     if not _AI_ENABLED:
-        raise HTTPException(503, "AI-ассистент отключён (AI_ENABLED=false)")
+        raise HTTPException(503, "AI assistant is disabled (AI_ENABLED=false)")
     if not _check_ai_rate(u.id):
-        raise HTTPException(429, "Слишком много запросов к AI. Подождите минуту.")
+        raise HTTPException(429, "Too many AI requests. Please wait a minute.")
 
     member = db.query(RoomMember).filter(
         RoomMember.room_id == body.room_id, RoomMember.user_id == u.id
     ).first()
     if not member:
-        raise HTTPException(403, "Нет доступа к комнате")
+        raise HTTPException(403, "No access to this room")
 
     history = _get_room_history(body.room_id, min(body.history_n, 50), db)
 
@@ -251,9 +251,9 @@ async def ai_chat(
                 async for token in _ollama_chat_stream(messages):
                     yield token
             except httpx.ConnectError:
-                yield "\n\n[Ошибка: Ollama недоступна. Запустите: ollama serve]"
+                yield "\n\n[Error: Ollama is unavailable. Run: ollama serve]"
             except Exception as e:
-                yield f"\n\n[Ошибка AI: {e}]"
+                yield f"\n\n[AI error: {e}]"
 
         return StreamingResponse(_stream(), media_type="text/plain; charset=utf-8")
 
@@ -262,9 +262,9 @@ async def ai_chat(
         if not result:
             result = "(нет ответа)"
     except httpx.ConnectError:
-        raise HTTPException(503, "Ollama недоступна. Запустите: ollama serve")
+        raise HTTPException(503, "Ollama is unavailable. Run: ollama serve")
     except Exception as e:
-        raise HTTPException(500, f"Ошибка AI: {e}")
+        raise HTTPException(500, f"AI error: {e}")
 
     return {"response": result, "model": _OLLAMA_MODEL}
 
@@ -277,19 +277,19 @@ async def ai_summarize(
 ):
     """Суммаризация последних N сообщений комнаты."""
     if not _AI_ENABLED:
-        raise HTTPException(503, "AI-ассистент отключён")
+        raise HTTPException(503, "AI assistant is disabled")
     if not _check_ai_rate(u.id):
-        raise HTTPException(429, "Слишком много запросов")
+        raise HTTPException(429, "Too many requests")
 
     member = db.query(RoomMember).filter(
         RoomMember.room_id == body.room_id, RoomMember.user_id == u.id
     ).first()
     if not member:
-        raise HTTPException(403, "Нет доступа к комнате")
+        raise HTTPException(403, "No access to this room")
 
     history = _get_room_history(body.room_id, min(body.limit, 100), db)
     if not history:
-        return {"summary": "История чата пуста.", "model": _OLLAMA_MODEL}
+        return {"summary": "Chat history is empty.", "model": _OLLAMA_MODEL}
 
     context = "\n".join(history)
     prompt = (
@@ -300,9 +300,9 @@ async def ai_summarize(
     try:
         result = await _ollama_generate(prompt, system=_SYSTEM_PROMPT)
     except httpx.ConnectError:
-        raise HTTPException(503, "Ollama недоступна. Запустите: ollama serve")
+        raise HTTPException(503, "Ollama is unavailable. Run: ollama serve")
     except Exception as e:
-        raise HTTPException(500, f"Ошибка AI: {e}")
+        raise HTTPException(500, f"AI error: {e}")
 
     return {"summary": result, "messages_analyzed": len(history), "model": _OLLAMA_MODEL}
 
@@ -315,15 +315,15 @@ async def ai_suggest(
 ):
     """Предлагает 3 варианта ответа на последнее сообщение в чате."""
     if not _AI_ENABLED:
-        raise HTTPException(503, "AI-ассистент отключён")
+        raise HTTPException(503, "AI assistant is disabled")
     if not _check_ai_rate(u.id):
-        raise HTTPException(429, "Слишком много запросов")
+        raise HTTPException(429, "Too many requests")
 
     member = db.query(RoomMember).filter(
         RoomMember.room_id == body.room_id, RoomMember.user_id == u.id
     ).first()
     if not member:
-        raise HTTPException(403, "Нет доступа к комнате")
+        raise HTTPException(403, "No access to this room")
 
     history = _get_room_history(body.room_id, 10, db)
     if not history:
@@ -349,9 +349,9 @@ async def ai_suggest(
             import json as _json
             raw = _json.loads(resp.text).get("response", "")
     except httpx.ConnectError:
-        raise HTTPException(503, "Ollama недоступна. Запустите: ollama serve")
+        raise HTTPException(503, "Ollama is unavailable. Run: ollama serve")
     except Exception as e:
-        raise HTTPException(500, f"Ошибка AI: {e}")
+        raise HTTPException(500, f"AI error: {e}")
 
     suggestions = [s.strip() for s in raw.strip().split("\n") if s.strip()][:3]
     return {"suggestions": suggestions, "model": _OLLAMA_MODEL}
@@ -470,11 +470,11 @@ async def ai_fix_text(
 ):
     """Исправить орфографические и грамматические ошибки в тексте."""
     if not _AI_ENABLED:
-        raise HTTPException(503, "AI-ассистент отключён")
+        raise HTTPException(503, "AI assistant is disabled")
     if not _check_ai_rate(u.id):
-        raise HTTPException(429, "Слишком много запросов к AI. Подождите минуту.")
+        raise HTTPException(429, "Too many AI requests. Please wait a minute.")
     if not body.text.strip():
-        raise HTTPException(400, "Пустой текст")
+        raise HTTPException(400, "Empty text")
 
     system = (
         "Ты — корректор текста. Исправь орфографические, грамматические и пунктуационные ошибки. "
@@ -485,9 +485,9 @@ async def ai_fix_text(
     try:
         result = await _qwen_generate(body.text, system=system, temperature=0.2)
     except httpx.ConnectError:
-        raise HTTPException(503, "Qwen3-8B недоступна. Установите transformers+torch или запустите Ollama.")
+        raise HTTPException(503, "Qwen3-8B is unavailable. Install transformers+torch or run Ollama.")
     except Exception as e:
-        raise HTTPException(500, f"Ошибка AI: {e}")
+        raise HTTPException(500, f"AI error: {e}")
 
     return {"result": result, "model": _QWEN_MODEL_NAME}
 
@@ -499,13 +499,13 @@ async def ai_rephrase(
 ):
     """Перефразировать текст в заданном стиле."""
     if not _AI_ENABLED:
-        raise HTTPException(503, "AI-ассистент отключён")
+        raise HTTPException(503, "AI assistant is disabled")
     if not _check_ai_rate(u.id):
-        raise HTTPException(429, "Слишком много запросов к AI. Подождите минуту.")
+        raise HTTPException(429, "Too many AI requests. Please wait a minute.")
     if not body.text.strip():
-        raise HTTPException(400, "Пустой текст")
+        raise HTTPException(400, "Empty text")
     if body.style not in _REPHRASE_STYLES:
-        raise HTTPException(400, f"Неизвестный стиль. Доступны: {', '.join(_REPHRASE_STYLES)}")
+        raise HTTPException(400, f"Unknown style. Available: {', '.join(_REPHRASE_STYLES)}")
 
     system = (
         "Ты — стилист текста. " + _REPHRASE_STYLES[body.style] + " "
@@ -516,8 +516,8 @@ async def ai_rephrase(
     try:
         result = await _qwen_generate(body.text, system=system, temperature=0.6)
     except httpx.ConnectError:
-        raise HTTPException(503, "Qwen3-8B недоступна. Установите transformers+torch или запустите Ollama.")
+        raise HTTPException(503, "Qwen3-8B is unavailable. Install transformers+torch or run Ollama.")
     except Exception as e:
-        raise HTTPException(500, f"Ошибка AI: {e}")
+        raise HTTPException(500, f"AI error: {e}")
 
     return {"result": result, "model": _QWEN_MODEL_NAME}

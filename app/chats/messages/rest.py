@@ -54,7 +54,7 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
         RoomMember.is_banned == False,
     ).first()
     if not member:
-        raise HTTPException(403, "Не участник комнаты")
+        raise HTTPException(403, "Not a room member")
     return member
 
 
@@ -89,13 +89,13 @@ async def send_message(
 ):
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
-        raise HTTPException(404, "Комната не найдена")
+        raise HTTPException(404, "Room not found")
 
     _require_member(room_id, u.id, db)
 
     ciphertext_str = body.ciphertext.strip()
     if not ciphertext_str:
-        raise HTTPException(422, "Пустой ciphertext")
+        raise HTTPException(422, "Empty ciphertext")
 
     # Store as bytes (hex-decode if valid hex, otherwise encode as UTF-8)
     try:
@@ -163,7 +163,7 @@ async def list_messages(
 ):
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
-        raise HTTPException(404, "Комната не найдена")
+        raise HTTPException(404, "Room not found")
 
     _require_member(room_id, u.id, db)
 
@@ -226,11 +226,11 @@ async def edit_message(
         Message.id == msg_id, Message.room_id == room_id,
     ).first()
     if not msg:
-        raise HTTPException(404, "Сообщение не найдено")
+        raise HTTPException(404, "Message not found")
 
     sender_pseudo = compute_sender_pseudo(room_id, u.id)
     if msg.sender_pseudo != sender_pseudo:
-        raise HTTPException(403, "Только автор может редактировать")
+        raise HTTPException(403, "Only the author can edit")
 
     # Save edit history
     old_ciphertext = msg.content_encrypted.hex() if isinstance(msg.content_encrypted, (bytes, bytearray)) else str(msg.content_encrypted or "")
@@ -277,7 +277,7 @@ async def delete_message(
         Message.id == msg_id, Message.room_id == room_id,
     ).first()
     if not msg:
-        raise HTTPException(404, "Сообщение не найдено")
+        raise HTTPException(404, "Message not found")
 
     sender_pseudo = compute_sender_pseudo(room_id, u.id)
     from app.models_rooms import RoomRole
@@ -285,7 +285,7 @@ async def delete_message(
     is_admin = member.role in (RoomRole.OWNER, RoomRole.ADMIN)
 
     if not is_owner and not is_admin:
-        raise HTTPException(403, "Недостаточно прав для удаления")
+        raise HTTPException(403, "Insufficient permissions to delete")
 
     db.delete(msg)
     db.commit()
@@ -316,11 +316,11 @@ async def react_to_message(
         Message.id == msg_id, Message.room_id == room_id,
     ).first()
     if not msg:
-        raise HTTPException(404, "Сообщение не найдено")
+        raise HTTPException(404, "Message not found")
 
     emoji = body.emoji.strip()[:10]
     if not emoji:
-        raise HTTPException(422, "Пустой emoji")
+        raise HTTPException(422, "Empty emoji")
 
     existing = db.query(MessageReaction).filter(
         MessageReaction.message_id == msg_id,

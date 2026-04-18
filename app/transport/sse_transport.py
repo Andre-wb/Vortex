@@ -58,7 +58,7 @@ async def sse_stream(
         RoomMember.is_banned == False,
     ).first()
     if not member:
-        raise HTTPException(403, "Нет доступа")
+        raise HTTPException(403, "Access denied")
 
     queue: asyncio.Queue = asyncio.Queue()
 
@@ -132,7 +132,7 @@ async def sse_send(
         RoomMember.is_banned == False,
     ).first()
     if not member:
-        raise HTTPException(403, "Нет доступа")
+        raise HTTPException(403, "Access denied")
 
     # Отправляем в SSE очереди всех подписчиков этой комнаты
     payload = {**body.data, "type": body.action, "sender_id": u.id}

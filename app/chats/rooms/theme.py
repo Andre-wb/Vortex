@@ -62,7 +62,7 @@ async def set_room_theme(
     else:
         # Regular rooms/channels/groups: admin/owner only
         if m.role not in (RoomRole.OWNER, RoomRole.ADMIN):
-            raise HTTPException(403, "Недостаточно прав для изменения темы")
+            raise HTTPException(403, "Insufficient permissions to change theme")
         r.theme_json = theme_str
         db.commit()
         await manager.broadcast_to_room(room_id, {
@@ -104,7 +104,7 @@ async def reset_room_theme(
         # Any DM participant can reset
         pass
     elif m.role not in (RoomRole.OWNER, RoomRole.ADMIN):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
 
     r.theme_json = None
     db.commit()
@@ -126,9 +126,9 @@ async def accept_dm_theme(
     _require_member(room_id, u.id, db)
     r = db.query(Room).filter(Room.id == room_id).first()
     if not r or not r.is_dm:
-        raise HTTPException(400, "Только для DM")
+        raise HTTPException(400, "DM only")
     if not r.theme_json:
-        raise HTTPException(400, "Нет предложенной темы")
+        raise HTTPException(400, "No proposed theme")
     # Theme is already saved — just notify acceptance
     await manager.broadcast_to_room(room_id, {
         "type": "theme_accepted",
@@ -149,7 +149,7 @@ async def reject_dm_theme(
     _require_member(room_id, u.id, db)
     r = db.query(Room).filter(Room.id == room_id).first()
     if not r or not r.is_dm:
-        raise HTTPException(400, "Только для DM")
+        raise HTTPException(400, "DM only")
     r.theme_json = None
     db.commit()
     await manager.broadcast_to_room(room_id, {

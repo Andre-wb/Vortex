@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 async def send_history(room_id: int, user_id: int, db: Session) -> None:
-    # Исключаем сообщения, принадлежащие тредам (thread_id != None),
-    # чтобы в основном чате показывались только корневые сообщения.
+    # Exclude messages belonging to threads (thread_id != None),
+    # so that only root messages are shown in the main chat.
     messages = (
         db.query(Message)
         .filter(Message.room_id == room_id, Message.thread_id.is_(None))
@@ -33,7 +33,7 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
         .limit(50).all()
     )[::-1]
 
-    # Загружаем реакции для всех сообщений пакетно
+    # Load reactions for all messages in batch
     msg_ids = [m.id for m in messages]
     reactions_map: dict[int, list] = {}
     if msg_ids:
@@ -52,7 +52,7 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
                 "created_at":   r.created_at.isoformat() + "Z" if r.created_at else None,
             })
 
-    # Получаем информацию о прочтении для подсчёта статуса
+    # Get read receipt info for status calculation
     room_members = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
     ).all()
@@ -108,11 +108,11 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
 
     history = []
     for m in messages:
-        # Пропускаем запланированные сообщения
+        # Skip scheduled messages
         if m.is_scheduled:
             continue
 
-        # Опросы (Feature 1) — передаём как poll
+        # Polls (Feature 1) — pass as poll
         if m.msg_type == MessageType.SYSTEM and m.content_encrypted:
             try:
                 poll_data = json.loads(m.content_encrypted.decode())
@@ -175,7 +175,7 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
                 entry["plaintext"] = m.content_encrypted.decode("utf-8")
             except Exception:
                 pass
-        # Вычисляем статус прочтения
+        # Calculate read status
         # Resolve sender's user_id via pseudo (sealed sender) or fallback to sender_id
         _sender_uid = (
             _pseudo_to_uid.get(m.sender_pseudo)
@@ -201,7 +201,7 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
 
         history.append(entry)
 
-    # Получаем закреплённое сообщение
+    # Get pinned message
     room_obj = db.query(Room).filter(Room.id == room_id).first()
     pinned_id = room_obj.pinned_message_id if room_obj else None
     pinned_text = None
@@ -213,7 +213,7 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
             pinned_text = _pinned_msg.content_encrypted.hex() if _pinned_msg.content_encrypted else None
             pinned_sender = _pinned_msg.sender.display_name or _pinned_msg.sender.username if _pinned_msg.sender else None
 
-    # Определяем, является ли собеседник контактом (для DM)
+    # Determine if the other party is a contact (for DM)
     is_contact_flag = True
     other_user_id = None
     is_dm = room_obj.is_dm if room_obj else False

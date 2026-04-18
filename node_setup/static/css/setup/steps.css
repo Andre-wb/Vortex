@@ -8,6 +8,14 @@
     margin-bottom: 24px;
 }
 
+.ssl-options--three {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+@media (max-width: 640px) {
+    .ssl-options--three { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 480px) {
     .ssl-options { grid-template-columns: 1fr; }
 }

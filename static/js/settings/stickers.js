@@ -173,7 +173,7 @@ window.openStickerPackDetail = async function(packId, isOwner) {
         if (stickers.length === 0) {
             var emptyMsg = document.createElement('div');
             emptyMsg.style.cssText = 'grid-column:1/-1;text-align:center;color:var(--text3);padding:24px;font-size:13px;';
-            emptyMsg.textContent = 'No stickers yet';
+            emptyMsg.textContent = (typeof t==='function'?t('stickers.noStickersYet'):'No stickers yet');
             grid.appendChild(emptyMsg);
         } else {
             stickers.forEach(function(st) {

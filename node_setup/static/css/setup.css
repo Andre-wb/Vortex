@@ -3,5 +3,6 @@
 @import url('setup/layout.css');
 @import url('setup/forms.css');
 @import url('setup/components.css');
+@import url('setup/lang-picker.css');
 @import url('setup/steps.css');
 @import url('setup/animations.css');

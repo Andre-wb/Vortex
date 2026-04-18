@@ -43,7 +43,7 @@ async def upload_file(
         from app.federation.federation import relay as _fed_relay
         _fed_info = _fed_relay.get_room(room_id)
         if not _fed_info or u.id not in _fed_info.local_user_ids:
-            raise HTTPException(403, "Нет доступа к комнате")
+            raise HTTPException(403, "No access to room")
     else:
         member = db.query(RoomMember).filter(
             RoomMember.room_id   == room_id,
@@ -51,7 +51,7 @@ async def upload_file(
             RoomMember.is_banned == False,
         ).first()
         if not member:
-            raise HTTPException(403, "Нет доступа к комнате")
+            raise HTTPException(403, "No access to room")
 
     filename = file.filename or "file"
 
@@ -60,20 +60,20 @@ async def upload_file(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(400, f"Ошибка чтения файла: {e}")
+        raise HTTPException(400, f"File read error: {e}")
 
     if FileAnomalyDetector.detect_null_bytes(filename):
-        raise HTTPException(400, "Недопустимые символы в имени файла")
+        raise HTTPException(400, "Invalid characters in filename")
     if FileAnomalyDetector.detect_path_traversal(filename):
-        raise HTTPException(400, "Недопустимое имя файла")
+        raise HTTPException(400, "Invalid filename")
     if check_double_extension(filename):
-        raise HTTPException(400, "Недопустимое расширение файла")
+        raise HTTPException(400, "Invalid file extension")
     if FileAnomalyDetector.detect_zip_bomb_indicators(content):
-        raise HTTPException(400, "Файл имеет признаки архивной бомбы")
+        raise HTTPException(400, "File appears to be an archive bomb")
 
     mime_ok, mime_result = validate_file_mime_type(content, filename)
     if not mime_ok:
-        raise HTTPException(415, mime_result or "Неподдерживаемый тип файла")
+        raise HTTPException(415, mime_result or "Unsupported file type")
     mime_type = mime_result
 
     is_image = mime_type and mime_type.startswith("image/")
@@ -85,7 +85,7 @@ async def upload_file(
     if is_image and not _is_encrypted:
         img_ok, img_err = await FileAnomalyDetector.validate_image_content(content)
         if not img_ok:
-            raise HTTPException(400, img_err or "Неверное содержимое изображения")
+            raise HTTPException(400, img_err or "Invalid image content")
 
     # Strip ALL metadata: images (EXIF/GPS), video (ffmpeg), audio (ID3), PDF (author/dates)
     content = strip_all_metadata(content, mime_type)
@@ -171,7 +171,7 @@ async def download_file(
         FileTransfer.is_available == True,
     ).first()
     if not ft:
-        raise HTTPException(404, "Файл не найден")
+        raise HTTPException(404, "File not found")
 
     member = db.query(RoomMember).filter(
         RoomMember.room_id   == ft.room_id,
@@ -179,11 +179,11 @@ async def download_file(
         RoomMember.is_banned == False,
     ).first()
     if not member:
-        raise HTTPException(403, "Нет доступа")
+        raise HTTPException(403, "Access denied")
 
     path = Config.UPLOAD_DIR / ft.stored_name
     if not path.exists():
-        raise HTTPException(404, "Файл не найден на диске")
+        raise HTTPException(404, "File not found on disk")
 
     from sqlalchemy import update as sa_update
     db.execute(
@@ -211,7 +211,7 @@ async def list_room_files(
         RoomMember.is_banned == False,
     ).first()
     if not member:
-        raise HTTPException(403, "Нет доступа")
+        raise HTTPException(403, "Access denied")
 
     files = db.query(FileTransfer).filter(
         FileTransfer.room_id      == room_id,

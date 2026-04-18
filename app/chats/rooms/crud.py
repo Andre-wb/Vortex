@@ -1,5 +1,5 @@
 """
-rooms_crud — CRUD-операции с комнатами: создание, получение, обновление, удаление, покидание.
+rooms_crud — CRUD operations for rooms: create, read, update, delete, leave.
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Создание комнаты
+# Room creation
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("", status_code=201)
@@ -43,13 +43,13 @@ async def create_room(
         db: Session = Depends(get_db),
 ):
     """
-    Создаёт новую комнату.
+    Creates a new room.
 
-    Клиент обязан передать encrypted_room_key — ключ комнаты, зашифрованный
-    ECIES публичным ключом X25519 создателя. Сервер хранит зашифрованный blob
-    и не может расшифровать его без приватного ключа создателя.
+    Client must provide encrypted_room_key — room key encrypted with
+    ECIES using the creator's X25519 public key. Server stores the encrypted blob
+    and cannot decrypt it without the creator's private key.
 
-    Пример (JavaScript клиент):
+    Example (JavaScript client):
       const roomKey    = crypto.getRandomValues(new Uint8Array(32));
       const encKey     = await eciesEncrypt(roomKey, myPubkeyHex);
       // encKey = {ephemeral_pub: "...", ciphertext: "..."}
@@ -59,14 +59,14 @@ async def create_room(
       })})
     """
     if not u.x25519_public_key:
-        raise HTTPException(400, "Необходим X25519 публичный ключ для создания комнаты")
+        raise HTTPException(400, "X25519 public key required to create a room")
 
-    # Валидируем ECIES payload
+    # Validate ECIES payload
     payload = body.encrypted_room_key.model_dump()
     if not validate_ecies_payload(payload):
-        raise HTTPException(400, "Некорректный encrypted_room_key формат")
+        raise HTTPException(400, "Invalid encrypted_room_key format")
 
-    # Создаём комнату без room_key — сервер не хранит ключ в открытом виде
+    # Create room without room_key — server does not store key in plaintext
     room = Room(
         name        = body.name,
         description = body.description,
@@ -76,15 +76,15 @@ async def create_room(
         invite_code = generative_invite_code(8),
         max_members = 200,
         avatar_emoji = "🔊" if body.is_voice else "💬",
-        # room_key намеренно отсутствует
+        # room_key intentionally absent
     )
     db.add(room)
-    db.flush()  # получаем room.id
+    db.flush()  # get room.id
 
-    # Создаём участника-владельца
+    # Create owner member
     db.add(RoomMember(room_id=room.id, user_id=u.id, role=RoomRole.OWNER))
 
-    # Сохраняем зашифрованный ключ для создателя
+    # Save encrypted key for creator
     db.add(EncryptedRoomKey(
         room_id       = room.id,
         user_id       = u.id,
@@ -105,12 +105,12 @@ async def create_room(
 
     return JSONResponse(status_code=201, content={
         **_room_dict(room),
-        "has_key": True,   # создатель уже имеет ключ
+        "has_key": True,   # creator already has the key
     })
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Стандартные операции с комнатами
+# Standard room operations
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/my")
@@ -121,7 +121,7 @@ async def my_rooms(u: User = Depends(get_current_user), db: Session = Depends(ge
     ids = list(member_map.keys())
     rooms = db.query(Room).filter(Room.id.in_(ids), Room.is_dm == False, Room.is_channel == False).all()
 
-    # Для каждой комнаты проверяем наличие ключа
+    # Check key availability for each room
     key_set = {
         ek.room_id
         for ek in db.query(EncryptedRoomKey).filter(
@@ -133,7 +133,7 @@ async def my_rooms(u: User = Depends(get_current_user), db: Session = Depends(ge
     result = []
     for r in rooms:
         d = {**_room_dict(r), "has_key": r.id in key_set}
-        # Подсчёт непрочитанных сообщений
+        # Count unread messages
         m = member_map.get(r.id)
         last_read = m.last_read_message_id or 0 if m else 0
         d["unread_count"] = db.query(func.count(Message.id)).filter(
@@ -157,7 +157,7 @@ async def public_rooms(
     limit:       int  = 40,
     db: Session = Depends(get_db),
 ):
-    """Каталог публичных комнат с фильтрацией и пагинацией."""
+    """Catalog of public rooms with filtering and pagination."""
     qs = db.query(Room).filter(Room.is_private == False)
 
     if type == "group":
@@ -199,7 +199,7 @@ async def get_room(
         raise HTTPException(404)
     _require_member(room_id, u.id, db)
 
-    # Добавляем роль текущего пользователя для фронтенда
+    # Add current user's role for frontend
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == u.id,
     ).first()
@@ -209,7 +209,7 @@ async def get_room(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Обновление настроек комнаты
+# Room settings update
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.put("/{room_id}")
@@ -220,11 +220,11 @@ async def update_room(
         db: Session = Depends(get_db),
 ):
     """
-    Обновляет настройки комнаты. Только OWNER или ADMIN.
+    Updates room settings. OWNER or ADMIN only.
     """
     actor = _require_member(room_id, u.id, db)
     if actor.role not in (RoomRole.ADMIN, RoomRole.OWNER):
-        raise HTTPException(403, "Недостаточно прав для изменения настроек")
+        raise HTTPException(403, "Insufficient permissions to change settings")
 
     r = db.query(Room).filter(Room.id == room_id).first()
     if not r:
@@ -297,7 +297,7 @@ async def update_room(
 
     logger.info(f"Room {room_id} updated by {u.username}")
 
-    # Уведомляем участников об изменении настроек
+    # Notify members about settings change
     await manager.broadcast_to_room(room_id, {
         "type":       "room_updated",
         "room":       _room_dict(r),
@@ -314,12 +314,12 @@ async def upload_room_avatar(
         db: Session = Depends(get_db),
 ):
     """
-    Загружает аватар комнаты. Только OWNER или ADMIN.
-    Шаблон аналогичен /api/authentication/avatar.
+    Uploads room avatar. OWNER or ADMIN only.
+    Pattern similar to /api/authentication/avatar.
     """
     actor = _require_member(room_id, u.id, db)
     if actor.role not in (RoomRole.ADMIN, RoomRole.OWNER):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
 
     r = db.query(Room).filter(Room.id == room_id).first()
     if not r:
@@ -329,14 +329,14 @@ async def upload_room_avatar(
 
     content = await file.read()
     if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(413, "Макс. 5 МБ")
+        raise HTTPException(413, "Max 5 MB")
 
     try:
         img = Image.open(io.BytesIO(content))
         img = img.convert("RGB")
         img.thumbnail((256, 256))
     except Exception:
-        raise HTTPException(400, "Неверный формат изображения")
+        raise HTTPException(400, "Invalid image format")
 
     os.makedirs("uploads/room_avatars", exist_ok=True)
     filename = f"{_secrets.token_hex(16)}.jpg"
@@ -348,7 +348,7 @@ async def upload_room_avatar(
 
     logger.info(f"Room {room_id} avatar uploaded by {u.username}")
 
-    # Уведомляем участников
+    # Notify members
     await manager.broadcast_to_room(room_id, {
         "type":       "room_updated",
         "room":       _room_dict(r),
@@ -368,7 +368,7 @@ async def leave_room(
     if not m:
         raise HTTPException(404)
 
-    # Удаляем зашифрованный ключ участника
+    # Delete member's encrypted key
     db.query(EncryptedRoomKey).filter(
         EncryptedRoomKey.room_id == room_id,
         EncryptedRoomKey.user_id == u.id,
@@ -379,7 +379,7 @@ async def leave_room(
     db.delete(m)
     db.flush()
 
-    # Считаем оставшихся ПОСЛЕ удаления участника
+    # Count remaining members AFTER removing the member
     remaining = db.query(RoomMember).filter(RoomMember.room_id == room_id).count() if r else 0
 
     if m.role == RoomRole.OWNER and r and remaining <= 0:
@@ -389,8 +389,8 @@ async def leave_room(
 
     db.commit()
 
-    # Ротация ключа — покинувший участник не сможет расшифровать новые сообщения
-    # Для DM ротация не нужна — комната удаляется вместе с участником
+    # Key rotation — the leaving member won't be able to decrypt new messages
+    # For DMs rotation is not needed — room is deleted along with the member
     if r and not r.is_dm:
         await manager.broadcast_to_room(room_id, {"type": "key_rotated"})
         logger.info(f"Room key rotated after leave in room {room_id}")
@@ -406,7 +406,7 @@ async def delete_room(
 ):
     m = _require_member(room_id, u.id, db)
     if m.role != RoomRole.OWNER:
-        raise HTTPException(403, "Только владелец может удалить комнату")
+        raise HTTPException(403, "Only the owner can delete the room")
     r = db.query(Room).filter(Room.id == room_id).first()
     if not r:
         raise HTTPException(404)

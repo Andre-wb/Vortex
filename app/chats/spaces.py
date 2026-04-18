@@ -100,7 +100,7 @@ def _space_dict(s: Space) -> dict:
 def _require_space(space_id: int, db: Session) -> Space:
     s = db.query(Space).filter(Space.id == space_id).first()
     if not s:
-        raise HTTPException(404, "Пространство не найдено")
+        raise HTTPException(404, "Space not found")
     return s
 
 
@@ -110,21 +110,21 @@ def _require_space_member(space_id: int, user_id: int, db: Session) -> SpaceMemb
         SpaceMember.user_id == user_id,
     ).first()
     if not m:
-        raise HTTPException(403, "Вы не участник этого пространства")
+        raise HTTPException(403, "You are not a member of this space")
     return m
 
 
 def _require_admin(space_id: int, user_id: int, db: Session) -> SpaceMember:
     m = _require_space_member(space_id, user_id, db)
     if m.role not in (RoomRole.ADMIN, RoomRole.OWNER):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
     return m
 
 
 def _require_owner(space_id: int, user_id: int, db: Session) -> SpaceMember:
     m = _require_space_member(space_id, user_id, db)
     if m.role != RoomRole.OWNER:
-        raise HTTPException(403, "Только владелец может выполнить это действие")
+        raise HTTPException(403, "Only the owner can perform this action")
     return m
 
 
@@ -400,7 +400,7 @@ async def join_space_by_body(
     """Вступить в пространство по invite_code (передаётся в теле запроса)."""
     space = _require_space(space_id, db)
     if space.invite_code.upper() != body.invite_code.strip().upper():
-        raise HTTPException(403, "Неверный код приглашения")
+        raise HTTPException(403, "Invalid invite code")
     return await _join_space(space, u, db)
 
 
@@ -413,7 +413,7 @@ async def join_space_by_url(
     """Вступить в пространство по invite_code (URL-friendly)."""
     space = db.query(Space).filter(Space.invite_code == invite_code.upper()).first()
     if not space:
-        raise HTTPException(404, "Пространство не найдено")
+        raise HTTPException(404, "Space not found")
     return await _join_space(space, u, db)
 
 
@@ -424,7 +424,7 @@ async def _join_space(space: Space, u: User, db: Session) -> dict:
         SpaceMember.user_id == u.id,
     ).first()
     if existing:
-        return {"joined": False, "space": _space_dict(space), "message": "Вы уже участник"}
+        return {"joined": False, "space": _space_dict(space), "message": "You are already a member"}
 
     # Добавляем в пространство
     db.add(SpaceMember(space_id=space.id, user_id=u.id, role=RoomRole.MEMBER))
@@ -459,7 +459,7 @@ async def leave_space(
         SpaceMember.user_id == u.id,
     ).first()
     if not member:
-        raise HTTPException(404, "Вы не участник этого пространства")
+        raise HTTPException(404, "You are not a member of this space")
 
     # Если владелец уходит и он единственный — удаляем пространство
     if member.role == RoomRole.OWNER:
@@ -532,16 +532,16 @@ async def change_space_member_role(
     _require_owner(space_id, u.id, db)
 
     if target_id == u.id:
-        raise HTTPException(400, "Нельзя изменить свою роль")
+        raise HTTPException(400, "Cannot change your own role")
 
     target = db.query(SpaceMember).filter(
         SpaceMember.space_id == space_id,
         SpaceMember.user_id == target_id,
     ).first()
     if not target:
-        raise HTTPException(404, "Участник не найден")
+        raise HTTPException(404, "Member not found")
     if target.role == RoomRole.OWNER:
-        raise HTTPException(403, "Нельзя изменить роль владельца")
+        raise HTTPException(403, "Cannot change the owner's role")
 
     new_role = RoomRole.ADMIN if body.role == "admin" else RoomRole.MEMBER
     target.role = new_role
@@ -562,18 +562,18 @@ async def kick_space_member(
     actor = _require_admin(space_id, u.id, db)
 
     if target_id == u.id:
-        raise HTTPException(400, "Нельзя исключить себя")
+        raise HTTPException(400, "Cannot kick yourself")
 
     target = db.query(SpaceMember).filter(
         SpaceMember.space_id == space_id,
         SpaceMember.user_id == target_id,
     ).first()
     if not target:
-        raise HTTPException(404, "Участник не найден")
+        raise HTTPException(404, "Member not found")
     if target.role == RoomRole.OWNER:
-        raise HTTPException(403, "Нельзя исключить владельца")
+        raise HTTPException(403, "Cannot kick the owner")
     if target.role == RoomRole.ADMIN and actor.role != RoomRole.OWNER:
-        raise HTTPException(403, "Только владелец может исключить админа")
+        raise HTTPException(403, "Only the owner can kick an admin")
 
     space = _require_space(space_id, db)
 
@@ -640,7 +640,7 @@ async def update_category(
         SpaceCategory.space_id == space_id,
     ).first()
     if not cat:
-        raise HTTPException(404, "Категория не найдена")
+        raise HTTPException(404, "Category not found")
 
     if body.name is not None:
         cat.name = body.name.strip()[:50]
@@ -669,12 +669,12 @@ async def delete_category(
         SpaceCategory.space_id == space_id,
     ).first()
     if not cat:
-        raise HTTPException(404, "Категория не найдена")
+        raise HTTPException(404, "Category not found")
 
     # Нельзя удалить единственную категорию
     total_cats = db.query(SpaceCategory).filter(SpaceCategory.space_id == space_id).count()
     if total_cats <= 1:
-        raise HTTPException(400, "Нельзя удалить единственную категорию")
+        raise HTTPException(400, "Cannot delete the only category")
 
     # Ищем категорию по умолчанию (с наименьшим order_idx, не текущую)
     default_cat = (db.query(SpaceCategory)
@@ -720,7 +720,7 @@ async def create_space_room(
             SpaceCategory.space_id == space_id,
         ).first()
         if not cat:
-            raise HTTPException(404, "Категория не найдена в этом пространстве")
+            raise HTTPException(404, "Category not found in this space")
     else:
         # Используем категорию по умолчанию
         default_cat = _get_default_category(space_id, db)
@@ -786,14 +786,14 @@ async def upload_space_avatar(
 
     content = await file.read()
     if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(413, "Макс. 5 МБ")
+        raise HTTPException(413, "Max 5 MB")
 
     try:
         img = Image.open(io.BytesIO(content))
         img = img.convert("RGB")
         img.thumbnail((256, 256))
     except Exception:
-        raise HTTPException(400, "Неверный формат изображения")
+        raise HTTPException(400, "Invalid image format")
 
     os.makedirs("uploads/space_avatars", exist_ok=True)
     filename = f"{_secrets.token_hex(16)}.jpg"
@@ -837,7 +837,7 @@ async def set_space_theme(
     d = {}
     if body.wallpaper is not None:
         if body.wallpaper not in _VALID_WALLPAPERS and not body.wallpaper.startswith("https://"):
-            raise HTTPException(400, f"Недопустимый wallpaper: {body.wallpaper}")
+            raise HTTPException(400, f"Invalid wallpaper: {body.wallpaper}")
         d["wallpaper"] = body.wallpaper
     if body.accent is not None:
         d["accent"] = body.accent

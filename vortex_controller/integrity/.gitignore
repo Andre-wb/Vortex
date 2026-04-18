@@ -1,0 +1,3 @@
+# The private release key MUST never be committed.
+# Keep backups in a secure password manager / HSM.
+*.key

@@ -96,9 +96,9 @@ def _require_pack_owner(pack_id: int, user_id: int, db: Session) -> StickerPack:
     """Return the pack or raise 404/403."""
     pack = db.query(StickerPack).filter(StickerPack.id == pack_id).first()
     if not pack:
-        raise HTTPException(404, "Стикер-пак не найден")
+        raise HTTPException(404, "Sticker pack not found")
     if pack.creator_id != user_id:
-        raise HTTPException(403, "Только создатель может управлять паком")
+        raise HTTPException(403, "Only the creator can manage the pack")
     return pack
 
 
@@ -192,14 +192,14 @@ async def get_pack(
     """Детали пака с полным списком стикеров."""
     pack = db.query(StickerPack).filter(StickerPack.id == pack_id).first()
     if not pack:
-        raise HTTPException(404, "Стикер-пак не найден")
+        raise HTTPException(404, "Sticker pack not found")
     if not pack.is_public and pack.creator_id != u.id:
         fav = db.query(UserFavoritePack).filter(
             UserFavoritePack.user_id == u.id,
             UserFavoritePack.pack_id == pack_id,
         ).first()
         if not fav:
-            raise HTTPException(403, "Пак приватный")
+            raise HTTPException(403, "Pack is private")
     d = _pack_dict(pack, include_stickers=True)
     d["is_favorited"] = db.query(UserFavoritePack).filter(
         UserFavoritePack.user_id == u.id,
@@ -272,20 +272,20 @@ async def upload_sticker(
 
     content = await file.read()
     if len(content) > _MAX_STICKER_BYTES:
-        raise HTTPException(413, "Макс. 512 КБ")
+        raise HTTPException(413, "File too large (max 5 MB)")
 
     from PIL import Image
 
     try:
         img = Image.open(io.BytesIO(content))
     except Exception:
-        raise HTTPException(400, "Неверный формат изображения")
+        raise HTTPException(400, "Invalid image format")
 
     fmt = img.format
     if fmt not in _ALLOWED_FORMATS:
         raise HTTPException(
             400,
-            f"Допустимые форматы: {', '.join(_ALLOWED_FORMATS)}. Получен: {fmt}",
+            f"Allowed formats: {', '.join(_ALLOWED_FORMATS)}. Got: {fmt}",
         )
 
     # Ресайз с сохранением прозрачности
@@ -367,7 +367,7 @@ async def delete_sticker(
         Sticker.pack_id == pack_id,
     ).first()
     if not sticker:
-        raise HTTPException(404, "Стикер не найден")
+        raise HTTPException(404, "Sticker not found")
 
     # Удаляем файл с диска
     if sticker.image_url:
@@ -395,7 +395,7 @@ async def add_favorite(
     """Добавить пак в избранное."""
     pack = db.query(StickerPack).filter(StickerPack.id == pack_id).first()
     if not pack:
-        raise HTTPException(404, "Стикер-пак не найден")
+        raise HTTPException(404, "Sticker pack not found")
 
     existing = db.query(UserFavoritePack).filter(
         UserFavoritePack.user_id == u.id,
@@ -422,7 +422,7 @@ async def remove_favorite(
         UserFavoritePack.pack_id == pack_id,
     ).first()
     if not fav:
-        raise HTTPException(404, "Пак не в избранном")
+        raise HTTPException(404, "Pack not in favorites")
     db.delete(fav)
     db.commit()
     return {"ok": True, "removed": True, "pack_id": pack_id}

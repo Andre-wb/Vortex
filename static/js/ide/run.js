@@ -261,7 +261,7 @@ async function idePublish() {
 
     const token = _ideToken();
     if (!token) {
-        alert('This project has no Bot Token set.\nEdit the project and add your Telegram bot token first.');
+        alert((typeof t==='function'?t('ide.noBotTokenAlert'):'This project has no Bot Token set.\nEdit the project and add your Telegram bot token first.'));
         return;
     }
 

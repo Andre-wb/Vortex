@@ -1618,13 +1618,19 @@ function _memberActionsMenu(m, myRole, roomId) {
 
     let items = '';
 
-    // Роль (только owner)
+    // Permissions (owner only) — opens full permissions modal
     if (isOwner && !m.is_banned) {
-        if (m.role === 'member') {
-            items += `<div class="member-actions-item" onclick="window._memberAction('role','${roomId}','${m.user_id}','admin')">${t('rooms.promoteAdmin')}</div>`;
-        } else if (m.role === 'admin') {
-            items += `<div class="member-actions-item" onclick="window._memberAction('role','${roomId}','${m.user_id}','member')">${t('rooms.demoteAdmin')}</div>`;
-        }
+        const _permId = '_perm_' + m.user_id;
+        items += `<div class="member-actions-item" id="${_permId}" data-room="${roomId}" data-uid="${m.user_id}" data-role="${m.role}" data-perms='${JSON.stringify(m.custom_permissions || {}).replace(/'/g, "&#39;")}'>${t('rooms.managePermissions')}</div>`;
+        // Attach click after render
+        requestAnimationFrame(() => {
+            const el = document.getElementById(_permId);
+            if (el) el.onclick = () => {
+                let perms = {};
+                try { perms = JSON.parse(el.dataset.perms); } catch {}
+                window._showPermissionsModal(el.dataset.room, el.dataset.uid, el.dataset.role, perms);
+            };
+        });
     }
 
     // Мут
@@ -1683,6 +1689,136 @@ window._memberAction = async function(action, roomId, targetId, extra) {
     } catch (e) {
         alert(e.message);
     }
+};
+
+/* ── Permissions Modal ──────────────────────────────────────────────────── */
+const _PERM_DEFS = [
+    { key: 'can_send',          icon: '💬', label: 'permissions.canSend',        desc: 'permissions.canSendDesc' },
+    { key: 'can_send_media',    icon: '📷', label: 'permissions.canSendMedia',   desc: 'permissions.canSendMediaDesc' },
+    { key: 'can_send_stickers', icon: '😀', label: 'permissions.canSendStickers',desc: 'permissions.canSendStickersDesc' },
+    { key: 'can_send_links',    icon: '🔗', label: 'permissions.canSendLinks',   desc: 'permissions.canSendLinksDesc' },
+    { key: 'can_pin',           icon: '📌', label: 'permissions.canPin',         desc: 'permissions.canPinDesc' },
+    { key: 'can_delete_others', icon: '🗑️', label: 'permissions.canDeleteOthers',desc: 'permissions.canDeleteOthersDesc' },
+    { key: 'can_invite',        icon: '➕', label: 'permissions.canInvite',      desc: 'permissions.canInviteDesc' },
+    { key: 'can_change_info',   icon: '✏️', label: 'permissions.canChangeInfo',  desc: 'permissions.canChangeInfoDesc' },
+    { key: 'can_manage_calls',  icon: '📞', label: 'permissions.canManageCalls', desc: 'permissions.canManageCallsDesc' },
+];
+
+window._showPermissionsModal = function(roomId, targetId, currentRole, customPermsJson) {
+    document.getElementById('perm-modal-overlay')?.remove();
+
+    let perms = {};
+    try { perms = typeof customPermsJson === 'string' ? JSON.parse(customPermsJson) : (customPermsJson || {}); } catch { perms = {}; }
+    let selectedRole = currentRole || 'member';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'perm-modal-overlay';
+    overlay.className = 'perm-modal-overlay';
+    overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+    const card = document.createElement('div');
+    card.className = 'perm-modal-card';
+
+    // Header
+    card.innerHTML = `
+        <div class="perm-modal-header">
+            <div class="perm-modal-title">${t('rooms.managePermissions')}</div>
+            <button class="perm-modal-close" onclick="this.closest('.perm-modal-overlay').remove()">×</button>
+        </div>
+
+        <div class="perm-modal-section">
+            <div class="perm-modal-section-title">${t('permissions.role')}</div>
+            <div class="perm-role-selector" id="perm-role-selector">
+                <button class="perm-role-btn${selectedRole === 'member' ? ' active' : ''}" data-role="member">
+                    <span class="perm-role-icon">👤</span> ${t('rooms.member')}
+                </button>
+                <button class="perm-role-btn${selectedRole === 'admin' ? ' active' : ''}" data-role="admin">
+                    <span class="perm-role-icon">🛡️</span> ${t('rooms.admin')}
+                </button>
+            </div>
+        </div>
+
+        <div class="perm-modal-section">
+            <div class="perm-modal-section-title">${t('permissions.customPermissions')}</div>
+            <div class="perm-modal-hint">${t('permissions.customHint')}</div>
+            <div class="perm-toggles" id="perm-toggles">
+                ${_PERM_DEFS.map(p => {
+                    const checked = perms[p.key] !== false; // default true
+                    return `
+                    <div class="perm-toggle-row">
+                        <div class="perm-toggle-info">
+                            <span class="perm-toggle-icon">${p.icon}</span>
+                            <div>
+                                <div class="perm-toggle-label">${t(p.label)}</div>
+                                <div class="perm-toggle-desc">${t(p.desc)}</div>
+                            </div>
+                        </div>
+                        <label class="toggle">
+                            <input type="checkbox" data-perm="${p.key}" ${checked ? 'checked' : ''}>
+                            <div class="toggle-track"></div>
+                            <div class="toggle-thumb"></div>
+                        </label>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>
+
+        <div class="perm-modal-actions">
+            <button class="perm-modal-btn perm-modal-btn-cancel" onclick="this.closest('.perm-modal-overlay').remove()">
+                ${t('app.cancel')}
+            </button>
+            <button class="perm-modal-btn perm-modal-btn-save" id="perm-save-btn">
+                ${t('tags.save') || 'Save'}
+            </button>
+        </div>
+    `;
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('active'));
+
+    // Role selector
+    card.querySelectorAll('.perm-role-btn').forEach(btn => {
+        btn.onclick = () => {
+            card.querySelectorAll('.perm-role-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedRole = btn.dataset.role;
+        };
+    });
+
+    // Save
+    document.getElementById('perm-save-btn').onclick = async () => {
+        const newPerms = {};
+        card.querySelectorAll('[data-perm]').forEach(el => {
+            newPerms[el.dataset.perm] = el.checked;
+        });
+
+        const btn = document.getElementById('perm-save-btn');
+        btn.disabled = true;
+        btn.textContent = '...';
+
+        try {
+            // Set role if changed
+            if (selectedRole !== currentRole) {
+                await api('PUT', `/api/rooms/${roomId}/members/${targetId}/role`, { role: selectedRole });
+            }
+            // Set custom permissions
+            await api('PUT', `/api/rooms/${roomId}/members/${targetId}/permissions`, { permissions: newPerms });
+
+            overlay.remove();
+            if (typeof window.showToast === 'function') {
+                window.showToast(t('permissions.saved') || 'Permissions saved', 'success');
+            }
+            showMembersModal(); // refresh
+        } catch (e) {
+            console.error('setPermissions error:', e);
+            if (typeof window.showToast === 'function') {
+                window.showToast(e.message || 'Error', 'error');
+            }
+            btn.disabled = false;
+            btn.textContent = t('tags.save') || 'Save';
+        }
+    };
 };
 
 export async function showMembersModal() {

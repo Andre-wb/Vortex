@@ -1,0 +1,24 @@
+    <div class="step active" id="step-0">
+        <div class="wiz-lp-inner">
+            <!-- Typewriter title -->
+            <h2 class="wiz-lp-title" id="wiz-lp-title"></h2>
+            <p class="wiz-lp-subtitle" id="wiz-lp-subtitle">You can change it later in settings</p>
+
+            <!-- Search with icon -->
+            <div class="wiz-lp-search-wrap">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"/></svg>
+                <input type="text" class="wiz-lp-search" id="wiz-lp-search"
+                       placeholder="Search / Поиск / Buscar..." autocomplete="off"
+                       oninput="wizLpFilter(this.value)">
+            </div>
+
+            <!-- Language list -->
+            <div class="wiz-lp-list" id="wiz-lp-list"></div>
+
+            <!-- Continue button (purple gradient) -->
+            <button class="wiz-lp-continue-btn" id="wiz-lp-continue" onclick="wizLpConfirm()" disabled>
+                <span id="wiz-lp-btn-text">Continue</span>
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+            </button>
+        </div>
+    </div>

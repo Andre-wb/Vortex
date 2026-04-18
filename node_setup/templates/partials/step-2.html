@@ -4,26 +4,59 @@
 
         <div id="alert-s2-mode" class="alert"></div>
 
-        <div class="ssl-options">
+        <div class="ssl-options ssl-options--three">
             <div class="ssl-option selected" id="opt-local" onclick="selectNetworkMode('local')">
-                <div class="ssl-icon">📡</div>
+                <div class="ssl-icon">🏠</div>
                 <div class="ssl-title" data-i18n="wizard.netLocal">Local</div>
-                <div class="ssl-desc" data-i18n="wizard.netLocalDesc">Wi-Fi / LAN. Works without internet. Devices find each other automatically.</div>
+                <div class="ssl-desc" data-i18n="wizard.netLocalDesc">LAN only, no internet. Devices find each other via UDP broadcast.</div>
                 <div class="ssl-badge badge-recommended">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                    <span data-i18n="wizard.netLocalBadge">For home network</span>
+                    <span data-i18n="wizard.netLocalBadge">Home network</span>
                 </div>
             </div>
             <div class="ssl-option" id="opt-global" onclick="selectNetworkMode('global')">
                 <div class="ssl-icon">🌍</div>
                 <div class="ssl-title" data-i18n="wizard.netGlobal">Global</div>
-                <div class="ssl-desc" data-i18n="wizard.netGlobalDesc">Via internet. Cloudflare Tunnel + traffic obfuscation. Access from anywhere in the world.</div>
-                <div class="ssl-badge badge-internet" data-i18n="wizard.netGlobalBadge">Requires cloudflared</div>
+                <div class="ssl-desc" data-i18n="wizard.netGlobalDesc">Register with the official vortexx.sol controller. Best for mobile access.</div>
+                <div class="ssl-badge badge-internet" data-i18n="wizard.netGlobalBadge">vortexx.sol</div>
+            </div>
+            <div class="ssl-option" id="opt-custom" onclick="selectNetworkMode('custom')">
+                <div class="ssl-icon">🔀</div>
+                <div class="ssl-title" data-i18n="wizard.netCustom">Custom</div>
+                <div class="ssl-desc" data-i18n="wizard.netCustomDesc">Connect to your own / alternative controller. Paste URL + pubkey.</div>
+                <div class="ssl-badge badge-advanced" data-i18n="wizard.netCustomBadge">Advanced</div>
             </div>
         </div>
 
         <div id="global-details" style="display:none;margin-top:16px;">
             <div class="alert alert-info show" id="cf-status" data-i18n="wizard.checkingCf">Checking cloudflared...</div>
+            <div class="form-group" style="margin-top:12px;">
+                <label class="form-label" data-i18n="wizard.announceEndpoints">Announce endpoints (one per line)</label>
+                <textarea class="form-input" id="announce-endpoints" rows="3"
+                          placeholder="wss://my.node.example:9000&#10;https://abc.trycloudflare.com"
+                          style="font-family:var(--mono);font-size:12px;"></textarea>
+                <div class="form-hint" data-i18n="wizard.announceHint">Public URLs where your node can be reached. Controller publishes these to other clients.</div>
+            </div>
+        </div>
+
+        <div id="custom-details" style="display:none;margin-top:16px;">
+            <div class="form-group">
+                <label class="form-label" data-i18n="wizard.customControllerUrl">Controller URL</label>
+                <input class="form-input" id="controller-url" type="text"
+                       placeholder="https://controller.example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label" data-i18n="wizard.customControllerPubkey">Controller pubkey (hex)</label>
+                <input class="form-input" id="controller-pubkey" type="text"
+                       placeholder="ed25519 public key, 64 hex chars"
+                       style="font-family:var(--mono);font-size:12px;">
+            </div>
+            <div class="form-group">
+                <label class="form-label" data-i18n="wizard.announceEndpoints">Announce endpoints (one per line)</label>
+                <textarea class="form-input" id="announce-endpoints-custom" rows="3"
+                          placeholder="wss://my.node.example:9000"
+                          style="font-family:var(--mono);font-size:12px;"></textarea>
+            </div>
         </div>
 
         <div class="step-section" style="margin-top:20px;">

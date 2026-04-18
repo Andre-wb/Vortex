@@ -45,7 +45,7 @@ async def toggle_saved(
 
     msg = db.query(Message).filter(Message.id == message_id).first()
     if not msg:
-        raise HTTPException(404, "Сообщение не найдено")
+        raise HTTPException(404, "Message not found")
 
     sm = SavedMessage(
         user_id=u.id,
@@ -108,7 +108,7 @@ async def unsave_message(
         SavedMessage.message_id == message_id,
     ).first()
     if not sm:
-        raise HTTPException(404, "Сообщение не в избранном")
+        raise HTTPException(404, "Message not in favorites")
     db.delete(sm)
     db.commit()
     return {"removed": True, "message_id": message_id}

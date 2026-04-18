@@ -105,7 +105,7 @@ async def kick(
 ):
     actor = _require_member(room_id, u.id, db)
     if actor.role not in (RoomRole.ADMIN, RoomRole.OWNER):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
 
     t = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
@@ -146,17 +146,17 @@ async def change_member_role(
     """Изменить роль участника. Только OWNER может назначать/снимать админов."""
     actor = _require_member(room_id, u.id, db)
     if actor.role != RoomRole.OWNER:
-        raise HTTPException(403, "Только владелец может менять роли")
+        raise HTTPException(403, "Only the owner can change roles")
 
     if target_id == u.id:
-        raise HTTPException(400, "Нельзя изменить свою роль")
+        raise HTTPException(400, "Cannot change your own role")
 
     t = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
-        raise HTTPException(404, "Участник не найден")
+        raise HTTPException(404, "Member not found")
     if t.role == RoomRole.OWNER:
-        raise HTTPException(403, "Нельзя изменить роль владельца")
+        raise HTTPException(403, "Cannot change owner's role")
 
     new_role = RoomRole.ADMIN if body.role == "admin" else RoomRole.MEMBER
     t.role = new_role
@@ -181,19 +181,19 @@ async def toggle_mute_member(
     """Заглушить / разглушить участника. ADMIN и OWNER могут мутить."""
     actor = _require_member(room_id, u.id, db)
     if actor.role not in (RoomRole.ADMIN, RoomRole.OWNER):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
 
     if target_id == u.id:
-        raise HTTPException(400, "Нельзя заглушить себя")
+        raise HTTPException(400, "Cannot mute yourself")
 
     t = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
-        raise HTTPException(404, "Участник не найден")
+        raise HTTPException(404, "Member not found")
     if t.role == RoomRole.OWNER:
-        raise HTTPException(403, "Нельзя заглушить владельца")
+        raise HTTPException(403, "Cannot mute the owner")
     if t.role == RoomRole.ADMIN and actor.role != RoomRole.OWNER:
-        raise HTTPException(403, "Только владелец может заглушить админа")
+        raise HTTPException(403, "Only the owner can mute an admin")
 
     t.is_muted = not t.is_muted
     db.commit()
@@ -217,19 +217,19 @@ async def toggle_ban_member(
     """Забанить / разбанить участника. ADMIN и OWNER могут банить."""
     actor = _require_member(room_id, u.id, db)
     if actor.role not in (RoomRole.ADMIN, RoomRole.OWNER):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
 
     if target_id == u.id:
-        raise HTTPException(400, "Нельзя забанить себя")
+        raise HTTPException(400, "Cannot ban yourself")
 
     t = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
-        raise HTTPException(404, "Участник не найден")
+        raise HTTPException(404, "Member not found")
     if t.role == RoomRole.OWNER:
-        raise HTTPException(403, "Нельзя забанить владельца")
+        raise HTTPException(403, "Cannot ban the owner")
     if t.role == RoomRole.ADMIN and actor.role != RoomRole.OWNER:
-        raise HTTPException(403, "Только владелец может забанить админа")
+        raise HTTPException(403, "Only the owner can ban an admin")
 
     t.is_banned = not t.is_banned
     db.commit()
@@ -267,12 +267,12 @@ async def set_member_tag(
     """Назначить / снять тег участника. Только OWNER и ADMIN."""
     actor = _require_member(room_id, u.id, db)
     if actor.role not in (RoomRole.ADMIN, RoomRole.OWNER):
-        raise HTTPException(403, "Недостаточно прав")
+        raise HTTPException(403, "Insufficient permissions")
 
     t = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
-        raise HTTPException(404, "Участник не найден")
+        raise HTTPException(404, "Member not found")
 
     t.tag = body.tag
     t.tag_color = body.tag_color
@@ -308,12 +308,12 @@ async def set_member_permissions(
     """Установить гранулярные права участника. Только OWNER."""
     actor = _require_member(room_id, u.id, db)
     if actor.role != RoomRole.OWNER:
-        raise HTTPException(403, "Только владелец может менять права")
+        raise HTTPException(403, "Only the owner can change permissions")
 
     t = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
-        raise HTTPException(404, "Участник не найден")
+        raise HTTPException(404, "Member not found")
 
     # Validate keys
     cleaned = {k: bool(v) for k, v in body.permissions.items() if k in PERMISSION_KEYS}

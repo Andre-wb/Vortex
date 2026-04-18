@@ -894,7 +894,7 @@ function _failPendingBubble(el, msg) {
     errWrap.appendChild(errDiv);
     const retryBtn = document.createElement('button');
     retryBtn.className = 'upload-retry-btn';
-    retryBtn.textContent = 'Retry';
+    retryBtn.textContent = (typeof t==='function'?t('app.retry'):'Retry');
     retryBtn.addEventListener('click', () => { el.remove(); sendPendingFile(); });
     errWrap.appendChild(retryBtn);
     if (bubble) bubble.appendChild(errWrap);

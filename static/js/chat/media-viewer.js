@@ -228,7 +228,7 @@ export function openVideoViewer(url, fileName) {
     skeleton.appendChild(skelBar);
     const skelText = document.createElement('div');
     skelText.className = 'mv-video-skeleton-text';
-    skelText.textContent = 'Loading video...';
+    skelText.textContent = (typeof t==='function'?t('media.loadingVideo'):'Loading video...');
     skeleton.appendChild(skelText);
     card.appendChild(skeleton);
 
@@ -273,7 +273,7 @@ export function openVideoViewer(url, fileName) {
             video.style.display = '';
             skeleton.remove();
         }).catch(() => {
-            skelText.textContent = 'Failed to load video';
+            skelText.textContent = (typeof t==='function'?t('media.failedVideo'):'Failed to load video');
             skelBar.style.width = '0%';
         });
     }
@@ -502,7 +502,7 @@ export function openDocViewer(url, fileName, mimeType) {
         // PDF: fetch → decrypt → render with PDF.js (canvas per page)
         const pdfContainer = document.createElement('div');
         pdfContainer.className = 'mv-pdf-container';
-        pdfContainer.textContent = 'Loading PDF...';
+        pdfContainer.textContent = (typeof t==='function'?t('media.loadingPdf'):'Loading PDF...');
         pdfContainer.style.cssText = 'flex:1;overflow:auto;text-align:center;padding:8px;';
         card.appendChild(pdfContainer);
 
@@ -537,11 +537,11 @@ export function openDocViewer(url, fileName, mimeType) {
                 info.textContent = pdf.numPages + ' page' + (pdf.numPages !== 1 ? 's' : '');
                 pdfContainer.appendChild(info);
             } catch (e) {
-                pdfContainer.textContent = 'Failed to render PDF: ' + e.message;
+                pdfContainer.textContent = (typeof t==='function'?t('media.failedRenderPdf'):'Failed to render PDF: ') + e.message;
                 pdfContainer.style.cssText += 'color:var(--text3);display:flex;align-items:center;justify-content:center;';
             }
         }).catch(() => {
-            pdfContainer.textContent = 'Failed to load PDF';
+            pdfContainer.textContent = (typeof t==='function'?t('media.failedPdf'):'Failed to load PDF');
         });
     } else if (MD_EXTS.includes(ext)) {
         // Markdown: rendered view + raw toggle
@@ -560,7 +560,7 @@ export function openDocViewer(url, fileName, mimeType) {
 
         const rendered = document.createElement('div');
         rendered.className = 'mv-doc-md';
-        rendered.textContent = 'Loading...';
+        rendered.textContent = (typeof t==='function'?t('media.loading'):'Loading...');
         card.appendChild(rendered);
 
         const raw = document.createElement('pre');
@@ -583,12 +583,12 @@ export function openDocViewer(url, fileName, mimeType) {
             temp.innerHTML = safeHtml;
             rendered.appendChild(temp);
             raw.textContent = _rawText;
-        }).catch(() => { rendered.textContent = 'Failed to load file'; });
+        }).catch(() => { rendered.textContent = (typeof t==='function'?t('media.failedFile'):'Failed to load file'); });
     } else if (LOG_EXTS.includes(ext)) {
         // Log files: fetch → decrypt → styled log viewer with line numbers
         const pre = document.createElement('pre');
         pre.className = 'mv-doc-text mv-doc-log';
-        pre.textContent = 'Loading...';
+        pre.textContent = (typeof t==='function'?t('media.loading'):'Loading...');
         card.appendChild(pre);
         _fetchAndDecrypt(url).then(buf => {
 
@@ -610,7 +610,7 @@ export function openDocViewer(url, fileName, mimeType) {
                 span.textContent = line + '\n';
                 pre.appendChild(span);
             }
-        }).catch(() => { pre.textContent = 'Failed to load file'; });
+        }).catch(() => { pre.textContent = (typeof t==='function'?t('media.failedFile'):'Failed to load file'); });
     } else if (mime === 'image/svg+xml' || ext === 'svg') {
         const obj = document.createElement('object');
         obj.data = url;
@@ -626,12 +626,12 @@ export function openDocViewer(url, fileName, mimeType) {
         // Code/text: fetch → decrypt → pre with line numbers
         const pre = document.createElement('pre');
         pre.className = 'mv-doc-text';
-        pre.textContent = 'Loading...';
+        pre.textContent = (typeof t==='function'?t('media.loading'):'Loading...');
         card.appendChild(pre);
         _fetchAndDecrypt(url).then(buf => {
 
             pre.textContent = new TextDecoder().decode(buf);
-        }).catch(() => { pre.textContent = 'Failed to load file'; });
+        }).catch(() => { pre.textContent = (typeof t==='function'?t('media.failedFile'):'Failed to load file'); });
     } else {
         // Fallback: icon + download prompt
         const fallback = document.createElement('div');

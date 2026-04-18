@@ -1,7 +1,7 @@
 """
-app/transport/global_routes.py — API-эндпоинты для глобального режима (gossip, bootstrap, поиск).
+app/transport/global_routes.py — API endpoints for global mode (gossip, bootstrap, search).
 
-Эти маршруты доступны только при NETWORK_MODE=global.
+These routes are available only when NETWORK_MODE=global.
 """
 from __future__ import annotations
 
@@ -37,48 +37,48 @@ def _check_gossip_rate(ip: str) -> bool:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Pydantic-схемы
+# Pydantic schemas
 # ══════════════════════════════════════════════════════════════════════════════
 
 class GossipRequest(BaseModel):
-    """Входящий gossip-запрос: список пиров + комнат от другого узла."""
-    sender_ip: str = Field(..., description="IP отправителя")
-    sender_port: int = Field(..., description="Порт отправителя")
-    sender_pubkey: str = Field("", description="X25519 pubkey отправителя (hex)")
-    peers: list[dict] = Field(default_factory=list, max_length=500, description="Список пиров отправителя")
-    rooms: list[dict] = Field(default_factory=list, max_length=1000, description="Публичные комнаты отправителя")
+    """Incoming gossip request: peer list + rooms from another node."""
+    sender_ip: str = Field(..., description="Sender IP")
+    sender_port: int = Field(..., description="Sender port")
+    sender_pubkey: str = Field("", description="X25519 pubkey of sender (hex)")
+    peers: list[dict] = Field(default_factory=list, max_length=500, description="Sender's peer list")
+    rooms: list[dict] = Field(default_factory=list, max_length=1000, description="Sender's public rooms")
 
 
 class BootstrapRequest(BaseModel):
-    """Запрос на начальное подключение к сети."""
-    sender_ip: str = Field(..., description="IP нового узла")
-    sender_port: int = Field(..., description="Порт нового узла")
-    sender_pubkey: str = Field("", description="X25519 pubkey нового узла (hex)")
+    """Request for initial connection to the network."""
+    sender_ip: str = Field(..., description="New node IP")
+    sender_port: int = Field(..., description="New node port")
+    sender_pubkey: str = Field("", description="X25519 pubkey of new node (hex)")
 
 
 class AddPeerRequest(BaseModel):
-    """Ручное добавление пира (из QR-кода или ввода)."""
-    ip: str = Field(..., description="IP пира")
-    port: int = Field(9000, description="Порт пира")
+    """Manual peer addition (from QR code or manual input)."""
+    ip: str = Field(..., description="Peer IP")
+    port: int = Field(9000, description="Peer port")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Gossip-эндпоинт (принимает от любого узла без авторизации)
+# Gossip endpoint (accepts from any node without authentication)
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/gossip")
 async def gossip(body: GossipRequest, request: Request):
     """
-    Приём gossip-пакета от другого узла.
-    Обмен списками пиров и комнат → формирование mesh-сети.
-    Не требует аутентификации — это межузловой протокол.
+    Receive a gossip packet from another node.
+    Exchange peer lists and rooms to form a mesh network.
+    Does not require authentication — this is an inter-node protocol.
     """
     # Per-IP rate limit
     client_ip = request.client.host if request.client else body.sender_ip
     if not _check_gossip_rate(client_ip):
         raise HTTPException(429, "Rate limit exceeded")
 
-    # Валидация sender_pubkey — должен быть 64-символьный hex или пустая строка
+    # Validate sender_pubkey — must be 64-char hex or empty string
     if body.sender_pubkey:
         if len(body.sender_pubkey) != 64:
             raise HTTPException(400, "Invalid sender pubkey length")
@@ -87,7 +87,7 @@ async def gossip(body: GossipRequest, request: Request):
         except ValueError:
             raise HTTPException(400, "Invalid pubkey hex")
 
-    # Всегда используем реальный IP из TCP-соединения (защита от спуфинга)
+    # Always use real IP from TCP connection (spoof protection)
     real_ip = request.client.host if request.client else body.sender_ip
 
     result = global_transport.handle_gossip(
@@ -98,7 +98,7 @@ async def gossip(body: GossipRequest, request: Request):
         rooms=body.rooms,
     )
 
-    # Добавляем наши комнаты в ответ
+    # Add our rooms to the response
     our_rooms = await global_transport._get_our_public_rooms()
     result["rooms"] = our_rooms
 
@@ -106,22 +106,22 @@ async def gossip(body: GossipRequest, request: Request):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Bootstrap-эндпоинт (начальное подключение)
+# Bootstrap endpoint (initial connection)
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/bootstrap")
 async def bootstrap(body: BootstrapRequest, request: Request):
     """
-    Начальное подключение нового узла к mesh-сети.
-    Возвращает информацию об узле + текущий список пиров.
-    Не требует аутентификации.
+    Initial connection of a new node to the mesh network.
+    Returns node info + current peer list.
+    Does not require authentication.
     """
     # Per-IP rate limit
     client_ip = request.client.host if request.client else body.sender_ip
     if not _check_gossip_rate(client_ip):
         raise HTTPException(429, "Rate limit exceeded")
 
-    # Валидация sender_pubkey — должен быть 64-символьный hex или пустая строка
+    # Validate sender_pubkey — must be 64-char hex or empty string
     if body.sender_pubkey:
         if len(body.sender_pubkey) != 64:
             raise HTTPException(400, "Invalid sender pubkey length")
@@ -142,22 +142,22 @@ async def bootstrap(body: BootstrapRequest, request: Request):
         sender_pubkey=body.sender_pubkey,
     )
 
-    # Добавляем наши публичные комнаты
+    # Add our public rooms
     result["rooms"] = await global_transport._get_our_public_rooms()
 
     return result
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Поиск комнат
+# Room search
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/search-rooms")
-async def search_rooms_local(q: str = Query("", description="Поисковый запрос")):
+async def search_rooms_local(q: str = Query("", description="Search query")):
     """
-    Поиск публичных комнат НА ЭТОМ узле по имени.
-    Вызывается другими узлами через gossip-протокол.
-    Не требует аутентификации — это межузловой запрос.
+    Search public rooms ON THIS node by name.
+    Called by other nodes via the gossip protocol.
+    Does not require authentication — this is an inter-node request.
     """
     try:
         from app.database import SessionLocal
@@ -187,18 +187,18 @@ async def search_rooms_local(q: str = Query("", description="Поисковый 
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"Ошибка поиска комнат: {e}")
+        logger.error(f"Room search error: {e}")
         return {"rooms": []}
 
 
 @router.get("/search-rooms-global")
 async def search_rooms_global(
-    q: str = Query("", description="Поисковый запрос"),
+    q: str = Query("", description="Search query"),
     u: User = Depends(get_current_user),
 ):
     """
-    Глобальный поиск комнат по ВСЕМ известным пирам.
-    Требует аутентификации — вызывается клиентом.
+    Global room search across ALL known peers.
+    Requires authentication — called by the client.
     """
     rooms = await global_transport.search_rooms(q)
     return {
@@ -208,15 +208,15 @@ async def search_rooms_global(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Информация об узле
+# Node info
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/node-info")
 async def node_info():
     """
-    Публичная информация об этом узле.
-    Используется для пинга и проверки доступности.
-    Не требует аутентификации.
+    Public information about this node.
+    Used for ping and availability checks.
+    Does not require authentication.
     """
     try:
         from app.security.crypto import load_or_create_node_keypair
@@ -234,12 +234,12 @@ async def node_info():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Управление пирами (требует аутентификации)
+# Peer management (requires authentication)
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/peers")
 async def list_global_peers(u: User = Depends(get_current_user)):
-    """Список всех известных глобальных пиров."""
+    """List of all known global peers."""
     peers = global_transport.get_peers()
     return {
         "count": len(peers),
@@ -259,7 +259,7 @@ async def list_global_peers(u: User = Depends(get_current_user)):
 
 @router.get("/cdn-status")
 async def cdn_status(u: User = Depends(get_current_user)):
-    """Статус CDN relay (Multi-CDN failover)."""
+    """CDN relay status (Multi-CDN failover)."""
     from app.transport.cdn_relay import cdn_config
     return cdn_config.get_status()
 
@@ -267,8 +267,8 @@ async def cdn_status(u: User = Depends(get_current_user)):
 @router.post("/add-peer")
 async def add_peer(body: AddPeerRequest, u: User = Depends(get_current_user)):
     """
-    Ручное добавление пира (из QR-кода или ввода IP).
-    Требует аутентификации.
+    Manual peer addition (from QR code or IP input).
+    Requires authentication.
     """
     ok = await global_transport.add_bootstrap_peer(body.ip, body.port)
     return {

@@ -333,6 +333,8 @@ const _ICON_TRANSLATE = _SVG('<path d="M5 8l6 10"/><path d="M4 14h6"/><path d="M
 const _ICON_REMIND   = _SVG('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
 const _ICON_REPORT   = _SVG('<path d="M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86L7.86 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>');
 const _ICON_SELECT   = _SVG('<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
+const _ICON_TASK     = _SVG('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
+const _ICON_TAG      = _SVG('<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>');
 
 // Legacy — для совместимости
 const _ICON_REPLY_PATH = '/static/elements/reply-svgrepo-com.svg';
@@ -850,9 +852,29 @@ function _showContextMenu(e, msg, isOwn) {
         items.push({ svg: _ICON_REMIND, label: t('ctx.remind'), action: () => _showReminderModal(msg) });
     }
 
+    // Add Task (admin/owner only, for text messages)
+    {
+        const _roomTask = window.AppState?.currentRoom;
+        const isAdminOrOwner = _roomTask?.my_role === 'owner'
+            || _roomTask?.my_role === 'admin'
+            || _roomTask?.is_owner
+            || _roomTask?.is_admin;
+        if (isAdminOrOwner && msg.msg_id && !_isMediaOnly) {
+            items.push({ svg: _ICON_TASK, label: t('ctx.addTask'), action: () => {
+                window._addTaskFromMessage?.(msg);
+            }});
+        }
+        // Set Tag (admin/owner — assign a visible tag/badge to the message sender)
+        if (isAdminOrOwner && msg.sender_id) {
+            items.push({ svg: _ICON_TAG, label: t('ctx.setTag'), action: () => {
+                window._showTagPicker?.(msg.sender_id, msg.tag, msg.tag_color);
+            }});
+        }
+    }
+
     items.push({ divider: true });
 
-    // Удалить
+    // Delete
     const _room = window.AppState?.currentRoom;
     const canDelete = isOwn
         || _room?.my_role === 'owner'
@@ -1048,7 +1070,7 @@ function _showReminderModal(msg) {
     customInput.value = now.toISOString().slice(0, 16);
     const customBtn = document.createElement('button');
     customBtn.className = 'btn btn-primary';
-    customBtn.textContent = 'OK';
+    customBtn.textContent = (typeof t==='function'?t('app.ok'):'OK');
     customBtn.onclick = () => {
         const ts = new Date(customInput.value).getTime();
         if (!ts || ts <= Date.now()) { customInput.style.borderColor = 'var(--red)'; return; }
@@ -1287,4 +1309,176 @@ export {
     _loadReminders, _saveReminders, _showReminderModal, _scheduleReminder,
     _fireReminder, _showEditHistory, _buildReplyQuote,
     _attachMobileLongPress,
+    _showTagPicker,
 };
+
+/* ── Tag Picker (mini modal for setting member tags) ──────────────── */
+function _showTagPicker(targetUserId, currentTag, currentColor) {
+    // Remove any existing picker
+    document.getElementById('tag-picker-overlay')?.remove();
+
+    const TAG_COLORS = [
+        '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#f59e0b',
+        '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
+    ];
+
+    const overlay = document.createElement('div');
+    overlay.id = 'tag-picker-overlay';
+    overlay.className = 'tag-picker-overlay';
+    overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+    let selectedColor = currentColor || TAG_COLORS[0];
+
+    const card = document.createElement('div');
+    card.className = 'tag-picker-card';
+    card.innerHTML = `
+        <div class="tag-picker-title">${t('ctx.setTag') || 'Set Tag'}</div>
+        <input class="tag-picker-input" id="tag-picker-text" type="text"
+               placeholder="${t('tags.placeholder') || 'Tag text (e.g. Admin, VIP, Mod)'}"
+               value="${esc(currentTag || '')}" maxlength="30" autofocus>
+        <div class="tag-picker-preview-wrap">
+            <span class="msg-bubble-tag" id="tag-picker-preview"
+                  style="background:${selectedColor}22;color:${selectedColor};border-color:${selectedColor}44">
+                ${esc(currentTag || 'Preview')}
+            </span>
+        </div>
+        <div class="tag-picker-colors" id="tag-picker-colors">
+            ${TAG_COLORS.map(c =>
+                `<button class="tag-picker-color${c === selectedColor ? ' active' : ''}"
+                         style="background:${c}" data-color="${c}"></button>`
+            ).join('')}
+        </div>
+        <div class="tag-picker-actions">
+            <button class="tag-picker-btn tag-picker-btn-remove" id="tag-picker-remove">
+                ${t('tags.remove') || 'Remove tag'}
+            </button>
+            <button class="tag-picker-btn tag-picker-btn-save" id="tag-picker-save">
+                ${t('tags.save') || 'Save'}
+            </button>
+        </div>
+    `;
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('active'));
+
+    const input = document.getElementById('tag-picker-text');
+    const preview = document.getElementById('tag-picker-preview');
+    const colorsEl = document.getElementById('tag-picker-colors');
+
+    // Update preview on input
+    input.addEventListener('input', () => {
+        preview.textContent = input.value || 'Preview';
+    });
+
+    // Color selection
+    colorsEl.addEventListener('click', e => {
+        const btn = e.target.closest('.tag-picker-color');
+        if (!btn) return;
+        selectedColor = btn.dataset.color;
+        colorsEl.querySelectorAll('.tag-picker-color').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        preview.style.background = selectedColor + '22';
+        preview.style.color = selectedColor;
+        preview.style.borderColor = selectedColor + '44';
+    });
+
+    // Save
+    document.getElementById('tag-picker-save').onclick = async () => {
+        const text = input.value.trim();
+        const S = window.AppState;
+        if (!S.currentRoom) return;
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (S.csrfToken) headers['X-CSRF-Token'] = S.csrfToken;
+            const r = await fetch(`/api/rooms/${S.currentRoom.id}/members/${targetUserId}/tag`, {
+                method: 'PUT', headers, credentials: 'include',
+                body: JSON.stringify({ tag: text || null, tag_color: text ? selectedColor : null }),
+            });
+            if (!r.ok) throw new Error('Failed');
+            overlay.remove();
+            // Update all existing messages from this user in DOM
+            _updateTagsInDOM(targetUserId, text || null, text ? selectedColor : null);
+            if (typeof window.showToast === 'function') {
+                window.showToast(t('tags.saved') || 'Tag saved', 'success');
+            }
+        } catch (err) {
+            console.error('setTag error:', err);
+            if (typeof window.showToast === 'function') {
+                window.showToast(t('tags.error') || 'Failed to set tag', 'error');
+            }
+        }
+    };
+
+    // Remove tag
+    document.getElementById('tag-picker-remove').onclick = async () => {
+        const S = window.AppState;
+        if (!S.currentRoom) return;
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (S.csrfToken) headers['X-CSRF-Token'] = S.csrfToken;
+            await fetch(`/api/rooms/${S.currentRoom.id}/members/${targetUserId}/tag`, {
+                method: 'PUT', headers, credentials: 'include',
+                body: JSON.stringify({ tag: null, tag_color: null }),
+            });
+            overlay.remove();
+            _updateTagsInDOM(targetUserId, null, null);
+            if (typeof window.showToast === 'function') {
+                window.showToast(t('tags.removed') || 'Tag removed', 'success');
+            }
+        } catch (err) {
+            console.error('removeTag error:', err);
+        }
+    };
+
+    input.focus();
+}
+
+/**
+ * Update tag badges on ALL messages from a given user in the current chat.
+ * Adds, updates, or removes .msg-bubble-tag on every msg-group with matching sender_id.
+ */
+function _updateTagsInDOM(userId, tagText, tagColor) {
+    document.querySelectorAll(`.msg-group[data-sender-id="${userId}"]`).forEach(group => {
+        // Update tag in author header (.msg-tag)
+        const authorTag = group.querySelector('.msg-tag');
+        if (tagText) {
+            if (authorTag) {
+                authorTag.textContent = tagText;
+                if (tagColor) {
+                    authorTag.style.background = tagColor + '22';
+                    authorTag.style.color = tagColor;
+                    authorTag.style.borderColor = tagColor + '44';
+                }
+            }
+            // Could insert new .msg-tag if not present, but author block may not exist for all messages
+        } else if (authorTag) {
+            authorTag.remove();
+        }
+
+        // Update tag badge on bubble (.msg-bubble-tag)
+        group.querySelectorAll('.msg-bubble').forEach(bubble => {
+            let badge = bubble.querySelector('.msg-bubble-tag');
+            if (tagText) {
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'msg-bubble-tag';
+                    bubble.insertBefore(badge, bubble.firstChild);
+                }
+                badge.textContent = tagText;
+                if (tagColor) {
+                    badge.style.background = tagColor + '22';
+                    badge.style.color = tagColor;
+                    badge.style.borderColor = tagColor + '44';
+                } else {
+                    badge.style.cssText = '';
+                }
+            } else if (badge) {
+                badge.remove();
+            }
+        });
+    });
+}
+
+// Expose for context menu
+window._showTagPicker = _showTagPicker;

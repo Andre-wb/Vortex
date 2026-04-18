@@ -95,7 +95,7 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
     peer = registry.get(src_ip)
     if not peer and not body.ephemeral_pub:
         # Неизвестный пир без шифрования — отклоняем
-        raise HTTPException(403, "Неизвестный узел")
+        raise HTTPException(403, "Unknown node")
 
     if body.ephemeral_pub and body.ciphertext:
         node_priv_raw, _ = _get_node_keys()
@@ -105,11 +105,11 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
             msg = decrypt_p2p_payload(body.ephemeral_pub, body.ciphertext, node_priv)
         except Exception as e:
             logger.warning(f"P2P decrypt failed from {src_ip}: {e}")
-            raise HTTPException(400, "Не удалось расшифровать P2P сообщение")
+            raise HTTPException(400, "Failed to decrypt P2P message")
     elif body.plaintext_payload:
         msg = body.plaintext_payload
     else:
-        raise HTTPException(400, "Отсутствует payload")
+        raise HTTPException(400, "Missing payload")
 
     if body.sender_pubkey:
         peer = registry.get(src_ip)
@@ -124,7 +124,7 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
     msg_type       = msg.get("msg_type", "text")
 
     if not room_id:
-        raise HTTPException(400, "Отсутствует room_id в payload")
+        raise HTTPException(400, "Missing room_id in payload")
 
     await ws_manager.broadcast_to_room(room_id, {
         "type":       "peer_message",
@@ -149,7 +149,7 @@ async def send_p2p(body: SendReq, u: User = Depends(get_current_user)):
     if body.peer_ip:
         peer = registry.get(body.peer_ip)
         if not peer:
-            raise HTTPException(404, "Пир не найден")
+            raise HTTPException(404, "Peer not found")
         ok = await _send_to_peer_encrypted(
             peer, body.room_id, u.username, body.ciphertext, body.msg_type
         )

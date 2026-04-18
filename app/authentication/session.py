@@ -18,7 +18,7 @@ from app.authentication._helpers import _set_auth_cookies, router
 async def refresh(request: Request, db: Session = Depends(get_db)):
     raw = request.cookies.get("refresh_token")
     if not raw:
-        raise HTTPException(401, "Нет refresh-токена")
+        raise HTTPException(401, "No refresh token")
     from app.security.crypto import hash_token
     old_hash = hash_token(raw)
     device = db.query(UserDevice).filter(UserDevice.refresh_token_hash == old_hash).first()
@@ -131,13 +131,13 @@ async def logout_device(device_id: int, request: Request,
     """Удалённый выход — завершить сеанс конкретного устройства."""
     current_device, _ = _get_current_device(request, u.id, db)
     if not _can_manage_sessions(current_device, u.id, db):
-        raise HTTPException(403, "Сессия должна быть активна минимум 7 дней для управления другими сессиями")
+        raise HTTPException(403, "Session must be active for at least 7 days to manage other sessions")
 
     device = db.query(UserDevice).filter(
         UserDevice.id == device_id, UserDevice.user_id == u.id
     ).first()
     if not device:
-        raise HTTPException(404, "Устройство не найдено")
+        raise HTTPException(404, "Device not found")
     if device.refresh_token_hash:
         rec = db.query(RefreshToken).filter(
             RefreshToken.token_hash == device.refresh_token_hash,
@@ -157,7 +157,7 @@ async def logout_all_other_devices(request: Request,
     """Завершить все сеансы кроме текущего."""
     current_device, current_hash = _get_current_device(request, u.id, db)
     if not _can_manage_sessions(current_device, u.id, db):
-        raise HTTPException(403, "Сессия должна быть активна минимум 7 дней для управления другими сессиями")
+        raise HTTPException(403, "Session must be active for at least 7 days to manage other sessions")
 
     from app.security.crypto import hash_token
     raw_refresh = request.cookies.get("refresh_token")
@@ -224,10 +224,10 @@ async def change_password(
     # Recovery sessions (created via security questions) have device_name starting with 'recovery:'
     is_recovery = current_device and current_device.device_name and current_device.device_name.startswith('recovery:')
     if not is_recovery and not _can_manage_sessions(current_device, u.id, db):
-        raise HTTPException(403, "Сессия должна быть активна минимум 7 дней для смены пароля")
+        raise HTTPException(403, "Session must be active for at least 7 days to change password")
 
     if len(body.new_password) < 8:
-        raise HTTPException(400, "Пароль должен быть не менее 8 символов")
+        raise HTTPException(400, "Password must be at least 8 characters")
 
     try:
         from app.security.crypto import hash_password
@@ -299,7 +299,7 @@ async def set_session_limit(
     """Set max sessions and auto-terminate oldest if exceeded. 0 = unlimited."""
     current_device, _ = _get_current_device(request, u.id, db)
     if not _can_manage_sessions(current_device, u.id, db):
-        raise HTTPException(403, "Сессия должна быть активна минимум 7 дней")
+        raise HTTPException(403, "Session must be active for at least 7 days")
 
     limit = body.max_sessions
     if limit == 0:

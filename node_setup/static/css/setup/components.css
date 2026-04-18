@@ -174,7 +174,10 @@
 .toggle {
     position: relative;
     width: 44px; height: 24px;
+    flex-shrink: 0;
     cursor: pointer;
+    overflow: hidden;
+    border-radius: 12px;
 }
 
 .toggle input { display: none; }
@@ -190,7 +193,7 @@
 
 .toggle-thumb {
     position: absolute;
-    top: 3px; left: 3px;
+    top: 4px; left: 4px;
     width: 16px; height: 16px;
     background: var(--text3);
     border-radius: 50%;
@@ -199,3 +202,5 @@
 
 .toggle input:checked ~ .toggle-track { background: rgba(78,205,196,.2); border-color: var(--teal); }
 .toggle input:checked ~ .toggle-thumb { transform: translateX(20px); background: var(--teal); }
+
+

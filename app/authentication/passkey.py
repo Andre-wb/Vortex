@@ -61,7 +61,7 @@ async def passkey_register_options(
     """Шаг 1: PublicKeyCredentialCreationOptions для navigator.credentials.create()."""
     ip = raw_ip_for_ratelimit(request)
     if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
-        raise HTTPException(429, "Слишком много попыток")
+        raise HTTPException(429, "Too many attempts")
 
     from webauthn import generate_registration_options, options_to_json
     from webauthn.helpers.structs import (
@@ -113,9 +113,9 @@ async def passkey_register_verify(
     with _passkey_lock:
         ch_data = _passkey_challenges.pop(body.session_id, None)
     if not ch_data or time.monotonic() > ch_data[1]:
-        raise HTTPException(401, "Сессия истекла")
+        raise HTTPException(401, "Session expired")
     if ch_data[2] != u.id:
-        raise HTTPException(403, "Ошибка верификации")
+        raise HTTPException(403, "Verification error")
 
     challenge = ch_data[0]
     rp_id = _get_rp_id(request)
@@ -131,7 +131,7 @@ async def passkey_register_verify(
         )
     except Exception as e:
         logger.warning(f"Passkey register verify failed for user={u.id}: {e}")
-        raise HTTPException(400, f"Ошибка верификации: {e}")
+        raise HTTPException(400, f"Verification error: {e}")
 
     u.passkey_credential_id = _b64url_encode(verification.credential_id)
     u.passkey_public_key = _b64url_encode(verification.credential_public_key)
@@ -149,7 +149,7 @@ async def passkey_login_options(request: Request):
     """Шаг 1 входа: PublicKeyCredentialRequestOptions."""
     ip = raw_ip_for_ratelimit(request)
     if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
-        raise HTTPException(429, "Слишком много попыток")
+        raise HTTPException(429, "Too many attempts")
 
     from webauthn import generate_authentication_options, options_to_json
     from webauthn.helpers.structs import UserVerificationRequirement
@@ -189,12 +189,12 @@ async def passkey_login_verify(
 
     ip = raw_ip_for_ratelimit(request)
     if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
-        raise HTTPException(429, "Слишком много попыток")
+        raise HTTPException(429, "Too many attempts")
 
     with _passkey_lock:
         ch_data = _passkey_challenges.pop(body.session_id, None)
     if not ch_data or time.monotonic() > ch_data[1]:
-        raise HTTPException(401, "Сессия истекла")
+        raise HTTPException(401, "Session expired")
 
     challenge = ch_data[0]
     rp_id = _get_rp_id(request)
@@ -203,7 +203,7 @@ async def passkey_login_verify(
     try:
         credential = AuthenticationCredential.parse_raw(json.dumps(body.credential))
     except Exception as e:
-        raise HTTPException(400, f"Неверный credential: {e}")
+        raise HTTPException(400, f"Invalid credential: {e}")
 
     cred_id_b64 = _b64url_encode(credential.raw_id)
     user = db.query(User).filter(
@@ -211,7 +211,7 @@ async def passkey_login_verify(
         User.is_active == True,
     ).first()
     if not user:
-        raise HTTPException(401, "Ошибка верификации")
+        raise HTTPException(401, "Verification error")
 
     try:
         stored_public_key = _b64url_decode(user.passkey_public_key)
@@ -225,7 +225,7 @@ async def passkey_login_verify(
         )
     except Exception as e:
         logger.warning(f"Passkey login verify failed for cred={cred_id_b64}: {e}")
-        raise HTTPException(401, f"Ошибка верификации: {e}")
+        raise HTTPException(401, f"Verification error: {e}")
 
     user.passkey_sign_count = verification.new_sign_count
     db.commit()

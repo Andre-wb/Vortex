@@ -52,10 +52,10 @@ async def enable_2fa(body: TwoFAVerifyRequest, u: User = Depends(get_current_use
     """Проверяет TOTP-код и включает 2FA."""
     import pyotp
     if not u.totp_secret:
-        raise HTTPException(400, "Сначала настройте 2FA через /2fa/setup")
+        raise HTTPException(400, "Set up 2FA first via /2fa/setup")
     totp = pyotp.TOTP(u.totp_secret)
     if not totp.verify(body.code, valid_window=1):
-        raise HTTPException(401, "Неверный код")
+        raise HTTPException(401, "Invalid code")
     u.totp_enabled = True
     db.commit()
     return {"ok": True}
@@ -70,7 +70,7 @@ async def disable_2fa(body: TwoFAVerifyRequest, u: User = Depends(get_current_us
         return {"ok": True}
     totp = pyotp.TOTP(u.totp_secret)
     if not totp.verify(body.code, valid_window=1):
-        raise HTTPException(401, "Неверный код")
+        raise HTTPException(401, "Invalid code")
     u.totp_enabled = False
     u.totp_secret = None
     db.commit()
@@ -84,7 +84,7 @@ async def verify_2fa_login(body: TwoFALoginRequest, request: Request,
     import pyotp
     user = db.query(User).filter(User.id == body.user_id, User.is_active == True).first()
     if not user or not user.totp_enabled or not user.totp_secret:
-        raise HTTPException(401, "Пользователь не найден или 2FA не включена")
+        raise HTTPException(401, "User not found or 2FA not enabled")
 
     # Rate limit: max 5 attempts per 5 minutes per user
     if not _check_totp_rate(user.id):
@@ -92,7 +92,7 @@ async def verify_2fa_login(body: TwoFALoginRequest, request: Request,
 
     totp = pyotp.TOTP(user.totp_secret)
     if not totp.verify(body.code, valid_window=1):
-        raise HTTPException(401, "Неверный код 2FA")
+        raise HTTPException(401, "Invalid 2FA code")
 
     user.last_seen = datetime.now(timezone.utc)
     user.last_ip = sanitize_ip(request)

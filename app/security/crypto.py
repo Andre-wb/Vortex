@@ -56,7 +56,7 @@ def _py_encrypt(plaintext: bytes, key: bytes) -> bytes:
 def _py_decrypt(data: bytes, key: bytes) -> bytes:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     if len(data) < 12:
-        raise ValueError("Зашифрованные данные слишком короткие")
+        raise ValueError("Encrypted data too short")
     return AESGCM(key).decrypt(data[:12], data[12:], None)
 
 

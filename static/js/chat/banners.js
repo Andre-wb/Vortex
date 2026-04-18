@@ -82,7 +82,7 @@ export function _showBotTag() {
 
     var badge = document.createElement('span');
     badge.style.cssText = 'font-weight:700;color:var(--accent);';
-    badge.textContent = 'BOT';
+    badge.textContent = (typeof t==='function'?t('bots.botBadge'):'BOT');
 
     var label = document.createElement('span');
     label.textContent = t('bots.botConversation');

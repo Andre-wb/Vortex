@@ -102,11 +102,11 @@ async def setup_security_questions(
 ):
     """Setup 3 security questions + answers for password recovery."""
     if len(body.questions) != 3 or len(body.answers) != 3:
-        raise HTTPException(400, "Нужно ровно 3 вопроса и 3 ответа")
+        raise HTTPException(400, "Exactly 3 questions and 3 answers required")
 
     for q, a in zip(body.questions, body.answers):
         if not q.strip() or not a.strip():
-            raise HTTPException(400, "Вопросы и ответы не могут быть пустыми")
+            raise HTTPException(400, "Questions and answers cannot be empty")
 
     # Delete old questions
     db.query(SecurityQuestion).filter(SecurityQuestion.user_id == u.id).delete()
@@ -132,7 +132,7 @@ async def load_security_questions(
     """Load questions (not answers!) for a username. Public endpoint."""
     user = db.query(User).filter(User.username == body.username).first()
     if not user:
-        raise HTTPException(404, "Пользователь не найден")
+        raise HTTPException(404, "User not found")
 
     questions = (
         db.query(SecurityQuestion)
@@ -156,10 +156,10 @@ async def recover_with_security_questions(
     from fastapi import Request as _Req
     user = db.query(User).filter(User.username == body.username).first()
     if not user:
-        raise HTTPException(404, "Пользователь не найден")
+        raise HTTPException(404, "User not found")
 
     if len(body.answers) != 3:
-        raise HTTPException(400, "Нужно 3 ответа")
+        raise HTTPException(400, "3 answers required")
 
     questions = (
         db.query(SecurityQuestion)
@@ -169,12 +169,12 @@ async def recover_with_security_questions(
     )
 
     if len(questions) != 3:
-        raise HTTPException(400, "Секретные вопросы не настроены")
+        raise HTTPException(400, "Security questions not configured")
 
     # Verify all 3
     for q, answer in zip(questions, body.answers):
         if not _verify_answer(answer, q.answer_hash):
-            raise HTTPException(403, "Неверные ответы")
+            raise HTTPException(403, "Incorrect answers")
 
     # All correct — set auth cookies and mark as recovery
     from fastapi.responses import JSONResponse
