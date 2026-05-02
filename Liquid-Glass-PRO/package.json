@@ -14,7 +14,8 @@
   "files": [
     "liquid-glass-pro.js",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "LICENSE-COMMERCIAL.md"
   ],
   "scripts": {
     "dev": "python run.py",
@@ -47,7 +48,7 @@
     "url": "https://github.com/BorisMalts/Liquid-Glass-PRO/issues"
   },
   "homepage": "https://github.com/BorisMalts/Liquid-Glass-PRO#readme",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "engines": {
     "node": ">=18"
   }
