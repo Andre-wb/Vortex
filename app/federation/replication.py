@@ -18,13 +18,17 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
+from collections import defaultdict, deque
 from typing import Optional
 
 import httpx
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+
+from app.security.ip_privacy import raw_ip_for_ratelimit
 from sqlalchemy.orm import Session
 
 from app.config import Config
@@ -42,6 +46,46 @@ router = APIRouter(prefix="/api/federation", tags=["federation-replication"])
 # block message delivery.
 _PUSH_TIMEOUT_SEC = 5.0
 _LIST_LIMIT_MAX = 500
+
+# Abuse limits for the public-facing envelope endpoints. The signature only
+# proves the caller controls `origin_pubkey` (it cannot forge someone else's
+# key), so we still need flood protection and an ownership proof on read.
+_MAX_PAYLOAD_BYTES = 64 * 1024          # reject oversized envelopes
+_POST_RATE_PER_MIN = 120                # per source IP
+_OWNERSHIP_TS_WINDOW = 300              # seconds of clock skew allowed on GET
+
+# In-memory sliding window: source_ip -> deque[monotonic timestamps]
+_post_hits: dict[str, deque] = defaultdict(deque)
+
+
+def _rate_ok(ip: str) -> bool:
+    now = time.monotonic()
+    dq = _post_hits[ip]
+    cutoff = now - 60.0
+    while dq and dq[0] < cutoff:
+        dq.popleft()
+    if len(dq) >= _POST_RATE_PER_MIN:
+        return False
+    dq.append(now)
+    return True
+
+
+def _verify_pubkey_ownership(origin_pubkey_hex: str, ts: int, signature_hex: str) -> bool:
+    """Verify the caller controls the private key for `origin_pubkey`.
+
+    The caller signs the canonical challenge ``vortex-history-request:<pubkey>:<ts>``
+    with their Ed25519 key. Prevents arbitrary enumeration of another user's
+    replicated history (metadata) by anyone who simply knows the public key.
+    """
+    if abs(int(time.time()) - ts) > _OWNERSHIP_TS_WINDOW:
+        return False
+    challenge = f"vortex-history-request:{origin_pubkey_hex}:{ts}".encode()
+    try:
+        pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(origin_pubkey_hex))
+        pub.verify(bytes.fromhex(signature_hex), challenge)
+        return True
+    except (ValueError, InvalidSignature):
+        return False
 
 
 class FederatedEnvelopeBody(BaseModel):
@@ -83,12 +127,25 @@ def _verify_signature(origin_pubkey_hex: str, payload: dict, signature_hex: str)
 
 
 @router.post("/envelopes")
-async def receive_envelope(body: FederatedEnvelopeBody, db: Session = Depends(get_db)):
+async def receive_envelope(body: FederatedEnvelopeBody, request: Request,
+                           db: Session = Depends(get_db)):
     """
     Accept a signed envelope from a peer node. Verifies the ed25519
     signature against `origin_pubkey`, dedups by SHA-256(payload), and
     stores the envelope locally.
+
+    Note: peers are untrusted by design (content is E2E-encrypted), so the
+    signature only proves the caller controls `origin_pubkey`. We add flood
+    protection (size + rate limit) so a hostile client cannot pollute/DoS the
+    local replication store.
     """
+    ip = raw_ip_for_ratelimit(request)
+    if not _rate_ok(ip):
+        raise HTTPException(429, "Too many envelopes, slow down")
+
+    if len(_canonical(body.payload)) > _MAX_PAYLOAD_BYTES:
+        raise HTTPException(413, "Envelope payload too large")
+
     if not _verify_signature(body.origin_pubkey, body.payload, body.signature):
         raise HTTPException(400, "invalid signature")
 
@@ -124,6 +181,8 @@ async def receive_envelope(body: FederatedEnvelopeBody, db: Session = Depends(ge
 @router.get("/envelopes")
 async def list_envelopes(
     origin_pubkey: str = Query(..., min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"),
+    ts:            int = Query(..., ge=0, description="Unix ts signed in the ownership proof"),
+    sig:           str = Query(..., min_length=128, max_length=128, pattern=r"^[0-9a-f]{128}$"),
     since:         int = Query(0, ge=0),
     limit:         int = Query(200, ge=1, le=_LIST_LIMIT_MAX),
     db:            Session = Depends(get_db),
@@ -133,9 +192,16 @@ async def list_envelopes(
 
     Intended for recovery: a node that lost its local DB (or a new device
     signing in with the same seed) can pull its own history from any peer
-    that stored it. Since each envelope is signed, the caller can verify
-    authenticity client-side.
+    that stored it.
+
+    The caller MUST prove control of `origin_pubkey` by signing the challenge
+    ``vortex-history-request:<origin_pubkey>:<ts>`` (ts within ±5 min). This
+    stops anyone who merely knows a public key from enumerating that user's
+    replicated history metadata.
     """
+    if not _verify_pubkey_ownership(origin_pubkey, ts, sig):
+        raise HTTPException(403, "invalid or expired ownership proof")
+
     rows = (db.query(FederatedEnvelope)
               .filter(FederatedEnvelope.origin_pubkey_hex == origin_pubkey,
                       FederatedEnvelope.sender_ts >= since)

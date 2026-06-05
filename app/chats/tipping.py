@@ -11,6 +11,7 @@ The node NEVER holds private wallet keys.
 """
 from __future__ import annotations
 
+import html
 import logging
 import time
 from typing import Optional
@@ -182,9 +183,12 @@ async def donate_page(username: str, db: Session = Depends(get_db)) -> HTMLRespo
     total_lamports = sum(e.lamports for e in (db.query(TipEvent)
         .filter(TipEvent.to_user == u.id, TipEvent.confirmed == 1).all()))
 
-    wallet = (u.wallet_pubkey or "").replace("<", "").replace(">", "")
-    name   = (u.display_name or u.username).replace("<", "").replace(">", "")
-    avatar = u.avatar_url or ""
+    # Full HTML-escaping (incl. quotes) — these are interpolated into both text
+    # and attribute (src="…", href="…") contexts, so quote-escaping is required
+    # to prevent attribute breakout / stored XSS, not just stripping <>.
+    wallet = html.escape(u.wallet_pubkey or "", quote=True)
+    name   = html.escape(u.display_name or u.username, quote=True)
+    avatar = html.escape(u.avatar_url or "", quote=True)
 
     # Intentionally minimal HTML — no JS dependencies, zero tracking.
     html = f"""<!doctype html>

@@ -35,6 +35,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if request.headers.get("upgrade", "").lower() == "websocket":
             return await call_next(request)
 
+        # Per-request CSP nonce. Generated BEFORE the route renders so the
+        # template can stamp it onto its inline <script> blocks, and reused
+        # below in the script-src directive. This lets us drop the blanket
+        # 'unsafe-inline' from script-src: an injected <script> without the
+        # nonce will no longer execute.
+        nonce = secrets.token_urlsafe(16)
+        request.state.csp_nonce = nonce
+
         response = await call_next(request)
         if request.url.path.startswith("/static/"):
             return response
@@ -53,7 +61,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
+            # script-src no longer allows blanket 'unsafe-inline': inline
+            # <script> blocks must carry this request's nonce, so injected
+            # scripts are blocked. 'unsafe-inline' is scoped to event-handler
+            # attributes only (script-src-attr) to keep the legacy onclick=…
+            # handlers working until they are migrated to addEventListener.
+            f"script-src 'self' 'nonce-{nonce}'; "
+            "script-src-attr 'unsafe-inline'; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: blob: https:; "

@@ -540,7 +540,7 @@
                     <span style="position:absolute;height:20px;width:20px;left:2px;bottom:2px;background:white;border-radius:50%;transition:.2s;" id="toggle-grouped-thumb"></span>
                 </label>
             </div>
-            <script>
+            <script nonce="{{ request.state.csp_nonce }}">
                 (function(){
                     var v = localStorage.getItem('vortex_chat_grouped') !== 'false';
                     var el = document.getElementById('toggle-grouped-chats');

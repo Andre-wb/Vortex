@@ -2,7 +2,16 @@
   "name": "architex",
   "version": "0.1.0",
   "description": "Architex — declarative UI language for Mini Apps",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
+  "homepage": "https://github.com/BorisMalts/Vortex/tree/main/Architex",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BorisMalts/Vortex.git",
+    "directory": "Architex"
+  },
+  "bugs": {
+    "url": "https://github.com/BorisMalts/Vortex/issues"
+  },
   "scripts": {
     "build":   "tsc",
     "watch":   "tsc --watch",

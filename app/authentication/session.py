@@ -53,6 +53,11 @@ async def logout(request: Request, db: Session = Depends(get_db)):
         if rec and not rec.revoked_at:
             rec.revoked_at = datetime.now(timezone.utc)
         db.commit()
+    # Also revoke the stateless access token so it cannot be reused until expiry.
+    access = request.cookies.get("access_token")
+    if access:
+        from app.security.auth_jwt import revoke_access_token
+        revoke_access_token(access)
     r = JSONResponse({"ok": True})
     r.delete_cookie("access_token", path="/")
     r.delete_cookie("refresh_token", path="/")

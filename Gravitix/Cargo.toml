@@ -3,7 +3,9 @@ name        = "gravitix"
 version     = "0.1.0"
 edition     = "2021"
 description = "Gravitix — fast scripting language for bots"
-license     = "MIT"
+license     = "AGPL-3.0-or-later"
+repository  = "https://github.com/BorisMalts/Vortex"
+homepage    = "https://github.com/BorisMalts/Vortex/tree/main/Gravitix"
 
 [[bin]]
 name = "gravitix"

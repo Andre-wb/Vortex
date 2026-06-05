@@ -58,7 +58,8 @@ class FileUploadConfig:
         'image/bmp':      ['.bmp'],
         'image/tiff':     ['.tif', '.tiff'],
         'image/x-adobe-dng': ['.dng'],
-        'image/svg+xml':  ['.svg'],
+        # NOTE: image/svg+xml intentionally NOT allowed — SVG can carry inline
+        # <script>/onload payloads (stored XSS). Use raster formats instead.
         # HEIC/HEIF (iPhone): magic возвращает разные строки в зависимости от libmagic версии
         'image/heic':     ['.heic', '.heif'],
         'image/heif':     ['.heic', '.heif'],
@@ -94,7 +95,9 @@ class FileUploadConfig:
         'application/vnd.oasis.opendocument.text': ['.odt'],
         'application/vnd.oasis.opendocument.spreadsheet': ['.ods'],
         'application/vnd.oasis.opendocument.presentation': ['.odp'],
-        'text/html':        ['.html', '.htm', '.vxpage.html'],
+        # NOTE: text/html intentionally NOT allowed — an uploaded HTML document
+        # is a stored-XSS vector. HTML is also force-downloaded by the /uploads
+        # mount, but we reject it at ingest as defense-in-depth.
         'text/css':         ['.css'],
         'text/javascript':  ['.js', '.mjs'],
         'text/typescript':  ['.ts', '.tsx'],

@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.models import User
 from app.security.auth_jwt import get_current_user
 from app.bots.ide_runner import _BOTS_DIR
-from app.bots.ide_shared import SaveVersionRequest, _validate_id
+from app.bots.ide_shared import SaveVersionRequest, _require_project, _validate_id
 
 
 router = APIRouter(prefix="/api/ide", tags=["ide"])
@@ -119,7 +119,7 @@ async def ide_list_versions(
     current_user: User = Depends(get_current_user),
 ):
     """Return all saved versions for a project (newest first)."""
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
     versions = _load_versions(pid)
     # Return metadata only (no code) to keep response small
     return {
@@ -142,7 +142,7 @@ async def ide_save_version(
     current_user: User = Depends(get_current_user),
 ):
     """Save current code as a new version (auto-incremented).  Keeps max 20."""
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user, create=True)
     versions = _load_versions(pid)
 
     next_v = (versions[-1]["version"] + 1) if versions else 1
@@ -172,7 +172,7 @@ async def ide_rollback_version(
     current_user: User = Depends(get_current_user),
 ):
     """Restore version N as the current code.  Returns the code for the frontend to load."""
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
     versions = _load_versions(pid)
     entry = next((v for v in versions if v["version"] == version), None)
     if entry is None:
@@ -198,7 +198,7 @@ async def ide_flow_graph(
     current_user: User = Depends(get_current_user),
 ):
     """Extract and return a flow graph (nodes + edges) from the project's .grav file."""
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
     from app.bots.ide_runner import _script_path
     path = _script_path(pid)
     if not path.exists():

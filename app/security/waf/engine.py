@@ -156,6 +156,36 @@ class WAFEngine:
                 rule.last_triggered = datetime.now(timezone.utc)
         return res
 
+    def _iter_multipart_text_fields(self, body: str):
+        """Yield (name, value) for each non-file (text) part of a multipart body.
+
+        Parts carrying ``filename=`` (actual uploaded files) are skipped — their
+        bytes are arbitrary/binary and would trigger false positives. The
+        boundary is recovered from the leading ``--<boundary>`` delimiter line.
+        """
+        import re
+        stripped = body.lstrip()
+        if not stripped.startswith('--'):
+            return
+        boundary_line = stripped.split('\n', 1)[0].strip()
+        delim = boundary_line  # includes the leading "--"
+        for part in body.split(delim):
+            seg = part.strip('\r\n')
+            if not seg or seg == '--':
+                continue
+            if '\r\n\r\n' in part:
+                headers, _, value = part.partition('\r\n\r\n')
+            elif '\n\n' in part:
+                headers, _, value = part.partition('\n\n')
+            else:
+                continue
+            if 'filename=' in headers.lower():
+                continue  # binary file content — not a text field
+            m = re.search(r'name="?([^";\r\n]+)"?', headers, re.IGNORECASE)
+            name = m.group(1) if m else 'field'
+            # Trim the trailing boundary terminator/newlines from the value.
+            yield name, value.strip('\r\n').rstrip('-').strip('\r\n')
+
     def _check_request_body(self, body: str, content_type: str) -> List[Dict]:
         findings = []
         parsed = False
@@ -197,6 +227,13 @@ class WAFEngine:
                             'description': f'Dangerous file extension {ext} in multipart upload',
                         })
                         break
+            # Run the generic injection rules against TEXT field VALUES too.
+            # Previously this branch returned here, so SQLi/XSS/command payloads
+            # smuggled inside multipart form fields bypassed the rule engine
+            # entirely. Binary file parts (those with filename=) are skipped to
+            # avoid false positives on legitimate uploaded content.
+            for fld_name, fld_value in self._iter_multipart_text_fields(body):
+                findings.extend(self._check_parameter(fld_name, fld_value))
             return findings
 
         if 'application/json' in content_type:

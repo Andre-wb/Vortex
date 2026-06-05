@@ -1,6 +1,15 @@
 {
   "name": "vortex-frontend",
   "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "homepage": "https://github.com/BorisMalts/Vortex#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BorisMalts/Vortex.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BorisMalts/Vortex/issues"
+  },
   "scripts": {
     "test": "jest --coverage",
     "test:watch": "jest --watch",

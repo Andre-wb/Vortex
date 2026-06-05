@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
@@ -24,7 +25,7 @@ from fastapi import APIRouter, Depends
 from app.models import User
 from app.security.auth_jwt import get_current_user
 from app.bots.ide_runner import get_logs, get_status
-from app.bots.ide_shared import _BASE, _validate_id
+from app.bots.ide_shared import _BASE, _require_project, _validate_id
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ router = APIRouter(prefix="/api/ide", tags=["ide"])
 @router.get("/analytics/{project_id}")
 async def bot_analytics(project_id: str, current_user: User = Depends(get_current_user)):
     """Return analytics for a bot project (log-based + track()-based events)."""
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
     status = get_status(pid)
     logs = get_logs(pid, last_n=500)
 
@@ -90,7 +91,7 @@ async def get_bot_metrics(
     current_user: User = Depends(get_current_user),
 ):
     """Read bot metrics exported by Gravitix runtime."""
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
 
     BASE = Path(__file__).resolve().parent.parent.parent
     metrics_file = BASE / "bots_workspace" / f"{pid}_metrics.json"
@@ -122,7 +123,7 @@ async def get_bot_queues(
     current_user: User = Depends(get_current_user),
 ):
     """Get status of bot job queues."""
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
     queues_file = _BASE / "bots_workspace" / f"{pid}_queues.json"
     if queues_file.exists():
         try:
@@ -142,7 +143,7 @@ async def get_bot_audit(
     current_user: User = Depends(get_current_user),
 ):
     """Get bot audit trail entries."""
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
     audit_file = _BASE / "bots_workspace" / f"{pid}_audit.json"
     if audit_file.exists():
         try:
@@ -158,7 +159,7 @@ async def get_bot_audit(
 @router.get("/breakers/{project_id}")
 async def get_breaker_status(project_id: str, user=Depends(get_current_user)):
     """Get circuit breaker states for a bot."""
-    _validate_id(project_id)
+    _require_project(project_id, user)
     breaker_file = _BASE / "bots_workspace" / f"{project_id}_breakers.json"
     if not breaker_file.exists():
         return {"ok": True, "breakers": {}}
@@ -192,13 +193,21 @@ async def install_package(body: dict, user=Depends(get_current_user)):
     """Install a package for a project."""
     project_id = body.get("project_id", "")
     package_name = body.get("package", "")
-    _validate_id(project_id)
+    _require_project(project_id, user)
+    # Validate package name against the same safe-id charset to prevent
+    # path traversal / arbitrary file write (do NOT rely on the WAF alone).
+    _validate_id(package_name)
 
     plugins_dir = _BASE / "bots_workspace" / "plugins"
     plugins_dir.mkdir(parents=True, exist_ok=True)
 
+    # Defence-in-depth: confirm the resolved path stays inside plugins_dir.
+    target = (plugins_dir / f"{package_name}.grav").resolve()
+    if not str(target).startswith(str(plugins_dir.resolve()) + os.sep):
+        raise HTTPException(400, "Invalid package name")
+
     stub = f'// Gravitix package: {package_name}\n// Auto-installed via IDE\n\nfn {package_name}_init() {{\n    log("Plugin {package_name} loaded")\n}}\n'
-    (plugins_dir / f"{package_name}.grav").write_text(stub, encoding="utf-8")
+    target.write_text(stub, encoding="utf-8")
 
     return {"ok": True, "installed": package_name, "path": f"plugins/{package_name}.grav"}
 
@@ -208,7 +217,7 @@ async def install_package(body: dict, user=Depends(get_current_user)):
 @router.get("/admin/{project_id}")
 async def get_bot_admin(project_id: str, user=Depends(get_current_user)):
     """Get bot admin panel configuration."""
-    _validate_id(project_id)
+    _require_project(project_id, user)
     admin_file = _BASE / "bots_workspace" / f"{project_id}_admin.json"
     if not admin_file.exists():
         return {"ok": False, "error": "No admin panel defined"}
@@ -224,7 +233,7 @@ async def get_bot_admin(project_id: str, user=Depends(get_current_user)):
 @router.get("/webhooks/{project_id}")
 async def get_webhooks(project_id: str, user=Depends(get_current_user)):
     """Get registered webhooks for a bot."""
-    _validate_id(project_id)
+    _require_project(project_id, user)
     wh_file = _BASE / "bots_workspace" / f"{project_id}_webhooks.json"
     if not wh_file.exists():
         return {"ok": True, "webhooks": []}
@@ -240,7 +249,7 @@ async def get_webhooks(project_id: str, user=Depends(get_current_user)):
 @router.get("/permissions/{project_id}")
 async def get_permissions(project_id: str, user=Depends(get_current_user)):
     """Get RBAC permissions config for a bot."""
-    _validate_id(project_id)
+    _require_project(project_id, user)
     perm_file = _BASE / "bots_workspace" / f"{project_id}_permissions.json"
     if not perm_file.exists():
         return {"ok": True, "permissions": None}
@@ -253,7 +262,7 @@ async def get_permissions(project_id: str, user=Depends(get_current_user)):
 @router.post("/permissions/{project_id}/assign")
 async def assign_role(project_id: str, body: dict, user=Depends(get_current_user)):
     """Assign a role to a user."""
-    _validate_id(project_id)
+    _require_project(project_id, user)
     user_id = body.get("user_id", 0)
     role = body.get("role", "user")
 

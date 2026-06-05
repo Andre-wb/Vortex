@@ -7,7 +7,7 @@ name = "vortex-chat"
 version = "1.0.0"
 description = "100% decentralized P2P messenger with E2E encryption"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.10"
 authors = [{name = "Vortex Team"}]
 classifiers = [
@@ -18,7 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Communications :: Chat",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
 ]
 
 dependencies = [

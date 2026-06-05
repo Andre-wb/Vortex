@@ -31,11 +31,22 @@ pub fn derive_session_key(private: Vec<u8>, peer_public: Vec<u8>) -> PyResult<Ve
         .map_err(|_| PyValueError::new_err("Некорректный формат публичного ключа"))?;
 
     let private = StaticSecret::from(private_bytes);
-    let peer_public = PublicKey::from(public_bytes);
+    let peer_public_key = PublicKey::from(public_bytes);
 
-    let shared = private.diffie_hellman(&peer_public);
+    let shared = private.diffie_hellman(&peer_public_key);
 
-    let hk = Hkdf::<Sha256>::new(None, shared.as_bytes());
+    // Salt = sorted concatenation of both public keys. MUST match the Python
+    // implementation (app/security/crypto.py::_py_derive_session_key); otherwise
+    // a Rust node and a Python-fallback node derive different session keys and
+    // E2E silently breaks between them.
+    let local_public = PublicKey::from(&private).to_bytes();
+    let mut pair = [local_public, public_bytes];
+    pair.sort();
+    let mut salt = Vec::with_capacity(64);
+    salt.extend_from_slice(&pair[0]);
+    salt.extend_from_slice(&pair[1]);
+
+    let hk = Hkdf::<Sha256>::new(Some(&salt), shared.as_bytes());
     let mut okm = [0u8; 32];
 
     hk.expand(b"vortex-session", &mut okm)

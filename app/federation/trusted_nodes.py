@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import secrets
+import socket
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -183,6 +184,52 @@ class ValidateTokenRequest(BaseModel):
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+def _ip_is_internal(addr: "ipaddress.IPv4Address | ipaddress.IPv6Address") -> bool:
+    """True if an IP must never be reached via federation node-add (SSRF)."""
+    if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved \
+            or addr.is_multicast or addr.is_unspecified:
+        return True
+    if str(addr).startswith("169.254."):  # cloud metadata (AWS/GCP/Azure)
+        return True
+    return any(addr in net for net in _BLOCKED_PEER_NETS)
+
+
+def _resolve_safe_ips(hostname: str) -> list[str]:
+    """Resolve ``hostname`` and reject if ANY result is internal.
+
+    Returns the list of resolved IP strings so the caller can pin the
+    connection to a vetted address (defeating DNS-rebinding TOCTOU).
+    Raises ValueError if the host is internal or cannot be resolved.
+    """
+    # Literal IP?
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if _ip_is_internal(addr):
+            raise ValueError(f"Blocked internal address: {hostname}")
+        return [str(addr)]
+    except ValueError as e:
+        if "Blocked internal" in str(e):
+            raise
+        # Not a literal IP — resolve the domain name.
+
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        raise ValueError(f"Cannot resolve hostname: {hostname}")
+
+    ips: list[str] = []
+    for info in infos:
+        ip_str = info[4][0]
+        addr = ipaddress.ip_address(ip_str)
+        if _ip_is_internal(addr):
+            # Any internal answer (DNS rebinding / split-horizon) → reject.
+            raise ValueError(f"Hostname resolves to internal address: {hostname}")
+        ips.append(ip_str)
+    if not ips:
+        raise ValueError(f"Cannot resolve hostname: {hostname}")
+    return ips
+
+
 class NodeSandbox:
     """Security validation and isolation for federation node interactions."""
 
@@ -207,17 +254,13 @@ class NodeSandbox:
         if parsed.scheme == "http" and not is_localhost:
             raise ValueError("HTTP is only allowed for localhost; use HTTPS")
 
-        # SSRF protection: resolve hostname and check against blocked nets
+        # SSRF protection: for any non-localhost target, resolve the hostname
+        # (literal IP or domain) and reject if it points at an internal/private/
+        # link-local/metadata address. This closes the DNS-bypass where a public
+        # name like "169.254.169.254.nip.io" or "localtest.me" resolves to an
+        # internal IP. Raises ValueError on any blocked address.
         if not is_localhost:
-            try:
-                addr = ipaddress.ip_address(hostname)
-                if any(addr in net for net in _BLOCKED_PEER_NETS):
-                    raise ValueError(f"Blocked IP address: {hostname}")
-            except ValueError as e:
-                if "Blocked IP" in str(e):
-                    raise
-                # hostname is a domain name — will be resolved at connect time;
-                # additional checks happen in probe_node via httpx
+            _resolve_safe_ips(hostname)
 
         # Port restrictions
         port = parsed.port
@@ -240,10 +283,18 @@ class NodeSandbox:
         Returns a dict with node metadata on success.
         Raises ValueError or httpx errors on failure.
         """
+        # Re-validate at connect time to shrink the DNS-rebinding TOCTOU window
+        # between validate_url() and the actual request.
+        from urllib.parse import urlparse
+        host = urlparse(url).hostname or ""
+        if host not in ("localhost", "127.0.0.1", "::1"):
+            _resolve_safe_ips(host)  # raises ValueError if it now points internal
+
         ssl_ctx = make_peer_ssl_context()
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(5.0, connect=3.0),
             verify=ssl_ctx,
+            follow_redirects=False,
         ) as client:
             resp = await client.get(f"{url}/api/health")
             resp.raise_for_status()
@@ -812,13 +863,14 @@ async def add_node(
     if existing:
         raise HTTPException(409, f"Node already registered (status: {existing.status})")
 
-    # Probe the remote node
+    # Probe the remote node. Do NOT reflect the upstream error/status back to the
+    # caller — that turns this endpoint into an internal port-scan / service
+    # fingerprint oracle. Log details server-side, return a generic message.
     try:
         info = await NodeSandbox.probe_node(normalized_url)
     except Exception as e:
-        raise HTTPException(
-            502, f"Could not reach node at {normalized_url}: {e}"
-        )
+        logger.warning("Node probe failed for %s: %s", normalized_url, e)
+        raise HTTPException(502, "Could not reach or verify the node")
 
     node_id = info.get("node_id") or secrets.token_hex(16)
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -276,12 +277,18 @@ async def upload_emoji(space_id: int, name: str = Query(..., min_length=2, max_l
     ).first()
     if existing:
         raise HTTPException(409, f"Emoji :{name}: already exists")
+    # Validate emoji name charset to prevent path traversal / arbitrary file
+    # write (name flows into the on-disk filename below). Do not rely on the WAF.
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{2,50}", name):
+        raise HTTPException(400, "Emoji name may only contain letters, digits, '_' and '-'")
     # Save file
     emoji_dir = f"uploads/space_emojis/{space_id}"
     os.makedirs(emoji_dir, exist_ok=True)
     content = await file.read()
-    ext = file.filename.rsplit(".", 1)[-1] if "." in (file.filename or "") else "png"
-    filename = f"{name}.{ext}"
+    raw_ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "png"
+    # Allowlist extensions; reject anything containing path separators or unexpected chars.
+    ext = raw_ext if raw_ext in ("png", "gif", "webp", "jpg", "jpeg") else "png"
+    filename = f"{name.lower()}.{ext}"
     filepath = f"{emoji_dir}/{filename}"
     with open(filepath, "wb") as f:
         f.write(content)

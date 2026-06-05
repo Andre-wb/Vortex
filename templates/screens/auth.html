@@ -1,5 +1,5 @@
 <!-- Password eye toggle (must be non-module for onclick to work) -->
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 function togglePassEye(btn) {
     var wrap = btn.closest('.form-input-icon') || btn.parentElement;
     var input = wrap.querySelector('input[type="password"], input[type="text"]');

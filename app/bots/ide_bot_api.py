@@ -32,7 +32,7 @@ from fastapi.responses import JSONResponse
 from app.models import User
 from app.security.auth_jwt import get_current_user
 from app.bots.ide_runner import _procs, get_status
-from app.bots.ide_shared import BotCallRequest, _BASE, _ID_RE, _validate_id
+from app.bots.ide_shared import BotCallRequest, _BASE, _ID_RE, _require_project, _validate_id
 
 
 logger = logging.getLogger(__name__)
@@ -402,7 +402,7 @@ async def bot_notify_room(
 @bot_call_router.post("/api/bot/fire_event")
 async def bot_fire_event(body: dict, user=Depends(get_current_user)):
     """Fire a custom event to a running bot."""
-    project_id = body.get("project_id", "")
+    project_id = _require_project(body.get("project_id", ""), user)
     event_name = body.get("event", "")
     event_data = body.get("data", {})
 

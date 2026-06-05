@@ -912,7 +912,39 @@ os.makedirs("uploads/room_avatars", exist_ok=True)
 os.makedirs("uploads/space_avatars", exist_ok=True)
 os.makedirs("uploads/stickers", exist_ok=True)
 os.makedirs("uploads/saved_gifs", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+
+# Only these extensions may be served inline; everything else (html, svg, js,
+# css, source code, archives, …) is forced to download so a user-uploaded file
+# can never execute as a document on the app's own origin (stored XSS).
+_INLINE_SAFE_UPLOAD_EXT = {
+    ".jpg", ".jpeg", ".jfif", ".jpe", ".png", ".webp", ".gif", ".bmp",
+    ".tif", ".tiff", ".heic", ".heif", ".dng",
+    ".mp4", ".m4v", ".webm", ".mov", ".qt", ".avi", ".mkv", ".3gp",
+    ".mp3", ".ogg", ".oga", ".wav", ".weba", ".aac", ".m4a", ".flac",
+}
+
+
+class SafeUploadStaticFiles(StaticFiles):
+    """StaticFiles that refuses to serve user uploads as renderable documents.
+
+    Closes the stored-XSS vector where an uploaded .html/.svg was served inline
+    with an executable Content-Type from the app origin. Safe media is still
+    served inline (for <img>/<video>/<audio>); anything else is sent as an
+    attachment with a neutral Content-Type and nosniff.
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        ext = os.path.splitext(path)[1].lower()
+        if ext not in _INLINE_SAFE_UPLOAD_EXT:
+            response.headers["Content-Type"] = "application/octet-stream"
+            response.headers["Content-Disposition"] = "attachment"
+        return response
+
+
+app.mount("/uploads", SafeUploadStaticFiles(directory="uploads"), name="uploads")
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -22,6 +23,116 @@ from app.models import RefreshToken, User
 logger = logging.getLogger(__name__)
 
 _JWT_ALG = "HS256"
+
+
+# ── Access-token revocation (logout) ────────────────────────────────────────
+# Access tokens are stateless and otherwise valid until `exp`. To make logout
+# actually terminate an active/stolen access token, we keep a denylist of
+# revoked `jti`s until their natural expiry.
+#
+# Storage backend:
+#   - If Config.REDIS_URL is set → Redis (shared across all workers/hosts).
+#     Each revoked jti is `SETEX jwt:revoked:<jti> <ttl> 1`, so it auto-expires
+#     exactly when the token would have, and every process sees it.
+#   - Otherwise → an in-process dict (single-process deployments only).
+# If Redis is configured but unreachable, we fail safe: revocation also lands
+# in the in-process set for the current worker, and reads fall back to it.
+_JTI_PREFIX = "jwt:revoked:"
+
+_revoked_jti: dict[str, float] = {}      # in-memory fallback
+_revoked_lock = threading.Lock()
+
+_redis_client = None
+_redis_init_done = False
+_redis_lock = threading.Lock()
+
+
+def _get_redis():
+    """Lazily create a shared Redis client, or None if not configured/available."""
+    global _redis_client, _redis_init_done
+    if _redis_init_done:
+        return _redis_client
+    with _redis_lock:
+        if _redis_init_done:
+            return _redis_client
+        url = getattr(Config, "REDIS_URL", "") or ""
+        if url:
+            try:
+                import redis
+                client = redis.Redis.from_url(
+                    url, decode_responses=True,
+                    socket_connect_timeout=2, socket_timeout=2,
+                )
+                client.ping()
+                _redis_client = client
+                logger.info("JWT revocation denylist: using Redis backend")
+            except Exception as e:
+                logger.warning("JWT denylist: Redis unavailable (%s) — "
+                               "falling back to in-process store", e)
+                _redis_client = None
+        _redis_init_done = True
+    return _redis_client
+
+
+def _purge_expired_jti(now_epoch: float) -> None:
+    for j, exp in list(_revoked_jti.items()):
+        if exp <= now_epoch:
+            _revoked_jti.pop(j, None)
+
+
+def revoke_access_token(token: str) -> None:
+    """Add an access token's jti to the denylist until it would expire."""
+    try:
+        payload = jwt.decode(
+            token, Config.JWT_SECRET, algorithms=[_JWT_ALG],
+            options={"verify_exp": False, "verify_aud": False},
+        )
+    except jwt.InvalidTokenError:
+        return
+    jti = payload.get("jti")
+    exp = payload.get("exp")
+    if not jti or not exp:
+        return
+    now = datetime.now(timezone.utc).timestamp()
+    ttl = int(float(exp) - now)
+    if ttl <= 0:
+        return  # already expired — nothing to revoke
+
+    r = _get_redis()
+    if r is not None:
+        try:
+            r.setex(_JTI_PREFIX + jti, ttl, "1")
+            return
+        except Exception as e:
+            logger.warning("JWT denylist: Redis SETEX failed (%s) — using local store", e)
+
+    with _revoked_lock:
+        _purge_expired_jti(now)
+        _revoked_jti[jti] = float(exp)
+
+
+def _is_jti_revoked(jti: str) -> bool:
+    if not jti:
+        return False
+    r = _get_redis()
+    if r is not None:
+        try:
+            if r.exists(_JTI_PREFIX + jti):
+                return True
+            # Fall through to also check the local store (covers tokens revoked
+            # while Redis was briefly down on this worker).
+        except Exception as e:
+            logger.warning("JWT denylist: Redis EXISTS failed (%s) — using local store", e)
+
+    now = datetime.now(timezone.utc).timestamp()
+    with _revoked_lock:
+        exp = _revoked_jti.get(jti)
+        if exp is None:
+            return False
+        if exp <= now:
+            _revoked_jti.pop(jti, None)
+            return False
+        return True
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -45,7 +156,7 @@ def create_access_token(user_id: int, phone: str, username: str) -> str:
 
 def decode_access_token(token: str) -> dict[str, Any]:
     try:
-        return jwt.decode(
+        payload = jwt.decode(
             token,
             Config.JWT_SECRET,
             algorithms=[_JWT_ALG],
@@ -56,6 +167,9 @@ def decode_access_token(token: str) -> dict[str, Any]:
         raise HTTPException(401, "Token expired")
     except jwt.InvalidTokenError as e:
         raise HTTPException(401, f"Invalid token: {e}")
+    if _is_jti_revoked(payload.get("jti", "")):
+        raise HTTPException(401, "Token revoked")
+    return payload
 
 
 # ══════════════════════════════════════════════════════════════════════════════

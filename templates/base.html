@@ -119,7 +119,7 @@
 {% include 'components/stream.html' %}
 
 {# ── Scripts ───────────────────────────────────────────────────────── #}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 window.switchTab=window.switchTab||function(t){
     var l=document.getElementById('login-form'),r=document.getElementById('register-form');
     var q=document.getElementById('qr-form'),p=document.getElementById('passkey-form');

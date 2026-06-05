@@ -135,7 +135,8 @@
 <!-- ── Release ─────────────────────────────────────────────────── -->
 <p align="center">
   <img src="https://img.shields.io/badge/Version-1.0.0-blue?style=for-the-badge" alt="Version">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-D22128?style=for-the-badge" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_3.0-A42E2B?style=for-the-badge" alt="License"></a>
+  <a href="LICENSE-COMMERCIAL.md"><img src="https://img.shields.io/badge/Commercial-Available-2EA44F?style=for-the-badge" alt="Commercial License"></a>
   <a href="static/locales/README.md"><img src="https://img.shields.io/badge/146-Languages-green?style=for-the-badge" alt="146 Languages"></a>
   <a href="static/locales/README.md"><img src="https://img.shields.io/badge/Locale%20JSON-19%2C420%20lines-22C55E?style=for-the-badge" alt="Locale LOC"></a>
   <a href="#what-ships-in-vortex-100"><img src="https://img.shields.io/badge/Deep%20Reference-422%20subsystems-0EA5E9?style=for-the-badge" alt="Deep reference"></a>
@@ -741,7 +742,7 @@ The backend is built with Python (FastAPI + SQLAlchemy), the frontend is vanilla
 7. **Self-Sovereign Identity**: BIP39 seed phrase recovery, no phone number required, passkey/WebAuthn support.
 8. **Offline-First**: Messages queue locally and sync when connectivity returns.
 9. **Extensible**: Gravitix (bots) and Architex (UI) are both user-writable DSLs — the platform is extensible without touching the core.
-10. **Open Source**: Apache 2.0 license. Fully auditable.
+10. **Open Source**: AGPL-3.0-or-later (with optional commercial license). Fully auditable.
 11. **Localization-First**: 146 translations shared verbatim across iOS, Android, web and docs — 19,420 lines of JSON, single source of truth.
 
 ### 1.3 Architecture Overview
@@ -9410,23 +9411,42 @@ Keyboard shortcuts:
 
 ## 36. License
 
-Vortex is released under the **Apache License 2.0**.
+Vortex is **dual-licensed**.
+
+### Open source — AGPL-3.0-or-later
+
+The opensource version is distributed under the
+**GNU Affero General Public License v3.0-or-later** — see [`LICENSE`](LICENSE).
+
+If you run a modified Vortex node, relay, gateway, or hosted client and offer
+it to users over a network, AGPL §13 requires you to release the complete
+corresponding source of your deployment under AGPL-3.0-or-later.
 
 ```
-Copyright 2026 Andrey Karavaev, Boris Maltsev
+Copyright (C) 2026 Andrey Karavaev, Boris Maltsev
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    http://www.apache.org/licenses/LICENSE-2.0
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
 ```
+
+### Commercial license
+
+For proprietary, closed-source, white-label, SaaS, or hosted-relay use without
+AGPL §13 source-disclosure obligations, a **commercial license** is available —
+see [`LICENSE-COMMERCIAL.md`](LICENSE-COMMERCIAL.md).
+
+Tiers: Indie ($199), Studio ($999), Business ($2,999), Enterprise (custom),
+Self-hosted node operator ($499/year). Contact: **boris.maltsev222@gmail.com**.
 
 ---
 

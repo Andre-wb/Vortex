@@ -27,7 +27,7 @@ from app.bots.ide_runner import (
     publish_bot,
     stop_bot,
 )
-from app.bots.ide_shared import CompileRequest, PublishRequest, _validate_id
+from app.bots.ide_shared import CompileRequest, PublishRequest, _require_project, _validate_id
 
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ async def ide_compile(
     current_user: User = Depends(get_current_user),
 ):
     """Run Gravitix compiler on code and return structured error list."""
-    pid = _validate_id(body.project_id)
+    pid = _require_project(body.project_id, current_user, create=True)
     result = await compile_code(body.code, pid)
     return result
 
@@ -54,7 +54,7 @@ async def ide_publish(
     current_user: User = Depends(get_current_user),
 ):
     """Compile and deploy bot; starts subprocess on the server."""
-    pid = _validate_id(body.project_id)
+    pid = _require_project(body.project_id, current_user, create=True)
     result = await publish_bot(pid, body.code, body.token)
     if not result["ok"]:
         raise HTTPException(422, result.get("error", "Publish failed"))
@@ -66,7 +66,7 @@ async def ide_status(
     project_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
     return get_status(pid)
 
 
@@ -76,7 +76,7 @@ async def ide_logs(
     n: int = 100,
     current_user: User = Depends(get_current_user),
 ):
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
     return {"logs": get_logs(pid, last_n=min(n, 500))}
 
 
@@ -85,7 +85,7 @@ async def ide_stop(
     project_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    pid = _validate_id(project_id)
+    pid = _require_project(project_id, current_user)
     return await stop_bot(pid)
 
 
