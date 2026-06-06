@@ -793,7 +793,8 @@ window.uploadSettingsAvatar = async function(input) {
         var resp = await fetch('/api/authentication/avatar', {
             method: 'POST',
             body: formData,
-            credentials: 'same-origin'
+            credentials: 'same-origin',
+            headers: { 'X-CSRF-Token': window.AppState?.csrfToken || '' }
         });
         var data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || 'Upload failed');

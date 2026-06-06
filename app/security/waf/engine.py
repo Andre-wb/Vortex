@@ -120,7 +120,11 @@ class WAFEngine:
         body = request_data.get('body', '')
         if body:
             if len(body) > self.max_content_length:
-                findings.append({'rule_id': 'LARGE-BODY', 'severity': 'medium', 'description': f'Request body too large: {len(body)} bytes'})
+                # FIX M4: an over-limit body is now a blocking finding ('high')
+                # rather than 'medium' (which the middleware never blocked). The
+                # ASGI layer already caps absolute size with a 413; this guards
+                # the analysis path for content-type-mismatched oversized bodies.
+                findings.append({'rule_id': 'LARGE-BODY', 'severity': 'high', 'description': f'Request body too large: {len(body)} bytes'})
             else:
                 findings.extend(self._check_request_body(body, request_data.get('content_type', '')))
 
@@ -225,6 +229,23 @@ class WAFEngine:
                             'rule_id': 'DANGEROUS-UPLOAD',
                             'severity': 'high',
                             'description': f'Dangerous file extension {ext} in multipart upload',
+                        })
+                        break
+            # FIX M5: the resumable upload-init posts the intended filename as a
+            # TEXT form field named "file_name" (not a filename= token), so the
+            # check above missed it. Inspect that field value for web-shell
+            # extensions too. Compare against the original (un-decoded) body so
+            # the field-name detector matches the real multipart structure.
+            for fld_name, fld_value in self._iter_multipart_text_fields(body):
+                if fld_name.strip().lower() != 'file_name':
+                    continue
+                fval_lower = urllib.parse.unquote(fld_value).strip().lower()
+                for ext in _webshell_exts:
+                    if fval_lower.endswith(ext):
+                        findings.append({
+                            'rule_id': 'DANGEROUS-UPLOAD',
+                            'severity': 'high',
+                            'description': f'Dangerous file extension {ext} in file_name form field',
                         })
                         break
             # Run the generic injection rules against TEXT field VALUES too.

@@ -925,6 +925,19 @@ _INLINE_SAFE_UPLOAD_EXT = {
 }
 
 
+# FIX H1: directories under uploads/ that are intentionally public — loaded by
+# the frontend via <img src> without credentials (avatars, stickers, gifs). Files
+# stored directly at uploads/<random>.<ext> (chat ATTACHMENTS) are NOT public and
+# require a valid session + room membership.
+_PUBLIC_UPLOAD_DIRS = {
+    "avatars", "room_avatars", "space_avatars", "stickers", "saved_gifs",
+    # space_emojis are custom emoji image assets rendered inline via <img src>
+    # (no FileTransfer row, no per-room auth) — same class as stickers, so they
+    # stay public. Added beyond the task's list to avoid breaking emoji rendering.
+    "space_emojis",
+}
+
+
 class SafeUploadStaticFiles(StaticFiles):
     """StaticFiles that refuses to serve user uploads as renderable documents.
 
@@ -932,9 +945,78 @@ class SafeUploadStaticFiles(StaticFiles):
     with an executable Content-Type from the app origin. Safe media is still
     served inline (for <img>/<video>/<audio>); anything else is sent as an
     attachment with a neutral Content-Type and nosniff.
+
+    FIX H1: also enforces authorization. Public sub-dirs (avatars/stickers/…) are
+    served openly, but a root-level chat attachment (uploads/<random>.<ext>)
+    requires a valid access_token session AND membership of the file's room.
     """
 
+    @staticmethod
+    def _top_dir(path: str) -> str:
+        # Normalize and return the first path segment (StaticFiles already
+        # rejects traversal, but be defensive).
+        norm = os.path.normpath(path).replace("\\", "/").lstrip("/")
+        parts = [p for p in norm.split("/") if p not in ("", ".", "..")]
+        return parts[0] if parts else ""
+
+    def _authorize_attachment(self, path: str, scope) -> bool:
+        """Return True if the requesting session is a non-banned member of the
+        room that owns this attachment. Public sub-dirs bypass this check."""
+        from app.security.auth_jwt import decode_access_token
+        from app.database import SessionLocal
+        from app.models_rooms.messages import FileTransfer
+        from app.models_rooms.rooms import RoomMember
+
+        # Parse cookies from the raw ASGI scope.
+        headers = {
+            k.decode("latin-1").lower(): v.decode("latin-1")
+            for k, v in scope.get("headers", [])
+        }
+        token = None
+        cookie_header = headers.get("cookie", "")
+        if cookie_header:
+            from http.cookies import SimpleCookie
+            jar = SimpleCookie()
+            try:
+                jar.load(cookie_header)
+            except Exception:
+                jar = SimpleCookie()
+            morsel = jar.get("access_token")
+            if morsel:
+                token = morsel.value
+        if not token:
+            return False
+
+        try:
+            payload = decode_access_token(token)
+            user_id = int(payload["sub"])
+        except Exception:
+            return False
+
+        stored_name = os.path.basename(os.path.normpath(path))
+        db = SessionLocal()
+        try:
+            ft = db.query(FileTransfer).filter(
+                FileTransfer.stored_name == stored_name,
+            ).first()
+            if not ft:
+                return False
+            member = db.query(RoomMember).filter(
+                RoomMember.room_id   == ft.room_id,
+                RoomMember.user_id   == user_id,
+                RoomMember.is_banned == False,
+            ).first()
+            return member is not None
+        finally:
+            db.close()
+
     async def get_response(self, path, scope):
+        # FIX H1: gate root-level attachments behind session + room membership.
+        if self._top_dir(path) not in _PUBLIC_UPLOAD_DIRS:
+            if not self._authorize_attachment(path, scope):
+                # 404 (not 403) so we don't confirm the file exists to a stranger.
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
+
         response = await super().get_response(path, scope)
         response.headers["X-Content-Type-Options"] = "nosniff"
         ext = os.path.splitext(path)[1].lower()
@@ -1091,11 +1173,43 @@ async def readiness():
 # ── Prometheus Metrics Endpoint ──────────────────────────────────────────────
 
 if _PROMETHEUS_AVAILABLE:
+    import ipaddress as _ipaddress
+    import secrets
     from starlette.responses import Response
 
+    # Restrict /metrics: scraped by a local Prometheus by default, so allow the
+    # loopback/private TCP peer; otherwise require a bearer token. Set
+    # METRICS_TOKEN to scrape from a non-local network.
+    _METRICS_TOKEN = os.environ.get("METRICS_TOKEN", "").strip()
+
+    def _metrics_peer_allowed(request: Request) -> bool:
+        peer = request.client.host if request.client else None
+        if not peer:
+            return False
+        try:
+            addr = _ipaddress.ip_address(peer)
+        except ValueError:
+            return False
+        return addr.is_loopback or addr.is_private
+
     @app.get("/metrics", include_in_schema=False)
-    async def metrics():
-        """Prometheus metrics endpoint."""
+    async def metrics(request: Request):
+        """Prometheus metrics endpoint.
+
+        FIX (/metrics exposure): the endpoint previously returned full Prometheus
+        metrics to anyone, leaking internal operational data. Now it requires a
+        loopback/private peer OR a valid bearer token (METRICS_TOKEN). Anything
+        else gets a 404 so the endpoint's existence isn't even confirmed.
+        """
+        authorized = _metrics_peer_allowed(request)
+        if not authorized and _METRICS_TOKEN:
+            auth = request.headers.get("authorization", "")
+            if auth.startswith("Bearer "):
+                presented = auth[len("Bearer "):].strip()
+                if secrets.compare_digest(presented, _METRICS_TOKEN):
+                    authorized = True
+        if not authorized:
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
         return Response(
             content=generate_latest(),
             media_type=CONTENT_TYPE_LATEST,
@@ -1104,6 +1218,10 @@ if _PROMETHEUS_AVAILABLE:
 
 if __name__ == "__main__":
     import uvicorn
+    # FIX H6: don't trust X-Forwarded-* unless an explicit proxy allowlist is set
+    # via TRUSTED_PROXY_IPS. By default request.client.host stays the real TCP
+    # peer so forged XFF headers can't bypass per-IP rate limiting.
+    _trusted_proxies = os.environ.get("TRUSTED_PROXY_IPS", "").strip()
     uvicorn.run(
         "app.main:app",
         host=Config.HOST,
@@ -1111,4 +1229,6 @@ if __name__ == "__main__":
         reload=False,
         log_level="info",
         access_log=False,
+        proxy_headers=bool(_trusted_proxies),
+        forwarded_allow_ips=_trusted_proxies or None,
     )

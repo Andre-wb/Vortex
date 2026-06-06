@@ -195,6 +195,10 @@ class _VerifyPasswordRequest(_BM):
 
 class _ChangePasswordRequest(_BM):
     new_password: str
+    # FIX H7: re-authentication with the current password. Optional only so the
+    # security-questions recovery flow (which has no current password to supply)
+    # can omit it; non-recovery sessions MUST provide it (enforced below).
+    current_password: str | None = None
 
 
 @router.post("/verify-password")
@@ -225,14 +229,37 @@ async def change_password(
     db: Session = Depends(get_db),
 ):
     """Change password. Session must be 7+ days old OR first session OR recovery session."""
-    current_device, _ = _get_current_device(request, u.id, db)
+    current_device, current_hash = _get_current_device(request, u.id, db)
     # Recovery sessions (created via security questions) have device_name starting with 'recovery:'
     is_recovery = current_device and current_device.device_name and current_device.device_name.startswith('recovery:')
     if not is_recovery and not _can_manage_sessions(current_device, u.id, db):
         raise HTTPException(403, "Session must be active for at least 7 days to change password")
 
-    if len(body.new_password) < 8:
-        raise HTTPException(400, "Password must be at least 8 characters")
+    # FIX H7: outside the recovery flow, require the caller to prove knowledge of
+    # the CURRENT password before changing it. This is the definitive anti-CSRF
+    # control — a forged cross-site request cannot supply the victim's password —
+    # and also blocks session-hijack-only password takeovers.
+    if not is_recovery:
+        if not body.current_password:
+            raise HTTPException(400, "Current password is required")
+        from app.security.crypto import verify_password
+        try:
+            pw_ok = verify_password(body.current_password, u.password_hash)
+        except Exception:
+            try:
+                from passlib.hash import argon2
+                pw_ok = argon2.verify(body.current_password, u.password_hash)
+            except Exception:
+                pw_ok = False
+        if not pw_ok:
+            raise HTTPException(403, "Current password is incorrect")
+
+    # FIX L1: enforce the full password policy (not just length>=8) and forbid
+    # embedding the username, matching registration's strength requirements.
+    from app.security.security_validate import validate_password_with_context
+    ok, msg = validate_password_with_context(body.new_password, u.username or "")
+    if not ok:
+        raise HTTPException(422, msg)
 
     try:
         from app.security.crypto import hash_password
@@ -242,6 +269,44 @@ async def change_password(
         u.password_hash = argon2.hash(body.new_password)
 
     db.commit()
+
+    # FIX H7: after a successful password change, revoke every OTHER refresh
+    # token / device session so a stolen session cannot survive the rotation.
+    # The current session's refresh token is preserved so the user stays logged
+    # in on this device.
+    other_devices = db.query(UserDevice).filter(
+        UserDevice.user_id == u.id,
+        UserDevice.refresh_token_hash != current_hash,
+    ).all()
+    for d in other_devices:
+        if d.refresh_token_hash:
+            rec = db.query(RefreshToken).filter(
+                RefreshToken.token_hash == d.refresh_token_hash,
+                RefreshToken.revoked_at.is_(None),
+            ).first()
+            if rec:
+                rec.revoked_at = datetime.now(timezone.utc)
+        db.delete(d)
+    # Revoke any other still-valid refresh tokens not tied to a device row.
+    if current_hash:
+        db.query(RefreshToken).filter(
+            RefreshToken.user_id == u.id,
+            RefreshToken.token_hash != current_hash,
+            RefreshToken.revoked_at.is_(None),
+        ).update({RefreshToken.revoked_at: datetime.now(timezone.utc)},
+                 synchronize_session=False)
+    db.commit()
+
+    # Deny-list the current access token's jti so the old stateless access token
+    # cannot be replayed after the credential change.
+    access = request.cookies.get("access_token")
+    if access:
+        try:
+            from app.security.auth_jwt import revoke_access_token
+            revoke_access_token(access)
+        except Exception:
+            pass  # non-critical: refresh tokens are already revoked
+
     return {"ok": True}
 
 

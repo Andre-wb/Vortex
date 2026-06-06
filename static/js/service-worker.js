@@ -151,9 +151,18 @@ self.addEventListener('fetch', event => {
     // WebSocket — не трогаем (SW не может перехватывать WS)
     if (url.protocol === 'ws:' || url.protocol === 'wss:') return;
 
-    // API запросы → Network-First (свежие данные важнее)
+    // API запросы
     if (url.pathname.startsWith('/api/')) {
-        event.respondWith(networkFirst(request, API_CACHE, 5000));
+        // FIX L8: не кэшируем аутентифицированные /api ответы (сообщения, контакты,
+        // профиль, файлы и т.д.) — иначе приватные данные оседают в Cache Storage и
+        // доступны следующему пользователю устройства / offline-читателю.
+        // Кэшируем только небольшой allow-list заведомо публичных, не чувствительных
+        // эндпоинтов; всё остальное — network-only без записи в кэш.
+        if (_isCacheableApi(url.pathname)) {
+            event.respondWith(networkFirst(request, API_CACHE, 5000));
+        } else {
+            event.respondWith(networkOnly(request));
+        }
         return;
     }
 
@@ -190,6 +199,33 @@ async function cacheFirst(request, cacheName) {
         return response;
     } catch {
         return new Response('Resource unavailable offline', { status: 503 });
+    }
+}
+
+// ─── FIX L8: allow-list публичных /api эндпоинтов, безопасных для кэширования ──
+// Сюда попадают только не аутентифицированные / не приватные данные. Всё остальное
+// (сообщения, контакты, профили, файлы, ключи, истории и т.п.) кэшировать нельзя.
+const _CACHEABLE_API_PREFIXES = [
+    '/api/health',
+    '/api/ping',
+    '/api/config',
+    '/api/info',
+    '/api/authentication/registration-info',
+];
+
+function _isCacheableApi(pathname) {
+    return _CACHEABLE_API_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'));
+}
+
+// ─── FIX L8: Network-Only (без записи и чтения кэша) для приватных /api ────────
+async function networkOnly(request) {
+    try {
+        return await fetch(request);
+    } catch {
+        return new Response(
+            JSON.stringify({ error: 'Network unavailable, VORTEX node not responding' }),
+            { status: 503, headers: { 'Content-Type': 'application/json' } }
+        );
     }
 }
 

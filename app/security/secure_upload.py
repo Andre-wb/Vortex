@@ -106,7 +106,10 @@ class FileUploadConfig:
         'text/xml':         ['.xml'],
         'text/yaml':        ['.yaml', '.yml'],
         'text/x-python':    ['.py'],
-        'text/x-php':       ['.php'],
+        # FIX M5: text/x-php (.php) removed — a server-executable script MIME has
+        # no legitimate use in a messenger and is a web-shell vector. Without it,
+        # .php uploads are rejected at MIME validation (defense-in-depth alongside
+        # the double-extension / web-shell extension checks).
         'text/x-java':      ['.java'],
         'text/x-c':         ['.c', '.h'],
         'text/x-c++':       ['.cpp', '.cxx', '.hpp'],

@@ -348,6 +348,16 @@ async def react_to_story(
     if story.user_id == u.id:
         raise HTTPException(400, "Cannot react to own story")
 
+    # FIX L5: ранее проверялось лишь существование стори и что она не своя —
+    # любой пользователь мог реагировать на чужую приватную стори. Требуем,
+    # чтобы у вызывающего был StoryKeyEnvelope (как в get_story_media/_music).
+    has_key = db.query(StoryKeyEnvelope).filter(
+        StoryKeyEnvelope.story_id == story_id,
+        StoryKeyEnvelope.user_id == u.id,
+    ).first()
+    if not has_key:
+        raise HTTPException(403, "No access")
+
     from app.peer.connection_manager import manager
     await manager.notify_user(story.user_id, {
         "type": "story_reaction",
@@ -373,6 +383,16 @@ async def reply_to_story(
         raise HTTPException(404, "Story not found")
     if story.user_id == u.id:
         raise HTTPException(400, "Cannot reply to own story")
+
+    # FIX L5: требуем наличие StoryKeyEnvelope у вызывающего (зеркалит проверку
+    # доступа в get_story_media/get_story_music) — иначе посторонний мог слать
+    # ответы на чужую приватную стори.
+    has_key = db.query(StoryKeyEnvelope).filter(
+        StoryKeyEnvelope.story_id == story_id,
+        StoryKeyEnvelope.user_id == u.id,
+    ).first()
+    if not has_key:
+        raise HTTPException(403, "No access")
 
     from app.peer.connection_manager import manager
     await manager.notify_user(story.user_id, {

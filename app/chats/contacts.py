@@ -20,6 +20,7 @@ from app.database import get_db
 from app.models import User
 from app.models.contact import Contact
 from app.models_rooms import Room, RoomMember
+from app.models_rooms.blocks import BlockedUser  # FIX M1: real block model
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 
@@ -402,7 +403,14 @@ async def block_user(
         u:       User    = Depends(get_current_user),
         db:      Session = Depends(get_db),
 ):
-    """Заблокировать пользователя — запрещает ему отправлять DM."""
+    """Заблокировать/разблокировать пользователя — запрещает ему отправлять DM.
+
+    FIX M1: блокировка теперь хранится в отдельной таблице BlockedUser
+    (blocker_id → blocked_id), а не только как RoomMember.is_banned на
+    существующей DM-комнате. Раньше заблокированный пользователь мог открыть
+    свежий DM и продолжать писать — блок применялся лишь к старой комнате.
+    Toggle: если уже заблокирован — снимаем блок (нет отдельного unblock-эндпоинта).
+    """
     if user_id == u.id:
         raise HTTPException(400, "Cannot block yourself")
 
@@ -410,8 +418,30 @@ async def block_user(
     if not target:
         raise HTTPException(404, "User not found")
 
-    # Находим DM комнату и баним заблокированного пользователя
     dm_room_id = _find_dm_room(u.id, user_id, db)
+
+    existing_block = db.query(BlockedUser).filter(
+        BlockedUser.blocker_id == u.id,
+        BlockedUser.blocked_id == user_id,
+    ).first()
+
+    if existing_block:
+        # FIX M1: разблокировка — удаляем запись и снимаем бан с DM-комнаты
+        db.delete(existing_block)
+        if dm_room_id:
+            member = db.query(RoomMember).filter(
+                RoomMember.room_id == dm_room_id,
+                RoomMember.user_id == user_id,
+            ).first()
+            if member:
+                member.is_banned = False
+        db.commit()
+        return {"ok": True, "blocked": False}
+
+    # FIX M1: создаём запись блокировки (источник правды независимо от DM)
+    db.add(BlockedUser(blocker_id=u.id, blocked_id=user_id))
+
+    # Сохраняем прежнее поведение: баним заблокированного в существующей DM
     if dm_room_id:
         member = db.query(RoomMember).filter(
             RoomMember.room_id == dm_room_id,
@@ -419,6 +449,6 @@ async def block_user(
         ).first()
         if member:
             member.is_banned = True
-            db.commit()
 
+    db.commit()
     return {"ok": True, "blocked": True}

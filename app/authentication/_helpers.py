@@ -139,6 +139,11 @@ def _set_auth_cookies(response: Response, user: User, db: Session, request: Requ
     # Enforce session limit — only if user explicitly set one (0 = unlimited)
     # Session limit is stored in localStorage on client, not on server by default
 
+    # FIX L3: mark auth cookies Secure whenever the connection is HTTPS, not only
+    # in production, so tokens are never sent over plaintext on TLS deployments
+    # that are not flagged as production.
+    secure_cookie = Config.IS_PRODUCTION or request.url.scheme == "https"
+
     for name, val, max_age in [
         ("access_token",  access_token, 3600),
         ("refresh_token", raw_refresh,  86400 * 30),
@@ -146,7 +151,7 @@ def _set_auth_cookies(response: Response, user: User, db: Session, request: Requ
         response.set_cookie(
             name, val,
             httponly=True,
-            secure=Config.IS_PRODUCTION,
+            secure=secure_cookie,
             samesite="Lax",
             max_age=max_age,
             path="/",

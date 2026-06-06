@@ -304,7 +304,8 @@ export function appendMessage(msg) {
                 textEl.innerHTML = `<span class="animated-sticker ${animClass}">${emoji}</span>`;
             } else {
                 // Legacy plain-emoji sticker: "[STICKER] emoji"
-                textEl.innerHTML = `<span style="font-size:64px;line-height:1;">${stickerPayload}</span>`;
+                // FIX H5: stored XSS — decrypted payload is attacker-controlled, must be escaped
+                textEl.innerHTML = `<span style="font-size:64px;line-height:1;">${esc(stickerPayload)}</span>`;
             }
         }
     }
@@ -444,14 +445,25 @@ export function appendMessage(msg) {
             const appTitle = esc(appData.title || 'Mini App');
             const btnText = esc(appData.button_text || 'Open App');
             const appUrl = appData.url || '';
+            const appTitleRaw = appData.title || 'Mini App';
             const botId = msg.bot_id || 0;
+            // FIX L9: do NOT build onclick="...'${esc(appUrl)}'..." — esc() encodes ' to
+            // &#39; which the HTML parser decodes back inside the inline JS string, letting
+            // a crafted url break out of the JS string literal. Wire via addEventListener
+            // so the raw values stay in a JS closure and never touch the HTML parser.
             textEl.innerHTML = `<div class="miniapp-card">
                 <div class="miniapp-card-title">${appTitle}</div>
-                <button class="miniapp-card-btn" onclick="window.openMiniApp(${botId}, '${esc(appUrl)}', '${appTitle}')">
+                <button class="miniapp-card-btn">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M14 9l3 3-3 3"/></svg>
                     ${btnText}
                 </button>
             </div>`;
+            const _miniBtn = textEl.querySelector('.miniapp-card-btn');
+            if (_miniBtn) {
+                _miniBtn.addEventListener('click', () => {
+                    window.openMiniApp?.(botId, appUrl, appTitleRaw);
+                });
+            }
         } catch (_e) {
             textEl.innerHTML = _renderBotMarkdown(msg.text);
         }
@@ -581,7 +593,8 @@ export function appendMessage(msg) {
             btn.dataset.emoji = emoji;
             btn.dataset.count = data.count;
             btn.dataset.users = JSON.stringify(data.users);
-            btn.innerHTML = `${emoji}${data.count > 1 ? ` <span class="reaction-count">${data.count}</span>` : ''}`;
+            // FIX L4: emoji is server-relayed user input — escape before injecting as HTML
+            btn.innerHTML = `${esc(emoji)}${data.count > 1 ? ` <span class="reaction-count">${data.count}</span>` : ''}`;
             btn.onclick = () => {
                 if (S.ws?.readyState === WebSocket.OPEN) {
                     S.ws.send(JSON.stringify({action: 'react', msg_id: msg.msg_id, emoji}));

@@ -32,6 +32,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPExce
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.chats.messages.core import ws_origin_ok  # FIX H4: shared CSWSH guard
 from app.database import get_db
 from app.models import User
 from app.security.auth_jwt import get_current_user, get_user_ws
@@ -694,6 +695,12 @@ async def ws_sfu(
       ``{ type: "sfu_participant_joined", user_id, ... }``  — new participant
       ``{ type: "sfu_participant_left",   user_id, ... }``  — participant left
     """
+    # FIX H4: reject cross-site WS origins (CSWSH) before any processing.
+    if not ws_origin_ok(websocket):
+        await websocket.accept()
+        await websocket.close(code=4403)
+        return
+
     raw_token = websocket.cookies.get("access_token") or token
     if not raw_token:
         await websocket.accept()

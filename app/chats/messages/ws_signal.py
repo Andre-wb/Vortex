@@ -12,7 +12,9 @@ from fastapi import Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
 from app.chats.messages._router import router
+from app.chats.messages.core import ws_origin_ok  # FIX H4: shared CSWSH guard
 from app.database import get_db
+from app.models_rooms import RoomMember
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_user_ws
 
@@ -40,6 +42,12 @@ async def ws_signal(
     """
     import json as _json
 
+    # FIX H4: reject cross-site WS origins (CSWSH) before any processing.
+    if not ws_origin_ok(websocket):
+        await websocket.accept()
+        await websocket.close(code=4403)
+        return
+
     from app.transport.knock import is_knock_required, verify_knock
     if is_knock_required():
         has_auth = bool(websocket.cookies.get("access_token"))
@@ -60,6 +68,18 @@ async def ws_signal(
     except HTTPException:
         await websocket.accept()
         await websocket.close(code=4401)
+        return
+
+    # FIX H3: enforce room membership (mirrors core.py ws_chat gate).
+    # Reject non-members / banned users on the signalling socket too.
+    member = db.query(RoomMember).filter(
+        RoomMember.room_id == room_id,
+        RoomMember.user_id == user.id,
+        RoomMember.is_banned == False,
+    ).first()
+    if not member:
+        await websocket.accept()
+        await websocket.close(code=4403)
         return
 
     await websocket.accept()
@@ -135,6 +155,12 @@ async def ws_notifications(
     Клиент подключается один раз и получает уведомления о новых сообщениях
     в комнатах, к WS которых он сейчас не подключён.
     """
+    # FIX H4: reject cross-site WS origins (CSWSH) before any processing.
+    if not ws_origin_ok(websocket):
+        await websocket.accept()
+        await websocket.close(code=4403)
+        return
+
     raw_token = websocket.cookies.get("access_token") or token
     if not raw_token:
         await websocket.accept()

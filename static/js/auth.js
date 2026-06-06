@@ -899,7 +899,8 @@ export async function doRegister() {
                 const resp = await fetch('/api/authentication/avatar', {
                     method: 'POST',
                     body: formData,
-                    credentials: 'same-origin'
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': window.AppState?.csrfToken || '' }
                 });
                 const avData = await resp.json();
                 if (resp.ok && avData.avatar_url) {
@@ -997,6 +998,36 @@ export async function doLogout() {
     if (window.AppState.ws) { window.AppState.ws.onclose = null; window.AppState.ws.close(); window.AppState.ws = null; }
     if (window.AppState.notifWs) { window.AppState.notifWs.onclose = null; window.AppState.notifWs.close(); window.AppState.notifWs = null; }
     if (window.AppState.signalWs) { window.AppState.signalWs.onclose = null; window.AppState.signalWs.close(); window.AppState.signalWs = null; }
+
+    // FIX M7: logout must wipe sensitive client-side state, not just in-memory vars.
+    // Otherwise private keys / room keys / account list survive in the browser and the
+    // SW API cache may still hold authenticated responses for the next person on the device.
+    try {
+        // Static sensitive keys (private keys, device keys, account list, recovery flags)
+        const _sensitiveKeys = [
+            'vortex_x25519_priv', 'vortex_x25519_priv_enc', 'vortex_x25519', 'vortex_x25519_pub',
+            'vortex_device_priv_jwk', 'vortex_device_pub', 'vortex_device_id',
+            'vortex_accounts', 'vortex_current_account_id',
+            'vortex_sq_done', 'vortex_pw_check_ts',
+        ];
+        for (const k of _sensitiveKeys) localStorage.removeItem(k);
+        // Prefix-matched sensitive keys: per-user private keys (vortex_x25519_priv_<id>),
+        // room keys (vortex_rk_<room>) and per-account room-key backups (vortex_rk_backup_<id>).
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('vortex_x25519_priv_') || k.startsWith('vortex_rk_'))) {
+                localStorage.removeItem(k);
+            }
+        }
+        // sessionStorage holds the decrypted private key + room keys — drop it entirely.
+        sessionStorage.clear();
+    } catch (e) { console.debug('logout storage wipe failed:', e); }
+
+    // Tell the service worker to drop its caches (incl. authenticated /api responses);
+    // also best-effort delete the API cache directly in case the SW isn't controlling yet.
+    try { navigator.serviceWorker?.controller?.postMessage({ type: 'clear-cache' }); } catch (_) {}
+    try { if (window.caches) caches.delete('vortex-api-v1'); } catch (_) {}
+
     $('app').style.display         = 'none';
     const _bt2 = document.getElementById('bottom-tabs');
     if (_bt2) _bt2.style.display = 'none';

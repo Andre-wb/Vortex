@@ -608,6 +608,12 @@ def cmd_run() -> None:
     try:
         import uvicorn
 
+        # FIX H6: do NOT trust X-Forwarded-* by default. With proxy_headers
+        # disabled and forwarded_allow_ips empty, uvicorn keeps request.client.host
+        # as the true TCP peer, so a client cannot spoof XFF to bypass rate limits.
+        # Operators behind a real reverse proxy set TRUSTED_PROXY_IPS (a comma-
+        # separated list of proxy IPs/CIDRs); only then do we enable proxy headers.
+        _trusted_proxies = os.environ.get("TRUSTED_PROXY_IPS", "").strip()
         kwargs: dict = dict(
             app="app.main:app",
             host=host,
@@ -615,6 +621,8 @@ def cmd_run() -> None:
             reload=False,
             log_level="info",
             access_log=False,
+            proxy_headers=bool(_trusted_proxies),
+            forwarded_allow_ips=_trusted_proxies or None,
         )
         if ssl:
             kwargs["ssl_certfile"] = str(CERT_FILE)

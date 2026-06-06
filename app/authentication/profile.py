@@ -1,6 +1,7 @@
 """Профиль пользователя, статус, аватар и утилиты."""
 from __future__ import annotations
 
+import html
 import os
 import re
 import secrets
@@ -74,13 +75,17 @@ _BIRTH_RE_YEAR = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 async def update_profile(body: UpdateProfileBody, u: User = Depends(get_current_user),
                          db: Session = Depends(get_db)):
     if body.display_name is not None:
-        u.display_name = body.display_name.strip()[:100]
+        # FIX M2: HTML-escape free-text profile fields on write as defense-in-depth
+        # so a stored value can never break out into markup if a template/render
+        # path forgets to escape it.
+        u.display_name = html.escape(body.display_name.strip()[:100])
     if body.avatar_emoji is not None:
         u.avatar_emoji = body.avatar_emoji[:10]
     if body.email is not None:
         u.email = body.email.strip()[:255] or None
     if body.bio is not None:
-        u.bio = body.bio.strip()[:300] or None
+        # FIX M2: escape bio (free text) on write as defense-in-depth.
+        u.bio = html.escape(body.bio.strip()[:300]) or None
     if body.birth_date is not None:
         bd = body.birth_date.strip()
         if bd == "" or _BIRTH_RE_NO_YEAR.match(bd) or _BIRTH_RE_YEAR.match(bd):

@@ -1,4 +1,5 @@
 // static/js/chat/mention.js — @mention autocomplete
+import { esc } from '../utils.js';
 
 /** Cached room members for autocomplete (refreshed on room switch via online list) */
 let _roomMembers = [];
@@ -54,7 +55,8 @@ function _showMentionDropdown(members, input) {
         const item = document.createElement('div');
         item.className = 'mention-item' + (i === 0 ? ' active' : '');
         item.dataset.username = m.username;
-        item.innerHTML = `<span class="mention-item-avatar">${m.avatar_emoji}</span><span class="mention-item-name">${m.display_name}</span><span class="mention-item-username">@${m.username}</span>`;
+        // FIX M2: avatar_emoji / display_name / username are user-controlled — escape before HTML injection
+        item.innerHTML = `<span class="mention-item-avatar">${esc(m.avatar_emoji)}</span><span class="mention-item-name">${esc(m.display_name)}</span><span class="mention-item-username">@${esc(m.username)}</span>`;
         item.addEventListener('mousedown', (e) => {
             e.preventDefault();
             _insertMention(m.username);

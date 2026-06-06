@@ -62,6 +62,7 @@ from app.security.secure_upload import (
     FileAnomalyDetector,
     FileUploadConfig,
     generate_secure_filename,
+    strip_all_metadata,
     validate_file_mime_type,
 )
 
@@ -75,6 +76,16 @@ MAX_CHUNK_SIZE     = 10 * 1024 * 1024       # 10 МБ
 MAX_CHUNKS         = 10_240                 # ≈ 10 ГБ при 1МБ-чанках
 SESSION_TTL        = 24 * 3600             # TTL сессии (24 часа)
 TEMP_DIR           = Config.UPLOAD_DIR / "_chunks"
+
+# FIX M5: web-shell / server-executable extensions, mirrors the direct path
+# (app/chats/messages/_router.py DANGEROUS_EXTS). The chunked path previously
+# skipped this check, accepting e.g. shell.php as the final extension.
+WEBSHELL_EXTS = frozenset({
+    '.php', '.php3', '.php4', '.php5', '.phtml',
+    '.asp', '.aspx', '.ascx', '.ashx',
+    '.jsp', '.jspx', '.jws',
+    '.exe', '.bat', '.cmd',
+})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -293,6 +304,12 @@ async def upload_init(
         raise HTTPException(400, "Invalid characters in filename")
     if FileAnomalyDetector.detect_path_traversal(file_name):
         raise HTTPException(400, "Invalid filename")
+    # FIX M5: mirror the direct path — reject double-extension web-shells
+    # (shell.php.jpg) and web-shell/server-executable final extensions.
+    if FileAnomalyDetector.detect_double_extension(file_name):
+        raise HTTPException(400, "Invalid file extension")
+    if Path(file_name).suffix.lower() in WEBSHELL_EXTS:
+        raise HTTPException(400, "Invalid file extension")
 
     # Валидация хеша
     file_hash = _validate_hex_hash(file_hash, "file_hash")
@@ -534,6 +551,15 @@ async def upload_complete(
             await _store.delete(upload_id)
             raise HTTPException(400, img_err or "Invalid image content")
 
+    # FIX H8: strip ALL metadata before writing to disk, mirroring the direct
+    # path (app/chats/messages/files.py:91). The chunked path previously stored
+    # the assembled bytes verbatim, leaking EXIF/GPS (images), creation time and
+    # device info (video/audio), and author/dates (PDF). The integrity check
+    # above already validated the *uploaded* bytes against session.file_hash;
+    # the stored hash/size are recomputed from the stripped content below.
+    content     = strip_all_metadata(content, mime_type)
+    stored_hash = _sha256_hex(content)
+
     # ── Сохранение файла ──────────────────────────────────────────────────────
     ext        = Path(session.file_name).suffix.lower()
     safe_name  = generate_secure_filename(ext)
@@ -549,7 +575,7 @@ async def upload_complete(
         stored_name   = safe_name,
         mime_type     = mime_type,
         size_bytes    = len(content),
-        file_hash     = actual_hash,
+        file_hash     = stored_hash,
     )
     db.add(ft)
     db.commit()
@@ -593,7 +619,7 @@ async def upload_complete(
         "download_url": download_url,
         "msg_type":     msg_type.value,
         "created_at":   ft.created_at.isoformat(),
-        "file_hash":    actual_hash,
+        "file_hash":    stored_hash,  # FIX H8: hash of stored (stripped) bytes
     }
     await manager.broadcast_to_room(session.room_id, broadcast_payload)
 
@@ -609,7 +635,7 @@ async def upload_complete(
         "ok":          True,
         "file_id":     ft.id,
         "download_url": download_url,
-        "file_hash":   actual_hash,
+        "file_hash":   stored_hash,  # FIX H8: hash of stored (stripped) bytes
         "size_bytes":  len(content),
         "mime_type":   mime_type,
     }

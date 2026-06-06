@@ -36,6 +36,59 @@ from app.peer.connection_manager import manager
 from app.transport.blind_mailbox import deposit_envelope
 
 
+# FIX H4: Shared Origin validation for ALL WebSocket endpoints (anti-CSWSH).
+# Imported by ws_signal.py, voice.py, sfu.py, stream.py, federation.py.
+def ws_origin_ok(websocket: WebSocket) -> bool:
+    """
+    Cross-Site WebSocket Hijacking (CSWSH) guard.
+
+    Allows the connection when:
+      - the Origin header is ABSENT (native mobile / desktop clients that don't
+        send Origin), OR
+      - the Origin host matches our own host (same-origin), OR
+      - the Origin host is in the optional ALLOWED_WS_ORIGINS allowlist.
+
+    Blocks only when an Origin header is PRESENT and not allowed (i.e. a
+    cross-site browser context) — caller should then accept() + close(4403).
+    """
+    origin = websocket.headers.get("origin")
+    if not origin:
+        # No Origin → native client (mobile app, CLI). Allow.
+        return True
+
+    from urllib.parse import urlsplit
+    try:
+        origin_host = (urlsplit(origin).netloc or "").lower()
+    except Exception:
+        return False
+    if not origin_host:
+        return False
+
+    # Same-origin: compare against the Host header the client used to reach us.
+    own_host = (websocket.headers.get("host") or "").lower()
+    if origin_host == own_host:
+        return True
+    # Also accept when only hostnames match (e.g. Host carries a port the proxy
+    # stripped from Origin, or vice-versa).
+    if own_host and origin_host.split(":")[0] == own_host.split(":")[0]:
+        return True
+
+    # Optional explicit allowlist (comma-separated origins or hosts).
+    import os
+    allow_raw = os.getenv("ALLOWED_WS_ORIGINS", "")
+    if allow_raw:
+        for entry in allow_raw.split(","):
+            entry = entry.strip().lower()
+            if not entry:
+                continue
+            from urllib.parse import urlsplit as _us
+            entry_host = (_us(entry).netloc or entry) if "://" in entry else entry
+            if origin_host == entry_host or origin_host.split(":")[0] == entry_host.split(":")[0]:
+                return True
+
+    return False
+
+
 async def _bmp(room_id, payload):
     from app.config import Config
     if not Config.BMP_DELIVERY_ENABLED:
@@ -240,6 +293,12 @@ async def ws_chat(
         token:     Optional[str] = None,
         db:        Session       = Depends(get_db),
 ):
+    # FIX H4: reject cross-site WS origins (CSWSH) before any processing.
+    if not ws_origin_ok(websocket):
+        await websocket.accept()
+        await websocket.close(code=4403)
+        return
+
     # Anti-probing: knock sequence в global mode
     from app.transport.knock import verify_knock, is_knock_required
     if is_knock_required():

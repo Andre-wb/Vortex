@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.chats.messages.core import ws_origin_ok  # FIX H4: shared CSWSH guard
 from app.database import get_db
 from app.models import User
 from app.models_rooms import Room, RoomMember, RoomRole
@@ -833,6 +834,12 @@ async def ws_stream(
       - stream_reaction / stream_donation
       - stream_ended
     """
+    # FIX H4: reject cross-site WS origins (CSWSH) before any processing.
+    if not ws_origin_ok(websocket):
+        await websocket.accept()
+        await websocket.close(code=4403)
+        return
+
     from app.transport.knock import verify_knock, is_knock_required
     if is_knock_required():
         has_auth = bool(websocket.cookies.get("access_token"))

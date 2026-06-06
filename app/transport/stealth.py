@@ -104,7 +104,10 @@ _STRIP_RESPONSE_HEADERS = {
 _STEALTH_RESPONSE_HEADERS = {
     "Server": "nginx",
     "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "SAMEORIGIN",
+    # FIX L7: was "SAMEORIGIN", which downgraded the security middleware's DENY
+    # and re-opened a clickjacking/framing window. Keep DENY so stealth mode
+    # never weakens framing protection.
+    "X-Frame-Options": "DENY",
 }
 
 

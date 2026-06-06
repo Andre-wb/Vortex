@@ -19,8 +19,9 @@ from app.base import Base
 from app.database import get_db
 from app.models import User
 from app.security.auth_jwt import get_current_user, create_access_token
+from app.security.ip_privacy import raw_ip_for_ratelimit
 
-from app.authentication._helpers import router
+from app.authentication._helpers import _AUTH_RATE_LOGIN, _check_auth_rate, router
 
 logger = logging.getLogger(__name__)
 
@@ -124,26 +125,51 @@ async def setup_security_questions(
     return {"ok": True}
 
 
+def _decoy_questions(username: str) -> list[str]:
+    """Deterministic decoy questions for a username.
+
+    FIX M8: returned for unknown users (and users without configured questions)
+    so the response is indistinguishable from a real user with 3 questions,
+    preventing username enumeration. The choice is stable per-username so an
+    attacker cannot tell decoys apart by varying answers across requests.
+    """
+    seed = int(hashlib.sha256(username.strip().lower().encode()).hexdigest(), 16)
+    rotate = seed % len(DEFAULT_QUESTIONS_EN)
+    return [DEFAULT_QUESTIONS_EN[(rotate + i) % len(DEFAULT_QUESTIONS_EN)] for i in range(3)]
+
+
 @router.post("/security-questions/load")
 async def load_security_questions(
     body: LoadRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    """Load questions (not answers!) for a username. Public endpoint."""
+    """Load questions (not answers!) for a username. Public endpoint.
+
+    FIX M8: always returns exactly 3 questions and never reveals whether the
+    username exists. Real users with configured questions get their own; every
+    other case (unknown user / no questions) gets opaque decoys. IP rate-limited.
+    """
+    ip = raw_ip_for_ratelimit(request)
+    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+        raise HTTPException(429, "Too many attempts. Please wait a minute.")
+
     user = db.query(User).filter(User.username == body.username).first()
-    if not user:
-        raise HTTPException(404, "User not found")
+    questions = []
+    if user:
+        questions = (
+            db.query(SecurityQuestion)
+            .filter(SecurityQuestion.user_id == user.id)
+            .order_by(SecurityQuestion.order_idx)
+            .all()
+        )
 
-    questions = (
-        db.query(SecurityQuestion)
-        .filter(SecurityQuestion.user_id == user.id)
-        .order_by(SecurityQuestion.order_idx)
-        .all()
-    )
-    if not questions:
-        return {"questions": []}
+    if len(questions) == 3:
+        return {"questions": [q.question for q in questions]}
 
-    return {"questions": [q.question for q in questions]}
+    # Unknown user or questions not configured — return opaque decoys so the
+    # response cannot be used to enumerate accounts.
+    return {"questions": _decoy_questions(body.username)}
 
 
 @router.post("/security-questions/recover")
@@ -153,28 +179,43 @@ async def recover_with_security_questions(
     db: Session = Depends(get_db),
 ):
     """Verify 3 answers and issue JWT if correct."""
-    from fastapi import Request as _Req
-    user = db.query(User).filter(User.username == body.username).first()
-    if not user:
-        raise HTTPException(404, "User not found")
+    # FIX M8: IP rate limit + uniform, non-attributing failure so this endpoint
+    # cannot be used to enumerate usernames or brute-force answers cheaply.
+    ip = raw_ip_for_ratelimit(request)
+    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+        raise HTTPException(429, "Too many attempts. Please wait a minute.")
 
     if len(body.answers) != 3:
         raise HTTPException(400, "3 answers required")
 
-    questions = (
-        db.query(SecurityQuestion)
-        .filter(SecurityQuestion.user_id == user.id)
-        .order_by(SecurityQuestion.order_idx)
-        .all()
-    )
+    _GENERIC_FAIL = "Recovery failed: incorrect username or answers"
 
+    user = db.query(User).filter(User.username == body.username).first()
+    questions = []
+    if user:
+        questions = (
+            db.query(SecurityQuestion)
+            .filter(SecurityQuestion.user_id == user.id)
+            .order_by(SecurityQuestion.order_idx)
+            .all()
+        )
+
+    # FIX M8: when the user is unknown or has no questions, still burn a few
+    # PBKDF2 verifications against a throwaway hash so timing does not leak
+    # existence, then fail with the same generic error used for wrong answers.
     if len(questions) != 3:
-        raise HTTPException(400, "Security questions not configured")
+        dummy = _hash_answer("__dummy_answer__")
+        for answer in body.answers:
+            _verify_answer(answer, dummy)
+        raise HTTPException(403, _GENERIC_FAIL)
 
-    # Verify all 3
+    # Verify all 3 (do not short-circuit the error message per-question)
+    all_ok = True
     for q, answer in zip(questions, body.answers):
         if not _verify_answer(answer, q.answer_hash):
-            raise HTTPException(403, "Incorrect answers")
+            all_ok = False
+    if not all_ok:
+        raise HTTPException(403, _GENERIC_FAIL)
 
     # All correct — set auth cookies and mark as recovery
     from fastapi.responses import JSONResponse

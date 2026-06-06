@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# FIX M3: upper bound on inbound WS frame size (mirrors 64 KB cap in
+# app/chats/messages/core.py). Prevents memory exhaustion from huge frames.
+MAX_WS_FRAME_BYTES = 65536  # 64 KB
+
+
 class PeerClient:
     """
     Представляет одного подключённого клиента.
@@ -125,6 +130,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     try:
         while True:
             raw  = await websocket.receive_text()
+
+            # FIX M3: reject oversized frames before parsing/relaying.
+            if len(raw) > MAX_WS_FRAME_BYTES:
+                await client.send({"type": "error", "message": "Message too large"})
+                continue
 
             try:
                 msg = json.loads(raw)

@@ -282,11 +282,39 @@ class ConnectionManager:
     3. Метод check_rate_limit() для проверки перед обработкой входящего сообщения.
     """
 
+    # FIX L6: per-user concurrent WebSocket connection cap (room + global WS).
+    # Sane default; override via env MAX_WS_PER_USER. 0/negative disables the cap.
+    import os as _os
+    try:
+        MAX_WS_PER_USER: int = int(_os.getenv("MAX_WS_PER_USER", "20"))
+    except ValueError:
+        MAX_WS_PER_USER = 20
+    del _os
+
     def __init__(self):
         self._rooms:      dict[int, dict[int, ConnectedUser]] = defaultdict(dict)
         self._global_ws:  dict[int, WebSocket] = {}
         self._sse_queues: dict[str, asyncio.Queue] = {}
         self._lock        = asyncio.Lock()
+        # FIX L6: live count of concurrent sockets per user (room + global).
+        self._ws_count:   dict[int, int] = defaultdict(int)
+
+    # ── FIX L6: per-user connection cap helpers ─────────────────────────────
+    def _ws_cap_reached(self, user_id: int) -> bool:
+        """True if registering one more socket for this user would exceed the cap."""
+        if self.MAX_WS_PER_USER <= 0:
+            return False  # cap disabled
+        return self._ws_count.get(user_id, 0) >= self.MAX_WS_PER_USER
+
+    def _ws_count_inc(self, user_id: int) -> None:
+        self._ws_count[user_id] = self._ws_count.get(user_id, 0) + 1
+
+    def _ws_count_dec(self, user_id: int) -> None:
+        n = self._ws_count.get(user_id, 0) - 1
+        if n > 0:
+            self._ws_count[user_id] = n
+        else:
+            self._ws_count.pop(user_id, None)
 
     async def connect(
             self,
@@ -298,7 +326,15 @@ class ConnectionManager:
             ws:           WebSocket,
     ) -> None:
         await ws.accept()
+        # FIX L6: enforce per-user concurrent WS cap. Reject (close) over the limit.
         async with self._lock:
+            if self._ws_cap_reached(user_id):
+                logger.warning("WS cap reached for user %s (room) — rejecting", user_id)
+                try:
+                    await ws.close(code=4429)  # 4429 ≈ "too many connections"
+                except Exception:
+                    pass
+                return
             self._rooms[room_id][user_id] = ConnectedUser(
                 user_id      = user_id,
                 username     = username,
@@ -307,6 +343,7 @@ class ConnectionManager:
                 websocket    = ws,
                 room_id      = room_id,
             )
+            self._ws_count_inc(user_id)
         logger.debug("WS+ connection (sanitized)")
 
         # Flush pending messages accumulated while user was offline
@@ -322,6 +359,8 @@ class ConnectionManager:
             user = self._rooms[room_id].pop(user_id, None)
             if not self._rooms[room_id]:
                 del self._rooms[room_id]
+            if user:
+                self._ws_count_dec(user_id)  # FIX L6
 
         if user:
             logger.debug("WS- connection (sanitized)")
@@ -477,7 +516,19 @@ class ConnectionManager:
     async def connect_global(self, user_id: int, ws: WebSocket) -> None:
         """Подключает глобальный WS для уведомлений пользователя."""
         await ws.accept()
+        # FIX L6: count global WS toward the per-user cap. A pre-existing global
+        # WS is being replaced, so only increment when there wasn't one already.
+        had_global = user_id in self._global_ws
+        if not had_global and self._ws_cap_reached(user_id):
+            logger.warning("WS cap reached for user %s (global) — rejecting", user_id)
+            try:
+                await ws.close(code=4429)
+            except Exception:
+                pass
+            return
         self._global_ws[user_id] = ws
+        if not had_global:
+            self._ws_count_inc(user_id)
         logger.debug("Global WS+ (sanitized)")
 
         # Flush in-memory pending notifications
@@ -492,7 +543,8 @@ class ConnectionManager:
 
     def disconnect_global(self, user_id: int) -> None:
         """Отключает глобальный WS пользователя."""
-        self._global_ws.pop(user_id, None)
+        if self._global_ws.pop(user_id, None) is not None:
+            self._ws_count_dec(user_id)  # FIX L6
         logger.debug("Global WS- (sanitized)")
 
     async def notify_user(self, user_id: int, payload: dict) -> bool:
@@ -619,6 +671,7 @@ class ConnectionManager:
                     ws = conn.websocket
                     if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
                         del self._rooms[room_id][uid]
+                        self._ws_count_dec(uid)  # FIX L6: keep cap counter in sync
                         removed += 1
                 if not self._rooms[room_id]:
                     del self._rooms[room_id]
@@ -627,6 +680,7 @@ class ConnectionManager:
                 ws = self._global_ws[uid]
                 if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
                     del self._global_ws[uid]
+                    self._ws_count_dec(uid)  # FIX L6: keep cap counter in sync
                     removed += 1
         if removed:
             logger.info("Cleaned up %d stale WebSocket connections", removed)
@@ -642,6 +696,12 @@ class ConnectionManager:
                     except Exception:
                         pass
             self._rooms.clear()
+            # FIX L6: room sockets are gone; drop their cap contribution.
+            # Global WS counts remain (they aren't closed here).
+            self._ws_count = defaultdict(
+                int,
+                {uid: 1 for uid in self._global_ws},
+            )
         logger.info("All WebSocket connections closed")
 
     def dedup_stats(self) -> dict:

@@ -49,14 +49,19 @@ async def register(body: RegisterRequest, request: Request,
     elif reg_mode != "open":
         raise HTTPException(403, "Registration is unavailable")
 
+    # FIX L2: collapse the per-field "X already taken" responses into a single
+    # non-attributing message so registration cannot be used to enumerate which
+    # phones / usernames / emails / keys already exist on the node. The 409
+    # status is preserved for the client.
+    _IDENTIFIER_TAKEN = "Registration failed: identifier unavailable"
     if body.phone and db.query(User).filter(User.phone == body.phone).first():
-        raise HTTPException(409, "Phone number already taken")
+        raise HTTPException(409, _IDENTIFIER_TAKEN)
     if db.query(User).filter(User.username == body.username).first():
-        raise HTTPException(409, "Username already taken")
+        raise HTTPException(409, _IDENTIFIER_TAKEN)
     if db.query(User).filter(User.x25519_public_key == body.x25519_public_key).first():
-        raise HTTPException(409, "X25519 key already registered")
+        raise HTTPException(409, _IDENTIFIER_TAKEN)
     if body.email and db.query(User).filter(User.email == body.email).first():
-        raise HTTPException(409, "Email already in use")
+        raise HTTPException(409, _IDENTIFIER_TAKEN)
 
     ok, msg = validate_password_with_context(body.password, body.username)
     if not ok:

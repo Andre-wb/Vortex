@@ -23,7 +23,7 @@ function _showReactionWhoPopover(btn) {
     pop.id = 'reaction-who-popover';
     pop.className = 'reaction-who-popover';
     pop.innerHTML = `
-        <div class="rwp-header">${emoji} Реакции</div>
+        <div class="rwp-header">${esc(emoji)} Реакции</div>
         <div class="rwp-list">
             ${users.map(u => `
                 <div class="rwp-user" title="${_fmtReactionTime(u.created_at)}">

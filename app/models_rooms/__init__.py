@@ -21,6 +21,7 @@ from app.models_rooms.analytics import (
 from app.models_rooms.admin import AuditLog, SpaceEmoji
 from app.models_rooms.federation import PersistedFederatedRoom, Story, StoryKeyEnvelope, FederatedEnvelope
 from app.models_rooms.feeds import ChannelFeed
+from app.models_rooms.blocks import BlockedUser  # FIX M1: register block model
 
 __all__ = [
     # enums
@@ -51,4 +52,6 @@ __all__ = [
     "PersistedFederatedRoom", "Story", "StoryKeyEnvelope", "FederatedEnvelope",
     # feeds
     "ChannelFeed",
+    # blocks
+    "BlockedUser",
 ]

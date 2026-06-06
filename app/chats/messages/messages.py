@@ -27,6 +27,10 @@ from app.transport.blind_mailbox import deposit_envelope
 
 logger = logging.getLogger(__name__)
 
+# FIX M3: upper bound on E2E ciphertext (hex string). Mirrors the 64 KB WS
+# frame cap in core.py — rejects oversized payloads before decode/store/broadcast.
+MAX_CIPHERTEXT_HEX_LEN = 65536  # 64 KB of hex chars
+
 
 async def _bmp_deposit(room_id: int, payload: dict):
     """Deposit message payload into BMP mailbox for the room (hybrid mode)."""
@@ -167,6 +171,13 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
     if len(ciphertext_hex) < 48:
         await manager.send_to_user(room_id, user.id, {
             "type": "error", "message": "Ciphertext too short"
+        })
+        return
+
+    # FIX M3: reject oversized ciphertext before decode/store/broadcast.
+    if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
+        await manager.send_to_user(room_id, user.id, {
+            "type": "error", "message": "Ciphertext too large"
         })
         return
 
@@ -434,6 +445,13 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         })
         return
 
+    # FIX M3: reject oversized ciphertext before decode/store/broadcast.
+    if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
+        await manager.send_to_user(room_id, user.id, {
+            "type": "error", "message": "Ciphertext too large"
+        })
+        return
+
     # ── Global mute check (platform-level) ───────────────────────────────────
     if user.global_muted_until and user.global_muted_until > datetime.now(timezone.utc):
         remaining = user.global_muted_until - datetime.now(timezone.utc)
@@ -615,6 +633,10 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
     ciphertext_hex = data.get("ciphertext", "").strip()
 
     if not msg_id or not ciphertext_hex or len(ciphertext_hex) < 48:
+        return
+
+    # FIX M3: reject oversized ciphertext before decode/store/broadcast.
+    if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
         return
 
     try:

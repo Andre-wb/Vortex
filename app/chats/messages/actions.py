@@ -5,6 +5,7 @@ Extracted from chat.py for maintainability.
 """
 from __future__ import annotations
 
+import unicodedata
 from datetime import datetime, timezone
 
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +31,75 @@ async def _bmp_deposit(room_id: int, payload: dict):
 
 from app.chats.messages._router import utc_iso as _utc_iso
 from app.security.sealed_sender import compute_sender_pseudo
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Валидация эмодзи-реакций
+# ══════════════════════════════════════════════════════════════════════════════
+
+# FIX L4: ранее проверялось только len(emoji) <= 10 без charset-фильтра,
+# что позволяло протащить HTML/текст (XSS-вектор при рендере реакций).
+# Запрещённые символы — потенциальная HTML/атрибутная инъекция.
+_REACTION_FORBIDDEN_CHARS = set('<>"&\'/`=')
+
+# Unicode-категории/диапазоны, допустимые внутри grapheme-эмодзи.
+_EMOJI_JOINERS = {
+    0x200D,  # ZERO WIDTH JOINER
+    0xFE0E, 0xFE0F,  # variation selectors (text/emoji)
+}
+
+
+def _is_emoji_codepoint(ch: str) -> bool:
+    """True, если символ — часть эмодзи (пиктограмма, модификатор, флаг и т.п.)."""
+    cp = ord(ch)
+    if cp in _EMOJI_JOINERS:
+        return True
+    # Skin-tone modifiers
+    if 0x1F3FB <= cp <= 0x1F3FF:
+        return True
+    # Regional indicators (флаги)
+    if 0x1F1E6 <= cp <= 0x1F1FF:
+        return True
+    # Tag characters (subdivision flags, e.g. флаги Англии/Шотландии)
+    if 0xE0020 <= cp <= 0xE007F:
+        return True
+    # Keycap combining mark
+    if cp == 0x20E3:
+        return True
+    # Unicode So (Symbol, other) — основные эмодзи-пиктограммы
+    if unicodedata.category(ch) == "So":
+        return True
+    # Дополнительные пиктографические/символьные блоки
+    if (
+        0x1F000 <= cp <= 0x1FAFF      # Misc symbols & pictographs, emoticons, supplemental, symbols-and-pictographs-extended-a
+        or 0x2600 <= cp <= 0x27BF     # Misc symbols + Dingbats
+        or 0x2190 <= cp <= 0x21FF     # Arrows
+        or 0x2B00 <= cp <= 0x2BFF     # Misc symbols and arrows
+        or 0x1F004 == cp or 0x1F0CF == cp  # Mahjong tile, playing card
+    ):
+        return True
+    return False
+
+
+def is_valid_reaction_emoji(raw: str | None) -> bool:
+    """FIX L4: принимает только эмодзи/grapheme, отвергает HTML и обычный текст."""
+    if not raw:
+        return False
+    emoji = raw.strip()
+    if not emoji or len(emoji) > 10:
+        return False
+    has_pictograph = False
+    for ch in emoji:
+        if ch in _REACTION_FORBIDDEN_CHARS:
+            return False
+        if ch in (" ", "\t", "\n", "\r"):
+            return False
+        if _is_emoji_codepoint(ch):
+            has_pictograph = True
+            continue
+        # Любой другой символ (буквы/цифры/пунктуация/управляющие) — не эмодзи.
+        return False
+    return has_pictograph
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -73,7 +143,8 @@ async def handle_reaction(room_id: int, user: User, data: dict, db: Session) -> 
     """Toggle-реакция: добавить если нет, удалить если есть."""
     msg_id = data.get("msg_id")
     emoji  = data.get("emoji", "").strip()
-    if not msg_id or not emoji or len(emoji) > 10:
+    # FIX L4: charset/emoji whitelist (раньше — только len <= 10).
+    if not msg_id or not is_valid_reaction_emoji(emoji):
         return
 
     # Проверяем что сообщение существует в этой комнате

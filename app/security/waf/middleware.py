@@ -5,6 +5,7 @@ import asyncio
 import ipaddress
 import json
 import logging
+import os
 import secrets
 from datetime import datetime, timezone
 from typing import Dict
@@ -13,6 +14,35 @@ from app.security.waf.captcha import WAFCaptcha
 from app.security.waf.engine import WAFEngine
 
 logger = logging.getLogger(__name__)
+
+# FIX H6: Explicit trusted-proxy allowlist. By default we trust NO upstream proxy
+# and use the real TCP peer (request.client.host) — so X-Forwarded-For / X-Real-IP
+# can no longer be spoofed to bypass per-IP rate limits. Operators behind a real
+# reverse proxy set TRUSTED_PROXY_IPS to a comma-separated list of proxy IPs or
+# CIDR networks (e.g. "10.0.0.5,192.168.1.0/24"). Private/RFC1918 peers are no
+# longer trusted implicitly.
+def _load_trusted_proxies() -> list:
+    raw = os.getenv("TRUSTED_PROXY_IPS", "").strip()
+    nets = []
+    if not raw:
+        return nets
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            nets.append(ipaddress.ip_network(token, strict=False))
+        except ValueError:
+            logger.warning("Ignoring invalid TRUSTED_PROXY_IPS entry: %r", token)
+    return nets
+
+
+_TRUSTED_PROXY_NETS = _load_trusted_proxies()
+
+# FIX M4: Hard cap on request body size enforced at the ASGI layer, BEFORE the
+# whole body is buffered into RAM for WAF analysis. Reject oversized uploads with
+# 413 instead of accumulating gigabytes of chunks. Configurable via env.
+_MAX_WAF_BODY_BYTES = int(os.getenv("WAF_MAX_BODY_BYTES", str(25 * 1024 * 1024)))
 
 
 class WAFMiddleware:
@@ -49,8 +79,25 @@ class WAFMiddleware:
         method = scope.get('method', 'GET')
         _body_chunks = []
 
-        if method in ('POST', 'PUT', 'PATCH'):
+        # FIX M4: reject oversized bodies via Content-Length BEFORE buffering.
+        _excluded_path = self._is_excluded(scope.get('path', '/'))
+        if method in ('POST', 'PUT', 'PATCH') and not _excluded_path:
+            _hdrs = {k.decode('latin-1').lower(): v for k, v in scope.get('headers', [])}
+            cl_raw = _hdrs.get('content-length')
+            if cl_raw is not None:
+                try:
+                    if int(cl_raw.decode('latin-1')) > _MAX_WAF_BODY_BYTES:
+                        await self._send_too_large(send)
+                        return
+                except (ValueError, AttributeError):
+                    pass
+
+        # File-upload endpoints stream large bodies on purpose and are excluded
+        # from WAF body inspection; don't buffer them into RAM at all.
+        if method in ('POST', 'PUT', 'PATCH') and not _excluded_path:
             more_body = True
+            _accumulated = 0
+            _too_large = False
             while more_body:
                 try:
                     message = await asyncio.wait_for(receive(), timeout=30)
@@ -59,12 +106,23 @@ class WAFMiddleware:
                     break
                 msg_type = message.get('type', '')
                 if msg_type == 'http.request':
-                    _body_chunks.append(message.get('body', b''))
+                    chunk = message.get('body', b'')
+                    _accumulated += len(chunk)
+                    # FIX M4: cap accumulated chunks even when Content-Length lied
+                    # or was absent (chunked transfer-encoding).
+                    if _accumulated > _MAX_WAF_BODY_BYTES:
+                        _too_large = True
+                        more_body = message.get('more_body', False)
+                        continue
+                    _body_chunks.append(chunk)
                     more_body = message.get('more_body', False)
                 elif msg_type == 'http.disconnect':
                     break
                 else:
                     break
+            if _too_large:
+                await self._send_too_large(send)
+                return
 
         body_bytes = b''.join(_body_chunks)
 
@@ -79,8 +137,11 @@ class WAFMiddleware:
 
         request = self._build_request_from_scope(scope, body_bytes)
 
-        if self._is_excluded(request['path']):
-            await self.app(scope, replay_receive, send)
+        if _excluded_path:
+            # FIX M4: excluded (streaming-upload) paths were not buffered above,
+            # so pass the original receive straight through — replaying an empty
+            # body here would corrupt the upload.
+            await self.app(scope, receive, send)
             return
 
         analysis = self.waf.analyze_request(request)
@@ -124,8 +185,11 @@ class WAFMiddleware:
         client = scope.get('client')
         real_ip = client[0] if client else 'unknown'
 
-        # Only trust forwarded headers if request comes from a trusted proxy
-        if real_ip in ('127.0.0.1', '::1') or self._is_trusted_proxy(real_ip):
+        # FIX H6: only honor X-Forwarded-For / X-Real-IP / CF-Connecting-IP when
+        # the TCP peer is an explicitly-configured trusted proxy. Default is to
+        # trust no proxy and use the real peer, so a client cannot forge these
+        # headers to spoof a different source IP and dodge rate limits.
+        if self._is_trusted_proxy(real_ip):
             headers = {
                 k.decode('latin-1').lower(): v.decode('latin-1')
                 for k, v in scope.get('headers', [])
@@ -141,11 +205,17 @@ class WAFMiddleware:
         return real_ip
 
     def _is_trusted_proxy(self, ip: str) -> bool:
+        # FIX H6: trust ONLY peers in the operator-configured TRUSTED_PROXY_IPS
+        # allowlist. Previously every RFC1918/private/loopback peer was trusted,
+        # which let any LAN client (or any peer when the app sits behind NAT)
+        # spoof XFF. Default allowlist is empty → no proxy trusted.
+        if not _TRUSTED_PROXY_NETS:
+            return False
         try:
             addr = ipaddress.ip_address(ip)
-            return addr.is_loopback or addr.is_private
         except ValueError:
             return False
+        return any(addr in net for net in _TRUSTED_PROXY_NETS)
 
     def _is_excluded(self, path: str) -> bool:
         path_lower = path.lower()
@@ -167,6 +237,18 @@ class WAFMiddleware:
         })
         await send({'type': 'http.response.body', 'body': body})
         logger.warning(f"WAF blocked {req['method']} {req['path']} from {req['client_ip']} — {[f['rule_id'] for f in critical]}")
+
+    async def _send_too_large(self, send):
+        # FIX M4: reject oversized request bodies before they are buffered in RAM.
+        body = json.dumps({
+            'error': 'Request entity too large',
+            'max_bytes': _MAX_WAF_BODY_BYTES,
+        }).encode()
+        await send({
+            'type': 'http.response.start', 'status': 413,
+            'headers': [(b'content-type', b'application/json'), (b'connection', b'close')],
+        })
+        await send({'type': 'http.response.body', 'body': body})
 
     async def _send_captcha_required(self, send):
         body = json.dumps({
