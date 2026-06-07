@@ -337,6 +337,73 @@ class EncryptedMessageMeta(BaseModel):
 zk_router = APIRouter(prefix="/api/zk", tags=["zero-knowledge"])
 
 
+# ── Authorization & anti-enumeration helpers (FIX F8/F9) ──────────────────────
+#
+# Lightweight in-process sliding-window rate limiter. Keyed by an arbitrary
+# string (e.g. "vault:<viewer_id>" or "notif:<sender_id>"). Defends against
+# profile-vault enumeration (F8) and notification-injection spam (F9) without
+# adding new infra/dependencies. Per-worker only — acceptable as defense in
+# depth; a distributed limiter would live in the WAF/middleware layer.
+_RATE_BUCKETS: dict[str, list[float]] = {}
+
+
+def _rate_limit(key: str, max_events: int, window_seconds: float) -> bool:
+    """Return True if the event is allowed, False if the limit is exceeded."""
+    now = time.monotonic()
+    cutoff = now - window_seconds
+    bucket = _RATE_BUCKETS.get(key)
+    if bucket is None:
+        bucket = []
+        _RATE_BUCKETS[key] = bucket
+    # Drop expired entries
+    i = 0
+    for ts in bucket:
+        if ts >= cutoff:
+            break
+        i += 1
+    if i:
+        del bucket[:i]
+    if len(bucket) >= max_events:
+        return False
+    bucket.append(now)
+    # Opportunistic cleanup to bound memory growth across many distinct keys
+    if len(_RATE_BUCKETS) > 50000:
+        for k in [k for k, v in _RATE_BUCKETS.items() if not v or v[-1] < cutoff]:
+            _RATE_BUCKETS.pop(k, None)
+    return True
+
+
+def _has_relationship(viewer_id: int, target_id: int, db: Session) -> bool:
+    """
+    True if viewer_id is allowed to see/notify target_id, via a *verifiable*
+    server-side relationship:
+      - an accepted contact in either direction, OR
+      - membership in at least one shared room.
+    Mirrors the shared-room intersection used in app/chats/reports.py.
+    """
+    if viewer_id == target_id:
+        return True
+    from app.models.contact import Contact
+    from app.models_rooms.rooms import RoomMember
+
+    contact = db.query(Contact.id).filter(
+        ((Contact.owner_id == viewer_id) & (Contact.contact_id == target_id))
+        | ((Contact.owner_id == target_id) & (Contact.contact_id == viewer_id))
+    ).first()
+    if contact:
+        return True
+
+    shared = (
+        db.query(RoomMember.room_id)
+        .filter(RoomMember.user_id == viewer_id)
+        .intersect(
+            db.query(RoomMember.room_id).filter(RoomMember.user_id == target_id)
+        )
+        .first()
+    )
+    return shared is not None
+
+
 def _lazy_get_db():
     from app.database import get_db
     return get_db
@@ -389,10 +456,24 @@ async def get_user_profile_vault(
     db: Session = Depends(_lazy_get_db()),
     u = Depends(_lazy_get_current_user()),
 ):
+    # FIX F8: IDOR — was returning ANY user's profile vault to ANY authed caller.
+    # Restrict to the owner, or to a verifiable mutual-contact / shared-room
+    # relationship. Rate-limit to throttle enumeration of the user-id space, and
+    # use a uniform 403 (instead of a distinguishable 404/empty body) so a caller
+    # cannot probe which user_ids exist or have vaults.
+    if not _rate_limit(f"vault:{u.id}", max_events=30, window_seconds=60.0):
+        raise HTTPException(429, "Too many profile lookups, slow down")
+
+    if user_id != u.id and not _has_relationship(u.id, user_id, db):
+        raise HTTPException(403, "Not authorized to view this profile")
+
     vault = db.query(ProfileVault).filter(ProfileVault.user_id == user_id).first()
     if not vault:
         return {"ok": True, "vault_data": None, "version": 0}
-    return {"ok": True, "vault_data": vault.vault_data, "version": vault.version}
+    # Do not leak the version counter to non-owners (activity/update side-channel).
+    if user_id == u.id:
+        return {"ok": True, "vault_data": vault.vault_data, "version": vault.version}
+    return {"ok": True, "vault_data": vault.vault_data}
 
 
 # ── Room Vault ────────────────────────────────────────────────────────────
@@ -526,6 +607,22 @@ async def push_encrypted_notification(
     db: Session = Depends(_lazy_get_db()),
     u = Depends(_lazy_get_current_user()),
 ):
+    # FIX F9: write-IDOR — the authenticated user was never used, so anyone could
+    # inject encrypted notifications into any recipient's queue (spam / DoS the
+    # notification fetch). Require a verifiable relationship with the recipient,
+    # record the actual sender (server-side audit; the model has no sender column
+    # by ZK design, so we log rather than alter the schema), and rate-limit both
+    # per-sender and per-(sender,recipient) pair.
+    if not _has_relationship(u.id, body.recipient_id, db):
+        raise HTTPException(403, "Not authorized to notify this recipient")
+
+    if not _rate_limit(f"notif:sender:{u.id}", max_events=60, window_seconds=60.0):
+        raise HTTPException(429, "Too many notifications sent, slow down")
+    if not _rate_limit(
+        f"notif:pair:{u.id}:{body.recipient_id}", max_events=20, window_seconds=60.0
+    ):
+        raise HTTPException(429, "Too many notifications to this recipient, slow down")
+
     notif = EncryptedNotification(
         recipient_id=body.recipient_id,
         ephemeral_pub=body.ephemeral_pub,
@@ -533,6 +630,7 @@ async def push_encrypted_notification(
     )
     db.add(notif)
     db.commit()
+    logger.info("zk notification push sender=%s recipient=%s", u.id, body.recipient_id)
     return {"ok": True}
 
 

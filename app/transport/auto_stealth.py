@@ -139,13 +139,23 @@ def add_response_padding(headers: dict) -> dict:
     Добавляет фейковые заголовки к HTTP-ответу для маскировки.
     Размер padding рандомный — DPI не может фингерпринтить по размеру.
     """
+    # FIX F15: strip the genuine Server header before injecting the decoy, so only one
+    # Server value survives. Starlette's MutableHeaders is case-insensitive and would
+    # already overwrite "server" via assignment, but uvicorn/gunicorn may inject their own
+    # Server later in the ASGI send phase; explicitly deleting any existing value first
+    # (and tolerating a plain dict) guarantees we don't emit two contradictory Server lines.
+    try:
+        del headers["Server"]
+    except KeyError:
+        pass
     # Фейковые заголовки как у реального nginx + CDN
     headers["Server"] = "nginx/1.24.0"
     headers["X-Powered-By"] = "Express"
     headers["X-Request-Id"] = secrets.token_hex(8)
     headers["X-Cache"] = secrets.choice(["HIT", "MISS", "DYNAMIC"])
-    headers["CF-Cache-Status"] = secrets.choice(["DYNAMIC", "HIT", "EXPIRED"])
-    headers["CF-Ray"] = secrets.token_hex(8) + "-" + secrets.choice(["SVO", "LED", "DME", "FRA", "AMS"])
+    # FIX F15: dropped CF-Cache-Status / CF-Ray — a self-hosted nginx origin would not set
+    # Cloudflare edge headers about itself, so emitting them is an inconsistent (and thus
+    # fingerprintable) tell rather than convincing camouflage.
     # Рандомный X-Pad заголовок (варьирует размер ответа)
     pad_len = secrets.randbelow(129) + 16  # 16..144
     headers["X-Trace"] = secrets.token_urlsafe(pad_len)

@@ -113,6 +113,20 @@ def _get_vapid_claims() -> dict:
     }
 
 
+# FIX F11c: bmp_push_proxy._send_push imported a non-existent symbol
+# (`_get_vapid_key_pair`), which raised ImportError and silently disabled the
+# anonymous push sink. Provide the helper explicitly so the sink behaves
+# predictably (and is now SSRF-guarded in bmp_push_proxy before use). Returns
+# (private_key_pem_or_b64, public_key) — both empty when VAPID is unconfigured.
+def _get_vapid_key_pair() -> tuple[str, str]:
+    priv = Config.VAPID_PRIVATE_KEY or ""
+    pub = Config.VAPID_PUBLIC_KEY or ""
+    # Restore PEM newlines (stored as | in .env), matching send_push() above.
+    if "|" in priv:
+        priv = priv.replace("|", "\n")
+    return priv, pub
+
+
 def send_push(user_id: int, payload: dict, db: Optional[Session] = None) -> int:
     """
     Send a Web Push notification to all subscriptions of *user_id*.

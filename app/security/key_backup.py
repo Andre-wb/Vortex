@@ -46,7 +46,13 @@ _MAX_LINK_ATTEMPTS = 5
 
 
 def _is_peer_ip(ip: str) -> bool:
-    """Return True if *ip* belongs to a private/loopback range (RFC-1918, localhost)."""
+    """Return True if *ip* belongs to a private/loopback range (RFC-1918, localhost).
+
+    NOTE (FIX F2): this is a NETWORK locality check only and is NOT an
+    authorization boundary. RFC-1918/loopback never grants trust on its own —
+    callers must additionally present a verified peer proof (see
+    ``_verify_shard_peer_proof`` / ``_verify_shard_owner_proof``).
+    """
     if ip in ("localhost", "127.0.0.1", "::1"):
         return True
     try:
@@ -54,6 +60,89 @@ def _is_peer_ip(ip: str) -> bool:
         return addr.is_private or addr.is_loopback
     except ValueError:
         return False
+
+
+# ── FIX F2: mutually-verified peer identity + ownership proof for shards ──────
+# The old gate authorized purely on _is_peer_ip(), so ANY host on a private IP
+# could poison/enumerate shards for an attacker-chosen owner_user_id. We now
+# require an HMAC proof over a shared per-deployment secret (FEDERATION_PSK),
+# plus an owner-bound proof on retrieval, plus per-owner caps and a global
+# store rate limit.
+import hashlib as _hashlib
+import hmac as _hmac
+import os as _os
+import time as _time
+from collections import defaultdict as _defaultdict, deque as _deque
+
+_SHARD_PROOF_HEADER = "X-Federation-Proof"     # "<ts>:<hmac_hex>"
+_SHARD_PROOF_WINDOW = 300                       # ±5 min clock skew
+_MAX_SHARDS_PER_OWNER = 64                      # cap stored shards per owner
+_MAX_SHARD_BYTES = 64 * 1024                    # reject oversized encrypted shard
+_STORE_RATE_PER_MIN = 120                       # global store rate (per source IP)
+
+# In-memory sliding window for the global store rate limit: ip -> deque[ts]
+_store_hits: dict[str, "_deque"] = _defaultdict(_deque)
+
+
+def _shard_psk() -> bytes:
+    from app.config import Config
+    raw = (
+        _os.getenv("FEDERATION_PSK", "")
+        or getattr(Config, "FEDERATION_PSK", "")
+        or getattr(Config, "VORTEX_NETWORK_KEY", "")
+        or Config.JWT_SECRET
+    )
+    return _hashlib.sha256(b"vortex-federation-psk-v1:" + raw.encode()).digest()
+
+
+def _shard_psk_configured() -> bool:
+    from app.config import Config
+    return bool(_os.getenv("FEDERATION_PSK", "") or getattr(Config, "FEDERATION_PSK", ""))
+
+
+def _verify_shard_proof(challenge: str, proof: str | None) -> bool:
+    """Constant-time verify an HMAC proof over ``<challenge>:<ts>``.
+
+    Fails closed when no shared PSK is configured, so RFC-1918/loopback alone
+    can never authorize a shard operation.
+    """
+    if not _shard_psk_configured():
+        return False
+    if not proof or ":" not in proof:
+        return False
+    ts_str, _, mac = proof.partition(":")
+    try:
+        ts = int(ts_str)
+    except ValueError:
+        return False
+    if abs(int(_time.time()) - ts) > _SHARD_PROOF_WINDOW:
+        return False
+    expected = _hmac.new(
+        _shard_psk(), f"{challenge}:{ts}".encode(), _hashlib.sha256
+    ).hexdigest()
+    return _hmac.compare_digest(mac, expected)
+
+
+def make_shard_proof(challenge: str, ts: int | None = None) -> str:
+    """Build an ``X-Federation-Proof`` value for an outbound shard request."""
+    if ts is None:
+        ts = int(_time.time())
+    mac = _hmac.new(
+        _shard_psk(), f"{challenge}:{ts}".encode(), _hashlib.sha256
+    ).hexdigest()
+    return f"{ts}:{mac}"
+
+
+def _store_rate_ok(ip: str) -> bool:
+    now = _time.monotonic()
+    dq = _store_hits[ip]
+    cutoff = now - 60.0
+    while dq and dq[0] < cutoff:
+        dq.popleft()
+    if len(dq) >= _STORE_RATE_PER_MIN:
+        return False
+    dq.append(now)
+    return True
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -821,12 +910,19 @@ async def _push_shard_to_peer(owner_user_id: int, shard) -> bool:
         ) else "http"
         url = f"{scheme}://{shard.peer_ip}:{shard.peer_port}/api/keys/federated-backup/store-shard"
         async with httpx.AsyncClient(verify=_peer_ssl_ctx, timeout=10.0) as client:
-            resp = await client.post(url, json={
-                "owner_user_id": owner_user_id,
-                "shard_index": shard.shard_index,
-                "encrypted_shard": shard.encrypted_shard,
-                "shard_hash": shard.shard_hash,
-            })
+            # FIX F2: prove peer identity via the shared federation secret. The
+            # proof is bound to the store challenge so a private-IP attacker who
+            # cannot compute the HMAC is rejected.
+            resp = await client.post(
+                url,
+                json={
+                    "owner_user_id": owner_user_id,
+                    "shard_index": shard.shard_index,
+                    "encrypted_shard": shard.encrypted_shard,
+                    "shard_hash": shard.shard_hash,
+                },
+                headers={_SHARD_PROOF_HEADER: make_shard_proof("vortex-shard-store")},
+            )
             return resp.status_code == 200
     except Exception as e:
         logger.warning("Failed to push shard %d to %s:%d: %s",
@@ -917,16 +1013,47 @@ async def federated_backup_store_shard(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """Receive and store an encrypted shard from another peer (peer-to-peer, private IPs only)."""
-    # Validate peer — only accept from private IPs (peer-to-peer)
+    """Receive and store an encrypted shard from a mutually-authenticated peer.
+
+    FIX F2: authorization no longer relies on the source IP. The caller MUST
+    present a valid X-Federation-Proof (HMAC over the shared FEDERATION_PSK);
+    private-IP locality is necessary but never sufficient. We also enforce a
+    global store rate limit, an encrypted-shard size cap, and a per-owner shard
+    count cap so a hostile peer cannot poison/flood the store.
+    """
     client_ip = request.client.host if request.client else ""
-    if not _is_peer_ip(client_ip):
-        raise HTTPException(403, "Forbidden: only peer nodes can store shards")
+
+    # FIX F2: verified peer identity (not an IP allowlist).
+    if not _verify_shard_proof("vortex-shard-store", request.headers.get(_SHARD_PROOF_HEADER)):
+        raise HTTPException(403, "Forbidden: shard store requires a valid peer proof")
+
+    # FIX F2: global store rate limit (per source IP) to blunt flooding.
+    if not _store_rate_ok(client_ip or "unknown"):
+        raise HTTPException(429, "Too many shard stores, slow down")
+
     try:
-        bytes.fromhex(body.encrypted_shard)
+        raw_shard = bytes.fromhex(body.encrypted_shard)
         bytes.fromhex(body.shard_hash)
     except ValueError:
         raise HTTPException(400, "Fields must be valid hex")
+
+    # FIX F2: size cap on the encrypted shard.
+    if len(raw_shard) > _MAX_SHARD_BYTES:
+        raise HTTPException(413, "Encrypted shard too large")
+
+    # FIX F2: per-owner shard count cap (idempotent on (owner, shard_index)).
+    existing = db.query(FederatedBackupShard).filter(
+        FederatedBackupShard.user_id == body.owner_user_id,
+        FederatedBackupShard.status == "held",
+    )
+    dup = existing.filter(FederatedBackupShard.shard_index == body.shard_index).first()
+    if dup is not None:
+        dup.encrypted_shard = body.encrypted_shard
+        dup.shard_hash = body.shard_hash
+        db.commit()
+        return {"ok": True}
+    if existing.count() >= _MAX_SHARDS_PER_OWNER:
+        raise HTTPException(429, "Per-owner shard limit reached")
 
     # Store as a local shard (peer_ip=localhost since we ARE the peer)
     shard = FederatedBackupShard(
@@ -951,11 +1078,23 @@ async def federated_backup_retrieve_shard(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """Retrieve a shard held for another user (peer-to-peer, private IPs only)."""
-    # Validate peer — only accept from private IPs (peer-to-peer)
+    """Retrieve a shard held for another user (mutually-authenticated peer).
+
+    FIX F2: the previous version returned held shards to anyone on a private IP
+    for an attacker-chosen ``owner_user_id`` (IDOR). Retrieval now requires an
+    owner-BOUND proof: the caller must HMAC the challenge
+    ``vortex-shard-retrieve:<owner_user_id>`` with the shared FEDERATION_PSK,
+    so only a party that knows the secret AND is acting for that specific owner
+    can pull the (metadata of) held shards. Source IP is never an authorization
+    boundary.
+    """
     client_ip = request.client.host if request.client else ""
-    if not _is_peer_ip(client_ip):
-        raise HTTPException(403, "Forbidden: only peer nodes can retrieve shards")
+
+    # FIX F2: owner-bound peer authorization (mutual secret + owner binding).
+    challenge = f"vortex-shard-retrieve:{owner_user_id}"
+    if not _verify_shard_proof(challenge, request.headers.get(_SHARD_PROOF_HEADER)):
+        raise HTTPException(403, "Forbidden: shard retrieval requires a valid owner proof")
+
     shards = db.query(FederatedBackupShard).filter(
         FederatedBackupShard.user_id == owner_user_id,
         FederatedBackupShard.status == "held",

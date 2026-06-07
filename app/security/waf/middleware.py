@@ -54,7 +54,10 @@ class WAFMiddleware:
         '/api/files/upload-complete/',
         '/api/files/upload-cancel/',
         '/api/files/upload-status/',
-        '/api/link-preview',
+        # FIX F12-3: /api/link-preview removed from the WAF exclusion list so the
+        # WAF per-IP cap and request analysis now apply to this outbound-fetch
+        # (SSRF) surface. It is a small GET with no streamed body, so buffering
+        # for WAF inspection is safe.
         '/api/authentication/qr-',
         '/api/bmp/',              # BMP has its own rate limiting (600/min per IP)
         '/api/push-proxy/',       # Anonymous push proxy

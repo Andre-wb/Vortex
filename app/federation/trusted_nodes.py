@@ -85,6 +85,72 @@ def _get_token_secret() -> bytes:
     return _TOKEN_SECRET
 
 
+# ── FIX F1: pre-shared federation join secret + mutual challenge-response ─────
+# Possessing the *public* code hash is NOT authentication (it's served openly).
+# A peer must additionally prove possession of a pre-shared federation secret
+# (FEDERATION_PSK) by HMAC-signing a timestamped challenge. All nodes in one
+# federation deployment share this secret; if unset it derives from
+# VORTEX_NETWORK_KEY so a single deployment still has a non-public secret, but
+# operators are urged to set FEDERATION_PSK explicitly across nodes.
+_FED_PROOF_HEADER = "X-Federation-Proof"      # "<ts>:<hmac_hex>"
+_FED_PROOF_WINDOW = 300                       # ±5 min clock skew
+
+# Hardened federation requires an explicit, shared PSK. Without it we refuse to
+# treat handshakes as authenticated (the endpoint still works for code-hash
+# *probing* but never mints trust/tokens).
+def _fed_psk() -> bytes:
+    raw = (
+        os.getenv("FEDERATION_PSK", "")
+        or getattr(Config, "FEDERATION_PSK", "")
+        or getattr(Config, "VORTEX_NETWORK_KEY", "")
+        or Config.JWT_SECRET
+    )
+    return hashlib.sha256(b"vortex-federation-psk-v1:" + raw.encode()).digest()
+
+
+def _fed_psk_configured() -> bool:
+    """True iff an explicit shared federation secret is set (env or Config)."""
+    return bool(os.getenv("FEDERATION_PSK", "") or getattr(Config, "FEDERATION_PSK", ""))
+
+
+def make_federation_proof(node_id: str, ts: Optional[int] = None) -> str:
+    """Build an ``X-Federation-Proof`` value for an outbound peer request.
+
+    Binds the proof to this node's identity + a timestamp so a captured proof
+    cannot be replayed past the window or reused to impersonate another node.
+    """
+    if ts is None:
+        ts = int(time.time())
+    msg = f"vortex-fed-handshake:{node_id}:{ts}".encode()
+    mac = hmac.new(_fed_psk(), msg, hashlib.sha256).hexdigest()
+    return f"{ts}:{mac}"
+
+
+def verify_federation_proof(node_id: str, proof: Optional[str]) -> bool:
+    """Verify an inbound ``X-Federation-Proof`` for ``node_id``.
+
+    Constant-time HMAC comparison over the timestamped challenge. Returns False
+    on any malformed/expired/forged proof. When no shared PSK is configured we
+    fail closed (never authenticate) so an attacker who only knows the public
+    code hash can never gain trust.
+    """
+    if not _fed_psk_configured():
+        return False
+    if not proof or ":" not in proof:
+        return False
+    ts_str, _, mac = proof.partition(":")
+    try:
+        ts = int(ts_str)
+    except ValueError:
+        return False
+    if abs(int(time.time()) - ts) > _FED_PROOF_WINDOW:
+        return False
+    expected = hmac.new(
+        _fed_psk(), f"vortex-fed-handshake:{node_id}:{ts}".encode(), hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(mac, expected)
+
+
 # SSRF protection — block dangerous networks for outgoing requests
 _BLOCKED_PEER_NETS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
     ipaddress.ip_network("127.0.0.0/8"),
@@ -824,7 +890,16 @@ async def _verify_code_hash_via_validator(
                 timeout=httpx.Timeout(5.0, connect=3.0),
                 verify=ssl_ctx,
             ) as client:
-                resp = await client.get(f"{validator.url}/api/federation/code-hash")
+                _lid = _get_local_node_id()
+                resp = await client.get(
+                    f"{validator.url}/api/federation/code-hash",
+                    # FIX F1: /code-hash is no longer public; present our proof
+                    # plus our node identity so the peer can verify the HMAC.
+                    headers={
+                        _FED_PROOF_HEADER: make_federation_proof(_lid),
+                        "X-Federation-Node": _lid,
+                    },
+                )
                 resp.raise_for_status()
                 remote_hash = resp.json().get("code_hash", "")
                 return hmac.compare_digest(candidate_hash, remote_hash)
@@ -922,6 +997,9 @@ async def _initiate_handshake(node_db_id: int) -> None:
                     "version": "1.0.0",
                     "name": Config.DEVICE_NAME or "Vortex Node",
                 },
+                # FIX F1: prove possession of the shared federation secret so the
+                # peer can authenticate us (not just our public code hash).
+                headers={_FED_PROOF_HEADER: make_federation_proof(local_node_id)},
             )
             resp.raise_for_status()
             data = resp.json()
@@ -1094,7 +1172,19 @@ async def receive_handshake(
     if not NodeSandbox.check_rate_limit(body.node_id):
         raise HTTPException(429, "Rate limit exceeded")
 
-    # Verify code hash
+    # FIX F1: authenticate the PEER, not the public code hash. A valid handshake
+    # MUST carry an X-Federation-Proof HMAC over the shared FEDERATION_PSK bound
+    # to the peer's node_id + a fresh timestamp. Without a configured PSK (or with
+    # a bad/expired/forged proof) we refuse — knowing the openly-served code hash
+    # is not sufficient to gain trust or be minted a participation token.
+    proof = request.headers.get(_FED_PROOF_HEADER)
+    if not verify_federation_proof(body.node_id, proof):
+        logger.warning(
+            "Handshake rejected for %s: missing/invalid federation proof", normalized_url
+        )
+        raise HTTPException(403, "Federation handshake requires a valid pre-shared proof")
+
+    # Verify code hash (defence in depth — same-version check)
     hash_valid = await _verify_code_hash_via_validator(
         body.code_hash, normalized_url, db
     )
@@ -1161,6 +1251,22 @@ async def receive_handshake(
     }
 
 
+def _require_peer_proof(request: Request) -> None:
+    """FIX F1: gate a federation endpoint on a valid pre-shared peer proof.
+
+    The caller presents its node identity in ``X-Federation-Node`` and an HMAC
+    proof over (node_id, ts) in ``X-Federation-Proof``. We accept only when the
+    proof verifies against the shared PSK, restricting /code-hash and
+    /code-manifest to authenticated peers instead of serving the code
+    fingerprint to anyone.
+    """
+    caller_node = request.headers.get("X-Federation-Node", "")
+    proof = request.headers.get(_FED_PROOF_HEADER)
+    if caller_node and verify_federation_proof(caller_node, proof):
+        return
+    raise HTTPException(403, "Federation endpoint requires a valid pre-shared proof")
+
+
 @trusted_nodes_router.post("/code-manifest")
 async def code_manifest_endpoint(
     request: Request,
@@ -1171,6 +1277,9 @@ async def code_manifest_endpoint(
     client_ip = request.client.host if request.client else "unknown"
     if not NodeSandbox.check_rate_limit(f"manifest:{client_ip}"):
         raise HTTPException(429, "Rate limit exceeded")
+
+    # FIX F1: restrict to authenticated peers (no longer public).
+    _require_peer_proof(request)
 
     manifest = _get_code_manifest()
     manifest_hash = _get_cached_code_hash()
@@ -1183,8 +1292,15 @@ async def code_manifest_endpoint(
 
 
 @trusted_nodes_router.get("/code-hash")
-async def code_hash_endpoint():
-    """Return the top-level code hash for this node."""
+async def code_hash_endpoint(request: Request):
+    """Return the top-level code hash for this node.
+
+    FIX F1: restricted to authenticated peers. Previously this was an open
+    endpoint that served the code fingerprint to anyone, which (combined with the
+    old handshake that authenticated solely on that hash) allowed a full trust
+    bypass. The hash is now only revealed to peers that prove the shared secret.
+    """
+    _require_peer_proof(request)
     return {
         "code_hash": _get_cached_code_hash(),
         "node_id": _get_local_node_id(),
@@ -1320,10 +1436,19 @@ async def validate_token(
     if not NodeSandbox.check_rate_limit(f"validate:{client_ip}"):
         raise HTTPException(429, "Rate limit exceeded")
 
+    # FIX F1: bind token validation/promotion to a verified node identity. The
+    # caller must present a fresh pre-shared proof for the SAME node_id whose
+    # token it submits — a valid token alone (which rotates and could be
+    # observed) must not silently promote a node to "active".
+    proof = request.headers.get(_FED_PROOF_HEADER)
+    if not verify_federation_proof(body.node_id, proof):
+        raise HTTPException(403, "validate-token requires a valid pre-shared proof")
+
     valid = verify_node_token(body.node_id, body.token)
 
     if valid:
-        # Update last_seen for the node
+        # Update last_seen for the node — promote only nodes already verified
+        # through an authenticated handshake (never create/trust unknown nodes).
         node = db.query(TrustedNode).filter(TrustedNode.node_id == body.node_id).first()
         if node:
             node.last_seen = datetime.now(timezone.utc)

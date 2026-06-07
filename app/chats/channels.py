@@ -71,6 +71,41 @@ class ReactRequest(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+# FIX F6: shared membership/visibility guard for channel post endpoints.
+# Mirrors the RoomMember check in schedule_post/list_scheduled. Public channels
+# stay readable per existing design; private channels require a (non-banned)
+# RoomMember row for the caller. Always validates that the channel exists and is
+# actually a channel, and is used by callers to bind message_id -> channel_id.
+def _resolve_channel(channel_id: int, db: Session) -> Room:
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    if not channel:
+        raise HTTPException(404, "Channel not found")
+    return channel
+
+
+def _require_channel_access(channel: Room, user_id: int, db: Session) -> None:
+    """Enforce read/post access: public channels are open; private channels
+    require an active (non-banned) RoomMember row for the caller."""
+    if not channel.is_private:
+        return
+    member = db.query(RoomMember).filter(
+        RoomMember.room_id == channel.id, RoomMember.user_id == user_id,
+    ).first()
+    if not member or member.is_banned:
+        raise HTTPException(403, "Not a member of this channel")
+
+
+def _resolve_channel_post(channel_id: int, message_id: int, db: Session) -> Message:
+    """Resolve a post and verify it actually belongs to this channel
+    (prevents cross-channel IDOR via mismatched message_id/channel_id)."""
+    post = db.query(Message).filter(
+        Message.id == message_id, Message.room_id == channel_id,
+    ).first()
+    if not post:
+        raise HTTPException(404, "Post not found")
+    return post
+
+
 def _channel_dict(c: Room, db: Session, user_id: int | None = None) -> dict:
     count = c.members.count()
     d = {
@@ -253,6 +288,10 @@ async def channel_stats(channel_id: int, u: User = Depends(get_current_user),
 async def record_view(channel_id: int, message_id: int,
                       u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Record that user viewed a post."""
+    # FIX F6: enforce membership for private channels + bind message to channel.
+    channel = _resolve_channel(channel_id, db)
+    _require_channel_access(channel, u.id, db)
+    _resolve_channel_post(channel_id, message_id, db)
     existing = db.query(PostView).filter(
         PostView.message_id == message_id, PostView.user_id == u.id
     ).first()
@@ -270,6 +309,10 @@ async def record_view(channel_id: int, message_id: int,
 async def get_comments(channel_id: int, message_id: int,
                        u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get comments on a channel post (thread replies)."""
+    # FIX F6: enforce membership for private channels + bind message to channel.
+    channel = _resolve_channel(channel_id, db)
+    _require_channel_access(channel, u.id, db)
+    _resolve_channel_post(channel_id, message_id, db)
     comments = db.query(Message).filter(
         Message.room_id == channel_id, Message.thread_id == message_id,
     ).order_by(Message.created_at).limit(200).all()
@@ -284,11 +327,10 @@ async def get_comments(channel_id: int, message_id: int,
 async def add_comment(channel_id: int, message_id: int,
                       u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Enable comments on a post by creating a linked thread."""
-    post = db.query(Message).filter(
-        Message.id == message_id, Message.room_id == channel_id
-    ).first()
-    if not post:
-        raise HTTPException(404, "Post not found")
+    # FIX F6: enforce membership for private channels before exposing post state.
+    channel = _resolve_channel(channel_id, db)
+    _require_channel_access(channel, u.id, db)
+    _resolve_channel_post(channel_id, message_id, db)
     return {"ok": True, "thread_id": message_id, "comments_enabled": True}
 
 
@@ -392,6 +434,10 @@ async def discover_channels(q: str = Query(default="", max_length=100),
 async def react_to_post(channel_id: int, message_id: int, body: ReactRequest,
                         u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Add/toggle reaction on a post."""
+    # FIX F6: enforce membership for private channels + bind message to channel.
+    channel = _resolve_channel(channel_id, db)
+    _require_channel_access(channel, u.id, db)
+    _resolve_channel_post(channel_id, message_id, db)
     existing = db.query(PostReaction).filter(
         PostReaction.message_id == message_id,
         PostReaction.user_id == u.id,
@@ -407,8 +453,14 @@ async def react_to_post(channel_id: int, message_id: int, body: ReactRequest,
 
 
 @router.get("/{channel_id}/posts/{message_id}/reactions")
-async def get_reactions(channel_id: int, message_id: int, db: Session = Depends(get_db)):
+async def get_reactions(channel_id: int, message_id: int,
+                        u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get reaction counts for a post."""
+    # FIX F6: require auth + membership for private channels (was unauthenticated)
+    # and bind the message to this channel to prevent cross-channel reads.
+    channel = _resolve_channel(channel_id, db)
+    _require_channel_access(channel, u.id, db)
+    _resolve_channel_post(channel_id, message_id, db)
     reactions = db.query(PostReaction.emoji, func.count(PostReaction.id)).filter(
         PostReaction.message_id == message_id,
     ).group_by(PostReaction.emoji).all()

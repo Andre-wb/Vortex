@@ -323,7 +323,13 @@ async def require_premium_wallet(wallet_pubkey: str) -> PremiumStatus:
 
 # ── FastAPI router ────────────────────────────────────────────────────────
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+# FIX F14: import get_current_user / get_db at module level so the wallet-linking
+# endpoints can use the standard Depends(...) injection instead of the fragile
+# manual _resolve_current_user(request) path.
+from app.database import get_db
+from app.security.auth_jwt import get_current_user
 
 router = APIRouter(prefix="/api/premium", tags=["premium"])
 
@@ -372,9 +378,22 @@ import secrets
 from datetime import datetime, timezone
 
 # In-memory challenge map. Cleaned lazily on new issuance so the app
-# doesn't need a background job. Key → (challenge_bytes, expires_at).
+# doesn't need a background job. Key → (nonce_bytes, expires_at).
 _challenges: dict[int, tuple[bytes, float]] = {}
 _CHALLENGE_TTL_SECONDS = 300
+
+# FIX F14: domain-separate the signed message. A bare random nonce is a valid
+# signature target for ANY context, so a signature harvested by a malicious dapp
+# for some unrelated prompt could be replayed here. Binding a constant
+# application prefix + the linking user's id makes the signed bytes meaningful
+# only for "this user links a wallet on Vortex", and prevents a signature
+# captured for one account from linking the wallet to another.
+_LINK_MSG_PREFIX = b"vortex:link-wallet:v1:"
+
+
+def _link_message(user_id: int, nonce: bytes) -> bytes:
+    """Deterministic, domain-separated bytes the wallet must sign."""
+    return _LINK_MSG_PREFIX + str(user_id).encode("ascii") + b":" + nonce
 
 
 def _cleanup_expired_challenges() -> None:
@@ -385,28 +404,32 @@ def _cleanup_expired_challenges() -> None:
 
 
 @router.get("/challenge")
-async def get_wallet_link_challenge(request) -> dict:  # type: ignore[valid-type]
+async def get_wallet_link_challenge(
+    user=Depends(get_current_user),
+) -> dict:
     """Issue a one-shot nonce the user must sign with their wallet.
 
     Requires an authenticated session. The challenge is 32 random bytes
     shown to the user as base64 so Phantom's signMessage UI can display
     something safe-looking.
     """
-    from fastapi import Depends, HTTPException  # noqa: F401
-    from app.keys.keys import get_current_user
-    # Resolve user via the request to avoid changing this function's
-    # signature — some callers pre-hook deps via middleware.
-    user = await _resolve_current_user(request)
-    if not user:
-        raise HTTPException(401, "auth required")
-
+    # FIX F14: the old signature was `(request)` with no type annotation, so
+    # FastAPI treated `request` as a required *query* param and the endpoint
+    # always 422'd before any auth ran. Use the standard
+    # `Depends(get_current_user)` injection (matches the rest of the app) so the
+    # authenticated user is resolved correctly.
     _cleanup_expired_challenges()
-    challenge = secrets.token_bytes(32)
+    nonce = secrets.token_bytes(32)
     expires_at = time.time() + _CHALLENGE_TTL_SECONDS
-    _challenges[user.id] = (challenge, expires_at)
+    _challenges[user.id] = (nonce, expires_at)
 
+    # FIX F14: the bytes the wallet actually signs are domain-separated
+    # (prefix + user id + nonce). Hand the client that exact message so the
+    # existing "sign `challenge`, return `challenge` + signature" flow keeps
+    # working — verification reconstructs the same bytes server-side.
+    message = _link_message(user.id, nonce)
     return {
-        "challenge":  base64.b64encode(challenge).decode("ascii"),
+        "challenge":  base64.b64encode(message).decode("ascii"),
         "expires_at": int(expires_at),
         "ttl_seconds": _CHALLENGE_TTL_SECONDS,
         "instructions": (
@@ -416,45 +439,24 @@ async def get_wallet_link_challenge(request) -> dict:  # type: ignore[valid-type
     }
 
 
-async def _resolve_current_user(request):
-    """Pull the authenticated user without forcing the caller to use Depends."""
-    try:
-        from app.keys.keys import get_current_user
-        from app.database import get_db
-        # get_current_user expects a session; build one on the fly.
-        db_gen = get_db()
-        db = next(db_gen)
-        try:
-            return await _maybe_await(get_current_user(request, db=db))
-        finally:
-            try: next(db_gen)
-            except StopIteration: pass
-    except Exception:
-        return None
-
-
-async def _maybe_await(value):
-    import inspect
-    if inspect.isawaitable(value):
-        return await value
-    return value
-
-
 @router.post("/link-wallet")
-async def link_wallet_signed(request, body: dict) -> dict:  # type: ignore[valid-type]
+async def link_wallet_signed(
+    body: dict,
+    user=Depends(get_current_user),
+    db=Depends(get_db),
+) -> dict:
     """Save a Solana wallet onto the authenticated user after verifying
     they own it.
 
     Body:
       * wallet        — base58 Solana pubkey
       * challenge     — the base64 string returned by /challenge
-      * signature_b58 — base58 signature of the raw challenge bytes
+      * signature_b58 — base58 signature of the domain-separated challenge bytes
     """
-    from fastapi import HTTPException
-    user = await _resolve_current_user(request)
-    if not user:
-        raise HTTPException(401, "auth required")
-
+    # FIX F14: the old signature was `(request, body: dict)` with no annotation
+    # on `request`, so FastAPI treated `request` as a required *query* param and
+    # the endpoint 422'd before any logic ran. Use the standard
+    # `Depends(get_current_user)` / `Depends(get_db)` injection instead.
     wallet = str(body.get("wallet") or "").strip()
     challenge_b64 = str(body.get("challenge") or "").strip()
     signature_b58 = str(body.get("signature_b58") or "").strip()
@@ -464,15 +466,20 @@ async def link_wallet_signed(request, body: dict) -> dict:  # type: ignore[valid
     stored = _challenges.get(user.id)
     if not stored:
         raise HTTPException(400, "no active challenge — call /challenge first")
-    stored_challenge, expires_at = stored
+    stored_nonce, expires_at = stored
     if expires_at < time.time():
         _challenges.pop(user.id, None)
         raise HTTPException(400, "challenge expired — request a new one")
+
+    # FIX F14: the signed bytes are domain-separated (prefix + user id + nonce),
+    # reconstructed here for this exact user. The client returns the same message
+    # it was handed in /challenge; require it to match what we expect.
+    expected_message = _link_message(user.id, stored_nonce)
     try:
         supplied_challenge = base64.b64decode(challenge_b64)
     except Exception:
         raise HTTPException(400, "challenge is not valid base64")
-    if supplied_challenge != stored_challenge:
+    if supplied_challenge != expected_message:
         raise HTTPException(400, "challenge mismatch")
 
     # Validate wallet format + extract raw bytes.
@@ -492,40 +499,43 @@ async def link_wallet_signed(request, body: dict) -> dict:  # type: ignore[valid
     if len(signature) != 64:
         raise HTTPException(400, "signature must be 64 bytes")
 
-    # Verify Ed25519 signature. A valid signature means the caller controls
-    # the private key for ``wallet`` — good enough to link.
+    # Verify Ed25519 signature over the domain-separated message. A valid
+    # signature means the caller controls the private key for ``wallet`` AND was
+    # signing specifically to link it to THIS user on Vortex.
     try:
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
         from cryptography.exceptions import InvalidSignature
         Ed25519PublicKey.from_public_bytes(pubkey_bytes).verify(
-            signature, stored_challenge,
+            signature, expected_message,
         )
     except InvalidSignature:
         raise HTTPException(403, "signature does not match wallet pubkey")
     except Exception as e:
         raise HTTPException(400, f"signature verification failed: {e}")
 
-    # Challenge consumed — single-use.
+    from app.models.user import User
+
+    # FIX F14: refuse to link a wallet already bound to a DIFFERENT account.
+    # Otherwise two accounts could share one premium subscription (or an attacker
+    # could attach a victim's wallet to their own row). Re-linking the same
+    # wallet to the same user is idempotent and allowed.
+    existing = db.query(User).filter(User.wallet_pubkey == wallet).first()
+    if existing and existing.id != user.id:
+        raise HTTPException(409, "wallet is already linked to another account")
+
+    # Challenge consumed — single-use (only after all checks pass).
     _challenges.pop(user.id, None)
 
     # Persist on the user row.
-    from app.database import get_db
-    db_gen = get_db()
-    db = next(db_gen)
-    try:
-        from app.models.user import User
-        db_user = db.query(User).filter(User.id == user.id).first()
-        if not db_user:
-            raise HTTPException(404, "user not found")
-        # Invalidate cached premium status for both old and new wallets
-        if db_user.wallet_pubkey:
-            premium_checker.invalidate(db_user.wallet_pubkey)
-        premium_checker.invalidate(wallet)
-        db_user.wallet_pubkey = wallet
-        db.commit()
-    finally:
-        try: next(db_gen)
-        except StopIteration: pass
+    db_user = db.query(User).filter(User.id == user.id).first()
+    if not db_user:
+        raise HTTPException(404, "user not found")
+    # Invalidate cached premium status for both old and new wallets
+    if db_user.wallet_pubkey:
+        premium_checker.invalidate(db_user.wallet_pubkey)
+    premium_checker.invalidate(wallet)
+    db_user.wallet_pubkey = wallet
+    db.commit()
 
     return {
         "ok": True,

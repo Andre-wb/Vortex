@@ -295,10 +295,11 @@ async def get_mini_app_token(
 
     Payload: {sub: user_id, username, display_name, bot_id, typ: "miniapp"}
     """
+    # FIX F3: require ownership before minting a mini-app JWT. The previous
+    # fallback to Bot.filter(id==bot_id, mini_app_enabled==True) let ANY
+    # authenticated user mint a token for someone else's bot AND leaked the
+    # private mini_app_url. Only the bot owner may obtain a mini-app token.
     bot = db.query(Bot).filter(Bot.id == bot_id, Bot.owner_id == user.id).first()
-    if not bot:
-        # Allow any user to get a mini-app token if the bot has a mini app enabled
-        bot = db.query(Bot).filter(Bot.id == bot_id, Bot.mini_app_enabled == True).first()
     if not bot:
         raise HTTPException(404, "Bot not found or mini app not enabled")
     if not bot.mini_app_url or not bot.mini_app_enabled:

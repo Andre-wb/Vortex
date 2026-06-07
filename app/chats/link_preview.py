@@ -11,12 +11,13 @@ import ipaddress
 import logging
 import re
 import socket
-from collections import OrderedDict
+import time
+from collections import OrderedDict, defaultdict
 from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 # Separate reference so tests can patch this without affecting httpx globally
 _AsyncClient = httpx.AsyncClient
@@ -27,6 +28,27 @@ from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["link-preview"])
+
+# ── Rate limiting (in-memory) ────────────────────────────────────────────────
+# FIX F12(1): /api/link-preview is an authenticated outbound-fetch SSRF surface.
+# Throttle it per-user AND per-IP (mirrors the limiter pattern in
+# app/chats/translate.py) so a single account/host cannot drive unbounded
+# server-side requests. /api/link-preview is also re-included in the WAF
+# (EXCLUDED_PATHS removal, FIX F12-3) so the WAF per-IP cap applies on top.
+_RATE_LIMIT = 30
+_RATE_WINDOW = 60  # 30 previews / minute per identity
+
+_user_hits: dict[int, list[float]] = defaultdict(list)
+_ip_hits: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_rate_limit(bucket: dict, key, label: str) -> None:
+    now = time.time()
+    cutoff = now - _RATE_WINDOW
+    bucket[key] = [t for t in bucket[key] if t > cutoff]
+    if len(bucket[key]) >= _RATE_LIMIT:
+        raise HTTPException(429, f"Link-preview rate limit exceeded ({_RATE_LIMIT}/min per {label})")
+    bucket[key].append(now)
 
 # ── In-memory LRU cache ────────────────────────────────────────────────────
 _CACHE_MAX = 500
@@ -115,6 +137,21 @@ def _parse_og(html: str, url: str) -> dict:
 
 # ── SSRF protection ───────────────────────────────────────────────────────
 
+def _ip_is_blocked(addr: ipaddress._BaseAddress) -> bool:
+    """True if an IP belongs to a private/reserved/link-local range we must not reach."""
+    if (addr.is_private or addr.is_loopback or addr.is_link_local
+            or addr.is_reserved or addr.is_multicast or addr.is_unspecified):
+        return True
+    # AWS / cloud metadata endpoint (link-local already covers 169.254/16, but be explicit)
+    if str(addr).startswith("169.254."):
+        return True
+    # IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) — unwrap and re-check
+    mapped = getattr(addr, "ipv4_mapped", None)
+    if mapped is not None and _ip_is_blocked(mapped):
+        return True
+    return False
+
+
 def _is_internal_host(host: str) -> bool:
     """Check if host resolves to internal/private IP (SSRF protection)."""
     if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1", "metadata.google.internal"):
@@ -123,23 +160,93 @@ def _is_internal_host(host: str) -> bool:
         ips = socket.getaddrinfo(host, None)
         for info in ips:
             addr = ipaddress.ip_address(info[4][0])
-            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
-                return True
-            # AWS metadata endpoint
-            if str(addr).startswith("169.254."):
+            if _ip_is_blocked(addr):
                 return True
     except (socket.gaierror, ValueError):
         pass
     return False
 
 
+def _resolve_and_pin(host: str) -> tuple[str, Optional[str]]:
+    """
+    FIX F12(2): close the DNS-rebinding TOCTOU. Resolve the host EXACTLY ONCE and
+    validate EVERY returned A/AAAA record against the private/reserved/link-local
+    blocklist.
+
+    Returns (verdict, ip):
+      ("ok", "<safe-ip>")  — every record resolved to a public IP; pin to this one.
+      ("blocked", None)    — at least one record is internal, or an obviously
+                             internal literal host → caller MUST refuse to fetch.
+      ("unresolved", None) — DNS yielded nothing (NXDOMAIN, etc.). No IP exists to
+                             rebind toward at our layer; caller may proceed without
+                             pinning (follow_redirects stays off as defence-in-depth).
+    """
+    if host in ("localhost", "0.0.0.0", "metadata.google.internal"):
+        return ("blocked", None)
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, ValueError, UnicodeError):
+        return ("unresolved", None)
+
+    chosen: Optional[str] = None
+    for info in infos:
+        try:
+            addr = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return ("blocked", None)  # unparseable → refuse rather than risk it
+        if _ip_is_blocked(addr):
+            return ("blocked", None)  # ANY internal record → refuse (rebinding-safe)
+        if chosen is None:
+            chosen = str(addr)
+    if chosen is None:
+        return ("unresolved", None)
+    return ("ok", chosen)
+
+
+def _build_pinned_transport(pinned_ip: str) -> httpx.AsyncHTTPTransport:
+    """
+    Build an httpx transport that forces every TCP connect to a pre-validated IP
+    while preserving the original hostname for TLS SNI / certificate validation.
+    Implements FIX F12(2): the IP validated in _resolve_and_pin is the exact IP
+    we connect to — httpcore never performs a second DNS lookup that an attacker
+    could rebind. We wrap (by composition) the pool's real network backend and
+    rewrite only the connect target.
+    """
+    transport = httpx.AsyncHTTPTransport()
+    inner = transport._pool._network_backend
+
+    class _PinningBackend:
+        # Delegate everything to the real backend, but pin connect_tcp's host.
+        async def connect_tcp(self, host, port, timeout=None,
+                              local_address=None, socket_options=None):
+            return await inner.connect_tcp(
+                pinned_ip, port, timeout=timeout,
+                local_address=local_address, socket_options=socket_options,
+            )
+
+        async def connect_unix_socket(self, *a, **kw):
+            return await inner.connect_unix_socket(*a, **kw)
+
+        async def sleep(self, seconds):
+            return await inner.sleep(seconds)
+
+    transport._pool._network_backend = _PinningBackend()
+    return transport
+
+
 # ── Endpoint ───────────────────────────────────────────────────────────────
 @router.get("/link-preview")
 async def link_preview(
+    request: Request,
     url: str = Query(..., min_length=8, max_length=2048),
     u: User = Depends(get_current_user),
 ):
     """Fetch Open Graph metadata for a URL."""
+    # FIX F12(1): per-user AND per-IP throttle before any outbound work.
+    _check_rate_limit(_user_hits, u.id, "user")
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(_ip_hits, client_ip, "ip")
+
     # Validate URL scheme
     if not url.startswith(("http://", "https://")):
         return JSONResponse({"title": "", "description": "", "image": "", "site_name": "", "url": url})
@@ -158,16 +265,28 @@ async def link_preview(
     if cached is not None:
         return cached
 
+    # FIX F12(2): resolve ONCE, validate every record, and pin the connection to
+    # that exact IP so httpx cannot re-resolve to an internal address at connect
+    # time (DNS-rebinding TOCTOU). A "blocked" verdict refuses the fetch outright.
+    verdict, pinned_ip = _resolve_and_pin(host)
+    if verdict == "blocked":
+        return JSONResponse({"title": "", "description": "", "image": "", "site_name": "", "url": url})
+
+    # Build client kwargs; pin the validated IP at the socket layer when we have one.
+    _client_kwargs = dict(
+        follow_redirects=False,
+        timeout=5.0,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+        },
+    )
+    if pinned_ip is not None:
+        _client_kwargs["transport"] = _build_pinned_transport(pinned_ip)
+
     # Fetch
     try:
-        async with _AsyncClient(
-            follow_redirects=False,
-            timeout=5.0,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml",
-            },
-        ) as client:
+        async with _AsyncClient(**_client_kwargs) as client:
             resp = await client.get(url)
 
         content_type = resp.headers.get("content-type", "")

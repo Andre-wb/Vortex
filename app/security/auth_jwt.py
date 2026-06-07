@@ -167,6 +167,13 @@ def decode_access_token(token: str) -> dict[str, Any]:
         raise HTTPException(401, "Token expired")
     except jwt.InvalidTokenError as e:
         raise HTTPException(401, f"Invalid token: {e}")
+    # FIX F4: only true access tokens may authenticate a session. Other tokens
+    # signed with the same secret (e.g. mini-app typ="miniapp") must NOT be
+    # accepted as a full access token. create_access_token sets typ="access",
+    # so legitimate access tokens are unaffected. This covers get_current_user
+    # and get_user_ws (both route through here).
+    if payload.get("typ") != "access":
+        raise HTTPException(401, "Invalid token type")
     if _is_jti_revoked(payload.get("jti", "")):
         raise HTTPException(401, "Token revoked")
     return payload

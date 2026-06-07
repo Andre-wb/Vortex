@@ -623,6 +623,10 @@ def cmd_run() -> None:
             access_log=False,
             proxy_headers=bool(_trusted_proxies),
             forwarded_allow_ips=_trusted_proxies or None,
+            # FIX F15: suppress uvicorn's own Server header (emitted below the
+            # ASGI app, so middleware can't strip it); the stealth layer adds the
+            # decoy value, leaving a single Server header.
+            server_header=False,
         )
         if ssl:
             kwargs["ssl_certfile"] = str(CERT_FILE)

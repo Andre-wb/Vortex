@@ -15,6 +15,9 @@ from app.security.auth_jwt import get_current_user
 from app.security.ip_privacy import sanitize_ip
 
 from app.authentication._helpers import _set_auth_cookies, router
+from app.authentication.password import (
+    consume_password_verified, has_password_verified,
+)
 
 # ── Per-user TOTP rate limiter (in-memory) ────────────────────────────────
 _totp_attempts: dict[int, list] = {}  # user_id -> [timestamps]
@@ -86,6 +89,13 @@ async def verify_2fa_login(body: TwoFALoginRequest, request: Request,
     if not user or not user.totp_enabled or not user.totp_secret:
         raise HTTPException(401, "User not found or 2FA not enabled")
 
+    # FIX F7: bind this second factor to the password step. /login arms a
+    # short-lived single-use marker only after the PASSWORD is verified; without
+    # it, a caller holding just a TOTP code (no password) is rejected here.
+    # Peek (non-consuming) so a wrong code can be retried without re-login.
+    if not has_password_verified(user.id):
+        raise HTTPException(401, "Password verification required — log in first")
+
     # Rate limit: max 5 attempts per 5 minutes per user
     if not _check_totp_rate(user.id):
         raise HTTPException(429, "Too many attempts, try again later")
@@ -93,6 +103,9 @@ async def verify_2fa_login(body: TwoFALoginRequest, request: Request,
     totp = pyotp.TOTP(user.totp_secret)
     if not totp.verify(body.code, valid_window=1):
         raise HTTPException(401, "Invalid 2FA code")
+
+    # TOTP confirmed — burn the password marker (single-use).
+    consume_password_verified(user.id)
 
     user.last_seen = datetime.now(timezone.utc)
     user.last_ip = sanitize_ip(request)

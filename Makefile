@@ -53,7 +53,14 @@ install-dev: install ## Install all dependencies (including dev tools)
 
 # ── Development ───────────────────────────────────────────────────────────────
 dev: ## Run development server with hot-reload
-	$(PYTHON) -m uvicorn app.main:app --host 0.0.0.0 --port $(PORT) --reload --reload-dir app
+	# FIX F13: do NOT trust X-Forwarded-* on this launch path. Without --no-proxy-headers
+	# uvicorn defaults to proxy_headers=True / forwarded-allow-ips=127.0.0.1, so a loopback
+	# peer could spoof XFF and bypass the per-IP auth rate limiters. If you front this with a
+	# real reverse proxy, drop --no-proxy-headers and add --forwarded-allow-ips=<proxy IP/CIDR>.
+	# FIX F15: --no-server-header suppresses uvicorn's own "Server: uvicorn" header
+	# (it is emitted by the server below the ASGI app, so the stealth middleware
+	# cannot strip it) — leaving only the decoy Server value.
+	$(PYTHON) -m uvicorn app.main:app --host 0.0.0.0 --port $(PORT) --no-proxy-headers --no-server-header --reload --reload-dir app
 
 run: ## Run production server
 	$(PYTHON) run.py

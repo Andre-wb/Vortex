@@ -207,10 +207,17 @@ services:
       - DEVICE_NAME=vortex-dev
     env_file:
       - .env
+    # FIX F13: --no-proxy-headers disables X-Forwarded-* trust. Otherwise uvicorn
+    # defaults to proxy_headers=True / forwarded-allow-ips=127.0.0.1 and a peer reaching
+    # the container (e.g. via a shared docker network) could spoof XFF to bypass per-IP
+    # rate limiters. Behind a real reverse proxy, drop --no-proxy-headers and replace it
+    # with --forwarded-allow-ips=<proxy IP/CIDR> (or set TRUSTED_PROXY_IPS for run.py).
     command: >
       python -m uvicorn app.main:app
       --host 0.0.0.0
       --port ${PORT:-9000}
+      --no-proxy-headers
+      --no-server-header
       --reload
       --reload-dir app
 

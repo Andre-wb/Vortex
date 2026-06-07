@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 import secrets
+import threading
+import time
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request
@@ -23,6 +25,90 @@ from app.authentication._helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ── FIX F7: password-verified marker for the 2FA second step ───────────────
+# verify-login must NOT mint cookies on a TOTP code alone — an attacker holding
+# only a victim's current TOTP code (e.g. shoulder-surfed) could otherwise log
+# in without knowing the password. /login records a short-lived, single-use
+# server-side marker once the PASSWORD is verified and 2FA is pending; /2fa/
+# verify-login then requires & consumes that marker. The client API stays
+# unchanged ({user_id, code} in, {requires_2fa, user_id} out).
+#
+# Storage mirrors the JWT revocation store in app/security/auth_jwt.py:
+#   - Redis (Config.REDIS_URL) when set → shared across workers, auto-expiring.
+#   - In-process dict fallback otherwise / when Redis is unreachable.
+_PW_MARKER_PREFIX = "2fa:pwok:"
+_PW_MARKER_TTL = 300  # seconds (~5 min) — long enough for the user to enter the code
+
+_pw_verified: dict[int, float] = {}      # user_id -> expiry epoch (in-memory fallback)
+_pw_verified_lock = threading.Lock()
+
+
+def _purge_expired_pw_markers(now_epoch: float) -> None:
+    for uid, exp in list(_pw_verified.items()):
+        if exp <= now_epoch:
+            _pw_verified.pop(uid, None)
+
+
+def mark_password_verified(user_id: int) -> None:
+    """Record that ``user_id`` just passed the password step and owes only 2FA."""
+    r = _get_2fa_redis()
+    if r is not None:
+        try:
+            r.setex(_PW_MARKER_PREFIX + str(user_id), _PW_MARKER_TTL, "1")
+            return
+        except Exception as e:
+            logger.warning("2FA pw-marker: Redis SETEX failed (%s) — using local store", e)
+    now = time.time()
+    with _pw_verified_lock:
+        _purge_expired_pw_markers(now)
+        _pw_verified[user_id] = now + _PW_MARKER_TTL
+
+
+def has_password_verified(user_id: int) -> bool:
+    """Return True iff a live password-verified marker exists (non-consuming peek).
+
+    Used so a wrong TOTP code does not burn the marker — the user can retry
+    the code (subject to the existing TOTP rate limit) without re-entering the
+    password.
+    """
+    r = _get_2fa_redis()
+    if r is not None:
+        try:
+            if r.exists(_PW_MARKER_PREFIX + str(user_id)):
+                return True
+            # Fall through to also check local store (marker may have been
+            # written while Redis was briefly down on this worker).
+        except Exception as e:
+            logger.warning("2FA pw-marker: Redis EXISTS failed (%s) — using local store", e)
+    now = time.time()
+    with _pw_verified_lock:
+        exp = _pw_verified.get(user_id)
+        if exp is None:
+            return False
+        if exp <= now:
+            _pw_verified.pop(user_id, None)
+            return False
+        return True
+
+
+def consume_password_verified(user_id: int) -> None:
+    """Delete the password-verified marker (single-use) after a successful 2FA step."""
+    r = _get_2fa_redis()
+    if r is not None:
+        try:
+            r.delete(_PW_MARKER_PREFIX + str(user_id))
+        except Exception as e:
+            logger.warning("2FA pw-marker: Redis DELETE failed (%s) — clearing local store", e)
+    with _pw_verified_lock:
+        _pw_verified.pop(user_id, None)
+
+
+# Reuse the project's Redis client/init pattern from auth_jwt for the marker store.
+def _get_2fa_redis():
+    from app.security.auth_jwt import _get_redis
+    return _get_redis()
 
 
 @router.post("/register", status_code=201)
@@ -194,6 +280,10 @@ async def login(body: LoginRequest, request: Request,
             raise HTTPException(403, "Account is blocked")
 
     if user.totp_enabled and user.totp_secret:
+        # FIX F7: password proven here → arm the single-use marker that
+        # /2fa/verify-login requires before issuing cookies. Binds factor 1
+        # (password) to factor 2 (TOTP) without any client-API change.
+        mark_password_verified(user.id)
         return JSONResponse(content={"requires_2fa": True, "user_id": user.id})
 
     user.last_seen = datetime.now(timezone.utc)

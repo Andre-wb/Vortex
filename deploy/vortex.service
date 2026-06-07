@@ -36,11 +36,17 @@ Environment=LOG_LEVEL=INFO
 EnvironmentFile=-/opt/vortex/.env
 
 # ── Execution ────────────────────────────────────────────────────────────────
+# FIX F13: --forwarded-allow-ips="" disables X-Forwarded-* trust. Gunicorn (and the
+# UvicornWorker) otherwise default to forwarded-allow-ips=127.0.0.1,::1, letting a loopback
+# peer spoof XFF and bypass the per-IP auth rate limiters. If this host sits behind a real
+# reverse proxy (e.g. the bundled deploy/nginx.conf), set this to that proxy's IP/CIDR
+# instead — e.g. --forwarded-allow-ips=127.0.0.1 when nginx terminates on the same box.
 ExecStart=/opt/vortex/.venv/bin/python -m gunicorn \
     app.main:app \
     --worker-class uvicorn.workers.UvicornWorker \
     --workers 1 \
     --bind 0.0.0.0:9000 \
+    --forwarded-allow-ips="" \
     --timeout 120 \
     --graceful-timeout 30 \
     --access-logfile - \

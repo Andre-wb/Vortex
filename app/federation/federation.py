@@ -569,7 +569,10 @@ def _is_blocked_peer_ip(ip: str) -> bool:
 
 def _is_private_ip(ip: str) -> bool:
     """Возвращает True если IP из RFC-1918, loopback или link-local.
-    Используется в guest-login для разрешения входа только из локальной сети."""
+
+    FIX F10: используется ТОЛЬКО как дополнительная проверка сетевой локальности,
+    а НЕ как граница доверия. Само по себе нахождение в RFC-1918/loopback больше
+    не авторизует guest-login — нужен валидный pre-shared proof пира."""
     if ip == "localhost":
         return True
     try:
@@ -577,6 +580,88 @@ def _is_private_ip(ip: str) -> bool:
         return addr.is_private or addr.is_loopback
     except ValueError:
         return False
+
+
+# ── FIX F10: peer authentication + feature gate for federation guest-login ────
+# guest-login mints a real User + access JWT. Previously it was gated ONLY by a
+# private-IP check, so any host on the LAN/loopback could mint accounts/sessions.
+# We now: (a) gate behind FEDERATION_GUEST_ENABLED (default OFF → 403); and
+# (b) require a pre-shared peer proof (HMAC over FEDERATION_PSK) before minting;
+# and (c) rate-limit guest creation per source IP.
+from collections import defaultdict as _defaultdict, deque as _deque
+
+_GUEST_PROOF_HEADER = "X-Federation-Proof"   # "<ts>:<hmac_hex>"
+_GUEST_PROOF_WINDOW = 300                     # ±5 min clock skew
+_GUEST_RATE_PER_MIN = 30                       # guest-login attempts per source IP
+_guest_hits: dict[str, "_deque"] = _defaultdict(_deque)
+
+
+def _guest_enabled() -> bool:
+    """True iff the federation guest-login flow is explicitly enabled."""
+    raw = (
+        os.getenv("FEDERATION_GUEST_ENABLED", "")
+        or str(getattr(Config, "FEDERATION_GUEST_ENABLED", ""))
+    )
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _guest_psk() -> bytes:
+    raw = (
+        os.getenv("FEDERATION_PSK", "")
+        or getattr(Config, "FEDERATION_PSK", "")
+        or getattr(Config, "VORTEX_NETWORK_KEY", "")
+        or Config.JWT_SECRET
+    )
+    return hashlib.sha256(b"vortex-federation-psk-v1:" + raw.encode()).digest()
+
+
+def _guest_psk_configured() -> bool:
+    return bool(os.getenv("FEDERATION_PSK", "") or getattr(Config, "FEDERATION_PSK", ""))
+
+
+def _verify_guest_proof(proof: str | None) -> bool:
+    """Constant-time verify an HMAC proof over ``vortex-fed-guest:<ts>``.
+
+    Fails closed when no shared PSK is configured."""
+    import hmac as _hmac
+    if not _guest_psk_configured():
+        return False
+    if not proof or ":" not in proof:
+        return False
+    ts_str, _, mac = proof.partition(":")
+    try:
+        ts = int(ts_str)
+    except ValueError:
+        return False
+    if abs(int(time.time()) - ts) > _GUEST_PROOF_WINDOW:
+        return False
+    expected = _hmac.new(
+        _guest_psk(), f"vortex-fed-guest:{ts}".encode(), hashlib.sha256
+    ).hexdigest()
+    return _hmac.compare_digest(mac, expected)
+
+
+def _guest_rate_ok(ip: str) -> bool:
+    now = time.monotonic()
+    dq = _guest_hits[ip]
+    cutoff = now - 60.0
+    while dq and dq[0] < cutoff:
+        dq.popleft()
+    if len(dq) >= _GUEST_RATE_PER_MIN:
+        return False
+    dq.append(now)
+    return True
+
+
+def make_guest_proof(ts: int | None = None) -> str:
+    """Build an ``X-Federation-Proof`` value for an outbound guest-login call."""
+    import hmac as _hmac
+    if ts is None:
+        ts = int(time.time())
+    mac = _hmac.new(
+        _guest_psk(), f"vortex-fed-guest:{ts}".encode(), hashlib.sha256
+    ).hexdigest()
+    return f"{ts}:{mac}"
 
 
 @router.post("/guest-login")
@@ -591,9 +676,28 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
     """
     src_ip = request.client.host if request.client else ""
 
+    # FIX F10: feature gate — closed by default. If the operator has not opted
+    # into federation guest-login it is effectively disabled (403).
+    if not _guest_enabled():
+        logger.warning(f"guest-login rejected (FEDERATION_GUEST_ENABLED off) from: {src_ip}")
+        raise HTTPException(403, "Federated guest login is not enabled on this node")
+
+    # FIX F10: require a verified peer proof — loopback/RFC-1918 is NOT a trust
+    # boundary. The calling node must HMAC a fresh challenge with the shared
+    # FEDERATION_PSK; without it (or with no PSK configured) we never mint a
+    # user/session.
+    if not _verify_guest_proof(request.headers.get(_GUEST_PROOF_HEADER)):
+        logger.warning(f"guest-login rejected (missing/invalid peer proof) from: {src_ip}")
+        raise HTTPException(403, "Federated guest login requires a valid pre-shared peer proof")
+
+    # FIX F10: defence in depth — still require network locality.
     if not _is_private_ip(src_ip):
         logger.warning(f"guest-login rejected from public IP: {src_ip}")
         raise HTTPException(403, "Federated login is only allowed from the local network")
+
+    # FIX F10: rate-limit/cap guest creation per source IP.
+    if not _guest_rate_ok(src_ip or "unknown"):
+        raise HTTPException(429, "Too many federated guest-login attempts, slow down")
 
     from app.peer.peer_registry import registry as peer_registry
     if not peer_registry.get(src_ip):

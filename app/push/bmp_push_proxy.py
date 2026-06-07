@@ -23,12 +23,18 @@ Privacy guarantees:
 from __future__ import annotations
 
 import hashlib
+import hmac
+import ipaddress
 import logging
+import os
+import secrets
+import socket
 import time
 from collections import defaultdict
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -40,6 +46,80 @@ router = APIRouter(prefix="/api/push-proxy", tags=["bmp-push-proxy"])
 CATEGORY_COUNT = 256                # Number of push categories (k-anonymity buckets)
 TOKEN_TTL = 7 * 86400              # Push tokens expire after 7 days
 MAX_TOKENS_PER_CATEGORY = 10000    # Prevent abuse
+
+# FIX F11(a): /wake is an INTERNAL trigger (mailbox server → proxy). It must not
+# be callable by arbitrary clients, or anyone could fan out push wakes for any
+# category. Authenticate it with a shared secret AND/OR restrict it to loopback.
+# The secret is read from the env; if unset we fall back to loopback-only so the
+# endpoint is never silently open to the network.
+PUSH_WAKE_SECRET = os.getenv("BMP_PUSH_WAKE_SECRET", "").strip()
+_LOOPBACK_HOSTS = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
+
+# FIX F11(b): only allow registering Web Push endpoints on real provider hosts.
+# Anything else (and any host resolving to an internal/reserved IP) is rejected
+# BEFORE webpush() is ever called, so the proxy can't be used as an SSRF sink.
+ALLOWED_PUSH_HOST_SUFFIXES = (
+    "push.services.mozilla.com",     # Firefox / autopush
+    "fcm.googleapis.com",            # Chrome / Android (FCM)
+    "android.googleapis.com",        # legacy GCM/FCM
+    "web.push.apple.com",            # Safari / Apple Web Push
+    "notify.windows.com",            # Edge / WNS
+    "wns2-by3p.notify.windows.com",
+)
+
+# FIX F11(a,d): per-IP rate limits on register/wake (in-memory sliding window).
+_REGISTER_RATE_LIMIT = 60          # registrations / window per IP
+_WAKE_RATE_LIMIT = 600             # wake triggers / window per IP
+_RATE_WINDOW = 60                  # seconds
+_register_hits: dict[str, list[float]] = defaultdict(list)
+_wake_hits: dict[str, list[float]] = defaultdict(list)
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limit(bucket: dict, key: str, limit: int) -> None:
+    now = time.time()
+    cutoff = now - _RATE_WINDOW
+    bucket[key] = [t for t in bucket[key] if t > cutoff]
+    if len(bucket[key]) >= limit:
+        raise HTTPException(429, "Rate limit exceeded")
+    bucket[key].append(now)
+
+
+def _endpoint_is_safe(endpoint: str) -> bool:
+    """
+    FIX F11(b): validate a Web Push endpoint before we ever hand it to webpush().
+      - must be https
+      - host must belong to a known Web Push provider
+      - host must NOT resolve to an internal/private/reserved IP (SSRF guard,
+        mirroring app.chats.link_preview._is_internal_host)
+    """
+    try:
+        parsed = urlparse(endpoint)
+    except Exception:
+        return False
+    if parsed.scheme != "https":
+        return False
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False
+    if not any(host == s or host.endswith("." + s) for s in ALLOWED_PUSH_HOST_SUFFIXES):
+        return False
+    # Resolve and reject any internal/reserved address (defence-in-depth: a
+    # provider host should never resolve internally, but never trust it blindly).
+    try:
+        for info in socket.getaddrinfo(host, None):
+            addr = ipaddress.ip_address(info[4][0])
+            if (addr.is_private or addr.is_loopback or addr.is_link_local
+                    or addr.is_reserved or addr.is_multicast or addr.is_unspecified):
+                return False
+            if str(addr).startswith("169.254."):
+                return False
+    except (socket.gaierror, ValueError):
+        return False
+    return True
 
 
 # ── In-memory store ──────────────────────────────────────────────────────────
@@ -126,6 +206,12 @@ async def _send_push(endpoint: str, token: str):
     Just a signal to the service worker to start polling.
     """
     try:
+        # FIX F11(b): never push to an endpoint we haven't re-validated as a real
+        # Web Push provider that resolves to a public IP — closes the SSRF sink.
+        if not _endpoint_is_safe(endpoint):
+            logger.debug("[PushProxy] Rejected unsafe push endpoint")
+            return
+
         from app.push.web_push import _get_vapid_key_pair
         private_key, public_key = _get_vapid_key_pair()
         if not private_key:
@@ -157,19 +243,28 @@ class ProxyRegisterRequest(BaseModel):
 
 
 @router.post("/register")
-async def proxy_register(body: ProxyRegisterRequest):
+async def proxy_register(body: ProxyRegisterRequest, request: Request):
     """
     Register push token for BMP categories.
-    No authentication — anonymous by design.
+    Anonymous by design (no user identity), but per-IP rate-limited and the
+    endpoint is validated as a real Web Push provider host.
     Client computes categories = SHA256(mailbox_id) mod 256 for each room.
     """
+    # FIX F11(d): per-IP rate limit to stop registration flooding.
+    _rate_limit(_register_hits, _client_ip(request), _REGISTER_RATE_LIMIT)
+    # FIX F11(b): reject endpoints that aren't real Web Push providers / resolve
+    # internally, so a poisoned registration can never become an SSRF on wake.
+    if not _endpoint_is_safe(body.endpoint):
+        raise HTTPException(403, "Push endpoint not permitted")
     push_proxy.register(body.categories, body.token, body.endpoint)
     return {"ok": True}
 
 
 @router.post("/unregister")
-async def proxy_unregister(body: dict):
+async def proxy_unregister(body: dict, request: Request):
     """Unregister a push token."""
+    # FIX F11(d): rate-limit alongside register (shares the register bucket).
+    _rate_limit(_register_hits, _client_ip(request), _REGISTER_RATE_LIMIT)
     token = body.get("token", "")
     if token:
         push_proxy.unregister(token)
@@ -180,13 +275,36 @@ class WakeRequest(BaseModel):
     category: int = Field(..., ge=0, lt=CATEGORY_COUNT)
 
 
+def _authorize_wake(request: Request) -> None:
+    """
+    FIX F11(a): /wake is an internal trigger. Accept it only when EITHER the
+    caller presents the shared secret (constant-time compared) OR the request
+    originates from loopback. If a secret is configured it is required for
+    non-loopback callers; if no secret is configured, only loopback is allowed.
+    """
+    peer = request.client.host if request.client else ""
+    is_loopback = peer in _LOOPBACK_HOSTS
+
+    provided = (request.headers.get("x-push-wake-secret", "") or "").strip()
+    secret_ok = bool(PUSH_WAKE_SECRET) and bool(provided) and \
+        hmac.compare_digest(provided, PUSH_WAKE_SECRET)
+
+    if secret_ok or is_loopback:
+        return
+    raise HTTPException(403, "Forbidden")
+
+
 @router.post("/wake")
-async def proxy_wake(body: WakeRequest):
+async def proxy_wake(body: WakeRequest, request: Request):
     """
     Called by mailbox server when a new message is deposited.
     Sends push to all tokens in the given category.
-    Internal endpoint — should be called only by the BMP store.
+    Internal endpoint — authenticated (shared secret / loopback) and rate-limited.
     """
+    # FIX F11(a): authenticate as an internal trigger before doing any work.
+    _authorize_wake(request)
+    # FIX F11(d): per-IP rate limit on wake fan-out.
+    _rate_limit(_wake_hits, _client_ip(request), _WAKE_RATE_LIMIT)
     await push_proxy.wake(body.category)
     return {"ok": True}
 

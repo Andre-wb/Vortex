@@ -439,13 +439,17 @@ async def bot_form_submit(body: dict, user=Depends(get_current_user)):
     """Handle form submission from chat UI."""
     bot_id = body.get("bot_id", "")
     form_data = body.get("data", {})
-    _validate_id(bot_id)
+    # FIX F5: enforce project ownership (like the sibling fire_event) so a user
+    # can only write events for their own bot — _validate_id only checked the
+    # format and allowed cross-tenant event injection (IDOR). Also derive
+    # user_id from the authenticated user instead of trusting body["user_id"].
+    bot_id = _require_project(bot_id, user)
 
     event_file = _BASE / "bots_workspace" / f"{bot_id}_event.json"
     event_file.write_text(json.dumps({
         "type": "form_submit",
         "data": form_data,
-        "user_id": body.get("user_id", 0),
+        "user_id": user.id,
         "timestamp": time.time()
     }), encoding="utf-8")
     return {"ok": True}
