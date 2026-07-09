@@ -1,0 +1,291 @@
+{
+  "header": [
+    {
+      "dh_public": "4b8df0075d545254d6dfcc0bf8df15f4006537da4246d0ca49ed24c775ed82dc",
+      "msg_number": 0,
+      "prev_count": 0,
+      "serialized": "4b8df0075d545254d6dfcc0bf8df15f4006537da4246d0ca49ed24c775ed82dc0000000000000000"
+    },
+    {
+      "dh_public": "9333ada1dfca8f5bf47658d0efbaa38b979297773fc2999988f0fa4f5f650c15",
+      "msg_number": 7,
+      "prev_count": 3,
+      "serialized": "9333ada1dfca8f5bf47658d0efbaa38b979297773fc2999988f0fa4f5f650c150000000300000007"
+    },
+    {
+      "dh_public": "4391d3485a87316c30c105fefd565c225dbd6a0f475f34ccaba82ba5c6827518",
+      "msg_number": 4294967295,
+      "prev_count": 4294967295,
+      "serialized": "4391d3485a87316c30c105fefd565c225dbd6a0f475f34ccaba82ba5c6827518ffffffffffffffff"
+    }
+  ],
+  "kdf_ck": [
+    {
+      "ck": "6e63e55e92b0ef48f09fc6159d81ab8c00465d8124b9f933abf5d0b3d0b7229a",
+      "mk": "c93aa9d1c1c80660955571648e58e599699db7c721f1b3d748132e1e78ca7f64",
+      "new_ck": "b3f34874346deefdb390a674aa4811b997fab66538c53dd55232ee1a6295e00c"
+    },
+    {
+      "ck": "364ef61b896a90b43d1cee0a38ee93502216b3cc63591c7d9d466c33335ee37c",
+      "mk": "5aa54c38cd659ab981af59c4bda5a083e519c68f89d26fdafc7625303af8e83f",
+      "new_ck": "93787f2d21d33be99315bd55167e3c2787ae19b2a22ef2dc1f9260f75b377da7"
+    },
+    {
+      "ck": "50c09bdf44074f326c95da0edb94ff2f0a0f40f27195a62056eb29e5f72d5502",
+      "mk": "7f461c11e956d8a8fd869ec45674547ce9117ad7824f94a7dcdfade99b6e28f0",
+      "new_ck": "0fe9f2a9cd2e9d4f2e559638cf30722064d57ab1df67d2bd1c608091a0e86f64"
+    },
+    {
+      "ck": "198acbadfc51a5d6f437e0d61ffddf016a0fc64634e064ec1d169321e183dd98",
+      "mk": "72ff82867b2a9027afda604765cf5f85097d29446a1daa099b883585727940a6",
+      "new_ck": "0d290a475331920394b4f66ca028289c0ba688b0950edaecac325c40b6e9e5bd"
+    }
+  ],
+  "kdf_rk": [
+    {
+      "dh_out": "d17f23002bb3415ea4918fc9f33e07d751a64fb7a61014a1bcc4b63fa2ab3c3a",
+      "new_ck": "a7710845d9dd13105e5c6c8e2834192c2866ea74bf65c9faf84a516aef3efc1f",
+      "new_rk": "b0e7d6667e5b6f10e4d436d0635d0a55130f47176c14a3c33ccfe9dbf6cac5e1",
+      "rk": "4e54f205db1b196c36b96f9fcfc2c60cfb352dfef111b6650b91f47348550eac"
+    },
+    {
+      "dh_out": "57f9b42be2f63d0605dbe29862bc706c4fd88b553321be863a29546b436e59e3",
+      "new_ck": "7661707a59e09c69174d0f49aef1b4dc5e2e7ca6ae481774fe71188239296587",
+      "new_rk": "5de6fa4342e0be9069e503373b0314a16818784bfd8ff63c9684d32bf8a97965",
+      "rk": "bad0f3bd0098bb74ce9d004afe32fd57114966985417016673f036c8a144d9ef"
+    },
+    {
+      "dh_out": "9675be8f717a4493ef746daad770c2986ecfc98110fa3486b8707a427bd55631",
+      "new_ck": "89d8f059389b5827c9bc2b1ff881c1869accb564e40d21c14a1ac501fe9eefbc",
+      "new_rk": "6a841b37fe670bb15ce91bb15736aeafcf554d1252d165f1277618d01cea394b",
+      "rk": "74b80dfe9df7026518bcaff214173bd0d52e4862505d8611a18197216526de5d"
+    },
+    {
+      "dh_out": "da8b2df1123424bc87ae3dc511086a1b1a2f998fa7b50a9d6fa455a97bd5cc44",
+      "new_ck": "72747d3721bfe0120927b3596588ff699ea07127082091ffa50d687ea3386656",
+      "new_rk": "70bede675bb55d4c0ea0695b8271656b0fee770607aeb0228e92856dcb0492a6",
+      "rk": "f53863db539a112202ee6985a8682a3c79feb9daa841b7eca16907b634b6c7e1"
+    }
+  ],
+  "meta": {
+    "description": "Cross-language Double Ratchet test vectors generated from the reference implementation app/security/double_ratchet.py. Deterministic: re-running the generator must reproduce this file byte-for-byte. Contains private keys BY DESIGN — test data only.",
+    "generator": "scripts/gen_dr_test_vectors.py",
+    "hkdf_info_ratchet": "vortex-double-ratchet",
+    "hkdf_info_x3dh": "vortex-x3dh",
+    "max_skip": 1000
+  },
+  "spk_signature": {
+    "ed25519_pub": "f1d1f1b1dda26e2eb67fcf216a0e3a564471af84775b2aad72ae98cde6b7b624",
+    "ed25519_seed": "9ff93585210fe0890391365c50a7f23cb056fe928d1d4531dae31792b55bfc02",
+    "signature": "dc94f135c8e81de83bdd72ab58d2f25dbadfe175bdb19ec8bd3e7064600737366ecca81c9aa3382916fd88974638e04116396d96b0f48e8e6d1fed2bca369b0b",
+    "spk_pub": "b2a5d71491f2704c9a28ee1581638e86ad6917d09a8b6e036bfbd4e32e91995d"
+  },
+  "transcript": {
+    "checkpoints": {
+      "alice_before_b_replies": {
+        "dh_receiving": "2cc1154c638eb6d38cbedcb5cb4b9b7347b120caa4a3847b791859b373044423",
+        "dh_sending": "78c1ccb996e9a3949fdd63e2ddb2f8abe8ea40cb205d1a06e0df9f4c1eff4efa",
+        "prev_send_count": 0,
+        "receiving_chain_key": null,
+        "recv_count": 0,
+        "root_key": "7fcc6b0c18e1dee485838e55c1d12eecfaec464c738e1d7fe82b74305c65134f",
+        "send_count": 4,
+        "sending_chain_key": "f77158540becac0e5079fb51fc3ae05bf7877da9917a9ed506b29a82269e5099",
+        "skipped_keys": {}
+      },
+      "alice_final": {
+        "dh_receiving": "dc8dad37594fee2a055d28f47179db03f62f96f4b26c11647440e7464f207d58",
+        "dh_sending": "212e76176e8d913ce95aa228716c38bb9da2bbfb67344dcd0cd89a50f17e11e1",
+        "prev_send_count": 4,
+        "receiving_chain_key": "390b0d1d598b65d88cf83aa08ff7fa817e2dd5635effe842216b06d23fe442f7",
+        "recv_count": 2,
+        "root_key": "2f08d0d7326de0e5538d26bbca1e07d39ebc7a96c3f25cca858cde9f38a19b1d",
+        "send_count": 1,
+        "sending_chain_key": "e8aee7f4147cb6f4e5989657e3315b1cd2ca363e6a89f50b93864469ce6c8e45",
+        "skipped_keys": {}
+      },
+      "alice_initial": {
+        "dh_receiving": "2cc1154c638eb6d38cbedcb5cb4b9b7347b120caa4a3847b791859b373044423",
+        "dh_sending": "78c1ccb996e9a3949fdd63e2ddb2f8abe8ea40cb205d1a06e0df9f4c1eff4efa",
+        "prev_send_count": 0,
+        "receiving_chain_key": null,
+        "recv_count": 0,
+        "root_key": "7fcc6b0c18e1dee485838e55c1d12eecfaec464c738e1d7fe82b74305c65134f",
+        "send_count": 0,
+        "sending_chain_key": "a003fa0cc545ea93a9227fd56093bebf687b2115f401a1222fb1d03022632700",
+        "skipped_keys": {}
+      },
+      "bob_before_a_second_chain": {
+        "dh_receiving": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f",
+        "dh_sending": "8a6dc11f67250790690885a2e9d1986ad49a17088fbe48b2ab5faaeacd2c811d",
+        "prev_send_count": 0,
+        "receiving_chain_key": "f77158540becac0e5079fb51fc3ae05bf7877da9917a9ed506b29a82269e5099",
+        "recv_count": 4,
+        "root_key": "dd38c55f017cacd72c91c21fdf148babd88b024dab47dc5d76833bec8b24539b",
+        "send_count": 2,
+        "sending_chain_key": "390b0d1d598b65d88cf83aa08ff7fa817e2dd5635effe842216b06d23fe442f7",
+        "skipped_keys": {}
+      },
+      "bob_final": {
+        "dh_receiving": "7cef5de097079ed11b3fa4396ae7c5ecee3c18dcde10c42637aca6d85c749c1c",
+        "dh_sending": "7b5920f1bea3a1561d418bd994307850eb7f6126dbd79e51048ac94a9de4e228",
+        "prev_send_count": 2,
+        "receiving_chain_key": "e8aee7f4147cb6f4e5989657e3315b1cd2ca363e6a89f50b93864469ce6c8e45",
+        "recv_count": 1,
+        "root_key": "6afbeca35b12f3aba5e0207cf057fc5522e74e41cae9a44c0a89b38effada4f8",
+        "send_count": 0,
+        "sending_chain_key": "3bea9b4cb57ed89c89309ec704c6f7c5703a6e57f343e8b4371e9d53a6ffcc97",
+        "skipped_keys": {}
+      },
+      "bob_initial": {
+        "dh_receiving": null,
+        "dh_sending": "efe9d06c3c71add32eba4f1f65f6aa07aca442479879cd5effa687a902c6d124",
+        "prev_send_count": 0,
+        "receiving_chain_key": null,
+        "recv_count": 0,
+        "root_key": "c71d06e118c46d82a78fac5337d1af25e3e7a846de18c18002b8a2290e7283db",
+        "send_count": 0,
+        "sending_chain_key": null,
+        "skipped_keys": {}
+      }
+    },
+    "messages": [
+      {
+        "ciphertext": "40ffe623496f67f7322dac2e8bde42f2cdc026c7e830511a74fc7864f0afa8a847e160fc9e5053b6ab02c0bee2ef6f5bbe",
+        "from": "alice",
+        "header": {
+          "dh_public": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f",
+          "msg_number": 0,
+          "prev_count": 0
+        },
+        "header_serialized": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f0000000000000000",
+        "id": "a0",
+        "plaintext_utf8": "Привет, Боб!"
+      },
+      {
+        "ciphertext": "2e89bec3f21ac0e8939232590ca7ac0e801974f7ac4f26b91f4e4278126fc14f758d917eb4f71143094b79548bf4c328105b199816bd5682bfeed5",
+        "from": "alice",
+        "header": {
+          "dh_public": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f",
+          "msg_number": 1,
+          "prev_count": 0
+        },
+        "header_serialized": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f0000000000000001",
+        "id": "a1",
+        "plaintext_utf8": "Второе сообщение"
+      },
+      {
+        "ciphertext": "b53017af85fa5a660c9ee319e00f7a67314b02019b27f1229984ed5f50675e05fc4b1091a16acc470d45ac77b65a4b6dfc739a5a1d72e40f8504c5034186cfe3d2e53b99",
+        "from": "alice",
+        "header": {
+          "dh_public": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f",
+          "msg_number": 2,
+          "prev_count": 0
+        },
+        "header_serialized": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f0000000000000002",
+        "id": "a2",
+        "plaintext_utf8": "Придёт раньше первого"
+      },
+      {
+        "ciphertext": "8882168df3f7fd8cca94f1f4fee80f75122bfa326fa4415098d2c408a6c5046dbd364e07872e7af4445210b11fc26d1de8f86e6ce4e116c10571e47d3aebe8180778",
+        "from": "alice",
+        "header": {
+          "dh_public": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f",
+          "msg_number": 3,
+          "prev_count": 0
+        },
+        "header_serialized": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f0000000000000003",
+        "id": "a3_same_chain",
+        "plaintext_utf8": "Хвост первой цепочки"
+      },
+      {
+        "ciphertext": "01d0e17e29809324819c18cc9fa936e42cf900f133d50ecedb1b5aa560fde28bcdce4372f833f24b9513d190f7e94b68872824f04e",
+        "from": "bob",
+        "header": {
+          "dh_public": "dc8dad37594fee2a055d28f47179db03f62f96f4b26c11647440e7464f207d58",
+          "msg_number": 0,
+          "prev_count": 0
+        },
+        "header_serialized": "dc8dad37594fee2a055d28f47179db03f62f96f4b26c11647440e7464f207d580000000000000000",
+        "id": "b0",
+        "plaintext_utf8": "Привет, Алиса!"
+      },
+      {
+        "ciphertext": "637c7bc5c3563f68429fb2a0565af0f2af737274876c8e87ab8011517205d72ee1f5deca05912a8e7d9acb5dfb57dea5366383eab2d95a39f8f2fb6158b2ba64236f802168153f",
+        "from": "bob",
+        "header": {
+          "dh_public": "dc8dad37594fee2a055d28f47179db03f62f96f4b26c11647440e7464f207d58",
+          "msg_number": 1,
+          "prev_count": 0
+        },
+        "header_serialized": "dc8dad37594fee2a055d28f47179db03f62f96f4b26c11647440e7464f207d580000000000000001",
+        "id": "b1",
+        "plaintext_utf8": "Ответ во второй цепочке"
+      },
+      {
+        "ciphertext": "2079862aea3d479cd030e10dfee44aca52b33afd3d2bd804b560880a22e4714af1ca6975a298c290890ad6c47e415bc79befedf094b6854e8b1ed2f157c21db11039015112096b2fa219724b",
+        "from": "alice",
+        "header": {
+          "dh_public": "7cef5de097079ed11b3fa4396ae7c5ecee3c18dcde10c42637aca6d85c749c1c",
+          "msg_number": 0,
+          "prev_count": 4
+        },
+        "header_serialized": "7cef5de097079ed11b3fa4396ae7c5ecee3c18dcde10c42637aca6d85c749c1c0000000400000000",
+        "id": "a4_new_chain",
+        "plaintext_utf8": "Новая цепочка после DH-шага"
+      }
+    ],
+    "segments": [
+      {
+        "delivery_order": [
+          "a0",
+          "a2",
+          "a1",
+          "a3_same_chain"
+        ],
+        "receiver": "bob",
+        "state_checkpoint": "bob_initial"
+      },
+      {
+        "delivery_order": [
+          "b0",
+          "b1"
+        ],
+        "receiver": "alice",
+        "state_checkpoint": "alice_before_b_replies"
+      },
+      {
+        "delivery_order": [
+          "a4_new_chain"
+        ],
+        "receiver": "bob",
+        "state_checkpoint": "bob_before_a_second_chain"
+      }
+    ],
+    "shared_secret": "c71d06e118c46d82a78fac5337d1af25e3e7a846de18c18002b8a2290e7283db"
+  },
+  "x3dh": {
+    "alice": {
+      "ik_priv": "1b368abccc6dc9d9e28ec0f34ce6587508484f14202c1ce2e2d9a485b8499142",
+      "ik_pub": "620afd64a29e5fcd27a3418df5f894e71a71066a58b373a2ca527be6d9cd6c3a"
+    },
+    "bob": {
+      "ik_priv": "2abd92914b7be270b0f1455fdb8e08393fefa24b64d5921463ea0a1b569dba30",
+      "ik_pub": "483acd8a51cee5656509abf2f3c10d310fc25e495cdb3d191f029a8fdf46b374",
+      "opk_priv": "dbd011946cf9f74739a29a1f63a0114dc93ed611251f9dc7d22fd9742512e171",
+      "opk_pub": "9d6e78a442a05a402e7962627422a7d086d87a404929badea8b429256ce2ba6f",
+      "spk_priv": "efe9d06c3c71add32eba4f1f65f6aa07aca442479879cd5effa687a902c6d124",
+      "spk_pub": "2cc1154c638eb6d38cbedcb5cb4b9b7347b120caa4a3847b791859b373044423"
+    },
+    "with_opk": {
+      "ek_priv": "cc0da5f4441c58c6ff030994bf351fb6d70e54d073b304baed2e00b2ccb9bf2b",
+      "ek_pub": "e77bf8fbc8cbb9d36842768a1a3068d8ea96f696573bfd7c0ab5d05e05d88a2d",
+      "shared_secret": "c71d06e118c46d82a78fac5337d1af25e3e7a846de18c18002b8a2290e7283db"
+    },
+    "without_opk": {
+      "ek_priv": "eda96849d25031d14d56b5044a3dbbf08908f36c50fe0d97d7bea595e7ddb9a1",
+      "ek_pub": "fbb21a448efc9f97a94fcad37df999ccc022e012b90e5916e6edd54c0bdbab03",
+      "shared_secret": "5a083c375efd0e2a4282fab578b6da86afa5f9d55628cf3af2c7ca733e55d1fc"
+    }
+  }
+}
