@@ -52,6 +52,14 @@ class PreKeyBundle(Base):
     signed_prekey = Column(LargeBinary(32), nullable=False)
     signed_prekey_sig = Column(LargeBinary(64), nullable=False)
     signed_prekey_id = Column(Integer, nullable=False, default=0)
+    # ADR-001 batch 4: separate Ed25519 identity public key (XEdDSA is out of
+    # scope, so identity_key above is X25519-for-DH only and cannot itself sign).
+    # signed_prekey_sig is verified against this key; identity_key_sig binds the
+    # X25519 identity_key to this Ed25519 identity (Ed25519 signs the X25519 pub),
+    # so a future out-of-band Ed25519 fingerprint transitively covers the DH key.
+    # Nullable for backward compatibility with bundles published before batch 4.
+    identity_key_ed = Column(LargeBinary(32), nullable=True)
+    identity_key_sig = Column(LargeBinary(64), nullable=True)
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),

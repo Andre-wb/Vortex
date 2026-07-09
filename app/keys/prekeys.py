@@ -15,10 +15,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+from app.config import Config
 from app.database import get_db
 from app.models import User
 from app.models.prekeys import OneTimePreKey, PreKeyBundle
 from app.security.auth_jwt import get_current_user
+from app.security.double_ratchet import verify_spk_signature
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +77,20 @@ class PublishPreKeysRequest(BaseModel):
         ge=0,
         description="SPK identifier for rotation",
     )
+    identity_key_ed: Optional[str] = Field(
+        default=None,
+        min_length=64,
+        max_length=64,
+        description="Ed25519 public identity key in hex (used to verify signatures). "
+                    "Optional for pre-batch-4 clients.",
+    )
+    identity_key_sig: Optional[str] = Field(
+        default=None,
+        min_length=128,
+        max_length=128,
+        description="Ed25519 signature of the X25519 identity_key, binding it to "
+                    "identity_key_ed. Optional for pre-batch-4 clients.",
+    )
     one_time_prekeys: List[OneTimePreKeyUpload] = Field(
         default_factory=list,
         max_length=_MAX_OPK_BATCH,
@@ -87,6 +105,8 @@ class PreKeyBundleResponse(BaseModel):
     signed_prekey: str          # hex
     signed_prekey_sig: str      # hex
     signed_prekey_id: int
+    identity_key_ed: Optional[str] = None    # hex Ed25519 identity pub or None
+    identity_key_sig: Optional[str] = None   # hex Ed25519 sig of identity_key or None
     one_time_prekey: Optional[str] = None   # hex — single OPK or None
     one_time_prekey_id: Optional[int] = None
 
@@ -121,6 +141,41 @@ async def publish_prekeys(
     if len(ik_bytes) != 32 or len(spk_bytes) != 32 or len(sig_bytes) != 64:
         raise HTTPException(status_code=400, detail="Invalid key lengths")
 
+    # Ed25519 identity key + binding signature (ADR-001 batch 4). Verify BEFORE
+    # any db write so a rejected bundle never partially persists. Config flag is
+    # read at call time so tests can toggle enforce/warn.
+    ik_ed_bytes: Optional[bytes] = None
+    ik_sig_bytes: Optional[bytes] = None
+    if body.identity_key_ed is not None:
+        try:
+            ik_ed_bytes = bytes.fromhex(body.identity_key_ed)
+            if body.identity_key_sig is not None:
+                ik_sig_bytes = bytes.fromhex(body.identity_key_sig)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid hex encoding in identity key/signature")
+        if len(ik_ed_bytes) != 32 or (ik_sig_bytes is not None and len(ik_sig_bytes) != 64):
+            raise HTTPException(status_code=400, detail="Invalid identity key/signature lengths")
+
+    def _sig_error(detail: str) -> None:
+        """Enforce → 400; warn-only → log and continue (safe rollout)."""
+        if Config.PREKEY_SIG_ENFORCE:
+            raise HTTPException(status_code=400, detail=detail)
+        logger.warning("User %d prekey publish: %s (warn-only, accepted)", user.id, detail)
+
+    if ik_ed_bytes is not None:
+        ed_pub = Ed25519PublicKey.from_public_bytes(ik_ed_bytes)
+        # SPK signature: authenticates the Signed Pre-Key under the Ed25519 identity.
+        if not verify_spk_signature(ed_pub, spk_bytes, sig_bytes):
+            _sig_error("Signed pre-key signature verification failed")
+        # Identity-binding signature: Ed25519 identity signs the X25519 identity_key.
+        if ik_sig_bytes is None:
+            _sig_error("Missing identity_key_sig binding signature")
+        elif not verify_spk_signature(ed_pub, ik_bytes, ik_sig_bytes):
+            _sig_error("Identity-key binding signature verification failed")
+    else:
+        # No Ed25519 key at all — nothing to verify against (pre-batch-4 client).
+        _sig_error("No Ed25519 identity key provided — signature cannot be verified")
+
     # Upsert PreKeyBundle
     bundle: Optional[PreKeyBundle] = (
         db.query(PreKeyBundle)
@@ -137,6 +192,8 @@ async def publish_prekeys(
             signed_prekey=spk_bytes,
             signed_prekey_sig=sig_bytes,
             signed_prekey_id=body.signed_prekey_id,
+            identity_key_ed=ik_ed_bytes,
+            identity_key_sig=ik_sig_bytes,
             created_at=now,
             updated_at=now,
         )
@@ -146,6 +203,8 @@ async def publish_prekeys(
         bundle.signed_prekey = spk_bytes
         bundle.signed_prekey_sig = sig_bytes
         bundle.signed_prekey_id = body.signed_prekey_id
+        bundle.identity_key_ed = ik_ed_bytes
+        bundle.identity_key_sig = ik_sig_bytes
         bundle.updated_at = now
 
     # Add one-time keys
@@ -259,6 +318,8 @@ async def get_prekey_bundle(
         signed_prekey=bundle.signed_prekey.hex(),
         signed_prekey_sig=bundle.signed_prekey_sig.hex(),
         signed_prekey_id=bundle.signed_prekey_id,
+        identity_key_ed=bundle.identity_key_ed.hex() if bundle.identity_key_ed else None,
+        identity_key_sig=bundle.identity_key_sig.hex() if bundle.identity_key_sig else None,
         one_time_prekey=opk_hex,
         one_time_prekey_id=opk_key_id,
     )

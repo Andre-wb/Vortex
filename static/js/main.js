@@ -189,6 +189,17 @@ window.bootApp = async function bootApp() {
         console.warn('ZK crypto init failed:', e.message);
     }
 
+    // X3DH prekey bundle (ADR-001 батч 4): лениво публикуем Ed25519-идентичность
+    // и prekeys, если ещё не опубликованы. Неблокирующе — сбой не мешает boot.
+    (async () => {
+        try {
+            const { ensurePrekeysPublished } = await import('./dr/prekeys.js');
+            await ensurePrekeysPublished();
+        } catch (e) {
+            console.debug('prekey publish skipped:', e.message);
+        }
+    })();
+
     // Настраиваем UI в зависимости от режима сети
     const isGlobal = AppState.user?.network_mode === 'global';
     AppState.networkMode = isGlobal ? 'global' : 'local';

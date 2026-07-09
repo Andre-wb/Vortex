@@ -50,6 +50,19 @@ function _collectKeyBundle() {
         bundle.keys.x25519_private_jwk = privKey;
     }
 
+    // Ed25519 identity private key (JWK string) — ADR-001 батч 4. Долговременная
+    // идентичность бэкапится; состояния DR-сессий (батч 5+) в vault НЕ попадают
+    // (это уничтожило бы forward secrecy, ADR §2.4в). Ключ хранится per-account
+    // (`vortex_ed25519_identity_<userId>`), поэтому читаем по текущему userId.
+    const _uid = window.AppState?.user?.user_id;
+    const edPriv = _uid
+        ? (localStorage.getItem(`vortex_ed25519_identity_${_uid}`)
+           || sessionStorage.getItem(`vortex_ed25519_identity_${_uid}`))
+        : null;
+    if (edPriv) {
+        bundle.keys.ed25519_identity_jwk = edPriv;
+    }
+
     // Room keys (from crypto.js in-memory store)
     // We iterate known rooms from AppState
     const roomKeys = {};
@@ -77,6 +90,18 @@ function _restoreKeyBundle(bundle) {
         sessionStorage.setItem('vortex_x25519_priv', jwk);
         if (window.AppState) {
             window.AppState.x25519PrivateKey = jwk;
+        }
+    }
+
+    // Restore Ed25519 identity private key (ADR-001 батч 4) в per-account слот
+    // текущего пользователя. Публичный ключ выводится из приватного при
+    // следующей публикации prekeys.
+    if (bundle.keys.ed25519_identity_jwk) {
+        const edJwk = bundle.keys.ed25519_identity_jwk;
+        const _uid = window.AppState?.user?.user_id;
+        if (_uid) {
+            localStorage.setItem(`vortex_ed25519_identity_${_uid}`, edJwk);
+            sessionStorage.setItem(`vortex_ed25519_identity_${_uid}`, edJwk);
         }
     }
 

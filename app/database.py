@@ -420,6 +420,9 @@ def init_db() -> None:
                 # Envelope encryption-version registry (ADR-001): NULL = pre-versioning
                 "ALTER TABLE messages ADD COLUMN enc_version INTEGER",
                 "ALTER TABLE message_edit_history ADD COLUMN enc_version INTEGER",
+                # Ed25519 identity key + binding signature (ADR-001 batch 4)
+                "ALTER TABLE prekey_bundles ADD COLUMN identity_key_ed BLOB",
+                "ALTER TABLE prekey_bundles ADD COLUMN identity_key_sig BLOB",
             ]
             with engine.connect() as conn:
                 try:
