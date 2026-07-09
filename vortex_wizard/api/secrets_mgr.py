@@ -58,9 +58,7 @@ def _save_state(env_file: Path, state: dict) -> None:
     _sec_state_path(env_file).write_text(json.dumps(state, indent=2))
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #21 / #22 — External secret providers (Vault / AWS / GCP)
-# ══════════════════════════════════════════════════════════════════════════
 
 class ProviderBody(BaseModel):
     id:       Optional[str] = None
@@ -190,9 +188,7 @@ async def _fetch_from_provider(prov: dict) -> str:
     raise ValueError(f"unknown provider type: {t}")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #23 — Multi-sig key ceremony
-# ══════════════════════════════════════════════════════════════════════════
 #
 # Destructive operations (wipe, JWT rotation, panic) can require N-of-M
 # admin approvals before executing. Ceremony record stores pending +
@@ -343,9 +339,7 @@ async def _execute_ceremony(env_file: Path, target: dict, state: dict) -> str:
     return "unknown"
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #24 — Expiry reminders
-# ══════════════════════════════════════════════════════════════════════════
 
 DEFAULT_MAX_AGE_DAYS = {
     "JWT_SECRET":  90,
@@ -387,9 +381,7 @@ def install_secrets_jobs(env_file: Path) -> None:
     s.register("secret_expiry", job_secret_expiry, default_interval="daily")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #25 — Access audit
-# ══════════════════════════════════════════════════════════════════════════
 
 def _record_access(state: dict, action: str, env_key: str, provider: str) -> None:
     log = state.setdefault("access_log", [])

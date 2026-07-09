@@ -1,6 +1,4 @@
-/* ============================================================================
  * FEATURE: Animated Stickers (CSS-animated emoji sticker pack)
- * ========================================================================== */
 
 /* Base animated sticker in chat */
 .animated-sticker {
@@ -15,7 +13,6 @@
     -webkit-user-select: none;
 }
 
-/* ---- Keyframes ---- */
 @keyframes stickerWave {
     0%, 100% { transform: rotate(0deg); }
     15% { transform: rotate(18deg); }
@@ -117,7 +114,6 @@
     100% { transform: translateY(0); opacity: 1; }
 }
 
-/* ---- Per-sticker animation classes ---- */
 .sticker-wave      { animation: stickerWave 1s ease-in-out infinite; }
 .sticker-heart     { animation: stickerPulse 1.2s ease-in-out infinite; }
 .sticker-fire      { animation: stickerFlicker 0.8s ease-in-out infinite; }
@@ -139,7 +135,6 @@
 .sticker-hundred   { animation: stickerDrop 0.8s ease-out forwards; }
 .sticker-eyes      { animation: stickerFlip 2s ease-in-out infinite; }
 
-/* ---- Sticker picker grid ---- */
 .sticker-picker-tabs {
     display: flex;
     gap: 4px;
@@ -189,9 +184,7 @@
 .sticker-preview:hover .animated-sticker {
     animation-play-state: running;
 }
-/* ============================================================================
  * CHAT BACKGROUND PREVIEW (settings)
- * ========================================================================== */
 .bg-preview {
     width: 100%;
     aspect-ratio: 1;
@@ -212,9 +205,7 @@
     box-shadow: 0 0 8px rgba(124, 58, 237, 0.3);
 }
 
-/* ============================================================================
  * LIGHT THEME OVERRIDES
- * ========================================================================== */
 body[data-theme="light"] {
     color-scheme: light;
     --bg:       #f5f5f5;
@@ -450,9 +441,7 @@ body[data-theme="light"] .room-avatar-sidebar {
     background: #f4f4f5;
 }
 
-/* ============================================================================
  * MEMBERS MODAL — управление участниками
- * ========================================================================== */
 
 .member-item {
     display: flex;
@@ -613,9 +602,7 @@ body[data-theme="light"] .member-actions-btn:hover {
     background: rgba(0,0,0,0.04);
 }
 
-/* ============================================================================
  * FEATURE: Permissions Modal
- * ========================================================================== */
 .perm-modal-overlay {
     position: fixed; inset: 0; z-index: 10001;
     background: rgba(0,0,0,0.55);
@@ -703,9 +690,7 @@ body[data-theme="light"] .perm-modal-card { background: #fff; border-color: #e4e
 body[data-theme="light"] .perm-role-btn { background: #f4f4f5; }
 body[data-theme="light"] .perm-toggle-row { border-bottom-color: rgba(0,0,0,0.05); }
 
-/* ============================================================================
  * FEATURE: Custom Sticker Packs — Manager UI (Settings)
- * ========================================================================== */
 
 /* Sub-tab bar in sticker settings */
 .sticker-mgr-tabs {
@@ -873,9 +858,7 @@ body[data-theme="light"] .perm-toggle-row { border-bottom-color: rgba(0,0,0,0.05
     background: rgba(124, 58, 237, 0.05);
 }
 
-/* ============================================================================
  * FEATURE: Custom Sticker Packs — Enhanced Picker
- * ========================================================================== */
 
 /* Custom pack tab in sticker picker */
 .custom-sticker-tab {
@@ -924,9 +907,7 @@ body[data-theme="light"] .perm-toggle-row { border-bottom-color: rgba(0,0,0,0.05
     border-radius: 4px;
 }
 
-/* ============================================================================
  * FEATURE: Custom Sticker — Message Rendering
- * ========================================================================== */
 
 /* Custom sticker image in chat messages */
 .custom-sticker {
@@ -965,9 +946,7 @@ body[data-theme="light"] .perm-toggle-row { border-bottom-color: rgba(0,0,0,0.05
 #sticker-pack-popup::-webkit-scrollbar { width: 4px; }
 #sticker-pack-popup::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-/* ============================================================================
  * FEATURE: Custom Sticker Packs — Light theme overrides
- * ========================================================================== */
 body[data-theme="light"] .sticker-mgr-tab {
     color: #52525b;
 }
@@ -1002,9 +981,7 @@ body[data-theme="light"] .sticker-upload-btn:hover {
     background: rgba(124, 58, 237, 0.04);
 }
 
-/* ============================================================================
  * Invoice Cards (Счета)
- * ========================================================================== */
 .invoice-card {
     background: var(--bg3);
     border-radius: 14px;
@@ -1102,9 +1079,7 @@ body[data-theme="light"] .invoice-address-row { background: #f4f4f5; }
 body[data-theme="light"] .invoice-qr img { box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 
 
-/* ============================================================================
  * Task Receipt Card (displayed in chat like an invoice/check)
- * ========================================================================== */
 .task-receipt {
     background: var(--bg3);
     border-radius: 14px;
@@ -1218,9 +1193,7 @@ body[data-theme="light"] .task-receipt-body { border-bottom-color: rgba(0,0,0,0.
 body[data-theme="light"] .task-receipt-row { border-bottom-color: rgba(0,0,0,0.04); }
 
 
-/* ============================================================================
  * Sticker Pack Detail Overlay
- * ========================================================================== */
 .sticker-detail-overlay { display: none; }
 .sticker-detail-card {
     position: fixed; inset: 0; z-index: 10000;
@@ -1282,7 +1255,6 @@ body[data-theme="light"] .task-receipt-row { border-bottom-color: rgba(0,0,0,0.0
 .sd-action-btn.sd-delete { color: #ef4444; border-color: rgba(239,68,68,.3); }
 .sd-action-btn.sd-delete:hover { background: rgba(239,68,68,.08); }
 
-/* ═══════════════════════════════════════════════════════════════════
    Fullscreen Sticker Pack Editor (spe-)
    ═══════════════════════════════════════════════════════════════════ */
 .spe-root {

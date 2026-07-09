@@ -1,8 +1,6 @@
-/* ============================================================
    Gravitix Docs — full-screen overlay  (.gx-docs-fs)
    ============================================================ */
 
-/* ── Overlay shell ───────────────────────────────────────── */
 .gx-docs-fs {
     position: fixed;
     inset: 0;
@@ -24,7 +22,6 @@
     transform: translateY(0);
 }
 
-/* ── Top bar ─────────────────────────────────────────────── */
 .gxd-topbar {
     display: flex;
     align-items: center;
@@ -79,7 +76,6 @@
 .gxd-menu-btn:hover,
 .gxd-close-btn:hover { background: rgba(255,255,255,.07); color: #fff; }
 
-/* ── Search bar ──────────────────────────────────────────── */
 .gxd-search-wrap {
     display: flex;
     align-items: center;
@@ -109,14 +105,12 @@
 }
 .gxd-search-input::placeholder { color: rgba(255,255,255,.3); }
 
-/* ── Body layout ─────────────────────────────────────────── */
 .gxd-body {
     display: flex;
     flex: 1;
     overflow: hidden;
 }
 
-/* ── TOC sidebar ─────────────────────────────────────────── */
 .gxd-toc {
     width: 264px;
     flex-shrink: 0;
@@ -178,7 +172,6 @@
     margin-left: -4px;
 }
 
-/* ── Main content area ───────────────────────────────────── */
 .gxd-main {
     flex: 1;
     overflow-y: auto;
@@ -192,7 +185,6 @@
 
 .gxd-content { max-width: 820px; margin: 0 auto; }
 
-/* ── Sections ────────────────────────────────────────────── */
 .gxd-section {
     padding-bottom: 72px;
     border-bottom: 1px solid rgba(255,255,255,.05);
@@ -251,7 +243,6 @@
 .gxd-section strong { color: #f1f5f9; }
 .gxd-section em     { color: #94a3b8; font-style: italic; }
 
-/* ── Lead paragraph ──────────────────────────────────────── */
 .gxd-lead {
     font-size: 18px !important;
     color: rgba(226,232,240,.7) !important;
@@ -259,7 +250,6 @@
     margin-bottom: 24px !important;
 }
 
-/* ── Badges ──────────────────────────────────────────────── */
 .gxd-badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
 .gxd-badge {
     display: inline-flex;
@@ -296,7 +286,6 @@
     border: 1px solid rgba(220,38,38,.4);
 }
 
-/* ── Callouts ────────────────────────────────────────────── */
 .gxd-callout {
     border-radius: 10px;
     padding: 16px 18px;
@@ -347,7 +336,6 @@
 .gxd-callout-red .gxd-callout-title    { color: #fca5a5; }
 .gxd-callout-red p, .gxd-callout-red li { color: rgba(252,165,165,.85) !important; }
 
-/* ── Type table ──────────────────────────────────────────── */
 .gxd-type-table {
     border: 1px solid rgba(255,255,255,.07);
     border-radius: 10px;
@@ -377,7 +365,6 @@
 .gxd-type-row code { background: none; border: none; padding: 0; font-weight: 700; color: #67e8f9; }
 .gxd-type-row span { color: rgba(226,232,240,.6); }
 
-/* ── Code blocks ─────────────────────────────────────────── */
 .gxd-section pre.gxd-code-raw,
 .gxd-section pre.gxd-code-hl {
     background: #0a0a14;
@@ -410,7 +397,6 @@
 .gxd-section pre.gxd-code-hl::-webkit-scrollbar        { height: 4px; }
 .gxd-section pre.gxd-code-hl::-webkit-scrollbar-thumb  { background: rgba(255,255,255,.1); border-radius: 4px; }
 
-/* ── No results ──────────────────────────────────────────── */
 .gxd-no-results {
     display: flex;
     flex-direction: column;
@@ -424,7 +410,6 @@
 }
 .gxd-no-results-icon { font-size: 48px; opacity: .4; }
 
-/* ── Mobile (<= 768 px) ──────────────────────────────────── */
 @media (max-width: 768px) {
     .gxd-menu-btn { display: flex; }
     .gxd-topbar-title { display: none; }

@@ -1,10 +1,8 @@
 // static/js/chat/messages.js
-// =============================================================================
 // Модуль рендеринга сообщений в чате.
 // Отвечает за отображение текстовых сообщений, файлов, изображений, голосовых,
 // контекстные меню, анимацию удаления, обновление текста при редактировании,
 // а также интеграцию с liquid-glass для стеклянного эффекта.
-// =============================================================================
 
 import { esc, fmtTime, fmtDate, fmtSize } from '../../utils.js';
 import { initLiquidGlass, createReplyQuote } from '../liquid-glass.js';
@@ -12,9 +10,7 @@ import { loadEncryptedImage, downloadAndDecryptFile } from '../file-upload.js';
 import { _getRecentReactions, _openReactionPicker, _sendReaction } from './reactions.js';
 
 
-// =========================================================================
 // Link preview (OG meta) — cache and helpers
-// =========================================================================
 const _linkPreviewCache = new Map();
 const _URL_RE = /https?:\/\/[^\s<>"']+/g;
 
@@ -84,10 +80,8 @@ function _buildPreviewCard(data) {
     return card;
 }
 
-// =========================================================================
 // Bot message markdown renderer
 // Supports: **bold**, _italic_, `code`, [text](url), newlines
-// =========================================================================
 function _renderBotMarkdown(text) {
     if (!text) return '';
     let s = esc(text);
@@ -111,9 +105,7 @@ function _renderBotMarkdown(text) {
     return s;
 }
 
-// =========================================================================
 // @mention detection and rendering
-// =========================================================================
 const _MENTION_RE = /@(\w{3,30})/g;
 
 /**
@@ -203,9 +195,7 @@ function extractMentions(text) {
     return [...new Set(mentions)];
 }
 
-// =========================================================================
 // Swipe-to-reply gesture (mobile)
-// =========================================================================
 const _SWIPE_THRESHOLD   = 80;  // px to trigger reply
 const _SWIPE_SHOW_ARROW  = 50;  // px to show arrow indicator
 const _SWIPE_MAX         = 120; // max translate distance
@@ -552,9 +542,7 @@ window._showChatTranslateLangPicker = function(roomId, bar) {
     document.body.appendChild(backdrop);
 };
 
-// =============================================================================
 // Вспомогательные функции для контекстного меню
-// =============================================================================
 
 /**
  * Гарантирует, что стили для контекстного меню присутствуют в head.
@@ -997,9 +985,7 @@ function _closeContextMenu() {
     document.querySelectorAll('.ctx-menu').forEach(m => m.remove());
 }
 
-// =============================================================================
 // Reminder (напоминание о сообщении)
-// =============================================================================
 
 const _REMINDER_KEY = 'vortex_reminders';
 
@@ -1172,9 +1158,7 @@ function _fireReminder(reminderId) {
     _saveReminders(still);
 })();
 
-// =============================================================================
 // История редактирования сообщений
-// =============================================================================
 
 async function _showEditHistory(msgId, roomId) {
     if (!roomId) return;
@@ -1248,9 +1232,7 @@ async function _showEditHistory(msgId, roomId) {
     box.appendChild(closeBtn);
 }
 
-// =============================================================================
 // Вспомогательная функция для создания блока цитаты (reply)
-// =============================================================================
 
 /**
  * Создаёт элемент-цитату с помощью liquid-glass.
@@ -1272,9 +1254,7 @@ function _buildReplyQuote(replyToId, replyToText, replyToSender, isOwn = false) 
     return quote;
 }
 
-// =============================================================================
 // Публичные функции для управления сообщениями
-// =============================================================================
 
 /**
  * Сбрасывает состояние группировки (дата, автор) и очищает карту элементов.
@@ -1312,7 +1292,6 @@ export {
     _showTagPicker,
 };
 
-/* ── Tag Picker (mini modal for setting member tags) ──────────────── */
 function _showTagPicker(targetUserId, currentTag, currentColor) {
     // Remove any existing picker
     document.getElementById('tag-picker-overlay')?.remove();

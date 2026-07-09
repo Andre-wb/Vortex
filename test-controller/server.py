@@ -56,7 +56,6 @@ WEB_DIR = _resource_path("web")
 
 VERSION = "test-0.1.0"
 
-# ── Ed25519 signing (generated fresh on each launch) ───────────────────────
 
 _PRIV = Ed25519PrivateKey.generate()
 _PUB_HEX = _PRIV.public_key().public_bytes(
@@ -74,7 +73,6 @@ def sign_envelope(payload: dict) -> dict:
     return {"payload": payload, "signature": sig, "signed_by": _PUB_HEX}
 
 
-# ── Mock data ──────────────────────────────────────────────────────────────
 
 NOW = int(time.time())
 
@@ -149,7 +147,6 @@ STATS = {
 }
 
 
-# ── API ────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="vortex-test-controller",
@@ -159,7 +156,6 @@ app = FastAPI(
 )
 
 
-# ── Static website — identical to vortex_controller/web/ ─────────────────
 #
 # We serve the same HTML/CSS/JS the production controller uses, so
 # opening the public URL in a browser looks exactly like a real
@@ -338,7 +334,6 @@ _TUNNEL_URL: str | None = None
 _TUNNEL_PROC: subprocess.Popen | None = None
 
 
-# ── Cloudflared tunnel (optional) ──────────────────────────────────────────
 
 
 def _find_cloudflared() -> str | None:

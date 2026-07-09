@@ -42,9 +42,7 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. Onion-only toggle
-# ══════════════════════════════════════════════════════════════════════════
 
 class OnionBody(BaseModel):
     enabled:    bool
@@ -90,9 +88,7 @@ async def _tor_reachable(addr: str) -> bool:
         return False
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. Let's Encrypt (certbot wrapper)
-# ══════════════════════════════════════════════════════════════════════════
 
 def _find_certbot() -> Optional[str]:
     # Same approach as _find_cloudflared — check PATH then common brew dirs.
@@ -214,9 +210,7 @@ async def le_issue(request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. Auto-update check (version manifest)
-# ══════════════════════════════════════════════════════════════════════════
 
 _DEFAULT_MANIFEST_URL = "https://vortexx.sol/release/manifest.json"
 
@@ -258,9 +252,7 @@ def _semver_gt(a: str, b: str) -> bool:
     return parse(a) > parse(b)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. Setup presets
-# ══════════════════════════════════════════════════════════════════════════
 
 _PRESETS = [
     {
@@ -332,9 +324,7 @@ async def presets_apply(body: PresetApplyBody, request: Request) -> dict:
     return {"ok": True, "applied": preset["id"], "keys_written": list(preset["env"].keys())}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 5. Guided tour — step data
-# ══════════════════════════════════════════════════════════════════════════
 
 _TOUR_STEPS = [
     {"target": ".nav-item[data-tab='integrity']",

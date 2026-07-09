@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/admin/alerts", tags=["alerts"])
 
 
-# ── Config storage ────────────────────────────────────────────────────────
 
 def _env_file(request: Request) -> Path:
     p = getattr(request.app.state, "env_file", None)
@@ -63,7 +62,6 @@ def _save(env_file: Path, data: dict) -> None:
     p.write_text(json.dumps(data, indent=2))
 
 
-# ── Channel schemas ───────────────────────────────────────────────────────
 
 ChannelType = Literal[
     "email", "slack", "discord", "telegram", "matrix", "webhook", "pagerduty"
@@ -82,7 +80,6 @@ class ChannelBody(BaseModel):
     enabled:  bool = True
 
 
-# ── Dispatcher — core API ────────────────────────────────────────────────
 
 async def dispatch(
     env_file: Path,
@@ -133,7 +130,6 @@ async def dispatch(
     return report
 
 
-# ── Per-channel senders ───────────────────────────────────────────────────
 
 async def _send_to_channel(
     ch: dict, severity: str, title: str, body: str, tags: list[str]
@@ -291,7 +287,6 @@ async def _send_pagerduty(cfg: dict, severity: str, title: str, body: str, tags:
     return r.status_code < 400, f"http_{r.status_code}"
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────
 
 @router.get("")
 async def list_channels(request: Request) -> dict:

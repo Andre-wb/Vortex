@@ -22,9 +22,7 @@ from app import models, models_rooms  # noqa: E402, F401  -- register models
 from app.models import contact as _models_contact  # noqa: F401  -- register Contact table
 from app.models import prekeys as _models_prekeys  # noqa: F401  -- register PreKeyBundle/OneTimePreKey
 
-# ---------------------------------------------------------------------------
 # Resolve the effective database URL
-# ---------------------------------------------------------------------------
 DATABASE_URL = Config.get_database_url()
 
 # Ephemeral mode — no disk persistence. Every message, key, and metadata
@@ -35,9 +33,7 @@ if os.getenv("EPHEMERAL_MODE", "").lower() in ("1", "true", "yes"):
 _is_sqlite = DATABASE_URL.startswith("sqlite://")
 _is_postgres = DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgresql+")
 
-# ---------------------------------------------------------------------------
 # Async URL variant (for async engine)
-# ---------------------------------------------------------------------------
 if _is_postgres:
     if "postgresql+asyncpg" in DATABASE_URL:
         ASYNC_DATABASE_URL = DATABASE_URL
@@ -58,9 +54,7 @@ else:
     ASYNC_DATABASE_URL = None
     SYNC_DATABASE_URL = DATABASE_URL
 
-# ---------------------------------------------------------------------------
 # Synchronous engine (used by existing code)
-# ---------------------------------------------------------------------------
 if _is_postgres:
     engine = create_engine(
         SYNC_DATABASE_URL,
@@ -81,9 +75,7 @@ else:
     )
     logger.info("Database engine: SQLite (%s)", DATABASE_URL)
 
-# ---------------------------------------------------------------------------
 # SQLite-specific pragmas (only for SQLite connections)
-# ---------------------------------------------------------------------------
 if _is_sqlite:
     @event.listens_for(engine, "connect")
     def _set_pragmas(conn, _):
@@ -95,9 +87,7 @@ if _is_sqlite:
         cur.execute("PRAGMA mmap_size=268435456")
         cur.close()
 
-# ---------------------------------------------------------------------------
 # Synchronous session factory
-# ---------------------------------------------------------------------------
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -110,9 +100,7 @@ def get_db():
         db.close()
 
 
-# ---------------------------------------------------------------------------
 # Async engine & session (PostgreSQL only)
-# ---------------------------------------------------------------------------
 AsyncSessionLocal = None
 async_engine = None
 
@@ -158,9 +146,7 @@ async def get_async_db():
             await session.close()
 
 
-# ---------------------------------------------------------------------------
 # Alembic helpers
-# ---------------------------------------------------------------------------
 def _alembic_available() -> bool:
     """Check if Alembic is installed and migration directory exists."""
     try:
@@ -266,9 +252,7 @@ def _run_alembic_upgrade() -> bool:
         return False
 
 
-# ---------------------------------------------------------------------------
 # Initialization
-# ---------------------------------------------------------------------------
 def init_db() -> None:
     """Create/migrate database schema.
 

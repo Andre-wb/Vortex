@@ -1,7 +1,6 @@
 /* Wave 7 — UI polish: light theme, compact layout, PiP Logs,
    command palette, dashboard widgets overlay. */
 
-/* ── Light theme — overrides the dark defaults via [data-theme="light"] ── */
 html[data-theme="light"] {
     --bg:       #fafafa;
     --bg2:      #ffffff;
@@ -38,7 +37,6 @@ html[data-theme="light"] .toast { background: var(--bg2); color: var(--text); bo
 html[data-theme="light"] table.peers-table th,
 html[data-theme="light"] table.peers-table td { border-color: var(--border); color: var(--text); }
 
-/* ── Compact layout ── */
 html[data-density="compact"] .card { padding: 10px 12px; margin-bottom: 10px; }
 html[data-density="compact"] .card-row { padding: 4px 0; font-size: 12px; }
 html[data-density="compact"] h1 { font-size: 18px; margin: 6px 0; }
@@ -47,7 +45,6 @@ html[data-density="compact"] .btn-small { padding: 3px 8px; font-size: 11px; }
 html[data-density="compact"] .sidebar { width: 180px; }
 html[data-density="compact"] .content { margin-left: 180px; padding: 12px 18px; }
 
-/* ── Picture-in-Picture logs window ── */
 .logs-pip {
     position: fixed; bottom: 16px; right: 16px; z-index: 500;
     width: 420px; height: 260px;
@@ -69,7 +66,6 @@ html[data-density="compact"] .content { margin-left: 180px; padding: 12px 18px; 
 .logs-pip-body { flex: 1; overflow: auto; padding: 8px 10px; white-space: pre; }
 .logs-pip-head .btn-small { padding: 2px 6px; font-size: 10px; }
 
-/* ── Command palette overlay ── */
 .cmd-palette {
     position: fixed; top: 90px; left: 50%; transform: translateX(-50%);
     width: 540px; max-width: 90vw;
@@ -96,7 +92,6 @@ html[data-density="compact"] .content { margin-left: 180px; padding: 12px 18px; 
 .cmd-item.active { background: rgba(139, 92, 246, 0.15); color: var(--text, #fff); }
 .cmd-item-hint { color: var(--text2, #888); font-size: 11px; font-family: ui-monospace, Menlo, monospace; }
 
-/* ── Dashboard widget reorder handle ── */
 .widget-handle {
     cursor: grab;
     display: inline-block; padding: 2px 6px;

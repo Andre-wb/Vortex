@@ -28,9 +28,7 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Вспомогательный класс измерения
-# ══════════════════════════════════════════════════════════════════════════════
 
 class BenchResult:
     def __init__(self, name: str, unit: str, values: List[float]):
@@ -84,9 +82,7 @@ def _timeit(fn: Callable, runs: int) -> List[float]:
     return times
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. AES-256-GCM шифрование/расшифрование
-# ══════════════════════════════════════════════════════════════════════════════
 
 def bench_aes_encrypt(runs: int = 1000) -> BenchResult:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -111,9 +107,7 @@ def bench_aes_roundtrip(runs: int = 500) -> BenchResult:
     return BenchResult("AES-256-GCM roundtrip (encrypt+decrypt)", "ms", _timeit(_rt, runs))
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. X25519 ECIES ключевой обмен
-# ══════════════════════════════════════════════════════════════════════════════
 
 def bench_ecies_full(runs: int = 100) -> BenchResult:
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
@@ -148,9 +142,7 @@ def bench_x25519_keygen(runs: int = 500) -> BenchResult:
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. SHA-256 throughput
-# ══════════════════════════════════════════════════════════════════════════════
 
 def bench_sha256_throughput() -> BenchResult:
     sizes = [
@@ -170,9 +162,7 @@ def bench_sha256_throughput() -> BenchResult:
     return results
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. HTTP API latency (CSRF endpoint — не требует аутентификации)
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def bench_http_latency(runs: int = 50) -> BenchResult:
     """Измеряет задержку ASGI-приложения напрямую (без реальной сети)."""
@@ -194,9 +184,7 @@ async def bench_http_latency(runs: int = 50) -> BenchResult:
         return BenchResult("HTTP API latency (SKIPPED)", "ms", [0.0])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 5. Имитация RTT сообщения в WebSocket комнате
-# ══════════════════════════════════════════════════════════════════════════════
 
 def bench_message_processing(runs: int = 5000) -> BenchResult:
     """
@@ -221,9 +209,7 @@ def bench_message_processing(runs: int = 5000) -> BenchResult:
     return BenchResult("Message processing (dedup+hash, in-process)", "ms", _timeit(_process, runs))
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 6. Chunked file upload simulation
-# ══════════════════════════════════════════════════════════════════════════════
 
 def bench_chunk_hashing(runs: int = 50) -> List[BenchResult]:
     """Измеряет скорость хеширования чанков разного размера."""
@@ -241,9 +227,7 @@ def bench_chunk_hashing(runs: int = 50) -> List[BenchResult]:
     return results
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Таблица сравнения с аналогами (статические данные из публичных отчётов)
-# ══════════════════════════════════════════════════════════════════════════════
 
 COMPARISON_TABLE = """
 ╔══════════════════════════════════════════════════════════════════════════════════════╗
@@ -280,9 +264,7 @@ BENCHMARK_ENV = {
 }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Основная функция
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def main(runs: int = 100, output: Optional[str] = None):
     print("\n" + "=" * 80)

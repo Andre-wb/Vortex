@@ -5,9 +5,7 @@ import { appendSystemMessage } from './messages.js';
 import { getRoomKey, ratchetDecrypt, ratchetEncrypt } from '../crypto.js';
 import { decryptText } from './room-crypto.js';
 
-// =============================================================================
 // Файлы
-// =============================================================================
 
 export async function showRoomFilesModal() {
     const S = window.AppState;
@@ -46,9 +44,7 @@ export async function showRoomFilesModal() {
     } catch {}
 }
 
-// =============================================================================
 // Drag & Drop файлов в область чата
-// =============================================================================
 
 let _dragCounter = 0;   // счётчик вложенных dragenter/dragleave
 
@@ -104,9 +100,7 @@ if (document.readyState === 'loading') {
     _initDragDrop();
 }
 
-// =============================================================================
 // Самоуничтожающиеся сообщения
-// =============================================================================
 
 let _timedMode = false;
 let _timedTtl  = 30;
@@ -122,9 +116,7 @@ window.toggleTimedMode = function() {
 window.isTimedMode = () => _timedMode;
 window.getTimedTtl = () => _timedTtl;
 
-// =============================================================================
 // Mute toggle
-// =============================================================================
 
 window.toggleMuteRoom = async function() {
     const S = window.AppState;
@@ -146,9 +138,7 @@ window.toggleMuteRoom = async function() {
     } catch(e) { console.error('Mute error:', e); }
 };
 
-// =============================================================================
 // Feature 1: Polls — Telegram-style creation, voting, management
-// =============================================================================
 
 export function openPollModal() {
     _resetPollModal();
@@ -308,9 +298,7 @@ window._suggestPollOption = function(msgId, text) {
     S.ws.send(JSON.stringify({ action: 'suggest_option', msg_id: msgId, text }));
 };
 
-// =============================================================================
 // Payment Requests — запрос оплаты через чат
-// =============================================================================
 
 const _CRYPTO_CURRENCIES = ['BTC', 'ETH', 'USDT', 'TON'];
 
@@ -373,9 +361,7 @@ window.sendPaymentRequest = function() {
     if (window.closeModal) window.closeModal('payment-modal');
 };
 
-// =============================================================================
 // Feature 2: Scheduled messages
-// =============================================================================
 
 let _scheduleMode = false;
 let _scheduleDatetime = null;
@@ -420,9 +406,7 @@ export function resetScheduleMode() {
     if (picker) picker.style.display = 'none';
 }
 
-// =============================================================================
 // Feature 3 & 4: Auto-delete & Slow mode indicators
-// =============================================================================
 
 function _fmtSeconds(s) {
     if (s >= 86400) return t('chat.days').replace('{n}', Math.round(s / 86400));
@@ -477,9 +461,7 @@ export function _startSlowModeCooldown(seconds) {
     if (input) input.disabled = true;
 }
 
-// =============================================================================
 // Feature 3: Auto-delete settings UI
-// =============================================================================
 
 window.showAutoDeleteMenu = async function() {
     const S = window.AppState;
@@ -504,9 +486,7 @@ window.showAutoDeleteMenu = async function() {
     } catch (e) { window.vxAlert?.(e.message) || alert(e.message); }
 };
 
-// =============================================================================
 // Feature 4: Slow mode settings UI
-// =============================================================================
 
 window.showSlowModeMenu = async function() {
     const S = window.AppState;
@@ -531,9 +511,7 @@ window.showSlowModeMenu = async function() {
     } catch (e) { window.vxAlert?.(e.message) || alert(e.message); }
 };
 
-// =============================================================================
 // Feature 5: Chat Export
-// =============================================================================
 
 export async function exportChat() {
     const S = window.AppState;

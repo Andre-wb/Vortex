@@ -34,7 +34,6 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# ── Confirmation thresholds (blocks) ──────────────────────────────────────────
 _CONFIRMATIONS = {
     "trc20": 19,   # TRON: ~19 blocks ≈ 1 min
     "erc20": 12,   # Ethereum: ~12 blocks ≈ 2.5 min
@@ -43,11 +42,9 @@ _CONFIRMATIONS = {
     "btc":   3,    # Bitcoin: 3 blocks ≈ 30 min
 }
 
-# ── API keys from environment (optional) ──────────────────────────────────────
 _ETHERSCAN_KEY = os.environ.get("ETHERSCAN_API_KEY", "")
 _BSCSCAN_KEY   = os.environ.get("BSCSCAN_API_KEY", "")
 
-# ── HTTP timeout ───────────────────────────────────────────────────────────────
 _TIMEOUT = 10.0  # seconds
 
 
@@ -60,9 +57,7 @@ class VerificationResult:
     network: str = ""
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Public entry point
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def verify_transaction(
     tx_hash: str,
@@ -118,9 +113,7 @@ async def verify_transaction(
         return VerificationResult(ok=False, error="Verification error — try again later")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # TRON / TRC20
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def _verify_tron(tx_hash: str, wallet_address: str, min_amount: float) -> VerificationResult:
     """Verify USDT TRC20 transaction via TronGrid API (no API key needed)."""
@@ -236,9 +229,7 @@ def _tron_hex_to_base58(hex_address: str) -> str:
     return base58.b58encode(raw + checksum).decode()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Ethereum / BSC (EVM-compatible via Etherscan-style API)
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def _verify_evm(
     tx_hash: str, wallet_address: str, min_amount: float, chain: str
@@ -334,9 +325,7 @@ async def _verify_evm(
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # TON
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def _verify_ton(tx_hash: str, wallet_address: str, min_amount: float) -> VerificationResult:
     """Verify TON transaction via TON Center public API (no key required)."""
@@ -391,9 +380,7 @@ async def _verify_ton(tx_hash: str, wallet_address: str, min_amount: float) -> V
     return VerificationResult(ok=False, error="Transaction not found for this wallet on TON", network="ton")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bitcoin
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def _verify_btc(tx_hash: str, wallet_address: str, min_amount: float) -> VerificationResult:
     """Verify BTC transaction via Blockstream.info API (no API key needed)."""
@@ -456,9 +443,7 @@ async def _verify_btc(tx_hash: str, wallet_address: str, min_amount: float) -> V
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _parse_amount(amount_str: str) -> float:
     """Parse amount from strings like '5 USDT', '0.001 BTC', '100', ''.

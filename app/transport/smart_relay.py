@@ -43,7 +43,6 @@ _probe_pool = httpx.AsyncClient(
     verify=make_peer_ssl_context(),
 )
 
-# ── Region estimation from IP (no external API) ─────────────────────────────
 
 # Rough IP-to-region mapping for latency estimation between regions.
 # Not for geolocation — only for relay scoring.
@@ -96,7 +95,6 @@ def _inter_region_latency(region_a: str, region_b: str) -> float:
     return _REGION_LATENCY_MATRIX.get(key, _REGION_LATENCY_MATRIX.get((region_b, region_a), 100))
 
 
-# ── Peer latency data ────────────────────────────────────────────────────────
 
 @dataclass
 class PeerLatency:

@@ -41,7 +41,6 @@ test.describe('Spaces Advanced', () => {
         spaceId = body.space_id || body.id;
     });
 
-    // ── Discovery ─────────────────────────────────────────────────────────────
 
     test('discover spaces', async ({ request }) => {
         const res = await request.get('/api/spaces/discover', {
@@ -50,7 +49,6 @@ test.describe('Spaces Advanced', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Templates ─────────────────────────────────────────────────────────────
 
     test('list space templates', async ({ request }) => {
         const res = await request.get('/api/spaces/templates', {
@@ -68,7 +66,6 @@ test.describe('Spaces Advanced', () => {
         expect([200, 201, 422]).toContain(res.status());
     });
 
-    // ── Sub-Spaces ────────────────────────────────────────────────────────────
 
     test('create sub-space', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -87,7 +84,6 @@ test.describe('Spaces Advanced', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Custom Emojis ─────────────────────────────────────────────────────────
 
     test('add custom emoji', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -113,7 +109,6 @@ test.describe('Spaces Advanced', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Theme ─────────────────────────────────────────────────────────────────
 
     test('set space theme', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -132,7 +127,6 @@ test.describe('Spaces Advanced', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Vanity URL ────────────────────────────────────────────────────────────
 
     test('set vanity URL', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -150,7 +144,6 @@ test.describe('Spaces Advanced', () => {
         expect(getRes.ok()).toBeTruthy();
     });
 
-    // ── Onboarding ────────────────────────────────────────────────────────────
 
     test('get onboarding config', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -172,7 +165,6 @@ test.describe('Spaces Advanced', () => {
         expect([200, 204, 422]).toContain(res.status());
     });
 
-    // ── Audit Log ─────────────────────────────────────────────────────────────
 
     test('view audit log', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -182,7 +174,6 @@ test.describe('Spaces Advanced', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Create room inside space ──────────────────────────────────────────────
 
     test('create room in space', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -196,7 +187,6 @@ test.describe('Spaces Advanced', () => {
         expect([200, 201]).toContain(res.status());
     });
 
-    // ── Space Avatar ──────────────────────────────────────────────────────────
 
     test('upload space avatar', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -213,7 +203,6 @@ test.describe('Spaces Advanced', () => {
         expect([200, 201, 400]).toContain(res.status());
     });
 
-    // ── Cleanup ───────────────────────────────────────────────────────────────
 
     test('delete space', async ({ request }) => {
         expect(spaceId).toBeTruthy();

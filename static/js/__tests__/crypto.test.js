@@ -7,7 +7,6 @@
  * crypto.subtle calls in the module under test use a real implementation.
  */
 
-// ── Import the module under test ──────────────────────────────────────────────
 const {
     eciesEncrypt,
     eciesDecrypt,
@@ -21,7 +20,6 @@ const {
     clearRatchet,
 } = require('../crypto.js');
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Generate a fresh X25519 key-pair and return { pubHex, privJwk }. */
 async function makeKeyPair() {
@@ -45,9 +43,7 @@ function randomRoomKey() {
     return globalThis.crypto.getRandomValues(new Uint8Array(32));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 1 – toHex / fromHex (internal helpers exercised indirectly)
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('Hex encoding (via encryptFile / eciesEncrypt output)', () => {
     test('encryptFile returns an ArrayBuffer', async () => {
@@ -83,9 +79,7 @@ describe('Hex encoding (via encryptFile / eciesEncrypt output)', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 2 – X25519 key generation (ECIES helper)
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('X25519 key generation', () => {
     test('makeKeyPair produces a 64-char hex public key', async () => {
@@ -108,9 +102,7 @@ describe('X25519 key generation', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 3 – ECIES encrypt / decrypt round-trip
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('ECIES encrypt / decrypt', () => {
     test('eciesDecrypt recovers the original room key', async () => {
@@ -158,9 +150,7 @@ describe('ECIES encrypt / decrypt', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 4 – AES-GCM file encrypt / decrypt
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('AES-GCM file encrypt / decrypt', () => {
     test('decryptFile recovers original plaintext', async () => {
@@ -213,9 +203,7 @@ describe('AES-GCM file encrypt / decrypt', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 5 – Room key store (in-memory)
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('Room key store', () => {
     test('getRoomKey returns null for unknown room', () => {
@@ -246,9 +234,7 @@ describe('Room key store', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 6 – Message Ratchet (forward secrecy / KDF chain)
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('Message ratchet – initRatchet', () => {
     test('initRatchet does not throw', () => {
@@ -380,9 +366,7 @@ describe('clearRatchet', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 7 – HKDF key derivation (tested indirectly through ratchet internals)
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('HKDF / KDF chain (forward secrecy property)', () => {
     test('consecutive ratchet chain keys are different (HKDF advances the chain)', async () => {

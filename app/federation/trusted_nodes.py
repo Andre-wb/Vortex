@@ -40,7 +40,6 @@ from app.transport.gossip_security import (
 
 logger = logging.getLogger(__name__)
 
-# ── Gossip Security Instances ────────────────────────────────────────────────
 _gossip_rate_limiter = GossipRateLimiter()
 _reputation_manager = ReputationManager()
 _node_vector_clock: Optional[VectorClock] = None
@@ -51,9 +50,7 @@ def _get_vector_clock() -> VectorClock:
         _node_vector_clock = VectorClock(Config.NODE_ID if hasattr(Config, 'NODE_ID') else secrets.token_hex(8))
     return _node_vector_clock
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Constants
-# ══════════════════════════════════════════════════════════════════════════════
 
 TOKEN_ROTATION_INTERVAL = 300  # 5 minutes
 HEALTH_CHECK_INTERVAL = 30  # seconds
@@ -85,7 +82,6 @@ def _get_token_secret() -> bytes:
     return _TOKEN_SECRET
 
 
-# ── FIX F1: pre-shared federation join secret + mutual challenge-response ─────
 # Possessing the *public* code hash is NOT authentication (it's served openly).
 # A peer must additionally prove possession of a pre-shared federation secret
 # (FEDERATION_PSK) by HMAC-signing a timestamped challenge. All nodes in one
@@ -162,9 +158,7 @@ _BLOCKED_PEER_NETS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
     ipaddress.ip_network("fc00::/7"),
 ]
 
-# ══════════════════════════════════════════════════════════════════════════════
 # SQLAlchemy Model
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class TrustedNode(Base):
@@ -209,9 +203,7 @@ def _node_to_dict(node: TrustedNode) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic request/response models
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class AddNodeRequest(BaseModel):
@@ -245,9 +237,7 @@ class ValidateTokenRequest(BaseModel):
     token: str
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # NodeSandbox — Security isolation
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 def _ip_is_internal(addr: "ipaddress.IPv4Address | ipaddress.IPv6Address") -> bool:
@@ -442,9 +432,7 @@ class NodeSandbox:
 _rate_limit_buckets: dict[str, dict] = {}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Code Hash Validation (blockchain-inspired)
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 def _get_code_manifest() -> list[tuple[str, str]]:
@@ -495,9 +483,7 @@ def _get_cached_code_hash() -> str:
     return _local_code_hash_cache
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Rotating Participation Tokens
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 def _time_bucket(ts: Optional[float] = None) -> int:
@@ -539,9 +525,7 @@ def verify_node_token(node_id: str, token: str) -> bool:
     return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Task Distribution (consistent hashing)
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 def _task_assignment_score(node_id: str, task_type: str) -> int:
@@ -603,9 +587,7 @@ def _apply_task_distribution(db: Session) -> None:
     logger.info("Task distribution updated for %d active nodes", len(active_nodes))
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Gossip Protocol
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 async def _gossip_new_node(node: TrustedNode) -> None:
@@ -670,9 +652,7 @@ async def _send_gossip(client: httpx.AsyncClient, url: str, payload: dict) -> No
         raise
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Failover
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 async def _failover_node(dead_node_id: int) -> None:
@@ -732,9 +712,7 @@ async def _failover_node(dead_node_id: int) -> None:
         db.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Background Tasks — Health Monitor & Token Rotation
-# ══════════════════════════════════════════════════════════════════════════════
 
 _monitor_task: Optional[asyncio.Task] = None
 _token_rotation_task: Optional[asyncio.Task] = None
@@ -861,9 +839,7 @@ async def stop_federation_monitor() -> None:
     logger.info("Federation monitor stopped")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Code Verification — choose a validator node
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 async def _verify_code_hash_via_validator(
@@ -914,9 +890,7 @@ async def _verify_code_hash_via_validator(
     return hmac.compare_digest(candidate_hash, local_hash)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Router & Endpoints
-# ══════════════════════════════════════════════════════════════════════════════
 
 trusted_nodes_router = APIRouter(prefix="/api/federation", tags=["federation-nodes"])
 

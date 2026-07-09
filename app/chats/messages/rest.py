@@ -34,7 +34,6 @@ from app.chats.messages.actions import is_valid_reaction_emoji  # FIX L4: emoji 
 logger = logging.getLogger(__name__)
 
 
-# ── Pydantic Schemas ──────────────────────────────────────────────────────────
 
 class SendMessageBody(BaseModel):
     ciphertext: str
@@ -47,7 +46,6 @@ class ReactBody(BaseModel):
     emoji: str
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
     member = db.query(RoomMember).filter(
@@ -78,9 +76,7 @@ def _msg_dict(m: Message) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # POST /api/rooms/{room_id}/messages — send message
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/rooms/{room_id}/messages", status_code=201)
 async def send_message(
@@ -165,9 +161,7 @@ async def send_message(
     return _msg_dict(msg)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # GET /api/rooms/{room_id}/messages — list messages (paginated)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/api/rooms/{room_id}/messages")
 async def list_messages(
@@ -226,9 +220,7 @@ async def list_messages(
     return {"messages": [_msg_dict(m) for m in messages]}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # PUT /api/rooms/{room_id}/messages/{msg_id} — edit message
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.put("/api/rooms/{room_id}/messages/{msg_id}")
 async def edit_message(
@@ -278,9 +270,7 @@ async def edit_message(
     return {"ok": True, "id": msg.id, "edited_at": utc_iso(msg.edited_at)}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # DELETE /api/rooms/{room_id}/messages/{msg_id} — delete message
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.delete("/api/rooms/{room_id}/messages/{msg_id}")
 async def delete_message(
@@ -316,9 +306,7 @@ async def delete_message(
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # POST /api/rooms/{room_id}/messages/{msg_id}/react — add reaction
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/rooms/{room_id}/messages/{msg_id}/react")
 async def react_to_message(

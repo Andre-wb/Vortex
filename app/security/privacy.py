@@ -21,9 +21,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. Tor SOCKS5 Integration
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TorProxy:
     """
@@ -107,9 +105,7 @@ tor_proxy = TorProxy(
 )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. Metadata Padding — all messages same size
-# ══════════════════════════════════════════════════════════════════════════════
 
 class MetadataPadding:
     """
@@ -173,9 +169,7 @@ class MetadataPadding:
         return cls.STANDARD_SIZES[-1]
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. Ephemeral Usernames — per-room pseudonyms
-# ══════════════════════════════════════════════════════════════════════════════
 
 class EphemeralIdentity:
     """
@@ -253,9 +247,7 @@ class EphemeralIdentity:
         return f"{adjectives[adj_idx]} {nouns[noun_idx]} {num}"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. Zero-Knowledge Room Membership (ZK-SNARK PoC)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class ZKMembership:
     """

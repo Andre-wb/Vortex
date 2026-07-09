@@ -42,9 +42,7 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. Failover mirror (#44)
-# ══════════════════════════════════════════════════════════════════════════
 
 class MirrorBody(BaseModel):
     controller_url: str = Field(..., min_length=8, max_length=2048)
@@ -116,9 +114,7 @@ async def job_mirror_backup(env_file: Path) -> dict:
     return {"message": f"mirrored {len(blob)} B to {mirror_url}", "byte_size": len(blob)}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. Staking wizard (#47)
-# ══════════════════════════════════════════════════════════════════════════
 
 # We don't sign on the server — the node's wallet key is derived client-
 # side. This endpoint returns enough scaffolding for a frontend wallet to
@@ -152,9 +148,7 @@ async def stake_build(body: StakeBuildBody, request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. Payout history (#48)
-# ══════════════════════════════════════════════════════════════════════════
 
 def _payout_log_path(env_file: Path) -> Path:
     return env_file.parent / "payouts.ndjson"
@@ -194,9 +188,7 @@ async def payout_record(body: PayoutRecordBody, request: Request) -> dict:
     return {"ok": True, "recorded": entry}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. Tax CSV export (#49)
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/payouts.csv")
 async def payouts_csv(request: Request) -> Response:
@@ -230,9 +222,7 @@ async def payouts_csv(request: Request) -> Response:
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 5. Autocompound (#50)
-# ══════════════════════════════════════════════════════════════════════════
 
 class AutocompoundBody(BaseModel):
     enabled:       bool
@@ -338,7 +328,6 @@ async def autocompound_candidate_clear(request: Request) -> dict:
     return {"ok": True}
 
 
-# ── Register jobs with the wizard scheduler ───────────────────────────────
 
 def install_jobs(env_file: Path) -> None:
     s = _sched.get(env_file)

@@ -89,7 +89,6 @@ impl Interpreter {
         }
         if hook_stopped { return Ok(outputs); }
 
-        // ── FSM routing ───────────────────────────────────────────────────────
         // Check if any FSM is active for this user and handle it first
         let active_fsm = {
             let st = self.shared.lock().await;
@@ -148,7 +147,6 @@ impl Interpreter {
             }
         }
 
-        // ── Feature N5: Canary routing ─────────────────────────────────────────
         let canaries = {
             let st = self.shared.lock().await;
             st.canaries.clone()
@@ -187,7 +185,6 @@ impl Interpreter {
             return Ok(outputs);
         }
 
-        // ── Feature N1: Intent matching (after Commands, before AnyMsg) ─────
         let intent_defs = {
             let st = self.shared.lock().await;
             st.intent_defs.clone()
@@ -221,7 +218,6 @@ impl Interpreter {
             }
         }
 
-        // ── Regular handler dispatch ──────────────────────────────────────────
         for (handler_idx, item) in prog.items.iter().enumerate() {
             let Item::Handler(handler) = item else { continue };
             let matches = match &handler.trigger {

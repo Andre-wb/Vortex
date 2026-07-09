@@ -29,9 +29,7 @@ router = APIRouter(prefix="/api/contacts", tags=["contacts"])
 block_router = APIRouter(prefix="/api/users", tags=["users"])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic схемы
-# ══════════════════════════════════════════════════════════════════════════════
 
 class AddContactRequest(BaseModel):
     user_id: int
@@ -41,9 +39,7 @@ class UpdateContactRequest(BaseModel):
     nickname: str = Field(..., max_length=100)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Вспомогательные функции
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _mask_phone(phone: str | None) -> str | None:
     """Маскирование номера телефона: показывает первые 4 и последние 2 символа."""
@@ -94,9 +90,7 @@ def _is_user_online(user_id: int, db: Session | None = None) -> bool:
     return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Эндпоинты
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("")
 async def list_contacts(
@@ -252,9 +246,7 @@ async def delete_contact(
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Верификация fingerprint
-# ══════════════════════════════════════════════════════════════════════════════
 
 class VerifyFingerprintRequest(BaseModel):
     pubkey_hash: str = Field(..., min_length=64, max_length=64)
@@ -305,9 +297,7 @@ async def unverify_fingerprint(
     return {"ok": True, "contact_id": contact.id, "fingerprint_verified": False}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Блокировка пользователей
-# ══════════════════════════════════════════════════════════════════════════════
 
 @block_router.get("/profile/{user_id}")
 async def get_user_profile(

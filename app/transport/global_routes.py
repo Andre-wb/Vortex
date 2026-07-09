@@ -20,7 +20,6 @@ from app.transport.global_transport import global_transport
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/global", tags=["global"])
 
-# ── Per-IP rate limiter for gossip / bootstrap ────────────────────────────────
 _gossip_rate: dict[str, list] = {}  # ip -> [timestamp, count]
 GOSSIP_RATE_LIMIT = 10  # requests per minute
 
@@ -36,9 +35,7 @@ def _check_gossip_rate(ip: str) -> bool:
     return True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class GossipRequest(BaseModel):
     """Incoming gossip request: peer list + rooms from another node."""
@@ -62,9 +59,7 @@ class AddPeerRequest(BaseModel):
     port: int = Field(9000, description="Peer port")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Gossip endpoint (accepts from any node without authentication)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/gossip")
 async def gossip(body: GossipRequest, request: Request):
@@ -105,9 +100,7 @@ async def gossip(body: GossipRequest, request: Request):
     return result
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bootstrap endpoint (initial connection)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/bootstrap")
 async def bootstrap(body: BootstrapRequest, request: Request):
@@ -148,9 +141,7 @@ async def bootstrap(body: BootstrapRequest, request: Request):
     return result
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Room search
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/search-rooms")
 async def search_rooms_local(q: str = Query("", description="Search query")):
@@ -207,9 +198,7 @@ async def search_rooms_global(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Node info
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/node-info")
 async def node_info():
@@ -233,9 +222,7 @@ async def node_info():
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Peer management (requires authentication)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/peers")
 async def list_global_peers(u: User = Depends(get_current_user)):

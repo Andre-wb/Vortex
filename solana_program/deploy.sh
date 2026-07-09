@@ -24,7 +24,6 @@ ANCHOR_TOML="$SCRIPT_DIR/Anchor.toml"
 PREMIUM_JS="$REPO_ROOT/static/js/premium.js"
 KEYPAIR_JSON="$SCRIPT_DIR/target/deploy/vortex_registry-keypair.json"
 
-# ── Helpers ───────────────────────────────────────────────────────────────
 
 bail() { echo "error: $*" >&2; exit 1; }
 
@@ -110,7 +109,6 @@ build_and_deploy() {
     echo "✓ deployed. Run './deploy.sh doctor' to verify pins."
 }
 
-# ── Dispatch ──────────────────────────────────────────────────────────────
 
 case "$CLUSTER" in
     doctor)   doctor ;;

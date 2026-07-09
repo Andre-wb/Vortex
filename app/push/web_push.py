@@ -29,9 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/push", tags=["push"])
 
 
-# ---------------------------------------------------------------------------
 # Request / response schemas
-# ---------------------------------------------------------------------------
 
 class SubscribeRequest(BaseModel):
     endpoint: str
@@ -43,9 +41,7 @@ class UnsubscribeRequest(BaseModel):
     endpoint: str
 
 
-# ---------------------------------------------------------------------------
 # Endpoints
-# ---------------------------------------------------------------------------
 
 @router.get("/vapid-key")
 async def vapid_public_key(user: User = Depends(get_current_user)):
@@ -103,9 +99,7 @@ async def unsubscribe(
     return {"ok": True, "deleted": deleted}
 
 
-# ---------------------------------------------------------------------------
 # send_push -- deliver Web Push notification to a user
-# ---------------------------------------------------------------------------
 
 def _get_vapid_claims() -> dict:
     return {

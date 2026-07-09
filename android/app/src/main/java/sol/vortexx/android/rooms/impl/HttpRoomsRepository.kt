@@ -126,7 +126,6 @@ class HttpRoomsRepository @Inject constructor(
         if (resp.status.isSuccess()) { dao.delete(roomId); true } else false
     }.getOrDefault(false)
 
-    // ── DTOs ───────────────────────────────────────────────────────────
 
     @Serializable
     private data class EciesDto(val ephemeral_pub: String, val ciphertext: String)

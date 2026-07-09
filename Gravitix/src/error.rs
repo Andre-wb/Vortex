@@ -1,9 +1,7 @@
 use colored::*;
 use thiserror::Error;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Core error type (unchanged variants — all existing code keeps working)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Error)]
 pub enum GravError {
@@ -57,9 +55,7 @@ macro_rules! type_err {
     };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Rich diagnostic system
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Source location for error reporting
 #[derive(Debug, Clone, Default)]
@@ -89,9 +85,7 @@ pub enum DiagKind {
     Help,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // GravError -> Diagnostic conversion
-// ─────────────────────────────────────────────────────────────────────────────
 
 impl GravError {
     /// Convert to a rich Diagnostic with error code and suggestions
@@ -227,9 +221,7 @@ impl GravError {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Diagnostic display — Rust-style error output
-// ─────────────────────────────────────────────────────────────────────────────
 
 impl Diagnostic {
     pub fn display(&self, filename: &str) -> String {
@@ -291,9 +283,7 @@ impl Diagnostic {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // "Did you mean?" — Levenshtein distance
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Levenshtein edit distance between two strings
 fn levenshtein(a: &str, b: &str) -> usize {
@@ -329,9 +319,7 @@ pub fn did_you_mean<'a>(input: &str, candidates: &'a [String]) -> Option<&'a str
         .map(|(c, _)| c.as_str())
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Error categorization and suggestions
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn categorize_syntax_error(msg: &str) -> String {
     if msg.contains("unexpected") && msg.contains("expected") { return "G001".into(); }
@@ -439,9 +427,7 @@ fn estimate_token_len(msg: &str) -> u32 {
     1
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

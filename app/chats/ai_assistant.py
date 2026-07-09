@@ -156,9 +156,7 @@ def _get_room_history(room_id: int, limit: int, db: Session) -> list[str]:
     return lines
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Request models
-# ─────────────────────────────────────────────────────────────────────────────
 
 class AIChatRequest(BaseModel):
     room_id:    int
@@ -185,9 +183,7 @@ class AIRephraseRequest(BaseModel):
     style: str  # formal | casual | professional | creative
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/status")
 async def ai_status(u: User = Depends(get_current_user)):
@@ -357,9 +353,7 @@ async def ai_suggest(
     return {"suggestions": suggestions, "model": _OLLAMA_MODEL}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Text processing: fix errors & rephrase  (Qwen3-8B)
-# ─────────────────────────────────────────────────────────────────────────────
 
 _REPHRASE_STYLES = {
     "formal":       "Перефразируй текст в официальном, деловом стиле. Сохрани смысл, используй вежливые конструкции.",
@@ -368,7 +362,6 @@ _REPHRASE_STYLES = {
     "creative":     "Перефразируй текст в творческом, выразительном стиле. Сохрани смысл, добавь образности.",
 }
 
-# ── Local Qwen3-8B via transformers (lazy-loaded) ────────────────────────────
 
 _qwen_pipeline = None
 _qwen_load_lock = threading.Lock()

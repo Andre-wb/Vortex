@@ -132,9 +132,7 @@ async def kick(
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Управление ролями и модерация участников
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.put("/{room_id}/members/{target_id}/role")
 async def change_member_role(
@@ -253,9 +251,7 @@ async def toggle_ban_member(
     return {"ok": True, "is_banned": t.is_banned}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Теги участников
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.put("/{room_id}/members/{target_id}/tag")
 async def set_member_tag(
@@ -288,9 +284,7 @@ async def set_member_tag(
     return {"ok": True, "tag": t.tag, "tag_color": t.tag_color}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Гранулярные права участников
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{room_id}/permissions-schema")
 async def get_permissions_schema(u: User = Depends(get_current_user)):
@@ -329,9 +323,7 @@ async def set_member_permissions(
     return {"ok": True, "permissions": cleaned}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot commands in room — for slash command autocomplete
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{room_id}/bot-commands")
 async def get_room_bot_commands(

@@ -1,6 +1,4 @@
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 3: Location Sharing
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.shareLocation = function() {
     if (!navigator.geolocation) {
@@ -39,9 +37,7 @@ window.shareLocation = function() {
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 4: GIF Search (Tenor API)
-// ══════════════════════════════════════════════════════════════════════════════
 
 var _gifSearchTimer = null;
 
@@ -97,9 +93,7 @@ if (!window.sendGif) window.sendGif = function(url) {
     }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 5: Share Profile Link
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.copyProfileLink = function() {
     var u = window.AppState.user;
@@ -116,9 +110,7 @@ window.copyProfileLink = function() {
     }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE: Sticker Picker
-// ══════════════════════════════════════════════════════════════════════════════
 
 // Animated sticker definitions (vortex pack)
 var ANIMATED_STICKERS = [

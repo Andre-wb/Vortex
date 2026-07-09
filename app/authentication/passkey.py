@@ -26,7 +26,6 @@ from app.authentication._helpers import (
 
 logger = logging.getLogger(__name__)
 
-# ── Storage ───────────────────────────────────────────────────────────────
 
 _passkey_challenges: dict[str, tuple[bytes, float, int]] = {}
 _passkey_lock = threading.Lock()
@@ -52,7 +51,6 @@ def _get_origin(request: Request) -> str:
     return f"{scheme}://{host}"
 
 
-# ── Registration ──────────────────────────────────────────────────────────
 
 @router.post("/passkey/register-options")
 async def passkey_register_options(
@@ -158,7 +156,6 @@ async def passkey_register_verify(
     return {"ok": True, "credential_id": u.passkey_credential_id}
 
 
-# ── Login ─────────────────────────────────────────────────────────────────
 
 @router.post("/passkey/login-options")
 async def passkey_login_options(request: Request):

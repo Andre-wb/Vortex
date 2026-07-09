@@ -1,6 +1,4 @@
-# ══════════════════════════════════════════════════════════════════════════════
 # VORTEX Chat — Docker Compose (Production)
-# ══════════════════════════════════════════════════════════════════════════════
 #
 # Usage:
 #   docker compose up -d                         # Start (SQLite)
@@ -10,11 +8,9 @@
 #   docker compose logs -f vortex                # Logs
 #   docker compose down                          # Stop
 #
-# ══════════════════════════════════════════════════════════════════════════════
 
 services:
 
-  # ── Redis (horizontal scaling) ───────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: vortex-redis
@@ -36,7 +32,6 @@ services:
           cpus: "0.5"
           memory: 256M
 
-  # ── PostgreSQL (opt-in) ──────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: vortex-postgres
@@ -62,7 +57,6 @@ services:
           cpus: "1.0"
           memory: 256M
 
-  # ── Vortex Node (Production) ─────────────────────────────────────────────
   vortex:
     build:
       context: .
@@ -121,7 +115,6 @@ services:
         max-file: "5"
         tag: "vortex-node"
 
-  # ── Vortex + PostgreSQL (production with PG) ───────────────────────────
   vortex-pg:
     build:
       context: .
@@ -181,7 +174,6 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  # ── Vortex Dev (Hot-reload) ──────────────────────────────────────────────
   vortex-dev:
     build:
       context: .
@@ -221,7 +213,6 @@ services:
       --reload
       --reload-dir app
 
-  # ── Prometheus (Monitoring) ──────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: vortex-prometheus
@@ -241,7 +232,6 @@ services:
       vortex:
         condition: service_healthy
 
-  # ── Grafana (Dashboards) ────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:10.4.0
     container_name: vortex-grafana

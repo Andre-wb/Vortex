@@ -402,7 +402,6 @@
 </head>
 <body>
 
-<!-- ── Background ───────────────────────────────────────────────────────── -->
 <div class="bg-fallback" id="bgFallback"></div>
 <img
         class="bg-photo" id="bgPhoto"
@@ -420,7 +419,6 @@
 <div class="orb orb-4"></div>
 <div class="noise"></div>
 
-<!-- ── DNG notice ───────────────────────────────────────────────────────── -->
 <div class="dng-notice" id="dngNotice">
     <strong>⚠ Photo not found — showing gradient fallback</strong><br><br>
     Browsers can't open <strong>.dng</strong> (RAW camera format).<br>
@@ -430,7 +428,6 @@
     <button class="dng-dismiss" onclick="this.closest('.dng-notice').style.display='none'">Understood</button>
 </div>
 
-<!-- ── Debug panel ──────────────────────────────────────────────────────── -->
 <div class="debug-panel">
     <div class="row"><span class="key">LG-PRO</span>     <span class="val">v4.1.0</span></div>
     <div class="sep"></div>
@@ -449,14 +446,11 @@
     <div class="row"><span class="key">Octaves</span>    <span class="val ok">6 + domain warp</span></div>
 </div>
 
-<!-- ── Status badge ─────────────────────────────────────────────────────── -->
 <div class="status-badge pending" id="statusBadge">● Capturing background…</div>
 
 
-<!-- ════════════════════════════════════════════════════════════════════════ -->
 <div class="page">
 
-    <!-- ── HERO ──────────────────────────────────────────────────────────────── -->
     <section class="hero">
         <div class="hero-badge">
             <span class="dot"></span>
@@ -496,7 +490,6 @@
     </section>
 
 
-    <!-- ── GLASS VARIANTS ─────────────────────────────────────────────────────── -->
     <section class="section">
         <div class="section-eyebrow">New in v4.1.0</div>
         <h2 class="section-title">Glass surface variants</h2>
@@ -593,7 +586,6 @@
     <div class="divider"></div>
 
 
-    <!-- ── GLASS TYPE SELECTOR ────────────────────────────────────────────────── -->
     <section class="section">
         <div class="section-eyebrow">New in v4.0.0</div>
         <h2 class="section-title">Choose your glass</h2>
@@ -666,7 +658,6 @@
     <div class="divider"></div>
 
 
-    <!-- ── SHOWCASE ───────────────────────────────────────────────────────────── -->
     <section class="section">
         <div class="section-eyebrow">Screen-Space · Snell's Law</div>
         <h2 class="section-title">Photo refraction in action</h2>
@@ -687,7 +678,6 @@
     <div class="divider"></div>
 
 
-    <!-- ── VORONOI COMPARISON ─────────────────────────────────────────────────── -->
     <section class="section">
         <div class="section-eyebrow">Caustic engine · v4.0.0</div>
         <h2 class="section-title">Improved Voronoi</h2>
@@ -744,7 +734,6 @@
     <div class="divider"></div>
 
 
-    <!-- ── WHAT'S NEW ─────────────────────────────────────────────────────────── -->
     <section class="section">
         <div class="section-eyebrow">What's new</div>
         <h2 class="section-title">Physical optics,<br><em>not approximations</em></h2>
@@ -775,7 +764,6 @@
     <div class="divider"></div>
 
 
-    <!-- ── CHAT ───────────────────────────────────────────────────────────────── -->
     <section class="section">
         <div class="section-eyebrow">Chat component</div>
         <h2 class="section-title">Message bubbles</h2>
@@ -804,7 +792,6 @@
     <div class="divider"></div>
 
 
-    <!-- ── FABs ───────────────────────────────────────────────────────────────── -->
     <section class="section">
         <div class="section-eyebrow">Floating actions</div>
         <h2 class="section-title">FAB buttons</h2>
@@ -826,7 +813,6 @@
     <div class="divider"></div>
 
 
-    <!-- ── FEATURE GRID ───────────────────────────────────────────────────────── -->
     <section class="section">
         <div class="section-eyebrow">Complete capability list</div>
         <h2 class="section-title">All features</h2>
@@ -856,7 +842,6 @@
 </div><!-- .page -->
 
 
-<!-- ════════════════════════════════════════════════════════════════════════ -->
 <script type="module">
     import {
         initLiquidGlass, getGpuTier, isRefractionActive,

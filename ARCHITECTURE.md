@@ -189,7 +189,6 @@ WAL-режим обеспечивает конкурентный доступ: �
 
 ```
 Приоритет   Транспорт           Протокол                 Условие
-──────────────────────────────────────────────────────────────────────
     4       Direct TCP/WS       HTTP / WebSocket          Оба узла в LAN
     3       UDP Hole Punch      UDP (STUN + punch)        Разные NAT
     2       Wi-Fi Direct        P2P (wpa_supplicant/WinRT) Нет AP

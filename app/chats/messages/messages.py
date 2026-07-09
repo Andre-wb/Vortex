@@ -44,12 +44,9 @@ async def _bmp_deposit(room_id: int, payload: dict):
         logger.debug("[BMP] Deposit failed for room %d: %s", room_id, e)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # E2E message
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) -> None:
-    # ── Global mute check (platform-level, before room-level checks) ─────────
     if user.global_muted_until and user.global_muted_until > datetime.now(timezone.utc):
         remaining = user.global_muted_until - datetime.now(timezone.utc)
         days = remaining.days
@@ -67,7 +64,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         })
         return
 
-    # ── Rate limiting (Token Bucket) ─────────────────────────────────────────
     if not manager.check_rate_limit(room_id, user.id):
         await manager.send_to_user(room_id, user.id, {
             "type":    "error",
@@ -76,7 +72,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         })
         return
 
-    # ── Flood auto-mute check (skipped for DMs and if antispam disabled) ────
     room_obj = db.query(Room).filter(Room.id == room_id).first()
     _is_dm = room_obj and room_obj.is_dm
     _antispam = room_obj.antispam_enabled if (room_obj and room_obj.antispam_enabled is not None) else True
@@ -111,7 +106,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
             if await _check_flood(room_id, user, db, threshold_override=_threshold):
                 return
 
-            # ── Enhanced antispam checks (use plaintext hint from client) ──────
             _plaintext = data.get("plaintext_command", "") or data.get("plaintext_hint", "")
             if _plaintext and isinstance(_plaintext, str):
                 _member_role = member_flood.role if member_flood else RoomRole.MEMBER
@@ -127,7 +121,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
                 if await check_caps_spam(room_id, user, _plaintext, db):
                     return
 
-    # ── Проверка прав на отправку в канале ────────────────────────────────────
     if room_obj and room_obj.is_channel:
         member = db.query(RoomMember).filter(
             RoomMember.room_id == room_id,
@@ -139,7 +132,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
             })
             return
 
-    # ── Slow mode (Feature 4) ─────────────────────────────────────────────────
     if room_obj and room_obj.slow_mode_seconds and room_obj.slow_mode_seconds > 0 and not room_obj.is_dm:
         member_sm = db.query(RoomMember).filter(
             RoomMember.room_id == room_id,
@@ -181,7 +173,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         })
         return
 
-    # ── Deduplication by client_msg_id ─────────────────────────────────────────
     if client_msg_id:
         dedup_key = f"msg:{room_id}:{client_msg_id}"
         if await manager.is_duplicate_message(dedup_key):
@@ -227,12 +218,10 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         if not reply_exists:
             reply_to_id = None
 
-    # ── @mention usernames (client-detected, since E2E encrypted) ────────────
     mentioned_usernames: list[str] = data.get("mentioned_usernames") or []
     # Sanitize: keep only valid short strings
     mentioned_usernames = [u.lower().strip() for u in mentioned_usernames[:20] if isinstance(u, str) and 3 <= len(u) <= 30]
 
-    # ── Disappearing messages per-chat (Feature 3) ──────────────────────────
     auto_expire = None
     if room_obj and room_obj.auto_delete_seconds and room_obj.auto_delete_seconds > 0:
         auto_expire = datetime.now(timezone.utc) + timedelta(seconds=room_obj.auto_delete_seconds)
@@ -266,7 +255,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         })
         return
 
-    # ── ACK — подтверждение доставки отправителю ──────────────────────────────
     await manager.send_to_user(room_id, user.id, {
         "type":       "ack",
         "msg_id":     client_msg_id,
@@ -303,7 +291,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         "expires_at":    _utc_iso(msg.expires_at),
         "created_at":    _utc_iso(msg.created_at),
     }
-    # ── Собираем ID участников комнаты для pending delivery queue ──────────
     _room_member_ids = [
         rm.user_id for rm in db.query(RoomMember.user_id).filter(
             RoomMember.room_id == room_id,
@@ -311,7 +298,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         ).all()
     ]
 
-    # ── Delivery: BMP-only (zero metadata leakage) ─────────────────────────
     # WS broadcast removed — server no longer reveals who receives what.
     # Messages are deposited into anonymous BMP mailboxes.
     # Pending queue still works for offline users (fallback via WS on reconnect).
@@ -319,7 +305,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
     # Keep pending queue for offline delivery (BMP TTL = 2h, pending = 7d)
     await manager.enqueue_pending(room_id, payload, member_ids=_room_member_ids)
 
-    # ── Cross-node replication (federated rooms only, owner opt-in) ────────
     # No-op unless `room.replication_mode == 'federated'`. Metadata leak is
     # intentional and surfaced to users via the warning banner; content
     # stays E2E-encrypted.
@@ -330,7 +315,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
             _sender_ts = 0
         await _maybe_replicate(_room_obj, payload, _sender_ts)
 
-    # ── Bot command forwarding ─────────────────────────────────────────────
     # Client may include plaintext_command when text starts with '/'
     # (server can't see E2E-encrypted text, so client provides the hint)
     _bot_cmd_text = data.get("plaintext_command", "")
@@ -358,7 +342,6 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         except Exception as e:
             logger.warning(f"Bot notification error: {e}")
 
-    # ── Уведомления для участников, не подключённых к WS комнаты ──────────
     room_obj = db.query(Room).filter(Room.id == room_id).first()
     is_dm = room_obj.is_dm if room_obj else False
 
@@ -426,9 +409,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
                 )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Thread reply
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session) -> None:
     """Обработка ответа в треде: создаёт сообщение с thread_id и обновляет thread_count."""
@@ -452,7 +433,6 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         })
         return
 
-    # ── Global mute check (platform-level) ───────────────────────────────────
     if user.global_muted_until and user.global_muted_until > datetime.now(timezone.utc):
         remaining = user.global_muted_until - datetime.now(timezone.utc)
         days = remaining.days
@@ -624,9 +604,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     })
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Edit message
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def handle_edit_message(room_id: int, user: User, data: dict, db: Session) -> None:
     msg_id         = data.get("msg_id")
@@ -691,9 +669,7 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
     await manager.broadcast_to_room(room_id, _edit_payload)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Delete message
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def handle_delete_message(room_id: int, user: User, data: dict, db: Session) -> None:
     msg_id = data.get("msg_id")

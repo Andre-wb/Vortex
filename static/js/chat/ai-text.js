@@ -18,7 +18,6 @@ function _initAiText() {
 
   let _busy = false;
 
-  /* ── Toggle menu ───────────────────────────────────────────── */
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (_busy) return;
@@ -53,14 +52,12 @@ function _initAiText() {
     }
   }
 
-  /* ── Close on outside click ──────────────────────────────── */
   document.addEventListener('click', (e) => {
     if (!menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
       menu.classList.remove('open');
     }
   });
 
-  /* ── Menu item handlers ──────────────────────────────────── */
   menu.querySelectorAll('.ai-text-menu-item').forEach((item) => {
     item.addEventListener('click', async () => {
       const action = item.dataset.action;
@@ -95,7 +92,6 @@ function _initAiText() {
     });
   });
 
-  /* ── Busy state ──────────────────────────────────────────── */
   function _setBusy(v) {
     _busy = v;
     btn.classList.toggle('ai-loading', v);
@@ -106,7 +102,6 @@ function _initAiText() {
     }
   }
 
-  /* ── API calls ───────────────────────────────────────────── */
   async function _aiRequest(url, body) {
     const resp = await fetch(url, {
       method: 'POST',
@@ -131,7 +126,6 @@ function _initAiText() {
     return _aiRequest('/api/ai/rephrase', { text, style });
   }
 
-  /* ── Preview overlay ─────────────────────────────────────── */
   function showPreview(original, result) {
     // Remove existing preview
     document.getElementById('ai-preview')?.remove();

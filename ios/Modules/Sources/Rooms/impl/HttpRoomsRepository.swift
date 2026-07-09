@@ -115,7 +115,6 @@ public final class HttpRoomsRepository: RoomsRepository {
         } catch { return false }
     }
 
-    // ── DTOs ───────────────────────────────────────────────────────────
 
     private struct EciesDto: Codable {
         let ephemeral_pub: String

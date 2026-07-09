@@ -1,6 +1,4 @@
-// ══════════════════════════════════════════════════════════════════════════════
 // Bot Management UI
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.showCreateBotForm = function() {
     var form = document.getElementById('create-bot-form');
@@ -81,9 +79,7 @@ function _escBot(s) {
     return d.innerHTML;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Bot Settings Panel — full screen settings for a single bot
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.openBotSettings = async function(botId) {
     // Remove existing panel
@@ -301,9 +297,7 @@ window.editBotCommands = async function(botId) {
         .catch(function(e) { window.vxAlert(t('bots.error') + ': ' + (e.message || e)); });
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Mini App — Save URL for a bot
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.saveBotMiniAppUrl = async function(botId) {
     var input = document.getElementById('miniapp-url-' + botId);
@@ -321,7 +315,6 @@ window.testBotMiniApp = function(botId, url, title) {
     window.openMiniApp(botId, url, title || 'Mini App');
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Mini App Bridge — postMessage communication between Vortex and mini app iframe
 //
 // PROTOCOL (for bot/mini-app developers):
@@ -344,7 +337,6 @@ window.testBotMiniApp = function(botId, url, title) {
 // 4. Vortex responds to get_user with:
 //    { type: "user_info", user_id, username, display_name, theme }
 //
-// ══════════════════════════════════════════════════════════════════════════════
 
 (function() {
     var _miniAppState = {
@@ -533,9 +525,7 @@ window.testBotMiniApp = function(botId, url, title) {
     });
 })();
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Bot Marketplace: publish toggle from bot settings
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.toggleBotPublish = async function(botId, isPublic, category) {
     try {
@@ -549,9 +539,7 @@ window.toggleBotPublish = async function(botId, isPublic, category) {
     }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Bot Marketplace UI
-// ══════════════════════════════════════════════════════════════════════════════
 
 var _mpState = {
     category: '',
@@ -914,7 +902,6 @@ window.mpSubmitReview = async function(botId) {
     }
 };
 
-// ── Report system ──
 window.showReportModal = function(userId, messageId) {
     document.getElementById('report-target-id').value = userId || '';
     document.getElementById('report-message-id').value = messageId || '';

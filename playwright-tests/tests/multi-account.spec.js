@@ -15,7 +15,6 @@ const { randomStr, randomDigits, makePublicKey, createRoom, sendMessage } = requ
  *   - Устройства (devices) для каждого аккаунта
  */
 
-// ── X25519 Crypto Helpers ────────────────────────────────────────────────────
 
 const X25519_SPKI_PREFIX = Buffer.from('302a300506032b656e032100', 'hex');
 
@@ -45,7 +44,6 @@ function computeProof(sessionKey, challengeHex) {
         .digest('hex');
 }
 
-// ── Test Suite ───────────────────────────────────────────────────────────────
 
 test.describe('Multi-Account (4 accounts)', () => {
     const PASSWORD = 'MultiAcc99!@';
@@ -98,7 +96,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         }
     });
 
-    // ── All 4 sessions are valid simultaneously ──────────────────────────────
 
     test('all 4 sessions return correct /me', async () => {
         for (let i = 0; i < 4; i++) {
@@ -113,7 +110,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         }
     });
 
-    // ── Each account creates room and sends messages ─────────────────────────
 
     test('each account creates a room', async () => {
         for (let i = 0; i < 4; i++) {
@@ -136,7 +132,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         }
     });
 
-    // ── History is preserved per account ──────────────────────────────────────
 
     test('each account sees its own message history', async () => {
         for (let i = 0; i < 4; i++) {
@@ -151,7 +146,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         }
     });
 
-    // ── Re-login preserves history ───────────────────────────────────────────
 
     test('re-login preserves message history', async () => {
         const acc = accounts[0];
@@ -181,7 +175,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         expect(messages.length).toBeGreaterThanOrEqual(1);
     });
 
-    // ── X25519 challenge-response login (account switching) ──────────────────
 
     test('X25519 challenge-response key login', async ({ playwright }) => {
         const baseURL = process.env.VORTEX_URL || `http://localhost:${process.env.E2E_PORT || '19000'}`;
@@ -266,7 +259,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         }
     });
 
-    // ── Logout one account doesn't affect others ─────────────────────────────
 
     test('logout account 3 does not affect account 4', async () => {
         const acc3 = accounts[2];
@@ -306,7 +298,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         acc3.csrf = (await csrfRes.json()).csrf_token;
     });
 
-    // ── Devices list per account ─────────────────────────────────────────────
 
     test('each account has its own device session', async () => {
         for (let i = 0; i < 4; i++) {
@@ -318,7 +309,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         }
     });
 
-    // ── Cross-account isolation ──────────────────────────────────────────────
 
     test('account cannot access another account room messages without membership', async () => {
         const acc1 = accounts[0];
@@ -332,7 +322,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         expect([403, 404]).toContain(res.status());
     });
 
-    // ── Account profile independence ─────────────────────────────────────────
 
     test('updating one account profile does not affect others', async () => {
         const acc1 = accounts[0];
@@ -352,7 +341,6 @@ test.describe('Multi-Account (4 accounts)', () => {
         expect(me.display_name).not.toBe('Multi Acc1 Updated');
     });
 
-    // ── Simultaneous messaging ───────────────────────────────────────────────
 
     test('all 4 accounts can send messages simultaneously', async () => {
         const promises = accounts.map(async (acc, i) => {

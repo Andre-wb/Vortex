@@ -62,7 +62,6 @@ def _is_peer_ip(ip: str) -> bool:
         return False
 
 
-# ── FIX F2: mutually-verified peer identity + ownership proof for shards ──────
 # The old gate authorized purely on _is_peer_ip(), so ANY host on a private IP
 # could poison/enumerate shards for an attacker-chosen owner_user_id. We now
 # require an HMAC proof over a shared per-deployment secret (FEDERATION_PSK),
@@ -145,9 +144,7 @@ def _store_rate_ok(ip: str) -> bool:
     return True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class BackupUploadRequest(BaseModel):
     vault_data: str = Field(..., min_length=24, description="hex: nonce(12) + AES-256-GCM ciphertext")
@@ -166,9 +163,7 @@ class LinkApproveRequest(BaseModel):
     encrypted_keys: str = Field(..., min_length=24, description="ECIES encrypted key bundle (hex)")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Key Backup CRUD
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/backup", status_code=200)
 async def upload_backup(
@@ -233,9 +228,7 @@ async def delete_backup(
     return {"ok": True, "message": "Backup deleted"}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Device Linking
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/link/request")
 async def create_link_request(
@@ -380,9 +373,7 @@ async def poll_link_request(
     return result
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Auto-Sync: encrypted key/history events between devices
-# ══════════════════════════════════════════════════════════════════════════════
 # Server is a dumb relay — it stores opaque encrypted blobs and cannot
 # distinguish key material from random noise. All encryption/decryption
 # happens client-side using a sync key derived from the user's master key.
@@ -613,9 +604,7 @@ async def sync_rooms_summary(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Cross-Signing: mutual device verification
-# ══════════════════════════════════════════════════════════════════════════════
 # Each device signs other devices' public keys using HMAC-SHA256 with a
 # key derived from the user's master secret. The server stores only the
 # signature and pub hashes — it cannot forge signatures without the master key.
@@ -683,9 +672,7 @@ async def get_cross_signs(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Sync Preferences (stored client-side, but server holds encrypted copy)
-# ══════════════════════════════════════════════════════════════════════════════
 # Preferences are stored as an encrypted blob — server cannot read them.
 # This allows restoring preferences on new devices.
 
@@ -738,9 +725,7 @@ async def get_sync_settings(
     return {"payload": evt.payload}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # SSSS — Shamir's Secret Sharing Scheme (M-of-N key recovery)
-# ══════════════════════════════════════════════════════════════════════════════
 # Client performs all Shamir GF(256) math. Each share is encrypted (ECIES)
 # for its designated recipient. Server stores only encrypted blobs.
 # To recover: M recipients decrypt their shares → client recombines.
@@ -856,9 +841,7 @@ async def ssss_revoke(
     return {"ok": True, "revoked": count}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Per-device public key (for fingerprint verification)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/device-pub-key")
 async def set_device_pub_key(
@@ -895,9 +878,7 @@ async def set_device_pub_key(
     return {"ok": True, "device_id": device.id}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Federated Backup — distribute encrypted shards to federation peers
-# ══════════════════════════════════════════════════════════════════════════════
 # Client splits backup (Shamir), encrypts each shard (ECIES) for the peer's
 # node X25519 pubkey, and uploads metadata. Shards are forwarded to peers via
 # HTTP POST. For recovery: pull shards from peers.
@@ -1128,9 +1109,7 @@ async def federated_backup_delete(
     return {"ok": True, "deleted": count}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Key Transparency Log — append-only verifiable key history
-# ══════════════════════════════════════════════════════════════════════════════
 # Each entry chains to previous via prev_hash (Merkle-like). Server signs
 # each entry with HMAC-SHA256(server_secret, entry_data). Clients verify
 # the chain to detect unauthorized key insertions or silent replacements.

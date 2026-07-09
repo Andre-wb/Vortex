@@ -16,7 +16,6 @@
         a.classList.toggle('active', a.dataset.nav === tab);
     });
 
-    // ── Canonical JSON (server matches) ────────────────────────────────
     window.canonicalJson = obj => {
         if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
         if (Array.isArray(obj)) return '[' + obj.map(canonicalJson).join(',') + ']';
@@ -51,7 +50,6 @@
         }
     };
 
-    // ── Toast ──────────────────────────────────────────────────────────
     let toastEl;
     window.toast = msg => {
         if (!toastEl) {
@@ -88,7 +86,6 @@
         }
     });
 
-    // ── Time helpers ──────────────────────────────────────────────────
     window.ago = ts => {
         if (!ts) return '—';
         const s = Math.max(0, Math.floor(Date.now() / 1000 - ts));

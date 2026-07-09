@@ -86,7 +86,6 @@ export class ArchiRuntime {
     this._opts      = opts;
   }
 
-  // ── Boot ───────────────────────────────────────────────────────────────────
 
   start(screenName?: string): this {
     this._destroyed = false; // allow re-start after destroy
@@ -310,7 +309,6 @@ export class ArchiRuntime {
     return this;
   }
 
-  // ── Navigation ─────────────────────────────────────────────────────────────
 
   /**
    * Navigate to a named screen.
@@ -436,7 +434,6 @@ export class ArchiRuntime {
     this._currentParams = {};
   }
 
-  // ── Public helpers ──────────────────────────────────────────────────────────
 
   get(key: string): unknown                          { return this._state?.get(key); }
   set(key: string, val: unknown): void               { this._state?.set(key, val); }
@@ -448,7 +445,6 @@ export class ArchiRuntime {
   get canGoBack():     boolean       { return !this._destroyed && this._history.length > 0; }
   get isDestroyed():   boolean       { return this._destroyed; }
 
-  // ── @import Module System ──────────────────────────────────────────────────
 
   /**
    * Async initializer -- processes @import directives before rendering.
@@ -513,7 +509,6 @@ export class ArchiRuntime {
     (this as unknown as { _src: string })._src = importedSrc + '\n' + this._src;
   }
 
-  // ── Internal helpers ────────────────────────────────────────────────────────
 
   private _error(kind: string, message: string, line?: number): void {
     const err: ArchiError = { kind, message, ...(line !== undefined ? { line } : {}) };
@@ -1459,7 +1454,6 @@ export class ArchiRuntime {
   }
 }
 
-// ── IndexedDB helpers ────────────────────────────────────────────────────────
 
 function _openArxDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

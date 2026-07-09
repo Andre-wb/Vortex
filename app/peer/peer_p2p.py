@@ -24,9 +24,7 @@ logger = logging.getLogger(__name__)
 _peer_ssl_ctx = make_peer_ssl_context()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # P2P encrypted send
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def _send_to_peer_encrypted(
         peer:           PeerInfo,
@@ -76,9 +74,7 @@ async def _send_to_peer_encrypted(
         return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # REST API — P2P receive / send
-# ══════════════════════════════════════════════════════════════════════════════
 
 class P2PReceiveRequest(BaseModel):
     ephemeral_pub:     Optional[str]  = None

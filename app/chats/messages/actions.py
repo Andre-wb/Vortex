@@ -33,9 +33,7 @@ from app.chats.messages._router import utc_iso as _utc_iso
 from app.security.sealed_sender import compute_sender_pseudo
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Валидация эмодзи-реакций
-# ══════════════════════════════════════════════════════════════════════════════
 
 # FIX L4: ранее проверялось только len(emoji) <= 10 без charset-фильтра,
 # что позволяло протащить HTML/текст (XSS-вектор при рендере реакций).
@@ -102,9 +100,7 @@ def is_valid_reaction_emoji(raw: str | None) -> bool:
     return has_pictograph
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Прочтение сообщений (read receipts)
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def handle_mark_read(room_id: int, user: User, data: dict, db: Session) -> None:
     """Помечает сообщения прочитанными и уведомляет отправителей."""
@@ -135,9 +131,7 @@ async def handle_mark_read(room_id: int, user: User, data: dict, db: Session) ->
     await manager.broadcast_to_room(room_id, _read_payload)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Реакции на сообщения
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def handle_reaction(room_id: int, user: User, data: dict, db: Session) -> None:
     """Toggle-реакция: добавить если нет, удалить если есть."""
@@ -205,9 +199,7 @@ async def handle_reaction(room_id: int, user: User, data: dict, db: Session) -> 
     await manager.broadcast_to_room(room_id, _react_payload)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Пересылка сообщений
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def handle_forward(room_id: int, user: User, data: dict, db: Session) -> None:
     """Пересылает сообщение в другую комнату."""
@@ -281,9 +273,7 @@ async def handle_forward(room_id: int, user: User, data: dict, db: Session) -> N
     })
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Закрепление сообщений
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def handle_pin_message(room_id: int, user: User, data: dict, db: Session) -> None:
     """Закрепляет/открепляет сообщение в комнате."""

@@ -3,16 +3,13 @@
 
 import { $ } from './utils.js';
 
-// ============================================================================
 // COUNTRY DATA — flag, name, dial code, phone format pattern
 // Sorted by most common usage first, then alphabetically.
 // Format: X = digit, space/dash are literal separators.
-// ============================================================================
 // Helper: build flag emoji from 2-letter ISO code
 const _f = (cc) => String.fromCodePoint(...[...cc].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
 
 const COUNTRIES = [
-    // ── Популярные (вверху для быстрого доступа) ────────────────────────
     { code: 'RU', flag: _f('RU'), name: 'Россия',              dial: '+7',    fmt: 'XXX XXX XX XX' },
     { code: 'US', flag: _f('US'), name: 'United States',       dial: '+1',    fmt: 'XXX XXX XXXX' },
     { code: 'GB', flag: _f('GB'), name: 'United Kingdom',      dial: '+44',   fmt: 'XXXX XXXXXX' },
@@ -24,7 +21,6 @@ const COUNTRIES = [
     { code: 'BR', flag: _f('BR'), name: 'Brasil',              dial: '+55',   fmt: 'XX XXXXX XXXX' },
     { code: 'KZ', flag: _f('KZ'), name: 'Қазақстан',           dial: '+7',    fmt: 'XXX XXX XX XX' },
 
-    // ── Зона 1: NANP (Сев.Америка + Карибы) ────────────────────────────
     { code: 'CA', flag: _f('CA'), name: 'Canada',              dial: '+1',    fmt: 'XXX XXX XXXX' },
     { code: 'BS', flag: _f('BS'), name: 'Bahamas',             dial: '+1242', fmt: 'XXX XXXX' },
     { code: 'BB', flag: _f('BB'), name: 'Barbados',            dial: '+1246', fmt: 'XXX XXXX' },
@@ -50,7 +46,6 @@ const COUNTRIES = [
     { code: 'TT', flag: _f('TT'), name: 'Trinidad & Tobago',   dial: '+1868', fmt: 'XXX XXXX' },
     { code: 'KN', flag: _f('KN'), name: 'Saint Kitts & Nevis', dial: '+1869', fmt: 'XXX XXXX' },
 
-    // ── Зона 2: Африка ─────────────────────────────────────────────────
     { code: 'EG', flag: _f('EG'), name: 'مصر (Egypt)',          dial: '+20',   fmt: 'XXX XXX XXXX' },
     { code: 'SS', flag: _f('SS'), name: 'South Sudan',          dial: '+211',  fmt: 'XX XXX XXXX' },
     { code: 'MA', flag: _f('MA'), name: 'المغرب (Morocco)',     dial: '+212',  fmt: 'XX XXX XXXX' },
@@ -116,7 +111,6 @@ const COUNTRIES = [
     { code: 'FO', flag: _f('FO'), name: 'Føroyar',               dial: '+298',  fmt: 'XXXXXX' },
     { code: 'GL', flag: _f('GL'), name: 'Kalaallit Nunaat',        dial: '+299',  fmt: 'XX XX XX' },
 
-    // ── Зона 3: Европа ─────────────────────────────────────────────────
     { code: 'GR', flag: _f('GR'), name: 'Ελλάδα (Greece)',        dial: '+30',   fmt: 'XXX XXX XXXX' },
     { code: 'NL', flag: _f('NL'), name: 'Nederland',               dial: '+31',   fmt: 'X XXXXXXXX' },
     { code: 'BE', flag: _f('BE'), name: 'Belgique',                dial: '+32',   fmt: 'XXX XX XX XX' },
@@ -152,7 +146,6 @@ const COUNTRIES = [
     { code: 'BA', flag: _f('BA'), name: 'Bosna i Hercegovina',    dial: '+387',  fmt: 'XX XXX XXX' },
     { code: 'MK', flag: _f('MK'), name: 'С.Македонија',           dial: '+389',  fmt: 'XX XXX XXX' },
 
-    // ── Зона 4: Европа ─────────────────────────────────────────────────
     { code: 'RO', flag: _f('RO'), name: 'România',               dial: '+40',   fmt: 'XXX XXX XXX' },
     { code: 'CH', flag: _f('CH'), name: 'Schweiz',                dial: '+41',   fmt: 'XX XXX XX XX' },
     { code: 'CZ', flag: _f('CZ'), name: 'Česko',                 dial: '+420',  fmt: 'XXX XXX XXX' },
@@ -168,7 +161,6 @@ const COUNTRIES = [
     { code: 'SJ', flag: _f('SJ'), name: 'Svalbard & Jan Mayen',   dial: '+47',   fmt: 'XX XX XX XX' },
     { code: 'PL', flag: _f('PL'), name: 'Polska',                 dial: '+48',   fmt: 'XXX XXX XXX' },
 
-    // ── Зона 5: Латинская Америка ───────────────────────────────────────
     { code: 'FK', flag: _f('FK'), name: 'Falkland Islands',        dial: '+500',  fmt: 'XXXXX' },
     { code: 'GS', flag: _f('GS'), name: 'South Georgia & S.Sandwich Is.', dial: '+500', fmt: 'XXXXX' },
     { code: 'BZ', flag: _f('BZ'), name: 'Belize',                  dial: '+501',  fmt: 'XXX XXXX' },
@@ -201,7 +193,6 @@ const COUNTRIES = [
     { code: 'BQ', flag: _f('BQ'), name: 'Caribbean Netherlands',  dial: '+599',  fmt: 'XXX XXXX' },
     { code: 'CW', flag: _f('CW'), name: 'Curaçao',              dial: '+5999', fmt: 'XXX XXXX' },
 
-    // ── Зона 6: Юго-Вост. Азия и Океания ────────────────────────────────
     { code: 'MY', flag: _f('MY'), name: 'Malaysia',               dial: '+60',   fmt: 'XX XXXX XXXX' },
     { code: 'AU', flag: _f('AU'), name: 'Australia',              dial: '+61',   fmt: 'XXX XXX XXX' },
     { code: 'CX', flag: _f('CX'), name: 'Christmas Island',       dial: '+61',   fmt: 'XXX XXX XXX' },
@@ -233,9 +224,7 @@ const COUNTRIES = [
     { code: 'FM', flag: _f('FM'), name: 'Micronesia',              dial: '+691',  fmt: 'XXX XXXX' },
     { code: 'MH', flag: _f('MH'), name: 'Marshall Islands',        dial: '+692',  fmt: 'XXX XXXX' },
 
-    // ── Зона 7: Россия & Казахстан (уже вверху) ─────────────────────────
 
-    // ── Зона 8: Восточная и Юго-Восточная Азия ──────────────────────────
     { code: 'JP', flag: _f('JP'), name: '日本 (Japan)',            dial: '+81',   fmt: 'XX XXXX XXXX' },
     { code: 'KR', flag: _f('KR'), name: '한국 (South Korea)',     dial: '+82',   fmt: 'XX XXXX XXXX' },
     { code: 'VN', flag: _f('VN'), name: 'Việt Nam',              dial: '+84',   fmt: 'XXX XXX XXXX' },
@@ -247,7 +236,6 @@ const COUNTRIES = [
     { code: 'BD', flag: _f('BD'), name: 'বাংলাদেশ (Bangladesh)', dial: '+880',  fmt: 'XXXX XXXXXX' },
     { code: 'TW', flag: _f('TW'), name: '台灣 (Taiwan)',          dial: '+886',  fmt: 'XXX XXX XXX' },
 
-    // ── Зона 9: Зап., Центр. и Южная Азия ───────────────────────────────
     { code: 'TR', flag: _f('TR'), name: 'Türkiye',               dial: '+90',   fmt: 'XXX XXX XXXX' },
     { code: 'PK', flag: _f('PK'), name: 'پاکستان (Pakistan)',    dial: '+92',   fmt: 'XXX XXX XXXX' },
     { code: 'AF', flag: _f('AF'), name: 'افغانستان (Afghanistan)',dial: '+93',   fmt: 'XX XXX XXXX' },
@@ -282,9 +270,7 @@ const COUNTRIES = [
 let _selectedCountry = COUNTRIES[0]; // RU default
 let _dropdownBuilt = false;
 
-// ============================================================================
 // PASSWORD STRENGTH
-// ============================================================================
 const PW_LABELS = [
     '',
     window.t ? window.t('password.veryWeak') : 'Very weak',
@@ -354,9 +340,7 @@ function _updateStrengthUI(pw) {
     }
 }
 
-// ============================================================================
 // PASSWORD CONFIRMATION
-// ============================================================================
 function _updateMatchUI() {
     const pw = $('r-pass')?.value || '';
     const confirm = $('r-pass-confirm')?.value || '';
@@ -377,9 +361,7 @@ function _updateMatchUI() {
     }
 }
 
-// ============================================================================
 // PHONE NUMBER FORMATTING
-// ============================================================================
 function _formatPhone(digits, fmt) {
     let result = '';
     let di = 0;
@@ -410,9 +392,7 @@ function _onPhoneInput() {
     }
 }
 
-// ============================================================================
 // COUNTRY DROPDOWN
-// ============================================================================
 function _buildDropdown() {
     const dd = $('phone-country-dropdown');
     if (!dd || _dropdownBuilt) return;
@@ -507,9 +487,7 @@ function _onDocClick(e) {
     dd.classList.remove('open');
 }
 
-// ============================================================================
 // GET FULL PHONE (for doRegister)
-// ============================================================================
 export function getFullPhone() {
     const input = $('r-phone');
     if (!input) return '';
@@ -518,9 +496,7 @@ export function getFullPhone() {
     return _selectedCountry.dial + digits;
 }
 
-// ============================================================================
 // PASSWORD VALIDATION (for doRegister)
-// ============================================================================
 export function validatePasswords() {
     const pw = $('r-pass')?.value || '';
     const confirm = $('r-pass-confirm')?.value || '';
@@ -530,9 +506,7 @@ export function validatePasswords() {
     return null;
 }
 
-// ============================================================================
 // INIT
-// ============================================================================
 export function initPhonePassword() {
     // Password strength
     const passInput = $('r-pass');

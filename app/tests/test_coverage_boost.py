@@ -5,9 +5,7 @@ import pytest
 from conftest import make_user, login_user, random_str, random_digits
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot API (app/bots/bot_api.py — 24% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestBotAPI:
     def test_create_bot(self, client, logged_user):
@@ -100,9 +98,7 @@ class TestBotAPI:
         assert r.status_code in (200, 400, 403, 404, 405, 422)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Reports & Moderation (app/chats/reports.py — 26% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestReportsExtended:
     def test_report_user(self, client, two_users):
@@ -140,9 +136,7 @@ class TestReportsExtended:
         assert r.status_code in (200, 404, 405)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Spaces (app/chats/spaces.py — 31% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSpacesExtended:
     def test_create_space(self, client, logged_user):
@@ -271,9 +265,7 @@ class TestSpacesExtended:
                 assert r.status_code in (200, 400, 403, 404, 422, 500)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Stickers (app/chats/stickers.py — 34% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestStickersExtended:
     def test_create_pack(self, client, logged_user):
@@ -344,9 +336,7 @@ class TestStickersExtended:
         assert r.status_code in (200, 404, 405)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # DM Extended (app/chats/dm.py — 37% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestDMFlow:
     def test_full_dm_flow(self, client):
@@ -385,9 +375,7 @@ class TestDMFlow:
         assert r3.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Voice Extended (app/chats/voice.py — 24% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestVoiceFlow:
     def test_voice_full_flow(self, client, logged_user, room):
@@ -418,9 +406,7 @@ class TestVoiceFlow:
             assert r5.status_code in (200, 400, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # File Uploads (app/files/resumable.py — 28% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestResumableUpload:
     def test_upload_init(self, client, logged_user, room):
@@ -457,9 +443,7 @@ class TestResumableUpload:
         assert r.status_code in (200, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Saved Messages Extended (app/chats/saved.py — 59% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSavedExtended:
     def test_list_saved(self, client, logged_user):
@@ -477,9 +461,7 @@ class TestSavedExtended:
         assert r.status_code in (200, 204, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Tasks Extended (app/chats/tasks.py — 58% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestTasksExtended:
     def test_create_task(self, client, logged_user, room):
@@ -538,9 +520,7 @@ class TestTasksExtended:
                 assert r.status_code in (200, 404, 422)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Statuses Extended (app/chats/statuses.py — 76% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestStatusesExtended:
     def test_create_text_status(self, client, logged_user):
@@ -571,9 +551,7 @@ class TestStatusesExtended:
             assert r.status_code in (200, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # WAF Extended (app/security/waf.py — 64% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestWAFEndpoints:
     def test_waf_stats(self, client):
@@ -601,9 +579,7 @@ class TestWAFEndpoints:
         assert r.status_code in (200, 404, 405)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Keys Extended (app/keys/keys.py — 50% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestKeysExtended:
     def test_node_pubkey(self, client):
@@ -621,9 +597,7 @@ class TestKeysExtended:
         assert r.status_code in (200, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Antispam Bot (app/bots/antispam_bot.py — 26% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestAntispamBot:
     def test_ensure_antispam_bot(self):
@@ -683,9 +657,7 @@ class TestAntispamBot:
             db.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Federation Extended (app/federation/federation.py — 36% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestFederationExtended:
     def test_federation_relay_manager(self):
@@ -704,9 +676,7 @@ class TestFederationExtended:
         assert r.status_code in (200, 400, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Main app endpoints (app/main.py — 64% coverage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestMainEndpoints:
     def test_root(self, client):

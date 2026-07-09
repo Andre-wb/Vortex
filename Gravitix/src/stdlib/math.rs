@@ -2,21 +2,16 @@ use crate::value::Value;
 use crate::error::GravResult;
 use crate::runtime_err;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Golden ratio and Euler-Mascheroni constant (not in std::f64::consts)
-// ─────────────────────────────────────────────────────────────────────────────
 
 const PHI: f64 = 1.618_033_988_749_895;
 const EULER_GAMMA: f64 = 0.577_215_664_901_532_9;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public entry point — dispatches `math.<name>(args)` calls
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn call_math_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>> {
     let v = match name {
 
-        // ── Constants ────────────────────────────────────────────────────────
         "pi"          => Value::Float(std::f64::consts::PI),
         "e"           => Value::Float(std::f64::consts::E),
         "tau"         => Value::Float(std::f64::consts::TAU),
@@ -25,7 +20,6 @@ pub fn call_math_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>
         "phi"         => Value::Float(PHI),
         "euler_gamma" => Value::Float(EULER_GAMMA),
 
-        // ── Basic arithmetic ─────────────────────────────────────────────────
         "abs" => {
             match args.first() {
                 Some(Value::Int(n))   => Value::Int(n.abs()),
@@ -62,7 +56,6 @@ pub fn call_math_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>
             Value::Int(r as i64)
         }
 
-        // ── Trigonometry (radians) ───────────────────────────────────────────
         "sin"  => { let f = get_float(args, 0, "sin")?;  Value::Float(f.sin())  }
         "cos"  => { let f = get_float(args, 0, "cos")?;  Value::Float(f.cos())  }
         "tan"  => { let f = get_float(args, 0, "tan")?;  Value::Float(f.tan())  }
@@ -75,7 +68,6 @@ pub fn call_math_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>
             Value::Float(y.atan2(x))
         }
 
-        // ── Hyperbolic ───────────────────────────────────────────────────────
         "sinh"  => { let f = get_float(args, 0, "sinh")?;  Value::Float(f.sinh())  }
         "cosh"  => { let f = get_float(args, 0, "cosh")?;  Value::Float(f.cosh())  }
         "tanh"  => { let f = get_float(args, 0, "tanh")?;  Value::Float(f.tanh())  }
@@ -83,7 +75,6 @@ pub fn call_math_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>
         "acosh" => { let f = get_float(args, 0, "acosh")?; Value::Float(f.acosh()) }
         "atanh" => { let f = get_float(args, 0, "atanh")?; Value::Float(f.atanh()) }
 
-        // ── Logarithms & exponentials ────────────────────────────────────────
         "ln"    => { let f = get_float(args, 0, "ln")?;    Value::Float(f.ln())    }
         "log2"  => { let f = get_float(args, 0, "log2")?;  Value::Float(f.log2())  }
         "log10" => { let f = get_float(args, 0, "log10")?; Value::Float(f.log10()) }
@@ -95,7 +86,6 @@ pub fn call_math_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>
         "exp"  => { let f = get_float(args, 0, "exp")?;  Value::Float(f.exp())  }
         "exp2" => { let f = get_float(args, 0, "exp2")?; Value::Float(f.exp2()) }
 
-        // ── Helpers ──────────────────────────────────────────────────────────
         "sign" => {
             let f = get_float(args, 0, "sign")?;
             let s = if f > 0.0 { 1 } else if f < 0.0 { -1 } else { 0 };
@@ -152,15 +142,12 @@ pub fn call_math_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>
             Value::Bool((a - b).abs() < eps)
         }
 
-        // ── Unknown — let the caller decide ──────────────────────────────────
         _ => return Ok(None),
     };
     Ok(Some(v))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Argument extraction helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn get_num(args: &[Value], idx: usize, fn_name: &str) -> GravResult<f64> {
     args.get(idx)

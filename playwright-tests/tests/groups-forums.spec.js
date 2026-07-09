@@ -52,7 +52,6 @@ test.describe('Groups & Forums', () => {
         });
     });
 
-    // ── Topics ────────────────────────────────────────────────────────────────
 
     test('create topic', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/topics`, {
@@ -81,7 +80,6 @@ test.describe('Groups & Forums', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Forum Threads ─────────────────────────────────────────────────────────
 
     test('create forum thread', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/forum`, {
@@ -128,7 +126,6 @@ test.describe('Groups & Forums', () => {
         expect([200, 201]).toContain(res.status());
     });
 
-    // ── Permissions ───────────────────────────────────────────────────────────
 
     test('get room permissions', async ({ request }) => {
         const res = await request.get(`/api/rooms/${roomId}/permissions`, {
@@ -145,7 +142,6 @@ test.describe('Groups & Forums', () => {
         expect([200, 204, 400]).toContain(res.status());
     });
 
-    // ── AutoMod ───────────────────────────────────────────────────────────────
 
     test('create automod rule', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/automod`, {
@@ -187,7 +183,6 @@ test.describe('Groups & Forums', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Slowmode ──────────────────────────────────────────────────────────────
 
     test('set slowmode', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/slow-mode`, {
@@ -204,7 +199,6 @@ test.describe('Groups & Forums', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Room Themes ───────────────────────────────────────────────────────────
 
     test('set room theme', async ({ request }) => {
         const res = await request.put(`/api/rooms/${roomId}/theme`, {
@@ -232,7 +226,6 @@ test.describe('Groups & Forums', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Auto-Delete ───────────────────────────────────────────────────────────
 
     test('set auto-delete timer', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/auto-delete`, {
@@ -242,7 +235,6 @@ test.describe('Groups & Forums', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Room Export ───────────────────────────────────────────────────────────
 
     test('export room', async ({ request }) => {
         const res = await request.get(`/api/rooms/${roomId}/export`, {
@@ -251,7 +243,6 @@ test.describe('Groups & Forums', () => {
         expect([200, 202]).toContain(res.status());
     });
 
-    // ── Channel Feeds (RSS) ───────────────────────────────────────────────────
 
     test('create RSS feed', async ({ request }) => {
         const res = await request.post(`/api/channels/${roomId}/feeds`, {
@@ -275,7 +266,6 @@ test.describe('Groups & Forums', () => {
         expect([200, 204, 404]).toContain(res.status());
     });
 
-    // ── Webhook ───────────────────────────────────────────────────────────────
 
     test('set room webhook', async ({ request }) => {
         const res = await request.post(`/api/channels/${roomId}/webhook`, {
@@ -285,7 +275,6 @@ test.describe('Groups & Forums', () => {
         expect([200, 201, 400]).toContain(res.status());
     });
 
-    // ── Cleanup topics ────────────────────────────────────────────────────────
 
     test('delete topic', async ({ request }) => {
         expect(topicId).toBeTruthy();

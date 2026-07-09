@@ -2,9 +2,7 @@ use crate::ast::*;
 use crate::error::{GravError, GravResult};
 use crate::lexer::{Token, TokenKind};
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Parser — recursive-descent
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -24,7 +22,6 @@ impl Parser {
         Ok(Program { items })
     }
 
-    // ── helpers ───────────────────────────────────────────────────────────────
 
     fn peek(&self) -> &TokenKind {
         &self.tokens[self.pos].kind
@@ -76,7 +73,6 @@ impl Parser {
 
     fn eat_semi(&mut self) { self.eat(&TokenKind::Semi); }
 
-    // ── top-level item ────────────────────────────────────────────────────────
 
     fn parse_item(&mut self) -> GravResult<Item> {
         // Feature N7: collect doc comments
@@ -266,7 +262,6 @@ impl Parser {
         Ok(stmts)
     }
 
-    // ── fn definition ─────────────────────────────────────────────────────────
 
     fn parse_fn(&mut self) -> GravResult<FnDef> {
         self.parse_fn_with_decorators(vec![])
@@ -296,7 +291,6 @@ impl Parser {
         Ok(params)
     }
 
-    // ── handler ───────────────────────────────────────────────────────────────
 
     fn parse_handler(&mut self) -> GravResult<Handler> {
         let line = self.peek_tok().line;
@@ -550,7 +544,6 @@ impl Parser {
         }
     }
 
-    // ── flow ──────────────────────────────────────────────────────────────────
 
     fn parse_flow(&mut self) -> GravResult<FlowDef> {
         let line = self.peek_tok().line;
@@ -560,7 +553,6 @@ impl Parser {
         Ok(FlowDef { name, body, line, doc: None })
     }
 
-    // ── state ─────────────────────────────────────────────────────────────────
 
     fn parse_state(&mut self) -> GravResult<StateDef> {
         self.advance(); // state
@@ -584,7 +576,6 @@ impl Parser {
         Ok(StateDef { fields })
     }
 
-    // ── every / at ────────────────────────────────────────────────────────────
 
     fn parse_every(&mut self) -> GravResult<EveryDef> {
         self.advance(); // every
@@ -716,7 +707,6 @@ impl Parser {
         }
     }
 
-    // ── block ─────────────────────────────────────────────────────────────────
 
     fn parse_block(&mut self) -> GravResult<Vec<Stmt>> {
         self.expect(&TokenKind::LBrace)?;
@@ -728,7 +718,6 @@ impl Parser {
         Ok(stmts)
     }
 
-    // ── statement ─────────────────────────────────────────────────────────────
 
     fn parse_stmt(&mut self) -> GravResult<Stmt> {
         let stmt = match self.peek() {
@@ -1136,7 +1125,6 @@ impl Parser {
         Ok(Stmt::Assert { cond, msg })
     }
 
-    // ── FSM definition ────────────────────────────────────────────────────────
 
     fn parse_fsm(&mut self) -> GravResult<FsmDef> {
         self.advance(); // fsm
@@ -1209,7 +1197,6 @@ impl Parser {
         Ok(FsmDef { name, initial, states })
     }
 
-    // ── permission definition ─────────────────────────────────────────────────
 
     fn parse_permission(&mut self) -> GravResult<PermDef> {
         self.advance(); // permission
@@ -1221,7 +1208,6 @@ impl Parser {
         Ok(PermDef { name, cond })
     }
 
-    // ── schedule definition ───────────────────────────────────────────────────
 
     fn parse_schedule(&mut self) -> GravResult<ScheduleDef> {
         self.advance(); // schedule
@@ -1238,7 +1224,6 @@ impl Parser {
         Ok(ScheduleDef { cron, body })
     }
 
-    // ── Feature 3: hook before/after msg { body } ────────────────────────────
 
     fn parse_hook(&mut self) -> GravResult<HookDef> {
         self.advance(); // hook
@@ -1259,7 +1244,6 @@ impl Parser {
         Ok(HookDef { when, body })
     }
 
-    // ── Feature 5: plugin "name" { key: expr, … } ────────────────────────────
 
     fn parse_plugin(&mut self) -> GravResult<PluginDef> {
         self.advance(); // plugin
@@ -1285,7 +1269,6 @@ impl Parser {
         Ok(PluginDef { name, config })
     }
 
-    // ── Feature 6: template name(params) { body } ────────────────────────────
     // Desugared to FnDef
 
     fn parse_template(&mut self) -> GravResult<FnDef> {
@@ -1299,7 +1282,6 @@ impl Parser {
         Ok(FnDef { name, params, ret: None, body, decorators: vec![], line, doc: None })
     }
 
-    // ── Feature 7: federated emit "room@node" expr ───────────────────────────
 
     fn parse_federated_emit(&mut self) -> GravResult<Stmt> {
         self.advance(); // federated
@@ -1309,7 +1291,6 @@ impl Parser {
         Ok(Stmt::FederatedEmit { target, msg })
     }
 
-    // ── Feature 9: metrics { counter x, gauge y, … } ─────────────────────────
 
     fn parse_metrics(&mut self) -> GravResult<MetricsDef> {
         self.advance(); // metrics
@@ -1334,7 +1315,6 @@ impl Parser {
         Ok(MetricsDef { defs })
     }
 
-    // ── Feature 11: abtest "name" { variant A { } variant B { } } ────────────
 
     fn parse_abtest(&mut self) -> GravResult<AbTestDef> {
         self.advance(); // abtest
@@ -1368,7 +1348,6 @@ impl Parser {
         Ok(AbTestDef { name, variant_a, variant_b })
     }
 
-    // ── Feature 4: defer { body } ──────────────────────────────────────────────
 
     fn parse_defer(&mut self) -> GravResult<Stmt> {
         self.advance(); // defer
@@ -1376,7 +1355,6 @@ impl Parser {
         Ok(Stmt::Defer { body })
     }
 
-    // ── Feature 11: paginate(items, page_size) [with { ... }] ────────────────
 
     fn parse_paginate(&mut self) -> GravResult<Stmt> {
         self.advance(); // paginate
@@ -1404,7 +1382,6 @@ impl Parser {
         Ok(Stmt::Paginate { items, page_size, format_fn, title })
     }
 
-    // ── Feature 12: lang { ru: { ... }, en: { ... } } ────────────────────────
 
     fn parse_lang_def(&mut self) -> GravResult<LangDef> {
         self.advance(); // lang
@@ -1430,7 +1407,6 @@ impl Parser {
         Ok(LangDef { locales })
     }
 
-    // ── expression hierarchy (Pratt-style) ───────────────────────────────────
     //   or → and → compare → add → mul → unary → postfix → primary
 
     pub(crate) fn parse_expr(&mut self) -> GravResult<Expr> {
@@ -1932,9 +1908,7 @@ impl Parser {
         Ok(args)
     }
 
-    // ── type expressions ──────────────────────────────────────────────────────
 
-    // ── enum definition ────────────────────────────────────────────────────────
 
     fn parse_enum_def(&mut self) -> GravResult<EnumDef> {
         self.advance(); // enum
@@ -1961,7 +1935,6 @@ impl Parser {
         Ok(EnumDef { name, variants })
     }
 
-    // ── impl block ───────────────────────────────────────────────────────────
 
     fn parse_impl_block(&mut self) -> GravResult<ImplBlock> {
         self.advance(); // impl
@@ -1979,7 +1952,6 @@ impl Parser {
         Ok(ImplBlock { type_name, methods })
     }
 
-    // ── queue definition ─────────────────────────────────────────────────────
 
     fn parse_queue_def(&mut self) -> GravResult<QueueDef> {
         self.advance(); // queue
@@ -2005,7 +1977,6 @@ impl Parser {
         Ok(QueueDef { name, config })
     }
 
-    // ── spawn { body } ──────────────────────────────────────────────────────
 
     fn parse_spawn(&mut self) -> GravResult<Stmt> {
         self.advance(); // spawn
@@ -2013,7 +1984,6 @@ impl Parser {
         Ok(Stmt::Spawn { body })
     }
 
-    // ── embed { key: val, ... } ─────────────────────────────────────────────
 
     fn parse_embed_stmt(&mut self) -> GravResult<Stmt> {
         self.advance(); // embed
@@ -2030,7 +2000,6 @@ impl Parser {
         Ok(Stmt::Embed { fields })
     }
 
-    // ── enqueue "queue_name" { body } ───────────────────────────────────────
 
     fn parse_enqueue(&mut self) -> GravResult<Stmt> {
         self.advance(); // enqueue
@@ -2046,7 +2015,6 @@ impl Parser {
         Ok(Stmt::Enqueue { queue_name, body })
     }
 
-    // ── Feature 1: decorators ────────────────────────────────────────────────
 
     fn parse_decorators(&mut self) -> GravResult<Vec<crate::ast::Decorator>> {
         let mut decorators = Vec::new();
@@ -2065,7 +2033,6 @@ impl Parser {
         Ok(decorators)
     }
 
-    // ── Feature 2: fire "event" data ─────────────────────────────────────────
 
     fn parse_fire(&mut self) -> GravResult<Stmt> {
         self.advance(); // fire
@@ -2078,7 +2045,6 @@ impl Parser {
         Ok(Stmt::Fire { event, data })
     }
 
-    // ── Feature 3: watch state.field { body } ──────────────────────────────
 
     fn parse_watch_def(&mut self) -> GravResult<WatchDef> {
         self.advance(); // watch
@@ -2090,7 +2056,6 @@ impl Parser {
         Ok(WatchDef { field, body })
     }
 
-    // ── Feature 4: select { arms } ──────────────────────────────────────────
 
     fn parse_select(&mut self) -> GravResult<Stmt> {
         self.advance(); // select
@@ -2149,7 +2114,6 @@ impl Parser {
         Ok(Stmt::Select { arms })
     }
 
-    // ── Feature 5: mock target { body } ──────────────────────────────────────
 
     fn parse_mock(&mut self) -> GravResult<Stmt> {
         self.advance(); // mock
@@ -2163,7 +2127,6 @@ impl Parser {
         Ok(Stmt::Mock { target, body })
     }
 
-    // ── Feature 6: validate expr as kind or { body } ────────────────────────
 
     fn parse_validate(&mut self) -> GravResult<Stmt> {
         self.advance(); // validate
@@ -2214,7 +2177,6 @@ impl Parser {
         Ok(Stmt::Validate { value, kind, or_body })
     }
 
-    // ── Feature 8: batch { body } ────────────────────────────────────────────
 
     fn parse_batch(&mut self) -> GravResult<Stmt> {
         self.advance(); // batch
@@ -2222,7 +2184,6 @@ impl Parser {
         Ok(Stmt::Batch { body })
     }
 
-    // ── Feature 9: admin { ... } ─────────────────────────────────────────────
 
     fn parse_admin_def(&mut self) -> GravResult<AdminDef> {
         self.advance(); // admin
@@ -2263,7 +2224,6 @@ impl Parser {
         Ok(AdminDef { config, sections })
     }
 
-    // ── Feature 11: middleware name(params) { body } ──────────────────────────
 
     fn parse_middleware_def(&mut self) -> GravResult<MiddlewareDef> {
         self.advance(); // middleware
@@ -2275,7 +2235,6 @@ impl Parser {
         Ok(MiddlewareDef { name, params, body })
     }
 
-    // ── type expressions ──────────────────────────────────────────────────────
 
     fn parse_type(&mut self) -> GravResult<TypeExpr> {
         let base = match self.peek().clone() {
@@ -2317,7 +2276,6 @@ impl Parser {
         } else { Ok(base) }
     }
 
-    // ── Feature N1: intents { name: [phrases], ... } ─────────────────────────
 
     fn parse_intents_def(&mut self) -> GravResult<IntentsDef> {
         self.advance(); // intents
@@ -2348,7 +2306,6 @@ impl Parser {
         Ok(IntentsDef { intents })
     }
 
-    // ── Feature N2: entities { name: builtin|[list], ... } ───────────────────
 
     fn parse_entities_def(&mut self) -> GravResult<EntitiesDef> {
         self.advance(); // entities
@@ -2389,7 +2346,6 @@ impl Parser {
         Ok(EntitiesDef { entities })
     }
 
-    // ── Feature N3: circuit_breaker "name" { config } ────────────────────────
 
     fn parse_circuit_breaker_def(&mut self) -> GravResult<CircuitBreakerDef> {
         self.advance(); // circuit_breaker
@@ -2415,7 +2371,6 @@ impl Parser {
         Ok(CircuitBreakerDef { name, config })
     }
 
-    // ── Feature N5: canary "name" { percent: N, on trigger { } } ────────────
 
     fn parse_canary_def(&mut self) -> GravResult<CanaryDef> {
         self.advance(); // canary
@@ -2453,7 +2408,6 @@ impl Parser {
         Ok(CanaryDef { name, percent, handlers })
     }
 
-    // ── Feature N10: multiplatform { platform: { config }, ... } ──────────────
 
     fn parse_multiplatform_def(&mut self) -> GravResult<MultiplatformDef> {
         self.advance(); // multiplatform
@@ -2479,7 +2433,6 @@ impl Parser {
         Ok(MultiplatformDef { platforms })
     }
 
-    // ── Feature N11: migration "name" { body } ──────────────────────────────
 
     fn parse_migration_def(&mut self) -> GravResult<MigrationDef> {
         self.advance(); // migration
@@ -2495,7 +2448,6 @@ impl Parser {
         Ok(MigrationDef { name, body })
     }
 
-    // ── Feature N8: debug { body } ──────────────────────────────────────────
 
     fn parse_debug_stmt(&mut self) -> GravResult<Stmt> {
         self.advance(); // debug
@@ -2503,7 +2455,6 @@ impl Parser {
         Ok(Stmt::Debug { body })
     }
 
-    // ── Feature N12: simulate/expect_reply in non-scenario context ──────────
 
     fn parse_simulate_stmt(&mut self) -> GravResult<Stmt> {
         self.advance(); // simulate
@@ -2535,7 +2486,6 @@ impl Parser {
         Ok(Stmt::ExpectReply { check })
     }
 
-    // ── Feature W2: table { config } ────────────────────────────────────────
 
     fn parse_table_stmt(&mut self) -> GravResult<Stmt> {
         self.advance(); // table
@@ -2552,7 +2502,6 @@ impl Parser {
         Ok(Stmt::Table { config })
     }
 
-    // ── Feature W3: chart { config } ────────────────────────────────────────
 
     fn parse_chart_stmt(&mut self) -> GravResult<Stmt> {
         self.advance(); // chart
@@ -2569,7 +2518,6 @@ impl Parser {
         Ok(Stmt::Chart { config })
     }
 
-    // ── Feature W6: stream { body } ─────────────────────────────────────────
 
     fn parse_stream_stmt(&mut self) -> GravResult<Stmt> {
         self.advance(); // stream
@@ -2577,7 +2525,6 @@ impl Parser {
         Ok(Stmt::Stream { body })
     }
 
-    // ── Feature W5: webhook "/path" { config, on "event" { body } } ─────────
 
     fn parse_webhook_def(&mut self) -> GravResult<WebhookDef> {
         self.advance(); // webhook
@@ -2615,7 +2562,6 @@ impl Parser {
         Ok(WebhookDef { path, config, handlers })
     }
 
-    // ── Feature W7: permissions { roles: { ... }, default: "role" } ──────────
 
     fn parse_permissions_def(&mut self) -> GravResult<PermissionsDef> {
         self.advance(); // permissions
@@ -2668,7 +2614,6 @@ impl Parser {
         Ok(PermissionsDef { roles, default_role })
     }
 
-    // ── Feature W8: ratelimit { global: N per minute, ... } ─────────────────
 
     fn parse_ratelimit_def(&mut self) -> GravResult<RatelimitDef> {
         self.advance(); // ratelimit
@@ -2703,7 +2648,6 @@ impl Parser {
         Ok(RatelimitDef { rules })
     }
 
-    // ── Feature W11: typedef Name = base_type [where expr] ──────────────────
 
     fn parse_typedef_item(&mut self) -> GravResult<TypeDefItem> {
         self.advance(); // typedef
@@ -2720,9 +2664,7 @@ impl Parser {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -2755,7 +2697,6 @@ mod tests {
         }
     }
 
-    // ── Function definitions ─────────────────────────────────────────────────
 
     #[test]
     fn parse_empty_fn() {
@@ -2805,7 +2746,6 @@ mod tests {
         }
     }
 
-    // ── Handlers ─────────────────────────────────────────────────────────────
 
     #[test]
     fn parse_on_command() {
@@ -2868,7 +2808,6 @@ mod tests {
         }
     }
 
-    // ── Statements ───────────────────────────────────────────────────────────
 
     #[test]
     fn parse_let_stmt() {
@@ -3023,7 +2962,6 @@ mod tests {
         }
     }
 
-    // ── Top-level constructs ─────────────────────────────────────────────────
 
     #[test]
     fn parse_import() {
@@ -3107,7 +3045,6 @@ mod tests {
         }
     }
 
-    // ── Expressions ──────────────────────────────────────────────────────────
 
     #[test]
     fn parse_int_expr() {
@@ -3211,7 +3148,6 @@ mod tests {
         assert!(matches!(s, Stmt::Expr(Expr::Index { .. })));
     }
 
-    // ── Multiple items ───────────────────────────────────────────────────────
 
     #[test]
     fn parse_multiple_items() {
@@ -3227,7 +3163,6 @@ mod tests {
         assert!(matches!(prog.items[1], Item::FnDef(_)));
     }
 
-    // ── Error cases ──────────────────────────────────────────────────────────
 
     #[test]
     fn parse_fn_missing_name() {

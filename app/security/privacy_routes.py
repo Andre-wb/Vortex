@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/privacy", tags=["privacy"])
 
 
-# ── Models ────────────────────────────────────────────────────────────────────
 
 class EphemeralRequest(BaseModel):
     room_id: int
@@ -40,7 +39,6 @@ class PadRequest(BaseModel):
     target_size: int = 0  # 0 = auto
 
 
-# ── Tor ───────────────────────────────────────────────────────────────────────
 
 @router.get("/tor/status")
 async def tor_status(u: User = Depends(get_current_user)):
@@ -54,7 +52,6 @@ async def tor_status(u: User = Depends(get_current_user)):
     return status
 
 
-# ── Ephemeral Identity ────────────────────────────────────────────────────────
 
 @router.post("/ephemeral/generate")
 async def generate_ephemeral(body: EphemeralRequest, u: User = Depends(get_current_user)):
@@ -88,7 +85,6 @@ async def new_ephemeral_secret(u: User = Depends(get_current_user)):
     return {"secret_hex": secret.hex()}
 
 
-# ── Metadata Padding ─────────────────────────────────────────────────────────
 
 @router.post("/pad")
 async def pad_data(body: PadRequest, u: User = Depends(get_current_user)):
@@ -117,7 +113,6 @@ async def unpad_data(body: PadRequest, u: User = Depends(get_current_user)):
     return {"data_b64": base64.b64encode(data).decode(), "size": len(data)}
 
 
-# ── Zero-Knowledge Membership ────────────────────────────────────────────────
 
 @router.post("/zk/challenge")
 async def zk_challenge(body: ZKChallengeResponse, u: User = Depends(get_current_user)):
@@ -181,7 +176,6 @@ async def zk_info(u: User = Depends(get_current_user)):
     return ZKMembership.get_info()
 
 
-# ── Privacy Status ────────────────────────────────────────────────────────────
 
 @router.get("/status")
 async def privacy_status(u: User = Depends(get_current_user)):
@@ -201,7 +195,6 @@ async def privacy_status(u: User = Depends(get_current_user)):
     }
 
 
-# ── Show Last Seen toggle ──────────────────────────────────────────────────
 
 class _LastSeenRequest(BaseModel):
     show_last_seen: bool

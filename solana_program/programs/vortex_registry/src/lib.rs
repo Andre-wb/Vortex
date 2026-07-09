@@ -211,7 +211,6 @@ pub mod vortex_registry {
         Ok(())
     }
 
-    // ── Phase A: treasury + register-fee ───────────────────────────────
 
     /// Create the singleton program config.
     ///
@@ -340,7 +339,6 @@ pub mod vortex_registry {
         Ok(())
     }
 
-    // ── Phase B: premium tier subscriptions ────────────────────────────
 
     /// Buy or extend premium for ``beneficiary`` at a chosen plan tier.
     ///
@@ -443,7 +441,6 @@ pub mod vortex_registry {
         Ok(())
     }
 
-    // ── Phase C: staking ───────────────────────────────────────────────
 
     /// Deposit SOL into a per-node stake PDA.
     ///
@@ -594,7 +591,6 @@ pub mod vortex_registry {
         Ok(())
     }
 
-    // ── Phase D: rewards distribution ──────────────────────────────────
     //
     // Split between on-chain enforcement and off-chain computation:
     //
@@ -990,7 +986,6 @@ pub struct Peer {
     pub registered_at: i64,
     pub last_heartbeat: i64,
     pub bump: u8,
-    // ── Phase 7 fields ─────────────────────────────────────────────────
     /// SHA-256 of the signed INTEGRITY manifest the node is committed to.
     /// Meaningful once ``is_sealed == true``. Before that it's all zeros.
     pub code_hash: [u8; CODE_HASH_LEN],
@@ -1001,7 +996,6 @@ pub struct Peer {
     /// Last successful ``checkin()`` or ``seal()``. Used by off-chain
     /// clients to compute a weight that decays with age.
     pub last_checkin: i64,
-    // ── Phase A (treasury) fields ─────────────────────────────────────
     /// True once the owner has paid the on-chain register fee.
     pub fee_paid: bool,
     /// Unix seconds when the fee was paid (0 if never).
@@ -1040,7 +1034,6 @@ pub struct Config {
     pub total_fees_collected: u64,
     pub registrations_count: u64,
     pub bump: u8,
-    // ── Phase B (premium tier subscriptions) ──────────────────────────
     /// Per-plan price in lamports, index-aligned with
     /// ``PLAN_DURATIONS_MONTHS`` = [1, 3, 6, 12]. Admin re-prices to
     /// track the SOL/USD rate via ``update_config``.

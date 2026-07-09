@@ -1,14 +1,11 @@
-// ════════════════════════════════════════════════════════════════
 //  todo_bot.grav — To-Do бот: полноценный пример возможностей Gravitix
 //  Демонстрирует: state, flow, guard, |> pipe, match/regex, every
-// ════════════════════════════════════════════════════════════════
 
 state {
     todos:    map<int, list> = {},   // user_id -> list<str>
     done:     map<int, int>  = {},   // user_id -> count of completed
 }
 
-// ── Вспомогательные функции ───────────────────────────────────────
 
 fn get_user_todos(user_id: int) -> list {
     if state.todos.has(user_id) {
@@ -32,7 +29,6 @@ fn format_todos(todos: list) -> str {
     return join(lines, "\n");
 }
 
-// ── /start ───────────────────────────────────────────────────────
 on /start {
     emit "📋 <b>To-Do Bot</b>";
     emit """Команды:
@@ -43,14 +39,12 @@ on /start {
 /stats — статистика""";
 }
 
-// ── /list ────────────────────────────────────────────────────────
 on /list {
     let todos = get_user_todos(ctx.user_id);
     let text  = format_todos(todos);
     emit "📋 Твои задачи:\n{text}";
 }
 
-// ── /add ─────────────────────────────────────────────────────────
 on /add {
     run flow add_todo;
 }
@@ -73,7 +67,6 @@ flow add_todo {
     emit "✅ Добавлено: «{task}» (задача #{n})";
 }
 
-// ── /done ────────────────────────────────────────────────────────
 on /done {
     run flow mark_done;
 }
@@ -123,7 +116,6 @@ flow mark_done {
     }
 }
 
-// ── /clear ───────────────────────────────────────────────────────
 on /clear {
     run flow confirm_clear;
 }
@@ -147,7 +139,6 @@ flow confirm_clear {
     }
 }
 
-// ── /stats ───────────────────────────────────────────────────────
 on /stats {
     let todos = get_user_todos(ctx.user_id);
     let active    = len(todos);
@@ -163,7 +154,6 @@ on /stats {
 • Всего создано: {total}""";
 }
 
-// ── Поиск задач по тексту ─────────────────────────────────────────
 on msg {
     match ctx.text {
         /^поиск (.+)/i => {
@@ -187,7 +177,6 @@ on msg {
     }
 }
 
-// ── Еженедельное напоминание ──────────────────────────────────────
 every 7 days {
     for user_id in state.todos.keys() {
         let todos = state.todos[user_id];

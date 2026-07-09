@@ -14,7 +14,6 @@ Everything that lets one user run Vortex on multiple devices without re-entering
 
 ```
 Device A (authenticated)          Server               Device B (new)
-──────────────────────           ──────               ──────────────
 POST /session/handoff/new    ──▶
                                    store nonce
                              ◀──── { handoff_id, qr_payload }

@@ -16,7 +16,6 @@
  * NOTE: innerHTML usage is safe — only static SVG/HTML literals, never user input.
  */
 
-/* ═══════════════════════════════════════════════════════════════
    CONSTANTS
    ═══════════════════════════════════════════════════════════════ */
 
@@ -64,7 +63,6 @@ export function openVideoEditor(file, onDone, onCancel) {
 }
 export function closeVideoEditor() { if (_editor) { _editor.destroy(); _editor = null; } }
 
-/* ═══════════════════════════════════════════════════════════════
    VIDEO EDITOR CLASS
    ═══════════════════════════════════════════════════════════════ */
 
@@ -121,7 +119,6 @@ destroy() {
     _editor = null;
 }
 
-/* ─── BUILD ──────────────────────────────────────────────── */
 
 _build() {
     const R = this.root = document.createElement('div');
@@ -191,7 +188,6 @@ _build() {
     new ResizeObserver(() => this._resizeCvs()).observe(pw);
 }
 
-/* ─── TAB SYSTEM ─────────────────────────────────────────── */
 
 _mkTab(id, pathD, label) {
     const t = document.createElement('button');
@@ -324,11 +320,9 @@ _buildSubtools(tab, tools) {
     this.content.appendChild(w);
 }
 
-/* ═══════════════════════════════════════════════════════════════
    EDIT TAB TOOLS
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Trim ─────────────────────────────────────────────────── */
 _t_trim(c) {
     const tl = this._el('div', 'ved-timeline');
     tl.style.transform = 'scaleX(' + this._tlZoom + ')';
@@ -459,7 +453,6 @@ _t_trim(c) {
     this._updTrim();
 }
 
-/* ── Speed ────────────────────────────────────────────────── */
 _t_speed(c) {
     const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
     const g = this._el('div', 'ved-speed-grid');
@@ -472,14 +465,12 @@ _t_speed(c) {
     }); c.appendChild(g);
 }
 
-/* ── Reverse ──────────────────────────────────────────────── */
 _t_reverse(c) {
     const toggle = this._toggle((window.t?.('videoEditor.reversePlayback')||'Reverse playback'), this.reversed, v => { this._saveSnap(); this.reversed = v; });
     c.appendChild(toggle);
     c.appendChild(this._note('Video will be reversed on export. Preview plays forward.'));
 }
 
-/* ── Freeze Frame ─────────────────────────────────────────── */
 _t_freeze(c) {
     const addBtn = this._btn('ved-ctrl', (window.t?.('videoEditor.freezeCurrentFrame')||'Freeze current frame'), () => {
         this._saveSnap();
@@ -503,7 +494,6 @@ _t_freeze(c) {
     }
 }
 
-/* ── Loop Segment ─────────────────────────────────────────── */
 _t_loop(c) {
     const toggle = this._toggle((window.t?.('videoEditor.loopSegment')||'Loop segment'), !!this.loopSeg, v => {
         this._saveSnap();
@@ -518,7 +508,6 @@ _t_loop(c) {
     }
 }
 
-/* ── Merge ────────────────────────────────────────────────── */
 _t_merge(c) {
     const addBtn = this._btn('ved-ctrl', (window.t?.('videoEditor.addVideoClip')||'Add video clip...'), () => {
         const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'video/*';
@@ -546,7 +535,6 @@ _t_merge(c) {
     c.appendChild(this._note('Clips will be concatenated in order on export.'));
 }
 
-/* ── Keyframes ────────────────────────────────────────────── */
 _t_keyframe(c) {
     const addBtn = this._btn('ved-ctrl', (window.t?.('videoEditor.addKeyframe')||'Add keyframe at current time'), () => {
         this._saveSnap();
@@ -573,9 +561,7 @@ _t_keyframe(c) {
     c.appendChild(this._note('Zoom and pan animate between keyframes during playback.'));
 }
 
-/* ── Timecodes ────────────────────────────────────────────── */
 _t_timecodes(c) {
-    // ── Mini player / scrubber ──
     const playerBox = this._el('div', 'ved-tc-player');
 
     // Scrub bar with existing timecode markers
@@ -640,7 +626,6 @@ _t_timecodes(c) {
     this.video.addEventListener('timeupdate', this._tcUpdateScrub);
     updateScrub();
 
-    // ── Add timecode row ──
     const addBox = this._el('div', 'ved-tc-add-box');
     const nameInp = document.createElement('input'); nameInp.type = 'text';
     nameInp.className = 'ved-text-input'; nameInp.placeholder = (window.t?.('videoEditor.chapterName')||'Chapter name...');
@@ -659,7 +644,6 @@ _t_timecodes(c) {
     addBox.append(nameInp, addBtn);
     c.appendChild(addBox);
 
-    // ── Timecodes list ──
     if (this.timecodes.length) {
         const list = this._el('div', 'ved-layer-list');
         this.timecodes.forEach((tc, i) => {
@@ -696,11 +680,9 @@ _t_timecodes(c) {
     c.appendChild(this._note('Scrub the video to find the right moment, then add a chapter.'));
 }
 
-/* ═══════════════════════════════════════════════════════════════
    ADJUST TAB TOOLS
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Crop ─────────────────────────────────────────────────── */
 _t_crop(c) {
     const aspects = ['free', '16:9', '9:16', '4:3', '3:4', '1:1'];
     const g = this._el('div', 'ved-speed-grid');
@@ -730,7 +712,6 @@ _t_crop(c) {
     c.appendChild(resetBtn);
 }
 
-/* ── Rotate ───────────────────────────────────────────────── */
 _t_rotate(c) {
     const row = this._el('div', 'ved-rotate-grid');
     [['90\u00B0', () => this.rotation = (this.rotation + 90) % 360],
@@ -745,7 +726,6 @@ _t_rotate(c) {
     c.appendChild(this._note('Rotation: ' + this.rotation + '\u00B0' + (this.flipH ? ' | Flip H' : '') + (this.flipV ? ' | Flip V' : '')));
 }
 
-/* ── Filters ──────────────────────────────────────────────── */
 _t_filters(c) {
     c.appendChild(this._slider('Brightness', 0, 200, this.brightness, '%', v => { this._saveSnap(); this.brightness = v; this._applyFilters(); }));
     c.appendChild(this._slider('Contrast', 0, 200, this.contrast, '%', v => { this._saveSnap(); this.contrast = v; this._applyFilters(); }));
@@ -757,7 +737,6 @@ _t_filters(c) {
     rb.style.cssText = 'width:100%;justify-content:center;margin-top:4px'; c.appendChild(rb);
 }
 
-/* ── LUTs ─────────────────────────────────────────────────── */
 _t_luts(c) {
     const g = this._el('div', 'ved-lut-grid');
     LUTS.forEach((l, i) => {
@@ -769,7 +748,6 @@ _t_luts(c) {
     }); c.appendChild(g);
 }
 
-/* ── Vignette ─────────────────────────────────────────────── */
 _t_vignette(c) {
     c.appendChild(this._slider('Amount', 0, 100, this.vignette, '%', v => {
         this.vignette = v;
@@ -777,7 +755,6 @@ _t_vignette(c) {
     }));
 }
 
-/* ── Film Grain ───────────────────────────────────────────── */
 _t_grain(c) {
     c.appendChild(this._slider('Amount', 0, 100, this.grain, '%', v => {
         this._saveSnap(); this.grain = v;
@@ -787,19 +764,16 @@ _t_grain(c) {
     }));
 }
 
-/* ── Blur Background ──────────────────────────────────────── */
 _t_blurbg(c) {
     c.appendChild(this._slider('Blur', 0, 30, this.blurBg, 'px', v => { this._saveSnap(); this.blurBg = v; this._applyFilters(); }));
     c.appendChild(this._note('Applies background blur behind the video for vertical content.'));
 }
 
-/* ── Tilt-Shift ───────────────────────────────────────────── */
 _t_tiltshift(c) {
     c.appendChild(this._slider('Blur amount', 0, 20, this.tiltShift, 'px', v => { this.tiltShift = v; this._applyTiltShift(); }));
     c.appendChild(this._slider('Focus position', 0, 100, this.tiltPos, '%', v => { this.tiltPos = v; this._applyTiltShift(); }));
 }
 
-/* ── Duotone ──────────────────────────────────────────────── */
 _t_duotone(c) {
     const toggle = this._toggle((window.t?.('videoEditor.enableDuotone')||'Enable duotone'), !!this.duotone, v => {
         this._saveSnap();
@@ -813,7 +787,6 @@ _t_duotone(c) {
     }
 }
 
-/* ── Chromatic Aberration ─────────────────────────────────── */
 _t_chroma(c) {
     c.appendChild(this._slider('Amount', 0, 20, this.chromaAb, 'px', v => {
         this._saveSnap(); this.chromaAb = v;
@@ -823,13 +796,11 @@ _t_chroma(c) {
     c.appendChild(this._note('RGB channel offset. Full quality on export.'));
 }
 
-/* ── Glitch ───────────────────────────────────────────────── */
 _t_glitch(c) {
     c.appendChild(this._slider('Intensity', 0, 100, this.glitch, '%', v => { this._saveSnap(); this.glitch = v; }));
     c.appendChild(this._note('Glitch effect is applied during playback and on export.'));
 }
 
-/* ── RGB Curves ───────────────────────────────────────────── */
 _t_rgb(c) {
     c.appendChild(this._slider('Red', -100, 100, this.rgbR, '', v => { this._saveSnap(); this.rgbR = v; this._applyFilters(); }));
     c.appendChild(this._slider('Green', -100, 100, this.rgbG, '', v => { this._saveSnap(); this.rgbG = v; this._applyFilters(); }));
@@ -841,7 +812,6 @@ _t_rgb(c) {
     rb.style.cssText = 'width:100%;justify-content:center;margin-top:4px'; c.appendChild(rb);
 }
 
-/* ── Presets ───────────────────────────────────────────────── */
 _t_presets(c) {
     const saveBtn = this._btn('ved-ctrl', (window.t?.('videoEditor.savePreset')||'Save current as preset'), () => {
         const name = prompt('Preset name:');
@@ -863,11 +833,9 @@ _t_presets(c) {
     } else c.appendChild(this._note((window.t?.('videoEditor.noPresets')||'No saved presets yet.')));
 }
 
-/* ═══════════════════════════════════════════════════════════════
    TEXT TAB TOOLS
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Text Layers ──────────────────────────────────────────── */
 _t_textlayers(c) {
     const addBtn = this._btn('ved-ctrl', '+ Add text layer', () => {
         this._saveSnap();
@@ -931,7 +899,6 @@ _t_textlayers(c) {
     c.appendChild(this._note('Drag text on the video to reposition.'));
 }
 
-/* ── Subtitles ────────────────────────────────────────────── */
 _t_subtitles(c) {
     const addBtn = this._btn('ved-ctrl', '+ Add subtitle', () => {
         this._saveSnap();
@@ -955,7 +922,6 @@ _t_subtitles(c) {
     }
 }
 
-/* ── Auto-Subtitles ───────────────────────────────────────── */
 _t_autosubs(c) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { c.appendChild(this._note('Speech Recognition not available in this browser.')); return; }
@@ -993,7 +959,6 @@ _t_autosubs(c) {
     c.appendChild(this._note('Plays audio and detects speech. Best with clear voice.'));
 }
 
-/* ── Watermark ────────────────────────────────────────────── */
 _t_watermark(c) {
     if (this.watermark) {
         const info = this._el('div', 'ved-audio-info');
@@ -1028,11 +993,9 @@ _t_watermark(c) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
    OVERLAY TAB TOOLS
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Stickers ─────────────────────────────────────────────── */
 _t_stickers(c) {
     const cats = Object.keys(STICKERS);
     const tabs = this._el('div', 'ved-sticker-tabs');
@@ -1073,7 +1036,6 @@ _t_stickers(c) {
     c.appendChild(this._note('Drag stickers on the video to reposition.'));
 }
 
-/* ── Drawing ──────────────────────────────────────────────── */
 _t_draw(c) {
     const toggle = this._toggle((window.t?.('videoEditor.drawingMode')||'Drawing mode'), this._drawing, v => {
         this._drawing = v;
@@ -1102,7 +1064,6 @@ _t_draw(c) {
     c.appendChild(this._note('Enable drawing mode, then paint on the video.'));
 }
 
-/* ── Shapes ───────────────────────────────────────────────── */
 _t_shapes(c) {
     const types = [
         ['rect', 'Rectangle'], ['circle', 'Circle'], ['arrow', 'Arrow'], ['line', 'Line']
@@ -1138,11 +1099,9 @@ _t_shapes(c) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
    AUDIO TAB TOOLS
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Volume ───────────────────────────────────────────────── */
 _t_volume(c) {
     c.appendChild(this._slider('Volume', 0, 200, Math.round(this.volume * 100), '%', v => {
         this._saveSnap(); this.volume = v / 100;
@@ -1152,14 +1111,12 @@ _t_volume(c) {
     if (this.volume === 0) c.appendChild(this._note('Audio is muted (0%)'));
 }
 
-/* ── Fade In/Out ──────────────────────────────────────────── */
 _t_fade(c) {
     c.appendChild(this._slider('Fade In', 0, 10, this.fadeIn, 's', v => { this._saveSnap(); this.fadeIn = v; }));
     c.appendChild(this._slider('Fade Out', 0, 10, this.fadeOut, 's', v => { this._saveSnap(); this.fadeOut = v; }));
     c.appendChild(this._note('Audio fades are applied during playback and on export.'));
 }
 
-/* ── EQ ───────────────────────────────────────────────────── */
 _t_eq(c) {
     this._initAudio();
     const eqBox = this._el('div', 'ved-eq-box');
@@ -1185,7 +1142,6 @@ _t_eq(c) {
     rb.style.cssText = 'width:100%;justify-content:center;margin-top:4px'; c.appendChild(rb);
 }
 
-/* ── Pitch ────────────────────────────────────────────────── */
 _t_pitch(c) {
     c.appendChild(this._slider('Pitch shift', -12, 12, this.pitch, ' st', v => {
         this._saveSnap(); this.pitch = v;
@@ -1195,14 +1151,12 @@ _t_pitch(c) {
     c.appendChild(this._note('Semitone shift. Full quality on export via audio processing.'));
 }
 
-/* ── Noise Gate ───────────────────────────────────────────── */
 _t_noisegate(c) {
     c.appendChild(this._toggle((window.t?.('videoEditor.enableNoiseGate')||'Enable noise gate'), this.noiseGate, v => { this._saveSnap(); this.noiseGate = v; }));
     c.appendChild(this._slider('Threshold', -60, 0, this.noiseThr, 'dB', v => { this._saveSnap(); this.noiseThr = v; }));
     c.appendChild(this._note('Silences audio below the threshold level.'));
 }
 
-/* ── Replace Audio ────────────────────────────────────────── */
 _t_replace(c) {
     if (this.replName) {
         const info = this._el('div', 'ved-audio-info'); info.textContent = '\u266B ' + this.replName; c.appendChild(info);
@@ -1228,7 +1182,6 @@ _t_replace(c) {
     }
 }
 
-/* ── Voiceover ────────────────────────────────────────────── */
 _t_voiceover(c) {
     if (this.voiceName) {
         const info = this._el('div', 'ved-audio-info'); info.textContent = '\u{1F3A4} ' + this.voiceName; c.appendChild(info);
@@ -1262,7 +1215,6 @@ _t_voiceover(c) {
     }
 }
 
-/* ── Music Library ────────────────────────────────────────── */
 _t_music(c) {
     const list = this._el('div', 'ved-music-list');
     MUSIC.forEach((m, i) => {
@@ -1276,18 +1228,15 @@ _t_music(c) {
     c.appendChild(this._note('Music tracks will be mixed with the video audio on export.'));
 }
 
-/* ── Mix Levels ───────────────────────────────────────────── */
 _t_mix(c) {
     c.appendChild(this._slider('Original audio', 0, 100, this.mixOrig, '%', v => { this._saveSnap(); this.mixOrig = v; }));
     c.appendChild(this._slider('Overlay audio', 0, 100, this.mixOver, '%', v => { this._saveSnap(); this.mixOver = v; }));
     c.appendChild(this._note('Controls the balance between original and added audio.'));
 }
 
-/* ═══════════════════════════════════════════════════════════════
    EXPORT TAB TOOLS
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Resolution ───────────────────────────────────────────── */
 _t_resolution(c) {
     const opts = ['original', '1080p', '720p', '480p', '360p'];
     const g = this._el('div', 'ved-speed-grid');
@@ -1300,7 +1249,6 @@ _t_resolution(c) {
     }); c.appendChild(g);
 }
 
-/* ── Format ───────────────────────────────────────────────── */
 _t_format(c) {
     const opts = ['mp4', 'webm', 'gif'];
     const g = this._el('div', 'ved-speed-grid');
@@ -1313,7 +1261,6 @@ _t_format(c) {
     }); c.appendChild(g);
 }
 
-/* ── GIF Settings ─────────────────────────────────────────── */
 _t_gif(c) {
     if (this.exFmt !== 'gif') {
         c.appendChild(this._note('Select GIF format in the Format tool first.'));
@@ -1326,7 +1273,6 @@ _t_gif(c) {
     c.appendChild(this._note('Lower FPS and width = smaller file size.'));
 }
 
-/* ── Quality ──────────────────────────────────────────────── */
 _t_quality(c) {
     c.appendChild(this._slider('Quality', 10, 100, this.exQual, '%', v => { this._saveSnap(); this.exQual = v; }));
     const labels = { 10: 'Lowest', 30: 'Low', 50: 'Medium', 70: 'Good', 90: 'High', 100: 'Maximum' };
@@ -1334,7 +1280,6 @@ _t_quality(c) {
     c.appendChild(this._note(labels[nearest] + ' quality — ' + (this.exQual > 70 ? 'larger file' : 'smaller file')));
 }
 
-/* ── Snapshot ─────────────────────────────────────────────── */
 _t_snapshot(c) {
     const captureBtn = this._btn('ved-ctrl', (window.t?.('videoEditor.captureFrame')||'Capture current frame as PNG'), () => {
         const cvs = document.createElement('canvas');
@@ -1349,7 +1294,6 @@ _t_snapshot(c) {
     c.appendChild(this._note('Saves the current video frame at full resolution.'));
 }
 
-/* ── Compare Before/After ─────────────────────────────────── */
 _t_compare(c) {
     const toggle = this._toggle((window.t?.('videoEditor.compareMode')||'Compare mode'), this._compare, v => {
         this._compare = v;
@@ -1370,7 +1314,6 @@ _t_compare(c) {
     c.appendChild(this._note('Drag the divider to compare original vs edited.'));
 }
 
-/* ═══════════════════════════════════════════════════════════════
    COVER TAB (Thumbnail)
    ═══════════════════════════════════════════════════════════════ */
 
@@ -1471,11 +1414,9 @@ _buildCover() {
     });
 }
 
-/* ═══════════════════════════════════════════════════════════════
    SYSTEMS
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Undo / Redo ──────────────────────────────────────────── */
 
 _getSnap() {
     return JSON.stringify({
@@ -1532,7 +1473,6 @@ _updUndoUI() {
     this._redoEl?.classList.toggle('disabled', !this._rs.length);
 }
 
-/* ── Hotkeys ──────────────────────────────────────────────── */
 
 _bindKeys() {
     this._kh = e => {
@@ -1553,7 +1493,6 @@ _bindKeys() {
     document.addEventListener('keydown', this._kh);
 }
 
-/* ── Autosave ─────────────────────────────────────────────── */
 
 _saveDraft() {
     try {
@@ -1569,7 +1508,6 @@ _loadDraft() {
     } catch { /* corrupt data — ignore */ }
 }
 
-/* ── Audio Engine ─────────────────────────────────────────── */
 
 _initAudio() {
     if (this._audioCtx) return;
@@ -1590,7 +1528,6 @@ _initAudio() {
     } catch { /* audio init failed */ }
 }
 
-/* ── Effects ──────────────────────────────────────────────── */
 
 _buildFilter() {
     let f = 'brightness(' + this.brightness + '%) contrast(' + this.contrast + '%) saturate(' + this.saturation + '%)';
@@ -1652,7 +1589,6 @@ _baseTransform() {
     return t.join(' ');
 }
 
-/* ── Grain Animation ──────────────────────────────────────── */
 
 _animGrain() {
     if (!this.grain) return;
@@ -1669,7 +1605,6 @@ _animGrain() {
     this._grainRAF = requestAnimationFrame(() => this._animGrain());
 }
 
-/* ── Drawing System ───────────────────────────────────────── */
 
 _initDrawing() {
     const cvs = this.drawCvs;
@@ -1727,7 +1662,6 @@ _redrawStrokes() {
     });
 }
 
-/* ── Overlay Rendering ────────────────────────────────────── */
 
 _renderOverlays() {
     this.overlayBox.textContent = '';
@@ -1825,7 +1759,6 @@ _makeDraggable(el, onMove) {
     el.addEventListener('touchstart', e => { down(e); document.addEventListener('touchmove', move, { passive: false }); document.addEventListener('touchend', up); }, { passive: false });
 }
 
-/* ── Playback ─────────────────────────────────────────────── */
 
 _togglePlay() {
     if (this.video.paused) {
@@ -1899,7 +1832,6 @@ _onTime() {
     if (this.keyframes.length) this._applyKeyframe();
 }
 
-/* ── Trim Helpers ─────────────────────────────────────────── */
 
 _genStrip(container) {
     for (let i = 0; i < 10; i++) {
@@ -1943,9 +1875,7 @@ _updTrim() {
     if (this.elTE) this.elTE.textContent = this._fmt(this.trimEnd * this.duration);
 }
 
-/* ── Adjust State (for presets) ───────────────────────────── */
 
-/* ── Segments (regions between cuts within trim bounds) ──── */
 
 _getSegments() {
     const pts = [this.trimStart, ...this.cuts.filter(c => c > this.trimStart && c < this.trimEnd), this.trimEnd];
@@ -1967,7 +1897,6 @@ _applyAdjustState(s) {
     this._applyFilters(); this._applyTransform(); this._applyCrop();
 }
 
-/* ═══════════════════════════════════════════════════════════════
    HELPERS
    ═══════════════════════════════════════════════════════════════ */
 
@@ -2041,7 +1970,6 @@ _fmt(s) {
     return m + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 }
 
-/* ── Finish ───────────────────────────────────────────────── */
 
 _finish() {
     localStorage.removeItem('ved_draft_' + this.file.name);

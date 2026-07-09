@@ -1,7 +1,5 @@
 
-/* ============================================================================
  * THEME MODE SWITCHER — dark / light / auto buttons
- * ============================================================================ */
 
 .theme-mode-btn {
     flex: 1;
@@ -48,9 +46,7 @@ body[data-theme="light"] .theme-mode-btn.active {
     color: #ffffff;
 }
 
-/* ============================================================================
  * LIGHT THEME — additional coverage for pin lock & auth
- * ============================================================================ */
 
 /* Pin lock screen */
 body[data-theme="light"] #pin-lock-overlay {

@@ -24,7 +24,6 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 
 import pytest
 
-# ── ensure project root on sys.path ────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -32,9 +31,7 @@ if str(ROOT) not in sys.path:
 from conftest import SyncASGIClient, make_user, login_user, random_str
 
 
-# ===========================================================================
 # Helpers
-# ===========================================================================
 
 def _auth_headers(client: SyncASGIClient, suffix: str | None = None) -> dict:
     """Register + login a fresh user, return fresh CSRF headers dict."""
@@ -58,9 +55,7 @@ INVALID_CODE = "@@@ this is not valid gravitix code at all $$$"
 VALID_PID = "test_project_01"
 
 
-# ===========================================================================
 # Unit tests — ide_runner helpers
-# ===========================================================================
 
 class TestGxAvailable:
     """Tests for _gx_available()."""
@@ -148,9 +143,7 @@ class TestScriptPath:
             runner._BOTS_DIR = orig
 
 
-# ===========================================================================
 # Unit tests — compile_code
-# ===========================================================================
 
 class TestCompileCode:
     """Tests for async compile_code()."""
@@ -290,9 +283,7 @@ class TestCompileCode:
             runner._BOTS_DIR = orig_dir
 
 
-# ===========================================================================
 # Unit tests — publish_bot / stop_bot / get_status / get_logs
-# ===========================================================================
 
 class TestPublishBot:
     """Tests for async publish_bot()."""
@@ -665,9 +656,7 @@ class TestCollectLogs:
         _collect_logs("nonexistent_proj_xyz")
 
 
-# ===========================================================================
 # Integration tests — API endpoints
-# ===========================================================================
 
 class TestIDEAuth:
     """All endpoints require authentication."""
@@ -1107,9 +1096,7 @@ class TestIDEStop:
         assert r.status_code == 400
 
 
-# ===========================================================================
 # Edge cases and security
-# ===========================================================================
 
 class TestIDEEdgeCases:
 
@@ -1291,9 +1278,7 @@ class TestIDEEdgeCases:
             runner._BOTS_DIR = orig_dir
 
 
-# ===========================================================================
 # BotProcess dataclass tests
-# ===========================================================================
 
 class TestBotProcess:
     """Tests for _BotProcess internals."""
@@ -1323,9 +1308,7 @@ class TestBotProcess:
         assert bp.pid == 3
 
 
-# ===========================================================================
 # Request model validation tests
-# ===========================================================================
 
 class TestRequestModels:
     """Pydantic model validation for CompileRequest and PublishRequest."""

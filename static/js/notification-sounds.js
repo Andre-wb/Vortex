@@ -1,8 +1,6 @@
 // static/js/notification-sounds.js
-// ============================================================================
 // Звуки уведомлений и режим «Не беспокоить» (Do Not Disturb).
 // Генерирует звуки программно через Web Audio API — аудиофайлы не нужны.
-// ============================================================================
 
 const DND_KEY = 'vortex_dnd_enabled';
 
@@ -27,7 +25,6 @@ function _getAudioCtx() {
     return _audioCtx;
 }
 
-// ── Message sound ────────────────────────────────────────────────────────────
 // WAV file playback, debounced to 1 second
 
 let _lastMessageSound = 0;
@@ -55,7 +52,6 @@ export function playMessageSound() {
     }
 }
 
-// ── Call sound ───────────────────────────────────────────────────────────────
 // Alternating 440 Hz / 520 Hz, 500 ms on / 500 ms off, looped
 
 /**
@@ -117,7 +113,6 @@ export function stopCallSound() {
     _callOsc2 = null;
 }
 
-// ── Do Not Disturb ──────────────────────────────────────────────────────────
 
 /**
  * Enable or disable Do Not Disturb mode.

@@ -1,10 +1,8 @@
-// ============================================================================
 // VORTEX Service Worker
 // Стратегии кэширования:
 //   — Статика (JS/CSS/иконки)  → Cache-First (быстрый старт офлайн)
 //   — API запросы              → Network-First (актуальные данные)
 //   — HTML страница            → Network-First + офлайн-заглушка
-// ============================================================================
 
 const CACHE_NAME     = 'vortex-v1';
 const STATIC_CACHE   = 'vortex-static-v1';
@@ -118,7 +116,6 @@ const OFFLINE_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-// ─── Установка SW ─────────────────────────────────────────────────────────────
 self.addEventListener('install', event => {
     console.log('[SW] Установка, кэширование статики...');
     event.waitUntil(
@@ -129,7 +126,6 @@ self.addEventListener('install', event => {
     );
 });
 
-// ─── Активация: удаляем устаревшие кэши ──────────────────────────────────────
 self.addEventListener('activate', event => {
     console.log('[SW] Активация, чистка старых кэшей...');
     event.waitUntil(
@@ -143,7 +139,6 @@ self.addEventListener('activate', event => {
     );
 });
 
-// ─── Перехват запросов ────────────────────────────────────────────────────────
 self.addEventListener('fetch', event => {
     const { request } = event;
     const url = new URL(request.url);
@@ -185,7 +180,6 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetch(request));
 });
 
-// ─── Стратегия Cache-First ────────────────────────────────────────────────────
 async function cacheFirst(request, cacheName) {
     const cached = await caches.match(request);
     if (cached) return cached;
@@ -202,7 +196,6 @@ async function cacheFirst(request, cacheName) {
     }
 }
 
-// ─── FIX L8: allow-list публичных /api эндпоинтов, безопасных для кэширования ──
 // Сюда попадают только не аутентифицированные / не приватные данные. Всё остальное
 // (сообщения, контакты, профили, файлы, ключи, истории и т.п.) кэшировать нельзя.
 const _CACHEABLE_API_PREFIXES = [
@@ -217,7 +210,6 @@ function _isCacheableApi(pathname) {
     return _CACHEABLE_API_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
 
-// ─── FIX L8: Network-Only (без записи и чтения кэша) для приватных /api ────────
 async function networkOnly(request) {
     try {
         return await fetch(request);
@@ -229,7 +221,6 @@ async function networkOnly(request) {
     }
 }
 
-// ─── Стратегия Network-First ──────────────────────────────────────────────────
 async function networkFirst(request, cacheName, timeoutMs = 5000) {
     // Гонка: сеть vs таймаут
     const controller = new AbortController();
@@ -256,7 +247,6 @@ async function networkFirst(request, cacheName, timeoutMs = 5000) {
     }
 }
 
-// ─── Network-First с HTML-заглушкой ──────────────────────────────────────────
 async function networkFirstWithOfflineFallback(request) {
     try {
         const response = await fetch(request);
@@ -274,7 +264,6 @@ async function networkFirstWithOfflineFallback(request) {
     }
 }
 
-// ─── Push-уведомления ─────────────────────────────────────────────────────────
 self.addEventListener('push', event => {
     if (!event.data) return;
 
@@ -302,7 +291,6 @@ self.addEventListener('push', event => {
     );
 });
 
-// ─── Клик по уведомлению ──────────────────────────────────────────────────────
 self.addEventListener('notificationclick', event => {
     event.notification.close();
 
@@ -327,7 +315,6 @@ self.addEventListener('notificationclick', event => {
     );
 });
 
-// ─── Background Sync (отложенная отправка при восстановлении сети) ────────────
 self.addEventListener('sync', event => {
     if (event.tag === 'vortex-send-messages') {
         event.waitUntil(flushPendingMessages());
@@ -342,7 +329,6 @@ async function flushPendingMessages() {
     );
 }
 
-// ─── Получение сообщений от страницы ─────────────────────────────────────────
 self.addEventListener('message', event => {
     if (event.data?.type === 'skip-waiting') {
         self.skipWaiting();

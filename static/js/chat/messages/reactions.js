@@ -1,8 +1,6 @@
 import { esc } from '../../utils.js';
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Reaction "who reacted" popover
-// ══════════════════════════════════════════════════════════════════════════════
 
 function _fmtReactionTime(iso) {
     if (!iso) return '';
@@ -67,7 +65,6 @@ export function _attachReactionLongPress(btn) {
 }
 
 // Extended Reactions — send, track recent, and full emoji picker for reactions
-// ══════════════════════════════════════════════════════════════════════════════
 
 const _RECENT_REACTIONS_KEY = 'vortex_recent_reactions';
 const _MAX_RECENT_REACTIONS = 12;

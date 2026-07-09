@@ -25,9 +25,7 @@ import pytest
 from conftest import make_user, login_user, random_str
 
 
-# ============================================================================
 # Helpers
-# ============================================================================
 
 def _login(client, u: dict) -> dict:
     return login_user(client, u["username"], u["password"])
@@ -40,9 +38,7 @@ def _make_and_login(client) -> dict:
     return u
 
 
-# ============================================================================
 # /api/global/node-info  (public, no auth)
-# ============================================================================
 
 def test_global_node_info_returns_200(client):
     r = client.get("/api/global/node-info")
@@ -56,9 +52,7 @@ def test_global_node_info_shape(client):
     assert "peers" in body
 
 
-# ============================================================================
 # /api/global/gossip  (public, no auth)
-# ============================================================================
 
 def test_gossip_accepts_valid_payload(client):
     payload = {
@@ -122,9 +116,7 @@ def test_gossip_with_valid_64char_pubkey(client):
     assert r.status_code == 200
 
 
-# ============================================================================
 # /api/global/bootstrap  (public, no auth)
-# ============================================================================
 
 def test_bootstrap_valid_request(client):
     payload = {
@@ -159,9 +151,7 @@ def test_bootstrap_invalid_pubkey_rejected(client):
     assert r.status_code == 400
 
 
-# ============================================================================
 # /api/global/search-rooms  (public, no auth)
-# ============================================================================
 
 def test_search_rooms_local_empty_query(client):
     r = client.get("/api/global/search-rooms")
@@ -179,9 +169,7 @@ def test_search_rooms_local_with_query(client):
     assert body["rooms"] == []
 
 
-# ============================================================================
 # /api/global/search-rooms-global  (requires auth)
-# ============================================================================
 
 def test_search_rooms_global_unauthenticated(anon_client):
     r = anon_client.get("/api/global/search-rooms-global", params={"q": "test"})
@@ -198,9 +186,7 @@ def test_search_rooms_global_authenticated(client):
     assert "peers_searched" in body
 
 
-# ============================================================================
 # /api/global/peers  (requires auth)
-# ============================================================================
 
 def test_list_global_peers_unauthenticated(anon_client):
     r = anon_client.get("/api/global/peers")
@@ -217,9 +203,7 @@ def test_list_global_peers_authenticated(client):
     assert isinstance(body["peers"], list)
 
 
-# ============================================================================
 # /api/global/cdn-status  (requires auth)
-# ============================================================================
 
 def test_cdn_status_unauthenticated(anon_client):
     r = anon_client.get("/api/global/cdn-status")
@@ -234,9 +218,7 @@ def test_cdn_status_authenticated(client):
     assert "enabled" in body
 
 
-# ============================================================================
 # /api/global/add-peer  (requires auth)
-# ============================================================================
 
 def test_add_peer_unauthenticated(anon_client):
     r = anon_client.post("/api/global/add-peer", json={"ip": "1.2.3.4", "port": 9000})
@@ -255,9 +237,7 @@ def test_add_peer_authenticated(client):
     assert "total_peers" in body
 
 
-# ============================================================================
 # /api/stream  (SSE transport — requires auth)
-# ============================================================================
 
 def test_sse_stream_unauthenticated(anon_client):
     r = anon_client.get("/api/stream/999")
@@ -329,9 +309,7 @@ def test_sse_post_member_can_send(client):
     assert r.json().get("ok") is True
 
 
-# ============================================================================
 # /api/transport/status  (requires auth)
-# ============================================================================
 
 def test_transport_status_unauthenticated(anon_client):
     r = anon_client.get("/api/transport/status")
@@ -350,9 +328,7 @@ def test_transport_status_authenticated(client):
     assert "sse" in body
 
 
-# ============================================================================
 # /api/transport/bridge/*  (requires auth)
-# ============================================================================
 
 def test_list_bridges_unauthenticated(anon_client):
     r = anon_client.get("/api/transport/bridge/list")
@@ -433,9 +409,7 @@ def test_enable_bridge_mode(client):
     assert r.json().get("ok") is True
 
 
-# ============================================================================
 # /api/transport/tunnel/*  (requires auth)
-# ============================================================================
 
 def test_create_tunnel_unauthenticated(anon_client):
     r = anon_client.post("/api/transport/tunnel/create")
@@ -501,9 +475,7 @@ def test_close_tunnel(client):
     assert dr.json().get("ok") is True
 
 
-# ============================================================================
 # /api/transport/shadowsocks/config  (requires auth)
-# ============================================================================
 
 def test_shadowsocks_config_not_configured(client):
     """Without CDN/SS config the endpoint returns 404."""
@@ -518,9 +490,7 @@ def test_shadowsocks_config_unauthenticated(anon_client):
     assert r.status_code == 401
 
 
-# ============================================================================
 # /api/transport/domain-fronting/config  (requires auth)
-# ============================================================================
 
 def test_domain_fronting_config_unauthenticated(anon_client):
     r = anon_client.get("/api/transport/domain-fronting/config")
@@ -534,9 +504,7 @@ def test_domain_fronting_config_not_configured(client):
     assert r.status_code in (200, 404)
 
 
-# ============================================================================
 # /api/transport/stego/*  (requires auth)
-# ============================================================================
 
 def test_stego_send_unauthenticated(anon_client):
     r = anon_client.post("/api/transport/stego/send", json={
@@ -553,9 +521,7 @@ def test_stego_receive_unauthenticated(anon_client):
     assert r.status_code == 401
 
 
-# ============================================================================
 # /cover/*  (cover traffic website — public)
-# ============================================================================
 
 def test_cover_home_page(client):
     r = client.get("/cover")
@@ -616,9 +582,7 @@ def test_cover_nginx_server_header(client):
     assert r.headers.get("server") == "nginx/1.24.0"
 
 
-# ============================================================================
 # Pure-Python unit tests: TrafficObfuscator
-# ============================================================================
 
 def test_obfuscator_pad_roundtrip():
     from app.transport.obfuscation import TrafficObfuscator
@@ -674,9 +638,7 @@ def test_obfuscator_get_cover_headers():
     assert "X-Powered-By" in headers
 
 
-# ============================================================================
 # Pure-Python unit tests: TrafficNormalizer
-# ============================================================================
 
 def test_normalizer_record_and_padding():
     from app.transport.obfuscation import TrafficNormalizer
@@ -688,9 +650,7 @@ def test_normalizer_record_and_padding():
     assert padding >= 0
 
 
-# ============================================================================
 # Pure-Python unit tests: CDNRelayConfig
-# ============================================================================
 
 def test_cdn_config_disabled_by_default():
     from app.transport.cdn_relay import CDNRelayConfig
@@ -776,9 +736,7 @@ def test_cdn_config_get_headers_with_secret():
         del os.environ["CDN_RELAY_SECRET"]
 
 
-# ============================================================================
 # Pure-Python unit tests: knock.py
-# ============================================================================
 
 def test_knock_sequence_completion():
     from app.transport.knock import record_page_visit, verify_knock, get_current_knock_sequence
@@ -818,9 +776,7 @@ def test_knock_wrong_sequence_order():
     assert result is None
 
 
-# ============================================================================
 # Pure-Python unit tests: BridgeRegistry (pluggable.py)
-# ============================================================================
 
 def test_bridge_registry_register_and_list():
     from app.transport.pluggable import BridgeRegistry
@@ -894,9 +850,7 @@ def test_bridge_registry_get_best_bridge_empty():
     assert reg.get_best_bridge() is None
 
 
-# ============================================================================
 # Pure-Python unit tests: Obfs4Transport (pluggable.py)
-# ============================================================================
 
 def test_obfs4_wrap_unwrap():
     from app.transport.pluggable import Obfs4Transport
@@ -943,9 +897,7 @@ def test_obfs4_unwrap_tampered_mac():
     assert t.unwrap(bytes(tampered)) is None
 
 
-# ============================================================================
 # Pure-Python unit tests: steganography.py
-# ============================================================================
 
 def test_steganography_can_use():
     from app.transport.steganography import can_use_steganography
@@ -1007,9 +959,7 @@ def test_steganography_data_too_large_raises():
         pass  # expected
 
 
-# ============================================================================
 # Pure-Python unit tests: GlobalPeerInfo (global_transport.py)
-# ============================================================================
 
 def test_global_peer_info_alive():
     from app.transport.global_transport import GlobalPeerInfo
@@ -1102,9 +1052,7 @@ def test_global_transport_merge_peer_filters_localhost():
     assert len(gt.get_all_peers()) == initial_count
 
 
-# ============================================================================
 # Pure-Python unit tests: CoverTrafficGenerator (cover_traffic.py)
-# ============================================================================
 
 def test_cover_traffic_is_cover_traffic():
     from app.transport.cover_traffic import CoverTrafficGenerator
@@ -1126,9 +1074,7 @@ def test_cover_traffic_empty_not_cover():
     assert CoverTrafficGenerator.is_cover_traffic(b"") is False
 
 
-# ============================================================================
 # Pure-Python unit tests: StealthResponse (stealth_http.py)
-# ============================================================================
 
 def test_stealth_response_json():
     from app.transport.stealth_http import StealthResponse

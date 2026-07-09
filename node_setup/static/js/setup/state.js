@@ -1,6 +1,5 @@
 // node_setup/static/js/setup/state.js — глобальное состояние мастера + инициализация
 
-// ── Состояние приложения ─────────────────────────────────────────────────────
 const state = {
     step:       0,          // current step (0=lang, 1-6=main steps)
     sslMode:    'self',     // выбранный способ SSL: 'self', 'mkcert', 'le', 'skip'
@@ -12,12 +11,10 @@ const state = {
     config:     null,       // объект с конфигурацией узла (имя, порты и т.д.)
 };
 
-// ── Состояние шага «Режим сети» ─────────────────────────────────────────────
 let _networkMode = 'local';
 let _regMode     = 'open';
 let _inviteCode  = '';
 
-// ── Инициализация при загрузке страницы ──────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
     await loadSysInfo();       // загружаем информацию о системе
     prefillDeviceName();       // заполняем поле имени устройства hostname'ом

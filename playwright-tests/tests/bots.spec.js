@@ -26,7 +26,6 @@ test.describe('Bots & IDE', () => {
         csrf = csrfToken;
     });
 
-    // ── Bot CRUD ──────────────────────────────────────────────────────────────
 
     test('create bot', async ({ request }) => {
         const res = await request.post('/api/bots', {
@@ -50,7 +49,6 @@ test.describe('Bots & IDE', () => {
         expect(Array.isArray(body.bots || body)).toBeTruthy();
     });
 
-    // ── Bot Marketplace ───────────────────────────────────────────────────────
 
     test('bot marketplace — public listing', async ({ request }) => {
         const res = await request.get('/api/marketplace', {
@@ -59,7 +57,6 @@ test.describe('Bots & IDE', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── IDE ───────────────────────────────────────────────────────────────────
 
     test('create IDE project via compile', async ({ request }) => {
         projectId = `e2e_proj_${randomStr(8)}`;
@@ -89,7 +86,6 @@ test.describe('Bots & IDE', () => {
         expect([200, 201, 202, 500]).toContain(res.status());
     });
 
-    // ── Bot Webhooks ──────────────────────────────────────────────────────────
 
     test('list bot webhooks', async ({ request }) => {
         expect(botId).toBeTruthy();

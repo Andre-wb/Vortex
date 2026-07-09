@@ -28,7 +28,6 @@ test.describe('Auth Advanced', () => {
     let csrf = '';
     let userId = 0;
 
-    // ── Registration ──────────────────────────────────────────────────────────
 
     test('register with full profile', async ({ request }) => {
         const { csrfToken: c } = await registerAndLogin(request, username, phone, password);
@@ -77,7 +76,6 @@ test.describe('Auth Advanced', () => {
         csrf = (await csrfRes.json()).csrf_token;
     });
 
-    // ── Profile Update ────────────────────────────────────────────────────────
 
     test('update display name', async ({ request }) => {
         const res = await request.put('/api/authentication/profile', {
@@ -111,7 +109,6 @@ test.describe('Auth Advanced', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Rich Status ───────────────────────────────────────────────────────────
 
     test('set presence to online', async ({ request }) => {
         const res = await request.put('/api/authentication/status', {
@@ -141,7 +138,6 @@ test.describe('Auth Advanced', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Password Strength ─────────────────────────────────────────────────────
 
     test('check weak password score', async ({ request }) => {
         const res = await request.post('/api/authentication/password-strength', {
@@ -163,7 +159,6 @@ test.describe('Auth Advanced', () => {
         expect(body.score).toBeGreaterThanOrEqual(50);
     });
 
-    // ── Registration Info ─────────────────────────────────────────────────────
 
     test('registration info endpoint', async ({ request }) => {
         const res = await request.get('/api/authentication/registration-info');
@@ -172,7 +167,6 @@ test.describe('Auth Advanced', () => {
         expect(body.mode).toBeDefined();
     });
 
-    // ── Token Refresh ─────────────────────────────────────────────────────────
 
     test('token refresh', async ({ request }) => {
         const res = await request.post('/api/authentication/refresh', {
@@ -181,7 +175,6 @@ test.describe('Auth Advanced', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── QR Login ──────────────────────────────────────────────────────────────
 
     test('QR login init', async ({ request }) => {
         const res = await request.post('/api/authentication/qr-init', {
@@ -190,7 +183,6 @@ test.describe('Auth Advanced', () => {
         expect([200, 201]).toContain(res.status());
     });
 
-    // ── Seed Login ────────────────────────────────────────────────────────────
 
     test('seed login with invalid mnemonic fails', async ({ request }) => {
         const res = await request.post('/api/authentication/login-seed', {
@@ -202,7 +194,6 @@ test.describe('Auth Advanced', () => {
         expect([400, 401, 403, 404]).toContain(res.status());
     });
 
-    // ── Key Login ─────────────────────────────────────────────────────────────
 
     test('challenge for key login', async ({ request }) => {
         // Re-login to get fresh session
@@ -225,7 +216,6 @@ test.describe('Auth Advanced', () => {
         expect([400, 401, 403, 404]).toContain(res.status());
     });
 
-    // ── Passkey ───────────────────────────────────────────────────────────────
 
     test('passkey registration options', async ({ request }) => {
         const res = await request.post('/api/authentication/passkey/register-options', {
@@ -241,7 +231,6 @@ test.describe('Auth Advanced', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Devices ───────────────────────────────────────────────────────────────
 
     test('list devices', async ({ request }) => {
         const res = await request.get('/api/authentication/devices', {
@@ -250,7 +239,6 @@ test.describe('Auth Advanced', () => {
         expect([200, 401]).toContain(res.status());
     });
 
-    // ── Avatar Upload ─────────────────────────────────────────────────────────
 
     test('upload user avatar', async ({ request }) => {
         const pngBuf = Buffer.from(
@@ -266,7 +254,6 @@ test.describe('Auth Advanced', () => {
         expect([200, 201, 400, 401]).toContain(res.status());
     });
 
-    // ── Logout ────────────────────────────────────────────────────────────────
 
     test('logout', async ({ request }) => {
         const res = await request.post('/api/authentication/logout', {

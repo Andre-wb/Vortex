@@ -37,7 +37,6 @@
         msg.className = 'alert show ' + (variant === 'ok' ? 'alert-ok' : 'alert-err');
     }
 
-    // ── Step dots — render dynamically by current flow ────────────────
     //
     // Step numbering (matches data-step attributes on DOM elements):
     //   1 — identity (create / restore)  — the ``#identity-block`` div
@@ -84,7 +83,6 @@
         if (n === 5) renderSummary();     // review page
     }
 
-    // ── Identity block (shown before the numbered wizard) ─────────────
     const idBlock = $('#identity-block');
     const stepDots = $('#step-dots');
 
@@ -216,7 +214,6 @@
         if (p) p.textContent = String(parseInt($('#port').value, 10) || 9000);
     }
 
-    // ── Step 1 — mode cards + custom fields ───────────────────────────
     const modeCards = $$('#mode-cards .mode-card');
     const customFields = $('#custom-fields');
     const hiddenMode = $('#network_mode');
@@ -259,7 +256,6 @@
         }
     });
 
-    // ── Step 3 — choice cards (click = advance to step 4) ─────────────
     $$('#tunnel-cards .choice-card').forEach(c => c.addEventListener('click', () => {
         state.exposure = c.dataset.choice;
         $$('#tunnel-cards .choice-card').forEach(x => x.classList.toggle('selected', x === c));
@@ -268,7 +264,6 @@
     }));
     $('#btn-back-2').addEventListener('click', () => showStep(2));
 
-    // ── Step 3 — detail views ─────────────────────────────────────────
     function setCtaMode(mode) {
         const startBtn = $('#btn-start-tunnel');
         const label = $('#btn-start-tunnel-label');
@@ -388,7 +383,6 @@
         showStep(5);
     });
 
-    // ── Step 5 — summary + SNS resolve + save ─────────────────────────
     async function resolveSns(force = false) {
         const sumBlock = $('#sns-summary');
         if (state.mode !== 'global') { sumBlock.style.display = 'none'; return; }

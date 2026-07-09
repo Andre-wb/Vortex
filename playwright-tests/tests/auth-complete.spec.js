@@ -27,7 +27,6 @@ test.describe('Auth Complete', () => {
         userId = await getMeId(request, csrf);
     });
 
-    // ── QR Login ──────────────────────────────────────────────────────────────
 
     test('QR confirm (no session)', async ({ request }) => {
         const res = await request.post('/api/authentication/qr-confirm', {
@@ -44,7 +43,6 @@ test.describe('Auth Complete', () => {
         expect([200, 400, 404]).toContain(res.status());
     });
 
-    // ── 2FA ───────────────────────────────────────────────────────────────────
 
     test('2FA enable with invalid code fails', async ({ request }) => {
         const res = await request.post('/api/authentication/2fa/enable', {
@@ -70,7 +68,6 @@ test.describe('Auth Complete', () => {
         expect([400, 401, 403, 404, 422]).toContain(res.status());
     });
 
-    // ── Passkey Verify ────────────────────────────────────────────────────────
 
     test('passkey register-verify with invalid data', async ({ request }) => {
         const res = await request.post('/api/authentication/passkey/register-verify', {
@@ -87,7 +84,6 @@ test.describe('Auth Complete', () => {
         expect([400, 404, 422]).toContain(res.status());
     });
 
-    // ── Devices ───────────────────────────────────────────────────────────────
 
     test('delete non-existent device', async ({ request }) => {
         const res = await request.delete('/api/authentication/devices/999999', {
@@ -110,7 +106,6 @@ test.describe('Auth Complete', () => {
         csrf = (await csrfRes.json()).csrf_token;
     });
 
-    // ── Profile (PUT /profile) ────────────────────────────────────────────────
 
     test('update profile via /profile endpoint', async ({ request }) => {
         const res = await request.put('/api/authentication/profile', {
@@ -120,7 +115,6 @@ test.describe('Auth Complete', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Panic ─────────────────────────────────────────────────────────────────
 
     test('panic button (trigger)', async ({ request }) => {
         // Don't actually wipe — test that the endpoint exists

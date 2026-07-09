@@ -64,7 +64,6 @@ public final class ChatEngine: MessageSender, IncomingMessages, @unchecked Senda
         }
     }
 
-    // ── incoming loop ──────────────────────────────────────────────────
 
     private static func observeIncoming(
         incoming: AsyncStream<String>,
@@ -126,7 +125,6 @@ public final class ChatEngine: MessageSender, IncomingMessages, @unchecked Senda
         return String(data: plain, encoding: .utf8)
     }
 
-    // ── DTOs ───────────────────────────────────────────────────────────
 
     private struct OutFrame: Codable {
         let action: String

@@ -20,7 +20,6 @@ import pytest
 from conftest import make_user, random_str, SyncASGIClient
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _make_auth(client: SyncASGIClient) -> tuple[dict, dict]:
     """Register user and return (user_dict, headers)."""
@@ -63,7 +62,6 @@ def _create_photo_story(client, headers, envelopes=None):
     return r
 
 
-# ── Test Classes ─────────────────────────────────────────────────────────────
 
 class TestCreateStory:
     """POST /api/stories"""

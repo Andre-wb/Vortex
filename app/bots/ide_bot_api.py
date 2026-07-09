@@ -42,11 +42,8 @@ federated_router = APIRouter(tags=["bots-federation"])
 webhook_router = APIRouter(tags=["bots-webhook"])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot call router endpoints
-# ══════════════════════════════════════════════════════════════════════════════
 
-# ── Inter-bot API ─────────────────────────────────────────────────────────
 
 @bot_call_router.post("/api/bot/call/{username}")
 async def bot_call_function(
@@ -108,7 +105,6 @@ async def bot_call_function(
     }
 
 
-# ── Message history ──────────────────────────────────────────────────────
 
 @bot_call_router.get("/api/bot/history/{room_id}/{user_id}")
 async def get_message_history(
@@ -158,7 +154,6 @@ async def get_message_history(
         db.close()
 
 
-# ── Chat actions API (typing, pin, unpin, mute) ─────────────────────────
 
 @bot_call_router.post("/api/bot/typing")
 async def bot_typing(
@@ -232,7 +227,6 @@ async def bot_mute_user(
     return {"ok": True, "muted": True}
 
 
-# ── i18n locale detection ────────────────────────────────────────────────
 
 @bot_call_router.get("/api/bot/user_lang/{user_id}")
 async def get_user_lang(
@@ -246,7 +240,6 @@ async def get_user_lang(
     return {"ok": True, "lang": "en"}
 
 
-# ── Embed endpoint ───────────────────────────────────────────────────────
 
 @bot_call_router.post("/api/bot/embed")
 async def bot_embed(
@@ -276,7 +269,6 @@ async def bot_embed(
     return {"ok": True, "embed_id": embed_id}
 
 
-# ── Push notifications ───────────────────────────────────────────────────
 
 @bot_call_router.post("/api/bot/notify")
 async def bot_notify_user(
@@ -397,7 +389,6 @@ async def bot_notify_room(
     return {"ok": True, "sent": sent}
 
 
-# ── Event fire endpoint ──────────────────────────────────────────────────
 
 @bot_call_router.post("/api/bot/fire_event")
 async def bot_fire_event(body: dict, user=Depends(get_current_user)):
@@ -416,7 +407,6 @@ async def bot_fire_event(body: dict, user=Depends(get_current_user)):
     return {"ok": True}
 
 
-# ── Form rendering ───────────────────────────────────────────────────────
 
 @bot_call_router.post("/api/bot/form")
 async def bot_form(body: dict, user=Depends(get_current_user)):
@@ -455,9 +445,7 @@ async def bot_form_submit(body: dict, user=Depends(get_current_user)):
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Federated router endpoints
-# ══════════════════════════════════════════════════════════════════════════════
 
 @federated_router.post("/api/bot/federated_send")
 async def federated_send(
@@ -496,9 +484,7 @@ async def federated_send(
         db.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Webhook router endpoints
-# ══════════════════════════════════════════════════════════════════════════════
 
 @webhook_router.post("/api/bot/webhook/{project_id}/{path:path}")
 @webhook_router.get("/api/bot/webhook/{project_id}/{path:path}")

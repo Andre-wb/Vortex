@@ -128,7 +128,6 @@ class WebRtcCallController @Inject constructor(
     override suspend fun toggleMic(on: Boolean)    { audioTrack?.setEnabled(on) }
     override suspend fun toggleCamera(on: Boolean) { videoTrack?.setEnabled(on) }
 
-    // ── WebRTC plumbing ─────────────────────────────────────────────────
 
     private fun ensureFactory() {
         if (::factory.isInitialized) return

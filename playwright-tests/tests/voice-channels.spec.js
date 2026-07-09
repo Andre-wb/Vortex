@@ -27,7 +27,6 @@ test.describe('Voice Channels', () => {
         roomId = await createRoom(request, csrf, 'voice_room', { is_voice: true });
     });
 
-    // ── Core ──────────────────────────────────────────────────────────────────
 
     test('join voice channel', async ({ request }) => {
         const res = await request.post(`/api/voice/${roomId}/join`, {
@@ -67,7 +66,6 @@ test.describe('Voice Channels', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Recording ─────────────────────────────────────────────────────────────
 
     test('recording status (not started)', async ({ request }) => {
         const res = await request.get(`/api/voice/${roomId}/recording/status`, {
@@ -90,7 +88,6 @@ test.describe('Voice Channels', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Stage Mode ────────────────────────────────────────────────────────────
 
     test('enable stage mode', async ({ request }) => {
         const res = await request.post(`/api/voice/${roomId}/stage/enable`, {
@@ -142,7 +139,6 @@ test.describe('Voice Channels', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Cleanup ───────────────────────────────────────────────────────────────
 
     test('leave voice channel', async ({ request }) => {
         const res = await request.post(`/api/voice/${roomId}/leave`, {

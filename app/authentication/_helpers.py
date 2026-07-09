@@ -23,7 +23,6 @@ from app.security.ip_privacy import sanitize_ip
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/authentication", tags=["authentication"])
 
-# ── Rate limiting ─────────────────────────────────────────────────────────
 _auth_rate: dict[str, list[float]] = {}
 _AUTH_RATE_WINDOW = 60
 _AUTH_RATE_LOGIN = 10
@@ -45,14 +44,12 @@ def _check_auth_rate(ip: str, limit: int) -> bool:
     return True
 
 
-# ── Dummy hash для timing-attack prevention ───────────────────────────────
 try:
     _DUMMY_HASH = _hp("__dummy_timing_password__")
 except Exception:
     _DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$dummyhashvalue"
 
 
-# ── In-memory хранилище challenge'ов (X25519 + QR) ───────────────────────
 @dataclass
 class _Challenge:
     """Одноразовый challenge для X25519 аутентификации."""
@@ -74,7 +71,6 @@ def _cleanup_expired_challenges() -> None:
             del _challenges[cid]
 
 
-# ── Парсинг User-Agent ────────────────────────────────────────────────────
 def _parse_device_name(ua: str | None) -> tuple[str, str]:
     """Parse User-Agent into (device_name, device_type)."""
     if not ua:
@@ -115,7 +111,6 @@ def _parse_device_name(ua: str | None) -> tuple[str, str]:
     return name, device_type
 
 
-# ── Установка auth cookies ────────────────────────────────────────────────
 def _set_auth_cookies(response: Response, user: User, db: Session, request: Request) -> None:
     """Устанавливает access_token и refresh_token как HttpOnly cookies."""
     from app.security.crypto import hash_token

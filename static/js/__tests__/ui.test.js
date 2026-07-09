@@ -13,7 +13,6 @@
  *   - toggleMobileMenu()    — sidebar open/close
  */
 
-// ── Dependency mocks ──────────────────────────────────────────────────────────
 
 jest.mock('../utils.js', () => ({
     $:          jest.fn((id) => global.document?.getElementById(id)),
@@ -49,7 +48,6 @@ jest.mock('../auth.js', () => ({
     getAccounts: jest.fn(() => []),
 }));
 
-// ── Imports ───────────────────────────────────────────────────────────────────
 
 import {
     showWelcome,
@@ -67,7 +65,6 @@ import { connectSignal } from '../webrtc.js';
 import { clearUnread } from '../notifications.js';
 import { getAccounts } from '../auth.js';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeStorage() {
     const store = {};
@@ -114,7 +111,6 @@ function buildFullDOM() {
     `;
 }
 
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -142,9 +138,7 @@ beforeEach(() => {
     buildFullDOM();
 });
 
-// =============================================================================
 // 1. showWelcome()
-// =============================================================================
 
 describe('showWelcome()', () => {
     test('adds "active" class to welcome-screen', () => {
@@ -191,9 +185,7 @@ describe('showWelcome()', () => {
     });
 });
 
-// =============================================================================
 // 2. showChatScreen()
-// =============================================================================
 
 describe('showChatScreen()', () => {
     test('sets chat-screen display to flex', () => {
@@ -226,9 +218,7 @@ describe('showChatScreen()', () => {
     });
 });
 
-// =============================================================================
 // 3. openRoom() — null guard and basic operation
-// =============================================================================
 
 describe('openRoom() — null guard', () => {
     test('returns early without throwing when room id is not in S.rooms', () => {
@@ -322,9 +312,7 @@ describe('openRoom() — successful room open', () => {
     });
 });
 
-// =============================================================================
 // 4. updateSidebarStatus()
-// =============================================================================
 
 describe('updateSidebarStatus()', () => {
     test('does not throw when AppState.user is null', () => {
@@ -365,9 +353,7 @@ describe('updateSidebarStatus()', () => {
     });
 });
 
-// =============================================================================
 // 5. showProfileModal()
-// =============================================================================
 
 describe('showProfileModal()', () => {
     test('returns early without throwing when AppState.user is null', () => {
@@ -418,9 +404,7 @@ describe('showProfileModal()', () => {
     });
 });
 
-// =============================================================================
 // 6. avatarWithStatus()
-// =============================================================================
 
 describe('avatarWithStatus()', () => {
     test('generates HTML with avatar-status-wrap class', () => {

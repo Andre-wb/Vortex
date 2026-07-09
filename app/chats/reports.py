@@ -60,9 +60,7 @@ _REPORT_EXPIRY_DAYS = 30
 _REPORTER_COOLDOWN_HOURS = 24
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class ReportRequest(BaseModel):
     reason:      str       = Field(..., min_length=1, max_length=50)
@@ -70,9 +68,7 @@ class ReportRequest(BaseModel):
     message_id:  int | None = None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Core punishment logic
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _format_remaining(td: timedelta) -> str:
     """Format timedelta as human-readable string."""
@@ -203,9 +199,7 @@ def _apply_strike(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Endpoints
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/users/report/{user_id}", status_code=201)
 async def report_user(
@@ -400,9 +394,7 @@ async def user_reports(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Background task: auto-unmute / auto-unban expired punishments
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def cleanup_expired_punishments(db: Session) -> None:
     """

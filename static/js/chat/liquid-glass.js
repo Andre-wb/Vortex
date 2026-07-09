@@ -1,9 +1,7 @@
 // static/js/chat/liquid-glass.js
-// =============================================================================
 // Wrapper around Liquid-Glass-PRO with performance-safe defaults.
 // No live refraction, no caustics, no cursor tracking, no grain.
 // Mirror variant by default, switchable at runtime.
-// =============================================================================
 
 import {
     initLiquidGlass   as _proInit,
@@ -27,7 +25,6 @@ export function initLiquidGlass() {
     _initialized = true;
 
     _proInit({
-        // ── Performance: disable heavy features ────────────────────────────
         caustics:            false,   // no WebGL caustic pass
         grain:               false,   // no grain noise overlay
         refractionStrength:  0,       // disables html2canvas background capture
@@ -36,7 +33,6 @@ export function initLiquidGlass() {
         bgCaptureInterval:   999999,  // effectively never (safety net)
         bgCaptureScale:      0.1,     // minimal if somehow triggered
 
-        // ── Visuals ────────────────────────────────────────────────────────
         glassVariant:        _savedVariant,
         glassType:           'BK7',
         iridescence:         false,   // disabled — no spinning overlay
@@ -119,7 +115,6 @@ function _injectOverrides() {
     border-bottom-left-radius: 4px !important;
 }
 
-/* ── Glass on specific UI elements ──────────────────────── */
 
 /* Toggle switches — Apple-style glass track */
 .toggle-slider,
@@ -214,7 +209,6 @@ export function createGrainLayer() {
     return document.createElement('div');
 }
 
-// ── Reply quote (extends PRO with msgType icon support) ─────────────────────
 
 function _replyIcon(text, msgType) {
     if (msgType === 'voice' || (text && text.startsWith('voice_')))

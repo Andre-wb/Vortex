@@ -104,7 +104,6 @@ fn bits_to_bytes(bits: &[u8]) -> Vec<u8> {
 }
 
 
-// ── Public: embed ─────────────────────────────────────────────────────────
 
 /// Embed `data` into `cover_png` using spread-spectrum LSB keyed by
 /// `key` (typically 32 bytes from the room E2E key). Returns a lossless

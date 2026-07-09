@@ -18,7 +18,6 @@ DATA_JS = os.path.join(BASE, 'static', 'js', 'ide-docs', 'data.js')
 EN_JSON = os.path.join(BASE, 'static', 'locales', 'en.json')
 RU_JSON = os.path.join(BASE, 'static', 'locales', 'ru.json')
 
-# ── Existing gravitixDocs.* key map: English text → key ──
 # Only for EXACT matches of h1/h2/p text
 EXISTING_KEYS = {
     # Headings (h1) — from TOC labels or explicit keys

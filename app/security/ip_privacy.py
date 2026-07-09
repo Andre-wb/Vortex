@@ -26,7 +26,6 @@ from typing import Optional
 
 from starlette.requests import Request
 
-# ── Configuration (read once at import) ──────────────────────────────────────
 
 _STORE_IPS: bool = os.environ.get("STORE_IPS", "true").lower() != "false"
 _HASH_IPS:  bool = os.environ.get("HASH_IPS", "false").lower() == "true"

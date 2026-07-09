@@ -50,7 +50,6 @@ class FileUploadConfig:
 
     # Допустимые MIME-типы и соответствующие расширения
     ALLOWED_MIME_TYPES: dict[str, list[str]] = {
-        # ── Изображения ──────────────────────────────────────────────────
         'image/jpeg':     ['.jpg', '.jpeg', '.jfif', '.jpe'],   # FIX: добавлены .jfif/.jpe (iPhone, Windows)
         'image/png':      ['.png'],
         'image/webp':     ['.webp'],
@@ -58,19 +57,17 @@ class FileUploadConfig:
         'image/bmp':      ['.bmp'],
         'image/tiff':     ['.tif', '.tiff'],
         'image/x-adobe-dng': ['.dng'],
-        # NOTE: image/svg+xml intentionally NOT allowed — SVG can carry inline
+        # image/svg+xml NOT allowed — SVG can carry inline
         # <script>/onload payloads (stored XSS). Use raster formats instead.
         # HEIC/HEIF (iPhone): magic возвращает разные строки в зависимости от libmagic версии
         'image/heic':     ['.heic', '.heif'],
         'image/heif':     ['.heic', '.heif'],
-        # ── Видео ────────────────────────────────────────────────────────
         'video/mp4':        ['.mp4', '.m4v'],
         'video/webm':       ['.webm'],
         'video/quicktime':  ['.mov', '.qt'],
         'video/x-msvideo':  ['.avi'],
         'video/x-matroska': ['.mkv'],
         'video/3gpp':       ['.3gp'],
-        # ── Аудио ────────────────────────────────────────────────────────
         'audio/mpeg':       ['.mp3'],
         'audio/ogg':        ['.ogg', '.oga'],
         'audio/wav':        ['.wav'],
@@ -80,7 +77,6 @@ class FileUploadConfig:
         'audio/flac':       ['.flac'],
         'audio/x-flac':     ['.flac'],
         'audio/mp4':        ['.m4a'],
-        # ── Документы ────────────────────────────────────────────────────
         'application/pdf':  ['.pdf'],
         'text/plain':       ['.txt', '.log', '.md', '.csv'],
         'text/csv':         ['.csv'],
@@ -122,14 +118,12 @@ class FileUploadConfig:
         'text/x-shellscript': ['.sh', '.bash'],
         'text/x-sql':       ['.sql'],
         'application/x-vortex-sticker': ['.sticker'],
-        # ── Архивы ───────────────────────────────────────────────────────
         'application/zip':                ['.zip'],
         'application/x-zip-compressed':   ['.zip'],
         'application/x-rar-compressed':   ['.rar'],
         'application/x-7z-compressed':    ['.7z'],
         'application/gzip':               ['.gz'],
         'application/x-tar':              ['.tar'],
-        # ── Зашифрованные файлы (E2E) ─────────────────────────────────
         'application/octet-stream':       ['.enc', '.bin'],
     }
     ALLOWED_EXTENSIONS = {ext for exts in ALLOWED_MIME_TYPES.values() for ext in exts}
@@ -146,7 +140,6 @@ class FileUploadConfig:
     CHECK_FOR_MALICIOUS_CONTENT = True
 
 
-# ── EXIF Stripping ───────────────────────────────────────────────────────────
 
 def strip_exif(content: bytes, mime_type: str) -> bytes:
     """
@@ -186,11 +179,11 @@ def strip_exif(content: bytes, mime_type: str) -> bytes:
             return content
 
         result = buf.getvalue()
+
         stripped_size = len(content) - len(result)
         if stripped_size > 0:
             logger.debug(f"EXIF stripped: {stripped_size} bytes removed from {fmt}")
         return result
-
     except Exception as e:
         logger.warning(f"EXIF strip failed ({e}), returning original")
         return content
@@ -777,7 +770,6 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
     """
     file_ext = Path(filename).suffix.lower()
 
-    # ── Шаг 1: определяем MIME по magic bytes (если libmagic доступна) ───────
     if _MAGIC_AVAILABLE and _magic_lib is not None:
         try:
             mime = _magic_lib.from_buffer(content[:4096], mime=True)
@@ -787,7 +779,6 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
     else:
         mime = None
 
-    # ── Шаг 2: если magic не дала результат — определяем по расширению ───────
     if mime is None:
         # Fallback: ищем MIME по расширению файла
         ext_to_mime = {
@@ -799,7 +790,6 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
         if mime is None:
             return False, f"Unsupported file extension: {file_ext}"
 
-    # ── Шаг 2.5: encrypted files (E2E) — magic bytes unrecognisable ────────
     # If libmagic reports octet-stream but the original extension is a known
     # allowed type, accept it as octet-stream (encrypted payload).
     if mime == 'application/octet-stream':
@@ -812,7 +802,6 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
             # E2E encrypted file — use extension-based mime (libmagic can't read encrypted bytes)
             return True, ext_to_mime[file_ext]
 
-    # ── Шаг 3: проверяем что MIME входит в белый список ─────────────────────
     if mime not in FileUploadConfig.ALLOWED_MIME_TYPES:
         # Попытка нормализации: некоторые libmagic версии возвращают x-субтипы
         # например 'audio/x-wav' вместо 'audio/wav' или 'image/x-png' вместо 'image/png'
@@ -822,7 +811,6 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
         else:
             return False, f"Unsupported file type: {mime}"
 
-    # ── Шаг 4: проверяем расширение — мягкая проверка ───────────────────────
     expected_exts = FileUploadConfig.ALLOWED_MIME_TYPES.get(mime, [])
     if file_ext and expected_exts and file_ext not in expected_exts:
         mime_category = mime.split('/')[0]

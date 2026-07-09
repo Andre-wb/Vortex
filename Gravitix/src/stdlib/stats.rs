@@ -4,9 +4,7 @@ use crate::value::Value;
 use crate::error::GravResult;
 use crate::runtime_err;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helper — extract a Vec<f64> from a Value::List
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn to_f64_list(v: &Value) -> Option<Vec<f64>> {
     if let Value::List(l) = v {
@@ -43,9 +41,7 @@ fn require_nonempty_list(args: &[Value], idx: usize, fn_name: &str) -> GravResul
     Ok(list)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Error function approximation (Abramowitz & Stegun)
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn erf_approx(x: f64) -> f64 {
     let t = 1.0 / (1.0 + 0.3275911 * x.abs());
@@ -54,13 +50,10 @@ fn erf_approx(x: f64) -> f64 {
     if x >= 0.0 { result } else { -result }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn call_stats_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>> {
     let v = match name {
-        // ── Descriptive statistics ───────────────────────────────────────────
         "sum" => {
             let list = require_list(args, 0, "sum")?;
             Value::Float(list.iter().sum())
@@ -198,7 +191,6 @@ pub fn call_stats_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value
             Value::Float(max)
         }
 
-        // ── Probability distributions ───────────────────────────────────────
         "normal_pdf" => {
             let x = get_float(args, 0, "normal_pdf")?;
             let mu = get_float(args, 1, "normal_pdf")?;
@@ -254,7 +246,6 @@ pub fn call_stats_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value
             }
         }
 
-        // ── Random number generation ────────────────────────────────────────
         "uniform_rand" => {
             let a = get_float(args, 0, "uniform_rand")?;
             let b = get_float(args, 1, "uniform_rand")?;
@@ -278,7 +269,6 @@ pub fn call_stats_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value
             Value::Float(mu + sigma * z)
         }
 
-        // ── Linear regression ───────────────────────────────────────────────
         "linreg" => {
             let xs = require_nonempty_list(args, 0, "linreg")?;
             let ys = require_nonempty_list(args, 1, "linreg")?;
@@ -320,15 +310,12 @@ pub fn call_stats_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value
             Value::make_map(m)
         }
 
-        // ── Unknown — let the caller decide ─────────────────────────────────
         _ => return Ok(None),
     };
     Ok(Some(v))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Natural log of n! — computed iteratively.
 fn ln_factorial(n: u64) -> f64 {

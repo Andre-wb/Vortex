@@ -273,9 +273,7 @@ class UserStatus(Base):
     expires_at = Column(DateTime,    nullable=False)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class RegisterRequest(BaseModel):
     phone:             str | None = Field(None, max_length=20)

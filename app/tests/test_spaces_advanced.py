@@ -11,7 +11,6 @@ import pytest
 from conftest import make_user, login_user, random_str
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
 
 def _create_space(client, headers, *, name=None, is_public=False):
     """Create a space and return its full JSON response."""
@@ -33,9 +32,7 @@ def _make_owner(client):
     return user, space
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Templates
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSpaceTemplates:
 
@@ -125,9 +122,7 @@ class TestSpaceTemplates:
         assert r.status_code in (403, 401)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Nested Spaces (Sub-Spaces)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestNestedSpaces:
 
@@ -189,9 +184,7 @@ class TestNestedSpaces:
         assert r.status_code in (403, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Onboarding
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestOnboarding:
 
@@ -262,9 +255,7 @@ class TestOnboarding:
         assert r.status_code in (401, 403)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Space Discovery
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSpaceDiscovery:
 
@@ -319,9 +310,7 @@ class TestSpaceDiscovery:
         assert r.json()["spaces"] == []
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Audit Log
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestAuditLog:
 
@@ -386,9 +375,7 @@ class TestAuditLog:
         assert len(r.json()["entries"]) <= 5
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Vanity URL
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestVanityURL:
 
@@ -451,9 +438,7 @@ class TestVanityURL:
         assert r.status_code == 422
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Custom Emoji
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestCustomEmoji:
 
@@ -518,9 +503,7 @@ class TestCustomEmoji:
         assert r.status_code in (401, 403)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Permission Overrides
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPermissions:
 

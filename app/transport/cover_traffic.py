@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["cover"])
 
 
-# ── Cover Website (для DPI-сканеров) ─────────────────────────────────────────
 
 # Several realistic pages that look like a real business website
 COVER_PAGES = {
@@ -92,7 +91,6 @@ footer{background:#1a1a2e;color:#666;text-align:center;padding:24px;font-size:.8
 }
 
 
-# ── HTTP/2 Multiplexing Cover (фейковые ресурсы для имитации SPA) ────────────
 
 def _generate_fake_js() -> str:
     """Генерирует ~25-35KB реалистичного минифицированного JavaScript."""
@@ -232,7 +230,6 @@ async def cover_page(path: str = "", request: Request = None):
     return response
 
 
-# ── Cover Traffic Generator ──────────────────────────────────────────────────
 
 # Типичные размеры веб-ресурсов (байты) для имитации серфинга
 _WEB_RESOURCE_SIZES = {

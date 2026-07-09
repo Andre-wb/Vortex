@@ -9,9 +9,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::DialogExt;
 
-// ---------------------------------------------------------------------------
 // Native file picker
-// ---------------------------------------------------------------------------
 
 #[tauri::command]
 async fn pick_files(app: AppHandle) -> Result<Vec<String>, String> {
@@ -34,9 +32,7 @@ async fn pick_files(app: AppHandle) -> Result<Vec<String>, String> {
     rx.recv().map_err(|e| e.to_string())
 }
 
-// ---------------------------------------------------------------------------
 // Clipboard
-// ---------------------------------------------------------------------------
 
 #[tauri::command]
 fn write_clipboard(app: AppHandle, text: String) -> Result<(), String> {
@@ -48,9 +44,7 @@ fn read_clipboard(app: AppHandle) -> Result<String, String> {
     app.clipboard().read_text().map_err(|e| e.to_string())
 }
 
-// ---------------------------------------------------------------------------
 // Window controls
-// ---------------------------------------------------------------------------
 
 #[tauri::command]
 fn minimize_window(app: AppHandle) -> Result<(), String> {
@@ -74,9 +68,7 @@ fn close_window(app: AppHandle) -> Result<(), String> {
     window.close().map_err(|e| e.to_string())
 }
 
-// ---------------------------------------------------------------------------
 // Badge count (macOS dock / Windows taskbar via notification plugin)
-// ---------------------------------------------------------------------------
 
 #[tauri::command]
 fn set_badge(app: AppHandle, count: u32) -> Result<(), String> {
@@ -145,9 +137,7 @@ fn set_dock_badge_macos(label: &str) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // System theme detection
-// ---------------------------------------------------------------------------
 
 fn detect_theme() -> &'static str {
     // Tauri itself reports the system theme; we read it from the window.
@@ -156,9 +146,7 @@ fn detect_theme() -> &'static str {
     "unknown"
 }
 
-// ---------------------------------------------------------------------------
 // main
-// ---------------------------------------------------------------------------
 
 fn main() {
     tauri::Builder::default()

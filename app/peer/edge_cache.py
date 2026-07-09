@@ -29,14 +29,12 @@ from app.security.ssl_context import make_peer_ssl_context
 
 logger = logging.getLogger(__name__)
 
-# ── Shared pool for cache fetches ────────────────────────────────────────────
 _cache_pool = httpx.AsyncClient(
     timeout=httpx.Timeout(10.0, connect=3.0),
     limits=httpx.Limits(max_keepalive_connections=10, max_connections=40),
     verify=make_peer_ssl_context(),
 )
 
-# ── Configuration ────────────────────────────────────────────────────────────
 
 _MAX_CACHE_SIZE_MB = int(os.environ.get("EDGE_CACHE_MAX_MB", "500"))
 _MAX_CACHE_SIZE    = _MAX_CACHE_SIZE_MB * 1024 * 1024
@@ -95,7 +93,6 @@ class EdgeCache:
                 )
                 self._total_size += size
 
-    # ── Local lookup ─────────────────────────────────────────────────────────
 
     def get_local(self, file_hash: str) -> Optional[Path]:
         """Return cached file path if present and not expired."""
@@ -116,7 +113,6 @@ class EdgeCache:
         self._entries.move_to_end(file_hash)
         return path
 
-    # ── Fetch from peers ─────────────────────────────────────────────────────
 
     async def fetch_from_peers(
         self,
@@ -158,7 +154,6 @@ class EdgeCache:
 
         return None
 
-    # ── Store ────────────────────────────────────────────────────────────────
 
     async def store(self, file_hash: str, content: bytes) -> Optional[Path]:
         """Cache file content locally. Returns path or None if too large."""
@@ -180,7 +175,6 @@ class EdgeCache:
 
         return path
 
-    # ── Announce to peers ────────────────────────────────────────────────────
 
     async def announce_file(
         self,
@@ -199,7 +193,6 @@ class EdgeCache:
             except Exception:
                 pass
 
-    # ── Eviction ─────────────────────────────────────────────────────────────
 
     def _evict(self, file_hash: str) -> None:
         entry = self._entries.pop(file_hash, None)
@@ -221,7 +214,6 @@ class EdgeCache:
                 self._evict(k)
             return len(expired)
 
-    # ── Stats ────────────────────────────────────────────────────────────────
 
     def stats(self) -> dict:
         total_hits = sum(e.hits for e in self._entries.values())

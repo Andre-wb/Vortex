@@ -1,17 +1,13 @@
 use crate::lexer::StrPart;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Top-level program
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct Program {
     pub items: Vec<Item>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Decorator — `@name` or `@name(args)`
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct Decorator {
@@ -19,9 +15,7 @@ pub struct Decorator {
     pub args: Vec<Expr>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Top-level items
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub enum Item {
@@ -138,9 +132,7 @@ pub enum Item {
     TypeDefItem(TypeDefItem),
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Enum definition
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct EnumDef {
@@ -154,9 +146,7 @@ pub struct EnumVariant {
     pub fields: Vec<TypeExpr>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Impl block — methods on structs
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct ImplBlock {
@@ -164,9 +154,7 @@ pub struct ImplBlock {
     pub methods:   Vec<FnDef>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Queue definition
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct QueueDef {
@@ -174,9 +162,7 @@ pub struct QueueDef {
     pub config: Vec<(String, Expr)>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // FSM definition
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct FsmDef {
@@ -209,9 +195,7 @@ pub enum FsmTrigger {
     Other(String),
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Permission definition
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct PermDef {
@@ -219,9 +203,7 @@ pub struct PermDef {
     pub cond: Expr,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Schedule definition (cron)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct ScheduleDef {
@@ -229,9 +211,7 @@ pub struct ScheduleDef {
     pub body: Vec<Stmt>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Struct definition
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct StructDef {
@@ -239,9 +219,7 @@ pub struct StructDef {
     pub fields: Vec<(String, TypeExpr)>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Test block  `test "name" { body }`
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct TestDef {
@@ -254,9 +232,7 @@ pub struct TestDef {
     pub is_scenario: bool,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Function definition
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct FnDef {
@@ -282,9 +258,7 @@ pub struct Param {
     pub default: Option<Expr>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Handler  `on <trigger> [guard <expr>] { body }`
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct RateLimit {
@@ -368,9 +342,7 @@ pub enum Trigger {
     IntentUnknown,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Flow (multi-step dialogue state machine)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct FlowDef {
@@ -383,9 +355,7 @@ pub struct FlowDef {
     pub doc:  Option<String>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Persistent bot state
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct StateDef {
@@ -407,9 +377,7 @@ pub struct StateField {
     pub scope:   StateScope,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Schedulers
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct EveryDef {
@@ -427,9 +395,7 @@ pub struct AtDef {
 #[derive(Debug, Clone)]
 pub enum TimeUnit { Sec, Min, Hour, Day }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Hook definition  `hook before/after msg { body }`
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct HookDef {
@@ -440,9 +406,7 @@ pub struct HookDef {
 #[derive(Debug, Clone, PartialEq)]
 pub enum HookWhen { Before, After }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Plugin definition  `plugin "name" { key: expr, … }`
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct PluginDef {
@@ -450,9 +414,7 @@ pub struct PluginDef {
     pub config: Vec<(String, Expr)>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Metrics definition  `metrics { counter x, gauge y, … }`
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct MetricsDef {
@@ -468,9 +430,7 @@ pub struct MetricDef {
 #[derive(Debug, Clone, PartialEq)]
 pub enum MetricKind { Counter, Gauge, Histogram }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // A/B test definition  `abtest "name" { variant A { } variant B { } }`
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct AbTestDef {
@@ -479,18 +439,14 @@ pub struct AbTestDef {
     pub variant_b: Vec<Stmt>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // i18n lang definition (Feature 12)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct LangDef {
     pub locales: Vec<(String, Vec<(String, Expr)>)>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Statements
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
@@ -657,9 +613,7 @@ pub enum Stmt {
     ExpectReply { check: ExpectCheck },
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Wizard step
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct WizardStep {
@@ -670,9 +624,7 @@ pub struct WizardStep {
     pub is_confirm: bool,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Match arm
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct MatchArm {
@@ -694,9 +646,7 @@ pub enum Pattern {
     EnumDestruct { enum_name: String, variant: String, bindings: Vec<String> },
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Expressions
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -798,9 +748,7 @@ pub enum Expr {
     WebSocket { url: Box<Expr>, config: Vec<(String, Expr)> },
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Operators
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinOp {
@@ -817,9 +765,7 @@ pub enum BinOp {
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnaryOp { Neg, Not, BitNot }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Type expressions
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub enum TypeExpr {
@@ -836,9 +782,7 @@ pub enum TypeExpr {
     Result,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Select arm (Feature 4)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -856,9 +800,7 @@ pub enum SelectKind {
     Timeout(u64),
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Validate kind (Feature 6)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct ValidateKind {
@@ -866,9 +808,7 @@ pub struct ValidateKind {
     pub args: Vec<Expr>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Watch definition (Feature 3)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct WatchDef {
@@ -876,9 +816,7 @@ pub struct WatchDef {
     pub body:  Vec<Stmt>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Admin definition (Feature 9)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -894,9 +832,7 @@ pub struct AdminSection {
     pub config: Vec<(String, Expr)>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Middleware definition (Feature 11)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct MiddlewareDef {
@@ -905,18 +841,14 @@ pub struct MiddlewareDef {
     pub body:   Vec<Stmt>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Intents definition (Feature N1)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct IntentsDef {
     pub intents: Vec<(String, Vec<String>)>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Entity definition (Feature N2)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct EntitiesDef {
@@ -935,9 +867,7 @@ pub enum EntityKind {
     List(Vec<String>),
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Circuit breaker definition (Feature N3)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerDef {
@@ -945,9 +875,7 @@ pub struct CircuitBreakerDef {
     pub config: Vec<(String, Expr)>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Canary definition (Feature N5)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct CanaryDef {
@@ -956,18 +884,14 @@ pub struct CanaryDef {
     pub handlers: Vec<Handler>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Multiplatform definition (Feature N10)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct MultiplatformDef {
     pub platforms: Vec<(String, Vec<(String, Expr)>)>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Migration definition (Feature N11)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct MigrationDef {
@@ -975,9 +899,7 @@ pub struct MigrationDef {
     pub body: Vec<Stmt>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Webhook definition (Feature W5)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct WebhookDef {
@@ -986,9 +908,7 @@ pub struct WebhookDef {
     pub handlers: Vec<(String, Vec<Stmt>)>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Permissions RBAC definition (Feature W7)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct PermissionsDef {
@@ -996,9 +916,7 @@ pub struct PermissionsDef {
     pub default_role: String,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Ratelimit definition (Feature W8)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct RatelimitDef {
@@ -1020,9 +938,7 @@ pub enum RatelimitScope {
     Command(String),
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TypeDef definition (Feature W11)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct TypeDefItem {
@@ -1031,9 +947,7 @@ pub struct TypeDefItem {
     pub constraint: Option<Expr>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Form expression (Feature W1)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct FormField {
@@ -1054,9 +968,7 @@ pub enum FormFieldKind {
     Phone,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Scenario test statements (Feature N12)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub enum SimAction {

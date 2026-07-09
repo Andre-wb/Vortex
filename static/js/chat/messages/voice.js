@@ -4,9 +4,7 @@ import { _msgElements } from './shared.js';
 const _SVG_PLAY  = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><path d="M15.5 12L10 15.5V8.5L15.5 12Z" fill="currentColor"/></svg>`;
 const _SVG_PAUSE = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="8" width="2.2" height="8" rx="1" fill="currentColor"/><rect x="12.8" y="8" width="2.2" height="8" rx="1" fill="currentColor"/></svg>`;
 
-// =============================================================================
 // Голосовые сообщения (визуализация и управление)
-// =============================================================================
 
 /**
  * Вставляет стили для голосового плеера, если ещё не.
@@ -284,9 +282,7 @@ export async function _initVoiceBubble(el) {
 // Заглушка для глобальной функции (не используется)
 window.toggleVoicePlay = () => {};
 
-// =============================================================================
 // Вспомогательные функции
-// =============================================================================
 
 /**
  * Плавно прокручивает к сообщению по ID и подсвечивает его.

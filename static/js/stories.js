@@ -7,7 +7,6 @@ import {
     eciesEncrypt,
 } from './crypto.js';
 
-// ── State ────────────────────────────────────────────────────────────────────
 let _groups = [];          // story groups from API
 let _gi = 0;               // current group index
 let _si = 0;               // story index within group
@@ -27,10 +26,8 @@ let _scTextColor = '#ffffff';
 let _scBg = 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)';
 let _expanded = false;     // stories strip expanded state
 
-// ── Public: set of user IDs that have active stories ─────────────────────────
 export const storyUserIds = new Set();
 
-// ── Load & render strip ───────────────────────────────────────────────────────
 export async function loadStories() {
     try {
         const data = await api('GET', '/api/stories');
@@ -118,7 +115,6 @@ function _avatarHtml(url, emoji) {
 export function expandStories() { _expanded = true; renderStoriesStrip(); }
 export function collapseStories() { _expanded = false; renderStoriesStrip(); }
 
-// ── Viewer ────────────────────────────────────────────────────────────────────
 export function openStories(groupIdx) {
     if (!_groups.length) return;
     _gi = Math.max(0, Math.min(groupIdx, _groups.length - 1));
@@ -199,7 +195,6 @@ async function _renderCurrent() {
     vid.style.display = 'none';
     textSlide.style.display = 'none';
 
-    // ── E2E Decryption ──────────────────────────────────────────────
     let storyKey = null;
     let decryptedText = '';
     let meta = { text_color: '#ffffff', bg_color: 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)', music_title: '' };
@@ -466,7 +461,6 @@ window._deleteCurrentStory = async function() {
     }
 };
 
-// ── Story Reactions & Replies ────────────────────────────────────────────────
 
 window._svReact = async function(emoji) {
     const group = _groups[_gi];
@@ -523,7 +517,6 @@ function _timeAgo(iso) {
     return Math.round(diff / 1440) + ' ' + _t('time.dShort');
 }
 
-// ── Story Creator ─────────────────────────────────────────────────────────────
 export function showStoryCreator() {
     _scFile = null;
     _scMusicFile = null;
@@ -724,7 +717,6 @@ window._scPublish = async function() {
             : ['camera-video','video'].includes(_scType) ? 'video' : 'text';
         fd.append('media_type', mediaType);
 
-        // ── E2E Encryption ─────────────────────────────────────────────
         // 1. Generate random story key
         const storyKey = generateStoryKey();
 

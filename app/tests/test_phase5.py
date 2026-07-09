@@ -27,9 +27,7 @@ def _mock_response(method: str, url: str, status: int = 200, **kw) -> httpx.Resp
     return httpx.Response(status, request=req, **kw)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Borsh layout — synth a valid Peer account the way Anchor would
-# ══════════════════════════════════════════════════════════════════════════
 
 
 def _encode_peer_account(
@@ -60,9 +58,7 @@ def _encode_peer_account(
     return disc + bytes(body)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Parser
-# ══════════════════════════════════════════════════════════════════════════
 
 
 def test_parse_peer_account_roundtrip():
@@ -146,9 +142,7 @@ def test_to_controller_peer_metadata_fallback():
     assert view["metadata"] == {"raw": "not-json!"}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # RPC client (mocked)
-# ══════════════════════════════════════════════════════════════════════════
 
 
 @pytest.mark.asyncio
@@ -241,9 +235,7 @@ def test_base58_encode_roundtrip():
     assert _b58encode(b"\x00\x00\x42").startswith("11")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Integration: migration-hint merges Solana + controller peers
-# ══════════════════════════════════════════════════════════════════════════
 
 
 @pytest.mark.asyncio

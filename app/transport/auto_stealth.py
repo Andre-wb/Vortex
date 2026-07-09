@@ -23,9 +23,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. WebSocket Frame Obfuscator — padding + jitter для КАЖДОГО WS-фрейма
-# ══════════════════════════════════════════════════════════════════════════════
 
 class WSFrameObfuscator:
     """
@@ -69,9 +67,7 @@ class WSFrameObfuscator:
             await asyncio.sleep(delay)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. Transport Health Monitor — проверяет доступность транспортов
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TransportHealthMonitor:
     """
@@ -130,9 +126,7 @@ class TransportHealthMonitor:
         self._running = False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. HTTP Response Padding — все ответы рандомного размера
-# ══════════════════════════════════════════════════════════════════════════════
 
 def add_response_padding(headers: dict) -> dict:
     """
@@ -162,9 +156,7 @@ def add_response_padding(headers: dict) -> dict:
     return headers
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. Knock Hint API — клиент получает текущую knock-последовательность
-# ══════════════════════════════════════════════════════════════════════════════
 
 def get_knock_hint() -> dict:
     """
@@ -192,9 +184,7 @@ def get_knock_hint() -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 5. Auto-Start — запускает всё при старте сервера
-# ══════════════════════════════════════════════════════════════════════════════
 
 _health_monitor = TransportHealthMonitor()
 _ws_obfuscator = WSFrameObfuscator()

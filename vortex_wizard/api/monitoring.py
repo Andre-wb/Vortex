@@ -35,9 +35,7 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. Grafana dashboard JSON
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/grafana/dashboard.json")
 async def grafana_dashboard(request: Request) -> dict:
@@ -99,9 +97,7 @@ async def grafana_dashboard(request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. Custom alert rules
-# ══════════════════════════════════════════════════════════════════════════
 #
 # A rule has the form:
 #     metric_name <op> threshold
@@ -265,9 +261,7 @@ def install_monitoring_jobs(env_file: Path) -> None:
     s.register("alert_rules", job_alert_rules, default_interval="hourly")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. Slow query log
-# ══════════════════════════════════════════════════════════════════════════
 
 def _slow_log_path(env_file: Path) -> Path:
     return env_file.parent / "slow_queries.ndjson"
@@ -331,9 +325,7 @@ def record_slow_query(env_file: Path, sql: str, duration_ms: float,
         pass
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. Table partitioning wizard
-# ══════════════════════════════════════════════════════════════════════════
 #
 # Postgres: we don't rewrite an existing table — instead we output a
 # migration script the operator can apply during maintenance window.

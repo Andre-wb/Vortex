@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use crate::value::Value;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Environment: a simple Vec<Frame> stack for O(1) push/pop
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
 struct Frame {

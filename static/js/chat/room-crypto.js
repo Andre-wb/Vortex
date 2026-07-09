@@ -6,7 +6,6 @@ export const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b
 // Room keys: primary store in JS heap, backed by sessionStorage for page reload survival.
 const _roomKeyCache = new Map();
 
-// ── Metadata padding ────────────────────────────────────────────────────
 // Log-spaced bucket sizes matching app/chats/messages/padding.py + Rust
 // vortex_chat.pad_to_bucket. Every outgoing ciphertext is padded to the
 // next bucket so traffic analysis can't tell "ok" apart from "here's

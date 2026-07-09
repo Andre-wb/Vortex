@@ -30,9 +30,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/dm", tags=["dm"])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic схемы
-# ══════════════════════════════════════════════════════════════════════════════
 
 class EncryptedKeyPayload(BaseModel):
     ephemeral_pub: str = Field(..., min_length=64, max_length=64)
@@ -44,9 +42,7 @@ class CreateDMRequest(BaseModel):
     encrypted_key_for_target: EncryptedKeyPayload | None = None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Вспомогательные функции
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _find_existing_dm(user_a: int, user_b: int, db: Session) -> Room | None:
     """Находит существующую DM комнату между двумя пользователями."""
@@ -113,9 +109,7 @@ def _room_to_dict(room: Room, other_user: User, has_key: bool) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Эндпоинты
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{target_user_id}", status_code=200)
 async def create_or_get_dm(
@@ -225,7 +219,6 @@ async def create_or_get_dm(
 
     logger.info(f"DM created: {u.username} ↔ {target.username} (room {room.id})")
 
-    # ── Уведомляем получателя о новом DM через notification WS ────────────
     target_entry = _room_to_dict(room, u, has_key=bool(
         body.encrypted_key_for_target and target.x25519_public_key
     ))

@@ -17,9 +17,7 @@ import pytest
 from conftest import make_user, login_user, random_str, random_digits
 
 
-# ============================================================================
 # Helpers
-# ============================================================================
 
 def _user_id(u: dict) -> int:
     """Extract user id from make_user() dict."""
@@ -68,9 +66,7 @@ def _create_voice_room(client, headers: dict) -> dict:
     return {"room_id": rd["id"], "space_id": space["id"], "space": space}
 
 
-# ============================================================================
 # DM (app/chats/dm.py)
-# ============================================================================
 
 class TestDM:
     """POST /api/dm/{target}, POST /api/dm/store-key/{room_id}, GET /api/dm/list"""
@@ -156,9 +152,7 @@ class TestDM:
             assert "rooms" in r.json()
 
 
-# ============================================================================
 # Contacts (app/chats/contacts.py)
-# ============================================================================
 
 class TestContacts:
     """GET/POST/PUT/DELETE /api/contacts, POST /api/users/block/{user_id}"""
@@ -270,9 +264,7 @@ class TestContacts:
         assert r.status_code in (404, 401, 403)
 
 
-# ============================================================================
 # Channels (app/chats/channels.py)
-# ============================================================================
 
 class TestChannels:
     """POST /api/channels, GET /api/channels/my, POST /api/channels/join, GET /api/channels/popular"""
@@ -335,9 +327,7 @@ class TestChannels:
             assert "channels" in r.json()
 
 
-# ============================================================================
 # Search (app/chats/search.py)
-# ============================================================================
 
 class TestSearch:
     """GET /api/users/search, GET /api/users/global-search"""
@@ -383,9 +373,7 @@ class TestSearch:
             assert "chats" in body
 
 
-# ============================================================================
 # Saved Messages (app/chats/saved.py)
-# ============================================================================
 
 class TestSaved:
     """POST/GET/DELETE /api/saved, GET /api/saved/check"""
@@ -454,9 +442,7 @@ class TestSaved:
         assert dr.status_code in (200, 404, 401, 403)
 
 
-# ============================================================================
 # Statuses (app/chats/statuses.py)
-# ============================================================================
 
 class TestStatuses:
     """POST/GET /api/statuses, cleanup_expired_statuses"""
@@ -493,9 +479,7 @@ class TestStatuses:
             db.close()
 
 
-# ============================================================================
 # Tasks (app/chats/tasks.py)
-# ============================================================================
 
 class TestTasks:
     """GET/POST/PUT/DELETE /api/rooms/{room_id}/tasks"""
@@ -605,9 +589,7 @@ class TestTasks:
             assert r.json().get("deleted") is True
 
 
-# ============================================================================
 # Reports (app/chats/reports.py)
-# ============================================================================
 
 class TestReports:
     """POST /api/users/report, GET /api/moderation/strikes, GET /api/users/{id}/reports"""
@@ -674,9 +656,7 @@ class TestReports:
             assert "reports" in r.json()
 
 
-# ============================================================================
 # Spaces (app/chats/spaces.py)
-# ============================================================================
 
 class TestSpaces:
     """Full CRUD for /api/spaces/*"""
@@ -939,9 +919,7 @@ class TestSpaces:
         assert r.status_code in (200, 400, 401, 403, 500)
 
 
-# ============================================================================
 # Stickers (app/chats/stickers.py)
-# ============================================================================
 
 class TestStickers:
     """Full CRUD for /api/stickers/packs/*"""
@@ -1089,9 +1067,7 @@ class TestStickers:
         assert r.status_code in (200, 401, 403)
 
 
-# ============================================================================
 # Voice (app/chats/voice.py)
-# ============================================================================
 
 class TestVoice:
     """POST /api/voice/{room_id}/join|leave|mute, GET participants"""
@@ -1151,9 +1127,7 @@ class TestVoice:
         assert r.status_code in (200, 400, 401, 403)
 
 
-# ============================================================================
 # Link Preview (app/chats/link_preview.py)
-# ============================================================================
 
 class TestLinkPreview:
     """GET /api/link-preview"""
@@ -1196,9 +1170,7 @@ class TestLinkPreview:
             assert r.json().get("title") == ""
 
 
-# ============================================================================
 # Keys (app/keys/keys.py)
-# ============================================================================
 
 class TestKeys:
     """GET /api/keys/pubkey, /vapid-public, /ice-servers"""
@@ -1229,9 +1201,7 @@ class TestKeys:
             assert isinstance(body["ice_servers"], list)
 
 
-# ============================================================================
 # Main endpoints (app/main.py)
-# ============================================================================
 
 class TestMainEndpoints:
     """GET /, /favicon.ico, /manifest.json, /service-worker.js, /health, /health/ready, /metrics"""
@@ -1273,9 +1243,7 @@ class TestMainEndpoints:
         assert r.status_code in (200, 404)
 
 
-# ============================================================================
 # Config (app/config.py)
-# ============================================================================
 
 class TestConfig:
     """Config attributes, ensure_dirs, validate"""
@@ -1314,9 +1282,7 @@ class TestConfig:
         Config.validate()
 
 
-# ============================================================================
 # Database (app/database.py)
-# ============================================================================
 
 class TestDatabase:
     """get_engine_info, init_db, SessionLocal, get_db"""
@@ -1357,9 +1323,7 @@ class TestDatabase:
             pass
 
 
-# ============================================================================
 # Models validation (app/models.py)
-# ============================================================================
 
 class TestModelsValidation:
     """RegisterRequest, LoginRequest, KeyLoginRequest Pydantic validation"""
@@ -1439,9 +1403,7 @@ class TestModelsValidation:
             )
 
 
-# ============================================================================
 # Utils (app/utilites/utils.py)
-# ============================================================================
 
 class TestUtils:
     """generative_invite_code, sanitize"""
@@ -1483,9 +1445,7 @@ class TestUtils:
         assert sanitize(normal) == normal
 
 
-# ============================================================================
 # Antispam Bot (app/bots/antispam_bot.py)
-# ============================================================================
 
 class TestAntispamBot:
     """ensure_antispam_bot, add_antispam_bot_to_room, check_*_spam"""
@@ -1597,9 +1557,7 @@ class TestAntispamBot:
             db.close()
 
 
-# ============================================================================
 # Connection Manager (app/peer/connection_manager.py)
-# ============================================================================
 
 class TestConnectionManager:
     """TokenBucket, MessageDeduplicator, ConnectionManager"""
@@ -1654,9 +1612,7 @@ class TestConnectionManager:
         assert "connections" in stats
 
 
-# ============================================================================
 # Peer Registry (app/peer/peer_registry.py)
-# ============================================================================
 
 class TestPeerRegistry:
     """PeerInfo, PeerRegistry, REST endpoints"""
@@ -1759,9 +1715,7 @@ class TestPeerRegistry:
             assert "rooms" in r.json()
 
 
-# ============================================================================
 # Federation (app/federation/federation.py)
-# ============================================================================
 
 class TestFederation:
     """GET /api/federation/status, POST guest-login, GET my-rooms"""

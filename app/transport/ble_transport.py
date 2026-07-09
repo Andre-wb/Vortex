@@ -54,9 +54,7 @@ def is_ble_available() -> bool:
     return _BLE_AVAILABLE
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Vortex BLE Service & Characteristics UUIDs
-# ─────────────────────────────────────────────────────────────────────────────
 VORTEX_SERVICE_UUID  = "a1b2c3d4-0000-4e00-8000-56789abcdef0"
 ANNOUNCE_CHAR_UUID   = "a1b2c3d4-0001-4e00-8000-56789abcdef0"  # Notify: объявление ноды
 MESSAGE_CHAR_UUID    = "a1b2c3d4-0002-4e00-8000-56789abcdef0"  # Write: сообщение
@@ -65,9 +63,7 @@ STATUS_CHAR_UUID     = "a1b2c3d4-0003-4e00-8000-56789abcdef0"  # Read: стат�
 # Максимальный размер одного BLE пакета (стандарт ATT MTU - 3)
 BLE_MTU = 244
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Структуры данных
-# ─────────────────────────────────────────────────────────────────────────────
 
 @dataclass
 class BlePeer:
@@ -94,9 +90,7 @@ class BlePeer:
         }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Фрагментация (BLE не поддерживает большие пакеты)
-# ─────────────────────────────────────────────────────────────────────────────
 
 class BleFragmenter:
     """
@@ -171,9 +165,7 @@ class BleFragmenter:
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # BLE Transport Manager
-# ─────────────────────────────────────────────────────────────────────────────
 
 class BleTransportManager:
     """
@@ -197,7 +189,6 @@ class BleTransportManager:
         self._on_peer_cb: Optional[Callable] = None        # вызывается при новом пире
         self._on_msg_cb:  Optional[Callable] = None        # вызывается при сообщении
 
-    # ── Инициализация ─────────────────────────────────────────────────────────
 
     async def start(
             self,
@@ -263,7 +254,6 @@ class BleTransportManager:
     def available(self) -> bool:
         return self._available
 
-    # ── Сканирование пиров ────────────────────────────────────────────────────
 
     async def _scan_loop(self) -> None:
         """Периодически сканирует BLE устройства."""
@@ -344,7 +334,6 @@ class BleTransportManager:
             except Exception as e:
                 logger.debug(f"on_peer_cb error: {e}")
 
-    # ── Отправка сообщений ────────────────────────────────────────────────────
 
     async def send_message(
             self,
@@ -399,7 +388,6 @@ class BleTransportManager:
             logger.debug(f"BLE send to {peer_address} failed: {e}")
             return False
 
-    # ── Запуск GATT сервера (peripheral / advertising) ──────────────────────
 
     async def start_gatt_server(self) -> None:
         """
@@ -444,7 +432,6 @@ class BleTransportManager:
 
         await server.add_new_service(VORTEX_SERVICE_UUID)
 
-        # ── ANNOUNCE characteristic (notify) ─────────────────────────────
         announce_flags = (
             GATTCharacteristicProperties.read
             | GATTCharacteristicProperties.notify
@@ -458,7 +445,6 @@ class BleTransportManager:
             announce_perms,
         )
 
-        # ── MESSAGE characteristic (write — incoming fragments) ──────────
         msg_flags = (
             GATTCharacteristicProperties.write
             | GATTCharacteristicProperties.write_without_response
@@ -472,7 +458,6 @@ class BleTransportManager:
             msg_perms,
         )
 
-        # ── STATUS characteristic (read) ─────────────────────────────────
         status_flags = GATTCharacteristicProperties.read
         status_perms = GATTAttributePermissions.readable
         status_value = json.dumps({
@@ -488,7 +473,6 @@ class BleTransportManager:
             status_perms,
         )
 
-        # ── Write handler — defragment incoming messages ─────────────────
         rx_fragmenter = BleFragmenter()
 
         def _on_write(characteristic: BlessGATTCharacteristic, value: bytes, **kwargs) -> None:
@@ -506,7 +490,6 @@ class BleTransportManager:
 
         server.write_request_func = _on_write
 
-        # ── Start advertising ────────────────────────────────────────────
         await server.start()
 
         # Encode announce payload: [2B port][node_name UTF-8]
@@ -520,7 +503,6 @@ class BleTransportManager:
             VORTEX_SERVICE_UUID, self._node_name, self._http_port,
         )
 
-    # ── Публичное API ─────────────────────────────────────────────────────────
 
     def get_peers(self) -> list[BlePeer]:
         """Возвращает список живых BLE пиров."""

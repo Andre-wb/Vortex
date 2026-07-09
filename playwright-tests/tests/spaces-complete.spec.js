@@ -63,7 +63,6 @@ test.describe('Spaces Complete', () => {
         }
     });
 
-    // ── Public spaces ─────────────────────────────────────────────────────────
 
     test('list public spaces', async ({ request }) => {
         const res = await request.get('/api/spaces/public', {
@@ -72,7 +71,6 @@ test.describe('Spaces Complete', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Join space ────────────────────────────────────────────────────────────
 
     test('join space directly', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -101,7 +99,6 @@ test.describe('Spaces Complete', () => {
         expect([400, 404]).toContain(res.status());
     });
 
-    // ── Members ───────────────────────────────────────────────────────────────
 
     test('list space members', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -130,7 +127,6 @@ test.describe('Spaces Complete', () => {
         expect([200, 204, 400, 404]).toContain(res.status());
     });
 
-    // ── Categories ────────────────────────────────────────────────────────────
 
     test('create space category', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -162,7 +158,6 @@ test.describe('Spaces Complete', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Custom Emoji Delete ───────────────────────────────────────────────────
 
     test('delete non-existent emoji', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -172,7 +167,6 @@ test.describe('Spaces Complete', () => {
         expect([200, 204, 404]).toContain(res.status());
     });
 
-    // ── Permissions ───────────────────────────────────────────────────────────
 
     test('get space permissions for room', async ({ request }) => {
         expect(spaceId).toBeTruthy();
@@ -192,7 +186,6 @@ test.describe('Spaces Complete', () => {
         expect([200, 204, 400, 422]).toContain(res.status());
     });
 
-    // ── Leave space ───────────────────────────────────────────────────────────
 
     test('leave space', async ({ request }) => {
         // Create a second space to leave safely

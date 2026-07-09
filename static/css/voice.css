@@ -1,8 +1,5 @@
-/* ============================================================================
  * ГОЛОСОВЫЕ КАНАЛЫ (Voice Channels)
- * ========================================================================== */
 
-/* ─── Voice Channel Panel (main screen) ───────────────────────────────────── */
 
 #voice-channel-panel {
     flex: 1;
@@ -59,7 +56,6 @@
     font-family: var(--mono);
 }
 
-/* ─── Participants Grid ───────────────────────────────────────────────────── */
 
 .vc-participants {
     flex: 1;
@@ -169,7 +165,6 @@
     border: 1px solid var(--border);
 }
 
-/* ─── Controls Bar ────────────────────────────────────────────────────────── */
 
 .vc-controls {
     padding: 16px 24px;
@@ -221,7 +216,6 @@
     border-color: var(--red);
 }
 
-/* ─── Sidebar: Voice Channel Items ────────────────────────────────────────── */
 
 .vc-room-item {
     position: relative;
@@ -321,7 +315,6 @@ img.vc-sidebar-avatar {
     border-color: var(--red);
 }
 
-/* ─── Voice Connector Bar (sidebar bottom, visible when in voice) ─────────── */
 
 #vc-connector-bar {
     padding: 8px 10px;
@@ -413,7 +406,6 @@ img.vc-sidebar-avatar {
     border-color: var(--red);
 }
 
-/* ─── Responsive: mobile adjustments ──────────────────────────────────────── */
 
 @media (max-width: 799px) {
     .vc-participants {
@@ -452,7 +444,6 @@ img.vc-sidebar-avatar {
     }
 }
 
-/* ─── Light theme support ─────────────────────────────────────────────────── */
 
 body[data-theme="light"] #voice-channel-panel {
     background: #fff;

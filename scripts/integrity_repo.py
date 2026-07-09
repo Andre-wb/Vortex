@@ -45,13 +45,11 @@ except ImportError:
     sys.stderr.write("cryptography not installed; run: pip install cryptography\n")
     sys.exit(1)
 
-# ── Layout ──────────────────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = REPO_ROOT / "INTEGRITY.repo.json"
 DEFAULT_KEY_PATH = REPO_ROOT / "keys" / "repo-release.key"
 MANIFEST_VERSION = "0.1.0"
 
-# ── What to include ─────────────────────────────────────────────────────
 TRACKED_SUFFIXES = {
     # Code
     ".py", ".rs", ".js", ".mjs", ".ts", ".tsx", ".jsx",
@@ -178,7 +176,6 @@ def build_manifest(root: Path, version: str) -> dict:
     }
 
 
-# ── Key management ──────────────────────────────────────────────────────
 def _load_or_create_key(path: Path) -> Ed25519PrivateKey:
     if path.exists():
         return Ed25519PrivateKey.from_private_bytes(path.read_bytes())
@@ -204,7 +201,6 @@ def _pubkey_hex(priv: Ed25519PrivateKey) -> str:
     ).hex()
 
 
-# ── Verification ────────────────────────────────────────────────────────
 def verify_signature(signed: dict) -> bool:
     try:
         pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(signed["signed_by"]))
@@ -238,7 +234,6 @@ def verify_files(manifest: dict, root: Path) -> dict:
     }
 
 
-# ── Library API (callable from the wizard's admin backend) ─────────────
 # These wrap the same logic used by the CLI commands below. They return
 # structured dicts instead of writing to stdout so the wizard can show
 # results in the admin panel without shelling out.
@@ -315,7 +310,6 @@ def get_status(manifest_path: Path = MANIFEST_PATH,
     return info
 
 
-# ── CLI ─────────────────────────────────────────────────────────────────
 def cmd_list(args) -> int:
     n = 0
     total_bytes = 0

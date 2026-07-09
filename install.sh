@@ -1,8 +1,6 @@
 #!/bin/bash
-# ══════════════════════════════════════════════════════════════════════════════
 # Vortex Messenger — One-line installer
 # Usage: curl -fsSL https://your-domain/install.sh | bash
-# ══════════════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -13,7 +11,6 @@ err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 VORTEX_DIR="${VORTEX_DIR:-$(pwd)}"
 
-# ── Detect OS ────────────────────────────────────────────────────────────────
 OS="$(uname -s)"
 case "$OS" in
     Linux*)  PLATFORM=linux;;
@@ -22,7 +19,6 @@ case "$OS" in
 esac
 info "Platform: $PLATFORM"
 
-# ── Check Python 3.11+ ──────────────────────────────────────────────────────
 PYTHON=""
 for py in python3.12 python3.11 python3; do
     if command -v "$py" &>/dev/null; then
@@ -48,7 +44,6 @@ if [ -z "$PYTHON" ]; then
 fi
 ok "Python: $($PYTHON --version)"
 
-# ── Create virtual environment ───────────────────────────────────────────────
 if [ ! -d "$VORTEX_DIR/venv" ]; then
     info "Creating virtual environment..."
     $PYTHON -m venv "$VORTEX_DIR/venv"
@@ -59,7 +54,6 @@ fi
 
 source "$VORTEX_DIR/venv/bin/activate"
 
-# ── Install dependencies ─────────────────────────────────────────────────────
 info "Installing dependencies..."
 pip install --upgrade pip -q
 pip install -r "$VORTEX_DIR/requirements.txt" -q 2>/dev/null || {
@@ -69,7 +63,6 @@ pip install -r "$VORTEX_DIR/requirements.txt" -q 2>/dev/null || {
 }
 ok "Dependencies installed"
 
-# ── Generate .env if missing ─────────────────────────────────────────────────
 ENV_FILE="$VORTEX_DIR/.env"
 if [ ! -f "$ENV_FILE" ]; then
     info "Creating .env from template..."
@@ -119,7 +112,6 @@ else
     ok ".env already exists"
 fi
 
-# ── Generate SSL certs if missing ────────────────────────────────────────────
 CERT_DIR="$VORTEX_DIR/certs"
 mkdir -p "$CERT_DIR"
 if [ ! -f "$CERT_DIR/vortex.crt" ] || [ ! -f "$CERT_DIR/vortex.key" ]; then
@@ -132,11 +124,9 @@ else
     ok "SSL certificates exist"
 fi
 
-# ── Initialize database ─────────────────────────────────────────────────────
 info "Initializing database..."
 python3 -c "from app.database import init_db; init_db()" 2>/dev/null && ok "Database initialized" || warn "Database init skipped (may need manual setup)"
 
-# ── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  Vortex installed successfully!${NC}"

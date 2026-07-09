@@ -54,7 +54,6 @@ pub fn sign_canonical(
     Ok(sig_hex)
 }
 
-// ── Internal: Python → serde_json::Value (lossless) ────────────────────
 
 fn _py_to_value(obj: Bound<'_, PyAny>) -> PyResult<Value> {
     if obj.is_none() {
@@ -115,7 +114,6 @@ fn _py_to_value(obj: Bound<'_, PyAny>) -> PyResult<Value> {
     )))
 }
 
-// ── Internal: serde_json::Value → deterministic bytes ──────────────────
 
 fn _serialize_sorted(v: &Value) -> Vec<u8> {
     let mut out = Vec::with_capacity(256);

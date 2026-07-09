@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["privacy"])
 
-# ── Canary statements ────────────────────────────────────────────────────────
 
 _DEFAULT_CANARY_STATEMENTS = [
     "We have NOT received any National Security Letters (NSL).",
@@ -48,7 +47,6 @@ _DEFAULT_CANARY_STATEMENTS = [
     "We have NOT received any request to log additional user data beyond what is described in PRIVACY_POLICY.md.",
 ]
 
-# ── Signing (HMAC-SHA256 with node private key) ─────────────────────────────
 # We use HMAC-SHA256(node_private_key, payload) as the signature.
 # This is verifiable by anyone who knows the node's public key identity
 # and can re-derive the HMAC (or we provide an Ed25519 signature if available).
@@ -197,7 +195,6 @@ def verify_canary_signature(canary: dict) -> bool:
     return hmac.compare_digest(sig, expected)
 
 
-# ── API endpoint ─────────────────────────────────────────────────────────────
 
 @router.get("/api/privacy/canary")
 async def get_warrant_canary():

@@ -1,5 +1,4 @@
 // static/js/sfu_client.js
-// ============================================================================
 // SFU Client — подключение к Vortex SFU для групповых звонков > threshold.
 //
 // Один RTCPeerConnection к серверному SFU вместо N-1 mesh-соединений.
@@ -9,7 +8,6 @@
 //   - Начальное подключение: REST POST /api/sfu/{callId}/join (offer→answer)
 //   - Renegotiation (новые участники): WS /ws/sfu/{callId}
 //   - ICE candidates: через тот же WS
-// ============================================================================
 
 import { api } from './utils.js';
 import { needsEncodedInsertableStreams, setupPeerE2E, setupNewSenderE2E } from './e2e_media.js';

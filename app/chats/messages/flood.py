@@ -18,9 +18,7 @@ from app.peer.connection_manager import manager
 
 logger = logging.getLogger(__name__)
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Constants
-# ══════════════════════════════════════════════════════════════════════════════
 _FLOOD_WINDOW      = 10       # seconds
 _FLOOD_THRESHOLD   = 15       # messages in window → auto-mute
 _FLOOD_MUTE_SECS   = 5 * 60  # 5 minutes
@@ -34,9 +32,7 @@ _flood_strikes: dict[str, int] = {}
 _flood_lock: asyncio.Lock = asyncio.Lock()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Flood checker
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def check_flood(room_id: int, user: User, db: Session, threshold_override: int | None = None) -> bool:
     """Check flood threshold. Returns True if user is flooding and message should be dropped."""
@@ -65,7 +61,6 @@ async def check_flood(room_id: int, user: User, db: Session, threshold_override:
         if len(timestamps) <= effective_threshold:
             return False
 
-        # ── Flood detected ────────────────────────────────────────────────────
         strikes = _flood_strikes.get(key, 0) + 1
         _flood_strikes[key] = strikes
 

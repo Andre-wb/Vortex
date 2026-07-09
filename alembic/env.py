@@ -36,9 +36,7 @@ if config.config_file_name is not None:
 # Target metadata for autogenerate
 target_metadata = Base.metadata
 
-# ---------------------------------------------------------------------------
 # Resolve database URL — prefer DATABASE_URL / POSTGRES_*, fallback to SQLite
-# ---------------------------------------------------------------------------
 _db_url = Config.get_database_url()
 
 # Ensure sync driver for Alembic (replace asyncpg with psycopg2)

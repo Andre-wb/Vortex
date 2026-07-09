@@ -1,14 +1,11 @@
 // static/js/pwa.js
-// ============================================================================
 // PWA: регистрация Service Worker, промпт установки, уведомления об обновлении,
 // обработка shortcuts (?action=...) и deep links (web+vortex://).
 // Подключается в main.js: import './pwa.js';
-// ============================================================================
 
 let _deferredInstallPrompt = null;   // браузер сохранил событие beforeinstallprompt
 let _swRegistration        = null;   // текущая регистрация SW
 
-// ─── Инициализация ────────────────────────────────────────────────────────────
 export async function initPWA() {
     if (!('serviceWorker' in navigator)) {
         console.log('[PWA] Service Worker не поддерживается');
@@ -22,7 +19,6 @@ export async function initPWA() {
     _listenForSWMessages();
 }
 
-// ─── Регистрация Service Worker ───────────────────────────────────────────────
 async function _registerServiceWorker() {
     try {
         _swRegistration = await navigator.serviceWorker.register('/service-worker.js', {
@@ -53,7 +49,6 @@ async function _registerServiceWorker() {
     }
 }
 
-// ─── Баннер «Доступно обновление» ────────────────────────────────────────────
 function _showUpdateBanner(newWorker) {
     const existing = document.getElementById('pwa-update-banner');
     if (existing) return;
@@ -94,7 +89,6 @@ function _showUpdateBanner(newWorker) {
     setTimeout(() => banner?.remove(), 15000);
 }
 
-// ─── Промпт «Установить приложение» ──────────────────────────────────────────
 function _handleInstallPrompt() {
     window.addEventListener('beforeinstallprompt', e => {
         e.preventDefault();
@@ -153,7 +147,6 @@ export async function _triggerInstall() {
     document.getElementById('pwa-install-btn')?.remove();
 }
 
-// ─── Обработка shortcuts (?action=...) ───────────────────────────────────────
 function _handleShortcuts() {
     const params = new URLSearchParams(location.search);
     const action = params.get('action');
@@ -174,7 +167,6 @@ function _handleShortcuts() {
     }, { once: true });
 }
 
-// ─── Обработка protocol handler (web+vortex://...) ───────────────────────────
 function _handleProtocolHandler() {
     const params = new URLSearchParams(location.search);
     const invite = params.get('invite');
@@ -195,7 +187,6 @@ function _handleProtocolHandler() {
     }, { once: true });
 }
 
-// ─── Слушаем сообщения от SW ──────────────────────────────────────────────────
 function _listenForSWMessages() {
     navigator.serviceWorker.addEventListener('message', event => {
         const { type, url } = event.data || {};
@@ -217,7 +208,6 @@ function _listenForSWMessages() {
     });
 }
 
-// ─── Push-уведомления ─────────────────────────────────────────────────────────
 /**
  * Запрашивает разрешение на push-уведомления и подписывается.
  * Вызывать при первом входе пользователя в комнату.
@@ -258,7 +248,6 @@ export function showMessageNotification(senderName, messageText, roomName, roomI
     setTimeout(() => notification.close(), 5000);
 }
 
-// ─── Утилита: тост-уведомление ────────────────────────────────────────────────
 function _showToast(message, duration = 3000) {
     const toast = document.createElement('div');
     toast.style.cssText = [
@@ -274,7 +263,6 @@ function _showToast(message, duration = 3000) {
     setTimeout(() => toast.remove(), duration);
 }
 
-// ─── Web Push подписка ───────────────────────────────────────────────────────
 /**
  * Подписывается на Web Push уведомления, если браузер поддерживает.
  * Отправляет подписку на сервер для хранения.
@@ -318,7 +306,6 @@ function _urlBase64ToUint8Array(base64String) {
     return arr;
 }
 
-// ─── Проверка: запущен ли как PWA ────────────────────────────────────────────
 export function isRunningAsPWA() {
     return (
         window.matchMedia('(display-mode: standalone)').matches ||
@@ -327,7 +314,6 @@ export function isRunningAsPWA() {
     );
 }
 
-// ─── Очистка кэша (для debug / сброса) ───────────────────────────────────────
 export function clearSWCache() {
     navigator.serviceWorker.controller?.postMessage({ type: 'clear-cache' });
 }

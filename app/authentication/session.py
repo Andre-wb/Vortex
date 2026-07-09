@@ -64,7 +64,6 @@ async def logout(request: Request, db: Session = Depends(get_db)):
     return r
 
 
-# ── Управление устройствами / сессиями ────────────────────────────────────
 
 _SESSION_MANAGE_MIN_AGE = timedelta(days=7)
 
@@ -184,7 +183,6 @@ async def logout_all_other_devices(request: Request,
     return {"ok": True}
 
 
-# ── Проверка и смена пароля ───────────────────────────────────────────────────
 
 from pydantic import BaseModel as _BM
 
@@ -310,7 +308,6 @@ async def change_password(
     return {"ok": True}
 
 
-# ── Авто-удаление аккаунта при неактивности ─────────────────────────────────
 
 class _AccountTTLRequest(_BM):
     ttl_days: int = 0  # 0 = disabled
@@ -339,7 +336,6 @@ async def set_account_ttl(
     return {"ok": True, "ttl_days": days}
 
 
-# ── Лимит сессий ─────────────────────────────────────────────────────────────
 
 class _SessionLimitRequest(_BM):
     max_sessions: int = 0  # 0 = unlimited

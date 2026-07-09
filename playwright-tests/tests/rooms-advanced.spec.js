@@ -49,7 +49,6 @@ async function createRoomRetry(request, csrfToken, name, isPrivate = false) {
     return { id: 0, invite_code: '', body: {} };
 }
 
-// ── Test suite ────────────────────────────────────────────────────────────────
 
 test.describe('Rooms Advanced', () => {
     const ownerUsername  = `rm_owner_${randomStr(6)}`;
@@ -74,7 +73,6 @@ test.describe('Rooms Advanced', () => {
         inviteCode = r.invite_code;
     }
 
-    // ── Setup ─────────────────────────────────────────────────────────────────
 
     test.beforeAll(async ({ request }) => {
         const { csrfToken: oc } = await registerAndLogin(request, ownerUsername, ownerPhone);
@@ -92,7 +90,6 @@ test.describe('Rooms Advanced', () => {
         await ensureRoom(request);
     });
 
-    // ── 1. Create a public room ───────────────────────────────────────────────
 
     test('1. POST /api/rooms creates a public room with encrypted key', async ({ request }) => {
         const res = await createRoom(request, ownerCsrf, `rm_public_${randomStr(4)}`);
@@ -107,7 +104,6 @@ test.describe('Rooms Advanced', () => {
         inviteCode = body.invite_code;
     });
 
-    // ── 2. Create a private room ──────────────────────────────────────────────
 
     test('2. POST /api/rooms creates a private (archived) room', async ({ request }) => {
         const res = await createRoom(
@@ -119,7 +115,6 @@ test.describe('Rooms Advanced', () => {
         privateRoomId = body.id;
     });
 
-    // ── 3. List my rooms ──────────────────────────────────────────────────────
 
     test('3. GET /api/rooms/my returns created rooms', async ({ request }) => {
         const res = await request.get('/api/rooms/my', {
@@ -137,7 +132,6 @@ test.describe('Rooms Advanced', () => {
         expect(found).toHaveProperty('has_key');
     });
 
-    // ── 4. Public rooms listing ───────────────────────────────────────────────
 
     test('4. GET /api/rooms/public lists public rooms without auth', async ({ request }) => {
         const res = await request.get('/api/rooms/public');
@@ -154,7 +148,6 @@ test.describe('Rooms Advanced', () => {
         expect(privateFound).toBeUndefined();
     });
 
-    // ── 5. Get room detail ────────────────────────────────────────────────────
 
     test('5. GET /api/rooms/{id} returns room detail for member', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -169,7 +162,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.my_role).toBe('owner');
     });
 
-    // ── 6. Room invite code is usable ─────────────────────────────────────────
 
     test('6. invite_code from room creation is a valid string', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -178,7 +170,6 @@ test.describe('Rooms Advanced', () => {
         expect(inviteCode.length).toBeGreaterThan(0);
     });
 
-    // ── 7. Member joins room by invite code ───────────────────────────────────
 
     test('7. POST /api/rooms/join/{invite_code} lets member join', async ({ request }) => {
         await ensureRoom(request); expect(inviteCode).toBeTruthy();
@@ -197,7 +188,6 @@ test.describe('Rooms Advanced', () => {
         ownerCsrf = await loginUser(request, ownerUsername);
     });
 
-    // ── 8. Join with invalid code returns 404 ────────────────────────────────
 
     test('8. POST /api/rooms/join/BADCODE returns 404', async ({ request }) => {
         const res = await request.post('/api/rooms/join/BADCODE99', {
@@ -206,7 +196,6 @@ test.describe('Rooms Advanced', () => {
         expect(res.status()).toBe(404);
     });
 
-    // ── 9. List room members ──────────────────────────────────────────────────
 
     test('9. GET /api/rooms/{id}/members lists all members with roles', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -224,7 +213,6 @@ test.describe('Rooms Advanced', () => {
         expect(ownerEntry.role).toBe('owner');
     });
 
-    // ── 10. Promote member to admin ───────────────────────────────────────────
 
     test('10. PUT /api/rooms/{id}/members/{uid}/role promotes to admin', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0); expect(memberId).toBeGreaterThan(0);
@@ -239,7 +227,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.role).toBe('admin');
     });
 
-    // ── 11. Verify admin role reflected in members list ───────────────────────
 
     test('11. Promoted member shows admin role in GET members', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0); expect(memberId).toBeGreaterThan(0);
@@ -253,7 +240,6 @@ test.describe('Rooms Advanced', () => {
         expect(m.role).toBe('admin');
     });
 
-    // ── 12. Demote admin back to member ───────────────────────────────────────
 
     test('12. PUT /api/rooms/{id}/members/{uid}/role demotes to member', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0); expect(memberId).toBeGreaterThan(0);
@@ -267,7 +253,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.role).toBe('member');
     });
 
-    // ── 13. Owner cannot change their own role ────────────────────────────────
 
     test('13. PUT own role returns 400', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -279,7 +264,6 @@ test.describe('Rooms Advanced', () => {
         expect(res.status()).toBe(400);
     });
 
-    // ── 14. Mute a member ────────────────────────────────────────────────────
 
     test('14. PUT /api/rooms/{id}/members/{uid}/mute toggles mute on', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0); expect(memberId).toBeGreaterThan(0);
@@ -293,7 +277,6 @@ test.describe('Rooms Advanced', () => {
         expect(body).toHaveProperty('is_muted');
     });
 
-    // ── 15. Un-mute a member (second toggle) ─────────────────────────────────
 
     test('15. PUT /api/rooms/{id}/members/{uid}/mute second call toggles mute off', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0); expect(memberId).toBeGreaterThan(0);
@@ -304,7 +287,6 @@ test.describe('Rooms Advanced', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── 16. Ban toggle ────────────────────────────────────────────────────────
 
     test('16. PUT /api/rooms/{id}/members/{uid}/ban toggles ban', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0); expect(memberId).toBeGreaterThan(0);
@@ -318,7 +300,6 @@ test.describe('Rooms Advanced', () => {
         expect(body).toHaveProperty('is_banned');
     });
 
-    // ── 17. Un-ban (second toggle) ────────────────────────────────────────────
 
     test('17. PUT /api/rooms/{id}/members/{uid}/ban second call un-bans', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0); expect(memberId).toBeGreaterThan(0);
@@ -329,7 +310,6 @@ test.describe('Rooms Advanced', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── 18. Kick (permanent ban via /kick endpoint) ───────────────────────────
 
     test('18. POST /api/rooms/{id}/kick/{uid} bans member from room', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0); expect(memberId).toBeGreaterThan(0);
@@ -342,7 +322,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.ok).toBe(true);
     });
 
-    // ── 19. Kicked member cannot rejoin ───────────────────────────────────────
 
     test('19. Banned member attempt to join room returns 403', async ({ request }) => {
         await ensureRoom(request); expect(inviteCode).toBeTruthy();
@@ -356,7 +335,6 @@ test.describe('Rooms Advanced', () => {
         ownerCsrf = await loginUser(request, ownerUsername);
     });
 
-    // ── 20. Update room name ──────────────────────────────────────────────────
 
     test('20. PUT /api/rooms/{id} updates name', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -370,7 +348,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.name).toBe('Renamed Room');
     });
 
-    // ── 21. Update room description ───────────────────────────────────────────
 
     test('21. PUT /api/rooms/{id} updates description', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -384,7 +361,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.description).toBe('Updated via E2E test');
     });
 
-    // ── 22. Update room avatar emoji ──────────────────────────────────────────
 
     test('22. PUT /api/rooms/{id} updates avatar_emoji', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -398,7 +374,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.avatar_emoji).toBe('🔥');
     });
 
-    // ── 23. Enable slow mode ──────────────────────────────────────────────────
 
     test('23. PUT /api/rooms/{id} sets slow_mode_seconds', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -412,7 +387,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.slow_mode_seconds).toBe(30);
     });
 
-    // ── 24. Disable slow mode ─────────────────────────────────────────────────
 
     test('24. PUT /api/rooms/{id} disables slow mode with 0', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -426,7 +400,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.slow_mode_seconds).toBe(0);
     });
 
-    // ── 25. Archive room (make private) ───────────────────────────────────────
 
     test('25. PUT /api/rooms/{id} archives room by setting is_private=true', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -440,7 +413,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.is_private).toBe(true);
     });
 
-    // ── 26. Archived room no longer in public listing ─────────────────────────
 
     test('26. Archived room disappears from GET /api/rooms/public', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -452,7 +424,6 @@ test.describe('Rooms Advanced', () => {
         expect(found).toBeUndefined();
     });
 
-    // ── 27. Un-archive room ───────────────────────────────────────────────────
 
     test('27. PUT /api/rooms/{id} un-archives room by is_private=false', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -466,7 +437,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.is_private).toBe(false);
     });
 
-    // ── 28. Enable auto-delete ────────────────────────────────────────────────
 
     test('28. PUT /api/rooms/{id} sets auto_delete_seconds=3600', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -480,7 +450,6 @@ test.describe('Rooms Advanced', () => {
         expect(body.auto_delete_seconds).toBe(3600);
     });
 
-    // ── 29. Key bundle returns has_key=true for owner ─────────────────────────
 
     test('29. GET /api/rooms/{id}/key-bundle returns has_key=true for owner', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -503,7 +472,6 @@ test.describe('Rooms Advanced', () => {
         expect(body).toHaveProperty('ciphertext');
     });
 
-    // ── 30. Non-admin cannot update room settings ─────────────────────────────
 
     test('30. Regular member cannot update room settings (403)', async ({ request }) => {
         await ensureRoom(request); expect(roomId).toBeGreaterThan(0);
@@ -529,7 +497,6 @@ test.describe('Rooms Advanced', () => {
         ownerCsrf = await loginUser(request, ownerUsername);
     });
 
-    // ── 31. Leave room ────────────────────────────────────────────────────────
 
     test('31. DELETE /api/rooms/{id}/leave removes user from room', async ({ request }) => {
         // Create a disposable room for this test
@@ -555,7 +522,6 @@ test.describe('Rooms Advanced', () => {
         ownerCsrf = await loginUser(request, ownerUsername);
     });
 
-    // ── Cleanup ───────────────────────────────────────────────────────────────
 
     test.afterAll(async ({ request }) => {
         ownerCsrf = await loginUser(request, ownerUsername);

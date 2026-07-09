@@ -30,9 +30,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # obfs4-like: Random byte padding that looks like encrypted noise
-# ══════════════════════════════════════════════════════════════════════════════
 
 class VortexObfuscationTransport:
     """
@@ -90,9 +88,7 @@ class VortexObfuscationTransport:
 Obfs4Transport = VortexObfuscationTransport
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Meek / Domain Fronting: hide real destination behind CDN
-# ══════════════════════════════════════════════════════════════════════════════
 
 class DomainFrontingTransport:
     """
@@ -163,9 +159,7 @@ class DomainFrontingTransport:
         }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Shadowsocks-like: SOCKS5 proxy with AEAD encryption
-# ══════════════════════════════════════════════════════════════════════════════
 
 class ShadowsocksTransport:
     """
@@ -275,9 +269,7 @@ class ShadowsocksTransport:
         }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # TLS-in-TLS: WebSocket inside raw TLS without WS Upgrade header
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TLSInTLSTransport:
     """
@@ -350,9 +342,7 @@ class TLSInTLSTransport:
 tunnel = TLSInTLSTransport()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bridge Nodes: volunteer relays in uncensored countries
-# ══════════════════════════════════════════════════════════════════════════════
 
 class BridgeRegistry:
     """
@@ -464,9 +454,7 @@ class BridgeRegistry:
 bridge_registry = BridgeRegistry()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # PT 2.0 Subprocess Launcher — real obfs4proxy / snowflake / meek support
-# ══════════════════════════════════════════════════════════════════════════════
 
 class PTSubprocessTransport:
     """
@@ -620,9 +608,7 @@ class PTSubprocessTransport:
             self._state_dir = None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Transport Manager: select best transport automatically
-# ══════════════════════════════════════════════════════════════════════════════
 
 class PluggableTransportManager:
     """

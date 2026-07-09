@@ -1,7 +1,5 @@
-/* ═══════════════════════════════════════════════════════════════════════
  * Setup screen — first-run configuration
  * Shares admin.css design tokens; adds only the setup-specific layout.
- * ═════════════════════════════════════════════════════════════════════ */
 
 body.setup-body {
     /* Flex-center the setup container vertically + horizontally.
@@ -22,7 +20,6 @@ body.setup-body {
 /* Legacy orbs removed — the starfield canvas handles animation now */
 .bg-orbs { display: none; }
 
-/* ── Language picker top-right — clears transparent macOS title bar ── */
 .lang-switch {
     position: fixed;
     top: 44px; right: 16px;
@@ -89,7 +86,6 @@ body.setup-body {
 }
 .lang-item.active .lang-item-code { color: var(--purple2); }
 
-/* ── Container (above the starfield canvas at z-index:0) ── */
 .setup-container {
     position: relative;
     z-index: 10;
@@ -101,7 +97,6 @@ body.setup-body {
 }
 .lang-switch { z-index: 60; }
 
-/* ── Mode cards (replaces the <select> dropdown) ── */
 .mode-cards {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -162,7 +157,6 @@ body.setup-body {
     .mode-desc { flex: 1; }
 }
 
-/* ── SNS resolution panel (global mode) ── */
 .sns-panel {
     background: rgba(255,255,255,0.03);
     border: 1px solid var(--border);
@@ -217,7 +211,6 @@ body.setup-body {
 .btn-small:hover:not(:disabled) { color: var(--text); border-color: var(--purple); }
 .btn-small:disabled { opacity: 0.5; cursor: default; }
 
-/* ── Step dots (progress indicator) ── */
 .step-dots {
     display: flex;
     align-items: center;
@@ -277,7 +270,6 @@ body.setup-body {
     line-height: 1.5;
 }
 
-/* ── Nav row (Back / Next) — unified button heights ── */
 .nav-row {
     display: flex;
     align-items: stretch;
@@ -314,7 +306,6 @@ body.setup-body {
 }
 .btn-ghost:hover { color: var(--text); border-color: var(--purple); }
 
-/* ── Primary CTA (Generate / Regenerate) — centered, gradient, icon ── */
 .cta-row {
     display: flex;
     justify-content: center;
@@ -396,7 +387,6 @@ body.setup-body {
 
 .hint-center { text-align: center; }
 
-/* ── Choice cards (step 2 — exposure picker) ── */
 .choice-cards {
     display: flex;
     flex-direction: column;
@@ -483,7 +473,6 @@ body.setup-body {
     animation: stepFade 0.2s ease;
 }
 
-/* ── Summary card (step 3) ── */
 .summary {
     background: rgba(255,255,255,0.02);
     border: 1px solid var(--border);
@@ -515,7 +504,6 @@ body.setup-body {
     text-align: right;
 }
 
-/* ── Choice cards — right-side chevron ── */
 .choice-arrow {
     flex-shrink: 0;
     color: var(--text3);
@@ -529,7 +517,6 @@ body.setup-body {
     transform: translateX(3px);
 }
 
-/* ── Step 3 detail view common ── */
 .step-hero-ico {
     width: 64px; height: 64px;
     margin: 0 auto 14px;
@@ -554,7 +541,6 @@ body.setup-body {
     color: var(--purple2);
 }
 
-/* ── Tunnel status panel with animated ring ── */
 .tunnel-status-panel {
     background: rgba(255,255,255,0.02);
     border: 1px solid var(--border);
@@ -629,7 +615,6 @@ body.setup-body {
 }
 .tunnel-url-box .btn-icon:hover { color: var(--text); border-color: var(--purple); }
 
-/* ── Info card (skip step) ── */
 .info-card {
     background: rgba(255,255,255,0.02);
     border: 1px solid var(--border);
@@ -687,7 +672,6 @@ body.setup-body {
     margin: 0 auto;
 }
 
-/* ── Card ── */
 .setup-card {
     background: rgba(15,13,26,0.7);
     border: 1px solid var(--border);
@@ -780,10 +764,8 @@ select.form-input {
     .setup-card { padding: 20px; }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
  * Identity block — shown BEFORE the numbered wizard. 24-word seed
  * generation / restore flow.
- * ═════════════════════════════════════════════════════════════════════ */
 
 .identity-block { display: block; }
 

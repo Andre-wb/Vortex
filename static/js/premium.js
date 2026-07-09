@@ -22,7 +22,6 @@
 (() => {
     'use strict';
 
-    // ── Config ────────────────────────────────────────────────────────
 
     const PROGRAM_ID_B58 = '8iNKGfNtAwZY8VLnoxardTstm5FFSePR5mN7LUyH4TRR';
     const RPC_URL = 'https://api.mainnet-beta.solana.com';
@@ -36,7 +35,6 @@
          44, 244, 185,  48,  83, 119, 253, 175,
     ]);
 
-    // ── Lazy Web3.js getter ──────────────────────────────────────────
 
     function web3() {
         if (!window.solanaWeb3) {
@@ -49,7 +47,6 @@
         return window.solanaWeb3;
     }
 
-    // ── State ────────────────────────────────────────────────────────
 
     const state = {
         wallet: null,                  // PublicKey
@@ -60,7 +57,6 @@
         treasury: null,
     };
 
-    // ── API calls ────────────────────────────────────────────────────
 
     async function fetchPlans() {
         const r = await fetch('/api/premium/plans');
@@ -147,7 +143,6 @@
         } catch (_) {}
     }
 
-    // ── Phantom connect ──────────────────────────────────────────────
 
     async function connectPhantom() {
         if (!window.solana || !window.solana.isPhantom) {
@@ -159,7 +154,6 @@
         return resp.publicKey;
     }
 
-    // ── PDA derivation ───────────────────────────────────────────────
 
     async function derivePDA(seeds) {
         const { PublicKey } = web3();
@@ -181,7 +175,6 @@
         return derivePDA([seed('subscription'), ben.toBytes()]);
     }
 
-    // ── Instruction builder ──────────────────────────────────────────
 
     function encodeInstructionData(tierU8, beneficiaryBytes) {
         // 8-byte discriminator + u8 tier + 32-byte Pubkey
@@ -240,7 +233,6 @@
         return sig;
     }
 
-    // ── UI ───────────────────────────────────────────────────────────
 
     function el(tag, opts) {
         const e = document.createElement(tag);
@@ -416,7 +408,6 @@
         document.body.appendChild(overlay);
     }
 
-    // ── Public API ───────────────────────────────────────────────────
 
     async function open() {
         try {

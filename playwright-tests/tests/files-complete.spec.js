@@ -23,7 +23,6 @@ test.describe('Files Complete', () => {
         roomId = await createRoom(request, csrf, 'filec_room');
     });
 
-    // ── Resumable Upload (chunk + complete) ───────────────────────────────────
 
     test('upload chunk to non-existent upload', async ({ request }) => {
         const chunk = Buffer.from('fake_chunk_data');
@@ -80,7 +79,6 @@ test.describe('Files Complete', () => {
         }
     });
 
-    // ── Distributed file detail ───────────────────────────────────────────────
 
     test('get distributed file by hash', async ({ request }) => {
         const res = await request.get(`/api/files/distributed/${randomStr(64)}`, {

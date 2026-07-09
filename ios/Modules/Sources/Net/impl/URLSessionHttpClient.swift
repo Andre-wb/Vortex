@@ -72,7 +72,6 @@ public final class URLSessionHttpClient: HttpClient {
         throw HttpError.status(lastStatus, body: "retry limit")
     }
 
-    // ── internals ──────────────────────────────────────────────────────
 
     private func buildRequest(_ req: HttpRequest, includeAuth: Bool) async throws -> URLRequest {
         guard var baseStr = base.current(), !baseStr.isEmpty else { throw HttpError.noBaseUrl }

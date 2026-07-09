@@ -71,7 +71,6 @@ RUN if [ -d rust_utils ]; then \
 
 RUN pyinstaller vortex_wizard/vortex-wizard.spec --clean --noconfirm
 
-# ── Production packaging entrypoint ───────────────────────────────────
 
 RUN cat > /build-entry.sh <<'ENTRY'
 #!/usr/bin/env bash
@@ -87,13 +86,11 @@ ARCH="$(uname -m)"
 STAGE="/tmp/vortex-stage"
 VERSION="0.1.0"
 
-# ── 1. Raw tarball ───────────────────────────────────────────────────
 cp -a dist/vortex-wizard /out/
 cd /out
 tar -czf "vortex-wizard-linux-${DATE}-${ARCH}.tar.gz" vortex-wizard
 echo "=== tarball: $(ls -lh vortex-wizard-linux-${DATE}-${ARCH}.tar.gz) ==="
 
-# ── 2. Lay out a filesystem skeleton we can hand to fpm and AppImage ──
 rm -rf "$STAGE"
 mkdir -p "$STAGE/opt/vortex" \
          "$STAGE/usr/bin" \
@@ -135,7 +132,6 @@ StartupWMClass=vortex-wizard
 Keywords=vortex;messenger;p2p;chat;privacy;
 DESKTOP
 
-# ── 3. .deb (Debian / Ubuntu / Mint / PopOS / ...) ───────────────────
 echo "=== Building .deb ==="
 fpm --input-type dir --output-type deb \
     --name vortex-wizard \
@@ -154,7 +150,6 @@ fpm --input-type dir --output-type deb \
     --chdir "$STAGE" \
     . || echo "warn: deb build failed"
 
-# ── 4. .rpm (Fedora / RHEL / openSUSE) ───────────────────────────────
 # Debian's rpmbuild fails on the `aarch64-unknown-linux` target fpm
 # auto-selects. Workaround: set macros so rpmbuild accepts a plain
 # "aarch64" / "x86_64" arch without querying /usr/lib/rpm/platform.
@@ -190,7 +185,6 @@ fpm --input-type dir --output-type rpm \
     2>&1 | tail -5 \
     || echo "warn: rpm build failed (non-fatal — AppImage + .deb cover Linux)"
 
-# ── 5. AppImage (universal, single-file) ─────────────────────────────
 echo "=== Building AppImage ==="
 APPDIR="/tmp/Vortex-Wizard.AppDir"
 rm -rf "$APPDIR"
@@ -237,7 +231,6 @@ APPIMAGE_EXTRACT_AND_RUN=1 "$APPTOOL" \
     && chmod +x "/out/vortex-wizard-${DATE}-${APPTOOL_ARCH}.AppImage" \
     || echo "warn: AppImage build failed"
 
-# ── 6. Universal install script ──────────────────────────────────────
 cat > /out/install.sh <<'INSTALL'
 #!/usr/bin/env bash
 # Universal Vortex installer — detects your distro and picks the right
@@ -267,7 +260,6 @@ die "No supported package format for arch $ARCH in this directory."
 INSTALL
 chmod +x /out/install.sh
 
-# ── 7. Hashes ────────────────────────────────────────────────────────
 # Hash only files (exclude the raw vortex-wizard/ directory).
 cd /out
 sha256sum install.sh > SHA256SUMS

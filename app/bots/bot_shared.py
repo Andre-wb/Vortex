@@ -25,16 +25,12 @@ def _hash_token(token: str) -> str:
     """SHA-256 hash of a bot API token."""
     return hashlib.sha256(token.encode()).hexdigest()
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Router
-# ══════════════════════════════════════════════════════════════════════════════
 
 router = APIRouter(tags=["bots"])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Dependency: authenticate bot by api_token in Authorization header
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _get_bot_by_token(request: Request, db: Session = Depends(get_db)) -> Bot:
     """
@@ -61,9 +57,7 @@ def _get_bot_by_token(request: Request, db: Session = Depends(get_db)) -> Bot:
     return bot
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # In-memory update queues for bot long-polling / WebSocket
-# ══════════════════════════════════════════════════════════════════════════════
 
 # bot_user_id -> asyncio.Queue of update dicts
 _bot_queues: dict[int, asyncio.Queue] = {}
@@ -104,9 +98,7 @@ def remove_bot_queue(bot_user_id: int) -> None:
     _bot_queues.pop(bot_user_id, None)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class CreateBotRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=50)

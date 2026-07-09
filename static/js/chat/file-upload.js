@@ -1,5 +1,4 @@
 // static/js/chat/file-upload.js
-// =============================================================================
 // Модуль загрузки файлов в чат.
 // Управляет предпросмотром, сжатием изображений, отправкой через XHR,
 // отображением прогресса и обработкой ошибок.
@@ -11,21 +10,18 @@
 //     незавершённую загрузку можно возобновить
 //   • Каждый чанк проверяется SHA-256 хешем
 //   • Ограничение параллелизма: не более 3 чанков одновременно
-// =============================================================================
 
 import { fmtSize, getCookie } from '../utils.js';
 import { encryptFile, decryptFile, getRoomKey, setRoomKey } from '../crypto.js';
 import { encryptFileMeta, isZKReady } from '../zk-crypto.js';
 
 
-// ── Константы ─────────────────────────────────────────────────────────────────
 const CHUNK_SIZE          = 1 * 1024 * 1024;   // 1 МБ
 const RESUMABLE_THRESHOLD = 2 * 1024 * 1024;   // файлы > 2 МБ → чанкованная загрузка
 const MAX_PARALLEL_CHUNKS = 3;                  // параллельные загрузки чанков
 const CHUNK_RETRY_MAX     = 3;                  // повторы при ошибке чанка
 const LS_KEY_PREFIX       = 'vortex_upload_';   // префикс localStorage
 
-// ── Приватное состояние ───────────────────────────────────────────────────────
 let _pendingFile     = null;
 let _resizedBlob     = null;
 let _origW           = 0;
@@ -89,9 +85,7 @@ let _resumeSession = null;  // { upload_id, total_chunks, received: Set }
 
 const $ = id => document.getElementById(id);
 
-// =============================================================================
 // Вычисление SHA-256 через Web Crypto API
-// =============================================================================
 
 async function sha256Hex(buffer) {
     const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
@@ -99,9 +93,7 @@ async function sha256Hex(buffer) {
         .map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// =============================================================================
 // Сохранение/восстановление прогресса в localStorage
-// =============================================================================
 
 function _saveProgress(uploadId, data) {
     try {
@@ -135,9 +127,7 @@ function _findExistingSession(fileName, fileSize) {
     return null;
 }
 
-// =============================================================================
 // Resumable upload — основная логика
-// =============================================================================
 
 /**
  * Загружает файл с поддержкой возобновления.
@@ -172,7 +162,6 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
         return _xhrUpload(`/api/files/upload/${roomId}`, formData, csrfToken, onProgress);
     }
 
-    // ── Крупный файл — чанкованная загрузка ───────────────────────────────────
     // File already encrypted by caller — just chunk it
     let fileBuffer = await fileOrBlob.arrayBuffer();
     const fileHash = await sha256Hex(fileBuffer);
@@ -236,7 +225,6 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
 
     _resumeSession = { upload_id: uploadId, total_chunks: totalChunks, received: receivedSet };
 
-    // ── Загрузка чанков с ограничением параллелизма ────────────────────────────
     const pending = [];
     for (let i = 0; i < totalChunks; i++) {
         if (!receivedSet.has(i)) pending.push(i);
@@ -302,7 +290,6 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
 
     onProgress(97);
 
-    // ── Финализация ─────────────────────────────────────────────────────────────
     const completeResp = await fetch(`/api/files/upload-complete/${uploadId}`, {
         method:      'POST',
         credentials: 'include',
@@ -321,9 +308,7 @@ async function uploadFileResumable(fileOrBlob, fileName, roomId, csrfToken, onPr
     return await completeResp.json();
 }
 
-// =============================================================================
 // Обработчик выбора файла
-// =============================================================================
 
 export async function uploadFile(e) {
     const file = e.target.files[0];
@@ -446,9 +431,7 @@ function _showResumeNotice(uploadId, fileSize) {
     notice.style.display = 'flex';
 }
 
-// =============================================================================
 // Отправка файла
-// =============================================================================
 
 let _sendingInProgress = false;
 export async function sendPendingFile() {
@@ -551,9 +534,7 @@ window._resumeUpload = async (uploadId) => {
     if (_pendingFile) await sendPendingFile();
 };
 
-// =============================================================================
 // Вспомогательные функции предпросмотра (без изменений по сравнению с оригиналом)
-// =============================================================================
 
 function _showEditPhotoBtn(show) {
     let btn = $('fpo-edit-photo-btn');
@@ -729,9 +710,7 @@ export function uploadFileFromDrop(file) {
     uploadFile(fakeEvent);
 }
 
-// =============================================================================
 // Обычный XHR upload (для маленьких файлов)
-// =============================================================================
 
 function _xhrUpload(url, formData, csrfToken, onProgress) {
     return new Promise((resolve, reject) => {
@@ -761,9 +740,7 @@ function _xhrUpload(url, formData, csrfToken, onProgress) {
     });
 }
 
-// =============================================================================
 // Pending bubble — отображение прогресса в чате
-// =============================================================================
 
 function _insertPendingBubble(fileName, fileSize, mimeType, localSrc) {
     const S         = window.AppState;
@@ -932,9 +909,7 @@ function _showError(msg) {
     el._t = setTimeout(() => { el.style.display = 'none'; }, 6000);
 }
 
-// =============================================================================
 // E2E: скачивание и расшифровка файлов
-// =============================================================================
 
 /**
  * Скачивает файл, расшифровывает ключом комнаты и отдаёт пользователю.

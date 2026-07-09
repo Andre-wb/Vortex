@@ -61,7 +61,6 @@ CODE_MAP = {
     'zh-TW': 'zh-TW',
 }
 
-# ── Term protection ──────────────────────────────────────────────────────
 
 # GLOBAL terms: protected in ALL sections — technical terms that should
 # never be translated regardless of context.
@@ -454,7 +453,6 @@ def process_locale(fname, en_data):
         strings.append(protected_text)
         protection_maps.append(pmap)
 
-    # ── Estimate batch count up-front for progress display ──
     # Walks `strings` the same way the main loop does, but just counts.
     def _estimate_batches(items):
         cnt = 0

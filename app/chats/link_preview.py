@@ -29,7 +29,6 @@ from app.security.auth_jwt import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["link-preview"])
 
-# ── Rate limiting (in-memory) ────────────────────────────────────────────────
 # FIX F12(1): /api/link-preview is an authenticated outbound-fetch SSRF surface.
 # Throttle it per-user AND per-IP (mirrors the limiter pattern in
 # app/chats/translate.py) so a single account/host cannot drive unbounded
@@ -50,7 +49,6 @@ def _check_rate_limit(bucket: dict, key, label: str) -> None:
         raise HTTPException(429, f"Link-preview rate limit exceeded ({_RATE_LIMIT}/min per {label})")
     bucket[key].append(now)
 
-# ── In-memory LRU cache ────────────────────────────────────────────────────
 _CACHE_MAX = 500
 _cache: OrderedDict[str, dict] = OrderedDict()
 
@@ -69,7 +67,6 @@ def _cache_set(url: str, data: dict) -> None:
         _cache.popitem(last=False)
 
 
-# ── OG tag parsing ─────────────────────────────────────────────────────────
 _OG_RE = re.compile(
     r'<meta\s[^>]*?'
     r'(?:property|name)\s*=\s*["\']og:(\w+)["\']'
@@ -135,7 +132,6 @@ def _parse_og(html: str, url: str) -> dict:
     }
 
 
-# ── SSRF protection ───────────────────────────────────────────────────────
 
 def _ip_is_blocked(addr: ipaddress._BaseAddress) -> bool:
     """True if an IP belongs to a private/reserved/link-local range we must not reach."""
@@ -234,7 +230,6 @@ def _build_pinned_transport(pinned_ip: str) -> httpx.AsyncHTTPTransport:
     return transport
 
 
-# ── Endpoint ───────────────────────────────────────────────────────────────
 @router.get("/link-preview")
 async def link_preview(
     request: Request,

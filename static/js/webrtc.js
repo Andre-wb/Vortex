@@ -1,5 +1,4 @@
 // static/js/webrtc.js
-// ============================================================================
 // Модуль WebRTC для аудио/видеозвонков в комнате.
 // Обрабатывает сигнализацию через WebSocket, создание peer-соединения,
 // управление медиапотоками, интерфейс входящего вызова.
@@ -11,7 +10,6 @@
 //   • При ухудшении сети (RTT>300мс, loss>5%) понижается bitrate видео / аудио
 //   • При восстановлении сети bitrate возвращается к норме
 //   • Алгоритм на основе конечного автомата: high → medium → low → audio_only
-// ============================================================================
 
 import { $, api } from './utils.js';
 import { t } from './i18n.js';
@@ -52,14 +50,12 @@ let _callHistoryId     = null;  // ID записи в истории звонк�
 let _inviteRetryTimer  = null;  // periodically resend invite for new contacts
 let _ringbackAudio     = null;  // Audio element for outgoing call ringback
 
-// ─── Пороги качества ──────────────────────────────────────────────────────────
 const QUALITY = {
     GOOD: { rtt: 150,  loss: 2,  jitter: 30  },
     FAIR: { rtt: 300,  loss: 8,  jitter: 80  },
     // хуже → poor
 };
 
-// ─── Адаптивное управление bitrate ────────────────────────────────────────────
 // Уровни качества видео (kbps)
 const VIDEO_BITRATES = {
     high:       2500_000,    // 2.5 Mbps — отличное качество
@@ -115,7 +111,6 @@ let _qualityStableCount  = 0;        // счётчик стабильных ит
 // Минимальное число итераций подряд с хорошей сетью прежде чем повысить качество
 const QUALITY_UPGRADE_THRESHOLD = 5;
 
-// ── Ringback (гудки исходящего звонка) ──────────────────────────────────────
 let _ringbackTimer = null;
 
 function _startRingback() {
@@ -142,7 +137,6 @@ function _stopRingback() {
     }
 }
 
-// ── Системное сообщение о звонке в чат ──────────────────────────────────────
 async function _appendCallLogMessage(status, duration, isVideo, isOutgoing) {
     try {
         const { appendSystemMessage } = await import('./chat/messages.js');
@@ -162,7 +156,6 @@ async function _appendCallLogMessage(status, duration, isVideo, isOutgoing) {
     } catch (e) { console.debug('call log message error:', e); }
 }
 
-// ── startCall — универсальный вызов по userId из контактов ───────────────────
 export async function startCall(userId, isVideo = false) {
     // Открываем DM (или находим существующий), затем звоним
     if (typeof window.openDM === 'function') {
@@ -177,9 +170,7 @@ export async function startCall(userId, isVideo = false) {
     }
 }
 
-// ----------------------------------------------------------------------------
 // Подключение к сигнальному WebSocket
-// ----------------------------------------------------------------------------
 export async function connectSignal(roomId) {
     const S = window.AppState;
 
@@ -292,9 +283,7 @@ function _sdpHasVideo(sdp) {
     return typeof sdp === 'string' && /^m=video /m.test(sdp);
 }
 
-// ----------------------------------------------------------------------------
 // Инициирование звонков
-// ----------------------------------------------------------------------------
 export async function startVoiceCall() {
     const S = window.AppState;
     if (!S.currentRoom) return;
@@ -474,9 +463,7 @@ export async function startVideoCall() {
     } catch (e) { console.warn('[WebRTC] call history start failed:', e); }
 }
 
-// ----------------------------------------------------------------------------
 // Call privacy settings (Force TCP / Relay / Traffic Masking)
-// ----------------------------------------------------------------------------
 function _getCallPrivacySettings() {
     return {
         forceRelay:  localStorage.getItem('vortex_call_force_relay') === 'true',
@@ -610,9 +597,7 @@ function _updatePrivacyBadge() {
     badge.style.display = 'inline-flex';
 }
 
-// ----------------------------------------------------------------------------
 // RTCPeerConnection
-// ----------------------------------------------------------------------------
 function createPeerConnection() {
     const config = _buildRtcConfig();
     const pc = new RTCPeerConnection(config);
@@ -714,9 +699,7 @@ function createPeerConnection() {
     return pc;
 }
 
-// ============================================================================
 // МОНИТОРИНГ И АДАПТИВНОЕ УПРАВЛЕНИЕ КАЧЕСТВОМ
-// ============================================================================
 
 function _startStatsMonitor(pc) {
     _stopStatsMonitor();
@@ -805,7 +788,6 @@ async function _collectStats(pc) {
     return { rtt, jitter, lossPercent, bitrateKbps, transport };
 }
 
-// ── Адаптивное управление качеством ──────────────────────────────────────────
 
 /**
  * Конечный автомат адаптивного управления качеством.
@@ -917,7 +899,6 @@ async function _applyQualityLevel(pc, level) {
     }
 }
 
-// ── Отображение метрик в UI ────────────────────────────────────────────────────
 
 function _applyMetricsToUI(metrics) {
     const { rtt, jitter, lossPercent, bitrateKbps, transport } = metrics;
@@ -966,7 +947,6 @@ function _transportLabel(type) {
     return { host: 'Direct (LAN)', srflx: 'NAT (STUN)', relay: 'Relay (TURN)' }[type] ?? type;
 }
 
-// ── DOM: элементы overlay + статистика ────────────────────────────────────────
 
 function _ensureQualityBadge() {
     if ($('wrtc-rtt-badge')) return;
@@ -1091,9 +1071,7 @@ function _setQualityBadge(icon, color) {
     if (dot) dot.style.background = color;
 }
 
-// ----------------------------------------------------------------------------
 // Обработка сигнальных сообщений
-// ----------------------------------------------------------------------------
 async function handleSignal(msg) {
     if (msg.type && msg.type.startsWith('group_')) {
         const gc = await import('./group_call.js');
@@ -1176,9 +1154,7 @@ async function handleSignal(msg) {
     }
 }
 
-// ----------------------------------------------------------------------------
 // UI
-// ----------------------------------------------------------------------------
 function _showCallOverlay({ name, avatar, status, hasVideo }) {
     const overlay = $('call-overlay');
     if (!overlay) { console.error('call-overlay not found in DOM'); return; }
@@ -1276,9 +1252,7 @@ function hideIncomingCallUI() {
     stopCallSound();
 }
 
-// ----------------------------------------------------------------------------
 // Принять / отклонить / завершить
-// ----------------------------------------------------------------------------
 export async function acceptCall() {
     const S = window.AppState;
     hideIncomingCallUI();
@@ -1373,9 +1347,7 @@ export function declineCall() {
     _stopStatsMonitor();
 }
 
-// ----------------------------------------------------------------------------
 // Minimize / expand call
-// ----------------------------------------------------------------------------
 export function minimizeCall() {
     const overlay = $('call-overlay');
     const pip     = document.getElementById('call-pip');
@@ -1409,7 +1381,6 @@ export function expandCall() {
     pip.style.right = '';
 }
 
-// ── PIP drag logic ─────────────────────────────────────────────────────────
 (function _initPipDrag() {
     let _dragging = false;
     let _startX = 0, _startY = 0;
@@ -1600,9 +1571,7 @@ export function hangup() {
     setTimeout(() => { _isHangingUp = false; }, 500);
 }
 
-// ----------------------------------------------------------------------------
 // Управление медиа-треками
-// ----------------------------------------------------------------------------
 export function toggleMute() {
     const S = window.AppState;
     S.isMuted = !S.isMuted;
@@ -1642,9 +1611,7 @@ export async function toggleCam() {
     } catch (e) { alert(t('call.cameraError').replace('{error}', e.message)); }
 }
 
-// ----------------------------------------------------------------------------
 // Демонстрация экрана
-// ----------------------------------------------------------------------------
 
 let _isScreenSharing = false;
 let _originalVideoTrack = null;
@@ -1730,9 +1697,7 @@ function _updateScreenBtn(active) {
     btn.classList.toggle('active', active);
 }
 
-// ----------------------------------------------------------------------------
 // Кнопки
-// ----------------------------------------------------------------------------
 const _SVG_MIC_ON  = '<path d="M16 12V6c0-2.21-1.79-4-4-4S8 3.79 8 6v6c0 2.21 1.79 4 4 4s4-1.79 4-4m-6 0V6c0-1.1.9-2 2-2s2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2"></path><path d="M18 12c0 3.31-2.69 6-6 6s-6-2.69-6-6H4c0 4.07 3.06 7.44 7 7.93V22h2v-2.07c3.94-.49 7-3.86 7-7.93z"></path>';
 const _SVG_MIC_OFF = '<path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28m-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99M4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>';
 const _SVG_CAM_ON  = '<path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>';
@@ -1758,9 +1723,7 @@ function _updateCamBtn(camOff) {
 // Экспортируем текущий уровень качества для внешнего использования
 export function getCurrentQualityLevel() { return _currentQualityLevel; }
 
-// ----------------------------------------------------------------------------
 // Video swap (FaceTime-style: click to swap local/remote positions)
-// ----------------------------------------------------------------------------
 let _videoSwapped = false;
 
 export function swapCallVideos() {
@@ -1776,9 +1739,7 @@ export function swapCallVideos() {
     overlay.classList.toggle('video-swapped', _videoSwapped);
 }
 
-// ----------------------------------------------------------------------------
 // Video visibility management
-// ----------------------------------------------------------------------------
 function _updateVideoVisibility() {
     const remoteEl   = $('remote-video');
     const localEl    = $('local-video');

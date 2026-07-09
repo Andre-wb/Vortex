@@ -26,7 +26,6 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-# ── Configuration ─────────────────────────────────────────────────────────
 
 VORTEX_PROGRAM_ID = os.getenv(
     "VORTEX_PROGRAM_ID",
@@ -57,7 +56,6 @@ _SUBSCRIPTION_DISCRIMINATOR = hashlib.sha256(b"account:Subscription").digest()[:
 _SUBSCRIPTION_SEED = b"subscription"
 
 
-# ── Data model ────────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -90,7 +88,6 @@ class PremiumStatus:
         }
 
 
-# ── Checker ───────────────────────────────────────────────────────────────
 
 
 class PremiumChecker:
@@ -105,7 +102,6 @@ class PremiumChecker:
         self._inflight: dict[str, asyncio.Task] = {}
         self._lock = asyncio.Lock()
 
-    # ── Public API ────────────────────────────────────────────────────
 
     async def get_status(self, wallet_pubkey: str) -> PremiumStatus:
         """Return premium status; never raises on RPC errors."""
@@ -133,7 +129,6 @@ class PremiumChecker:
     def invalidate(self, wallet_pubkey: str) -> None:
         self._cache.pop(wallet_pubkey, None)
 
-    # ── Fetch + parse ─────────────────────────────────────────────────
 
     async def _fetch_status(self, wallet_pubkey: str) -> PremiumStatus:
         try:
@@ -183,7 +178,6 @@ class PremiumChecker:
         return parsed
 
 
-# ── PDA derivation ────────────────────────────────────────────────────────
 
 
 def _derive_subscription_pda(beneficiary_base58: str) -> str:
@@ -203,7 +197,6 @@ def _derive_subscription_pda(beneficiary_base58: str) -> str:
     return str(pda)
 
 
-# ── RPC ───────────────────────────────────────────────────────────────────
 
 
 async def _rpc_get_account_info(pda_base58: str) -> Optional[bytes]:
@@ -245,7 +238,6 @@ async def _rpc_get_account_info(pda_base58: str) -> Optional[bytes]:
         return None
 
 
-# ── Parse account bytes ───────────────────────────────────────────────────
 
 
 def _parse_subscription(raw: bytes, expected_wallet: str) -> PremiumStatus:
@@ -289,7 +281,6 @@ def _parse_subscription(raw: bytes, expected_wallet: str) -> PremiumStatus:
     )
 
 
-# ── Singleton + FastAPI dependency ────────────────────────────────────────
 
 
 premium_checker = PremiumChecker()
@@ -321,7 +312,6 @@ async def require_premium_wallet(wallet_pubkey: str) -> PremiumStatus:
     return status
 
 
-# ── FastAPI router ────────────────────────────────────────────────────────
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 

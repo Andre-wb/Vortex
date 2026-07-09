@@ -23,12 +23,10 @@ class WAFCaptcha:
         self._secret: bytes = (_raw + "waf-captcha-v1").encode() if _raw else secrets.token_bytes(32)
         self.ttl = 300
 
-    # ── Internal HMAC signing ─────────────────────────────────────────────────
 
     def _sign(self, payload: str) -> str:
         return hmac.new(self._secret, payload.encode(), hashlib.sha256).hexdigest()
 
-    # ── Public API ─────────────────────────────────────────────────────────────
 
     def generate_challenge(self, client_ip: str) -> Dict:
         op = secrets.choice(['+', '-', '*'])

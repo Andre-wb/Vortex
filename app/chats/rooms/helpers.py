@@ -21,9 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class EncryptedKeyPayload(BaseModel):
     """ECIES-encrypted room key."""
@@ -92,9 +90,7 @@ class RoomThemeBody(BaseModel):
     dark_mode: Optional[bool] = None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Helper functions
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _room_dict(r: Room) -> dict:
     from app.chats.voice import get_voice_participants
@@ -164,7 +160,6 @@ async def _broadcast_key_request(room_id: int, for_user_id: int, for_pubkey: str
     await manager.broadcast_to_room(room_id, payload, exclude=for_user_id)
 
 
-# ── Theme helpers ─────────────────────────────────────────────────────────────
 
 _VALID_WALLPAPERS = {"none", "stars", "aurora", "sunset", "ocean-wave", "mesh", "deep-space"}
 

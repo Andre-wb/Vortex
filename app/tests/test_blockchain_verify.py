@@ -18,9 +18,7 @@ from app.security.blockchain_verify import (
 )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # _parse_amount
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestParseAmount:
     def test_usdt_string(self):
@@ -45,9 +43,7 @@ class TestParseAmount:
         assert _parse_amount("10 USDT/month") == 10.0
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # verify_transaction — input validation
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestInputValidation:
     @pytest.mark.asyncio
@@ -71,9 +67,7 @@ class TestInputValidation:
         assert "unsupported" in result.error.lower()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # TRON / TRC20
-# ══════════════════════════════════════════════════════════════════════════════
 
 TRON_TX_HASH = "a" * 64
 TRON_WALLET  = "TXYZwalletaddress123456789abcdef"
@@ -204,9 +198,7 @@ class TestTronVerification:
         assert "not found" in result.error.lower()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Ethereum / ERC20
-# ══════════════════════════════════════════════════════════════════════════════
 
 ETH_TX_HASH  = "b" * 64
 ETH_WALLET   = "0xAbCdEf1234567890abcdef1234567890AbCdEf12"
@@ -265,9 +257,7 @@ class TestEthereumVerification:
         assert "unavailable" in result.error.lower()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # BSC / BEP20
-# ══════════════════════════════════════════════════════════════════════════════
 
 BSC_TX_HASH = "c" * 64
 BSC_WALLET  = "0xBSCwallet1234567890abcdef1234567890bscwlt"
@@ -290,9 +280,7 @@ class TestBSCVerification:
         assert result.ok is True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # TON
-# ══════════════════════════════════════════════════════════════════════════════
 
 TON_TX_HASH = "d" * 64
 TON_WALLET  = "EQDtTestWalletAddressTON1234567890abcdef"
@@ -337,9 +325,7 @@ class TestTONVerification:
         assert "insufficient" in result.error.lower()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bitcoin
-# ══════════════════════════════════════════════════════════════════════════════
 
 BTC_TX_HASH = "e" * 64
 BTC_WALLET  = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
@@ -441,9 +427,7 @@ class TestBitcoinVerification:
         assert "insufficient" in result.error.lower()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # VerificationResult dataclass
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestVerificationResult:
     def test_default_values(self):

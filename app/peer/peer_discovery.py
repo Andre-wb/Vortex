@@ -23,9 +23,7 @@ logger = logging.getLogger(__name__)
 _peer_ssl_ctx = make_peer_ssl_context()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _local_ip() -> str:
     for target in ("192.168.1.1", "10.0.0.1", "172.16.0.1", "8.8.8.8"):
@@ -63,9 +61,7 @@ def _get_node_keys():
     return load_or_create_node_keypair(Config.KEYS_DIR)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Room fetching
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def _fetch_peer_rooms(peer: PeerInfo) -> None:
     for scheme in ("https", "http"):
@@ -92,9 +88,7 @@ def _schedule_fetch_peer_rooms(peer: PeerInfo) -> None:
         logger.debug(f"_main_loop not ready, skip room fetch for {peer.ip}")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Discovery
-# ══════════════════════════════════════════════════════════════════════════════
 
 def start_discovery(device_name: str = "") -> None:
     try:

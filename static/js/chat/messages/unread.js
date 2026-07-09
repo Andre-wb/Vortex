@@ -1,6 +1,4 @@
-// =========================================================================
 // Unread divider, jump-to-unread button, scroll-to-bottom arrow
-// =========================================================================
 import { t } from '../../i18n.js';
 
 let _unreadObserver = null;
@@ -114,7 +112,6 @@ export function jumpToUnread() {
     _updateScrollArrow();
 }
 
-// ── Scroll-to-bottom arrow with unread counter ──────────────────────────────
 
 function _updateScrollArrow() {
     let arrow = document.getElementById('scroll-bottom-arrow');

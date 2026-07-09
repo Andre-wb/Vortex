@@ -36,7 +36,6 @@ module.exports = defineConfig({
     },
 
     projects: [
-        // ── Chromium-based ───────────────────────────────────────────────────
         { name: 'google-chrome',  use: { ...devices['Desktop Chrome'],  channel: 'chrome' } },
         { name: 'microsoft-edge', use: { ...devices['Desktop Chrome'],  channel: 'chrome',
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0',
@@ -48,7 +47,6 @@ module.exports = defineConfig({
             userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 YaBrowser/24.7.0 Safari/537.36',
         }},
 
-        // ── Privacy-focused (Chromium-based) ────────────────────────────────
         { name: 'brave',           use: { ...devices['Desktop Chrome'],  channel: 'chrome',
             userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Brave/126',
         }},
@@ -56,14 +54,12 @@ module.exports = defineConfig({
             userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Atom/28.0.0',
         }},
 
-        // ── Other engines ────────────────────────────────────────────────────
         { name: 'mozilla-firefox', use: { ...devices['Desktop Firefox'] } },
         { name: 'tor-browser',     use: { ...devices['Desktop Firefox'],
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0',
         }},
         { name: 'apple-safari',   use: { ...devices['Desktop Safari'] } },
 
-        // ── Mobile ───────────────────────────────────────────────────────────
         { name: 'mobile-ios',     use: { ...devices['iPhone 14'] } },
         { name: 'mobile-android', use: { ...devices['Pixel 7'] } },
     ],

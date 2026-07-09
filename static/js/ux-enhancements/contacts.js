@@ -1,8 +1,6 @@
 import { Haptic, switchBottomTab, loadRecentCalls, filterCalls, clearCallHistory, callUser } from './core.js';
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 11. Contacts Tab — fullscreen contact management
-// ══════════════════════════════════════════════════════════════════════════════
 
 let _allContacts = [];
 
@@ -215,9 +213,7 @@ function openAddContactModal() {
     if (results) results.innerHTML = '';
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 12. Sidebar menus (hamburger + compose)
-// ══════════════════════════════════════════════════════════════════════════════
 
 function toggleSidebarMenu() {
     const menu = document.getElementById('cs-sidebar-menu');
@@ -306,9 +302,7 @@ window.filterCalls = filterCalls;
 window.clearCallHistory = clearCallHistory;
 window.callUser = callUser;
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Header popovers: call picker & three-dots menu
-// ══════════════════════════════════════════════════════════════════════════════
 
 function toggleCallPicker(e) {
     e && e.stopPropagation();
@@ -360,7 +354,6 @@ window.closeCallPicker  = closeCallPicker;
 window.toggleHeaderMenu = toggleHeaderMenu;
 window.closeHeaderMenu  = closeHeaderMenu;
 
-// ── Room Settings Screen — полный экран внутри #main ──────────────────────────
 function openRoomSettingsScreen() {
     const screen = document.getElementById('room-settings-screen');
     const chat   = document.getElementById('chat-screen');
@@ -453,7 +446,6 @@ window.openRoomSettings = function() {
     }
 };
 
-// ── Inline media grid for room info screen ────────────────────────────────────
 let _rssMediaFiles = [];
 
 window._renderRssMedia = function(tab) {

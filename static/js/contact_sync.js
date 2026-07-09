@@ -1,23 +1,19 @@
 /**
  * static/js/contact_sync.js
- * ============================================================================
  * Синхронизация контактов с устройства.
  *
  * Использует Contact Picker API (Android Chrome 80+) или fallback
  * через input type=file для vCard (.vcf).
  * Номера хешируются SHA-256 на клиенте перед отправкой на сервер.
- * ============================================================================
  */
 
 import { $, api } from './utils.js';
 import { t }      from './i18n.js';
 
-/* ── state ─────────────────────────────────────────────────────────────────── */
 let _syncMatches   = [];
 let _selectedIds   = new Set();
 let _syncInProgress = false;
 
-/* ── helpers ───────────────────────────────────────────────────────────────── */
 
 function _normalizePhone(raw) {
     return raw.replace(/[^\d+]/g, '').trim();
@@ -44,7 +40,6 @@ function _parsePhonesFromVcf(text) {
     return phones;
 }
 
-/* ── Contact Picker API ───────────────────────────────────────────────────── */
 
 function _hasContactPicker() {
     return 'contacts' in navigator && 'ContactsManager' in window;
@@ -67,7 +62,6 @@ async function _pickContactsFromDevice() {
     }
 }
 
-/* ── vCard fallback ───────────────────────────────────────────────────────── */
 
 function _pickVcfFile() {
     return new Promise(resolve => {
@@ -83,7 +77,6 @@ function _pickVcfFile() {
     });
 }
 
-/* ── UI ───────────────────────────────────────────────────────────────────── */
 
 function _show(id) { const el = $(id); if (el) el.classList.add('show'); }
 function _hide(id) { const el = $(id); if (el) el.classList.remove('show'); }
@@ -137,7 +130,6 @@ function _updateCount() {
     if (el) el.textContent = t('contactSync.selectedCount', { n: _selectedIds.size });
 }
 
-/* ── Exported ─────────────────────────────────────────────────────────────── */
 
 export function showContactSync() {
     _syncMatches = [];

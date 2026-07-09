@@ -27,7 +27,6 @@ from app.security.auth_jwt import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/group-calls", tags=["group-calls"])
 
-# ── In-memory state ─────────────────────────────────────────────────────────
 
 @dataclass
 class GroupCallParticipant:
@@ -105,7 +104,6 @@ def _end_call(call: GroupCall) -> None:
     _active_group_calls.pop(call.call_id, None)
 
 
-# ── Ringing timeout ─────────────────────────────────────────────────────────
 
 RING_TIMEOUT = 30  # seconds
 
@@ -125,7 +123,6 @@ async def _broadcast_call_event(call: GroupCall, event_type: str, extra: dict | 
     await manager.broadcast_to_room(call.room_id, payload)
 
 
-# ── Request models ──────────────────────────────────────────────────────────
 
 class StartCallRequest(BaseModel):
     call_type: str = "group_audio"
@@ -136,7 +133,6 @@ class MuteRequest(BaseModel):
     is_video: bool = False
 
 
-# ── Endpoints ───────────────────────────────────────────────────────────────
 
 @router.post("/{room_id}/start")
 async def start_group_call(

@@ -29,7 +29,6 @@ path** as a production `vortexx.sol` deployment, minus the domain.
 Output looks like:
 
 ```
-─── vortex test-controller test-0.1.0 ───
   signing pubkey:  f09bb55fb27020a847a090a2f0c928fed2afd803a71761d6a84864eb365fa025
   listening on:    http://127.0.0.1:8800
   public URL:      https://ballot-kidney-roof-surveillance.trycloudflare.com

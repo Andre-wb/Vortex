@@ -1,7 +1,5 @@
-/* =======================================================================
  * vortexx.sol controller website — shared styles for all pages
  * Dark, minimalist, clear visual hierarchy.
- * ===================================================================== */
 
 :root {
     --bg:       #04030a;
@@ -63,7 +61,6 @@ code {
     font-size: 0.9em;
 }
 
-/* ========== TOP NAVIGATION ========================================== */
 
 .topbar {
     position: sticky;
@@ -172,7 +169,6 @@ code {
 .lang-item.active { background: rgba(124,58,237,0.18); color: var(--purple2); }
 .lang-item-code { font-family: var(--mono); font-size: 9px; color: var(--text3); }
 
-/* ========== PAGE CONTAINER =========================================== */
 
 .container {
     max-width: 1100px;
@@ -207,7 +203,6 @@ code {
     margin-bottom: 8px;
 }
 
-/* ========== CARDS ==================================================== */
 
 .card {
     background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012));
@@ -250,7 +245,6 @@ code {
     text-align: right;
 }
 
-/* ========== BADGES & STATUS DOTS ===================================== */
 
 .badge {
     display: inline-flex;
@@ -281,7 +275,6 @@ code {
 .dot-warn { background: var(--yellow); }
 .dot-err  { background: var(--red); }
 
-/* ========== BUTTONS ================================================== */
 
 .btn {
     display: inline-flex;
@@ -333,7 +326,6 @@ code {
 .btn-icon:hover { color: var(--text); border-color: var(--purple); }
 .btn-icon svg { width: 14px; height: 14px; }
 
-/* ========== HOME =================================================== */
 
 .hero {
     text-align: center;
@@ -466,7 +458,6 @@ code {
     line-height: 1.5;
 }
 
-/* ========== NODES TABLE ============================================== */
 
 .filter-bar {
     display: flex;
@@ -588,7 +579,6 @@ code {
     word-break: break-all;
 }
 
-/* ========== ENTRY / MIRROR CARDS ===================================== */
 
 .item-grid {
     display: grid;
@@ -651,7 +641,6 @@ code {
     margin-top: auto;
 }
 
-/* ========== SECURITY PAGE ============================================ */
 
 .sec-section { margin-bottom: 36px; }
 .sec-section h2 {
@@ -791,7 +780,6 @@ code {
 .check-item.safe .check-ico { background: rgba(34,197,94,0.18); color: var(--green2); }
 .check-item.risk .check-ico { background: rgba(239,68,68,0.18); color: var(--red2); }
 
-/* ========== FOOTER ==================================================== */
 
 .footer {
     margin-top: 60px;
@@ -808,7 +796,6 @@ code {
 .footer a { color: var(--text3); }
 .footer a:hover { color: var(--purple2); }
 
-/* ========== TOAST ==================================================== */
 
 .toast {
     position: fixed;
@@ -827,7 +814,6 @@ code {
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
 
-/* ========== RESPONSIVE =============================================== */
 
 @media (max-width: 720px) {
     .topbar { gap: 12px; padding: 0 12px; }

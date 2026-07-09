@@ -14,7 +14,6 @@
  *   - Folder filtering   — assignRoomToFolder, active folder filters list
  */
 
-// ── All dependency mocks ──────────────────────────────────────────────────────
 
 jest.mock('../utils.js', () => ({
     $:          jest.fn((id) => global.document?.getElementById(id)),
@@ -48,12 +47,10 @@ jest.mock('../notifications.js', () => ({
     stopMultiplexCover: jest.fn(),
 }));
 
-// ── Imports ───────────────────────────────────────────────────────────────────
 
 import { renderRoomsList, renderFolderTabs, hideRoom, unhideRoom } from '../rooms.js';
 import { $ } from '../utils.js';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeStorage() {
     const store = {};
@@ -99,7 +96,6 @@ function buildDOM() {
     `;
 }
 
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 let localStorageMock;
 
@@ -126,9 +122,7 @@ beforeEach(() => {
     buildDOM();
 });
 
-// =============================================================================
 // 1. renderRoomsList() — basic DOM rendering
-// =============================================================================
 
 describe('renderRoomsList() - basic rendering', () => {
     test('renders empty hint when rooms list is empty', () => {
@@ -204,9 +198,7 @@ describe('renderRoomsList() - basic rendering', () => {
     });
 });
 
-// =============================================================================
 // 2. renderRoomsList() — archived rooms are hidden
-// =============================================================================
 
 describe('renderRoomsList() - archived rooms', () => {
     test('archived rooms are excluded from the visible list', () => {
@@ -237,9 +229,7 @@ describe('renderRoomsList() - archived rooms', () => {
     });
 });
 
-// =============================================================================
 // 3. renderRoomsList() — pinned rooms sort first
-// =============================================================================
 
 describe('renderRoomsList() - pinned rooms sort order', () => {
     test('pinned room appears before unpinned room in rendered HTML', () => {
@@ -287,9 +277,7 @@ describe('renderRoomsList() - pinned rooms sort order', () => {
     });
 });
 
-// =============================================================================
 // 4. renderRoomsList() — hidden rooms
-// =============================================================================
 
 describe('renderRoomsList() - hidden rooms', () => {
     test('hidden rooms are excluded from the visible list by default', () => {
@@ -304,9 +292,7 @@ describe('renderRoomsList() - hidden rooms', () => {
     });
 });
 
-// =============================================================================
 // 5. renderFolderTabs()
-// =============================================================================
 
 describe('renderFolderTabs()', () => {
     test('renders "All" tab when no folders exist', () => {
@@ -361,9 +347,7 @@ describe('renderFolderTabs()', () => {
     });
 });
 
-// =============================================================================
 // 6. Folder CRUD — createFolder / updateFolder / deleteFolder
-// =============================================================================
 
 describe('Folder CRUD via context (createFolder / updateFolder / deleteFolder)', () => {
     /**
@@ -437,9 +421,7 @@ describe('Folder CRUD via context (createFolder / updateFolder / deleteFolder)',
     });
 });
 
-// =============================================================================
 // 7. Folder filtering — rooms are filtered when a folder is active
-// =============================================================================
 
 describe('renderRoomsList() - folder filtering', () => {
     test('shows empty folder hint when active folder contains no rooms', () => {
@@ -494,9 +476,7 @@ describe('renderRoomsList() - folder filtering', () => {
     });
 });
 
-// =============================================================================
 // 8. hideRoom() / unhideRoom()
-// =============================================================================
 
 describe('hideRoom() and unhideRoom()', () => {
     test('hideRoom adds room to hidden list when hash already set', async () => {
@@ -534,9 +514,7 @@ describe('hideRoom() and unhideRoom()', () => {
     });
 });
 
-// =============================================================================
 // 9. Edge cases and guard clauses
-// =============================================================================
 
 describe('renderRoomsList() — edge cases', () => {
     test('returns early without throwing when rooms-list element is absent', () => {

@@ -1,9 +1,7 @@
-<!-- ═══════════════════════════════════════════════════════════
      Gravitix IDE  — fullscreen developer screen
      ═══════════════════════════════════════════════════════════ -->
 <div id="tab-view-ide" class="tab-view ide-root" style="display:none;">
 
-  <!-- ── PROJECT HUB ─────────────────────────────────────────── -->
   <div id="ide-hub" class="ide-hub">
     <div class="ide-hub-header">
       <div class="ide-hub-brand">
@@ -33,7 +31,6 @@
     </div>
   </div>
 
-  <!-- ── EDITOR ──────────────────────────────────────────────── -->
   <div id="ide-editor" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
 
     <!-- Top bar -->
@@ -256,7 +253,6 @@
     </div><!-- /workspace -->
   </div><!-- /ide-editor -->
 
-  <!-- ── DOCS PANEL ───────────────────────────────────────────── -->
   <div class="ide-docs-panel" id="ide-docs-panel">
     <div class="ide-docs-header">
       <span id="ide-docs-title">Language Reference</span>
@@ -277,7 +273,6 @@
   </div>
   <div class="ide-docs-overlay" id="ide-docs-overlay" onclick="ideToggleDocs()"></div>
 
-  <!-- ── FOLDER CONTEXT MENU ────────────────────────────────── -->
   <div id="ide-folder-menu" class="ide-ctx-menu" style="display:none;">
     <button class="ide-ctx-item" onclick="ideFolderAddFile()">
       <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
@@ -303,7 +298,6 @@
     </button>
   </div>
 
-  <!-- ── CREATE PROJECT MODAL ─────────────────────────────────── -->
   <div class="ide-modal-overlay" id="ide-create-overlay" onclick="ideHideCreateModal()">
     <div class="ide-modal" id="ide-create-modal" onclick="event.stopPropagation()">
       <div class="ide-modal-header">
@@ -372,7 +366,6 @@
     </div>
   </div>
 
-  <!-- ── PROJECT SETTINGS MODAL ──────────────────────────────── -->
   <div class="ide-modal-overlay" id="ide-settings-overlay" onclick="ideHideSettings()">
     <div class="ide-modal" id="ide-settings-modal" onclick="event.stopPropagation()">
       <div class="ide-modal-header">
@@ -427,7 +420,6 @@
     </div>
   </div>
 
-  <!-- ── NEW FILE MODAL ──────────────────────────────────────── -->
   <div class="ide-modal-overlay" id="ide-newfile-overlay" onclick="ideHideNewFile()">
     <div class="ide-modal ide-modal-sm" id="ide-newfile-modal" onclick="event.stopPropagation()">
       <div class="ide-modal-header">

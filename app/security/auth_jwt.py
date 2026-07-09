@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 _JWT_ALG = "HS256"
 
 
-# ── Access-token revocation (logout) ────────────────────────────────────────
 # Access tokens are stateless and otherwise valid until `exp`. To make logout
 # actually terminate an active/stolen access token, we keep a denylist of
 # revoked `jti`s until their natural expiry.
@@ -135,9 +134,7 @@ def _is_jti_revoked(jti: str) -> bool:
         return True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Access Token (JWT HS256)
-# ══════════════════════════════════════════════════════════════════════════════
 
 def create_access_token(user_id: int, phone: str, username: str) -> str:
     now = datetime.now(timezone.utc)
@@ -179,9 +176,7 @@ def decode_access_token(token: str) -> dict[str, Any]:
     return payload
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Refresh Token (opaque, SHA-256 hash stored in DB via Rust)
-# ══════════════════════════════════════════════════════════════════════════════
 
 def create_refresh_token(
         user_id: int, db: Session,
@@ -229,9 +224,7 @@ def verify_refresh_token(raw: str, db: Session) -> User:
     return user
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # FastAPI Dependencies
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def get_current_user(
         request: Request,

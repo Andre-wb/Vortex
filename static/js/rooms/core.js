@@ -15,7 +15,6 @@ import {
     _getHiddenHash, _hashPassword,
 } from './state.js';
 
-// ── Mutable UI state ─────────────────────────────────────────────────────────
 
 let _activeFolder    = null;   // null = "Все", or folder id
 let _editingFolderId = null;   // null = creating, number = editing
@@ -28,9 +27,7 @@ let _peerRoomsCache  = {};
 let _discoveryTimer  = null;
 let _searchQuery     = '';      // текущий поисковый запрос по чатам
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Папки — CRUD
-// ══════════════════════════════════════════════════════════════════════════════
 
 function createFolder(name, color) {
     const folders = _getFolders();
@@ -66,7 +63,6 @@ function deleteFolder(id) {
     renderRoomsList();
 }
 
-// ── Folder tabs rendering ────────────────────────────────────────────────────
 
 export function renderFolderTabs() {
     const el = document.getElementById('folder-tabs');
@@ -118,7 +114,6 @@ export function renderFolderTabs() {
     }
 }
 
-// ── Folder tab context menu (edit/delete) ────────────────────────────────────
 
 function _showFolderContextMenu(e, folderId) {
     _closeFolderContextMenu();
@@ -156,7 +151,6 @@ function _closeFolderContextMenu() {
     if (_folderCtxMenu) { _folderCtxMenu.remove(); _folderCtxMenu = null; }
 }
 
-// ── Folder create/edit modal ─────────────────────────────────────────────────
 
 function _openFolderModal(folderId) {
     _editingFolderId = folderId;
@@ -325,9 +319,7 @@ function _clearServerSearchResults() {
     el.querySelectorAll('.server-search-label, .server-search-item').forEach(n => n.remove());
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Pin / Archive toggles
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.togglePinRoom = function(roomId) {
     const ids = _getPinnedRoomIds();
@@ -349,7 +341,6 @@ window.toggleArchiveRoom = function(roomId) {
     _updateArchiveBadge();
 };
 
-// ── Контекстное меню комнаты ─────────────────────────────────────────────────
 
 function _showRoomContextMenu(e, roomId) {
     e.preventDefault();
@@ -554,9 +545,7 @@ function _closeRoomContextMenu() {
     if (_ctxMenu) { _ctxMenu.remove(); _ctxMenu = null; }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Скрыть / показать комнату
-// ══════════════════════════════════════════════════════════════════════════════
 
 export async function hideRoom(roomId) {
     const hash = _getHiddenHash();
@@ -648,7 +637,6 @@ function _updateHiddenBadge() {
     btn.style.display = count > 0 ? '' : 'none';
 }
 
-// ── Модалка ввода пароля для скрытых чатов ───────────────────────────────────
 
 function _openHiddenPasswordModal(mode, callback) {
     const modal = document.getElementById('hidden-pwd-modal');
@@ -689,9 +677,7 @@ window.showHiddenRooms = showHiddenRooms;
 window.closeHiddenPanel = closeHiddenPanel;
 window._closeHiddenPasswordModal = _closeHiddenPasswordModal;
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Панель архива
-// ══════════════════════════════════════════════════════════════════════════════
 
 export function showArchivePanel() {
     _renderArchivePanel();
@@ -817,7 +803,6 @@ function _updateArchiveBadge() {
 window.showArchivePanel = showArchivePanel;
 window.closeArchivePanel = closeArchivePanel;
 
-// ── Avatar helpers ───────────────────────────────────────────────────────────
 
 function _renderRoomItem(r, S, pinnedIds) {
     if (r.is_dm) {
@@ -866,9 +851,7 @@ function _memberAvatarEl(obj) {
     return `<div class="avatar">${esc(obj.avatar_emoji)}</div>`;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Авто-обнаружение комнат соседних узлов
-// ══════════════════════════════════════════════════════════════════════════════
 
 export function startRoomDiscovery() {
     _discoverPeerRooms();
@@ -933,9 +916,7 @@ async function _refreshRoomsQuiet() {
     } catch { }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Основные операции с комнатами
-// ══════════════════════════════════════════════════════════════════════════════
 
 export async function loadMyRooms() {
     try {
@@ -1031,11 +1012,9 @@ export function renderRoomsList() {
     let html = '';
 
     if (!grouped) {
-        // ── Unified list: all chats sorted by last activity ──
         const all = visible.slice().sort(byActivity);
         html += all.map(r => _renderRoomItem(r, S, pinnedIds)).join('');
     } else {
-    // ── Grouped by type ──
     const allDms   = visible.filter(r => r.is_dm);
     const botDms   = allDms.filter(r => r.dm_user?.is_bot).sort(byActivity);
     const dms      = allDms.filter(r => !r.dm_user?.is_bot).sort(byActivity);
@@ -1224,7 +1203,6 @@ export function renderRoomsList() {
     }
 }
 
-// ── Вспомогательные: pubkey ──────────────────────────────────────────────────
 
 async function _ensureUserPubkey() {
     const S = window.AppState;
@@ -1266,9 +1244,7 @@ async function _ensureUserPubkey() {
     return S.user?.x25519_public_key || null;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Sealed Prekey Packages — zero-metadata key distribution
-// ══════════════════════════════════════════════════════════════════════════════
 
 const PREKEY_BATCH = 10;
 
@@ -1310,9 +1286,7 @@ window.addEventListener('message', (e) => {
     }
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
 // CRUD комнат
-// ══════════════════════════════════════════════════════════════════════════════
 
 export async function createRoom() {
     try {
@@ -1402,7 +1376,6 @@ export async function leaveRoom() {
     }
 }
 
-// ── Публичные комнаты ─────────────────────────────────────────────────────────
 
 function _renderPublicRoomRow(r, isPeer) {
     const peerBadge = isPeer
@@ -1562,7 +1535,6 @@ async function _tryMultihopJoin(code, targetIp, targetPort) {
     return null;
 }
 
-// ── Вспомогательные ──────────────────────────────────────────────────────────
 
 export function getRoomWsPath(room) {
     return room.is_federated ? `/ws/fed/${room.id}` : `/ws/${room.id}`;
@@ -1587,9 +1559,7 @@ export function copyInviteCode() {
     });
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Управление участниками
-// ══════════════════════════════════════════════════════════════════════════════
 
 const _ROLE_PRIORITY = { owner: 3, admin: 2, member: 1 };
 
@@ -1691,7 +1661,6 @@ window._memberAction = async function(action, roomId, targetId, extra) {
     }
 };
 
-/* ── Permissions Modal ──────────────────────────────────────────────────── */
 const _PERM_DEFS = [
     { key: 'can_send',          icon: '💬', label: 'permissions.canSend',        desc: 'permissions.canSendDesc' },
     { key: 'can_send_media',    icon: '📷', label: 'permissions.canSendMedia',   desc: 'permissions.canSendMediaDesc' },
@@ -1890,7 +1859,6 @@ export async function updateRoomMeta() {
     } catch { }
 }
 
-// ── Каналы (создание) ─────────────────────────────────────────────────────────
 
 export function showCreateChannelModal() {
     openModal('create-channel-modal');

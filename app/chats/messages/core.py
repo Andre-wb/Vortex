@@ -99,16 +99,13 @@ async def _bmp(room_id, payload):
         pass
 from app.security.auth_jwt import get_current_user, get_user_ws
 
-# ── Shared router (all sub-modules register on this same instance) ────────────
 from app.chats.messages._router import router, utc_iso, parse_client_ts, check_double_extension, DANGEROUS_EXTS  # noqa: F401
 
-# ── Sub-module imports (triggers @router.xxx() registrations) ─────────────────
 import app.chats.messages.push        # noqa: F401  – /api/push/subscribe
 import app.chats.messages.moderation  # noqa: F401  – auto-delete, slow-mode, mute, pin, export
 import app.chats.messages.files       # noqa: F401  – /api/files/upload|download|room
 import app.chats.messages.ws_signal   # noqa: F401  – /ws/signal, /ws/notifications
 
-# ── Sub-module handler imports (called from ws_chat dispatch) ─────────────────
 from app.chats.messages.polls import (
     handle_create_poll, handle_vote_poll,
     handle_retract_vote, handle_close_poll, handle_suggest_option,
@@ -155,9 +152,7 @@ _check_double_extension = check_double_extension
 _DANGEROUS_EXTS = DANGEROUS_EXTS
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # REST: пометить комнату как прочитанную
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/rooms/{room_id}/read")
 async def mark_room_read(
@@ -186,9 +181,7 @@ async def mark_room_read(
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # REST: получить сообщения треда
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/api/rooms/{room_id}/thread/{msg_id}")
 async def get_thread_messages(
@@ -278,13 +271,9 @@ async def get_message_edit_history(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # REST: Web Push подписка
-# ══════════════════════════════════════════════════════════════════════════════
 
-# ══════════════════════════════════════════════════════════════════════════════
 # E2E WebSocket чат
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.websocket("/ws/{room_id:int}")
 async def ws_chat(
@@ -449,9 +438,7 @@ async def ws_chat(
         await manager.disconnect(room_id, user.id)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # WebRTC сигнализация
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def _handle_signal(room_id: int, user: User, data: dict, db: Session = None) -> None:
     payload = {k: v for k, v in data.items() if k != "action"}

@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/calls", tags=["calls"])
 
 
-# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class CallStartRequest(BaseModel):
     callee_id: int | None = None       # NULL for group calls
@@ -36,7 +35,6 @@ class CallEndRequest(BaseModel):
     duration: int = Field(default=0, ge=0)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _call_dict(call: CallHistory, current_user_id: int, db: Session) -> dict:
     """Format a call record for API response."""
@@ -73,7 +71,6 @@ def _call_dict(call: CallHistory, current_user_id: int, db: Session) -> dict:
     }
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/recent")
 async def recent_calls(

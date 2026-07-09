@@ -1,8 +1,6 @@
-/* ══════════════════════════════════════════════════════════════════════════
    Gravitix IDE
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Root container ──────────────────────────────────────────────────────── */
 .ide-root {
     display: flex;
     flex-direction: column;
@@ -15,7 +13,6 @@
     position: relative;
 }
 
-/* ── Hub (project list screen) ───────────────────────────────────────────── */
 .ide-hub {
     display: flex;
     flex-direction: column;
@@ -84,7 +81,6 @@
     margin-bottom: 14px;
 }
 
-/* ── Projects grid ───────────────────────────────────────────────────────── */
 .ide-projects-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -177,7 +173,6 @@
     color: #a78bfa;
 }
 
-/* ── Editor top bar ──────────────────────────────────────────────────────── */
 .ide-topbar {
     display: flex;
     align-items: center;
@@ -374,7 +369,6 @@
     color: #86efac;
 }
 
-/* ── Workspace ────────────────────────────────────────────────────────────── */
 .ide-workspace {
     display: flex;
     flex: 1;
@@ -382,7 +376,6 @@
     min-height: 0;
 }
 
-/* ── Left sidebar (file tree) ─────────────────────────────────────────────── */
 .ide-sidebar {
     width: 200px;
     flex-shrink: 0;
@@ -492,7 +485,6 @@
 }
 .ide-docs-btn:hover { background: rgba(124,58,237,.16); }
 
-/* ── Center (editor + console) ────────────────────────────────────────────── */
 .ide-center {
     flex: 1;
     display: flex;
@@ -603,7 +595,6 @@
     spellcheck: false;
 }
 
-/* ── Console ──────────────────────────────────────────────────────────────── */
 .ide-console {
     height: 200px;
     flex-shrink: 0;
@@ -677,7 +668,6 @@
 .ide-log.muted { color: var(--text-muted, #475569); font-style: italic; }
 .ide-log.bold  { font-weight: 700; }
 
-/* ── Bot Simulator ────────────────────────────────────────────────────────── */
 .ide-simulator {
     width: 280px;
     flex-shrink: 0;
@@ -802,7 +792,6 @@
 .ide-sim-send:active { transform: scale(.93); }
 }
 
-/* ── Mini App Preview Panel ──────────────────────────────────────────────── */
 .ide-preview {
     width: 340px;
     flex-shrink: 0;
@@ -1028,7 +1017,6 @@
     color: #93c5fd;
 }
 
-/* ── Architex widget styles in preview ───────────────────────────────────── */
 .arx-widget { transition: opacity .15s; }
 .arx-button {
     transition: transform .1s, filter .1s;
@@ -1150,7 +1138,6 @@
     transform: translateX(-50%) translateY(0);
 }
 
-/* ── Docs panel (slide from left) ────────────────────────────────────────── */
 .ide-docs-panel {
     position: absolute;
     top: 0;
@@ -1281,7 +1268,6 @@
 }
 .ide-docs-overlay.show { display: block; }
 
-/* ── Modals ───────────────────────────────────────────────────────────────── */
 .ide-modal-overlay {
     position: fixed;
     inset: 0;
@@ -1534,7 +1520,6 @@
 }
 .ide-modal-create:hover { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
 
-/* ── Problems list ────────────────────────────────────────────────────────── */
 .ide-prob {
     display: flex;
     align-items: flex-start;
@@ -1548,7 +1533,6 @@
 .ide-prob .ide-prob-icon { flex-shrink: 0; font-size: 14px; }
 .ide-prob .ide-prob-loc { color: var(--text-muted, #475569); flex-shrink: 0; }
 
-/* ── Gravitix Syntax Highlight (CSS-var powered, theme-able) ──────────────── */
 :root {
     --gx-kw:      #c084fc;
     --gx-type:    #67e8f9;
@@ -1584,7 +1568,6 @@
     --ide-user-msg-bg:   rgba(124,58,237,.22);     /* simulator user msg */
     --ide-hover-bg:      rgba(255,255,255,.06);    /* hover overlay for dark themes */
 }
-/* ── Language selector ─────────────────────────────────────── */
 .ide-lang-select {
     display: flex; gap: 10px;
 }
@@ -1605,7 +1588,6 @@
 .ide-lang-name { font-size: 13px; font-weight: 600; color: var(--text, #fff); }
 .ide-lang-desc { font-size: 11px; color: var(--text3, #666); margin-top: 1px; }
 
-/* ── Syntax highlighting ─────────────────────────────────── */
 .gx-kw      { color: var(--gx-kw,      #c084fc); font-weight: 700; }
 .gx-type    { color: var(--gx-type,    #67e8f9); }
 .gx-string  { color: var(--gx-string,  #86efac); }
@@ -1621,7 +1603,6 @@
 .arx-reactive { color: #f472b6; font-weight: 600; }
 .arx-color    { color: #fbbf24; }
 
-/* ═══════════════════════════════════════════════════════════════════════════
    Dev Settings — theme picker, feature tiles, pomodoro, zen mode
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1656,7 +1637,6 @@
     border-radius: 20px;
 }
 
-/* ── Theme grid ─────────────────────────────────────────────── */
 .dev-theme-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
@@ -1705,7 +1685,6 @@
 }
 .dev-theme-card.active .dev-theme-label { color: var(--accent, #a78bfa); }
 
-/* ── Background upload ──────────────────────────────────────── */
 .dev-bg-preview {
     width: 90px;
     height: 64px;
@@ -1741,7 +1720,6 @@
 .dev-danger-btn { color: var(--red, #ef4444); border-color: rgba(239,68,68,.3); }
 .dev-danger-btn:hover { background: rgba(239,68,68,.1); border-color: var(--red, #ef4444); }
 
-/* ── Sliders ────────────────────────────────────────────────── */
 .dev-slider-row {
     display: flex;
     align-items: center;
@@ -1752,7 +1730,6 @@
 .dev-slider { flex: 1; accent-color: var(--accent, #a78bfa); }
 .dev-slider-val { font-size: 11px; color: var(--text3); width: 36px; text-align: right; flex-shrink: 0; }
 
-/* ── Font fields ────────────────────────────────────────────── */
 .dev-field-row {
     display: flex;
     align-items: center;
@@ -1773,7 +1750,6 @@
 .dev-select:focus, .dev-number-input:focus { border-color: var(--accent, #a78bfa); }
 .dev-number-input { max-width: 70px; flex: none; }
 
-/* ── Feature tiles grid ─────────────────────────────────────── */
 .dev-features-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
@@ -1811,7 +1787,6 @@
 .dev-feat-name { font-size: 12px; font-weight: 600; color: var(--text); }
 .dev-feat-desc { font-size: 10px; color: var(--text3); line-height: 1.4; }
 
-/* ── Pomodoro overlay ───────────────────────────────────────── */
 .ide-pom-overlay {
     position: fixed;
     bottom: 80px;
@@ -1886,7 +1861,6 @@
     animation: slideDown .3s ease;
 }
 
-/* ── Zen mode ───────────────────────────────────────────────── */
 .ide-zen-mode .ide-sidebar,
 .ide-zen-mode .ide-topbar,
 .ide-zen-mode .ide-console { display: none !important; }
@@ -1907,13 +1881,11 @@
 }
 .ide-zen-exit:hover { color: #fff; }
 
-/* ── Feature: cursor glow ───────────────────────────────────── */
 .ide-feat-cursor-glow .ide-code-input {
     caret-color: var(--ide-cursor, #c084fc);
     filter: drop-shadow(0 0 6px var(--ide-cursor, #c084fc));
 }
 
-/* ── Feature: smooth caret ──────────────────────────────────── */
 .ide-feat-smooth-caret .ide-code-input {
     caret-color: var(--ide-cursor, #c084fc);
     transition: caret-color .1s;
@@ -1922,13 +1894,11 @@
     0%,100% { opacity: 1; } 50% { opacity: 0; }
 }
 
-/* ── Feature: heatmap (recently edited lines) ───────────────── */
 .ide-feat-heatmap .ide-line-hot {
     background: rgba(167,139,250,.07);
     transition: background 2s ease;
 }
 
-/* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 700px) {
     .ide-sidebar { width: 160px; }
     .ide-simulator { display: none; }
@@ -1947,7 +1917,6 @@
     .ide-btn-run, .ide-btn-debug { padding: 6px 8px; }
 }
 
-/* ── IDE Folder Context Menu ──────────────────────────────────────────────── */
 .ide-ctx-menu {
     position: fixed;
     z-index: 2000;
@@ -1992,7 +1961,6 @@
     margin: 4px 6px;
 }
 
-/* ── File tree child / options button ────────────────────────────────────── */
 .ide-tree-child {
     padding-left: 24px;
 }
@@ -2013,12 +1981,10 @@
 .ide-tree-folder:hover .ide-tree-ctx-btn { opacity: 1; }
 .ide-tree-ctx-btn:hover { background: var(--ide-hover-bg, rgba(255,255,255,.1)); color: #fff; }
 
-/* ── IDE Gutter error lines ───────────────────────────────────────────────── */
 .ide-gutter .gx-gutter-err  { color: #f87171 !important; font-weight: 700; background: rgba(239,68,68,.08); }
 .ide-gutter .gx-gutter-warn { color: #fbbf24 !important; font-weight: 700; background: rgba(245,158,11,.07); }
 .ide-gutter .gx-gutter-hint { color: #fde68a !important; background: rgba(251,191,36,.05); }
 
-/* ── Problems panel items ─────────────────────────────────────────────────── */
 .ide-prob {
     display: flex;
     align-items: baseline;
@@ -2049,7 +2015,6 @@
     gap: 6px;
 }
 
-/* ── IDE token-level error/warn/hint highlighting ─────────────────────────── */
 .gx-err-tok {
     color: #f87171 !important;
     -webkit-text-fill-color: #f87171 !important;
@@ -2069,7 +2034,6 @@
     text-underline-offset: 2px;
 }
 
-/* ── IDE Publish button & bot status ─────────────────────────────────────── */
 .ide-topbar-sep {
     width: 1px;
     height: 20px;

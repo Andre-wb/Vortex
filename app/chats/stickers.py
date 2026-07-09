@@ -44,9 +44,7 @@ _MAX_SIDE = 256
 _ALLOWED_FORMATS = {"PNG", "WEBP", "GIF", "JPEG"}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class PackCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
@@ -60,9 +58,7 @@ class PackUpdate(BaseModel):
     is_public: bool | None = None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _sticker_dict(s: Sticker) -> dict:
     return {
@@ -102,9 +98,7 @@ def _require_pack_owner(pack_id: int, user_id: int, db: Session) -> StickerPack:
     return pack
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pack management
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/packs")
 async def create_pack(
@@ -252,9 +246,7 @@ async def delete_pack(
     return {"ok": True, "deleted_pack_id": pack_id}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Sticker upload / delete
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/packs/{pack_id}/stickers")
 async def upload_sticker(
@@ -382,9 +374,7 @@ async def delete_sticker(
     return {"ok": True, "deleted_sticker_id": sticker_id}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Favorites
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/packs/{pack_id}/favorite")
 async def add_favorite(

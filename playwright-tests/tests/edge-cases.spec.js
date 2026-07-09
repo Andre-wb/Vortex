@@ -52,7 +52,6 @@ test.describe('Edge Cases & Error Handling', () => {
         msgId = msg.id || msg.message_id;
     });
 
-    // ── Room Members (add) ──────────────────────────────────────────────────
 
     test('add member to room', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/members`, {
@@ -62,7 +61,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect([200, 201, 400, 405, 409]).toContain(res.status());
     });
 
-    // ── Invalid Input ─────────────────────────────────────────────────────────
 
     test('create room with empty name fails', async ({ request }) => {
         const res = await request.post('/api/rooms', {
@@ -104,7 +102,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect([400, 409, 422]).toContain(res.status());
     });
 
-    // ── Permission Denied ─────────────────────────────────────────────────────
 
     test('non-member cannot send message to room', async ({ request }) => {
         // Login as user2 who is not in room
@@ -128,7 +125,6 @@ test.describe('Edge Cases & Error Handling', () => {
         csrf1 = (await c1Res.json()).csrf_token;
     });
 
-    // ── Message Operations ────────────────────────────────────────────────────
 
     test('edit message', async ({ request }) => {
         expect(msgId).toBeTruthy();
@@ -179,7 +175,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Thread ────────────────────────────────────────────────────────────────
 
     test('reply in thread', async ({ request }) => {
         expect(msgId).toBeTruthy();
@@ -198,7 +193,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Pagination ────────────────────────────────────────────────────────────
 
     test('messages pagination — before_id', async ({ request }) => {
         const res = await request.get(`/api/rooms/${roomId}/messages?before_id=999999&limit=10`, {
@@ -214,7 +208,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Room Key Rotation ─────────────────────────────────────────────────────
 
     test('rotate room key', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/rotate-key`, {
@@ -231,7 +224,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect([200, 404, 500]).toContain(res.status());
     });
 
-    // ── Room Settings ─────────────────────────────────────────────────────────
 
     test('update room settings', async ({ request }) => {
         const res = await request.put(`/api/rooms/${roomId}`, {
@@ -257,7 +249,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Delete message ────────────────────────────────────────────────────────
 
     test('delete message', async ({ request }) => {
         expect(msgId).toBeTruthy();
@@ -274,7 +265,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect([404, 400]).toContain(res.status());
     });
 
-    // ── Large payload ─────────────────────────────────────────────────────────
 
     test('very long message accepted or rejected gracefully', async ({ request }) => {
         const longText = 'A'.repeat(50_000);
@@ -286,7 +276,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect([200, 201, 400, 404, 413, 422]).toContain(res.status());
     });
 
-    // ── Mute room ─────────────────────────────────────────────────────────────
 
     test('mute room', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/mute`, {
@@ -304,7 +293,6 @@ test.describe('Edge Cases & Error Handling', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Upload room avatar ────────────────────────────────────────────────────
 
     test('upload room avatar', async ({ request }) => {
         const pngBuf = Buffer.from(

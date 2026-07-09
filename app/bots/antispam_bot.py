@@ -29,18 +29,14 @@ from app.peer.connection_manager import manager
 
 logger = logging.getLogger(__name__)
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Module-level cache for fast access
-# ══════════════════════════════════════════════════════════════════════════════
 
 _antispam_bot_user_id: int | None = None
 _antispam_bot_id: int | None = None
 
 ANTISPAM_USERNAME = "antispam_bot"
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Default antispam config
-# ══════════════════════════════════════════════════════════════════════════════
 
 DEFAULT_ANTISPAM_CONFIG = {
     "threshold": 15,
@@ -63,9 +59,7 @@ def get_antispam_config(room: Room) -> dict:
     return cfg
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # System bot creation / lookup
-# ══════════════════════════════════════════════════════════════════════════════
 
 def ensure_antispam_bot(db: Session) -> int:
     """
@@ -136,9 +130,7 @@ def get_antispam_bot_id() -> int | None:
     return _antispam_bot_id
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Room membership management
-# ══════════════════════════════════════════════════════════════════════════════
 
 def add_antispam_bot_to_room(room_id: int, db: Session) -> bool:
     """Add antispam bot as a member of the room. Returns True if added."""
@@ -188,9 +180,7 @@ def remove_antispam_bot_from_room(room_id: int, db: Session) -> bool:
     return True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot message sending (internal, no API token needed)
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def antispam_bot_message(room_id: int, text: str, db: Session) -> Message | None:
     """
@@ -246,9 +236,7 @@ async def antispam_bot_message(room_id: int, text: str, db: Session) -> Message 
     return msg
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Enhanced spam detectors (repeat, links, caps)
-# ══════════════════════════════════════════════════════════════════════════════
 
 # "room:user" -> list of (timestamp, text_hash) for repeat detection
 _repeat_tracker: dict[str, list[tuple[float, str]]] = {}
@@ -385,9 +373,7 @@ async def check_caps_spam(
     return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot command handlers
-# ══════════════════════════════════════════════════════════════════════════════
 
 _ACTION_LABELS = {
     "warn": "Warning",

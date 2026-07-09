@@ -17,7 +17,6 @@ static STORE: Lazy<Arc<BlindMailboxStore>> = Lazy::new(|| Arc::new(BlindMailboxS
 static SECRETS: Lazy<Arc<RoomSecretStore>> = Lazy::new(|| Arc::new(RoomSecretStore::new()));
 static RATE_LIMITER: Lazy<Arc<RateLimiter>> = Lazy::new(|| Arc::new(RateLimiter::new()));
 
-// ── Store operations ────────────────────────────────────────────────────────
 
 #[pyfunction]
 pub fn bmp_deposit(mailbox_id: &str, ciphertext: &str) -> bool {
@@ -54,7 +53,6 @@ pub fn bmp_stats() -> HashMap<String, u64> {
     m
 }
 
-// ── Mailbox ID derivation ───────────────────────────────────────────────────
 
 #[pyfunction]
 #[pyo3(signature = (secret_hex, timestamp=None))]
@@ -73,7 +71,6 @@ pub fn bmp_pair_jitter(secret_hex: &str) -> u16 {
     mailbox_id::pair_jitter(secret_hex)
 }
 
-// ── Room secrets ────────────────────────────────────────────────────────────
 
 #[pyfunction]
 pub fn bmp_set_room_secret(room_id: i64, secret_hex: &str) {
@@ -90,14 +87,12 @@ pub fn bmp_remove_room_secret(room_id: i64) {
     SECRETS.remove(room_id);
 }
 
-// ── Envelope deposit (room → mailbox IDs → deposit) ─────────────────────────
 
 #[pyfunction]
 pub fn bmp_deposit_envelope(room_id: i64, envelope_data: &str) -> bool {
     STORE.deposit_envelope(room_id, envelope_data, &SECRETS)
 }
 
-// ── Rate limiting ───────────────────────────────────────────────────────────
 
 #[pyfunction]
 pub fn bmp_check_rate(ip: &str) -> bool {
@@ -109,21 +104,18 @@ pub fn bmp_check_rate_fast(ip: &str) -> bool {
     RATE_LIMITER.check_fast(ip)
 }
 
-// ── Wake signal ─────────────────────────────────────────────────────────────
 
 #[pyfunction]
 pub fn bmp_wake_category(mailbox_id: &str) -> u8 {
     BlindMailboxStore::wake_category(mailbox_id)
 }
 
-// ── Lifecycle ───────────────────────────────────────────────────────────────
 
 #[pyfunction]
 pub fn bmp_start_gc() {
     start_gc_thread(STORE.clone(), RATE_LIMITER.clone());
 }
 
-// ── Benchmark ───────────────────────────────────────────────────────────────
 
 #[pyfunction]
 pub fn bmp_benchmark() -> HashMap<String, f64> {

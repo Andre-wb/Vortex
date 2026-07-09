@@ -18,7 +18,6 @@ import re
 
 import requests
 
-# ── Config ──
 API_KEY = os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')
 LOCALE_DIR = 'static/locales'
 BATCH_SIZE = 80        # strings per API call (Cloud API handles larger batches)

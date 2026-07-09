@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["bots-advanced"])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class InlineQueryResult(BaseModel):
     id: str
@@ -88,9 +86,7 @@ class PaymentRequest(BaseModel):
     wallet_address: str       # Where to send payment
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot auth helper
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _get_bot(request: Request, db: Session = Depends(get_db)) -> Bot:
     from app.bots.bot_shared import _hash_token
@@ -111,9 +107,7 @@ def _get_bot(request: Request, db: Session = Depends(get_db)) -> Bot:
     return bot
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. Inline Bots (@mention in any chat)
-# ══════════════════════════════════════════════════════════════════════════════
 
 # In-memory: bot_id -> cached inline results (LRU-bounded to prevent leaks)
 _MAX_INLINE_BOTS = 4096
@@ -161,9 +155,7 @@ async def query_inline_bot(bot_id: int, q: str = Query(default="", max_length=20
     return {"results": results[:20], "bot_name": bot.name}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. Custom Keyboards + 3. Message Components
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/bot/send-keyboard")
 async def send_with_keyboard(body: SendWithKeyboardRequest, request: Request,
@@ -233,9 +225,7 @@ async def handle_callback(request: Request, db: Session = Depends(get_db)):
             "message_id": message_id, "user_id": user_id}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. Slash Commands
-# ══════════════════════════════════════════════════════════════════════════════
 
 # In-memory: bot_id -> list of registered commands
 _slash_commands: dict[int, list[dict]] = {}
@@ -284,9 +274,7 @@ async def get_room_commands(room_id: int, u: User = Depends(get_current_user),
     return {"commands": all_commands}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 5. Webhook Delivery
-# ══════════════════════════════════════════════════════════════════════════════
 
 # In-memory: bot_id -> webhook config
 _webhooks: dict[int, dict] = {}
@@ -344,9 +332,7 @@ async def deliver_webhook(bot_id: int, event: str, payload: dict) -> bool:
         return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 6. Bot SDK Info (documentation endpoint)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/api/bots/sdk-info")
 async def sdk_info():
@@ -404,9 +390,7 @@ bot.start();
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 7. Payment API (crypto P2P through bots)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/bot/payment/create")
 async def create_payment(body: PaymentRequest, request: Request,
@@ -450,9 +434,7 @@ async def create_payment(body: PaymentRequest, request: Request,
     return {"ok": True, "message_id": msg.id}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 8. Bot Store (enhanced marketplace with one-click install)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/api/bots/store")
 async def bot_store(category: str = Query(default="", max_length=30),
@@ -483,9 +465,7 @@ async def bot_store(category: str = Query(default="", max_length=30),
     ]}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 9. Mini Apps IDE (dev tools info endpoint)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/api/bots/{bot_id}/mini-app/dev")
 async def mini_app_dev_info(bot_id: int, u: User = Depends(get_current_user),
@@ -523,9 +503,7 @@ async def mini_app_dev_info(bot_id: int, u: User = Depends(get_current_user),
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 10. Bot Permissions (OAuth-style scopes)
-# ══════════════════════════════════════════════════════════════════════════════
 
 AVAILABLE_SCOPES = {
     "messages.read": "Read messages in rooms where bot is added",

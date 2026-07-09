@@ -22,14 +22,12 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# ── Paths ──────────────────────────────────────────────────────────────────
 _BASE     = Path(__file__).resolve().parent.parent.parent   # project root
 _BOTS_DIR = _BASE / "bots_workspace"
 _GX_BIN   = _BASE / "Gravitix" / "target" / "release" / "gravitix"
 
 _SAFE_PROJECT_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 
-# ── In-memory process registry ─────────────────────────────────────────────
 class _BotProcess:
     def __init__(self, pid: int, proc: subprocess.Popen, project_id: str):
         self.pid        = pid
@@ -40,7 +38,6 @@ class _BotProcess:
 
 _procs: Dict[str, _BotProcess] = {}   # project_id → _BotProcess
 
-# ── Helpers ────────────────────────────────────────────────────────────────
 def _gx_available() -> bool:
     return _GX_BIN.exists() and os.access(_GX_BIN, os.X_OK)
 
@@ -64,7 +61,6 @@ def _script_path(project_id: str) -> Path:
         raise ValueError(f"Path traversal detected for project_id: {project_id!r}")
     return path
 
-# ── Public API ─────────────────────────────────────────────────────────────
 
 async def compile_code(code: str, project_id: str) -> dict:
     """

@@ -1,4 +1,3 @@
-/* ── Minimal Markdown → HTML converter for translated docs ── */
 function _mdToHtml(md) {
     if (!md) return '';
     const _esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -62,7 +61,6 @@ function _mdToHtml(md) {
     return html;
 }
 
-/* ── Build fullscreen docs overlay ───────────────────────── */
 function _destroyDocsOverlay() {
     const el = document.getElementById('gx-docs-fs');
     if (el) el.remove();
@@ -157,7 +155,6 @@ function _buildDocsHTML() {
     </div>`;
 }
 
-/* ── Scroll spy ──────────────────────────────────────────── */
 function _initScrollSpy() {
     const main = document.getElementById('gxd-main');
     if (!main) return;
@@ -177,7 +174,6 @@ function _initScrollSpy() {
     sections.forEach(s => obs.observe(s));
 }
 
-/* ── Public API ──────────────────────────────────────────── */
 function gxDocsOpen() {
     _buildDocsOverlay();
     const el = document.getElementById('gx-docs-fs');
@@ -224,7 +220,6 @@ function gxDocsSearch(q) {
     if (noRes) noRes.style.display = (q && found === 0) ? '' : 'none';
 }
 
-/* ── Override old ideToggleDocs ──────────────────────────── */
 window.ideToggleDocs = function() {
     const el = document.getElementById('gx-docs-fs');
     if (el && el.classList.contains('open')) {
@@ -240,7 +235,6 @@ window.gxDocsSectionClick = gxDocsSectionClick;
 window.gxDocsMobileMenu   = gxDocsMobileMenu;
 window.gxDocsSearch       = gxDocsSearch;
 
-/* ── Rebuild docs when language changes ─────────────────── */
 window.gxDocsRebuild = function() {
     const wasOpen = document.getElementById('gx-docs-fs')?.classList.contains('open');
     _destroyDocsOverlay();

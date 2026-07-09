@@ -53,7 +53,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["panic"])
 
 
-# ── libc bindings ───────────────────────────────────────────────────────────
 
 def _get_libc():
     """Load libc — cached."""
@@ -75,7 +74,6 @@ def _has_explicit_bzero() -> bool:
     return _has_explicit_bzero._ok
 
 
-# ── Core secure zeroing ─────────────────────────────────────────────────────
 
 def _explicit_bzero(addr: int, size: int) -> bool:
     """Call libc explicit_bzero — guaranteed not optimized away by compiler."""
@@ -130,7 +128,6 @@ def _secure_zero_region(addr: int, size: int) -> None:
     ctypes.memset(ptr, 0x00, sz)
 
 
-# ── mmap-based secure buffer (bypasses pymalloc entirely) ────────────────────
 
 class SecurePage:
     """Anonymous mmap page for secret data — never touches pymalloc.
@@ -171,7 +168,6 @@ class SecurePage:
         self.shred()
 
 
-# ── String/bytes shredding ──────────────────────────────────────────────────
 
 def _secure_zero_string(s: str) -> None:
     """Shred a CPython str's internal buffer in-place.
@@ -230,7 +226,6 @@ def _secure_zero_bytes(b: bytes | bytearray) -> None:
             gc.enable()
 
 
-# ── Post-wipe cleanup ───────────────────────────────────────────────────────
 
 def _purge_pymalloc_residue(db: Session) -> None:
     """Flush SQLAlchemy caches and return freed pymalloc arenas to the OS.
@@ -259,7 +254,6 @@ def _purge_pymalloc_residue(db: Session) -> None:
             pass
 
 
-# ── API endpoints ───────────────────────────────────────────────────────────
 
 class PanicRequest(BaseModel):
     password: str
@@ -320,7 +314,6 @@ async def panic_wipe(
     try:
         from sqlalchemy import text as _sql_text, delete as _sql_delete
 
-        # ── RefreshTokens (нет FK constraint) ───────────────────────────────
         db.query(RefreshToken).filter(RefreshToken.user_id == user_id).delete(synchronize_session=False)
 
         # ── UserDevice rows — must go explicitly. The FK is ON DELETE CASCADE
@@ -331,7 +324,6 @@ async def panic_wipe(
         # failed: user_devices.user_id). Delete them up front.
         db.query(UserDevice).filter(UserDevice.user_id == user_id).delete(synchronize_session=False)
 
-        # ── Ключи шифрования — зачищаем в памяти перед удалением ────────────
         doomed_keys = db.query(EncryptedRoomKey).filter(EncryptedRoomKey.user_id == user_id).all()
         for key_row in doomed_keys:
             if key_row.encrypted_key:
@@ -341,7 +333,6 @@ async def panic_wipe(
         db.query(EncryptedRoomKey).filter(EncryptedRoomKey.user_id == user_id).delete(synchronize_session=False)
         db.query(PendingKeyRequest).filter(PendingKeyRequest.user_id == user_id).delete(synchronize_session=False)
 
-        # ── Сообщения — удаляем по sender_pseudo (Sealed Sender) ────────────
         from app.security.sealed_sender import compute_sender_pseudo as _csp
         for _rid in room_ids:
             _pseudo = _csp(_rid, user_id)
@@ -349,7 +340,6 @@ async def panic_wipe(
                 Message.sender_pseudo == _pseudo,
             ).delete(synchronize_session=False)
 
-        # ── DM-комнаты (2 участника — удаляем полностью) ────────────────────
         for room_id in room_ids:
             room = db.get(Room, room_id)
             if room and room.is_dm:
@@ -361,7 +351,6 @@ async def panic_wipe(
                     db.query(PendingKeyRequest).filter(PendingKeyRequest.room_id == room_id).delete(synchronize_session=False)
                     db.delete(room)
 
-        # ── RoomTask (FK без ondelete → NO ACTION!) ─────────────────────────
         try:
             from app.models_rooms import RoomTask
             db.query(RoomTask).filter(RoomTask.assignee_id == user_id).update(
@@ -371,7 +360,6 @@ async def panic_wipe(
         except Exception as te:
             logger.warning(f"RoomTask cleanup failed: {te}")
 
-        # ── Боты пользователя ────────────────────────────────────────────────
         try:
             from app.models import BotReview
             db.query(BotReview).filter(BotReview.user_id == user_id).delete(synchronize_session=False)
@@ -379,13 +367,11 @@ async def panic_wipe(
             pass
         db.query(Bot).filter(Bot.owner_id == user_id).delete(synchronize_session=False)
 
-        # ── Spaces (creator_id FK без ondelete, nullable=False!) ─────────────
         owned_spaces = db.query(Space).filter(Space.creator_id == user_id).all()
         for space in owned_spaces:
             db.query(SpaceMember).filter(SpaceMember.space_id == space.id).delete(synchronize_session=False)
             db.delete(space)
 
-        # ── Контакты ────────────────────────────────────────────────────────
         try:
             db.query(Contact).filter(
                 (Contact.owner_id == user_id) | (Contact.contact_id == user_id)
@@ -393,18 +379,15 @@ async def panic_wipe(
         except Exception as ce:
             logger.warning(f"Contacts delete failed (table may not exist): {ce}")
 
-        # ── Убираем membership из оставшихся комнат ──────────────────────────
         db.query(RoomMember).filter(RoomMember.user_id == user_id).delete(synchronize_session=False)
 
         db.flush()
 
-        # ── Зачищаем чувствительные поля пользователя в памяти ───────────
         for attr in ("password_hash", "seed_phrase_hash", "totp_secret"):
             val = getattr(u, attr, None)
             if val:
                 _secure_zero_string(val)
 
-        # ── Удаляем пользователя raw SQL → CASCADE сработает на остальных FK ─
         db.expunge(u)
         db.execute(_sql_delete(User).where(User.id == user_id))
         db.commit()

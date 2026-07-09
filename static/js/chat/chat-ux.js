@@ -5,7 +5,6 @@
  * main.js loads the chat screen.
  */
 
-/* ── 1. Jump-to-date calendar picker ────────────────────────────────── */
 
 function _formatYMD(d) {
     const z = n => String(n).padStart(2, '0');
@@ -97,7 +96,6 @@ function _openDatePicker() {
 
 window.openJumpToDate = _openDatePicker;
 
-/* ── 2. Font size + 3. Global shortcuts ─────────────────────────────── */
 
 const FONT_KEY = 'vx.fontSize';
 const FONT_MIN = 12, FONT_MAX = 22, FONT_DEFAULT = 15;
@@ -212,7 +210,6 @@ function _showShortcutsHelp() {
     help.style.display = 'block';
 }
 
-/* ── 4. Accessibility helpers (ARIA / high-contrast) ────────────────── */
 
 function _installA11y() {
     // Add aria-label to unlabeled icon buttons.
@@ -241,7 +238,6 @@ function _installA11y() {
     window.vxToggleHighContrast = () => apply(!document.body.classList.contains('vx-high-contrast'));
 }
 
-/* ── 5. PQ / FS indicators ──────────────────────────────────────────── */
 
 function _setCryptoBadges(roomId) {
     const header = document.querySelector('.chat-header-right') || document.querySelector('.chat-header');
@@ -287,7 +283,6 @@ function _setCryptoBadges(roomId) {
 
 window.vxSetCryptoBadges = _setCryptoBadges;
 
-/* ── 6. Ephemeral mode banner ───────────────────────────────────────── */
 
 async function _checkEphemeralMode() {
     try {
@@ -318,7 +313,6 @@ async function _checkEphemeralMode() {
     } catch (_) {}
 }
 
-/* ── Boot ───────────────────────────────────────────────────────────── */
 
 document.addEventListener('DOMContentLoaded', () => {
     _loadFontSize();

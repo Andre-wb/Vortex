@@ -31,9 +31,7 @@ from app.bots.bot_shared import (
 logger = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot HTTP API (for bots, authenticated via api_token)
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _store_bot_message(
     bot: Bot, room_id: int, text: str, db: Session,
@@ -212,9 +210,7 @@ async def bot_list_rooms(
     return {"rooms": rooms}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot WebSocket (alternative to HTTP long-polling)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.websocket("/ws/bot")
 async def ws_bot(
@@ -351,9 +347,7 @@ async def ws_bot(
         logger.info(f"Bot WS- {bot.name} (user_id={bot.user_id})")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Helper: route messages to bots in a room (called from chat.py)
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def notify_bots_in_room(
     room_id: int, sender_id: int, text: str,

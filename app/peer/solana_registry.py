@@ -46,9 +46,7 @@ logger = logging.getLogger(__name__)
 _ACCOUNT_DISCRIMINATOR = hashlib.sha256(b"account:Peer").digest()[:8]
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Public data type
-# ══════════════════════════════════════════════════════════════════════════
 
 
 @dataclass
@@ -128,9 +126,7 @@ class PeerAccount:
         }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Borsh parser — just enough for the Peer account shape
-# ══════════════════════════════════════════════════════════════════════════
 
 
 class _Reader:
@@ -213,9 +209,7 @@ def parse_peer_account(data: bytes, pda: str = "") -> PeerAccount:
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # RPC client
-# ══════════════════════════════════════════════════════════════════════════
 
 
 class SolanaRpcError(RuntimeError):
@@ -298,9 +292,7 @@ class SolanaRegistryClient:
         return peers
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Base58 (needed for memcmp filter encoding; small impl, no deps)
-# ══════════════════════════════════════════════════════════════════════════
 
 _B58_ALPHABET = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 

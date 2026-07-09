@@ -5,9 +5,7 @@ use std::cell::RefCell;
 use crate::ast::{FnDef, BinOp};
 use crate::error::{GravError, GravResult};
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Structured bot output — replaces fragile "__to:" string protocol
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub enum BotOutput {
@@ -78,11 +76,9 @@ pub enum BotOutput {
     UiUpdate { variable: String, value: String },
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Runtime value  — designed to be cheap to clone:
 //   primitives are Copy-like (wrapped in the enum),
 //   heap values (Str, List, Map) use Rc so clone is O(1).
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug)]
 pub enum Value {
@@ -262,9 +258,7 @@ impl Value {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Bot context — available as `ctx` inside every handler
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct BotCtx {
@@ -413,9 +407,7 @@ impl BotCtx {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Binary operator application
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn apply_binop(op: BinOp, lhs: Value, rhs: Value) -> GravResult<Value> {
     // Helper: promote operands to complex if either side is Complex
@@ -574,16 +566,13 @@ fn numeric_op(op: BinOp, lhs: Value, rhs: Value) -> GravResult<Value> {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ast::BinOp;
 
-    // ── type_name ────────────────────────────────────────────────────────────
 
     #[test]
     fn value_type_names() {
@@ -596,7 +585,6 @@ mod tests {
         assert_eq!(Value::make_map(HashMap::new()).type_name(), "map");
     }
 
-    // ── is_truthy ────────────────────────────────────────────────────────────
 
     #[test]
     fn value_truthiness() {
@@ -626,7 +614,6 @@ mod tests {
         assert!(Value::make_map(m).is_truthy());
     }
 
-    // ── conversions ──────────────────────────────────────────────────────────
 
     #[test]
     fn value_as_int() {
@@ -650,7 +637,6 @@ mod tests {
         assert_eq!(Value::Int(42).as_str(), None);
     }
 
-    // ── Display ──────────────────────────────────────────────────────────────
 
     #[test]
     fn value_display() {
@@ -667,7 +653,6 @@ mod tests {
         assert_eq!(v.to_string(), "[1, 2]");
     }
 
-    // ── constructors ─────────────────────────────────────────────────────────
 
     #[test]
     fn make_str_works() {
@@ -697,7 +682,6 @@ mod tests {
         }
     }
 
-    // ── PartialEq ────────────────────────────────────────────────────────────
 
     #[test]
     fn value_eq_primitives() {
@@ -723,7 +707,6 @@ mod tests {
         assert_ne!(Value::Null, Value::Int(0));
     }
 
-    // ── PartialOrd ───────────────────────────────────────────────────────────
 
     #[test]
     fn value_ord() {
@@ -733,7 +716,6 @@ mod tests {
         assert!(Value::make_str("a") < Value::make_str("b"));
     }
 
-    // ── apply_binop: arithmetic ──────────────────────────────────────────────
 
     #[test]
     fn binop_add_int() {
@@ -801,7 +783,6 @@ mod tests {
         assert_eq!(apply_binop(BinOp::Pow, Value::Int(2), Value::Int(10)).unwrap(), Value::Int(1024));
     }
 
-    // ── apply_binop: comparison ──────────────────────────────────────────────
 
     #[test]
     fn binop_eq() {
@@ -822,7 +803,6 @@ mod tests {
         assert_eq!(apply_binop(BinOp::Ge, Value::Int(5), Value::Int(5)).unwrap(), Value::Bool(true));
     }
 
-    // ── apply_binop: logical ─────────────────────────────────────────────────
 
     #[test]
     fn binop_and_or() {
@@ -832,7 +812,6 @@ mod tests {
         assert_eq!(apply_binop(BinOp::Or, Value::Bool(false), Value::Bool(false)).unwrap(), Value::Bool(false));
     }
 
-    // ── apply_binop: null coalesce ───────────────────────────────────────────
 
     #[test]
     fn binop_null_coalesce() {
@@ -840,7 +819,6 @@ mod tests {
         assert_eq!(apply_binop(BinOp::NullCoalesce, Value::Int(1), Value::Int(42)).unwrap(), Value::Int(1));
     }
 
-    // ── apply_binop: mixed int/float ─────────────────────────────────────────
 
     #[test]
     fn binop_mixed_int_float() {
@@ -849,7 +827,6 @@ mod tests {
         assert_eq!(apply_binop(BinOp::Mul, Value::Int(3), Value::Float(2.0)).unwrap(), Value::Float(6.0));
     }
 
-    // ── apply_binop: range ───────────────────────────────────────────────────
 
     #[test]
     fn binop_range_exclusive() {
@@ -874,7 +851,6 @@ mod tests {
         }
     }
 
-    // ── apply_binop: type errors ─────────────────────────────────────────────
 
     #[test]
     fn binop_type_error() {

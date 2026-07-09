@@ -35,7 +35,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["privacy"])
 
 
-# ── Article 15: Right of Access (Data Export) ────────────────────────────────
 
 @router.get("/api/privacy/export")
 async def export_user_data(
@@ -138,7 +137,6 @@ async def export_user_data(
     return export
 
 
-# ── Article 17: Right to Erasure ─────────────────────────────────────────────
 
 @router.delete("/api/privacy/erase")
 async def erase_user_data(
@@ -214,7 +212,6 @@ async def erase_user_data(
     }
 
 
-# ── Article 20: Data Portability ─────────────────────────────────────────────
 
 @router.get("/api/privacy/portability")
 async def data_portability(
@@ -258,7 +255,6 @@ async def data_portability(
     return portable
 
 
-# ── Retention Policy Enforcement ─────────────────────────────────────────────
 
 async def enforce_retention_policy(db: Session, max_age_days: int = 365):
     """
@@ -292,7 +288,6 @@ async def enforce_retention_policy(db: Session, max_age_days: int = 365):
     return count
 
 
-# ── Privacy rights summary ───────────────────────────────────────────────────
 
 @router.get("/api/privacy/rights")
 async def privacy_rights_info():

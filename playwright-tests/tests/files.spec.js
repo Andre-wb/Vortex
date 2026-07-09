@@ -29,7 +29,6 @@ test.describe('Files', () => {
         roomId = await createRoom(request, csrf, 'file_room');
     });
 
-    // ── Upload ────────────────────────────────────────────────────────────────
 
     test('upload image file', async ({ request }) => {
         // 64x64 RGBA PNG (passes MIN_IMAGE_DIMENSION=50 check)
@@ -60,7 +59,6 @@ test.describe('Files', () => {
         expect([200, 201]).toContain(res.status());
     });
 
-    // ── Download ──────────────────────────────────────────────────────────────
 
     test('download file', async ({ request }) => {
         expect(fileId).toBeTruthy();
@@ -70,7 +68,6 @@ test.describe('Files', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── List files ────────────────────────────────────────────────────────────
 
     test('list room files', async ({ request }) => {
         const res = await request.get(`/api/files/room/${roomId}`, {
@@ -81,7 +78,6 @@ test.describe('Files', () => {
         expect(Array.isArray(body.files || body)).toBeTruthy();
     });
 
-    // ── Media preview ─────────────────────────────────────────────────────────
 
     test('get media preview', async ({ request }) => {
         expect(fileId).toBeTruthy();
@@ -92,7 +88,6 @@ test.describe('Files', () => {
         expect([200, 404]).toContain(res.status());
     });
 
-    // ── Resumable upload ──────────────────────────────────────────────────────
 
     test('start resumable upload (init)', async ({ request }) => {
         const res = await request.post('/api/files/upload-init', {
@@ -121,7 +116,6 @@ test.describe('Files', () => {
         }
     });
 
-    // ── Gallery & Search ──────────────────────────────────────────────────────
 
     test('file gallery for room', async ({ request }) => {
         const res = await request.get(`/api/files/gallery/${roomId}`, {
@@ -151,7 +145,6 @@ test.describe('Files', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Distributed files ─────────────────────────────────────────────────────
 
     test('list distributed files', async ({ request }) => {
         const res = await request.get('/api/files/distributed/list', {
@@ -168,7 +161,6 @@ test.describe('Files', () => {
         expect([200, 201, 422]).toContain(res.status());
     });
 
-    // ── Edge cases ────────────────────────────────────────────────────────────
 
     test('upload to non-existent room fails', async ({ request }) => {
         const pngBuf = Buffer.from(

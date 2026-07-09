@@ -65,7 +65,6 @@ class AuthRepositoryImpl @Inject constructor(
         }.getOrDefault(false)
     }
 
-    // ── internals ──────────────────────────────────────────────────────
 
     private suspend fun authCall(path: String, username: String, password: CharArray): AuthResult {
         val pwStr = String(password)   // Kotlin String is interned; next line zeroes the char[].

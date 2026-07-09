@@ -3,7 +3,6 @@
 export const FOLDER_COLORS = ['#7c3aed', '#2563eb', '#16a34a', '#ea580c', '#dc2626', '#d946ef'];
 export const MAX_FOLDERS   = 10;
 
-// ── Folders ──────────────────────────────────────────────────────────────────
 
 export function _getFolders() {
     try { return JSON.parse(localStorage.getItem('vortex_chat_folders') || '[]'); }
@@ -57,7 +56,6 @@ export function _getActiveFilterRoomIds(activeFolder) {
     return map[activeFolder] || [];
 }
 
-// ── Hidden rooms ─────────────────────────────────────────────────────────────
 
 export function _getHiddenRoomIds() {
     try { return JSON.parse(localStorage.getItem('vortex_hidden_rooms') || '[]'); }
@@ -68,7 +66,6 @@ export function _setHiddenRoomIds(ids) {
     localStorage.setItem('vortex_hidden_rooms', JSON.stringify(ids));
 }
 
-// ── Pinned rooms ─────────────────────────────────────────────────────────────
 
 export function _getPinnedRoomIds() {
     try { return JSON.parse(localStorage.getItem('vortex_pinned_rooms') || '[]'); }
@@ -79,7 +76,6 @@ export function _setPinnedRoomIds(ids) {
     localStorage.setItem('vortex_pinned_rooms', JSON.stringify(ids));
 }
 
-// ── Archived rooms ───────────────────────────────────────────────────────────
 
 export function _getArchivedRoomIds() {
     try { return JSON.parse(localStorage.getItem('vortex_archived_rooms') || '[]'); }
@@ -90,7 +86,6 @@ export function _setArchivedRoomIds(ids) {
     localStorage.setItem('vortex_archived_rooms', JSON.stringify(ids));
 }
 
-// ── Hidden-chat password ─────────────────────────────────────────────────────
 
 export function _getHiddenHash() {
     return localStorage.getItem('vortex_hidden_hash') || null;

@@ -60,9 +60,7 @@ def _two_users_in_room(client):
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # rooms.py — moderation (kick, role, mute, ban), features
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestRoomsModerationFull:
     def test_kick_member_success(self, client):
@@ -187,9 +185,7 @@ class TestRoomsModerationFull:
             assert r2.status_code in (200, 204, 403)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # dm.py — full DM flow with key exchange
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestDMFullFlow:
     def test_create_dm_and_store_key(self, client):
@@ -228,9 +224,7 @@ class TestDMFullFlow:
         assert r.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # contacts.py — full contact lifecycle
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestContactsFullFlow:
     def test_add_update_delete_contact(self, client):
@@ -272,9 +266,7 @@ class TestContactsFullFlow:
         assert r.status_code in (200, 201, 400, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # saved.py — toggle, list, unsave, check
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSavedFullFlow:
     def test_toggle_save_nonexistent(self, client, logged_user):
@@ -294,9 +286,7 @@ class TestSavedFullFlow:
         assert r.status_code in (200, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # reports.py — report flow, strikes, cleanup
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestReportsFullFlow:
     def test_report_user_spam(self, client):
@@ -338,9 +328,7 @@ class TestReportsFullFlow:
             db.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # search.py — similarity functions
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSearchInternals:
     def test_name_similarity_exact(self):
@@ -378,9 +366,7 @@ class TestSearchInternals:
         assert r.status_code in (200, 404, 405)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # spaces.py — full lifecycle
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSpacesFullLifecycle:
     def test_create_and_manage_space(self, client, logged_user):
@@ -466,9 +452,7 @@ class TestSpacesFullLifecycle:
         assert r.status_code in (200, 404, 405)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # stickers.py — full pack lifecycle
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestStickersFullLifecycle:
     def test_pack_lifecycle(self, client, logged_user):
@@ -521,9 +505,7 @@ class TestStickersFullLifecycle:
         assert r.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # channels.py — join by invite
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestChannelsJoin:
     def test_create_and_join_channel(self, client, logged_user):
@@ -543,9 +525,7 @@ class TestChannelsJoin:
             assert r2.status_code in (200, 201, 400, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # statuses.py — cleanup
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestStatusesCleanup:
     @pytest.mark.asyncio
@@ -566,9 +546,7 @@ class TestStatusesCleanup:
         assert r.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # tasks.py — full lifecycle
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestTasksFullFlow:
     def test_task_lifecycle(self, client, logged_user, room):
@@ -608,9 +586,7 @@ class TestTasksFullFlow:
         assert r2.status_code in (200, 204, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # link_preview.py — internal functions
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestLinkPreviewInternals:
     def test_parse_og_basic(self):
@@ -647,9 +623,7 @@ class TestLinkPreviewInternals:
         assert r.status_code in (200, 400, 403, 422)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # middleware.py — TokenRefreshMiddleware edge case
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestMiddlewareEdgeCases:
     def test_security_headers_on_static(self, client):
@@ -673,9 +647,7 @@ class TestMiddlewareEdgeCases:
         assert r.headers.get("X-Request-ID") == "custom-123"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # utilites/utils.py — invite code, sanitize
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestUtils:
     def test_invite_code_length(self):

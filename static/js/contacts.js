@@ -1,8 +1,6 @@
 // static/js/contacts.js
-// ============================================================================
 // Управление контактами: поиск пользователей, добавление/удаление контактов,
 // открытие личных сообщений (DM), группы контактов (client-side).
-// ============================================================================
 
 import { $, api, esc, openModal, closeModal, showAlert, vxPrompt, vxConfirm, vxAlert } from './utils.js';
 import { eciesEncrypt, getRoomKey, setRoomKey } from './crypto.js';
@@ -18,11 +16,9 @@ function _avatarEl(obj) {
     return `<div class="avatar-status-wrap">${inner}<div class="status-dot ${esc(presence)}"></div></div>`;
 }
 
-// ── Состояние ────────────────────────────────────────────────────────────────
 let _contacts = [];
 let _searchTimeout = null;
 
-// ── Contact Groups (localStorage) ───────────────────────────────────────────
 const CG_STORAGE_KEY = 'vortex_contact_groups';
 const CG_MAX_GROUPS = 10;
 let _contactGroups = [];
@@ -104,7 +100,6 @@ export function removeFromGroup(groupId, contactId) {
     renderContactsList();
 }
 
-// ── Render group tabs ───────────────────────────────────────────────────────
 
 export function renderGroupTabs() {
     const el = $('contact-group-tabs');
@@ -137,7 +132,6 @@ export function renderGroupTabs() {
     });
 }
 
-// ── Group tab right-click context menu ──────────────────────────────────────
 
 export function showGroupTabCtx(e, groupId) {
     document.querySelectorAll('.contact-ctx-menu,.cg-ctx-submenu').forEach(m => m.remove());
@@ -171,7 +165,6 @@ export function showGroupTabCtx(e, groupId) {
     setTimeout(() => document.addEventListener('click', closeMenu), 10);
 }
 
-// ── Manage Groups Modal ─────────────────────────────────────────────────────
 
 export function showManageGroupsModal() {
     // Build modal content dynamically using the existing openModal infrastructure
@@ -280,7 +273,6 @@ function _renderManageGroupsBody() {
     });
 }
 
-// ── Загрузка контактов ───────────────────────────────────────────────────────
 
 export async function loadContacts() {
     try {
@@ -302,7 +294,6 @@ export async function loadContacts() {
     }
 }
 
-// ── Рендеринг списка контактов ───────────────────────────────────────────────
 
 function _renderContactCard(c) {
     const name = c.nickname || c.display_name || c.username || t('rooms.member');
@@ -412,7 +403,6 @@ window._toggleContactFolder = function(folderId) {
     renderContactsList();
 };
 
-// ── Поиск пользователей ──────────────────────────────────────────────────────
 
 export async function searchUsers(query) {
     const resultsEl = $('search-results');
@@ -483,7 +473,6 @@ export function debounceSearch(value) {
     _searchTimeout = setTimeout(() => searchUsers(value.trim()), 400);
 }
 
-// ── Операции с контактами ────────────────────────────────────────────────────
 
 export async function addContact(userId) {
     try {
@@ -529,7 +518,6 @@ export async function deleteContact(contactId) {
     }
 }
 
-// ── Контекстное меню контакта ────────────────────────────────────────────────
 
 export function toggleContactMenu(btn, contactId) {
     // Удаляем старое меню, если есть
@@ -599,7 +587,6 @@ export function toggleContactMenu(btn, contactId) {
     setTimeout(() => document.addEventListener('click', closeMenu), 10);
 }
 
-// ── Открытие личного сообщения (DM) ─────────────────────────────────────────
 
 export async function openDM(targetUserId) {
     try {
@@ -703,7 +690,6 @@ export async function openDM(targetUserId) {
     }
 }
 
-// ── Модальные окна ───────────────────────────────────────────────────────────
 
 export function showSearchModal() {
     openModal('search-modal');

@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ide", tags=["ide"])
 
 
-# ── Analytics ─────────────────────────────────────────────────────────────
 
 @router.get("/analytics/{project_id}")
 async def bot_analytics(project_id: str, current_user: User = Depends(get_current_user)):
@@ -83,7 +82,6 @@ async def bot_analytics(project_id: str, current_user: User = Depends(get_curren
     }
 
 
-# ── Metrics ───────────────────────────────────────────────────────────────
 
 @router.get("/metrics/{project_id}")
 async def get_bot_metrics(
@@ -115,7 +113,6 @@ async def get_bot_metrics(
     return {"ok": True, "metrics": metrics, "ab_results": ab_results}
 
 
-# ── Queue monitoring ─────────────────────────────────────────────────────
 
 @router.get("/queues/{project_id}")
 async def get_bot_queues(
@@ -134,7 +131,6 @@ async def get_bot_queues(
     return {"ok": True, "queues": {}}
 
 
-# ── Audit log ─────────────────────────────────────────────────────────────
 
 @router.get("/audit/{project_id}")
 async def get_bot_audit(
@@ -154,7 +150,6 @@ async def get_bot_audit(
     return {"ok": True, "entries": []}
 
 
-# ── Circuit breaker status ───────────────────────────────────────────────
 
 @router.get("/breakers/{project_id}")
 async def get_breaker_status(project_id: str, user=Depends(get_current_user)):
@@ -170,7 +165,6 @@ async def get_breaker_status(project_id: str, user=Depends(get_current_user)):
         return {"ok": True, "breakers": {}}
 
 
-# ── Package registry ─────────────────────────────────────────────────────
 
 @router.get("/packages")
 async def list_packages(user=Depends(get_current_user)):
@@ -212,7 +206,6 @@ async def install_package(body: dict, user=Depends(get_current_user)):
     return {"ok": True, "installed": package_name, "path": f"plugins/{package_name}.grav"}
 
 
-# ── Admin panel ───────────────────────────────────────────────────────────
 
 @router.get("/admin/{project_id}")
 async def get_bot_admin(project_id: str, user=Depends(get_current_user)):
@@ -228,7 +221,6 @@ async def get_bot_admin(project_id: str, user=Depends(get_current_user)):
         return {"ok": False, "error": str(e)}
 
 
-# ── Webhook registration ─────────────────────────────────────────────────
 
 @router.get("/webhooks/{project_id}")
 async def get_webhooks(project_id: str, user=Depends(get_current_user)):
@@ -244,7 +236,6 @@ async def get_webhooks(project_id: str, user=Depends(get_current_user)):
         return {"ok": True, "webhooks": []}
 
 
-# ── Permissions management ───────────────────────────────────────────────
 
 @router.get("/permissions/{project_id}")
 async def get_permissions(project_id: str, user=Depends(get_current_user)):

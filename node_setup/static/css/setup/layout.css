@@ -1,6 +1,5 @@
 /* setup/layout.css — шапка, панель шагов, карточка, типография */
 
-/* ── Шапка ── */
 .header {
     position: relative;
     z-index: 1;
@@ -31,7 +30,6 @@
     animation: fadeIn 1s ease .2s both;
 }
 
-/* ── Панель шагов (stepbar) ── */
 .stepbar {
     position: relative;
     z-index: 1;
@@ -112,7 +110,6 @@
 
 .step-line.done { background: var(--green); }
 
-/* ── Карточка ── */
 .card {
     position: relative;
     z-index: 1;
@@ -133,11 +130,9 @@
     .logo-ascii { font-size: 5px; }
 }
 
-/* ── Шаги ── */
 .step        { display: none; }
 .step.active { display: block; animation: stepIn .35s ease; }
 
-/* ── Типография ── */
 .step-title {
     font-family: var(--display);
     font-size: 22px;

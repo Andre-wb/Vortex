@@ -65,7 +65,6 @@ _PROTECTED_TERMS = sorted([
 ], key=len, reverse=True)
 
 
-# ── Placeholder-based translation-safe transformer ────────────────────────
 
 
 def _protect(text: str) -> tuple[str, dict]:
@@ -109,7 +108,6 @@ def _restore(text: str, slots: dict) -> str:
     return text
 
 
-# ── JSON walker ───────────────────────────────────────────────────────────
 
 
 def _walk_strings(obj, path=()):
@@ -137,7 +135,6 @@ def _set_path(obj, path, value):
         cur[int(last)] = value
 
 
-# ── Main translation loop ─────────────────────────────────────────────────
 
 
 def translate_file(target_code: str, source_obj: dict, force: bool) -> bool:

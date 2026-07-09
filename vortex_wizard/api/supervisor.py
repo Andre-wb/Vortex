@@ -44,9 +44,7 @@ def _managed_path(env_file: Path) -> Path:
     return env_file.parent / "managed_nodes.json"
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #41 — Supervisor mode (managed nodes list)
-# ══════════════════════════════════════════════════════════════════════════
 
 class ManagedNodeBody(BaseModel):
     id:           Optional[str] = None
@@ -141,9 +139,7 @@ async def aggregate_status(request: Request) -> dict:
             "ok_count": sum(1 for r in results if r.get("ok"))}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #42 — Federation-wide settings sync
-# ══════════════════════════════════════════════════════════════════════════
 
 class SyncBody(BaseModel):
     changes:      dict[str, str | bool | int]
@@ -185,9 +181,7 @@ async def sync_settings(body: SyncBody, request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #43 — Rolling upgrade
-# ══════════════════════════════════════════════════════════════════════════
 #
 # Strategy: for each managed node, invoke
 #   POST /api/wiz/admin/net/update/check  (get current version)
@@ -262,9 +256,7 @@ async def rolling_execute(body: RollingBody, request: Request) -> dict:
     return {"ok": True, "processed": len(nodes), "report": report}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #4 — Offline installer ZIP
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/installer/offline.zip")
 async def offline_installer(request: Request) -> StreamingResponse:
@@ -352,9 +344,7 @@ def _install_readme() -> str:
 """
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #5 — Windows service template
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/windows/service.ps1")
 async def windows_service() -> Response:

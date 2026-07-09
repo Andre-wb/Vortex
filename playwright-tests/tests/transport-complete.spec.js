@@ -30,7 +30,6 @@ test.describe('Transport Complete', () => {
         roomId = await createRoom(request, csrf, 'transport_complete');
     });
 
-    // ── Transport Signal & Punch ──────────────────────────────────────────────
 
     test('transport signal', async ({ request }) => {
         const res = await request.post('/api/transport/signal', {
@@ -56,7 +55,6 @@ test.describe('Transport Complete', () => {
         expect([200, 201, 400, 422]).toContain(res.status());
     });
 
-    // ── BLE ───────────────────────────────────────────────────────────────────
 
     test('BLE send to peer', async ({ request }) => {
         const res = await request.post('/api/transport/ble/send/AA:BB:CC:DD:EE:FF', {
@@ -66,7 +64,6 @@ test.describe('Transport Complete', () => {
         expect([200, 201, 400, 503]).toContain(res.status());
     });
 
-    // ── WiFi-Direct ───────────────────────────────────────────────────────────
 
     test('WiFi-Direct connect', async ({ request }) => {
         const res = await request.post('/api/transport/wifi-direct/connect', {
@@ -76,7 +73,6 @@ test.describe('Transport Complete', () => {
         expect([200, 201, 400, 422]).toContain(res.status());
     });
 
-    // ── Pluggable Transports ──────────────────────────────────────────────────
 
     test('pluggable transport status', async ({ request }) => {
         const res = await request.get('/api/transport/status', {
@@ -162,7 +158,6 @@ test.describe('Transport Complete', () => {
         expect([200, 400]).toContain(res.status());
     });
 
-    // ── SSE POST ──────────────────────────────────────────────────────────────
 
     test('SSE post message', async ({ request }) => {
         const res = await request.post(`/api/stream/${roomId}`, {
@@ -172,7 +167,6 @@ test.describe('Transport Complete', () => {
         expect([200, 201, 400, 422]).toContain(res.status());
     });
 
-    // ── Global Network ────────────────────────────────────────────────────────
 
     test('global gossip', async ({ request }) => {
         const res = await request.post('/api/global/gossip', {
@@ -198,7 +192,6 @@ test.describe('Transport Complete', () => {
         expect([200, 201, 400, 422]).toContain(res.status());
     });
 
-    // ── Cover Traffic Static ──────────────────────────────────────────────────
 
     test('cover traffic app.js', async ({ request }) => {
         const res = await request.get('/cover/static/app.js');
@@ -210,7 +203,6 @@ test.describe('Transport Complete', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Federation ────────────────────────────────────────────────────────────
 
     test('peers federated-join', async ({ request }) => {
         const res = await request.post('/api/peers/federated-join', {
@@ -235,7 +227,6 @@ test.describe('Transport Complete', () => {
         expect([200, 204, 400, 404, 422]).toContain(res.status());
     });
 
-    // ── Peer P2P ──────────────────────────────────────────────────────────────
 
     test('peer send', async ({ request }) => {
         const res = await request.post('/api/peers/send', {
@@ -253,7 +244,6 @@ test.describe('Transport Complete', () => {
         expect([200, 201, 400, 403]).toContain(res.status());
     });
 
-    // ── Native Bridge Push ────────────────────────────────────────────────────
 
     test('native push register', async ({ request }) => {
         const res = await request.post('/api/native/push/register', {

@@ -44,7 +44,6 @@ export function buildTree(lines: Line[]): { nodes: Node[]; errors: ParseError[] 
     const span: Span = { line: line.lineNum };
     const ts = new TokStream(tokeniseLine(line.text));
 
-    // ── @keyword dispatch ────────────────────────────────────────────────────
     if (ts.peek()?.t === T.AtKw) {
       const kw = (ts.eat() as Extract<Token, { t: T.AtKw }>).v;
 
@@ -430,7 +429,6 @@ export function buildTree(lines: Line[]): { nodes: Node[]; errors: ParseError[] 
       return null;
     }
 
-    // ── ~var = expr  /  ~var := expr  /  ~var: type = expr ──────────────────
     if (ts.peek()?.t === T.Reactive) {
       const varName = (ts.eat() as Extract<Token, { t: T.Reactive }>).v;
 
@@ -461,7 +459,6 @@ export function buildTree(lines: Line[]): { nodes: Node[]; errors: ParseError[] 
       return null;
     }
 
-    // ── => action  ────────────────────────────────────────────────────────────
     if (ts.peek()?.t === T.Arrow) {
       ts.eat();
       const action = parseAction(ts);
@@ -470,7 +467,6 @@ export function buildTree(lines: Line[]): { nodes: Node[]; errors: ParseError[] 
       return null;
     }
 
-    // ── list itemName from ~source ────────────────────────────────────────────
     if (ts.peek()?.t === T.Ident && (ts.peek() as Extract<Token, { t: T.Ident }>).v === 'list') {
       ts.eat();
       const itemName = ts.peek()?.t === T.Ident
@@ -487,7 +483,6 @@ export function buildTree(lines: Line[]): { nodes: Node[]; errors: ParseError[] 
       return null;
     }
 
-    // ── component  name [args] [:: mods] [=> handler] ────────────────────────
     if (ts.peek()?.t !== T.Ident) {
       // Unknown token — skip this line only, do not consume children (Б5 fix)
       return null;
@@ -537,7 +532,6 @@ export function buildTree(lines: Line[]): { nodes: Node[]; errors: ParseError[] 
   return { nodes, errors };
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 import type { ValueNode }   from '../ast/values.js';
 import type { Modifier }    from '../ast/modifiers.js';

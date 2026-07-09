@@ -26,9 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/files", tags=["files-advanced"])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. Distributed Storage (IPFS-style chunk distribution)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class DistributedChunk(BaseModel):
     chunk_hash: str
@@ -92,9 +90,7 @@ async def get_distributed_file(file_hash: str, u: User = Depends(get_current_use
     return info
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. Media Preview (in-browser preview without download)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/preview/{room_id}/{file_id}")
 async def media_preview(room_id: int, file_id: int,
@@ -156,9 +152,7 @@ async def media_preview(room_id: int, file_id: int,
     return preview
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. Image Gallery (grouped photos, albums)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/gallery/{room_id}")
 async def room_gallery(room_id: int, page: int = Query(default=1, ge=1),
@@ -216,9 +210,7 @@ async def room_gallery(room_id: int, page: int = Query(default=1, ge=1),
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. File Search
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/search/{room_id}")
 async def search_files(room_id: int,
@@ -268,9 +260,7 @@ async def search_files(room_id: int,
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 5. Auto-Compression Presets
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/compression-presets")
 async def compression_presets():
@@ -329,9 +319,7 @@ async def compression_presets():
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 6. File Stats
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/stats/{room_id}")
 async def file_stats(room_id: int, u: User = Depends(get_current_user),

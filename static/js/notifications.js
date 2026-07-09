@@ -1,8 +1,6 @@
 // static/js/notifications.js
-// ============================================================================
 // Уведомления в реальном времени через WebSocket.
 // Показывает баннеры при получении новых сообщений в неактивных комнатах.
-// ============================================================================
 
 import { $, esc } from './utils.js';
 import { playMessageSound, playCallSound, stopCallSound } from './notification-sounds.js';
@@ -13,7 +11,6 @@ window._stopCallSound = stopCallSound;
 let _notifWs = null;
 let _reconnectTimer = null;
 
-// ── Счётчики непрочитанных ──────────────────────────────────────────────────
 // { roomId: { count: число, mention: boolean } }
 const _unread = {};
 
@@ -35,7 +32,6 @@ function _incrementUnread(roomId, isMention) {
     if (isMention) _unread[roomId].mention = true;
 }
 
-// ── WebSocket для уведомлений ────────────────────────────────────────────────
 
 export function connectNotificationWS() {
     if (_notifWs && _notifWs.readyState <= 1) return;
@@ -115,7 +111,6 @@ function _scheduleReconnect() {
     }, delay);
 }
 
-// ── Обработка уведомлений ────────────────────────────────────────────────────
 
 function handleNotification(data) {
     const S = window.AppState;
@@ -408,7 +403,6 @@ window._answerCallFromNotif = async function(roomId) {
     } catch {}
 }
 
-// ── HTTP/2 Multiplex Cover (имитация загрузки SPA-ресурсов) ─────────────────
 
 let _multiplexTimer = null;
 
@@ -455,7 +449,6 @@ function _doMultiplexBurst() {
     });
 }
 
-// ── Баннер уведомления ───────────────────────────────────────────────────────
 
 export async function showNotificationBanner(data) {
     const container = $('notification-container');

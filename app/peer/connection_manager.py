@@ -22,9 +22,7 @@ from fastapi import WebSocket
 logger = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Token Bucket — ограничение нагрузки на ретранслятор
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TokenBucket:
     """
@@ -61,9 +59,7 @@ class TokenBucket:
         return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Глобальный кэш дедупликации сообщений
-# ══════════════════════════════════════════════════════════════════════════════
 
 class MessageDeduplicator:
     """
@@ -115,9 +111,7 @@ class MessageDeduplicator:
 deduplicator = MessageDeduplicator(max_size=10_000, ttl_sec=300.0)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ConnectedUser
-# ══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class ConnectedUser:
@@ -138,9 +132,7 @@ class ConnectedUser:
     rate_limiter: TokenBucket = field(default_factory=lambda: TokenBucket(capacity=30, rate=10))
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pending Delivery Queue — серверная очередь недоставленных сообщений
-# ══════════════════════════════════════════════════════════════════════════════
 
 class PendingDeliveryQueue:
     """
@@ -268,9 +260,7 @@ class PendingNotificationQueue:
 pending_notifications = PendingNotificationQueue()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ConnectionManager
-# ══════════════════════════════════════════════════════════════════════════════
 
 class ConnectionManager:
     """
@@ -299,7 +289,6 @@ class ConnectionManager:
         # FIX L6: live count of concurrent sockets per user (room + global).
         self._ws_count:   dict[int, int] = defaultdict(int)
 
-    # ── FIX L6: per-user connection cap helpers ─────────────────────────────
     def _ws_cap_reached(self, user_id: int) -> bool:
         """True if registering one more socket for this user would exceed the cap."""
         if self.MAX_WS_PER_USER <= 0:
@@ -511,7 +500,6 @@ class ConnectionManager:
             return False
         return await deduplicator.is_duplicate(msg_id)
 
-    # ── Глобальный WebSocket для уведомлений ────────────────────────────────
 
     async def connect_global(self, user_id: int, ws: WebSocket) -> None:
         """Подключает глобальный WS для уведомлений пользователя."""

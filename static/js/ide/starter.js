@@ -1,4 +1,3 @@
-// ── Starter code ──────────────────────────────────────────────
 function STARTER_CODE(name, lang) {
     if (lang === 'architex') return STARTER_CODE_ARX(name);
     return STARTER_CODE_GRAV(name);
@@ -13,7 +12,6 @@ state {
     history_id: int = 0,
 }
 
-// ── Derivative Engine ───────────────────────────────────────
 
 fn derivative(expr: str) -> str {
     // Power rule: ax^n → n*a*x^(n-1)
@@ -108,7 +106,6 @@ fn matrix_trace(a: float, d: float) -> float {
     return a + d;
 }
 
-// ── Bot Commands ─────────────────────────────────────────────
 
 on /start {
     emit "\\u{1F9EE} {ctx.first_name}, welcome to Math Calculator!";
@@ -136,7 +133,6 @@ on /solve {
     emit solve_quadratic(a, b, c);
 }
 
-// ── Mini App Bridge ─────────────────────────────────────────
 
 on msg {
     match ctx.action {
@@ -198,9 +194,7 @@ return `// ${name} — Advanced Math Calculator
   text      = #E8E0FF
   muted     = #7B73A0
 
-// ══════════════════════════════════════════
 //  Main — Calculator Dashboard
-// ══════════════════════════════════════════
 
 @screen Main
 
@@ -208,14 +202,12 @@ return `// ${name} — Advanced Math Calculator
 
   col :: pad(0) gap(0) bg(#0F0A2E)
 
-    // ── Header with gradient ────────────
     col :: pad(24) gap(8) gradient(#1A1145-#2A1060-#1A1145)
       text "${name}" :: bold size(24) color(#fff) animate(fadeIn)
       text "Advanced Mathematics Calculator" :: size(13) color(#7B73A0)
 
     col :: pad(20) gap(14)
 
-      // ── Category Cards with SVG icons ──
       row :: gap(12)
         card :: pad(18) radius(14) bg(#1E1650) border(#2A2060) grow glow(#7B5EFF) animate(fadeIn)
           col :: gap(10) center
@@ -258,7 +250,6 @@ return `// ${name} — Advanced Math Calculator
             button "Open" :: pad(8) radius(8) gradient(#FF9100-#E65100) color(#fff) size(12)
               => navigate(Reference)
 
-      // ── Quick Formulas with glow ──────
       card :: pad(18) radius(14) bg(#1E1650) border(#2A2060) glass
         col :: gap(10)
           text "Quick Formulas" :: bold size(15) color(#fff)
@@ -269,7 +260,6 @@ return `// ${name} — Advanced Math Calculator
           row :: gap(8)
             badge "e^(i\\u03C0) + 1 = 0" :: size(11) radius(8) bg(#2A0A20) color(#FF4081)
 
-      // ── History count ─────────────────
       card :: pad(14) radius(12) bg(#16103A) border(#2A2060) glass
         row :: gap(12) center
           text "History" :: size(14) color(#7B73A0)
@@ -278,9 +268,7 @@ return `// ${name} — Advanced Math Calculator
           button "Clear" :: pad(6) radius(6) bg(#2A0A20) color(#FF4081) size(11)
             => send(action: "clear_history")
 
-// ══════════════════════════════════════════
 //  Derivative Calculator
-// ══════════════════════════════════════════
 
 @screen Derivative
 
@@ -289,7 +277,6 @@ return `// ${name} — Advanced Math Calculator
 
   col :: pad(0) gap(0) bg(#0F0A2E)
 
-    // ── Header ──────────────────────────
     col :: pad(20) gap(6) gradient(#1A1145-#1E1650)
       row :: gap(12) center
         button "\\u2190" :: pad(8) radius(8) bg(#2A1F6E) color(#7B5EFF) size(16)
@@ -301,7 +288,6 @@ return `// ${name} — Advanced Math Calculator
 
     col :: pad(20) gap(16)
 
-      // ── Input ─────────────────────────
       card :: pad(20) radius(14) bg(#1E1650) border(#2A2060)
         col :: gap(14)
           text "f(x) =" :: bold size(14) color(#7B73A0)
@@ -310,14 +296,12 @@ return `// ${name} — Advanced Math Calculator
           button "Calculate d/dx" :: pad(14) radius(10) bg(#7B5EFF) color(#fff) bold size(14) center
             => send(action: "derivative", expr: ~deriv_input)
 
-      // ── Result ────────────────────────
       card :: pad(20) radius(14) bg(#16103A) border(#7B5EFF) glow(#7B5EFF) animate(fadeIn)
         col :: gap(10) center
           text "Result" :: size(12) color(#7B73A0)
           text "f'(x) =" :: bold size(14) color(#7B5EFF)
           text ~deriv_result :: bold size(22) color(#fff) animate(glow)
 
-      // ── Quick Examples ────────────────
       card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
         col :: gap(10)
           text "Quick Examples" :: bold size(14) color(#fff)
@@ -336,7 +320,6 @@ return `// ${name} — Advanced Math Calculator
             button "ln(x)" :: pad(8) radius(8) bg(#2A1F6E) color(#7B5EFF) size(12)
               => ~deriv_input = "ln(x)"
 
-      // ── Rules Reference ───────────────
       card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
         col :: gap(8)
           text "Differentiation Rules" :: bold size(14) color(#fff)
@@ -347,9 +330,7 @@ return `// ${name} — Advanced Math Calculator
           text "(ln x)' = 1/x" :: size(12) color(#FFD700)
           text "(tan x)' = 1/cos\\u00B2x" :: size(12) color(#FF4081)
 
-// ══════════════════════════════════════════
 //  Integral Calculator
-// ══════════════════════════════════════════
 
 @screen Integral
 
@@ -410,9 +391,7 @@ return `// ${name} — Advanced Math Calculator
           text "\\u222B e^x dx = e^x + C" :: size(12) color(#FFD700)
           text "\\u222B 1/x dx = ln|x| + C" :: size(12) color(#FFD700)
 
-// ══════════════════════════════════════════
 //  Quadratic Equations
-// ══════════════════════════════════════════
 
 @screen Equations
 
@@ -457,7 +436,6 @@ return `// ${name} — Advanced Math Calculator
           text "Solution" :: size(12) color(#7B73A0)
           text ~quad_result :: bold size(18) color(#fff) animate(glow)
 
-      // ── Preset examples ───────────────
       card :: pad(16) radius(12) bg(#1E1650) border(#2A2060)
         col :: gap(10)
           text "Try These" :: bold size(14) color(#fff)
@@ -479,9 +457,7 @@ return `// ${name} — Advanced Math Calculator
           text "D = 0 \\u2192 one root" :: size(12) color(#FFD700)
           text "D < 0 \\u2192 complex roots" :: size(12) color(#FF4081)
 
-// ══════════════════════════════════════════
 //  Matrix Calculator (2x2)
-// ══════════════════════════════════════════
 
 @screen Matrix
 
@@ -546,9 +522,7 @@ return `// ${name} — Advanced Math Calculator
           text "tr(A) = a + d" :: size(12) color(#00E676)
           text "A\\u207B\\u00B9 = (1/det) * adj(A)" :: size(12) color(#7B73A0)
 
-// ══════════════════════════════════════════
 //  Limits
-// ══════════════════════════════════════════
 
 @screen Limits
 
@@ -608,9 +582,7 @@ return `// ${name} — Advanced Math Calculator
           text "lim (e^x-1)/x = 1  (x\\u21920)" :: size(12) color(#FFD700)
           text "lim ln(x)/x = 0  (x\\u2192\\u221E)" :: size(12) color(#FFD700)
 
-// ══════════════════════════════════════════
 //  Reference — Formulas & Tables
-// ══════════════════════════════════════════
 
 @screen Reference
 
@@ -677,7 +649,6 @@ return `// ${name} — Advanced Math Calculator
 
 const TUTORIAL_CODE_ARX = `// ══════════════════════════════
 //  Architex — Quick Tutorial
-// ══════════════════════════════
 
 // 1. Screen — top-level view
 @screen Main
@@ -733,7 +704,6 @@ const TUTORIAL_CODE_ARX = `// ════════════════�
 
 const TUTORIAL_CODE = `// ══════════════════════════════
 //  Gravitix — Quick Tutorial
-// ══════════════════════════════
 
 // 1. Variables
 let name: str = "Gravitix";

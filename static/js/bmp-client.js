@@ -16,7 +16,6 @@
 
 import { packEnvelope, unpackEnvelope, packCoverEnvelope, MSG } from './bmp-envelope.js';
 
-// ── Constants ───────────────────────────────────────────────────────────────
 
 const ROTATION_PERIOD = 3600;          // 1 hour base rotation
 const ROTATION_JITTER = 600;           // ±10 min per-pair jitter
@@ -36,7 +35,6 @@ const CLOCK_SKEW_EPOCHS  = 1;          // accept ±1 epoch for clock skew tolera
 const COVER_STORAGE_KEY = 'vortex_bmp_cover_ids';
 const LAST_TS_KEY = 'vortex_bmp_last_ts';
 
-// ── State ───────────────────────────────────────────────────────────────────
 
 let _pollTimer = null;
 let _enabled = false;
@@ -50,7 +48,6 @@ let _roomSecrets = {};           // {roomId: secretHex} — cached secrets
 let _lastMessageReceived = 0;   // timestamp of last real message received
 let _lastUserInteraction = 0;   // timestamp of last send/typing/UI action
 
-// ── Mailbox ID derivation ───────────────────────────────────────────────────
 
 /**
  * Derive per-pair rotation jitter from shared secret.
@@ -134,7 +131,6 @@ async function _getRoomKeyBytes(roomId) {
     return getRoomKey(roomId);
 }
 
-// ── Cover Traffic ───────────────────────────────────────────────────────────
 
 function _loadCoverIds() {
     try {
@@ -177,7 +173,6 @@ function _shuffle(arr) {
     return arr;
 }
 
-// ── Handler Registry ────────────────────────────────────────────────────────
 
 /**
  * Register a handler for a BMP message type.
@@ -220,7 +215,6 @@ function _dispatch(roomId, typeCode, payload, timestamp) {
     }
 }
 
-// ── Deduplication ───────────────────────────────────────────────────────────
 
 function _isDuplicate(nonce) {
     const key = Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -239,7 +233,6 @@ function _isDuplicate(nonce) {
     return false;
 }
 
-// ── Polling ─────────────────────────────────────────────────────────────────
 
 async function _poll() {
     if (!_enabled) return;
@@ -345,7 +338,6 @@ async function _poll() {
     }
 }
 
-// ── Send via BMP ────────────────────────────────────────────────────────────
 
 /**
  * Send a typed message through BMP as an encrypted fixed-size envelope.
@@ -396,7 +388,6 @@ export async function bmpSendRaw(roomId, ciphertextHex) {
     });
 }
 
-// ── Register Room Secret on Server ──────────────────────────────────────────
 
 /**
  * Register room's BMP secret on the server so it can deposit envelopes.
@@ -422,7 +413,6 @@ export async function registerRoomSecret(roomId) {
     }
 }
 
-// ── Cover Traffic Deposits ──────────────────────────────────────────────────
 
 async function _coverDepositLoop() {
     if (!_enabled) return;
@@ -446,7 +436,6 @@ async function _coverDepositLoop() {
     _coverDepositTimer = setTimeout(_coverDepositLoop, delay);
 }
 
-// ── Fast Poll Mode (for WebRTC) ─────────────────────────────────────────────
 
 /**
  * Enable/disable fast polling for a room (500ms instead of 3s).
@@ -521,7 +510,6 @@ async function _fastPoll() {
     } catch {}
 }
 
-// ── Lifecycle ───────────────────────────────────────────────────────────────
 
 /**
  * Compute adaptive poll interval based on activity.
@@ -585,7 +573,6 @@ export function stopBMP() {
 
 export function isBMPEnabled() { return _enabled; }
 
-// ── Exports ─────────────────────────────────────────────────────────────────
 
 export { deriveMailboxId, getRoomMailboxSecret, MSG };
 

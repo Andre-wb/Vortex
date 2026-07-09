@@ -26,7 +26,6 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# ── Shared pool for webhook delivery ────────────────────────────────────────
 _webhook_pool = httpx.AsyncClient(
     timeout=httpx.Timeout(10.0, connect=3.0),
     limits=httpx.Limits(max_keepalive_connections=5, max_connections=20),

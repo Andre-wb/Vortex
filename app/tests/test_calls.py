@@ -20,7 +20,6 @@ import pytest
 from conftest import make_user, login_user, random_str, SyncASGIClient
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _register_and_login(client) -> tuple[dict, dict]:
     """Register a user and return (user_dict, auth_headers)."""
@@ -46,7 +45,6 @@ def _start_call(client, headers: dict, *, callee_id: int | None = None,
     return r.json()
 
 
-# ── Auth Guards ────────────────────────────────────────────────────────────────
 
 class TestCallsAuth:
 
@@ -79,7 +77,6 @@ class TestCallsAuth:
         assert r.status_code in (401, 403)
 
 
-# ── Start Call ─────────────────────────────────────────────────────────────────
 
 class TestStartCall:
 
@@ -171,7 +168,6 @@ class TestStartCall:
         assert r.status_code == 201
 
 
-# ── End Call ───────────────────────────────────────────────────────────────────
 
 class TestEndCall:
 
@@ -285,7 +281,6 @@ class TestEndCall:
         assert r.json()["duration"] == 0
 
 
-# ── Recent Calls ──────────────────────────────────────────────────────────────
 
 class TestRecentCalls:
 
@@ -362,7 +357,6 @@ class TestRecentCalls:
         assert isinstance(r.json()["calls"], list)
 
 
-# ── Missed Calls ──────────────────────────────────────────────────────────────
 
 class TestMissedCalls:
 
@@ -407,7 +401,6 @@ class TestMissedCalls:
         assert call["call_id"] not in ids
 
 
-# ── Call Stats ────────────────────────────────────────────────────────────────
 
 class TestCallStats:
 
@@ -464,7 +457,6 @@ class TestCallStats:
         assert stats["total_duration_seconds"] >= 0
 
 
-# ── Delete / Clear ─────────────────────────────────────────────────────────────
 
 class TestDeleteCalls:
 

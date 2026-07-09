@@ -109,7 +109,6 @@ const _LP_LANGS = [
 
 let _lpSelected = null;
 
-// ── Typewriter title rotation ───────────────────────────────────────────
 // Hints in order: popular languages first, less common last
 const _TITLE_HINTS = _LP_LANGS.map(l => l.hint).filter(Boolean);
 
@@ -164,7 +163,6 @@ function _stopTitleRotation() {
     _titleRunning = false;
 }
 
-// ── Render language list (safe DOM construction) ────────────────────────
 
 function _createLpItem(lang) {
     const div = document.createElement('div');
@@ -198,7 +196,6 @@ function _renderLpList(query) {
     list.replaceChildren(...filtered.map(_createLpItem));
 }
 
-// ── Select language ─────────────────────────────────────────────────────
 
 let _selectVersion = 0; // cancel previous typewriter on re-select
 
@@ -276,7 +273,6 @@ window._lpFilter = function(q) {
     _renderLpList(q);
 };
 
-// ── Confirm selection ───────────────────────────────────────────────────
 
 window._lpConfirm = async function() {
     if (!_lpSelected) return;
@@ -302,7 +298,6 @@ window._lpConfirm = async function() {
     _stopTitleRotation();
 };
 
-// ── Init: check if should show ──────────────────────────────────────────
 
 export function initLangPicker() {
     const saved = localStorage.getItem('vortex_locale');

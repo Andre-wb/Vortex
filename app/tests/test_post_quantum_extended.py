@@ -24,9 +24,7 @@ from app.security.post_quantum import _PQ_SIMULATED
 _requires_real_pq = pytest.mark.skipif(_PQ_SIMULATED, reason="real Kyber-768 library not installed")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # HTTP endpoint
-# ─────────────────────────────────────────────────────────────────────────────
 
 @_requires_real_pq
 def test_pq_status_http(client):
@@ -56,9 +54,7 @@ def test_pq_status_http_performance_fields(client):
     assert "decaps" in perf
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # get_pq_status() — unit
-# ─────────────────────────────────────────────────────────────────────────────
 
 @_requires_real_pq
 def test_get_pq_status_shape(client):
@@ -88,9 +84,7 @@ def test_pq_backend_valid_value(client):
     assert backend in ("pqcrypto", "liboqs", "simulated")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Kyber768.keygen()
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_kyber_keygen_returns_bytes(client):
     from app.security.post_quantum import Kyber768
@@ -127,9 +121,7 @@ def test_kyber_keygen_multiple_times(client):
         assert len(sk) == 2400
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Kyber768.encapsulate()
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_kyber_encapsulate_ciphertext_size(client):
     from app.security.post_quantum import Kyber768
@@ -163,9 +155,7 @@ def test_kyber_encapsulate_different_each_call(client):
     assert ss1 != ss2
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Kyber768.decapsulate()
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_kyber_encaps_decaps_roundtrip(client):
     from app.security.post_quantum import Kyber768
@@ -203,9 +193,7 @@ def test_kyber_multiple_roundtrips(client):
         assert ss1 == ss2
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # hybrid_keygen()
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_hybrid_keygen_returns_all_keys(client):
     from app.security.post_quantum import hybrid_keygen
@@ -245,9 +233,7 @@ def test_hybrid_keygen_different_each_call(client):
     assert k1["kyber_public"] != k2["kyber_public"]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # hybrid_encapsulate() / hybrid_decapsulate()
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_hybrid_encapsulate_fields(client):
     from app.security.post_quantum import hybrid_keygen, hybrid_encapsulate
@@ -301,9 +287,7 @@ def test_hybrid_decapsulate_wrong_x25519_key(client):
     assert enc["shared_secret"] != recovered
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # hybrid_encrypt() / hybrid_decrypt()
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_hybrid_encrypt_shape(client):
     from app.security.post_quantum import hybrid_keygen, hybrid_encrypt
@@ -399,9 +383,7 @@ def test_hybrid_encrypt_decrypt_multiple_plaintexts(client):
         assert dec == pt, f"Roundtrip failed for plaintext of length {len(pt)}"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Performance tests
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_kyber_keygen_performance(client):
     """100 keygens should complete in under 5 seconds."""
@@ -453,9 +435,7 @@ def test_hybrid_encrypt_decrypt_performance_large_payload(client):
     assert elapsed < 3.0, f"1 MB hybrid encrypt/decrypt took {elapsed:.2f}s"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Edge / error cases
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_hybrid_encrypt_invalid_x25519_hex_raises(client):
     from app.security.post_quantum import hybrid_keygen, hybrid_encrypt

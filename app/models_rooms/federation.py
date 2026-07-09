@@ -73,12 +73,10 @@ class Story(Base):
     user_id     = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"),
                          nullable=False, index=True)
     media_type  = Column(String(20),  nullable=False)   # 'photo' | 'video' | 'text'
-    # ── Encrypted fields (hex-encoded nonce+ciphertext) ──
     media_blob  = Column(LargeBinary, nullable=True)     # AES-GCM(story_key, media)
     text_ct     = Column(Text,        nullable=True)     # hex of AES-GCM(story_key, text)
     meta_ct     = Column(Text,        nullable=True)     # hex of AES-GCM(story_key, JSON{text_color, bg_color, music_title})
     music_blob  = Column(LargeBinary, nullable=True)     # AES-GCM(story_key, music)
-    # ── Plaintext metadata (non-sensitive) ──
     duration    = Column(Integer,     default=5)
     views_count = Column(Integer,     default=0)
     created_at  = Column(DateTime,    default=lambda: datetime.now(timezone.utc))

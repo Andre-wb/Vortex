@@ -1,5 +1,4 @@
 
-// ── File open/edit ────────────────────────────────────────────
 function ideOpenFile(name) {
     ideAutosave();
     IDE.activeFile = name;
@@ -90,7 +89,6 @@ function ideOnKeydown(e) {
     }
 }
 
-// ── Tabs ──────────────────────────────────────────────────────
 function ideRenderTabs() {
     const bar = document.getElementById('ide-file-tabs');
     if (!bar) return;
@@ -118,7 +116,6 @@ function ideCloseTab(name) {
     } else { ideRenderTabs(); }
 }
 
-// ── New file / folder ─────────────────────────────────────────
 function ideNewFile()   {
     IDE.newFileIsDir = false;
     _showNewFileModal('New File', 'filename.grav');

@@ -10,7 +10,6 @@ import pytest
 from conftest import make_user, login_user, random_str
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
 
 def _headers(client, user):
     h = login_user(client, user["username"], user["password"])
@@ -18,9 +17,7 @@ def _headers(client, user):
     return h
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # /api/users/search
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestUserSearch:
 
@@ -199,9 +196,7 @@ class TestUserSearch:
         assert r.status_code == 422
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # /api/users/global-search
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestGlobalSearch:
 

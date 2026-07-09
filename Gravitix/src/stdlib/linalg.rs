@@ -2,9 +2,7 @@ use crate::value::Value;
 use crate::error::GravResult;
 use crate::runtime_err;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers — convert between Value and Rust numeric types
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn to_vec(v: &Value) -> Option<Vec<f64>> {
     if let Value::List(l) = v {
@@ -30,13 +28,10 @@ fn from_matrix(m: Vec<Vec<f64>>) -> Value {
     Value::make_list(m.into_iter().map(|row| from_vec(row)).collect())
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn call_linalg_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>> {
     let v = match name {
-        // ── Vector operations ───────────────────────────────────────────────
         "dot" => {
             let a = to_vec(args.first().ok_or_else(|| runtime_err!("dot: expected 2 vectors"))?)
                 .ok_or_else(|| runtime_err!("dot: first arg must be a list of numbers"))?;
@@ -113,7 +108,6 @@ pub fn call_linalg_builtin(name: &str, args: &[Value]) -> GravResult<Option<Valu
             from_vec(a.iter().map(|x| x * s).collect())
         }
 
-        // ── Matrix operations ───────────────────────────────────────────────
         "mat_add" => {
             let a = to_matrix(args.first().ok_or_else(|| runtime_err!("mat_add: expected 2 matrices"))?)
                 .ok_or_else(|| runtime_err!("mat_add: first arg must be a matrix (list of lists)"))?;
@@ -326,15 +320,12 @@ pub fn call_linalg_builtin(name: &str, args: &[Value]) -> GravResult<Option<Valu
             }
         }
 
-        // ── Unknown — let the caller decide ─────────────────────────────────
         _ => return Ok(None),
     };
     Ok(Some(v))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal algorithms
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Recursive determinant computation (cofactor expansion for small matrices,
 /// LU-style for larger ones via row reduction).

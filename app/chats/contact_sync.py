@@ -40,9 +40,7 @@ def _hash_phone(phone: str) -> str:
     return hashlib.sha256(_normalize_phone(phone).encode()).hexdigest()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class SyncRequest(BaseModel):
     """Client sends phone number hashes from the address book."""
@@ -59,9 +57,7 @@ class AddAllRequest(BaseModel):
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Endpoints
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("")
 async def sync_contacts(

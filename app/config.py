@@ -51,7 +51,6 @@ class Config:
     # Alternatively, set POSTGRES_* env vars to auto-build a PostgreSQL URL.
     DATABASE_URL = os.getenv("DATABASE_URL", "")
 
-    # ── PostgreSQL individual env vars (alternative to DATABASE_URL) ──────────
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
     POSTGRES_DB = os.getenv("POSTGRES_DB", "vortex")
@@ -70,7 +69,6 @@ class Config:
     PEER_TIMEOUT_SEC = int(os.getenv("PEER_TIMEOUT_SEC", "15"))
     MAX_FILE_MB = int(os.getenv("MAX_FILE_MB", "3072"))  # 3 GB default
     MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024
-    # ── Testing ──────────────────────────────────────────────────────────
     TESTING = os.getenv("TESTING", "").lower() == "true"
 
     _waf_default = "999999" if os.getenv("TESTING", "").lower() == "true" else "120"
@@ -78,7 +76,6 @@ class Config:
     WAF_RATE_LIMIT_WINDOW = int(os.getenv("WAF_RATE_LIMIT_WINDOW", "60"))
     WAF_BLOCK_DURATION = int(os.getenv("WAF_BLOCK_DURATION", "3600"))
 
-    # ── Global Mode ───────────────────────────────────────────────────────
     # NETWORK_MODE: how the node discovers others
     #   "local"  — LAN-only via UDP broadcast (default, fully offline-capable)
     #   "global" — register with the official vortexx.sol controller
@@ -119,21 +116,17 @@ class Config:
     # BMP Delivery — route message delivery through Blind Mailbox Protocol
     BMP_DELIVERY_ENABLED = os.getenv("BMP_DELIVERY", "true").lower() in ("true", "1", "yes")
 
-    # ── VAPID (Web Push) ─────────────────────────────────────────────────────
     VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
     VAPID_PUBLIC_KEY  = os.getenv("VAPID_PUBLIC_KEY", "")
 
-    # ── Регистрация ──────────────────────────────────────────────────────────
     _raw_reg_mode = os.getenv("REGISTRATION_MODE", "open").strip().lower()
     REGISTRATION_MODE = _raw_reg_mode if _raw_reg_mode in ("open", "invite", "closed") else "closed"
     INVITE_CODE_NODE = os.getenv("INVITE_CODE_NODE", "").strip()  # код для регистрации (если invite mode)
 
-    # ── Redis (Horizontal Scaling) ────────────────────────────────────────────
     REDIS_URL = os.getenv("REDIS_URL", "")  # redis://host:6379/0
     REDIS_POOL_SIZE = int(os.getenv("REDIS_POOL_SIZE", "10"))
     REDIS_CHANNEL_PREFIX = os.getenv("REDIS_CHANNEL_PREFIX", "vortex")
 
-    # ── Privacy ─────────────────────────────────────────────────────────────
     STORE_IPS = os.getenv("STORE_IPS", "false").lower() != "false"
     HASH_IPS  = os.getenv("HASH_IPS", "true").lower() == "true"
     TOR_SOCKS_HOST = os.getenv("TOR_SOCKS_HOST", "127.0.0.1")
@@ -143,7 +136,6 @@ class Config:
     EPHEMERAL_IDENTITIES = os.getenv("EPHEMERAL_IDENTITIES", "false").lower() == "true"
     METADATA_PADDING = os.getenv("METADATA_PADDING", "true").lower() == "true"
 
-    # ── Stealth Mode (disabled in TESTING to avoid blocking health/API endpoints) ─
     STEALTH_MODE = (
         os.getenv("STEALTH_MODE", "false").lower() in ("true", "1", "yes")
         and os.getenv("TESTING", "").lower() != "true"
@@ -152,22 +144,18 @@ class Config:
     VORTEX_NETWORK_KEY = _auto_secret("VORTEX_NETWORK_KEY")
     STEALTH_TURN_URL = os.getenv("STEALTH_TURN_URL", "")
 
-    # ── Pluggable Transports ──────────────────────────────────────────────────
     import secrets as _secrets
     SHADOWSOCKS_PASSWORD = os.getenv("SHADOWSOCKS_PASSWORD", "") or _secrets.token_urlsafe(32)
     BRIDGE_MODE = os.getenv("BRIDGE_MODE", "false").lower() == "true"
     DOMAIN_FRONT_HOST = os.getenv("DOMAIN_FRONT_HOST", "")  # e.g. "www.cloudflare.com"
 
-    # ── CDN Relay (Multi-CDN) ────────────────────────────────────────────────
     CDN_RELAY_URL = os.getenv("CDN_RELAY_URL", "")
     CDN_RELAY_URLS = os.getenv("CDN_RELAY_URLS", os.getenv("CDN_RELAY_URL", ""))
     CDN_RELAY_SECRET = os.getenv("CDN_RELAY_SECRET", "") or _secrets.token_urlsafe(48)
 
-    # ── Translation (LibreTranslate) ─────────────────────────────────────────
     TRANSLATE_URL = os.getenv("TRANSLATE_URL", "http://localhost:5000")
     TRANSLATE_ENABLED = os.getenv("TRANSLATE_ENABLED", "false").lower() == "true"
 
-    # ── AI Assistant ────────────────────────────────────────────────────────
     OLLAMA_URL   = os.getenv("OLLAMA_URL",   "http://localhost:11434")
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
     AI_ENABLED   = os.getenv("AI_ENABLED",   "true").lower() != "false"
@@ -176,7 +164,6 @@ class Config:
     AI_API_URL   = os.getenv("AI_API_URL",   "")
     AI_MODEL     = os.getenv("AI_MODEL",     "")
 
-    # ── SFU (Selective Forwarding Unit) ─────────────────────────────────────
     SFU_MODE     = os.getenv("SFU_MODE",     "builtin")  # builtin/mediasoup/janus
     SFU_URL      = os.getenv("SFU_URL",      "")
     SFU_API_KEY  = os.getenv("SFU_API_KEY",  "")

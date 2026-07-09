@@ -1,6 +1,4 @@
-/* ============================================================================
  * APP CONTAINER
- * ========================================================================== */
 #app {
     display: flex;
     height: 100vh;
@@ -8,20 +6,14 @@
     overflow: hidden;
 }
 
-/* ============================================================================
  * ОСНОВНАЯ ОБЛАСТЬ (#main)
- * ========================================================================== */
 #main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 
-/* ----------------------------------------------------------------------------
  * Экраны — переключаются через класс active
- * ------------------------------------------------------------------------- */
 .screen { display: none; flex: 1; flex-direction: column; height: 100%; }
 .screen.active { display: flex; }
 
-/* ============================================================================
  * ЭКРАН АУТЕНТИФИКАЦИИ
- * ========================================================================== */
 #auth-screen.active {
     display: block;
 }
@@ -38,7 +30,6 @@
         radial-gradient(circle at 80% 20%, rgba(168,85,247,0.06) 0%, transparent 40%);
 }
 
-/* ---- Карточка ------------------------------------------------------------ */
 .auth-card {
     width: 420px; max-width: 94vw; padding: 36px 32px 28px;
     /* Горизонтальное центрирование — margin auto.
@@ -66,7 +57,6 @@
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ---- Логотип ------------------------------------------------------------- */
 .auth-logo { text-align: center; margin-bottom: 28px; }
 .auth-logo-icon {
     width: 56px; height: 56px; border-radius: 16px;
@@ -78,7 +68,6 @@
 .auth-logo h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
 .auth-logo p  { color: var(--text2); font-size: 12px; margin-top: 4px; font-family: var(--mono); }
 
-/* ---- Табы Вход / Регистрация --------------------------------------------- */
 .auth-tabs {
     display: flex; gap: 4px; margin-bottom: 20px;
     background: var(--bg3); padding: 4px; border-radius: 10px;
@@ -95,9 +84,7 @@
     box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
 
-/* ============================================================================
  * ОБЩИЕ ЭЛЕМЕНТЫ ФОРМ
- * ========================================================================== */
 .form-group { margin-bottom: 14px; }
 .form-label {
     display: block; margin-bottom: 6px;
@@ -163,7 +150,6 @@ button.pass-eye-btn:focus-visible { outline: none; }
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-/* ---- Password strength indicator ----------------------------------------- */
 .password-strength-wrap {
     margin-top: 8px;
     display: none; /* shown by JS when user types */
@@ -218,7 +204,6 @@ button.pass-eye-btn:focus-visible { outline: none; }
     border-color: rgba(34,197,94,0.2);
 }
 
-/* ---- Password match status ----------------------------------------------- */
 .pw-match-status {
     font-size: 11px; margin-top: 4px; min-height: 16px;
     font-family: var(--mono); transition: color 0.2s;
@@ -226,7 +211,6 @@ button.pass-eye-btn:focus-visible { outline: none; }
 .pw-match-status.match { color: var(--green); }
 .pw-match-status.mismatch { color: var(--red); }
 
-/* ---- Phone input with country picker ------------------------------------- */
 .phone-input-wrap {
     display: flex; position: relative;
 }
@@ -283,9 +267,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
 .phone-country-item .pc-name { flex: 1; font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .phone-country-item .pc-code { font-family: var(--mono); font-size: 12px; color: var(--text3); font-weight: 600; }
 
-/* ============================================================================
  * КНОПКИ
- * ========================================================================== */
 .btn {
     width: 100%; padding: 11px 16px;
     border: none; border-radius: var(--radius);
@@ -303,9 +285,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
 .btn-sm { padding: 6px 12px; font-size: 12px; width: auto; }
 .btn-login { margin-top: 6px; }
 
-/* ============================================================================
  * РАЗДЕЛИТЕЛЬ «или»
- * ========================================================================== */
 .auth-divider {
     display: flex; align-items: center; gap: 14px;
     margin: 18px 0 16px;
@@ -317,9 +297,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
     background: var(--border);
 }
 
-/* ============================================================================
  * АЛЬТЕРНАТИВНЫЕ МЕТОДЫ ВХОДА (QR / Passkey / Seed)
- * ========================================================================== */
 .auth-alt-methods {
     display: flex; gap: 10px;
 }
@@ -337,9 +315,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
 }
 .btn-alt-method:hover svg { color: var(--accent); }
 
-/* ============================================================================
  * КНОПКА «НАЗАД»
- * ========================================================================== */
 .auth-back-btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 6px 0; margin-bottom: 16px;
@@ -351,9 +327,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
 .auth-back-btn svg { transition: transform 0.15s; }
 .auth-back-btn:hover svg { transform: translateX(-3px); }
 
-/* ============================================================================
  * QR LOGIN
- * ========================================================================== */
 #qr-form { text-align: center; padding: 4px 0; }
 .qr-section { display: flex; flex-direction: column; align-items: center; }
 .qr-description {
@@ -391,9 +365,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
     font-family: var(--mono);
 }
 
-/* ============================================================================
  * PASSKEY LOGIN
- * ========================================================================== */
 #passkey-form { text-align: center; padding: 4px 0; }
 .passkey-section { display: flex; flex-direction: column; align-items: center; }
 .passkey-icon {
@@ -412,7 +384,6 @@ button.pass-eye-btn:focus-visible { outline: none; }
     line-height: 1.5; max-width: 260px;
 }
 
-/* ── Forgot Password ─────────────────────────────────────────────────────── */
 .auth-forgot-btn {
     display: block; width: 100%; text-align: center;
     background: none; border: none; color: var(--accent);
@@ -470,7 +441,6 @@ button.pass-eye-btn:focus-visible { outline: none; }
 }
 .sq-question-label { font-weight: 600; color: var(--text); }
 
-/* ── Reset Password ──────────────────────────────────────────────────────── */
 .reset-pw-section {
     display: flex; flex-direction: column; align-items: center;
 }
@@ -492,7 +462,6 @@ button.pass-eye-btn:focus-visible { outline: none; }
     font-size: 12px; min-height: 20px; margin-bottom: 8px; text-align: center;
 }
 
-/* ── Link Device ─────────────────────────────────────────────────────────── */
 .link-device-section {
     display: flex; flex-direction: column; align-items: center;
 }
@@ -530,9 +499,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
     font-size: 13px; color: var(--text2); min-height: 20px;
 }
 
-/* ============================================================================
  * АВАТАР ПИКЕР (регистрация)
- * ========================================================================== */
 .avatar-picker {
     background: var(--bg); border: 1px solid var(--border);
     border-radius: 10px; overflow: hidden;
@@ -591,9 +558,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
     width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
 }
 
-/* ============================================================================
  * INVITE CODE
- * ========================================================================== */
 .invite-code-input {
     text-transform: uppercase; letter-spacing: 3px; text-align: center;
     font-size: 18px; font-weight: 700; font-family: var(--mono);
@@ -605,9 +570,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
     margin-bottom: 14px;
 }
 
-/* ============================================================================
  * FOOTER NOTE & E2E BADGE
- * ========================================================================== */
 .auth-footer-note {
     display: flex; align-items: center; justify-content: center; gap: 6px;
     margin-top: 16px; padding-top: 14px;
@@ -623,9 +586,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
     letter-spacing: 0.3px;
 }
 
-/* ============================================================================
  * АЛЕРТЫ
- * ========================================================================== */
 .alert {
     padding: 10px 12px; border-radius: var(--radius);
     font-size: 13px; margin-bottom: 14px; font-family: var(--mono);
@@ -635,9 +596,7 @@ button.pass-eye-btn:focus-visible { outline: none; }
 .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--red); }
 .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
 
-/* ============================================================================
  * АДАПТИВ
- * ========================================================================== */
 @media (max-width: 480px) {
     .auth-card { padding: 28px 20px 22px; border-radius: 16px; }
     .auth-logo-icon { width: 48px; height: 48px; border-radius: 14px; }

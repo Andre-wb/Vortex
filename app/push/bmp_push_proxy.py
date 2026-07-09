@@ -41,7 +41,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/push-proxy", tags=["bmp-push-proxy"])
 
-# ── Configuration ────────────────────────────────────────────────────────────
 
 CATEGORY_COUNT = 256                # Number of push categories (k-anonymity buckets)
 TOKEN_TTL = 7 * 86400              # Push tokens expire after 7 days
@@ -122,7 +121,6 @@ def _endpoint_is_safe(endpoint: str) -> bool:
     return True
 
 
-# ── In-memory store ──────────────────────────────────────────────────────────
 
 @dataclass
 class PushRegistration:
@@ -197,7 +195,6 @@ class PushProxyStore:
 push_proxy = PushProxyStore()
 
 
-# ── Push sending (Web Push API) ─────────────────────────────────────────────
 
 async def _send_push(endpoint: str, token: str):
     """
@@ -231,7 +228,6 @@ async def _send_push(endpoint: str, token: str):
         logger.debug("[PushProxy] Push failed: %s", e)
 
 
-# ── API Endpoints ────────────────────────────────────────────────────────────
 
 class ProxyRegisterRequest(BaseModel):
     categories: list[int] = Field(..., min_length=1, max_length=256,
@@ -315,7 +311,6 @@ async def proxy_stats():
     return push_proxy.stats()
 
 
-# ── Helper for mailbox server integration ────────────────────────────────────
 
 def compute_category(mailbox_id: str) -> int:
     """Compute push category from mailbox ID. SHA256(id) mod 256."""

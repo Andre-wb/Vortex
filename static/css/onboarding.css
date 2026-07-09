@@ -1,8 +1,5 @@
-/* ============================================================================
  * ONBOARDING TOUR (guided walkthrough for new users)
- * ========================================================================== */
 
-/* ---- E2E encryption badge in chat header ---- */
 .chat-e2e-badge {
     display: inline-flex;
     align-items: center;
@@ -12,7 +9,6 @@
     flex-shrink: 0;
 }
 
-/* ---- Overlay: dark backdrop with spotlight cutout ---- */
 .onboarding-overlay {
     position: fixed;
     inset: 0;
@@ -45,7 +41,6 @@
     mask-image: none;
 }
 
-/* ---- Spotlight ring around target element ---- */
 .onboarding-spotlight {
     position: fixed;
     z-index: 10001;
@@ -60,7 +55,6 @@
     opacity: 1;
 }
 
-/* ---- Tooltip bubble ---- */
 .onboarding-tooltip {
     position: fixed;
     z-index: 10002;
@@ -191,7 +185,6 @@
     color: var(--text);
 }
 
-/* ---- Light theme overrides ---- */
 body[data-theme="light"] .onboarding-overlay {
     background: rgba(0, 0, 0, 0.48);
 }
@@ -222,7 +215,6 @@ body[data-theme="light"] .onboarding-spotlight {
     box-shadow: 0 0 0 4px var(--accent2), 0 0 24px 4px rgba(124, 58, 237, 0.2);
 }
 
-/* ---- Responsive: smaller tooltip on narrow screens ---- */
 @media (max-width: 480px) {
     .onboarding-tooltip {
         width: 280px;

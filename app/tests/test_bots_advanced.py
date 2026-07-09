@@ -13,9 +13,7 @@ import pytest
 from conftest import make_user, login_user, random_str
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _auth(client) -> dict:
     """Register + login a fresh user, return auth headers."""
@@ -52,9 +50,7 @@ def _bot_token_header(token: str) -> dict:
     return {"Authorization": f"Bot {token}"}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Bot Creation (bot_api.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_create_bot_requires_auth(client):
     r = client.post("/api/bots", json={"name": "NoAuth"})
@@ -91,9 +87,7 @@ def test_create_bot_name_too_long(client):
     assert r.status_code == 422
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # List / get bots
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_list_bots_requires_auth(anon_client):
     r = anon_client.get("/api/bots")
@@ -122,9 +116,7 @@ def test_list_bots_after_creation(client):
         assert "is_active" in b
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Update bot
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_update_bot_name(client):
     h = _auth(client)
@@ -177,9 +169,7 @@ def test_update_bot_not_owned(client):
     assert r.status_code in (403, 404)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Token management
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_get_bot_token(client):
     h = _auth(client)
@@ -222,9 +212,7 @@ def test_regenerate_token_not_owned(client):
     assert r.status_code in (403, 404)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Bot /me and /rooms (bot-auth endpoints)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_bot_me_valid_token(client):
     h = _auth(client)
@@ -255,9 +243,7 @@ def test_bot_list_rooms_valid_token(client):
     assert "rooms" in r.json()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Add bot to room / remove
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_add_bot_to_room(client):
     h = _auth(client)
@@ -303,9 +289,7 @@ def test_remove_bot_not_in_room(client):
     assert r.status_code == 404
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Delete bot
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_delete_bot(client):
     h = _auth(client)
@@ -333,9 +317,7 @@ def test_delete_bot_not_owned(client):
     assert r.status_code in (403, 404)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # SDK Info (bot_advanced.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_sdk_info_no_auth_required(client):
     r = client.get("/api/bots/sdk-info")
@@ -364,9 +346,7 @@ def test_sdk_info_http_api_endpoints(client):
     assert len(http["endpoints"]) >= 5
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Bot Store (bot_advanced.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_bot_store_no_auth_required(client):
     r = client.get("/api/bots/store")
@@ -415,9 +395,7 @@ def test_bot_store_entry_fields(client):
             assert field in entry, f"Field {field!r} missing from store entry"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Scopes (bot_advanced.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_scopes_list_no_auth(client):
     r = client.get("/api/bots/scopes")
@@ -478,9 +456,7 @@ def test_set_bot_scopes_not_owner(client):
     assert r.status_code in (403, 404)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Slash Commands (bot_advanced.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_get_room_commands_requires_auth(anon_client):
     r = anon_client.get("/api/rooms/1/commands")
@@ -560,9 +536,7 @@ def test_room_commands_include_bot_commands_after_install(client):
     assert any(c.get("name") == "greet" for c in cmds)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Webhook (bot_advanced.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_set_webhook(client):
     h = _auth(client)
@@ -633,9 +607,7 @@ def test_webhook_auto_generates_secret_if_empty(client):
     assert wh["secret"] != ""
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Inline Bot (bot_advanced.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_register_inline_handler(client):
     h = _auth(client)
@@ -712,9 +684,7 @@ def test_inline_requires_user_auth(anon_client):
     assert r.status_code in (401, 403)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Callback handler (bot_advanced.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_handle_callback(client):
     r = client.post("/api/bot/callback", json={
@@ -738,9 +708,7 @@ def test_handle_callback_empty_body(client):
     assert data["callback_data"] == ""
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Bot marketplace / publish (bot_api.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_publish_bot(client):
     h = _auth(client)
@@ -788,9 +756,7 @@ def test_get_bot_reviews(client):
         assert "reviews" in r.json()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Mini App Dev Info (bot_advanced.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_mini_app_dev_info_not_owner(client):
     h1 = _auth(client)
@@ -827,9 +793,7 @@ def test_mini_app_dev_info_available_apis(client):
         assert any("sendMessage" in api for api in apis)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Mini App token (bot_api.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_mini_app_token_no_mini_app_configured(client):
     h = _auth(client)
@@ -852,9 +816,7 @@ def test_mini_app_token_with_mini_app(client):
     assert data["bot_id"] == bid
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Bot long-poll updates (bot_api.py)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_bot_get_updates_valid_token_no_updates(client):
     h = _auth(client)
@@ -883,9 +845,7 @@ def test_bot_get_updates_timeout_bounds(client):
     assert r.status_code == 422
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # deliver_webhook (unit test — no HTTP server needed)
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_deliver_webhook_no_webhook_configured(client):
     """deliver_webhook returns False when no webhook is set for that bot."""

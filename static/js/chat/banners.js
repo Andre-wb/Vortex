@@ -4,9 +4,7 @@ import { appendSystemMessage } from './messages.js';
 import { renderRoomsList } from '../rooms.js';
 import { showWelcome } from '../ui.js';
 
-// =============================================================================
 // "Not in contacts" banner for DMs
-// =============================================================================
 
 export function _showNotContactBanner(otherUserId) {
     let banner = document.getElementById('not-contact-banner');
@@ -59,9 +57,7 @@ window._blockUser = async function(userId) {
     } catch(e) { alert(e.message); }
 };
 
-// =============================================================================
 // Bot DM tag — show BOT badge instead of "not in contacts"
-// =============================================================================
 
 export function _showBotTag() {
     _hideNotContactBanner();
@@ -100,9 +96,7 @@ export function _hideBotTag() {
     if (el) el.remove();
 }
 
-// =============================================================================
 // DM Theme proposal banner
-// =============================================================================
 
 export function _showThemeProposalBanner(msg) {
     // Remove existing banner
@@ -154,12 +148,10 @@ window._rejectThemeProposal = async function(roomId) {
     } catch(e) { alert(e.message); }
 };
 
-// =============================================================================
 // Cross-node replication warning banner
 // Shown whenever the user enters a room whose owner turned on `federated`
 // replication. Dismissal is per-room, stored in localStorage so we don't
 // re-pester the user every time they switch back.
-// =============================================================================
 
 function _replicationBannerDismissKey(roomId) {
     return `vx_rep_banner_dismissed:${roomId}`;

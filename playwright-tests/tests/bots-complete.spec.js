@@ -56,7 +56,6 @@ test.describe('Bots Complete', () => {
         projectId = `e2e_comp_proj_${randomStr(8)}`;
     });
 
-    // ── Bot Messaging API ─────────────────────────────────────────────────────
 
     test('bot send message', async ({ request }) => {
         const res = await request.post('/api/bot/send', {
@@ -100,7 +99,6 @@ test.describe('Bots Complete', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Bot Inline ────────────────────────────────────────────────────────────
 
     test('bot inline register', async ({ request }) => {
         const res = await request.post('/api/bot/inline/register', {
@@ -118,7 +116,6 @@ test.describe('Bots Complete', () => {
         expect([200, 400]).toContain(res.status());
     });
 
-    // ── Bot Keyboard & Callback ───────────────────────────────────────────────
 
     test('bot send keyboard', async ({ request }) => {
         const res = await request.post('/api/bot/send-keyboard', {
@@ -140,7 +137,6 @@ test.describe('Bots Complete', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Bot Commands ──────────────────────────────────────────────────────────
 
     test('bot commands register', async ({ request }) => {
         const res = await request.post('/api/bot/commands/register', {
@@ -155,7 +151,6 @@ test.describe('Bots Complete', () => {
         expect([200, 201]).toContain(res.status());
     });
 
-    // ── Bot Webhook ───────────────────────────────────────────────────────────
 
     test('bot webhook set', async ({ request }) => {
         const res = await request.post('/api/bot/webhook/set', {
@@ -179,7 +174,6 @@ test.describe('Bots Complete', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Bot Payment ───────────────────────────────────────────────────────────
 
     test('bot payment create', async ({ request }) => {
         const res = await request.post('/api/bot/payment/create', {
@@ -189,7 +183,6 @@ test.describe('Bots Complete', () => {
         expect([200, 201, 400, 422]).toContain(res.status());
     });
 
-    // ── Bot Mini-App Dev ──────────────────────────────────────────────────────
 
     test('bot mini-app dev info', async ({ request }) => {
         expect(botId).toBeTruthy();
@@ -199,7 +192,6 @@ test.describe('Bots Complete', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Bot Scopes Update ─────────────────────────────────────────────────────
 
     test('update bot scopes', async ({ request }) => {
         expect(botId).toBeTruthy();
@@ -210,7 +202,6 @@ test.describe('Bots Complete', () => {
         expect([200, 204, 400]).toContain(res.status());
     });
 
-    // ── Marketplace ───────────────────────────────────────────────────────────
 
     test('marketplace bot detail', async ({ request }) => {
         expect(botId).toBeTruthy();
@@ -246,7 +237,6 @@ test.describe('Bots Complete', () => {
         expect([200, 201, 400, 404]).toContain(res.status());
     });
 
-    // ── IDE ───────────────────────────────────────────────────────────────────
 
     test('IDE publish project', async ({ request }) => {
         expect(projectId).toBeTruthy();
@@ -282,7 +272,6 @@ test.describe('Bots Complete', () => {
         expect([200, 201, 400]).toContain(res.status());
     });
 
-    // ── Cleanup ───────────────────────────────────────────────────────────────
 
     test('delete bot', async ({ request }) => {
         expect(botId).toBeTruthy();

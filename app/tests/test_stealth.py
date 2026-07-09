@@ -30,9 +30,7 @@ from app.transport.stealth import (
 )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # WebSocket Path Obfuscation
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestWSPathObfuscation:
     def test_obfuscate_returns_api_path(self):
@@ -60,9 +58,7 @@ class TestWSPathObfuscation:
         assert deobfuscate_ws_path("/api/v2/stream/nonexistent") is None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Header Sanitization
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestHeaderSanitization:
     def test_removes_banned_headers(self):
@@ -90,9 +86,7 @@ class TestHeaderSanitization:
         assert cleaned["User-Agent"] == "Mozilla/5.0 Chrome"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Traffic Camouflage
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestTrafficCamouflage:
     def test_camouflage_roundtrip(self):
@@ -118,9 +112,7 @@ class TestTrafficCamouflage:
         assert decamouflage_payload(b"ab") == b"ab"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # UDP Encryption
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestUDPEncryption:
     def test_encrypt_decrypt_roundtrip(self):
@@ -151,9 +143,7 @@ class TestUDPEncryption:
         assert decrypt_udp_broadcast(e2) == payload
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Port Randomization
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPortRandomization:
     def test_default_port(self):
@@ -169,9 +159,7 @@ class TestPortRandomization:
         assert port > 0
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ICE Servers
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestICEServers:
     def test_normal_mode_returns_google_stun(self):
@@ -187,9 +175,7 @@ class TestICEServers:
         assert len(servers) >= 1
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Fake Site
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestFakeSite:
     def test_returns_html(self):
@@ -205,9 +191,7 @@ class TestFakeSite:
         assert "messenger" not in html.lower()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Status
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestStealthStatus:
     def test_status_returns_dict(self):

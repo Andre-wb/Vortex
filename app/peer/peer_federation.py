@@ -22,21 +22,17 @@ from app.security.ssl_context import make_peer_ssl_context
 
 logger = logging.getLogger(__name__)
 
-# ── Shared HTTP connection pool (keep-alive, connection reuse) ──────────────
 _federation_pool = httpx.AsyncClient(
     timeout=httpx.Timeout(8.0, connect=4.0),
     limits=httpx.Limits(max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0),
     verify=make_peer_ssl_context(),
 )
 
-# ── JWT cache for federation guest logins (peer_key → {jwt, expires}) ───────
 _jwt_cache: dict[str, dict] = {}
 _JWT_CACHE_TTL = 240  # 4 minutes (tokens usually last 5+ min)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Federated join
-# ══════════════════════════════════════════════════════════════════════════════
 
 class FederatedJoinRequest(BaseModel):
     invite_code: str
@@ -61,7 +57,6 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
     if not remote_base:
         raise HTTPException(503, f"Node {body.peer_ip}:{body.peer_port} is unreachable")
 
-    # ── Cached guest-login JWT (skip if recently authenticated) ──────────
     cache_key = f"{remote_base}:{u.username}"
     cached = _jwt_cache.get(cache_key)
     if cached and cached["expires"] > time.monotonic():
@@ -149,9 +144,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Multihop join (A → B → C)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class MultihopJoinRequest(BaseModel):
     invite_code: str
@@ -187,7 +180,6 @@ async def multihop_join(
     if not via_base:
         raise HTTPException(503, f"Intermediate node {body.via_ip} is unreachable")
 
-    # ── Cached guest-login JWT on via-node ──────────────────────────────
     via_cache_key = f"{via_base}:{u.username}"
     via_cached = _jwt_cache.get(via_cache_key)
     if via_cached and via_cached["expires"] > time.monotonic():

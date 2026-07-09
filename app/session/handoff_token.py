@@ -47,14 +47,12 @@ HANDOFF_TTL_SEC = 300          # 5 min window to consume the token
 HANDOFF_SKEW_SEC = 60           # accept small clock drift
 
 
-# ── Canonical JSON (must match the rest of the codebase) ──────────────────
 
 
 def _canonical(obj) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-# ── Issue ─────────────────────────────────────────────────────────────────
 
 
 def issue_handoff_token(
@@ -90,7 +88,6 @@ def issue_handoff_token(
     }
 
 
-# ── Verify ────────────────────────────────────────────────────────────────
 
 
 class HandoffError(Exception):

@@ -69,7 +69,6 @@ from app.security.secure_upload import (
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["resumable-upload"])
 
-# ── Константы ──────────────────────────────────────────────────────────────────
 DEFAULT_CHUNK_SIZE = 1 * 1024 * 1024        # 1 МБ
 MIN_CHUNK_SIZE     = 64 * 1024              # 64 КБ
 MAX_CHUNK_SIZE     = 10 * 1024 * 1024       # 10 МБ
@@ -88,9 +87,7 @@ WEBSHELL_EXTS = frozenset({
 })
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Модель сессии загрузки
-# ══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class UploadSession:
@@ -120,7 +117,6 @@ class UploadSession:
     created_at:   float    = field(default_factory=time.monotonic)
     chunk_dir:    Path     = field(default=None)  # type: ignore
 
-    # ── Методы состояния ───────────────────────────────────────────────────────
 
     def is_expired(self) -> bool:
         return (time.monotonic() - self.created_at) > SESSION_TTL
@@ -137,9 +133,7 @@ class UploadSession:
         return round(len(self.received) / self.total_chunks * 100, 1)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Хранилище сессий (in-memory, потокобезопасное через asyncio.Lock)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class SessionStore:
     """
@@ -215,9 +209,7 @@ class SessionStore:
 _store = SessionStore()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Вспомогательные функции
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _validate_hex_hash(value: str, field_name: str = "hash") -> str:
     """Проверяет, что строка является корректным SHA-256 hex (64 символа)."""
@@ -243,9 +235,7 @@ def _check_room_access(room_id: int, user_id: int, db: Session) -> None:
             raise HTTPException(403, "No access to room")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. Инициализация сессии
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/files/upload-init")
 async def upload_init(
@@ -355,9 +345,7 @@ async def upload_init(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. Загрузка чанка
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.put("/api/files/upload-chunk/{upload_id}")
 async def upload_chunk(
@@ -436,9 +424,7 @@ async def upload_chunk(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. Статус сессии
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/api/files/upload-status/{upload_id}")
 async def upload_status(
@@ -469,9 +455,7 @@ async def upload_status(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. Финализация (сборка файла)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/files/upload-complete/{upload_id}")
 async def upload_complete(
@@ -508,7 +492,6 @@ async def upload_complete(
             }
         )
 
-    # ── Сборка файла ──────────────────────────────────────────────────────────
     assembled = bytearray()
     for idx in range(session.total_chunks):
         chunk_path = session.chunk_dir / f"{idx:06d}.chunk"
@@ -520,7 +503,6 @@ async def upload_complete(
     content = bytes(assembled)
     del assembled
 
-    # ── Проверка итогового хеша ───────────────────────────────────────────────
     actual_hash = _sha256_hex(content)
     if actual_hash != session.file_hash:
         await _store.delete(upload_id)
@@ -530,7 +512,6 @@ async def upload_complete(
             f"Expected: {session.file_hash[:16]}..., got: {actual_hash[:16]}..."
         )
 
-    # ── Проверки безопасности ─────────────────────────────────────────────────
     if FileAnomalyDetector.detect_zip_bomb_indicators(content):
         await _store.delete(upload_id)
         raise HTTPException(400, "File appears to be an archive bomb")
@@ -560,14 +541,12 @@ async def upload_complete(
     content     = strip_all_metadata(content, mime_type)
     stored_hash = _sha256_hex(content)
 
-    # ── Сохранение файла ──────────────────────────────────────────────────────
     ext        = Path(session.file_name).suffix.lower()
     safe_name  = generate_secure_filename(ext)
     Config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     stored_path = Config.UPLOAD_DIR / safe_name
     stored_path.write_bytes(content)
 
-    # ── Запись в БД ───────────────────────────────────────────────────────────
     ft = FileTransfer(
         room_id       = session.room_id,
         uploader_id   = u.id,
@@ -606,7 +585,6 @@ async def upload_complete(
     db.add(msg)
     db.commit()
 
-    # ── WebSocket broadcast ───────────────────────────────────────────────────
     broadcast_payload = {
         "type":         "file",
         "sender_id":    u.id,
@@ -628,7 +606,6 @@ async def upload_complete(
         f"size={len(content)} room={session.room_id} upload_id={upload_id}"
     )
 
-    # ── Очистка сессии ────────────────────────────────────────────────────────
     await _store.delete(upload_id)
 
     return {
@@ -641,9 +618,7 @@ async def upload_complete(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 5. Отмена сессии
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.delete("/api/files/upload-cancel/{upload_id}")
 async def upload_cancel(
@@ -665,9 +640,7 @@ async def upload_cancel(
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Фоновая задача очистки протухших сессий
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def cleanup_sessions_loop(interval_sec: int = 3600) -> None:
     """

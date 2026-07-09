@@ -65,7 +65,6 @@ async def system_info(request: Request) -> SystemInfo:
     )
 
 
-# ── Seed-phrase identity ──────────────────────────────────────────────────
 
 
 @router.get("/generate-seed")
@@ -322,7 +321,6 @@ async def resolve_sns(domain: str = "vortexx.sol") -> dict:
     }
 
 
-# ── Cloudflare tunnel lifecycle ──────────────────────────────────────────
 # A Global-mode node is typically behind a home NAT and needs a public URL
 # to receive traffic. The wizard spawns a long-lived `cloudflared tunnel`
 # child process and parses its stdout for the assigned trycloudflare.com
@@ -491,7 +489,6 @@ async def check_port(port: int) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────
 
 
 def _detect_local_ips() -> list[str]:

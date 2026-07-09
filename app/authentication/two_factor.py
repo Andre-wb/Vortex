@@ -19,7 +19,6 @@ from app.authentication.password import (
     consume_password_verified, has_password_verified,
 )
 
-# ── Per-user TOTP rate limiter (in-memory) ────────────────────────────────
 _totp_attempts: dict[int, list] = {}  # user_id -> [timestamps]
 _TOTP_MAX_ATTEMPTS = 5
 _TOTP_WINDOW = 300  # 5 minutes

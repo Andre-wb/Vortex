@@ -25,7 +25,6 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
 
-# ── MIME types not in SimpleHTTPRequestHandler defaults ──────────────────────
 
 EXTRA_MIME = {
     '.js':    'application/javascript',

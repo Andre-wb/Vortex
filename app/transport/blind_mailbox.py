@@ -30,7 +30,6 @@ from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 
-# ── Rust backend (50x faster) with Python fallback ──────────────────────────
 try:
     import vortex_chat as _vc
     _RUST_BMP = True
@@ -41,7 +40,6 @@ except ImportError:
 
 router = APIRouter(prefix="/api/bmp", tags=["blind-mailbox"])
 
-# ── Configuration ────────────────────────────────────────────────────────────
 
 BMP_MAX_MSG_SIZE = 64 * 1024          # 64 KB max per message
 BMP_MAX_MSGS_PER_BOX = 200            # max messages per mailbox
@@ -51,7 +49,6 @@ BMP_MAX_BATCH = 100                   # max mailboxes per batch request
 BMP_RATE_LIMIT_PER_MIN = 600          # max operations per user per minute
 
 
-# ── In-memory Mailbox Store ──────────────────────────────────────────────────
 
 @dataclass
 class MailboxMessage:
@@ -197,12 +194,10 @@ class BlindMailboxStore:
                 logger.debug("[BMP] GC error: %s", e)
 
 
-# ── Global store instance ────────────────────────────────────────────────────
 
 store = BlindMailboxStore()
 
 
-# ── Rate limiting (per-IP, not per-user — we don't track users) ──────────────
 
 _rate_counters: dict[str, list[float]] = defaultdict(list)
 
@@ -225,7 +220,6 @@ def _get_ip(request: Request) -> str:
     return raw_ip_for_ratelimit(request)
 
 
-# ── Request/Response models ──────────────────────────────────────────────────
 
 class DepositRequest(BaseModel):
     ct: str = Field(..., min_length=24, max_length=BMP_MAX_MSG_SIZE * 2,
@@ -238,7 +232,6 @@ class BatchRequest(BaseModel):
     since: float = Field(0, description="Fetch messages newer than this timestamp")
 
 
-# ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/post/{mailbox_id}")
 async def bmp_deposit(
@@ -300,7 +293,6 @@ async def bmp_manual_gc(u: User = Depends(get_current_user)):
     return {"removed": removed, **store.stats()}
 
 
-# ── Startup helper ───────────────────────────────────────────────────────────
 
 async def start_bmp():
     """Call from app lifespan to start BMP GC loop."""
@@ -312,9 +304,7 @@ async def start_bmp():
         logger.info("[BMP] Python fallback started (TTL=%ds, max_batch=%d)", BMP_TTL_SECONDS, BMP_MAX_BATCH)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # UNIFIED BMP TRANSPORT — Room Secret Store + Envelope Deposit
-# ═══════════════════════════════════════════════════════════════════════════════
 
 import hashlib
 import hmac
@@ -450,7 +440,6 @@ def _emit_wake_signal(mailbox_id: str):
     logger.debug("[BMP] Wake signal category=%d for mailbox %s", category, mailbox_id[:8])
 
 
-# ── BMP Secret Registration Endpoint ──────────────────────────────────────────
 
 class BMPSecretRequest(BaseModel):
     secret: str = Field(..., min_length=64, max_length=64,
@@ -486,7 +475,6 @@ async def register_room_secret(
     return {"ok": True}
 
 
-# ── Fast Batch Endpoint (for WebRTC signaling, Phase 4) ──────────────────────
 
 @router.post("/fast-batch")
 async def bmp_fast_batch(

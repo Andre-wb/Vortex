@@ -56,7 +56,6 @@ class Scheduler:
         self._tick_sec = 30
         self._load_state()
 
-    # ── Job registration ────────────────────────────────────────────────
     def register(self, name: str, fn: JobFn, default_interval: str = "off") -> None:
         existing = self._jobs.get(name)
         if existing:
@@ -99,7 +98,6 @@ class Scheduler:
             raise KeyError(name)
         return await self._run(j)
 
-    # ── Lifecycle ───────────────────────────────────────────────────────
     def start(self) -> None:
         if self._task is not None and not self._task.done():
             return
@@ -115,7 +113,6 @@ class Scheduler:
                 pass
             self._task = None
 
-    # ── Internals ───────────────────────────────────────────────────────
     async def _loop(self) -> None:
         while not self._stop.is_set():
             now = int(time.time())

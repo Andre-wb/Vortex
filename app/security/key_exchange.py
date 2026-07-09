@@ -78,9 +78,7 @@ from app.security.crypto import (
 logger = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ECIES: шифрование данных для X25519 получателя
-# ══════════════════════════════════════════════════════════════════════════════
 
 def ecies_encrypt(plaintext: bytes, recipient_pub_hex: str) -> dict:
     """
@@ -157,9 +155,7 @@ def ecies_decrypt_node(ephemeral_pub_hex: str, ciphertext_hex: str, our_node_pri
     return bytes(result)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # P2P шифрование между узлами Vortex
-# ══════════════════════════════════════════════════════════════════════════════
 
 def encrypt_p2p_payload(payload_dict: dict, our_node_private: bytes, peer_node_pub_hex: str) -> dict:
     """
@@ -203,9 +199,7 @@ def decrypt_p2p_payload(ephemeral_pub_hex: str, ciphertext_hex: str,
         raise ValueError(f"Failed to decrypt P2P payload: {e}") from e
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Утилиты для форматирования (используются в rooms.py и chat.py)
-# ══════════════════════════════════════════════════════════════════════════════
 
 def format_encrypted_key(enc_dict: dict) -> Tuple[str, str]:
     """

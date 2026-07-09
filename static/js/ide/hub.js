@@ -1,4 +1,3 @@
-// ── Hub ───────────────────────────────────────────────────────
 function ideRenderHub() {
     const grid = document.getElementById('ide-projects-grid');
     if (!grid) return;
@@ -38,7 +37,6 @@ function ideRenderHub() {
     grid.appendChild(newCard);
 }
 
-// ── Create project ────────────────────────────────────────────
 function ideShowCreateModal() {
     document.getElementById('ide-create-name').value     = '';
     document.getElementById('ide-create-token').value    = '';
@@ -60,7 +58,6 @@ function ideHideCreateModal() {
     document.getElementById('ide-create-modal').classList.remove('open');
 }
 
-// ── Project settings ──────────────────────────────────────────
 function ideShowSettings() {
     if (!IDE.current) return;
     document.getElementById('ide-settings-name').value        = IDE.current.name         || '';
@@ -318,7 +315,6 @@ function ideDeleteProject(idx) {
     ideRenderHub();
 }
 
-// ── Open project ──────────────────────────────────────────────
 function ideOpenProject(idx) {
     IDE.current   = IDE.projects[idx];
     IDE.openFiles = [];

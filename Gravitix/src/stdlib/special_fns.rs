@@ -2,14 +2,11 @@ use crate::value::Value;
 use crate::error::GravResult;
 use crate::runtime_err;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Special mathematical functions
 //
 // All implementations are pure Rust — no external dependencies.
 // Uses well-known numerical approximation algorithms.
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── Lanczos gamma coefficients (g=7, 9 terms) ──────────────────────────────
 
 const LANCZOS_G: f64 = 7.0;
 const LANCZOS_C: [f64; 9] = [
@@ -26,7 +23,6 @@ const LANCZOS_C: [f64; 9] = [
 
 const EULER_MASCHERONI: f64 = 0.577_215_664_901_532_9;
 
-// ── Argument extraction helper ──────────────────────────────────────────────
 
 fn require_float(args: &[Value], idx: usize, fn_name: &str) -> GravResult<f64> {
     args.get(idx)
@@ -40,9 +36,7 @@ fn require_int(args: &[Value], idx: usize, fn_name: &str) -> GravResult<i64> {
         .ok_or_else(|| runtime_err!("{fn_name}: expected integer at position {idx}"))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal implementations
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Gamma function via Lanczos approximation
 fn gamma_impl(x: f64) -> f64 {
@@ -619,14 +613,11 @@ fn ci_impl(x: f64) -> f64 {
     sum
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>> {
     let v = match name {
 
-        // ── Gamma function family ───────────────────────────────────────────
         "gamma" => {
             let x = require_float(args, 0, "gamma")?;
             Value::Float(gamma_impl(x))
@@ -648,7 +639,6 @@ pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Float(result)
         }
 
-        // ── Error function ──────────────────────────────────────────────────
         "erf" => {
             let x = require_float(args, 0, "erf")?;
             Value::Float(erf_impl(x))
@@ -658,7 +648,6 @@ pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Float(1.0 - erf_impl(x))
         }
 
-        // ── Riemann zeta ────────────────────────────────────────────────────
         "zeta" => {
             let s = require_float(args, 0, "zeta")?;
             if s <= 1.0 {
@@ -667,7 +656,6 @@ pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Float(zeta_impl(s))
         }
 
-        // ── Bessel functions ────────────────────────────────────────────────
         "bessel_j" => {
             let n = require_int(args, 0, "bessel_j")?;
             let x = require_float(args, 1, "bessel_j")?;
@@ -682,7 +670,6 @@ pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Float(bessel_y_impl(n, x))
         }
 
-        // ── Airy functions ──────────────────────────────────────────────────
         "airy_ai" => {
             let x = require_float(args, 0, "airy_ai")?;
             Value::Float(airy_ai_impl(x))
@@ -692,7 +679,6 @@ pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Float(airy_bi_impl(x))
         }
 
-        // ── Orthogonal polynomials ──────────────────────────────────────────
         "legendre" => {
             let n = require_int(args, 0, "legendre")? as usize;
             let x = require_float(args, 1, "legendre")?;
@@ -766,7 +752,6 @@ pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             }
         }
 
-        // ── Elliptic integrals ──────────────────────────────────────────────
         "elliptic_k" => {
             let m = require_float(args, 0, "elliptic_k")?;
             Value::Float(elliptic_k_impl(m))
@@ -776,7 +761,6 @@ pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Float(elliptic_e_impl(m))
         }
 
-        // ── Number-theoretic functions ──────────────────────────────────────
         "bernoulli" => {
             let n = require_int(args, 0, "bernoulli")?;
             Value::Float(bernoulli_impl(n))
@@ -800,7 +784,6 @@ pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             }
         }
 
-        // ── Integral functions ──────────────────────────────────────────────
         "li" => {
             let x = require_float(args, 0, "li")?;
             Value::Float(li_impl(x))
@@ -818,15 +801,12 @@ pub fn call_special_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Float(ci_impl(x))
         }
 
-        // ── Unknown — let the caller decide ─────────────────────────────────
         _ => return Ok(None),
     };
     Ok(Some(v))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -840,7 +820,6 @@ mod tests {
         if b.abs() < 1e-15 { a.abs() < tol } else { ((a - b) / b).abs() < tol }
     }
 
-    // ── Gamma ───────────────────────────────────────────────────────────────
 
     #[test]
     fn test_gamma_integers() {
@@ -883,7 +862,6 @@ mod tests {
         assert!(approx(r.as_float().unwrap(), std::f64::consts::PI));
     }
 
-    // ── Error function ──────────────────────────────────────────────────────
 
     #[test]
     fn test_erf_zero() {
@@ -903,7 +881,6 @@ mod tests {
         assert!(approx(r.as_float().unwrap(), 1.0));
     }
 
-    // ── Zeta ────────────────────────────────────────────────────────────────
 
     #[test]
     fn test_zeta_2() {
@@ -918,7 +895,6 @@ mod tests {
         assert!(r.is_err());
     }
 
-    // ── Bessel ──────────────────────────────────────────────────────────────
 
     #[test]
     fn test_bessel_j0_zero() {
@@ -932,7 +908,6 @@ mod tests {
         assert!(approx(r.as_float().unwrap(), 0.0));
     }
 
-    // ── Orthogonal polynomials ──────────────────────────────────────────────
 
     #[test]
     fn test_legendre() {
@@ -970,7 +945,6 @@ mod tests {
         assert!(approx(r.as_float().unwrap(), 0.0));
     }
 
-    // ── Elliptic integrals ──────────────────────────────────────────────────
 
     #[test]
     fn test_elliptic_k_zero() {
@@ -986,7 +960,6 @@ mod tests {
         assert!(approx(r.as_float().unwrap(), std::f64::consts::FRAC_PI_2));
     }
 
-    // ── Number-theoretic ────────────────────────────────────────────────────
 
     #[test]
     fn test_bernoulli() {
@@ -1013,7 +986,6 @@ mod tests {
         assert!(approx(r.as_float().unwrap(), 11.0 / 6.0));
     }
 
-    // ── Integral functions ──────────────────────────────────────────────────
 
     #[test]
     fn test_si_zero() {
@@ -1035,7 +1007,6 @@ mod tests {
         assert!(approx_rel(r.as_float().unwrap(), 1.8951178, 1e-4));
     }
 
-    // ── Airy ────────────────────────────────────────────────────────────────
 
     #[test]
     fn test_airy_ai_zero() {

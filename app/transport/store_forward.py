@@ -34,7 +34,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ── Limits ───────────────────────────────────────────────────────────────────
 
 MAX_PENDING_PER_USER = 1000       # max queued messages per recipient
 MAX_MESSAGE_SIZE = 256 * 1024     # 256KB max per stored message

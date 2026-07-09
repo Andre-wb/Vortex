@@ -1,4 +1,3 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  antispam_bot.grav — Combot-уровня антиспам для Vortex
 //  Запуск: gravitix run antispam_bot.grav --token BOT_TOKEN
 //
@@ -16,9 +15,7 @@
 //   • Anti-raid (массовый join detection)
 //   • Статистика, лог действий, дашборд
 //   • Полная настройка через команды
-// ════════════════════════════════════════════════════════════════════════════
 
-// ── Состояние бота ──────────────────────────────────────────────────────────
 
 state {
     // Конфигурация (дефолты можно менять через /config)
@@ -116,9 +113,7 @@ state {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 //  Вспомогательные функции
-// ════════════════════════════════════════════════════════════════════════════
 
 fn is_admin(user_id: int) -> bool {
     return check_permission(user_id, "admin") || check_permission(user_id, "owner");
@@ -204,20 +199,17 @@ fn escalate(room_id: int, user_id: int, reason: str) {
     s["last_ts"] = ts();
 
     if s["warns"] >= cfg["warn_before_mute"] + cfg["mute_before_kick"] + cfg["kick_before_ban"] {
-        // ── BAN ──
         vortex_ban(room_id, user_id, reason);
         state.stats["bans_issued"] = state.stats["bans_issued"] + 1;
         log_action("ban", user_id, room_id, reason);
         emit "🚫 @{ctx.username} забанен: {reason}";
     } elif s["warns"] >= cfg["warn_before_mute"] + cfg["mute_before_kick"] {
-        // ── KICK ──
         s["kicks"] = s["kicks"] + 1;
         vortex_kick(room_id, user_id);
         state.stats["kicks_issued"] = state.stats["kicks_issued"] + 1;
         log_action("kick", user_id, room_id, reason);
         emit "👢 @{ctx.username} кикнут: {reason}";
     } elif s["warns"] >= cfg["warn_before_mute"] {
-        // ── MUTE ──
         s["mutes"] = s["mutes"] + 1;
         let dur = cfg["mute_duration"];
         vortex_mute(room_id, user_id, dur);
@@ -225,7 +217,6 @@ fn escalate(room_id: int, user_id: int, reason: str) {
         log_action("mute", user_id, room_id, "{reason} ({dur}s)");
         emit "🔇 @{ctx.username} замучен на {dur}с: {reason}";
     } else {
-        // ── WARN ──
         let left = cfg["warn_before_mute"] - s["warns"];
         vortex_warn(room_id, user_id, reason);
         state.stats["warns_issued"] = state.stats["warns_issued"] + 1;
@@ -272,9 +263,7 @@ fn make_captcha() -> map {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 //  Детекторы спама
-// ════════════════════════════════════════════════════════════════════════════
 
 /// 1. Flood detector — слишком много сообщений за окно
 fn check_flood(room_id: int, user_id: int) -> bool {
@@ -393,9 +382,7 @@ fn check_emoji_spam(text: str) -> bool {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 //  Главный обработчик сообщений
-// ════════════════════════════════════════════════════════════════════════════
 
 on msg {
     let text = ctx.text;
@@ -425,7 +412,6 @@ on msg {
 
     state.stats["messages_scanned"] = state.stats["messages_scanned"] + 1;
 
-    // ── Проверки (от быстрых к медленным) ──
 
     // 1. Flood
     if check_flood(ctx.room_id, ctx.user_id) {
@@ -485,9 +471,7 @@ on msg {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 //  Обработка forward (пересылок) — часто используется для спама
-// ════════════════════════════════════════════════════════════════════════════
 
 on forward guard state.modules["forwards"] {
     if is_admin(ctx.user_id) || is_whitelisted(ctx.user_id) { return; }
@@ -496,14 +480,11 @@ on forward guard state.modules["forwards"] {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 //  Anti-raid: массовый вход участников
-// ════════════════════════════════════════════════════════════════════════════
 
 on join {
     let cfg = state.config;
 
-    // ── Captcha для новых участников ──
     if state.modules["captcha"] {
         let cap = make_captcha();
         state.captcha_pending[ctx.user_id] = {
@@ -515,7 +496,6 @@ on join {
         emit "👋 Добро пожаловать, @{ctx.username}! Для верификации решите: {cap[\"question\"]} = ?";
     }
 
-    // ── Raid detection ──
     if state.modules["raid"] {
         let rid = ctx.room_id;
         if !has(state.raid_tracker, str(rid)) {
@@ -542,9 +522,7 @@ on join {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 //  Очистка captcha по таймауту (каждую минуту)
-// ════════════════════════════════════════════════════════════════════════════
 
 every 1 minutes {
     let expired = [];
@@ -564,9 +542,7 @@ every 1 minutes {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 //  Ночной режим (по расписанию)
-// ════════════════════════════════════════════════════════════════════════════
 
 every 30 minutes {
     if !state.modules["night"] { return; }
@@ -591,9 +567,7 @@ every 30 minutes {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 //  Ежечасная ротация трекеров (чтобы не расти бесконечно)
-// ════════════════════════════════════════════════════════════════════════════
 
 every 1 hours {
     let cutoff_msg = ts() - 120;   // 2 минуты
@@ -645,11 +619,8 @@ every 1 hours {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 //  Команды администратора
-// ════════════════════════════════════════════════════════════════════════════
 
-// ── Главное меню ──
 on /antispam guard is_admin(ctx.user_id) {
     emit """🛡 <b>Vortex AntiSpam Bot</b>
 
@@ -666,7 +637,6 @@ on /antispam guard is_admin(ctx.user_id) {
   /strikes USER_ID   — посмотреть страйки""";
 }
 
-// ── Статистика ──
 on /antispam_status guard is_admin(ctx.user_id) {
     let s = state.stats;
     let modules_on = 0;
@@ -695,7 +665,6 @@ Whitelist: {len(state.whitelist)} пользователей
 Паттерны: {len(state.patterns)}""";
 }
 
-// ── Текущая конфигурация ──
 on /antispam_config guard is_admin(ctx.user_id) {
     let lines = ["⚙️ <b>Конфигурация:</b>\n"];
     for k in keys(state.config) {
@@ -710,7 +679,6 @@ on /antispam_config guard is_admin(ctx.user_id) {
     emit join(lines, "\n");
 }
 
-// ── Лог действий ──
 on /antispam_log guard is_admin(ctx.user_id) {
     let log = state.action_log;
     if len(log) == 0 {
@@ -730,7 +698,6 @@ on /antispam_log guard is_admin(ctx.user_id) {
     emit join(lines, "\n");
 }
 
-// ── Включить/выключить модуль ──
 on /module guard is_admin(ctx.user_id) {
     let args = ctx.args;
     if len(args) < 2 {
@@ -754,7 +721,6 @@ on /module guard is_admin(ctx.user_id) {
     }
 }
 
-// ── Изменить параметр ──
 on /set guard is_admin(ctx.user_id) {
     let args = ctx.args;
     if len(args) < 2 {
@@ -771,7 +737,6 @@ on /set guard is_admin(ctx.user_id) {
     emit "✅ {key} = {val}";
 }
 
-// ── Whitelist ──
 on /whitelist guard is_admin(ctx.user_id) {
     let args = ctx.args;
     if len(args) < 2 {
@@ -789,7 +754,6 @@ on /whitelist guard is_admin(ctx.user_id) {
     }
 }
 
-// ── Стоп-слова ──
 on /stopword guard is_admin(ctx.user_id) {
     let args = ctx.args;
     if len(args) < 2 {
@@ -821,7 +785,6 @@ on /stopword guard is_admin(ctx.user_id) {
     }
 }
 
-// ── Паттерны ──
 on /pattern guard is_admin(ctx.user_id) {
     let args = ctx.args;
     if len(args) < 2 {
@@ -850,7 +813,6 @@ on /pattern guard is_admin(ctx.user_id) {
     }
 }
 
-// ── Просмотр страйков пользователя ──
 on /strikes guard is_admin(ctx.user_id) {
     let args = ctx.args;
     if len(args) < 1 {
@@ -866,7 +828,6 @@ on /strikes guard is_admin(ctx.user_id) {
   Последнее действие: {s["last_ts"]}""";
 }
 
-// ── Сброс страйков ──
 on /antispam_reset guard is_admin(ctx.user_id) {
     let args = ctx.args;
     if len(args) < 1 {
@@ -878,12 +839,10 @@ on /antispam_reset guard is_admin(ctx.user_id) {
     emit "✅ Страйки для user {uid} сброшены.";
 }
 
-// ── Не-админ пробует команду ──
 on /antispam {
     emit "⛔️ Только для администраторов.";
 }
 
-// ── Справка для обычных пользователей ──
 on /antispam_help {
     emit """🛡 <b>AntiSpam Bot</b>
 

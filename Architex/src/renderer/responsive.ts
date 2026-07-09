@@ -5,7 +5,6 @@ import type { StateAPI }  from '../reactive/types.js';
 import type { RenderCtx } from './types.js';
 import { resolveValue }   from './values.js';
 
-// ── Responsive CSS class injection ──────────────────────────────────────────
 
 let _responsiveCounter = 0;
 let _responsiveSheet: CSSStyleSheet | null = null;
@@ -23,7 +22,6 @@ function getResponsiveSheet(): CSSStyleSheet {
   return _responsiveSheet;
 }
 
-// ── Modifier-to-CSS mapping ─────────────────────────────────────────────────
 
 interface CSSProp {
   property: string;
@@ -68,7 +66,6 @@ function modToCSSProps(innerMod: Modifier, state: StateAPI, ctx: RenderCtx): CSS
   return props;
 }
 
-// ── Breakpoint definitions ──────────────────────────────────────────────────
 
 const BREAKPOINTS: Record<string, string> = {
   mobile:  '(max-width: 767px)',
@@ -76,7 +73,6 @@ const BREAKPOINTS: Record<string, string> = {
   desktop: '(min-width: 1024px)',
 };
 
-// ── Apply responsive modifier ───────────────────────────────────────────────
 
 /**
  * Apply a responsive modifier. The outer modifier (mobile/tablet/desktop)
@@ -134,7 +130,6 @@ export function applyResponsiveModifier(
   }
 }
 
-// ── @media directive support via matchMedia ─────────────────────────────────
 
 /**
  * Apply @media directive for conditional rendering.

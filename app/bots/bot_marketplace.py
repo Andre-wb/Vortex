@@ -28,9 +28,7 @@ from app.bots.bot_shared import (
 logger = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot Marketplace: publish toggle (owner only)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/bots/{bot_id}/publish")
 async def publish_bot(
@@ -55,9 +53,7 @@ async def publish_bot(
     return {"ok": True, "is_public": bot.is_public, "category": bot.category}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot Marketplace: browsing endpoints (JWT auth)
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _serialize_bot_card(b: Bot) -> dict:
     """Serialize a Bot to a marketplace card dict."""
@@ -184,9 +180,7 @@ async def marketplace_list(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot Marketplace: reviews
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/api/marketplace/{bot_id}/reviews")
 async def marketplace_reviews(
@@ -281,9 +275,7 @@ async def submit_review(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot Marketplace: install (add public bot to room)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/marketplace/{bot_id}/install/{room_id}")
 async def marketplace_install(

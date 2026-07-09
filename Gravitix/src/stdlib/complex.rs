@@ -2,12 +2,10 @@ use crate::value::Value;
 use crate::error::GravResult;
 use crate::runtime_err;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Complex number operations
 //
 // Works with Value::Complex(re, im) — being added by another agent.
 // Also promotes Int/Float to complex (re, 0.0) transparently.
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn as_complex(v: &Value) -> Option<(f64, f64)> {
     match v {
@@ -42,9 +40,7 @@ fn cexp_impl(re: f64, im: f64) -> (f64, f64) {
     (r * im.cos(), r * im.sin())
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Argument extraction helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn require_complex(args: &[Value], idx: usize, fn_name: &str) -> GravResult<(f64, f64)> {
     args.get(idx)
@@ -58,21 +54,17 @@ fn require_float(args: &[Value], idx: usize, fn_name: &str) -> GravResult<f64> {
         .ok_or_else(|| runtime_err!("{fn_name}: expected number at position {idx}"))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn call_complex_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>> {
     let v = match name {
 
-        // ── Constructor ─────────────────────────────────────────────────────
         "complex" => {
             let re = require_float(args, 0, "complex")?;
             let im = require_float(args, 1, "complex")?;
             Value::Complex(re, im)
         }
 
-        // ── Accessors ───────────────────────────────────────────────────────
         "re" => {
             let (re, _) = require_complex(args, 0, "re")?;
             Value::Float(re)
@@ -82,39 +74,33 @@ pub fn call_complex_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Float(im)
         }
 
-        // ── Conjugate ───────────────────────────────────────────────────────
         "conj" => {
             let (re, im) = require_complex(args, 0, "conj")?;
             Value::Complex(re, -im)
         }
 
-        // ── Modulus (absolute value) ────────────────────────────────────────
         "cabs" => {
             let (re, im) = require_complex(args, 0, "cabs")?;
             Value::Float((re * re + im * im).sqrt())
         }
 
-        // ── Argument (phase angle) ──────────────────────────────────────────
         "arg" => {
             let (re, im) = require_complex(args, 0, "arg")?;
             Value::Float(im.atan2(re))
         }
 
-        // ── Polar → Complex ─────────────────────────────────────────────────
         "polar" => {
             let r = require_float(args, 0, "polar")?;
             let theta = require_float(args, 1, "polar")?;
             Value::Complex(r * theta.cos(), r * theta.sin())
         }
 
-        // ── Complex exponential ─────────────────────────────────────────────
         "cexp" => {
             let (re, im) = require_complex(args, 0, "cexp")?;
             let (er, ei) = cexp_impl(re, im);
             Value::Complex(er, ei)
         }
 
-        // ── Complex logarithm ───────────────────────────────────────────────
         "clog" => {
             let (re, im) = require_complex(args, 0, "clog")?;
             if re == 0.0 && im == 0.0 {
@@ -124,21 +110,18 @@ pub fn call_complex_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Complex(lr, li)
         }
 
-        // ── Complex sine ────────────────────────────────────────────────────
         // sin(a + bi) = sin(a)cosh(b) + i*cos(a)sinh(b)
         "csin" => {
             let (a, b) = require_complex(args, 0, "csin")?;
             Value::Complex(a.sin() * b.cosh(), a.cos() * b.sinh())
         }
 
-        // ── Complex cosine ──────────────────────────────────────────────────
         // cos(a + bi) = cos(a)cosh(b) - i*sin(a)sinh(b)
         "ccos" => {
             let (a, b) = require_complex(args, 0, "ccos")?;
             Value::Complex(a.cos() * b.cosh(), -(a.sin() * b.sinh()))
         }
 
-        // ── Complex tangent ─────────────────────────────────────────────────
         // tan(z) = sin(z) / cos(z)
         "ctan" => {
             let (a, b) = require_complex(args, 0, "ctan")?;
@@ -154,7 +137,6 @@ pub fn call_complex_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Complex(tr, ti)
         }
 
-        // ── Complex power ───────────────────────────────────────────────────
         // z^w = exp(w * log(z))
         "cpow" => {
             let (zr, zi) = require_complex(args, 0, "cpow")?;
@@ -174,7 +156,6 @@ pub fn call_complex_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             }
         }
 
-        // ── Complex square root (principal) ─────────────────────────────────
         // sqrt(z) = sqrt(|z|) * exp(i * arg(z) / 2)
         "csqrt" => {
             let (re, im) = require_complex(args, 0, "csqrt")?;
@@ -184,7 +165,6 @@ pub fn call_complex_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Complex(r * theta.cos(), r * theta.sin())
         }
 
-        // ── Mobius transform ────────────────────────────────────────────────
         // (a*z + b) / (c*z + d)
         "mobius" => {
             let (ar, ai) = require_complex(args, 0, "mobius")?;
@@ -208,7 +188,6 @@ pub fn call_complex_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Complex(rr, ri)
         }
 
-        // ── Numerical residue ───────────────────────────────────────────────
         // Requires runtime function support — not yet available.
         "residue" => {
             // TODO: Needs runtime function passing support to evaluate f(z)
@@ -216,7 +195,6 @@ pub fn call_complex_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Null
         }
 
-        // ── Contour integral ────────────────────────────────────────────────
         // Requires runtime function support — not yet available.
         "contour_integral" => {
             // TODO: Needs runtime function passing support to evaluate f(z)
@@ -224,15 +202,12 @@ pub fn call_complex_builtin(name: &str, args: &[Value]) -> GravResult<Option<Val
             Value::Null
         }
 
-        // ── Unknown — let the caller decide ─────────────────────────────────
         _ => return Ok(None),
     };
     Ok(Some(v))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

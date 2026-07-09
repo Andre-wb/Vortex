@@ -33,7 +33,6 @@ test.describe('Tasks & Saved & Statuses', () => {
         messageId = msgBody.id || msgBody.message_id;
     });
 
-    // ── Tasks ─────────────────────────────────────────────────────────────────
 
     test('create task in room', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/tasks`, {
@@ -83,7 +82,6 @@ test.describe('Tasks & Saved & Statuses', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Saved Messages ────────────────────────────────────────────────────────
 
     test('save message (toggle on)', async ({ request }) => {
         expect(messageId).toBeTruthy();
@@ -118,7 +116,6 @@ test.describe('Tasks & Saved & Statuses', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Statuses ──────────────────────────────────────────────────────────────
 
     test('post status', async ({ request }) => {
         const res = await request.post('/api/statuses', {

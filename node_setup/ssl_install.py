@@ -1,5 +1,4 @@
 # node_setup/ssl_install.py
-# ==============================================================================
 # Установка CA-сертификата в системное хранилище доверия.
 #
 # Пароль администратора приходит из wizard web UI.
@@ -7,7 +6,6 @@
 #   macOS  — sudo -S + security add-trusted-cert
 #   Linux  — sudo -S + cp + update-ca-certificates
 #   Windows — certutil (UAC автоматически, пароль не нужен)
-# ==============================================================================
 
 from __future__ import annotations
 
@@ -45,9 +43,7 @@ def install_ca_to_trust_store(ca_path: Path, password: Optional[str] = None) -> 
     return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # sudo -S helper
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _sudo_run(cmd: list[str], password: str) -> subprocess.CompletedProcess:
     """Запускает команду через sudo -S (пароль через stdin)."""
@@ -59,9 +55,7 @@ def _sudo_run(cmd: list[str], password: str) -> subprocess.CompletedProcess:
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # macOS
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _install_ca_macos(ca_path: Path, password: str) -> bool:
     """Установка CA на macOS через security add-trusted-cert."""
@@ -77,9 +71,7 @@ def _install_ca_macos(ca_path: Path, password: str) -> bool:
     return result.returncode == 0
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Windows
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _install_ca_windows(ca_path: Path) -> bool:
     """Установка CA на Windows через certutil (UAC prompt автоматически)."""
@@ -94,9 +86,7 @@ def _install_ca_windows(ca_path: Path) -> bool:
     return result.returncode == 0
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Debian/Ubuntu
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _install_ca_debian(ca_path: Path, password: str) -> bool:
     """Установка CA на Debian/Ubuntu."""
@@ -108,9 +98,7 @@ def _install_ca_debian(ca_path: Path, password: str) -> bool:
     return r2.returncode == 0
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Generic Linux (RHEL, Arch, etc.)
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _install_ca_linux_generic(ca_path: Path, password: str) -> bool:
     """Попытка установки CA на других Linux-системах."""
@@ -128,9 +116,7 @@ def _install_ca_linux_generic(ca_path: Path, password: str) -> bool:
     return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Manual instructions (fallback)
-# ══════════════════════════════════════════════════════════════════════════════
 
 def get_ca_install_instructions(ca_path: Path) -> str:
     """

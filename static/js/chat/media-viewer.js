@@ -10,7 +10,6 @@
 import { $, esc, fmtSize } from '../utils.js';
 import { t } from '../i18n.js';
 
-// ── State ────────────────────────────────────────────────────────────────────
 let _activeViewer = null;
 
 function _close() {
@@ -55,7 +54,6 @@ function _header(parent, title, extra) {
     return hdr;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
 const _fmtSec = s => {
     const m = Math.floor(s / 60);
     return m + ':' + String(Math.floor(s % 60)).padStart(2, '0');
@@ -76,9 +74,7 @@ function _speedBtn(mediaEl) {
     return btn;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 1. VIDEO NOTE — circular viewer with SVG ring seek
-// ══════════════════════════════════════════════════════════════════════════════
 export function openVideoNoteViewer(url, fileName) {
     _close();
     const root = _backdrop();
@@ -208,9 +204,7 @@ export function openVideoNoteViewer(url, fileName) {
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 2. VIDEO PLAYER — standard modal
-// ══════════════════════════════════════════════════════════════════════════════
 export function openVideoViewer(url, fileName) {
     _close();
     const root = _backdrop();
@@ -311,9 +305,7 @@ async function _fetchWithProgress(url, onProgress) {
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 3. AUDIO PLAYER
-// ══════════════════════════════════════════════════════════════════════════════
 export function openAudioViewer(url, fileName) {
     _close();
     const root = _backdrop();
@@ -377,9 +369,7 @@ export function openAudioViewer(url, fileName) {
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 4. DOCUMENT VIEWER — PDF, SVG, text, images, fallback download
-// ══════════════════════════════════════════════════════════════════════════════
 /**
  * Fetch file, attempt E2E decryption, return ArrayBuffer.
  */
@@ -661,9 +651,7 @@ export function openDocViewer(url, fileName, mimeType) {
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 5. Live Photo support helper
-// ══════════════════════════════════════════════════════════════════════════════
 export function openLivePhoto(imageUrl, videoUrl, fileName) {
     _close();
     const root = _backdrop();
@@ -720,10 +708,8 @@ export function openLivePhoto(imageUrl, videoUrl, fileName) {
     root.appendChild(card);
 }
 
-// ── Close export ─────────────────────────────────────────────────────────────
 export function closeMediaViewer() { _close(); }
 
-// ── Global window exports ────────────────────────────────────────────────────
 window.openVideoNoteViewer = openVideoNoteViewer;
 window.openVideoViewer = openVideoViewer;
 window.openAudioViewer = openAudioViewer;

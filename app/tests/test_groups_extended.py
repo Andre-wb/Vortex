@@ -38,7 +38,6 @@ import pytest
 from conftest import make_user, login_user, random_str, SyncASGIClient
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _register_and_login(client) -> tuple[dict, dict]:
     u = make_user(client)
@@ -72,9 +71,7 @@ def _join_room(client, room: dict, headers: dict) -> None:
     assert r.status_code in (200, 201, 204), f"join room failed: {r.status_code} {r.text}"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Topics
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestTopics:
 
@@ -223,9 +220,7 @@ class TestTopics:
             assert field in t, f"Missing field: {field}"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Forum Threads
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestForumThreads:
 
@@ -421,9 +416,7 @@ class TestForumThreads:
         assert r.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Granular Permissions
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPermissions:
 
@@ -517,9 +510,7 @@ class TestPermissions:
         assert member_perm["allow"] == 15
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Auto-Moderation
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestAutoMod:
 
@@ -720,9 +711,7 @@ class TestAutoMod:
         assert r.status_code == 201
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Per-User Slowmode
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSlowmode:
 

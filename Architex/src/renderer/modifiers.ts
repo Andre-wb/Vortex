@@ -95,7 +95,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
       }
       case 'keyframes': el.style.animationName = String(a0 ?? ''); break;
 
-      // ── hover(transform, duration) ──
       case 'hover': {
         // hover(scale(1.05), 200ms) → on mouseenter scale up, on mouseleave scale back
         const transformArg = String(a0 ?? 'scale(1.05)');
@@ -224,7 +223,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
       case 'nowrap':    el.style.whiteSpace = 'nowrap'; break;
       case 'prewrap':   el.style.whiteSpace = 'pre-wrap'; break;
 
-      // ── NEW: Format filter — format(type, locale?) ──
       case 'format': {
         const formatType = String(a0 ?? 'number');
         const locale     = a1 != null ? String(a1) : undefined;
@@ -247,27 +245,23 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── NEW: Debounce — debounce(ms) ──
       case 'debounce': {
         const ms = typeof a0 === 'number' ? a0 : 300;
         (el as unknown as Record<string, unknown>).__arx_debounce = ms;
         break;
       }
 
-      // ── NEW: Screen transition hint — transition(type) ──
       case 'screen_transition':
       case 'screentransition': {
         el.dataset['arxTransition'] = String(a0 ?? 'fade');
         break;
       }
 
-      // ── Validate modifier — form validation ──
       case 'validate': {
         applyValidation(el, mod, state, ctx);
         break;
       }
 
-      // ── Gesture modifiers ──
       case 'swipe':
       case 'swipeleft':
       case 'swiperight':
@@ -296,7 +290,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Drag & Drop modifiers ──
       case 'draggable': {
         applyDraggable(el, mod, state, ctx);
         break;
@@ -306,7 +299,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Responsive breakpoint modifiers ──
       case 'mobile':
       case 'tablet':
       case 'desktop': {
@@ -318,7 +310,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Feature 15: Enhanced Grid Layout ──
       case 'autogrid': {
         el.style.display = 'grid';
         const minWidth = a0 != null ? toCSSLen(a0, '200px') : '200px';
@@ -332,7 +323,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
       case 'rowend':    el.style.gridRowEnd      = String(a0 ?? 'auto'); break;
       case 'rowspan':   el.style.gridRow         = `span ${String(a0 ?? 1)}`; break;
 
-      // ── Feature 16: Position shortcuts ──
       case 'fixed':    el.style.position = 'fixed'; break;
       case 'absolute': el.style.position = 'absolute'; break;
       case 'relative': el.style.position = 'relative'; break;
@@ -341,7 +331,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
       case 'bottom':   el.style.bottom = toCSSLen(a0, '0'); break;
       case 'inset':    el.style.inset  = toCSSLen(a0, '0'); break;
 
-      // ── Feature 17: Gradient ──
       case 'gradient': {
         const from = String(a0 ?? '#4f8ef7');
         const to   = String(a1 ?? '#6c5ce7');
@@ -350,7 +339,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Feature 18: Blur / Glassmorphism ──
       case 'blur': {
         const amount = a0 != null ? toCSSLen(a0, '4px') : '4px';
         el.style.backdropFilter = `blur(${amount})`;
@@ -366,7 +354,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Feature 19: Dark/Light theme ──
       case 'theme': {
         const themeName = String(a0 ?? 'auto');
         el.dataset['arxTheme'] = themeName;
@@ -376,7 +363,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
       case 'darkbg':   el.style.setProperty('--arx-bg',    String(a0 ?? '#1a1a2e')); break;
       case 'darkcolor': el.style.setProperty('--arx-color', String(a0 ?? '#eee')); break;
 
-      // ── Feature 20: Scroll snap ──
       case 'scrollsnap': {
         const snapType = String(a0 ?? 'x mandatory');
         el.style.setProperty('scroll-snap-type', snapType);
@@ -387,18 +373,15 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
       case 'snapcenter': el.style.scrollSnapAlign = 'center'; break;
       case 'snapend': el.style.scrollSnapAlign = 'end'; break;
 
-      // ── Feature 22: Throttle ──
       case 'throttle': {
         const ms = typeof a0 === 'number' ? a0 : 300;
         (el as unknown as Record<string, unknown>).__arx_throttle = ms;
         break;
       }
 
-      // ── Round 3: RTL ──
       case 'rtl': el.style.direction = 'rtl'; el.setAttribute('dir', 'rtl'); break;
       case 'ltr': el.style.direction = 'ltr'; el.setAttribute('dir', 'ltr'); break;
 
-      // ── Round 3: Spring physics animation ──
       case 'spring': {
         const prop = String(a0 ?? 'transform');
         const stiffness = typeof a1 === 'number' ? a1 : 300;
@@ -407,7 +390,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Round 3: Stagger animation for lists ──
       case 'stagger': {
         const delayMs = typeof a0 === 'number' ? a0 : 50;
         // Find child index via parent
@@ -430,7 +412,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Round 3: Scroll-driven animation ──
       case 'scrolldriven':
       case 'scrollanimate': {
         const animNameSd = String(a0 ?? 'fadeIn');
@@ -450,7 +431,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Round 3: Focus management ──
       case 'autofocus': {
         requestAnimationFrame(() => el.focus());
         break;
@@ -473,7 +453,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Round 4: Parallax ──
       case 'parallax': {
         const speed = typeof a0 === 'number' ? a0 : 0.5;
         const onScroll = (): void => {
@@ -486,7 +465,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Round 4: Masonry layout ──
       case 'masonry': {
         el.style.display = 'block';
         el.style.columnCount = String(a0 ?? 3);
@@ -501,7 +479,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Round 4: Sticky header ──
       case 'stickyheader': {
         el.style.position = 'sticky';
         el.style.top = '0';
@@ -524,7 +501,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Round 4: Marquee / scrolling text ──
       case 'marquee': {
         const speedMs = typeof a0 === 'number' ? a0 : 10000;
         el.style.overflow = 'hidden';
@@ -540,7 +516,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Round 4: Glow effect ──
       case 'glow': {
         const glowColor = String(a0 ?? '#4f8ef7');
         const glowSize = a1 != null ? toCSSLen(a1, '8px') : '8px';
@@ -548,7 +523,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
         break;
       }
 
-      // ── Liquid-Glass-PRO integration ──
       case 'lg':
       case 'liquidglass': {
         el.classList.add('lg');
@@ -633,7 +607,6 @@ export function applyModifiers(el: HTMLElement, mods: Modifier[], state: StateAP
     }
   }
 
-  // ── Feature 3: Reactive Styling — subscribe to reactive args and re-apply ──
   for (const mod of mods) {
     if (!hasReactiveArgs(mod.args)) continue;
     // Skip modifiers that already handle their own reactivity
@@ -703,7 +676,6 @@ function applyReactiveMod(el: HTMLElement, mod: Modifier, state: StateAPI, ctx: 
   }
 }
 
-// ── Feature 2: Form Validation ──────────────────────────────────────────────
 
 /** Validation rule parsed from modifier args. */
 interface ValidationRule {

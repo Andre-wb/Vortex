@@ -1,6 +1,4 @@
-/* ============================================================================
  * RICH STATUS — presence dots & status editor
- * ========================================================================== */
 
 /* Container for avatar + status dot (used in sidebar badge, contacts, DM list) */
 .avatar-status-wrap {
@@ -49,7 +47,6 @@
     max-width: 120px;
 }
 
-/* ── Status Editor Modal ─────────────────────────────────────────────── */
 .status-editor {
     display: flex;
     flex-direction: column;

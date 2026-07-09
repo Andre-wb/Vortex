@@ -180,7 +180,6 @@ async def start_subscriber(on_room_message, on_notification) -> None:
     _pubsub_task = asyncio.create_task(_listener(), name="redis-subscriber")
 
 
-# ── Distributed rate limiter (Redis-based) ────────────────────────────────
 
 async def check_rate_limit_distributed(key: str, limit: int, window: int) -> bool:
     """Check rate limit using Redis sliding window. Returns True if allowed."""
@@ -202,7 +201,6 @@ async def check_rate_limit_distributed(key: str, limit: int, window: int) -> boo
         return True  # Fail open
 
 
-# ── Distributed cache helpers ─────────────────────────────────────────────
 
 async def cache_set(key: str, value: str, ttl: int = 300) -> None:
     """Set a cache value in Redis."""

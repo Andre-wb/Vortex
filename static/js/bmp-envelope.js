@@ -15,9 +15,7 @@
  * All envelopes are padded to the nearest bucket boundary.
  */
 
-// ═══════════════════════════════════════════════════════════════
 // MESSAGE TYPE CODES
-// ═══════════════════════════════════════════════════════════════
 
 export const MSG = {
     COVER:          0x00,
@@ -51,9 +49,7 @@ const TAG_SIZE = 16;    // AES-GCM auth tag
 const HKDF_INFO = new TextEncoder().encode('bmp-envelope');
 const HKDF_SALT = new Uint8Array(32); // zero salt
 
-// ═══════════════════════════════════════════════════════════════
 // KEY DERIVATION
-// ═══════════════════════════════════════════════════════════════
 
 /**
  * Derive a BMP envelope encryption key from the room key.
@@ -72,9 +68,7 @@ async function _deriveEnvelopeKey(roomKey) {
     return crypto.subtle.importKey('raw', bits, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
-// ═══════════════════════════════════════════════════════════════
 // PACK ENVELOPE
-// ═══════════════════════════════════════════════════════════════
 
 /**
  * Pack a message into a fixed-size encrypted BMP envelope.
@@ -144,9 +138,7 @@ export async function packEnvelope(msgType, payload, roomKey) {
     return Array.from(output).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ═══════════════════════════════════════════════════════════════
 // UNPACK ENVELOPE
-// ═══════════════════════════════════════════════════════════════
 
 /**
  * Unpack and decrypt a BMP envelope.
@@ -194,9 +186,7 @@ export async function unpackEnvelope(hexData, roomKey) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
 // COVER TRAFFIC ENVELOPE
-// ═══════════════════════════════════════════════════════════════
 
 /**
  * Generate a cover traffic envelope (type 0x00).
@@ -209,9 +199,7 @@ export async function packCoverEnvelope(roomKey) {
     return packEnvelope(MSG.COVER, {}, roomKey);
 }
 
-// ═══════════════════════════════════════════════════════════════
 // UTILITIES
-// ═══════════════════════════════════════════════════════════════
 
 /**
  * Get the bucket size for a given envelope hex string.

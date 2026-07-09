@@ -31,7 +31,6 @@ test.describe('Calls', () => {
         roomId = await createRoom(request, csrf, 'call_room');
     });
 
-    // ── 1-on-1 Calls ─────────────────────────────────────────────────────────
 
     test('start and end a call', async ({ request }) => {
         const startRes = await request.post('/api/calls/start', {
@@ -77,7 +76,6 @@ test.describe('Calls', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Group Calls ───────────────────────────────────────────────────────────
 
     test('start group call in room', async ({ request }) => {
         const res = await request.post(`/api/group-calls/${roomId}/start`, {
@@ -201,7 +199,6 @@ test.describe('Calls', () => {
         expect([404, 400, 422]).toContain(res.status());
     });
 
-    // ── SFU ──────────────────────────────────────────────────────────────────
 
     test('SFU availability check', async ({ request }) => {
         const res = await request.get('/api/sfu/available', {

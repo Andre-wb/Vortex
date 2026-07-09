@@ -41,9 +41,7 @@ from app.base import Base
 
 logger = logging.getLogger(__name__)
 
-# ══════════════════════════════════════════════════════════════════════════════
 # SQLAlchemy Models — Encrypted Vaults
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class ProfileVault(Base):
@@ -173,9 +171,7 @@ class AuditVault(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Blind Index System — поиск по зашифрованным данным
-# ══════════════════════════════════════════════════════════════════════════════
 
 # Server-side blind index key — stored in environment, never exposed to clients
 _BLIND_INDEX_KEY: Optional[bytes] = None
@@ -213,9 +209,7 @@ def compute_blind_index(value: str, context: str = "") -> str:
     return hmac.new(key, data, hashlib.sha256).hexdigest()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Timestamp Obfuscation — prevent activity pattern analysis
-# ══════════════════════════════════════════════════════════════════════════════
 
 def obfuscate_timestamp(dt: datetime, jitter_seconds: int = 300) -> datetime:
     """
@@ -237,9 +231,7 @@ def coarsen_timestamp(dt: datetime, granularity_minutes: int = 15) -> datetime:
     return datetime.fromtimestamp(rounded, tz=timezone.utc)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Sealed Sender Enhancement
-# ══════════════════════════════════════════════════════════════════════════════
 
 def derive_sender_pseudo(user_secret: bytes, room_id: int) -> str:
     """
@@ -260,9 +252,7 @@ def verify_sender_pseudo(user_secret: bytes, room_id: int, pseudo: str) -> bool:
     return secrets.compare_digest(expected, pseudo)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Encrypted Metadata Wrapper — для file_name, forwarded_from и т.д.
-# ══════════════════════════════════════════════════════════════════════════════
 
 class EncryptedMetadata:
     """
@@ -290,9 +280,7 @@ class EncryptedMetadata:
             return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic Schemas
-# ══════════════════════════════════════════════════════════════════════════════
 
 class ProfileVaultRequest(BaseModel):
     vault_data: str = Field(..., min_length=1, description="AES-256-GCM encrypted profile (hex)")
@@ -330,14 +318,11 @@ class EncryptedMessageMeta(BaseModel):
     forwarded_from_encrypted: str | None = None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # API Router
-# ══════════════════════════════════════════════════════════════════════════════
 
 zk_router = APIRouter(prefix="/api/zk", tags=["zero-knowledge"])
 
 
-# ── Authorization & anti-enumeration helpers (FIX F8/F9) ──────────────────────
 #
 # Lightweight in-process sliding-window rate limiter. Keyed by an arbitrary
 # string (e.g. "vault:<viewer_id>" or "notif:<sender_id>"). Defends against
@@ -414,7 +399,6 @@ def _lazy_get_current_user():
     return get_current_user
 
 
-# ── Profile Vault ─────────────────────────────────────────────────────────
 
 @zk_router.put("/profile")
 async def save_profile_vault(
@@ -476,7 +460,6 @@ async def get_user_profile_vault(
     return {"ok": True, "vault_data": vault.vault_data}
 
 
-# ── Room Vault ────────────────────────────────────────────────────────────
 
 @zk_router.put("/room/{room_id}")
 async def save_room_vault(
@@ -517,7 +500,6 @@ async def get_room_vault(
     return {"ok": True, "vault_data": vault.vault_data, "version": vault.version}
 
 
-# ── Contact Vault ─────────────────────────────────────────────────────────
 
 @zk_router.put("/contacts")
 async def save_contact_vault(
@@ -568,7 +550,6 @@ async def delete_contact_vault(
     return {"ok": True}
 
 
-# ── Call Records ──────────────────────────────────────────────────────────
 
 @zk_router.post("/calls")
 async def save_call_record(
@@ -599,7 +580,6 @@ async def get_call_records(
     }
 
 
-# ── Encrypted Notifications ──────────────────────────────────────────────
 
 @zk_router.post("/notifications")
 async def push_encrypted_notification(
@@ -654,7 +634,6 @@ async def get_encrypted_notifications(
     return {"ok": True, "notifications": result}
 
 
-# ── Blind Search ──────────────────────────────────────────────────────────
 
 @zk_router.post("/search")
 async def blind_search(
@@ -672,7 +651,6 @@ async def blind_search(
         raise HTTPException(400, "search_type must be 'user' or 'room'")
 
 
-# ── Audit Vault ───────────────────────────────────────────────────────────
 
 @zk_router.post("/audit/{room_id}")
 async def save_audit_entry(
@@ -715,7 +693,6 @@ async def get_audit_entries(
     }
 
 
-# ── ZK Status & Info ─────────────────────────────────────────────────────
 
 @zk_router.get("/status")
 async def zk_status(u = Depends(_lazy_get_current_user())):
@@ -747,7 +724,6 @@ async def zk_status(u = Depends(_lazy_get_current_user())):
     }
 
 
-# ── Blind Index Key Exchange ─────────────────────────────────────────────
 
 @zk_router.get("/blind-key")
 async def get_blind_key_encrypted(

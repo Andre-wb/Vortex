@@ -1,8 +1,6 @@
 use crate::error::{GravError, GravResult};
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Token types
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
@@ -19,7 +17,6 @@ impl Token {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    // ── Literals ───────────────────────────────
     IntLit(i64),
     FloatLit(f64),
     /// String parts: mix of raw text and `{expr}` interpolation holes
@@ -28,12 +25,10 @@ pub enum TokenKind {
     BoolLit(bool),
     NullLit,
 
-    // ── Identifiers ────────────────────────────
     Ident(String),
     /// Bot slash-command literal:  /start  /my_cmd  (only valid as `on` target)
     SlashCmd(String),
 
-    // ── Keywords ───────────────────────────────
     Let, Fn, On, Flow, State, Emit, Wait,
     Every, At, Guard, Match, If, Else, Elif,
     Return, For, In, While, Break, Continue,
@@ -145,11 +140,9 @@ pub enum TokenKind {
     Default,
     Global,
 
-    // ── Architex bridge ──────────────────────
     UiSet,
     UiNavigate,
 
-    // ── Bitwise operators ──────────────────────
     Amp,       // & (single)
     Pipe,      // | (single — not ||, not |>)
     Caret,     // ^
@@ -162,26 +155,19 @@ pub enum TokenKind {
     ShlEq,    // <<=
     ShrEq,    // >>=
 
-    // ── Imaginary literal ─────────────────────
     /// `3i`, `2.5i` — imaginary number literal
     ImagLit(f64),
 
-    // ── Types ──────────────────────────────────
     TInt, TFloat, TBool, TStr, TList, TMap, TVoid,
 
-    // ── Arithmetic ─────────────────────────────
     Plus, Minus, Star, Slash, Percent, StarStar,
 
-    // ── Comparison ─────────────────────────────
     EqEq, BangEq, Lt, Gt, LtEq, GtEq,
 
-    // ── Assignment ─────────────────────────────
     Eq, PlusEq, MinusEq, StarEq, SlashEq, PercentEq,
 
-    // ── Logical ────────────────────────────────
     AmpAmp, PipePipe, Bang,
 
-    // ── Special operators ──────────────────────
     PipeGt,          // |>
     Arrow,           // ->
     FatArrow,        // =>
@@ -193,7 +179,6 @@ pub enum TokenKind {
     QuestionQuestion,// ??
     ColonColon,      // ::
 
-    // ── Delimiters ─────────────────────────────
     LBrace, RBrace,
     LParen, RParen,
     LBracket, RBracket,
@@ -209,9 +194,7 @@ pub enum StrPart {
     Hole(String),       // expression source inside `{…}`
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Lexer
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub struct Lexer<'s> {
     src:  &'s [u8],
@@ -236,7 +219,6 @@ impl<'s> Lexer<'s> {
         Ok(tokens)
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     fn peek(&self) -> u8 { self.src.get(self.pos).copied().unwrap_or(0) }
     fn peek2(&self) -> u8 { self.src.get(self.pos + 1).copied().unwrap_or(0) }
@@ -283,7 +265,6 @@ impl<'s> Lexer<'s> {
         GravError::Syntax { line: self.line, col: self.col, msg: msg.into() }
     }
 
-    // ── main dispatch ─────────────────────────────────────────────────────────
 
     fn next_token(&mut self) -> GravResult<Token> {
         self.skip_whitespace_and_comments();
@@ -363,7 +344,6 @@ impl<'s> Lexer<'s> {
         Ok(Token::new(kind, line, col))
     }
 
-    // ── number literal ────────────────────────────────────────────────────────
 
     fn lex_number(&mut self) -> GravResult<TokenKind> {
         let start = self.pos;
@@ -401,7 +381,6 @@ impl<'s> Lexer<'s> {
         }
     }
 
-    // ── string literal with `{expr}` interpolation ────────────────────────────
 
     fn lex_string(&mut self) -> GravResult<TokenKind> {
         self.advance(); // opening "
@@ -456,7 +435,6 @@ impl<'s> Lexer<'s> {
         Ok(TokenKind::StrLit(parts))
     }
 
-    // ── identifier / keyword ──────────────────────────────────────────────────
 
     fn lex_ident(&mut self) -> TokenKind {
         let start = self.pos;
@@ -607,7 +585,6 @@ impl<'s> Lexer<'s> {
         }
     }
 
-    // ── slash: either /command or /regex/flags ────────────────────────────────
 
     fn lex_slash(&mut self) -> GravResult<TokenKind> {
         self.advance(); // consume leading '/'
@@ -671,9 +648,7 @@ impl<'s> Lexer<'s> {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -690,7 +665,6 @@ mod tests {
             .collect()
     }
 
-    // ── 1. Literals ──────────────────────────────────────────────────────────
 
     #[test]
     fn lex_int() {
@@ -738,7 +712,6 @@ mod tests {
         assert_eq!(lex("1_000_000"), vec![TokenKind::IntLit(1_000_000)]);
     }
 
-    // ── 2. Keywords ──────────────────────────────────────────────────────────
 
     #[test]
     fn lex_keywords() {
@@ -766,7 +739,6 @@ mod tests {
         assert_eq!(lex("continue"), vec![TokenKind::Continue]);
     }
 
-    // ── 3. Operators ─────────────────────────────────────────────────────────
 
     #[test]
     fn lex_arithmetic() {
@@ -816,7 +788,6 @@ mod tests {
         assert_eq!(lex("..."), vec![TokenKind::DotDotDot]);
     }
 
-    // ── 4. Delimiters ────────────────────────────────────────────────────────
 
     #[test]
     fn lex_delimiters() {
@@ -838,7 +809,6 @@ mod tests {
         );
     }
 
-    // ── 5. Slash commands ────────────────────────────────────────────────────
 
     #[test]
     fn lex_slash_cmd() {
@@ -852,7 +822,6 @@ mod tests {
         assert_eq!(lex("/ 2"), vec![TokenKind::Slash, TokenKind::IntLit(2)]);
     }
 
-    // ── 6. Identifiers ──────────────────────────────────────────────────────
 
     #[test]
     fn lex_ident() {
@@ -864,7 +833,6 @@ mod tests {
         assert_eq!(lex("x42"), vec![TokenKind::Ident("x42".into())]);
     }
 
-    // ── 7. Complex expressions ───────────────────────────────────────────────
 
     #[test]
     fn lex_let_stmt() {
@@ -882,7 +850,6 @@ mod tests {
         assert_eq!(tokens.len(), 5);
     }
 
-    // ── 8. Comments ──────────────────────────────────────────────────────────
 
     #[test]
     fn lex_line_comment_skipped() {
@@ -894,7 +861,6 @@ mod tests {
         assert_eq!(lex("42 /* block */ 7"), vec![TokenKind::IntLit(42), TokenKind::IntLit(7)]);
     }
 
-    // ── 9. String interpolation ──────────────────────────────────────────────
 
     #[test]
     fn lex_interpolated_string() {
@@ -919,14 +885,12 @@ mod tests {
         }
     }
 
-    // ── 10. Decorator ────────────────────────────────────────────────────────
 
     #[test]
     fn lex_at_sign() {
         assert_eq!(lex("@"), vec![TokenKind::AtSign]);
     }
 
-    // ── 11. Type tokens ──────────────────────────────────────────────────────
 
     #[test]
     fn lex_types() {
@@ -939,7 +903,6 @@ mod tests {
         assert_eq!(lex("void"), vec![TokenKind::TVoid]);
     }
 
-    // ── 12. Compound assignment ──────────────────────────────────────────────
 
     #[test]
     fn lex_compound_assign() {
@@ -950,7 +913,6 @@ mod tests {
         assert_eq!(lex("%="), vec![TokenKind::PercentEq]);
     }
 
-    // ── 13. Doc comments ─────────────────────────────────────────────────────
 
     #[test]
     fn lex_doc_comment() {
@@ -963,7 +925,6 @@ mod tests {
         }
     }
 
-    // ── 14. Empty input ──────────────────────────────────────────────────────
 
     #[test]
     fn lex_empty() {
@@ -975,7 +936,6 @@ mod tests {
         assert_eq!(lex("   \n\t  "), vec![]);
     }
 
-    // ── 15. Error cases ──────────────────────────────────────────────────────
 
     #[test]
     fn lex_unterminated_string() {
@@ -990,7 +950,6 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ── 16. Regex literal ────────────────────────────────────────────────────
 
     #[test]
     fn lex_regex_lit() {
@@ -1004,7 +963,6 @@ mod tests {
         }
     }
 
-    // ── 17. Token positions ──────────────────────────────────────────────────
 
     #[test]
     fn lex_token_positions() {
@@ -1022,7 +980,6 @@ mod tests {
         assert_eq!(tokens[1].line, 2);
     }
 
-    // ── 18. Colons ───────────────────────────────────────────────────────────
 
     #[test]
     fn lex_colon_colon() {

@@ -35,7 +35,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ide", tags=["ide"])
 
 
-# ── Core IDE endpoints ────────────────────────────────────────────────────
 
 @router.post("/compile")
 async def ide_compile(
@@ -89,7 +88,6 @@ async def ide_stop(
     return await stop_bot(pid)
 
 
-# ── Test endpoint ─────────────────────────────────────────────────────────
 
 @router.post("/test")
 async def test_bot(
@@ -149,7 +147,6 @@ async def test_bot(
         os.unlink(tmp_path)
 
 
-# ── AI Proxy (supports ai() builtin in Gravitix) ─────────────────────────
 
 @router.post("/ai/proxy")
 async def ai_proxy(

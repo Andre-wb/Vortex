@@ -26,7 +26,6 @@ _APP = _ROOT / "app"
 _TEMPLATES = _ROOT / "templates"
 
 
-# ── Baseline 1: files that emit raw HTML responses ──────────────────────────
 # Any HTMLResponse(...) or Response(..., media_type="text/html"). Adding a new
 # one requires review + html.escape(quote=True) on every interpolated value
 # (or rendering via the autoescaped Jinja templates), then add it here.
@@ -38,7 +37,6 @@ _HTML_RESPONSE_BASELINE = {
 _HTML_RESPONSE_RE = re.compile(r"""HTMLResponse\(|media_type\s*=\s*['"]text/html['"]""")
 
 
-# ── Baseline 2: inline event-handler count in served templates ──────────────
 # Inline on*= handlers require `script-src-attr 'unsafe-inline'`. New ones widen
 # that surface. This freezes the count so additions are caught; migrating a
 # handler to addEventListener (in an external/nonce'd script) lets you lower it.
@@ -52,7 +50,6 @@ _EVENTS = (
 _ON_ATTR_RE = re.compile(r"\son(?:" + "|".join(_EVENTS) + r")\s*=", re.IGNORECASE)
 
 
-# ── Baseline 3: Jinja autoescape-disabling `| safe` filters ─────────────────
 _SAFE_FILTER_BASELINE = 0
 _SAFE_FILTER_RE = re.compile(r"\|\s*safe\b")
 

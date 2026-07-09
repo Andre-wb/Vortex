@@ -1,9 +1,7 @@
 // static/js/onboarding.js
-// ============================================================================
 // Guided onboarding tour for new users.
 // Shows a 5-step spotlight + tooltip walkthrough on first launch (0 rooms).
 // Persists completion in localStorage so the tour only appears once.
-// ============================================================================
 
 const STORAGE_KEY = 'vortex_onboarding_done';
 
@@ -48,9 +46,7 @@ let _spotlight = null;
 let _currentStep = 0;
 let _resizeHandler = null;
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /**
  * Begin the onboarding tour. Safe to call multiple times — will no-op if
@@ -71,9 +67,7 @@ export function isOnboardingDone() {
     return localStorage.getItem(STORAGE_KEY) === '1';
 }
 
-// ---------------------------------------------------------------------------
 // Internal helpers
-// ---------------------------------------------------------------------------
 
 function _createOverlay() {
     // Overlay (dark backdrop — the spotlight hole is cut via CSS mask)

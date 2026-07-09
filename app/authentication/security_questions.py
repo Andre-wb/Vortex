@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 _PBKDF2_ITERATIONS = 600_000
 
 
-# ── Model ────────────────────────────────────────────────────────────────────
 
 class SecurityQuestion(Base):
     __tablename__ = "security_questions"
@@ -40,7 +39,6 @@ class SecurityQuestion(Base):
     order_idx = Column(Integer, default=0)
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _hash_answer(answer: str, salt: str | None = None) -> str:
     """Hash an answer with PBKDF2-SHA256. Returns 'salt:hash'."""
@@ -62,7 +60,6 @@ def _verify_answer(answer: str, stored: str) -> bool:
     return h.hex() == expected_hash
 
 
-# ── Schemas ──────────────────────────────────────────────────────────────────
 
 class SetupRequest(BaseModel):
     questions: list[str]  # 3 questions
@@ -78,7 +75,6 @@ class RecoverRequest(BaseModel):
     answers: list[str]  # 3 answers
 
 
-# ── Default questions for onboarding ─────────────────────────────────────────
 
 DEFAULT_QUESTIONS = [
     "Имя вашего первого питомца?",
@@ -93,7 +89,6 @@ DEFAULT_QUESTIONS_EN = [
 ]
 
 
-# ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/security-questions/setup")
 async def setup_security_questions(

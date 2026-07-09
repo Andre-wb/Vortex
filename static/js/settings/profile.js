@@ -1,4 +1,3 @@
-// ── Space create/join tab switching ──
 window._switchCsTab = function(tab) {
     var createPanel = document.getElementById('cs-panel-create');
     var joinPanel = document.getElementById('cs-panel-join');
@@ -10,7 +9,6 @@ window._switchCsTab = function(tab) {
     if (joinPanel) joinPanel.classList.toggle('active', tab === 'join');
 };
 
-// ── Avatar tab switching (registration form) ──
 window.switchAvatarTab = function(tab) {
     var emojiTab = document.getElementById('avatar-emoji-tab');
     var photoTab = document.getElementById('avatar-photo-tab');
@@ -39,10 +37,8 @@ window.previewAvatar = function(input) {
     reader.readAsDataURL(input.files[0]);
 };
 
-// ── Settings tab switching (legacy stub, sections now open full-screen) ──
 window.switchSettingsTab = function(tab) {};
 
-// ── Settings emoji picker ──
 window._settingsSelectedEmoji = null;
 window.selectSettingsEmoji = function(btn) {
     document.querySelectorAll('#settings-emoji-picker .emoji-btn').forEach(function(b) { b.classList.remove('emoji-selected'); });
@@ -50,7 +46,6 @@ window.selectSettingsEmoji = function(btn) {
     window._settingsSelectedEmoji = btn.dataset.emoji;
 };
 
-// ── Save profile from settings ──
 window.saveProfileSettings = async function() {
     var S = window.AppState;
     var body = {
@@ -110,7 +105,6 @@ window.saveProfileSettings = async function() {
     } catch(e) { alert(e.message); }
 };
 
-// ── Profile background picker ──
 window._settingsProfileBg = undefined;
 window._selectProfileBg = function(btn) {
     document.querySelectorAll('.pbg-swatch').forEach(function(b) { b.classList.remove('active'); });
@@ -123,7 +117,6 @@ window._selectProfileBg = function(btn) {
     if (piHero) piHero.style.background = btn.dataset.bg;
 };
 
-// ── Reply bubble color picker ──
 window._settingsReplyColor = undefined;
 window._selectReplyColor = function(btn) {
     document.querySelectorAll('.rc-swatch').forEach(function(b) { b.classList.remove('active'); });
@@ -131,7 +124,6 @@ window._selectReplyColor = function(btn) {
     window._settingsReplyColor = btn.dataset.color || null;
 };
 
-// ── Reply icon picker ──
 window._settingsReplyIcon = undefined;
 window._selectReplyIcon = function(btn) {
     document.querySelectorAll('.ri-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -139,7 +131,6 @@ window._selectReplyIcon = function(btn) {
     window._settingsReplyIcon = btn.dataset.icon || null;
 };
 
-// ── Profile icon registry (shared with user-profile.js) ──
 window._PROFILE_ICONS = {
   bolt:     '<path d="M7 2v11h3v9l7-12h-4l4-8z"/>',
   diamond:  '<path d="M12 1l10 8-10 13L2 9z"/>',
@@ -162,7 +153,6 @@ window._PROFILE_ICONS = {
   key:      '<path d="M12.65 10A6 6 0 1 0 10 12.65l6.65 6.65 2.12-2.12-1.41-1.41 1.41-1.42-1.41-1.41-1.42 1.41-1.41-1.41 1.41-1.42zm-6.65 0a4 4 0 1 1 4 4 4 4 0 0 1-4-4z"/>',
 };
 
-// ── Profile icon picker ──
 window._settingsProfileIcon = undefined;
 window._selectProfileIcon = function(btn) {
     document.querySelectorAll('.pi-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -181,9 +171,7 @@ window._selectProfileIcon = function(btn) {
     }
 };
 
-// ══════════════════════════════════════════════════
 // BIRTHDAY CALENDAR PICKER
-// ══════════════════════════════════════════════════
 (function() {
     var _calMonth = 0;
     var _calYear  = new Date().getFullYear() - 20;
@@ -383,7 +371,6 @@ window._selectProfileIcon = function(btn) {
     };
 })();
 
-// ── Upload avatar from settings ──
 window.uploadSettingsAvatar = async function(input) {
     if (!input.files || !input.files[0]) return;
     var formData = new FormData();
@@ -405,20 +392,17 @@ window.uploadSettingsAvatar = async function(input) {
     } catch(e) { alert(e.message); }
 };
 
-// ── Import key from settings ──
 window.importKey = function(input) {
     if (!input.files || !input.files[0]) return;
     if (window.importPrivateKey) window.importPrivateKey(input.files[0]);
 };
 
-// ── Toggle push setting ──
 window.togglePushSetting = function(enabled) {
     if (enabled && window.requestNotificationPermission) {
         window.requestNotificationPermission();
     }
 };
 
-// ── Call settings (Force TCP / Relay / Traffic Masking) ──
 window._saveCallSetting = function(key, value) {
     localStorage.setItem(key, value ? 'true' : 'false');
 };

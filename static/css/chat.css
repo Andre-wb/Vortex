@@ -1,6 +1,4 @@
-/* ============================================================================
  * TRANSLATE BAR (под шапкой чата)
- * ========================================================================== */
 .chat-translate-bar {
     display: flex;
     align-items: center;
@@ -41,15 +39,12 @@ body[data-theme="light"] .msg-translation {
     background: rgba(124,58,237,0.05);
 }
 
-/* ============================================================================
  * ОБЛАСТЬ СООБЩЕНИЙ
- * ========================================================================== */
 #messages-container {
     flex: 1; overflow-y: auto; padding: 16px 20px;
     display: flex; flex-direction: column; gap: 2px;
 }
 
-/* ── Разделитель непрочитанных сообщений ─────────────────────────────────── */
 .unread-divider {
     display: flex; align-items: center; gap: 10px;
     margin: 10px 0; flex-shrink: 0;
@@ -67,7 +62,6 @@ body[data-theme="light"] .msg-translation {
     border: 1px solid rgba(124,58,237,0.25);
 }
 
-/* ── Кнопка "перейти к непрочитанным" ────────────────────────────────────── */
 .jump-unread-btn {
     position: absolute; bottom: 80px; right: 20px; z-index: 30;
     background: var(--accent); color: #fff;
@@ -152,7 +146,6 @@ body[data-theme="light"] .msg-translation {
 /* Add top padding to bubble when tag is present so text doesn't overlap */
 .msg-bubble:has(.msg-bubble-tag) { padding-top: 20px; }
 
-/* ── Tag Picker Modal ── */
 .tag-picker-overlay {
     position: fixed; inset: 0; z-index: 10001;
     background: rgba(0,0,0,0.5);
@@ -328,9 +321,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     color: var(--text3);
 }
 
-/* ============================================================================
  * ИНДИКАТОР ПЕЧАТИ / ОТПРАВКИ ФАЙЛОВ
- * ========================================================================== */
 .typing-indicator {
     display: none; align-items: center; gap: 8px;
     padding: 6px 16px; color: var(--text2); font-size: 12px;
@@ -350,9 +341,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     40%            { opacity: 1;   transform: scale(1.1); }
 }
 
-/* ============================================================================
  * ОБЛАСТЬ ВВОДА СООБЩЕНИЯ
- * ========================================================================== */
 /* Slash command autocomplete menu */
 .slash-cmd-menu {
     position: absolute;
@@ -428,7 +417,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .mini-app-btn { color: #a78bfa !important; border-color: rgba(124,58,237,.3) !important; }
 .mini-app-btn:hover { background: rgba(124,58,237,.15) !important; border-color: rgba(124,58,237,.6) !important; }
 
-/* ── Mini App fullscreen viewer ─────────────────────────────────────────────── */
 .mini-app-screen {
     position: fixed;
     inset: 0;
@@ -558,9 +546,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     max-width: 280px;
 }
 
-/* ============================================================================
  * ПРИВЕТСТВЕННЫЙ ЭКРАН (когда нет выбранной комнаты)
- * ========================================================================== */
 #welcome-screen {
     align-items: center; justify-content: center;
     flex-direction: column; gap: 16px; text-align: center;
@@ -577,9 +563,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .welcome-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
 .welcome-sub { color: var(--text2); font-size: 14px; font-family: var(--mono); max-width: 320px; }
 
-/* ============================================================================
  * МОДАЛЬНЫЕ ОКНА
- * ========================================================================== */
 .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
@@ -600,7 +584,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
 .modal-actions .btn { flex: 1; }
 
-/* ── Status floating windows (no overlay backdrop) ───────────────────────── */
 .status-win {
     position: fixed;
     top: 50%; left: 50%;
@@ -649,9 +632,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .status-win-viewer-list::-webkit-scrollbar { width: 4px; }
 .status-win-viewer-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-/* ============================================================================
  * МУЛЬТИАККАУНТ — список аккаунтов в профильной модалке
- * ========================================================================== */
 .ma-accounts-list {
     margin-bottom: 14px;
 }
@@ -798,9 +779,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 }
 .set-ma-add:hover { background: rgba(255,255,255,0.04); color: var(--text); }
 
-/* ============================================================================
  * ПАНЕЛЬ НАСТРОЕК КОМНАТЫ (room-info-modal)
- * ========================================================================== */
 .room-info-avatar-wrap {
     display: flex; justify-content: center; margin-bottom: 16px;
 }
@@ -872,7 +851,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     transform: translateX(18px); background: #fff;
 }
 
-/* ── Channel management: authors, inline modal ───────────────────────────── */
 .channel-authors-list {
     display: flex;
     flex-direction: column;
@@ -952,9 +930,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
 }
 
-/* ============================================================================
  * ПАНЕЛЬ ПИРОВ (LAN-устройства)
- * ========================================================================== */
 #peers-panel {
     width: 220px; border-left: 1px solid var(--border);
     background: var(--bg2); display: none; flex-direction: column;
@@ -985,10 +961,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .peer-name { font-weight: 700; flex: 1; }
 .peer-ip { font-family: var(--mono); font-size: 11px; color: var(--text2); }
 
-/* ============================================================================
  * ОВЕРЛЕЙ ЗВОНКА (WebRTC)
- * ========================================================================== */
-/* ══════════════════════════════════════════════════════════════════════════
    CALL OVERLAY — FaceTime-style elegant design
    ══════════════════════════════════════════════════════════════════════════ */
 #call-overlay {
@@ -998,7 +971,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 }
 #call-overlay.show { display: flex; }
 
-/* ── Top bar ───────────────────────────────────────────────────────────── */
 .call-topbar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 16px 20px; z-index: 5;
@@ -1021,7 +993,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     border-radius: 10px; padding: 2px 8px;
 }
 
-/* ── Video area ────────────────────────────────────────────────────────── */
 .call-video-area {
     flex: 1; position: relative; display: flex;
     align-items: center; justify-content: center;
@@ -1119,7 +1090,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     transform: none; box-shadow: none;
 }
 
-/* ── Peer info (center, when no video) ─────────────────────────────────── */
 .call-peer-info {
     position: absolute; left: 50%; top: 50%;
     transform: translate(-50%, -50%);
@@ -1141,7 +1111,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     top: calc(50% + 90px);
 }
 
-/* ── Controls ──────────────────────────────────────────────────────────── */
 .call-controls {
     display: flex; justify-content: center; align-items: flex-end;
     gap: 20px; padding: 20px 24px 40px; z-index: 5;
@@ -1196,7 +1165,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     to   { opacity: 1; transform: none; }
 }
 
-/* ── Responsive call UI ────────────────────────────────────────────────── */
 @media (max-width: 768px) {
     .call-pip-video-wrap,
     #call-overlay.video-swapped .call-main-video-wrap {
@@ -1211,9 +1179,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     .call-avatar-main svg { width: 44px; height: 44px; }
 }
 
-/* ============================================================================
  * РАЗДЕЛИТЕЛЬ ДАТЫ (в ленте сообщений)
- * ========================================================================== */
 .date-divider {
     text-align: center; color: var(--text3);
     font-size: 11px; font-family: var(--mono);
@@ -1225,9 +1191,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     content: ''; flex: 1; height: 1px; background: var(--border);
 }
 
-/* ============================================================================
  * ВЫБОР ЭМОДЗИ (при регистрации)
- * ========================================================================== */
 .emoji-grid {
     display: grid; grid-template-columns: repeat(8, 1fr);
     gap: 4px; max-height: 180px; overflow-y: auto;
@@ -1240,9 +1204,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .emoji-btn:hover { background: var(--bg3); }
 .emoji-selected { border: 2px solid var(--accent) !important; }
 
-/* ============================================================================
  * СТАТУС СЕТИ (в сайдбаре)
- * ========================================================================== */
 .net-status {
     display: flex; align-items: center; gap: 6px;
     font-size: 11px; font-family: var(--mono); color: var(--text2);
@@ -1252,20 +1214,15 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .net-dot.online  { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .net-dot.offline { background: var(--red);   box-shadow: 0 0 5px var(--red); }
 
-/* ============================================================================
  * АНИМАЦИИ
- * ========================================================================== */
 .fade-in { animation: fadeIn 0.2s ease; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* ============================================================================
  * АДАПТИВ ПОД МОБИЛЬНЫЕ УСТРОЙСТВА
- * ========================================================================== */
 @media (max-width: 640px) {
     #sidebar { flex-direction: column !important; }
     .auth-card { width: calc(100vw - 32px); padding: 24px; margin: auto; }
 
-    /* ── Input bar: hide overflow buttons behind scroll ──────── */
     .input-row {
         flex-wrap: nowrap;
         overflow-x: auto;
@@ -1278,18 +1235,15 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     .input-btn { width: 36px; height: 36px; min-width: 36px; border-radius: 8px; font-size: 16px; }
     #msg-input { font-size: 15px; padding: 8px 10px; min-width: 0; }
 
-    /* ── Sidebar: compact menu items ──────────────────────────── */
     .sidebar-nav .nav-item { padding: 8px 12px; font-size: 13px; gap: 8px; }
     .sidebar-nav .nav-item svg { width: 18px; height: 18px; }
     .sidebar-header { padding: 8px 12px; }
     .sidebar-footer { padding: 6px 8px; }
 
-    /* ── Chat header: compact on mobile ──────────────────────── */
     .chat-header { padding: 8px 12px; }
     .header-actions { gap: 2px; }
     .header-actions .header-btn { width: 32px; height: 32px; }
 
-    /* ── Onboarding: don't overflow screen ────────────────────── */
     .onboarding-tooltip, .onb-tooltip {
         max-width: calc(100vw - 32px) !important;
         left: 16px !important;
@@ -1297,7 +1251,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
         transform: none !important;
     }
 
-    /* ── Modals: full-width on mobile ─────────────────────────── */
     .modal {
         width: calc(100vw - 24px) !important;
         max-width: 100% !important;
@@ -1305,29 +1258,23 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
         overflow-y: auto;
     }
 
-    /* ── Room list items: compact ──────────────────────────────── */
     .room-item { padding: 8px 10px; }
     .room-avatar { width: 36px; height: 36px; font-size: 18px; }
 
-    /* ── Hide secondary nav items on mobile ────────────────────── */
     #nav-peers-local, #nav-peers-global,
     .nav-item[onclick*="showSearchModal"],
     .nav-item[onclick*="showSavedPanel"] {
         display: none !important;
     }
 
-    /* ── Collapse status section on mobile ──────────────────────── */
     #status-section { display: none; }
 
-    /* ── Compact nav labels / footer ───────────────────────────── */
     .nav-label { font-size: 10px; padding: 4px 12px; }
     .sidebar-footer { font-size: 11px; }
     .sidebar-footer button { font-size: 11px; padding: 4px 8px; }
 }
 
-/* ============================================================================
  * СПЕЦИФИЧЕСКИЕ СТИЛИ ДЛЯ ИЗОБРАЖЕНИЙ В ЧАТЕ
- * ========================================================================== */
 /* Media bubble — transparent, no glass background */
 .msg-bubble-media {
     position: relative;
@@ -1421,9 +1368,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     align-items: center;
     gap: 10px;
 }
-/* ============================================================================
  * ОВЕРЛЕЙ ПРЕДПРОСМОТРА ФАЙЛА (перед отправкой)
- * ========================================================================== */
 #file-preview-overlay {
     position: fixed; inset: 0; z-index: 300;
     background: var(--bg);
@@ -1629,9 +1574,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ============================================================================
  * ПРОСМОТРЩИК ИЗОБРАЖЕНИЙ (полноэкранный)
- * ========================================================================== */
 #image-viewer-overlay {
     position: fixed; inset: 0; z-index: 400;
     background: rgba(0,0,0,0.96);
@@ -1686,9 +1629,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 }
 .iv-download:hover { color: var(--accent2); }
 
-/* ============================================================================
  * ЭЛЕМЕНТЫ ДЛЯ ВРЕМЕННЫХ СООБЩЕНИЙ ПРИ ЗАГРУЗКЕ (pending upload)
- * ========================================================================== */
 .pending-upload-wrap {
     margin-bottom: 4px;
     animation: fadeIn 0.18s ease;
@@ -1893,9 +1834,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .size-6 { width: 24px; height: 24px; display: block; }
 .file-icon svg { width: 24px; height: 24px; display: block; }
 
-/* ============================================================================
  * ПАНЕЛЬ ОТВЕТА / РЕДАКТИРОВАНИЯ
- * ========================================================================== */
 #reply-bar {
     display: none;
     align-items: center;
@@ -1994,9 +1933,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     100% { background: transparent; outline: none; }
 }
 
-/* ============================================================================
  * ГОЛОСОВЫЕ СООБЩЕНИЯ
- * ========================================================================== */
 .voice-msg {
     display: flex; align-items: center; gap: 10px;
     min-width: 200px; max-width: 280px;
@@ -2073,10 +2010,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 #voice-record-btn:hover    { color: var(--accent2); background: var(--bg3); }
 #voice-record-btn.recording { color: #ef4444; animation: recBlink 1s infinite; }
 
-/* ============================================================================
  * РЕДАКТОР ФОТО
- * ========================================================================== */
-/* ── Photo Editor (fullscreen + tab bar) ──────────────────── */
 .pe-root {
     position: fixed; inset: 0; z-index: 10000;
     background: var(--bg, #0a0a12);
@@ -2177,7 +2111,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 /* keep old crop classes compatible */
 .photo-ed-btn.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
 
-/* ── Crop tool ──────────────────────────────────────────────── */
 .photo-ed-canvas-container {
     position: relative; display: inline-flex;
     align-items: center; justify-content: center;
@@ -2265,7 +2198,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     to   { transform: translateY(0);    opacity: 1; }
 }
 
-/* ── Notification Banner ─────────────────────────────────────── */
 #notification-container {
     position: fixed;
     top: 0;
@@ -2337,7 +2269,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     text-overflow: ellipsis;
 }
 
-/* ── Rooms section labels ─────────────────────────────────────── */
 .rooms-section-label {
     padding: 12px 14px 4px;
     font-size: 10px;
@@ -2364,7 +2295,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.25);
 }
 
-/* ── Unread badge ─────────── */
 .unread-badge {
     min-width: 20px;
     height: 20px;
@@ -2394,8 +2324,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     50% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.6); }
 }
 
-/* ── Contact items ─────────────────────────────────────────────── */
-/* ── Contact cards ──────────────────────────────────────────────── */
 .contact-item {
     display: flex;
     align-items: center;
@@ -2415,7 +2343,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 }
 .contact-item:active { transform: translateY(0); }
 
-/* ── Avatar + status dot (shared: contacts, room list, etc.) ──── */
 .avatar-status-wrap {
     position: relative;
     flex-shrink: 0;
@@ -2517,7 +2444,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     color: var(--red);
 }
 
-/* ── Contact group letter headers ───────────────────────────────── */
 .contact-letter-header {
     padding: 8px 18px 4px;
     font-size: 11px;
@@ -2533,7 +2459,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     backdrop-filter: blur(12px);
 }
 
-/* ── Search results ─────────────────────────────────────────────── */
 .search-result {
     display: flex;
     align-items: center;
@@ -2573,7 +2498,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     font-family: var(--mono);
 }
 
-/* ── Contacts header (fullscreen) ──────────────────────────────── */
 .contacts-header {
     padding: 16px 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -2642,7 +2566,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .contacts-add-btn:hover { background: var(--accent2); transform: translateY(-1px); }
 .contacts-add-btn:active { transform: translateY(0); }
 
-/* ── Contacts empty state ──────────────────────────────────────── */
 .contacts-empty-state {
     display: flex;
     flex-direction: column;
@@ -2657,11 +2580,8 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .contacts-empty-state span { font-size: 14px; font-family: var(--sans); }
 .contacts-empty-state .btn { margin-top: 4px; }
 
-/* ============================================================================
  * RECENT CALLS
- * ========================================================================== */
 
-/* ── Header ─────────────────────────────────────────────────────── */
 .calls-header {
     padding: 16px 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -2682,7 +2602,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     letter-spacing: -0.02em;
 }
 
-/* ── Filter pills ───────────────────────────────────────────────── */
 .calls-filters {
     display: flex;
     gap: 6px;
@@ -2720,7 +2639,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     color: var(--red);
 }
 
-/* ── Call item card ─────────────────────────────────────────────── */
 .call-item {
     display: flex;
     align-items: center;
@@ -2743,7 +2661,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     border-color: rgba(239, 68, 68, 0.08);
 }
 
-/* ── Call avatar ────────────────────────────────────────────────── */
 .call-avatar {
     width: 48px;
     height: 48px;
@@ -2779,7 +2696,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
 }
 
-/* ── Call info (name + meta) ────────────────────────────────────── */
 .call-info {
     flex: 1;
     min-width: 0;
@@ -2820,7 +2736,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .call-meta.declined { color: var(--red); }
 .call-meta.busy { color: var(--yellow); }
 
-/* ── Call time (right side) ─────────────────────────────────────── */
 .call-time {
     font-size: 11px;
     color: var(--text3);
@@ -2829,7 +2744,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     white-space: nowrap;
 }
 
-/* ── Call back button ───────────────────────────────────────────── */
 .call-back-btn {
     width: 36px;
     height: 36px;
@@ -2868,7 +2782,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 @media (hover: none) { .call-delete-btn { opacity: 0.5; } }
 .call-delete-btn:hover { color: var(--red); background: rgba(239,68,68,0.1); }
 
-/* ── Empty state ────────────────────────────────────────────────── */
 .calls-empty-state {
     display: flex;
     flex-direction: column;
@@ -2882,7 +2795,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .calls-empty-state svg { opacity: 0.15; }
 .calls-empty-state span { font-size: 14px; font-family: var(--sans); }
 
-/* ── Date group header ──────────────────────────────────────────── */
 .call-date-header {
     padding: 10px 18px 4px;
     font-size: 11px;
@@ -2898,9 +2810,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     backdrop-filter: blur(12px);
 }
 
-/* ============================================================================
  * NETWORK MODE TOGGLE (регистрация)
- * ========================================================================== */
 .mode-toggle {
     display: flex;
     gap: 8px;
@@ -2947,9 +2857,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     color: var(--text3);
 }
 
-/* ============================================================================
  * FEATURE: Read receipts (галочки доставки/прочтения)
- * ========================================================================== */
 .msg-status {
     font-size: 11px;
     color: var(--text3);
@@ -2961,9 +2869,7 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     color: var(--accent);
 }
 
-/* ============================================================================
  * FEATURE: Emoji reactions
- * ========================================================================== */
 .msg-reactions {
     display: flex;
     flex-wrap: wrap;
@@ -3014,7 +2920,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .msg-reaction { display: inline-flex; align-items: center; gap: 3px; }
 .reaction-count { font-size: 11px; font-weight: 700; font-family: var(--mono); }
 
-/* ── Reaction "who reacted" popover ──────────────────────────────────────── */
 .reaction-who-popover {
     position: fixed;
     z-index: 600;
@@ -3065,7 +2970,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     text-overflow: ellipsis;
 }
 
-/* ── Reaction "+" button in context menu ─────────────────────────────── */
 .ctx-react-plus {
     display: flex;
     align-items: center;
@@ -3090,7 +2994,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 }
 }
 
-/* ── Full Reaction Picker (popup near message) ───────────────────────── */
 .reaction-picker {
     position: absolute;
     width: 310px;
@@ -3166,7 +3069,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .rp-emoji:active { transform: scale(0.9); }
 }
 
-/* ── Light theme ─────────────────────────────────────────────────────── */
 body[data-theme="light"] .reaction-picker {
     background: #ffffff;
     border-color: #d4d4d8;
@@ -3176,7 +3078,6 @@ body[data-theme="light"] .rp-search { background: #f5f5f5; border-color: #d4d4d8
 body[data-theme="light"] .rp-emoji:hover { background: #f0f0f0; }
 body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d4d4d8; color: #71717a; }
 
-/* ── Mobile ──────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
     .reaction-picker {
         position: fixed;
@@ -3194,9 +3095,7 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     .rp-emoji { font-size: 26px; }
 }
 
-/* ============================================================================
  * FEATURE: Forward indicator
- * ========================================================================== */
 .msg-forwarded {
     font-size: 11px;
     color: var(--accent2);
@@ -3208,9 +3107,7 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     z-index: 4;
 }
 
-/* ============================================================================
  * FEATURE: Pinned message bar
- * ========================================================================== */
 .pinned-bar {
     display: flex;
     align-items: center;
@@ -3250,9 +3147,7 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     color: var(--text);
 }
 
-/* ============================================================================
  * FEATURE: Self-destructing message timer
- * ========================================================================== */
 .msg-timer {
     font-size: 10px;
     color: var(--red);
@@ -3269,14 +3164,10 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     background: rgba(239, 68, 68, 0.1);
 }
 
-/* ============================================================================
  * FEATURE: Message highlight — duplicate removed, see above
- * ========================================================================== */
 }
 
-/* ============================================================================
  * FEATURE: Muted room indicator in sidebar
- * ========================================================================== */
 .room-muted-icon {
     font-size: 14px;
     color: var(--text3);
@@ -3287,9 +3178,7 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     align-items: center;
 }
 
-/* ============================================================================
  * FEATURE: Search bar in chat (enhanced)
- * ========================================================================== */
 #chat-search-bar {
     flex-shrink: 0;
     padding: 8px 16px;
@@ -3354,9 +3243,7 @@ mark.search-highlight.current {
     box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.4);
 }
 
-/* ============================================================================
  * FEATURE: Drag & Drop file overlay
- * ========================================================================== */
 #chat-screen {
     position: relative;
 }
@@ -3400,9 +3287,7 @@ mark.search-highlight.current {
     50%      { transform: scale(1.03); }
 }
 
-/* ============================================================================
  * Settings tabs & sections
- * ========================================================================== */
 .settings-tab {
     padding: 6px 12px;
     background: none;
@@ -3459,7 +3344,6 @@ mark.search-highlight.current {
 }
 .toggle input:checked ~ .toggle-thumb { transform: translateX(18px); }
 
-/* ── Global search bar ───────────────────────────────────────────────────── */
 .sidebar-search { padding: 8px 10px; }
 .sidebar-search-input {
     width: 100%;
@@ -3478,9 +3362,7 @@ mark.search-highlight.current {
 .search-result-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; transition: background 0.1s; }
 .search-result-item:hover { background: var(--border); }
 
-/* ============================================================================
  * FEATURE 1: Polls (Telegram-style)
- * ========================================================================== */
 .poll-card {
     min-width: 260px;
     max-width: 380px;
@@ -3824,7 +3706,6 @@ mark.search-highlight.current {
     opacity: 1;
 }
 
-/* ── Poll creation modal settings ─────────────────────────────────────────── */
 
 .poll-create-modal {
     max-height: 85vh;
@@ -3930,9 +3811,7 @@ mark.search-highlight.current {
     margin-top: 4px;
 }
 
-/* ============================================================================
  * FEATURES 2-4: Input button active state & indicators
- * ========================================================================== */
 .input-btn.active {
     background: var(--accent);
     border-color: var(--accent);
@@ -3941,9 +3820,7 @@ mark.search-highlight.current {
 .header-btn {
     position: relative;
 }
-/* ============================================================================
  * FEATURE 2: Theme & accent picker styles
- * ========================================================================== */
 .theme-option, .accent-option {
     width: 40px;
     height: 40px;
@@ -3984,7 +3861,6 @@ mark.search-highlight.current {
     pointer-events: none;
 }
 
-/* ── Font Picker ─────────────────────────────────────────────────────────── */
 .font-picker-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -4113,9 +3989,7 @@ mark.search-highlight.current {
     line-height: 1;
 }
 
-/* ============================================================================
  * FEATURE: Stickers & Video Notes
- * ========================================================================== */
 
 /* Sticker grid items */
 #sticker-grid > div:hover {
@@ -4140,7 +4014,6 @@ mark.search-highlight.current {
     transition: opacity 0.15s;
 }
 
-/* ── Video Record Overlay ───────────────────────────────────────────────── */
 .vr-overlay {
     position: fixed; inset: 0; z-index: 9999;
     background: rgba(0,0,0,0.88);
@@ -4194,7 +4067,6 @@ mark.search-highlight.current {
 .vr-btn-send   { background: var(--green, #22c55e); box-shadow: 0 4px 16px rgba(34,197,94,0.4); }
 .vr-btn-label  { font-size: 12px; font-family: var(--mono); opacity: 0.7; }
 
-/* ── Video Note Player (in chat) ───────────────────────────────────────── */
 /* Video-note bubbles should always be centered, never pushed right */
 .video-note-container {
     position: relative; width: 200px; height: 200px; cursor: pointer;
@@ -4228,7 +4100,6 @@ mark.search-highlight.current {
     background: var(--bg3);
 }
 
-/* ── "Not in contacts" banner ──────────────────────────────────────────────── */
 .not-contact-banner {
     padding: 10px 16px;
     background: rgba(234, 179, 8, 0.1);
@@ -4261,9 +4132,7 @@ mark.search-highlight.current {
     color: #fff !important;
 }
 
-/* ============================================================================
  * SWIPE-TO-REPLY GESTURE (mobile)
- * ========================================================================== */
 
 .swipe-reply-arrow {
     position: absolute;
@@ -4293,11 +4162,8 @@ mark.search-highlight.current {
     transform: scaleX(-1); /* mirror arrow to point right */
 }
 
-/* ============================================================================
  * ТРЕДЫ (thread panel + badge)
- * ========================================================================== */
 
-/* ── Badge на сообщении ─────────────────────────────────────────────────── */
 .thread-badge {
     display: inline-flex;
     align-items: center;
@@ -4329,7 +4195,6 @@ mark.search-highlight.current {
     flex-shrink: 0;
 }
 
-/* ── Channel comment bar (Telegram-style "Leave a comment") ────────────── */
 .channel-comment-bar {
     display: flex;
     align-items: center;
@@ -4356,7 +4221,6 @@ mark.search-highlight.current {
     opacity: 0.7;
 }
 
-/* ── Channel about page (non-admin view) ──────────────────────────────── */
 .rss-discussion-btn {
     display: flex;
     align-items: center;
@@ -4385,7 +4249,6 @@ mark.search-highlight.current {
     margin-top: 4px;
 }
 
-/* ── Панель треда (slide-in справа) ─────────────────────────────────────── */
 .thread-panel {
     position: fixed;
     top: 0;

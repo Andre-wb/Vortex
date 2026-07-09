@@ -1,6 +1,4 @@
-/* ============================================================================
  * SKELETON LOADERS — shimmer placeholders during loading
- * ============================================================================ */
 
 @keyframes skeleton-shimmer {
     0%   { background-position: -200% 0; }
@@ -19,7 +17,6 @@
     border-radius: 6px;
 }
 
-/* ── Room list skeletons ─────────────────────────────────────────────── */
 .skeleton-room {
     display: flex;
     align-items: center;
@@ -47,7 +44,6 @@
     width: 40%;
 }
 
-/* ── Message skeletons ───────────────────────────────────────────────── */
 .skeleton-messages {
     display: flex;
     flex-direction: column;
@@ -90,7 +86,6 @@
     width: 45px;
 }
 
-/* ── File upload progress bar ────────────────────────────────────────── */
 .upload-progress-bar {
     position: relative;
     height: 4px;
@@ -133,7 +128,6 @@
 }
 .upload-progress-cancel:hover { text-decoration: underline; }
 
-/* ── Fade-in animation for loaded content ────────────────────────────── */
 @keyframes content-fade-in {
     from { opacity: 0; transform: translateY(4px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -142,7 +136,6 @@
     animation: content-fade-in 0.25s ease-out;
 }
 
-/* ── WebSocket connecting spinner ────────────────────────────────────── */
 .ws-connecting {
     display: flex;
     align-items: center;
@@ -165,7 +158,6 @@
     to { transform: rotate(360deg); }
 }
 
-/* ── Light theme skeleton ────────────────────────────────────────────── */
 body[data-theme="light"] .skeleton {
     background: linear-gradient(
         90deg,

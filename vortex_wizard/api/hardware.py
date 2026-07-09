@@ -37,9 +37,7 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #46 — Secure Enclave / TPM detection + wrap
-# ══════════════════════════════════════════════════════════════════════════
 
 def _detect_macos_enclave() -> dict:
     """Check for Apple Secure Enclave availability (Touch ID Mac / Apple Silicon)."""
@@ -115,9 +113,7 @@ async def enclave_wrap(body: EnclaveWrapBody, request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #47 — HSM (PKCS#11)
-# ══════════════════════════════════════════════════════════════════════════
 
 class HsmConfigBody(BaseModel):
     enabled:       bool
@@ -183,9 +179,7 @@ async def hsm_test(request: Request) -> dict:
         raise HTTPException(500, f"pkcs11 load failed: {e}")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #48 — NFC pairing payload
-# ══════════════════════════════════════════════════════════════════════════
 #
 # We generate an NDEF record (URI record) that a peer phone reads via
 # NFC. The payload is the same signed QR we use for device linking —
@@ -215,9 +209,7 @@ async def nfc_generate(request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #49 — BLE discovery
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/ble/adapter")
 async def ble_adapter() -> dict:
@@ -261,9 +253,7 @@ async def ble_scan(duration: int = 5) -> dict:
         raise HTTPException(500, f"ble scan failed: {e}")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #50 — GPIO / serial diagnostics
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/sbc/info")
 async def sbc_info() -> dict:

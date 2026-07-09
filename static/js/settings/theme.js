@@ -1,6 +1,4 @@
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 2: Chat Themes & Accent Colors
-// ══════════════════════════════════════════════════════════════════════════════
 
 var _chatThemes = {
     default:  { bg: '#09090b', bg2: '#111115', bg3: '#18181d', border: '#202027', text: '#e4e4e7', text2: '#71717a', text3: '#52525b' },
@@ -12,7 +10,6 @@ var _chatThemes = {
     light:    { bg: '#ffffff', bg2: '#f4f4f5', bg3: '#e4e4e7', border: '#d4d4d8', text: '#18181b', text2: '#52525b', text3: '#a1a1aa' },
 };
 
-// ── Theme Mode: dark / light / auto ──────────────────────────────────────────
 window.setThemeMode = function(mode) {
     localStorage.setItem('vortex_theme_mode', mode);
     _applyThemeMode(mode);

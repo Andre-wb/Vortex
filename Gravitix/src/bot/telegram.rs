@@ -7,9 +7,7 @@ use crate::error::{GravError, GravResult};
 use crate::value::BotOutput;
 use super::backend::{BotBackend, BotInfo};
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Vortex Bot API update types
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -67,9 +65,7 @@ pub enum VortexUpdate {
     },
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Vortex HTTP client
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
 pub struct VortexClient {

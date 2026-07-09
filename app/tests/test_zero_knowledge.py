@@ -19,9 +19,7 @@ import pytest
 from conftest import make_user, login_user, random_str, SyncASGIClient
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _fake_vault() -> str:
     """Generate a fake encrypted vault hex string (simulates AES-GCM output)."""
@@ -43,9 +41,7 @@ def _create_room(client: SyncASGIClient, headers: dict) -> int:
     return data.get('room_id') or data.get('id') or data['room']['id']
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Tests
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestProfileVault:
     def test_save_and_get_profile(self, client, logged_user):

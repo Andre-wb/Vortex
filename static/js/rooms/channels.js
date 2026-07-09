@@ -2,9 +2,7 @@
 
 import { $, api } from '../utils.js';
 
-// ═══════════════════════════════════════════════════════════════════════════
 // Channel Autoposting (RSS feeds & webhooks)
-// ═══════════════════════════════════════════════════════════════════════════
 
 window._channelAutopostRoomId = null;
 

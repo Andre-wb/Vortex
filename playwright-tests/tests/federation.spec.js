@@ -27,7 +27,6 @@ test.describe('Federation — Trusted Nodes', () => {
         csrf = csrfToken;
     });
 
-    // ── Authentication Guards ────────────────────────────────────────────────
 
     test('list nodes requires auth', async ({ freshRequest }) => {
         const res = await freshRequest.get('/api/federation/nodes');
@@ -48,7 +47,6 @@ test.describe('Federation — Trusted Nodes', () => {
         expect([401, 403]).toContain(res.status());
     });
 
-    // ── Node CRUD ────────────────────────────────────────────────────────────
 
     test('add node with invalid URL returns 400', async ({ request }) => {
         const res = await request.post('/api/federation/nodes/add', {
@@ -107,7 +105,6 @@ test.describe('Federation — Trusted Nodes', () => {
         expect([404, 400]).toContain(res.status());
     });
 
-    // ── Network Status ───────────────────────────────────────────────────────
 
     test('status returns network summary', async ({ request }) => {
         const res = await request.get('/api/federation/nodes/status', {
@@ -128,7 +125,6 @@ test.describe('Federation — Trusted Nodes', () => {
         expect(body).toHaveProperty('total_nodes');
     });
 
-    // ── Code Hash & Manifest ─────────────────────────────────────────────────
 
     test('code-hash returns deterministic hash', async ({ request }) => {
         const res1 = await request.get('/api/federation/code-hash', {
@@ -163,7 +159,6 @@ test.describe('Federation — Trusted Nodes', () => {
         expect(body).toHaveProperty('code_hash');
     });
 
-    // ── Handshake ────────────────────────────────────────────────────────────
 
     test('handshake with valid payload', async ({ request }) => {
         const hashRes = await request.get('/api/federation/code-hash', {
@@ -192,7 +187,6 @@ test.describe('Federation — Trusted Nodes', () => {
         expect([400, 422]).toContain(res.status());
     });
 
-    // ── Gossip ───────────────────────────────────────────────────────────────
 
     test('gossip node-joined accepts data', async ({ request }) => {
         const res = await request.post('/api/federation/gossip/node-joined', {
@@ -234,7 +228,6 @@ test.describe('Federation — Trusted Nodes', () => {
         expect([400, 422]).toContain(res.status());
     });
 
-    // ── Token Validation ─────────────────────────────────────────────────────
 
     test('validate-token with invalid token', async ({ request }) => {
         const res = await request.post('/api/federation/validate-token', {
@@ -257,7 +250,6 @@ test.describe('Federation — Trusted Nodes', () => {
         expect([400, 422]).toContain(res.status());
     });
 
-    // ── My Tasks ─────────────────────────────────────────────────────────────
 
     test('my-tasks returns task list', async ({ request }) => {
         const res = await request.get('/api/federation/my-tasks', {
@@ -277,7 +269,6 @@ test.describe('Federation — Trusted Nodes', () => {
         expect(body).toHaveProperty('node_id');
     });
 
-    // ── Verify ───────────────────────────────────────────────────────────────
 
     test('verify non-existent node', async ({ request }) => {
         const res = await request.post('/api/federation/nodes/verify', {

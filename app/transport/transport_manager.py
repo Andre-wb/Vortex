@@ -45,7 +45,6 @@ from app.transport.wifi_direct import WifiDirectManager, wifi_direct_manager
 
 logger = logging.getLogger(__name__)
 
-# ── Shared HTTP connection pool for transport probes & signaling ─────────────
 _transport_pool = httpx.AsyncClient(
     timeout=httpx.Timeout(5.0, connect=3.0),
     limits=httpx.Limits(max_keepalive_connections=15, max_connections=60, keepalive_expiry=30.0),
@@ -53,9 +52,7 @@ _transport_pool = httpx.AsyncClient(
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Приоритеты транспортов
-# ─────────────────────────────────────────────────────────────────────────────
 
 class TransportPriority(IntEnum):
     DIRECT_TCP   = 4   # Лучший: прямой HTTP/WS в локальной сети
@@ -102,9 +99,7 @@ class PeerTransportState:
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Transport Manager
-# ─────────────────────────────────────────────────────────────────────────────
 
 class TransportManager:
     """
@@ -128,7 +123,6 @@ class TransportManager:
         # Callback при входящем сообщении через NAT/BLE/WiFiDirect
         self._on_message: Optional[Callable] = None
 
-    # ── Запуск ────────────────────────────────────────────────────────────────
 
     async def start(
             self,
@@ -200,7 +194,6 @@ class TransportManager:
         await wifi_direct_manager.stop()
         self._started = False
 
-    # ── Callbacks от транспортов ──────────────────────────────────────────────
 
     async def _on_ble_peer(self, peer) -> None:
         """Вызывается когда BLE обнаружил новый Vortex-узел."""
@@ -242,7 +235,6 @@ class TransportManager:
         except Exception as e:
             logger.debug(f"BLE message parse: {e}")
 
-    # ── NAT Hole Punch ────────────────────────────────────────────────────────
 
     async def initiate_hole_punch(
             self,
@@ -352,7 +344,6 @@ class TransportManager:
                 logger.debug(f"Signal send {scheme}://{peer_ip}: {e}")
         return False
 
-    # ── Отправка сообщений через лучший транспорт ─────────────────────────────
 
     async def send_via_best_transport(
             self,
@@ -429,7 +420,6 @@ class TransportManager:
                 pass
         return 9999.0
 
-    # ── Multi-path parallel delivery ─────────────────────────────────────────
 
     async def send_via_parallel_paths(
             self,
@@ -501,7 +491,6 @@ class TransportManager:
 
         return success, winner
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _get_or_create(self, peer_ip: str, peer_port: int) -> PeerTransportState:
         if peer_ip not in self._peers:
@@ -515,7 +504,6 @@ class TransportManager:
         """Принимает ICE кандидаты от пира (вызывается из API)."""
         signaling.store(session_id, role, candidates)
 
-    # ── Status API ────────────────────────────────────────────────────────────
 
     def full_status(self) -> dict:
         return {

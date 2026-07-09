@@ -19,7 +19,6 @@ import pytest
 from conftest import make_user, random_str, SyncASGIClient
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _auth(client: SyncASGIClient):
     u = make_user(client)
@@ -44,9 +43,7 @@ def _create_bot(client, headers):
     return None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. GLOBAL SEARCH
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class TestMessageSearch:
@@ -68,6 +65,4 @@ class TestMessageSearch:
         assert r.status_code in (403, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. SECURITY QUESTIONS
-# ══════════════════════════════════════════════════════════════════════════════

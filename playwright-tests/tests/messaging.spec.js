@@ -24,7 +24,6 @@ const { randomStr, randomDigits, makeEciesPayload, makeCiphertext, registerAndLo
  * 12.  Edge cases         — unauthenticated, bad inputs, missing room
  */
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build the ciphertext payload required by RoomCreate (60 bytes hex = 120 hex chars). */
 const makeEncryptedRoomKey = () => makeEciesPayload();
@@ -73,7 +72,6 @@ async function sendAndGetMsgId(request, csrfToken, roomId) {
     return 0;
 }
 
-// ── Shared test state ────────────────────────────────────────────────────────
 
 /** Username / phone seeded once per test run so parallel re-runs don't collide. */
 const USER_A = {
@@ -81,9 +79,7 @@ const USER_A = {
     phone:    `+7920${randomDigits(7)}`,
 };
 
-// ────────────────────────────────────────────────────────────────────────────
 // 1. MESSAGE CRUD
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('1. Message CRUD', () => {
     let csrfToken = '';
@@ -97,7 +93,6 @@ test.describe('1. Message CRUD', () => {
         roomId    = await createRoom(request, csrfToken);
     });
 
-    // ── 1a. Send message ─────────────────────────────────────────────────────
 
     test('1a. POST /api/rooms/{id}/messages — send encrypted message', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -114,7 +109,6 @@ test.describe('1. Message CRUD', () => {
         if (id) msgId = id;
     });
 
-    // ── 1b. Get room history ─────────────────────────────────────────────────
 
     test('1b. GET /api/rooms/{id}/export — room history is accessible', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -132,7 +126,6 @@ test.describe('1. Message CRUD', () => {
         expect(Array.isArray(body.messages)).toBe(true);
     });
 
-    // ── 1c. Export includes expected message fields ──────────────────────────
 
     test('1c. GET /api/rooms/{id}/export — message records have required fields', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -152,7 +145,6 @@ test.describe('1. Message CRUD', () => {
         }
     });
 
-    // ── 1d. Get thread endpoint exists ───────────────────────────────────────
 
     test('1d. GET /api/rooms/{id}/thread/{msg_id} — returns 200 or 404 (not 500)', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -164,7 +156,6 @@ test.describe('1. Message CRUD', () => {
         expect([200, 403, 404]).toContain(res.status());
     });
 
-    // ── 1e. Reply to message (via REST send if available) ────────────────────
 
     test('1e. POST /api/rooms/{id}/messages with reply_to_id is accepted', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -187,7 +178,6 @@ test.describe('1. Message CRUD', () => {
         expect([200, 201]).toContain(res.status());
     });
 
-    // ── 1f. Edit message ─────────────────────────────────────────────────────
 
     test('1f. PUT /api/rooms/{id}/messages/{msg_id} — edit returns 200 or endpoint not present', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -200,7 +190,6 @@ test.describe('1. Message CRUD', () => {
         expect([200, 201, 422]).toContain(res.status());
     });
 
-    // ── 1g. Delete message ───────────────────────────────────────────────────
 
     test('1g. DELETE /api/rooms/{id}/messages/{msg_id} — delete returns 2xx or endpoint not present', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -212,7 +201,6 @@ test.describe('1. Message CRUD', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── 1h. Send to non-existent room returns 403/404 ────────────────────────
 
     test('1h. POST /api/rooms/999999/messages — non-member room returns 403 or 404', async ({ request }) => {
         const res = await request.post('/api/rooms/999999/messages', {
@@ -229,9 +217,7 @@ test.describe('1. Message CRUD', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 2. FILE UPLOAD
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('2. File Upload', () => {
     const fileUser = {
@@ -249,7 +235,6 @@ test.describe('2. File Upload', () => {
         roomId    = await createRoom(request, csrfToken, 'upload_room');
     });
 
-    // ── 2a. Upload a small PNG image ─────────────────────────────────────────
 
     test('2a. POST /api/files/upload/{room_id} — upload valid PNG image', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -289,7 +274,6 @@ test.describe('2. File Upload', () => {
         }
     });
 
-    // ── 2b. Upload a plain-text document ─────────────────────────────────────
 
     test('2b. POST /api/files/upload/{room_id} — upload text/plain document', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -316,7 +300,6 @@ test.describe('2. File Upload', () => {
         }
     });
 
-    // ── 2c. Upload response body structure ───────────────────────────────────
 
     test('2c. POST /api/files/upload — successful upload returns file metadata', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -332,7 +315,6 @@ test.describe('2. File Upload', () => {
         expect(Array.isArray(body.files)).toBe(true);
     });
 
-    // ── 2d. Download uploaded file ───────────────────────────────────────────
 
     test('2d. GET /api/files/download/{file_id} — downloads uploaded file', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -344,7 +326,6 @@ test.describe('2. File Upload', () => {
         expect([200, 404]).toContain(res.status());
     });
 
-    // ── 2e. Download non-existent file returns 404 ──────────────────────────
 
     test('2e. GET /api/files/download/999999999 — returns 404', async ({ request }) => {
         const res = await request.get('/api/files/download/999999999', {
@@ -353,7 +334,6 @@ test.describe('2. File Upload', () => {
         expect(res.status()).toBe(404);
     });
 
-    // ── 2f. List room files endpoint ─────────────────────────────────────────
 
     test('2f. GET /api/files/room/{room_id} — returns files array', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -377,7 +357,6 @@ test.describe('2. File Upload', () => {
         }
     });
 
-    // ── 2g. Upload to non-member room returns 403 ────────────────────────────
 
     test('2g. POST /api/files/upload/999999 — non-member returns 403', async ({ request }) => {
         const textContent = Buffer.from('test', 'utf-8');
@@ -394,7 +373,6 @@ test.describe('2. File Upload', () => {
         expect([403, 404]).toContain(res.status());
     });
 
-    // ── 2h. Upload rejected executable extension ─────────────────────────────
 
     test('2h. POST /api/files/upload — .exe file is rejected', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -414,7 +392,6 @@ test.describe('2. File Upload', () => {
         expect([400, 403, 415]).toContain(res.status());
     });
 
-    // ── 2i. Unauthenticated upload returns 401 ───────────────────────────────
 
     test('2i. POST /api/files/upload — unauthenticated returns 401', async ({ request }) => {
         // Use a fresh request without a session cookie by omitting CSRF
@@ -441,9 +418,7 @@ test.describe('2. File Upload', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 3. MESSAGE REACTIONS
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('3. Message Reactions', () => {
     const reactUser = {
@@ -460,7 +435,6 @@ test.describe('3. Message Reactions', () => {
         roomId    = await createRoom(request, csrfToken, 'react_room');
     });
 
-    // ── 3a. Add reaction via REST (if endpoint exposed) ──────────────────────
 
     test('3a. POST /api/rooms/{id}/messages/{msg_id}/react — endpoint accessible', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -476,7 +450,6 @@ test.describe('3. Message Reactions', () => {
         expect([200, 404, 422]).toContain(res.status());
     });
 
-    // ── 3b. Channel post reactions ────────────────────────────────────────────
 
     test('3b. POST /api/channels/{id}/posts/{msg_id}/react — endpoint accessible', async ({ request }) => {
         // Non-existent channel/message should return 404, not crash
@@ -487,7 +460,6 @@ test.describe('3. Message Reactions', () => {
         expect([200, 422]).toContain(res.status());
     });
 
-    // ── 3c. Channel post reactions list ──────────────────────────────────────
 
     test('3c. GET /api/channels/{id}/posts/{msg_id}/reactions — endpoint accessible', async ({ request }) => {
         const res = await request.get('/api/channels/999999/posts/1/reactions', {
@@ -503,9 +475,7 @@ test.describe('3. Message Reactions', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 4. PINNED MESSAGES
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('4. Pinned Messages', () => {
     const pinUser = {
@@ -523,7 +493,6 @@ test.describe('4. Pinned Messages', () => {
         roomId    = await createRoom(request, csrfToken, 'pin_room');
     });
 
-    // ── 4a. Pin a message (non-existent msg_id → 404) ────────────────────────
 
     test('4a. POST /api/rooms/{id}/pin — returns 403 for member (not admin)', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -537,7 +506,6 @@ test.describe('4. Pinned Messages', () => {
         expect([200, 403, 404]).toContain(res.status());
     });
 
-    // ── 4b. Pin null (unpin) ─────────────────────────────────────────────────
 
     test('4b. POST /api/rooms/{id}/pin with msg_id=null — unpins message', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -553,7 +521,6 @@ test.describe('4. Pinned Messages', () => {
         }
     });
 
-    // ── 4c. Read pinned_message_id from room detail ───────────────────────────
 
     test('4c. GET /api/rooms/{id} — response includes pinned_message_id field', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -570,7 +537,6 @@ test.describe('4. Pinned Messages', () => {
         expect(body).toHaveProperty('name');
     });
 
-    // ── 4d. Non-member cannot pin ─────────────────────────────────────────────
 
     test('4d. POST /api/rooms/999999/pin — non-member returns 403', async ({ request }) => {
         const res = await request.post('/api/rooms/999999/pin', {
@@ -587,9 +553,7 @@ test.describe('4. Pinned Messages', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 5. TYPING INDICATORS
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('5. Typing Indicators', () => {
     const typingUser = {
@@ -606,7 +570,6 @@ test.describe('5. Typing Indicators', () => {
         roomId    = await createRoom(request, csrfToken, 'typing_room');
     });
 
-    // ── 5a. Typing REST endpoint (if exposed) ────────────────────────────────
 
     test('5a. POST /api/rooms/{id}/typing — endpoint returns sane status', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -619,7 +582,6 @@ test.describe('5. Typing Indicators', () => {
         expect([200, 404]).toContain(res.status());
     });
 
-    // ── 5b. Typing indicator via statuses endpoint ───────────────────────────
 
     test('5b. POST /api/statuses — presence update accepted', async ({ request }) => {
         const res = await request.post('/api/statuses', {
@@ -633,7 +595,6 @@ test.describe('5. Typing Indicators', () => {
         }
     });
 
-    // ── 5c. Rich status update includes presence field ───────────────────────
 
     test('5c. PUT /api/authentication/status — sets typing-style presence', async ({ request }) => {
         const res = await request.put('/api/authentication/status', {
@@ -650,9 +611,7 @@ test.describe('5. Typing Indicators', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 6. MESSAGE SEARCH
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('6. Message Search', () => {
     const searchUser = {
@@ -669,7 +628,6 @@ test.describe('6. Message Search', () => {
         roomId    = await createRoom(request, csrfToken, 'search_room');
     });
 
-    // ── 6a. Global user search ───────────────────────────────────────────────
 
     test('6a. GET /api/users/search?q= — returns matching users', async ({ request }) => {
         const q = searchUser.username.slice(0, 6);
@@ -683,7 +641,6 @@ test.describe('6. Message Search', () => {
         expect(Array.isArray(users)).toBe(true);
     });
 
-    // ── 6b. Global search across rooms/channels/users ───────────────────────
 
     test('6b. GET /api/users/global-search — unified search returns structured result', async ({ request }) => {
         const res = await request.get(
@@ -701,7 +658,6 @@ test.describe('6. Message Search', () => {
         expect(Array.isArray(body.chats)).toBe(true);
     });
 
-    // ── 6c. Search with very short query (≤3 chars) ──────────────────────────
 
     test('6c. GET /api/users/search?q=ab — short query handled correctly', async ({ request }) => {
         const res = await request.get('/api/users/search?q=ab', {
@@ -714,7 +670,6 @@ test.describe('6. Message Search', () => {
         }
     });
 
-    // ── 6d. Per-room message history export is searchable ────────────────────
 
     test('6d. GET /api/rooms/{id}/export — exported messages support client-side search', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -728,7 +683,6 @@ test.describe('6. Message Search', () => {
         expect(typeof body.message_count).toBe('number');
     });
 
-    // ── 6e. Unauthenticated global search returns 401 ────────────────────────
 
     test('6e. GET /api/users/global-search without auth returns 401', async ({ freshRequest: request }) => {
         // Use a fresh context without cookies / CSRF
@@ -743,9 +697,7 @@ test.describe('6. Message Search', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 7. DRAFT MESSAGES
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('7. Draft Messages', () => {
     const draftUser = {
@@ -762,7 +714,6 @@ test.describe('7. Draft Messages', () => {
         roomId    = await createRoom(request, csrfToken, 'draft_room');
     });
 
-    // ── 7a. Save draft ───────────────────────────────────────────────────────
 
     test('7a. POST /api/rooms/{id}/draft — save draft', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -774,7 +725,6 @@ test.describe('7. Draft Messages', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── 7b. Retrieve draft ───────────────────────────────────────────────────
 
     test('7b. GET /api/rooms/{id}/draft — retrieve draft', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -785,7 +735,6 @@ test.describe('7. Draft Messages', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── 7c. Saved messages as a draft store ──────────────────────────────────
 
     test('7c. GET /api/saved — saved messages endpoint is accessible (draft-like store)', async ({ request }) => {
         const res = await request.get('/api/saved', {
@@ -798,7 +747,6 @@ test.describe('7. Draft Messages', () => {
         expect(Array.isArray(body.saved)).toBe(true);
     });
 
-    // ── 7d. Clear draft ──────────────────────────────────────────────────────
 
     test('7d. DELETE /api/rooms/{id}/draft — clear draft', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -816,9 +764,7 @@ test.describe('7. Draft Messages', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 8. MESSAGE THREADING
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('8. Message Threading', () => {
     const threadUser = {
@@ -835,7 +781,6 @@ test.describe('8. Message Threading', () => {
         roomId    = await createRoom(request, csrfToken, 'thread_room');
     });
 
-    // ── 8a. Thread endpoint for non-existent message returns 404 ─────────────
 
     test('8a. GET /api/rooms/{id}/thread/999 — non-existent root returns 404', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -846,7 +791,6 @@ test.describe('8. Message Threading', () => {
         expect([403, 404]).toContain(res.status());
     });
 
-    // ── 8b. Thread endpoint structure when message exists ────────────────────
 
     test('8b. GET /api/rooms/{id}/thread/{msg_id} — returns root + replies shape', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -878,7 +822,6 @@ test.describe('8. Message Threading', () => {
         expect(Array.isArray(body.replies)).toBe(true);
     });
 
-    // ── 8c. Thread reply via REST send ───────────────────────────────────────
 
     test('8c. POST /api/rooms/{id}/messages with thread_id — creates thread reply', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -893,7 +836,6 @@ test.describe('8. Message Threading', () => {
         expect([200, 201]).toContain(res.status());
     });
 
-    // ── 8d. Non-member cannot access threads ─────────────────────────────────
 
     test('8d. GET /api/rooms/999999/thread/1 — non-member returns 403', async ({ request }) => {
         const res = await request.get('/api/rooms/999999/thread/1', {
@@ -909,9 +851,7 @@ test.describe('8. Message Threading', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 9. WEBSOCKET FLOW (HTTP-level checks)
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('9. WebSocket Flow — HTTP upgrade probes', () => {
     const wsUser = {
@@ -928,7 +868,6 @@ test.describe('9. WebSocket Flow — HTTP upgrade probes', () => {
         roomId    = await createRoom(request, csrfToken, 'ws_room');
     });
 
-    // ── 9a. WS endpoint exists — plain HTTP returns 400/426 or similar ───────
 
     test('9a. GET /ws/{room_id} without Upgrade header — server responds (not 500)', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -941,7 +880,6 @@ test.describe('9. WebSocket Flow — HTTP upgrade probes', () => {
         expect(res.status()).toBeGreaterThanOrEqual(400);
     });
 
-    // ── 9b. Signal WS endpoint similarly refuses plain HTTP ──────────────────
 
     test('9b. GET /ws/signal/{room_id} — plain HTTP request is handled gracefully', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -951,7 +889,6 @@ test.describe('9. WebSocket Flow — HTTP upgrade probes', () => {
         expect(res.status()).toBeGreaterThanOrEqual(400);
     });
 
-    // ── 9c. Notification WS endpoint probed ──────────────────────────────────
 
     test('9c. GET /ws/notifications — plain HTTP is handled gracefully', async ({ request }) => {
         const res = await request.get('/ws/notifications');
@@ -959,7 +896,6 @@ test.describe('9. WebSocket Flow — HTTP upgrade probes', () => {
         expect(res.status()).toBeGreaterThanOrEqual(400);
     });
 
-    // ── 9d. Mark room as read REST endpoint ──────────────────────────────────
 
     test('9d. POST /api/rooms/{id}/read — marks messages read (simulates read receipt)', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -979,9 +915,7 @@ test.describe('9. WebSocket Flow — HTTP upgrade probes', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 10. PAGINATION
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('10. Pagination', () => {
     const pageUser = {
@@ -998,7 +932,6 @@ test.describe('10. Pagination', () => {
         roomId    = await createRoom(request, csrfToken, 'page_room');
     });
 
-    // ── 10a. Export with default limit ───────────────────────────────────────
 
     test('10a. GET /api/rooms/{id}/export — default page returns all messages', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1014,7 +947,6 @@ test.describe('10. Pagination', () => {
         expect(body.messages.length).toBe(body.message_count);
     });
 
-    // ── 10b. Pagination query params are accepted ─────────────────────────────
 
     test('10b. GET /api/rooms/{id}/export?limit=5 — server handles limit param', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1026,7 +958,6 @@ test.describe('10. Pagination', () => {
         expect([200, 422]).toContain(res.status());
     });
 
-    // ── 10c. before_id cursor ────────────────────────────────────────────────
 
     test('10c. GET /api/rooms/{id}/messages?before_id=9999 — server handles before_id cursor', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1039,7 +970,6 @@ test.describe('10. Pagination', () => {
         expect(Array.isArray(body.messages ?? body)).toBe(true);
     });
 
-    // ── 10d. after_id cursor ─────────────────────────────────────────────────
 
     test('10d. GET /api/rooms/{id}/messages?after_id=1 — server handles after_id cursor', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1050,7 +980,6 @@ test.describe('10. Pagination', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── 10e. Thread pagination ────────────────────────────────────────────────
 
     test('10e. GET /api/rooms/{id}/thread/{msg_id}?limit=10 — thread pagination param', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1069,9 +998,7 @@ test.describe('10. Pagination', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 11. ROOM-LEVEL EXTRAS
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('11. Room-level extras', () => {
     const extUser = {
@@ -1088,7 +1015,6 @@ test.describe('11. Room-level extras', () => {
         roomId    = await createRoom(request, csrfToken, 'ext_room');
     });
 
-    // ── 11a. Set auto-delete timer ────────────────────────────────────────────
 
     test('11a. POST /api/rooms/{id}/auto-delete — set 300s timer', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1102,7 +1028,6 @@ test.describe('11. Room-level extras', () => {
         expect(body.ok).toBe(true);
     });
 
-    // ── 11b. Disable auto-delete ─────────────────────────────────────────────
 
     test('11b. POST /api/rooms/{id}/auto-delete — disable timer (seconds=0)', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1114,7 +1039,6 @@ test.describe('11. Room-level extras', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── 11c. Set slow mode ────────────────────────────────────────────────────
 
     test('11c. POST /api/rooms/{id}/slow-mode — set 30s slow mode', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1128,7 +1052,6 @@ test.describe('11. Room-level extras', () => {
         expect(body.ok).toBe(true);
     });
 
-    // ── 11d. Disable slow mode ────────────────────────────────────────────────
 
     test('11d. POST /api/rooms/{id}/slow-mode — disable (seconds=0)', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1140,7 +1063,6 @@ test.describe('11. Room-level extras', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── 11e. Toggle mute ──────────────────────────────────────────────────────
 
     test('11e. POST /api/rooms/{id}/mute — mute toggle returns muted status', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1153,7 +1075,6 @@ test.describe('11. Room-level extras', () => {
         expect(typeof body.muted).toBe('boolean');
     });
 
-    // ── 11f. Toggle mute again (idempotent back) ──────────────────────────────
 
     test('11f. POST /api/rooms/{id}/mute — second toggle reverses the state', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1173,7 +1094,6 @@ test.describe('11. Room-level extras', () => {
         expect(secondMuted).toBe(!firstMuted);
     });
 
-    // ── 11g. Mark room read returns ok ────────────────────────────────────────
 
     test('11g. POST /api/rooms/{id}/read — marks room as read', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1186,7 +1106,6 @@ test.describe('11. Room-level extras', () => {
         expect(body.ok).toBe(true);
     });
 
-    // ── 11h. Push subscribe endpoint ──────────────────────────────────────────
 
     test('11h. POST /api/push/subscribe — accepts push subscription payload', async ({ request }) => {
         const res = await request.post('/api/push/subscribe', {
@@ -1210,9 +1129,7 @@ test.describe('11. Room-level extras', () => {
     });
 });
 
-// ────────────────────────────────────────────────────────────────────────────
 // 12. EDGE CASES — bad inputs, unauthenticated, missing resources
-// ────────────────────────────────────────────────────────────────────────────
 
 test.describe('12. Edge cases', () => {
     const edgeUser = {
@@ -1229,7 +1146,6 @@ test.describe('12. Edge cases', () => {
         roomId    = await createRoom(request, csrfToken, 'edge_room');
     });
 
-    // ── 12a. Export unauthenticated returns 401 ───────────────────────────────
 
     test('12a. GET /api/rooms/{id}/export without auth returns 401', async ({ freshRequest: request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1239,7 +1155,6 @@ test.describe('12. Edge cases', () => {
         expect([401, 403]).toContain(res.status());
     });
 
-    // ── 12b. File list unauthenticated returns 401 ───────────────────────────
 
     test('12b. GET /api/files/room/{id} without auth returns 401', async ({ freshRequest: request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1248,7 +1163,6 @@ test.describe('12. Edge cases', () => {
         expect([401, 403]).toContain(res.status());
     });
 
-    // ── 12c. Pin in non-existent room returns 403/404 ────────────────────────
 
     test('12c. POST /api/rooms/999999999/pin returns 403 or 404', async ({ request }) => {
         const res = await request.post('/api/rooms/999999999/pin', {
@@ -1258,7 +1172,6 @@ test.describe('12. Edge cases', () => {
         expect([403, 404]).toContain(res.status());
     });
 
-    // ── 12d. Auto-delete with invalid seconds is rejected ────────────────────
 
     test('12d. POST /api/rooms/{id}/auto-delete with negative seconds', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1271,7 +1184,6 @@ test.describe('12. Edge cases', () => {
         expect([200, 400, 422]).toContain(res.status());
     });
 
-    // ── 12e. Slow-mode unauthenticated returns 401 ───────────────────────────
 
     test('12e. POST /api/rooms/{id}/slow-mode without auth returns 401', async ({ freshRequest: request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1282,7 +1194,6 @@ test.describe('12. Edge cases', () => {
         expect([401, 403]).toContain(res.status());
     });
 
-    // ── 12f. Upload missing file field returns 422 ───────────────────────────
 
     test('12f. POST /api/files/upload without file field returns 422', async ({ request }) => {
         roomId = await ensureRoom(request, csrfToken, roomId);
@@ -1294,7 +1205,6 @@ test.describe('12. Edge cases', () => {
         expect([400, 422]).toContain(res.status());
     });
 
-    // ── 12g. Thread on non-member room returns 403 ───────────────────────────
 
     test('12g. GET /api/rooms/888888/thread/1 — non-member returns 403', async ({ request }) => {
         const res = await request.get('/api/rooms/888888/thread/1', {
@@ -1303,7 +1213,6 @@ test.describe('12. Edge cases', () => {
         expect([403, 404]).toContain(res.status());
     });
 
-    // ── 12h. Mark read on non-member room returns 403 ────────────────────────
 
     test('12h. POST /api/rooms/777777/read — non-member returns 403', async ({ request }) => {
         const res = await request.post('/api/rooms/777777/read', {

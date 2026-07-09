@@ -19,7 +19,6 @@ import pytest
 from conftest import make_user, random_str, SyncASGIClient
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _auth(client: SyncASGIClient):
     u = make_user(client)
@@ -44,9 +43,7 @@ def _create_bot(client, headers):
     return None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. GLOBAL SEARCH
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class TestSealedPrekeys:
@@ -91,6 +88,4 @@ class TestSealedPrekeys:
         assert r.status_code in (200, 403, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 6. BOT MESSAGING
-# ══════════════════════════════════════════════════════════════════════════════

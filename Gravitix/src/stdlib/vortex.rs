@@ -90,7 +90,6 @@ pub async fn call_vortex_builtin(
                 .map_err(|e| GravError::Bot(e.to_string()))?;
             Ok(Some(json_to_value(info)))
         }
-        // ── Moderation API ────────────────────────────────────────────────────
 
         "vortex_mute" => {
             // vortex_mute(room_id, user_id, duration_sec)
@@ -209,9 +208,7 @@ pub async fn call_vortex_builtin(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn get_room_text(args: &[Value], name: &str) -> GravResult<(i64, String)> {
     if args.len() < 2 {

@@ -1,8 +1,5 @@
-/* ============================================================================
  * QUICK SWITCHER (Ctrl+K) & SHORTCUTS MODAL (Ctrl+/)
- * ============================================================================ */
 
-/* ── Overlay ─────────────────────────────────────────────────────────── */
 .qs-overlay {
     position: fixed;
     inset: 0;
@@ -18,7 +15,6 @@
 }
 .qs-overlay.open { opacity: 1; }
 
-/* ── Quick Switcher Modal ────────────────────────────────────────────── */
 .qs-modal {
     width: 480px;
     max-width: 90vw;
@@ -152,7 +148,6 @@
     line-height: 1;
 }
 
-/* ── Shortcuts Cheatsheet Modal ──────────────────────────────────────── */
 .sc-modal {
     width: 480px;
     max-width: 90vw;
@@ -221,7 +216,6 @@
     text-align: right;
 }
 
-/* ── Light theme ─────────────────────────────────────────────────────── */
 body[data-theme="light"] .qs-overlay { background: rgba(0, 0, 0, 0.3); }
 body[data-theme="light"] .qs-modal,
 body[data-theme="light"] .sc-modal {
@@ -240,7 +234,6 @@ body[data-theme="light"] .qs-item-emoji { background: #f5f5f5; }
 body[data-theme="light"] .qs-key { background: #f5f5f5; border-color: #d4d4d8; color: #52525b; }
 body[data-theme="light"] .sc-row { border-color: rgba(0, 0, 0, 0.06); }
 
-/* ── Mobile ──────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
     .qs-overlay { padding-top: 5vh; }
     .qs-modal, .sc-modal { max-width: 95vw; }

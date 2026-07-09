@@ -27,7 +27,6 @@ import shutil
 from typing import NamedTuple
 
 
-# ── Константы ─────────────────────────────────────────────────────────────────
 
 ENV_FILE  = Path(".env")
 CERT_DIR  = Path("certs")
@@ -52,7 +51,6 @@ BANNER = r"""
 """
 
 
-# ── Вывод в терминал ──────────────────────────────────────────────────────────
 
 def _p(text: str, color: str = "") -> None:
     _colors = {
@@ -66,7 +64,6 @@ def _p(text: str, color: str = "") -> None:
     print(f"{_colors.get(color, '')}{text}{reset}", flush=True)
 
 
-# ── .env ──────────────────────────────────────────────────────────────────────
 
 def _read_env() -> dict[str, str]:
     if not ENV_FILE.exists():
@@ -84,7 +81,6 @@ def _is_initialized() -> bool:
     return _read_env().get("NODE_INITIALIZED") == "true"
 
 
-# ── Сеть ─────────────────────────────────────────────────────────────────────
 
 def _local_ip() -> str:
     """Определяет локальный IP без необходимости в интернете."""
@@ -114,7 +110,6 @@ def _wait_for_port(port: int, timeout: float = 10.0) -> bool:
     return False
 
 
-# ── Браузер ───────────────────────────────────────────────────────────────────
 
 def _open_browser(url: str) -> None:
     """
@@ -159,7 +154,6 @@ def _open_browser(url: str) -> None:
     threading.Thread(target=_do, daemon=False).start()
 
 
-# ── Проверки ──────────────────────────────────────────────────────────────────
 
 def _check_python() -> None:
     if sys.version_info < (3, 10):
@@ -177,7 +171,6 @@ def _check_deps() -> list[str]:
     return missing
 
 
-# ── --status ──────────────────────────────────────────────────────────────────
 
 def cmd_status() -> None:
     _p(BANNER, "cyan")
@@ -202,7 +195,6 @@ def cmd_status() -> None:
     _p("─" * 54, "dim")
 
 
-# ── --reset ───────────────────────────────────────────────────────────────────
 
 def cmd_reset() -> None:
     _p("\n⚠  Это сбросит все настройки узла!", "yellow")
@@ -222,7 +214,6 @@ def cmd_reset() -> None:
     _p("  Запустите 'python run.py' для повторной настройки.\n", "cyan")
 
 
-# ── --generate-worker ─────────────────────────────────────────────────────────
 
 def cmd_generate_worker(backend_url: str) -> None:
     """Генерация файлов Cloudflare Worker для CDN relay."""
@@ -252,21 +243,17 @@ def cmd_generate_worker(backend_url: str) -> None:
     _p(f"  CDN_RELAY_SECRET={relay_secret}\n", "cyan")
 
 
-# ── Первый запуск (интерактивный) ─────────────────────────────────────────────
 
 def cmd_first_launch() -> None:
     """Интерактивная настройка при первом запуске — прямо в консоли."""
     _p(BANNER, "cyan")
     _p("  ⚡ Первый запуск — настройка узла\n", "cyan")
 
-    # ── 1. Имя устройства ────────────────────────────────────────────────
     default_name = platform.node()
     name = input(f"  Имя устройства [{default_name}]: ").strip() or default_name
 
-    # ── 2. Порт ──────────────────────────────────────────────────────────
     port = input("  Порт [9000]: ").strip() or "9000"
 
-    # ── 3. Режим сети ────────────────────────────────────────────────────
     _p("\n  Режим сети:", "cyan")
     _p("    1) 📡 Локальный — Wi-Fi / LAN (без интернета)")
     _p("    2) 🌍 Глобальный — через интернет (Cloudflare Tunnel + обфускация)\n")
@@ -274,7 +261,6 @@ def cmd_first_launch() -> None:
     mode_choice = input("  Выберите (1/2) [1]: ").strip()
     network_mode = "global" if mode_choice == "2" else "local"
 
-    # ── 4. Для глобального — проверяем cloudflared ───────────────────────
     if network_mode == "global":
         if not _has_cloudflared():
             _p("\n  ⚠ cloudflared не установлен!", "yellow")
@@ -289,7 +275,6 @@ def cmd_first_launch() -> None:
         else:
             _p("  ✓ cloudflared найден — туннель запустится автоматически", "green")
 
-    # ── 5. SSL ───────────────────────────────────────────────────────────
     ssl_generated = False
     if not (CERT_FILE.exists() and KEY_FILE.exists()):
         _p("\n  SSL сертификат:", "cyan")
@@ -307,7 +292,6 @@ def cmd_first_launch() -> None:
     else:
         _p("\n  ✓ SSL сертификат уже существует", "green")
 
-    # ── 6. Регистрация (инвайт) ──────────────────────────────────────────
     _p("\n  Режим регистрации:", "cyan")
     _p("    1) Открытая — все могут зарегистрироваться")
     _p("    2) По инвайт-коду — только по вашему приглашению")
@@ -324,7 +308,6 @@ def cmd_first_launch() -> None:
         _p(f"  ╚══════════════════════════════════╝", "green")
         _p(f"  Отправьте этот код тем кому разрешаете регистрацию.", "dim")
 
-    # ── 7. Записываем .env ───────────────────────────────────────────────
     env_lines = [
         f"DEVICE_NAME={name}",
         f"PORT={port}",
@@ -403,7 +386,6 @@ def _generate_self_signed_cert() -> None:
     os.chmod(KEY_FILE, 0o600)
 
 
-# ── Мастер настройки (legacy) ────────────────────────────────────────────────
 
 def cmd_setup(wizard_port: int, no_browser: bool) -> None:
     _p(BANNER, "cyan")
@@ -457,7 +439,6 @@ def cmd_setup(wizard_port: int, no_browser: bool) -> None:
         sys.exit(0)
 
 
-# ── Cloudflare Tunnel ─────────────────────────────────────────────────────────
 
 def _find_cloudflared() -> str | None:
     """Возвращает абсолютный путь до cloudflared или None.
@@ -566,7 +547,6 @@ def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
         return None
 
 
-# ── Основной узел ─────────────────────────────────────────────────────────────
 
 def cmd_run() -> None:
     _p(BANNER, "cyan")
@@ -651,7 +631,6 @@ def cmd_run() -> None:
                 pass
 
 
-# ── --invite ──────────────────────────────────────────────────────────────────
 
 def cmd_invite() -> None:
     """Включает режим инвайт-кодов и генерирует/показывает код."""
@@ -686,7 +665,6 @@ def cmd_invite() -> None:
     _p(f"  Измените в .env: REGISTRATION_MODE=open\n", "dim")
 
 
-# ── Точка входа ───────────────────────────────────────────────────────────────
 
 def main() -> None:
     _check_python()

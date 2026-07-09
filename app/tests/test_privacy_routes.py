@@ -15,9 +15,7 @@ import pytest
 from conftest import make_user, login_user, random_str
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _auth(client) -> dict:
     """Register + login a fresh user, return auth headers."""
@@ -30,9 +28,7 @@ def _b64(data: bytes) -> str:
     return base64.b64encode(data).decode()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Privacy Status endpoint
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_privacy_status_requires_auth(anon_client):
     r = anon_client.get("/api/privacy/status")
@@ -78,9 +74,7 @@ def test_privacy_status_zk_details(client):
     assert "properties" in zk
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Tor status endpoint
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_tor_status_requires_auth(anon_client):
     r = anon_client.get("/api/privacy/tor/status")
@@ -103,9 +97,7 @@ def test_tor_status_socks_url_format(client):
     assert data["socks_url"].startswith("socks5://")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Ephemeral identity endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_new_ephemeral_secret_requires_auth(anon_client):
     r = anon_client.get("/api/privacy/ephemeral/new-secret")
@@ -218,9 +210,7 @@ def test_ephemeral_generate_requires_auth(anon_client):
     assert r.status_code in (401, 403)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Metadata Padding endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_pad_requires_auth(anon_client):
     r = anon_client.post("/api/privacy/pad", json={"data_b64": _b64(b"x")})
@@ -288,9 +278,7 @@ def test_unpad_requires_auth(anon_client):
     assert r.status_code in (401, 403)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # ZK Membership endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_zk_info_requires_auth(anon_client):
     r = anon_client.get("/api/privacy/zk/info")
@@ -345,9 +333,7 @@ def test_zk_verify_empty_room_404(client):
     assert r.status_code == 404
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Unit tests — MetadataPadding
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_unit_metadata_padding_small(client):
     from app.security.privacy import MetadataPadding
@@ -414,9 +400,7 @@ def test_unit_metadata_padding_get_padded_size(client):
         assert size >= data_len + MetadataPadding.HEADER_SIZE
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Unit tests — EphemeralIdentity
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_unit_ephemeral_generate_secret_length(client):
     from app.security.privacy import EphemeralIdentity
@@ -486,9 +470,7 @@ def test_unit_ephemeral_display_name_range(client):
         assert 0 <= num < 100
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Unit tests — ZKMembership
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_unit_zk_room_secret_length(client):
     from app.security.privacy import ZKMembership
@@ -570,9 +552,7 @@ def test_unit_zk_get_info_fields(client):
     assert "note" in info
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Unit tests — TorProxy
-# ─────────────────────────────────────────────────────────────────────────────
 
 def test_unit_tor_proxy_status_shape(client):
     from app.security.privacy import TorProxy

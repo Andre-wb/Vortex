@@ -2,14 +2,11 @@ use crate::value::Value;
 use crate::error::GravResult;
 use crate::runtime_err;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Numerical calculus functions
 //
 // All functions work with pre-computed lists of values since the builtin
 // system cannot pass function closures.
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── Argument extraction helpers ─────────────────────────────────────────────
 
 fn require_float(args: &[Value], idx: usize, fn_name: &str) -> GravResult<f64> {
     args.get(idx)
@@ -31,14 +28,11 @@ fn require_float_list(args: &[Value], idx: usize, fn_name: &str) -> GravResult<V
         .collect()
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>> {
     let v = match name {
 
-        // ── First derivative (central difference) ───────────────────────────
         // deriv([y0, y1, y2], h) → (y2 - y0) / (2h)
         // Three sample points: y0=f(x-h), y1=f(x), y2=f(x+h)
         "deriv" => {
@@ -60,7 +54,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::Float(result)
         }
 
-        // ── Second derivative ───────────────────────────────────────────────
         // deriv2(y0, y1, y2, h) → (y0 - 2*y1 + y2) / h^2
         "deriv2" => {
             let y0 = require_float(args, 0, "deriv2")?;
@@ -73,7 +66,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::Float((y0 - 2.0 * y1 + y2) / (h * h))
         }
 
-        // ── Trapezoidal integration ─────────────────────────────────────────
         // integral_trapz(ys, h) → h * ( y0/2 + y1 + y2 + ... + yn/2 )
         "integral_trapz" => {
             let ys = require_float_list(args, 0, "integral_trapz")?;
@@ -89,7 +81,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::Float(sum * h)
         }
 
-        // ── Simpson's rule integration ──────────────────────────────────────
         // Requires an odd number of points (even number of intervals)
         "integral_simpson" => {
             let ys = require_float_list(args, 0, "integral_simpson")?;
@@ -114,7 +105,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::Float(sum * h / 3.0)
         }
 
-        // ── Finite differences ──────────────────────────────────────────────
         // diff([a, b, c, ...]) → [b-a, c-b, ...]
         "diff" => {
             let ys = require_float_list(args, 0, "diff")?;
@@ -127,7 +117,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::make_list(diffs)
         }
 
-        // ── Cumulative sum ──────────────────────────────────────────────────
         "cumsum" => {
             let ys = require_float_list(args, 0, "cumsum")?;
             let mut acc = 0.0;
@@ -138,7 +127,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::make_list(result)
         }
 
-        // ── Cumulative product ──────────────────────────────────────────────
         "cumprod" => {
             let ys = require_float_list(args, 0, "cumprod")?;
             let mut acc = 1.0;
@@ -149,7 +137,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::make_list(result)
         }
 
-        // ── Newton-Raphson step ─────────────────────────────────────────────
         // newton_step(fx, dfx, x) → x - fx/dfx
         "newton_step" => {
             let fx = require_float(args, 0, "newton_step")?;
@@ -161,7 +148,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::Float(x - fx / dfx)
         }
 
-        // ── Bisection step ──────────────────────────────────────────────────
         // bisect_step(a, b, fa, fb) → returns map { mid, a, b, side }
         "bisect_step" => {
             let a = require_float(args, 0, "bisect_step")?;
@@ -187,7 +173,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::make_map(m)
         }
 
-        // ── Taylor polynomial evaluation ────────────────────────────────────
         // taylor_eval(coeffs, x, x0) → Σ coeffs[i] * (x - x0)^i
         "taylor_eval" => {
             let coeffs = require_float_list(args, 0, "taylor_eval")?;
@@ -202,19 +187,16 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::Float(result)
         }
 
-        // ── Sum of a list ───────────────────────────────────────────────────
         "sigma" => {
             let ys = require_float_list(args, 0, "sigma")?;
             Value::Float(ys.iter().sum())
         }
 
-        // ── Product of a list ───────────────────────────────────────────────
         "product" => {
             let ys = require_float_list(args, 0, "product")?;
             Value::Float(ys.iter().product())
         }
 
-        // ── 2D gradient vector ──────────────────────────────────────────────
         // gradient_2d(fx, fy) → [fx, fy]
         "gradient_2d" => {
             let fx = require_float(args, 0, "gradient_2d")?;
@@ -222,7 +204,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::make_list(vec![Value::Float(fx), Value::Float(fy)])
         }
 
-        // ── Sequence limit estimation ───────────────────────────────────────
         // Uses Richardson extrapolation on last 3 elements if available,
         // otherwise returns the last element.
         "limit_seq" => {
@@ -252,7 +233,6 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             }
         }
 
-        // ── Romberg integration ─────────────────────────────────────────────
         // romberg(ys, h, levels) → improved integral estimate
         // Uses the trapezoidal rule as base and Richardson extrapolation.
         // `ys` must have 2^k + 1 points for the deepest level.
@@ -324,15 +304,12 @@ pub fn call_calculus_builtin(name: &str, args: &[Value]) -> GravResult<Option<Va
             Value::Float(best)
         }
 
-        // ── Unknown — let the caller decide ─────────────────────────────────
         _ => return Ok(None),
     };
     Ok(Some(v))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

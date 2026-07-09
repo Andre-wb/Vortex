@@ -31,7 +31,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/rooms", tags=["groups"])
 
 
-# ── Pydantic Schemas ─────────────────────────────────────────────────────────
 
 class TopicCreate(BaseModel):
     title: str = Field(..., max_length=200)
@@ -79,7 +78,6 @@ class UserSlowmodeSet(BaseModel):
     cooldown_seconds: int = Field(default=30, ge=0, le=3600)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
     m = db.query(RoomMember).filter(
@@ -97,9 +95,7 @@ def _require_admin(room_id: int, user_id: int, db: Session) -> RoomMember:
     return m
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Topics
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{room_id}/topics")
 async def list_topics(room_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -150,9 +146,7 @@ async def delete_topic(room_id: int, topic_id: int,
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Forum Threads
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{room_id}/forum")
 async def list_forum_threads(room_id: int, sort: str = "recent",
@@ -231,9 +225,7 @@ async def upvote_thread(room_id: int, thread_id: int,
     return {"ok": True, "upvotes": t.upvotes}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Granular Permissions
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{room_id}/permissions")
 async def get_permissions(room_id: int,
@@ -279,9 +271,7 @@ async def set_permission(room_id: int, body: PermissionUpdate,
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Auto-Moderation Rules
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{room_id}/automod")
 async def list_automod_rules(room_id: int,
@@ -342,9 +332,7 @@ async def delete_automod_rule(room_id: int, rule_id: int,
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Per-User Slowmode
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{room_id}/slowmode/users")
 async def list_user_slowmodes(room_id: int,
@@ -379,9 +367,7 @@ async def set_user_slowmode(room_id: int, body: UserSlowmodeSet,
     return {"ok": True, "cooldown_seconds": body.cooldown_seconds}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Auto-Mod Check (called from chat.py before broadcasting)
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def check_automod(room_id: int, user_id: int, text: str, member_role: RoomRole,
                         db: Session) -> dict | None:

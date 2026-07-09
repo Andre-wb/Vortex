@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/channels", tags=["channels"])
 
 
-# ── Pydantic Schemas ─────────────────────────────────────────────────────────
 
 class _EncryptedKeyPayload(BaseModel):
     ephemeral_pub: str = Field(..., min_length=64, max_length=64)
@@ -69,7 +68,6 @@ class ReactRequest(BaseModel):
     emoji: str = Field(..., max_length=10)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 # FIX F6: shared membership/visibility guard for channel post endpoints.
 # Mirrors the RoomMember check in schedule_post/list_scheduled. Public channels
@@ -125,9 +123,7 @@ def _channel_dict(c: Room, db: Session, user_id: int | None = None) -> dict:
     return d
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # CRUD
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("", status_code=201)
 async def create_channel(body: CreateChannelRequest, u: User = Depends(get_current_user),
@@ -209,9 +205,7 @@ async def join_channel(invite_code: str, u: User = Depends(get_current_user),
     return {"joined": True, "channel": _channel_dict(channel, db, u.id)}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. Channel Statistics (views, forwards, growth)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{channel_id}/stats")
 async def channel_stats(channel_id: int, u: User = Depends(get_current_user),
@@ -301,9 +295,7 @@ async def record_view(channel_id: int, message_id: int,
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. Comments (linked discussion)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{channel_id}/posts/{message_id}/comments")
 async def get_comments(channel_id: int, message_id: int,
@@ -334,9 +326,7 @@ async def add_comment(channel_id: int, message_id: int,
     return {"ok": True, "thread_id": message_id, "comments_enabled": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. Scheduled Posts
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{channel_id}/schedule")
 async def schedule_post(channel_id: int, body: SchedulePostRequest,
@@ -382,9 +372,7 @@ async def list_scheduled(channel_id: int, u: User = Depends(get_current_user),
     ]}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. Channel Discovery (catalog)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/popular")
 async def popular_channels(db: Session = Depends(get_db)):
@@ -426,9 +414,7 @@ async def discover_channels(q: str = Query(default="", max_length=100),
     return {"channels": result}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 5. Post Reactions (poll-style)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{channel_id}/posts/{message_id}/react")
 async def react_to_post(channel_id: int, message_id: int, body: ReactRequest,
@@ -467,9 +453,7 @@ async def get_reactions(channel_id: int, message_id: int,
     return {"reactions": {emoji: count for emoji, count in reactions}}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 6. Monetization (P2P, 0% platform fee)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{channel_id}/monetization")
 async def get_monetization(channel_id: int, db: Session = Depends(get_db)):

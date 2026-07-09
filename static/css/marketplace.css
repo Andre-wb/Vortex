@@ -1,6 +1,4 @@
-/* ==========================================================================
  * BOT MARKETPLACE
- * ========================================================================== */
 
 #marketplace-modal .modal {
     width: 560px;
@@ -235,7 +233,6 @@
     transform: scale(1.15);
 }
 
-/* ─── Marketplace Detail View ─── */
 .marketplace-detail {
     overflow-y: auto;
     flex: 1;
@@ -332,7 +329,6 @@
     cursor: pointer;
 }
 
-/* ─── Reviews Section ─── */
 .marketplace-reviews {
     margin-top: 16px;
 }
@@ -432,7 +428,6 @@
     padding: 24px 0;
 }
 
-/* ─── Responsive ─── */
 @media (max-width: 600px) {
     #marketplace-modal .modal {
         width: calc(100vw - 16px);
@@ -451,16 +446,13 @@
     }
 }
 
-/* ─── Marketplace light theme ─── */
 body[data-theme="light"] .marketplace-card { background: #fafafa; border-color: #e4e4e7; }
 body[data-theme="light"] .marketplace-card:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
 body[data-theme="light"] .marketplace-card-avatar { background: #f4f4f5; }
 body[data-theme="light"] .marketplace-review-form { background: #fafafa; }
 body[data-theme="light"] .marketplace-review-form textarea { background: #fff; }
 
-/* ============================================================================
  * MINI APP PANEL — fullscreen overlay for bot mini apps (like Telegram Mini Apps)
- * ========================================================================== */
 #miniapp-panel {
     position: fixed;
     inset: 0;
@@ -631,7 +623,6 @@ body[data-theme="light"] .marketplace-review-form textarea { background: #fff; }
     flex-shrink: 0;
 }
 
-/* ─── Light theme: Mini App ──────────────────────────────────────────────── */
 body[data-theme="light"] #miniapp-panel { background: #fff; }
 body[data-theme="light"] .miniapp-header { background: #fafafa; border-color: #e4e4e7; }
 body[data-theme="light"] .miniapp-back-btn:hover,

@@ -32,7 +32,6 @@ from app.config import Config
 logger = logging.getLogger(__name__)
 
 
-# ── Canonical JSON (must match controller) ─────────────────────────────────
 
 try:
     import vortex_chat as _vc_rust
@@ -49,7 +48,6 @@ def _canonical(data) -> bytes:
     return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-# ── Node Ed25519 signing key (persistent) ──────────────────────────────────
 
 class NodeSigningKey:
     """Ed25519 keypair used to sign controller registrations/heartbeats."""
@@ -92,7 +90,6 @@ class NodeSigningKey:
         return self._priv.sign(_canonical(payload)).hex()
 
 
-# ── Verify controller responses with pinned pubkey ─────────────────────────
 
 def verify_controller_signature(
     payload, signature_hex: str, controller_pubkey_hex: str
@@ -105,7 +102,6 @@ def verify_controller_signature(
         return False
 
 
-# ── Main client ────────────────────────────────────────────────────────────
 
 class ControllerClient:
     """Talks to a Vortex controller.
@@ -154,7 +150,6 @@ class ControllerClient:
         self._hb_task: Optional[asyncio.Task] = None
         self._registered = False
 
-    # ── Public API ──
 
     async def start(self) -> None:
         if not self.announce_endpoints:
@@ -271,7 +266,6 @@ class ControllerClient:
             return []
         return env["payload"].get("entries", [])
 
-    # ── Internal ──
 
     async def _register(self) -> None:
         payload = {
@@ -302,7 +296,6 @@ class ControllerClient:
             logger.info("ControllerClient: 404 from heartbeat, re-registering")
             await self._register()
 
-    # ── HTTP with direct → proxy fallback ──
 
     async def _request(
         self,
@@ -416,7 +409,6 @@ class IntegrityRefusal(RuntimeError):
                 logger.debug("ControllerClient: heartbeat failed: %s", e)
 
 
-# ── Convenience: create client from Config ─────────────────────────────────
 
 def client_from_config() -> Optional[ControllerClient]:
     """Build a ControllerClient from app.config.Config, or None if not configured."""

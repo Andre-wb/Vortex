@@ -10,7 +10,6 @@
 
     const $ = sel => document.querySelector(sel);
 
-    // ── 1. Theme + density persistence ──
     const THEME_KEY   = 'vx.theme';
     const DENSITY_KEY = 'vx.density';
 
@@ -39,7 +38,6 @@
         applyDensity(localStorage.getItem(DENSITY_KEY) || 'normal');
     } catch (_) {}
 
-    // ── 2. Command palette ──
     const COMMANDS = [
         { label: 'Toggle light / dark theme',   hint: 'Cmd+Shift+L', run: toggleTheme },
         { label: 'Toggle compact density',      hint: 'Cmd+Shift+D', run: toggleDensity },
@@ -140,7 +138,6 @@
     }
     window.vxOpenPalette = openPalette;
 
-    // ── 3. Picture-in-Picture logs ──
     function openPipLogs() {
         let pip = document.getElementById('logs-pip');
         if (pip) { pip.style.display = 'flex'; return; }
@@ -186,7 +183,6 @@
     }
     window.vxOpenPipLogs = openPipLogs;
 
-    // ── 4. Dashboard widget reorder ──
     // Lives inside the current panel's <header class="panel-head"> —
     // used to be fixed bottom-left but that overlapped the "Reset setup"
     // button in the sidebar foot. Panel-header placement keeps it near
@@ -304,7 +300,6 @@
     });
     document.addEventListener('DOMContentLoaded', () => setTimeout(initWidgetReorder, 200));
 
-    // ── 5. Global hotkeys ──
     window.addEventListener('keydown', e => {
         const k = (e.key || '').toLowerCase();
         const cmdOrCtrl = e.metaKey || e.ctrlKey;

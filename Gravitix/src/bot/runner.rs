@@ -9,9 +9,7 @@ use super::backend::BotBackend;
 use super::telegram::{VortexClient, VortexUpdate};
 use super::scheduler::{start_schedulers, start_cron_schedulers};
 
-// ─────────────────────────────────────────────────────────────────────────────
 // BotRunner — long-polling loop for Vortex Bot API
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub struct BotRunner {
     pub interpreter:   Arc<Interpreter>,
@@ -210,9 +208,7 @@ impl BotRunner {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Hot reload helper
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(unix)]
 async fn reload_script(
@@ -229,9 +225,7 @@ async fn reload_script(
     Ok(())
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn build_ctx(upd: &VortexUpdate) -> Option<BotCtx> {
     match upd {

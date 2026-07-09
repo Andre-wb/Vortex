@@ -5,9 +5,7 @@ import { _attachReactionLongPress } from './messages.js';
 const _typers      = {};
 const _fileSenders = {};
 
-// =============================================================================
 // Индикаторы набора текста и отправки файла
-// =============================================================================
 
 export function _showTyping(username, isTyping) {
     if (isTyping) _typers[username] = true;
@@ -41,9 +39,7 @@ function _renderTypingBar() {
     }
 }
 
-// =============================================================================
 // Реакции — обновление DOM
-// =============================================================================
 
 export function _updateReaction(msgId, userId, emoji, added, username, displayName, createdAt) {
     const S = window.AppState;
@@ -109,9 +105,7 @@ export function _updateReaction(msgId, userId, emoji, added, username, displayNa
     }
 }
 
-// =============================================================================
 // Закреплённое сообщение — UI
-// =============================================================================
 
 export function _showPinnedBar(msgId, ciphertext, senderName) {
     let bar = document.getElementById('pinned-bar');

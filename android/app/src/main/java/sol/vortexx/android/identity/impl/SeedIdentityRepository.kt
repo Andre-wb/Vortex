@@ -62,7 +62,6 @@ class SeedIdentityRepository @Inject constructor(
         _identity.value = null
     }
 
-    // ── internals ──────────────────────────────────────────────────────
 
     private fun deriveIdentity(mnemonic: Mnemonic, seed: ByteArray): Identity {
         // Domain-separated HKDF: one derivation per key role so rotating

@@ -3,9 +3,7 @@ import { $, api, showAlert, openModal, closeModal } from './utils.js';
 import { stopMultiplexCover } from './notifications.js';
 import { validatePasswords, getFullPhone } from './phone_password.js';
 
-// ============================================================================
 // X25519 КЛЮЧЕВАЯ ПАРА
-// ============================================================================
 
 const toHex = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
 
@@ -31,9 +29,7 @@ async function generateX25519Keypair() {
     }
 }
 
-// ============================================================================
 // Шифрование приватного ключа для localStorage (PBKDF2 + AES-GCM)
-// ============================================================================
 
 async function _encryptForStorage(data, password) {
     const enc = new TextEncoder();
@@ -72,9 +68,7 @@ async function _decryptFromStorage(b64data, password) {
     return new TextDecoder().decode(plain);
 }
 
-// ============================================================================
 // Хранение ключей
-// ============================================================================
 
 async function savePrivateKey(jwkString, password) {
     // Всегда сохраняем незашифрованную копию — и в localStorage, и в sessionStorage.
@@ -176,9 +170,7 @@ function _recoverPubkeyFromJwk(jwkString) {
     return null;
 }
 
-// ============================================================================
 // Вспомогательная: загрузка ключа + восстановление публичного ключа
-// ============================================================================
 
 async function _tryLoadKey(password) {
     const saved = await _loadPrivateKeyWithPassword(password);
@@ -194,9 +186,7 @@ async function _tryLoadKey(password) {
     }
 }
 
-// ============================================================================
 // MULTI-ACCOUNT (до 4 аккаунтов)
-// ============================================================================
 
 const MAX_ACCOUNTS = 4;
 
@@ -498,9 +488,7 @@ export async function removeAccount(userId) {
     localStorage.removeItem(`vortex_rk_backup_${userId}`);
 }
 
-// ============================================================================
 // AUTH
-// ============================================================================
 
 export function switchTab(tab) {
     const forms = {
@@ -638,7 +626,6 @@ export async function doLinkDevice() {
     }
 }
 
-// ── Security Questions Recovery ──────────────────────────────────────────
 export async function loadSecurityQuestions() {
     const username = $('sq-username')?.value?.trim();
     if (!username) { showAlert('auth-alert', t('auth.enterUsername'), 'error'); return; }
@@ -694,7 +681,6 @@ export async function doSecurityQuestionsRecovery() {
     }
 }
 
-// ── Security Questions Setup (вызывается из onboarding или настроек) ─────
 export async function setupSecurityQuestions(questions, answers) {
     try {
         await api('POST', '/api/authentication/security-questions/setup', { questions, answers });
@@ -705,7 +691,6 @@ export async function setupSecurityQuestions(questions, answers) {
     }
 }
 
-// ── Reset Password (after security questions recovery) ──────────────────
 export async function doResetPassword() {
     const p1 = $('rp-pass1')?.value;
     const p2 = $('rp-pass2')?.value;
@@ -1079,9 +1064,7 @@ export async function importPrivateKey(file) {
     }
 }
 
-// ============================================================================
 // QR LOGIN
-// ============================================================================
 
 let _qrPollTimer = null;
 let _qrSessionId = null;
@@ -1152,9 +1135,7 @@ export function clearQRPoll() {
 
 export function refreshQR() { initQRLogin(); }
 
-// ============================================================================
 // PASSKEY (WebAuthn)
-// ============================================================================
 
 function _b64urlToBuffer(b64url) {
     let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');

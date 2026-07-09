@@ -19,9 +19,7 @@ use crate::parser::Parser;
 use crate::bot::BotRunner;
 use crate::value::BotOutput;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // CLI
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(ClapParser)]
 #[command(
@@ -97,9 +95,7 @@ enum Command {
     },
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Entry point
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -211,9 +207,7 @@ async fn run(cli: Cli) -> GravResult<()> {
     Ok(())
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Compile: lex + parse
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn compile(src: &str, filename: &str) -> GravResult<crate::ast::Program> {
     let tokens = Lexer::new(src).tokenize().map_err(|e| {
@@ -229,9 +223,7 @@ fn compile(src: &str, filename: &str) -> GravResult<crate::ast::Program> {
     Ok(prog)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Test runner
-// ─────────────────────────────────────────────────────────────────────────────
 
 async fn run_tests(file: &str) -> GravResult<()> {
     let src  = std::fs::read_to_string(file)?;
@@ -275,9 +267,7 @@ async fn run_tests(file: &str) -> GravResult<()> {
     Ok(())
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // REPL  (improved: statements, multi-line input, in-memory history)
-// ─────────────────────────────────────────────────────────────────────────────
 
 async fn run_repl() -> GravResult<()> {
     use std::io::{self, Write};

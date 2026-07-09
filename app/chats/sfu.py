@@ -40,12 +40,10 @@ from app.security.auth_jwt import get_current_user, get_user_ws
 logger = logging.getLogger("vortex.sfu")
 router = APIRouter(tags=["sfu"])
 
-# ── Configuration ────────────────────────────────────────────────────────────
 
 SFU_THRESHOLD = int(os.getenv("SFU_THRESHOLD", "6"))
 SFU_MAX_PARTICIPANTS = int(os.getenv("SFU_MAX_PARTICIPANTS", "200"))
 
-# ── Simulcast layers ────────────────────────────────────────────────────────
 # Client sends 3 simultaneous video streams (high/medium/low)
 # SFU selects which layer to forward to each subscriber based on viewport
 
@@ -61,7 +59,6 @@ DEFAULT_VIEWPORT_QUALITY = "medium"
 # Dominant speaker detection interval (seconds)
 SPEAKER_DETECT_INTERVAL = 0.3
 
-# ── Conditional aiortc import ────────────────────────────────────────────────
 
 try:
     from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate  # type: ignore
@@ -75,12 +72,10 @@ def is_sfu_available() -> bool:
     return _SFU_AVAILABLE
 
 
-# ── In-memory state ──────────────────────────────────────────────────────────
 
 _sfu_rooms: dict[str, SFURoom] = {}
 
 
-# ── Models ───────────────────────────────────────────────────────────────────
 
 class SFUOfferRequest(BaseModel):
     sdp: str
@@ -92,7 +87,6 @@ class SFUAnswerResponse(BaseModel):
     participants: list[dict] = []
 
 
-# ── SDP utilities ────────────────────────────────────────────────────────────
 
 def _parse_pt_kinds(sdp: str) -> dict[int, str]:
     """Extract ``payload_type → 'audio'|'video'`` mapping from SDP."""
@@ -124,7 +118,6 @@ def _parse_pt_kinds(sdp: str) -> dict[int, str]:
     return result
 
 
-# ── SFU Participant ──────────────────────────────────────────────────────────
 
 @dataclass
 class SFUParticipant:
@@ -147,7 +140,6 @@ class SFUParticipant:
     audio_level_ts: float = 0.0
 
 
-# ── SFU Room ─────────────────────────────────────────────────────────────────
 
 class SFURoom:
     """
@@ -182,7 +174,6 @@ class SFURoom:
     def participant_count(self) -> int:
         return len(self.participants)
 
-    # ── Join ──────────────────────────────────────────────────────────────
 
     async def join(self, user: User, offer_sdp: str) -> tuple[str, list[dict]]:
         """
@@ -219,7 +210,6 @@ class SFURoom:
                 if state in ("failed", "closed"):
                     asyncio.ensure_future(self.leave(user.id))
 
-            # ── SDP offer → answer ───────────────────────────────────────
             await pc.setRemoteDescription(
                 RTCSessionDescription(sdp=offer_sdp, type="offer")
             )
@@ -231,19 +221,16 @@ class SFURoom:
                 self._pt_to_kind = _parse_pt_kinds(pc.localDescription.sdp)
                 self._pt_to_kind.update(_parse_pt_kinds(offer_sdp))
 
-            # ── Patch DTLS transport for opaque forwarding ───────────────
             self._patch_transport(user.id, pc)
 
             self.participants[user.id] = participant
 
-            # ── Sendonly transceivers: this PC receives other participants ─
             for other_uid in list(self.participants):
                 if other_uid == user.id:
                     continue
                 self._add_send_transceivers(pc, target_uid=user.id, source_uid=other_uid)
                 participant.pending_sources.append(other_uid)
 
-            # ── Sendonly transceivers: existing PCs receive this new user ──
             for other_uid, other in list(self.participants.items()):
                 if other_uid == user.id:
                     continue
@@ -282,7 +269,6 @@ class SFURoom:
 
             return pc.localDescription.sdp, plist
 
-    # ── Sendonly transceivers (for SDP negotiation) ──────────────────────
 
     def _add_send_transceivers(self, pc, target_uid: int, source_uid: int) -> None:
         """Add sendonly audio + video transceivers for forwarding *source*'s media to *target*."""
@@ -294,7 +280,6 @@ class SFURoom:
                 kind, target_uid, source_uid, t.sender._ssrc,
             )
 
-    # ── Transport patching (opaque RTP interception) ─────────────────────
 
     def _patch_transport(self, uid: int, pc) -> None:
         """Monkey-patch DTLS transport's ``_handle_rtp_data`` for opaque forwarding."""
@@ -318,7 +303,6 @@ class SFURoom:
         transport._vortex_patched = True  # type: ignore[attr-defined]
         logger.debug("[SFU] Patched DTLS transport for user %s", uid)
 
-    # ── RTP forwarding ───────────────────────────────────────────────────
 
     async def _forward_rtp(self, from_uid: int, rtp_data: bytes) -> None:
         """Forward an RTP packet with simulcast layer selection and viewport filtering."""
@@ -398,7 +382,6 @@ class SFURoom:
         p.audio_level = alpha * level + (1 - alpha) * p.audio_level
         p.audio_level_ts = now
 
-    # ── Renegotiation ────────────────────────────────────────────────────
 
     async def _try_renegotiate(self, participant: SFUParticipant) -> None:
         """Create and push a renegotiation offer (new sendonly tracks)."""
@@ -415,7 +398,6 @@ class SFURoom:
         except Exception as e:
             logger.warning("[SFU] renegotiation failed for %s: %s", participant.user_id, e)
 
-    # ── Handle client messages ───────────────────────────────────────────
 
     async def handle_answer(self, user_id: int, sdp: str) -> None:
         """Process renegotiation answer — mark forwarding targets as ready."""
@@ -445,7 +427,6 @@ class SFURoom:
         except Exception as e:
             logger.debug("[SFU] ICE error for %s: %s", user_id, e)
 
-    # ── Leave / cleanup ──────────────────────────────────────────────────
 
     async def leave(self, user_id: int) -> None:
         async with self._lock:
@@ -480,7 +461,6 @@ class SFURoom:
                 _sfu_rooms.pop(self.call_id, None)
                 logger.info("[SFU] Room %s closed (empty)", self.call_id)
 
-    # ── Viewport subscription ───────────────────────────────────────────
 
     async def handle_subscribe(self, user_id: int, subscriptions: dict) -> None:
         """
@@ -511,7 +491,6 @@ class SFURoom:
         self._simulcast_map[user_id] = mapping
         logger.debug("[SFU] user %s simulcast map: %s", user_id, mapping)
 
-    # ── Dominant speaker detection ───────────────────────────────────────
 
     async def _start_speaker_detection(self) -> None:
         """Start the dominant speaker detection background loop."""
@@ -553,7 +532,6 @@ class SFURoom:
             except Exception as e:
                 logger.debug("[SFU] Speaker detection error: %s", e)
 
-    # ── Stats ────────────────────────────────────────────────────────────
 
     def get_stats(self) -> dict:
         """Return SFU room statistics."""
@@ -589,7 +567,6 @@ class SFURoom:
             self.participants.clear()
             _sfu_rooms.pop(self.call_id, None)
 
-    # ── Helpers ───────────────────────────────────────────────────────────
 
     @staticmethod
     def _get_transport(pc):
@@ -607,7 +584,6 @@ class SFURoom:
         return None
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def get_or_create_sfu_room(call_id: str, room_id: int) -> SFURoom:
     if call_id not in _sfu_rooms:
@@ -615,7 +591,6 @@ def get_or_create_sfu_room(call_id: str, room_id: int) -> SFURoom:
     return _sfu_rooms[call_id]
 
 
-# ── REST Endpoints ───────────────────────────────────────────────────────────
 
 @router.get("/api/sfu/available")
 async def sfu_available():
@@ -674,7 +649,6 @@ async def sfu_leave(call_id: str, user: User = Depends(get_current_user)):
     return {"ok": True}
 
 
-# ── WebSocket — renegotiation + ICE ──────────────────────────────────────────
 
 @router.websocket("/ws/sfu/{call_id}")
 async def ws_sfu(

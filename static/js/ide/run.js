@@ -1,4 +1,3 @@
-// ── Run / Debug ───────────────────────────────────────────────
 
 // Runs compiler synchronously and returns {errors, warns, hints, info}
 function _compileSync(code) {
@@ -233,7 +232,6 @@ function ideDebug() {
     }
 }
 
-// ── Publish / Deploy ──────────────────────────────────────────
 let _statusPoll = null;
 
 function _ideProjectId() {
@@ -406,7 +404,6 @@ function _csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.content || '';
 }
 
-// ── Console ───────────────────────────────────────────────────
 function ideLog(pane, msg, type='info') {
     const el = document.getElementById(`ide-console-${pane}`);
     if (!el) return;

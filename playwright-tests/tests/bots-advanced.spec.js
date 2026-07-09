@@ -33,7 +33,6 @@ test.describe('Bots Advanced & IDE', () => {
         projectId = `e2e_proj_${randomStr(8)}`;
     });
 
-    // ── Bot CRUD ──────────────────────────────────────────────────────────────
 
     test('create bot', async ({ request }) => {
         const res = await request.post('/api/bots', {
@@ -86,7 +85,6 @@ test.describe('Bots Advanced & IDE', () => {
         expect([200, 400]).toContain(res.status());
     });
 
-    // ── Bot → Room ────────────────────────────────────────────────────────────
 
     test('add bot to room', async ({ request }) => {
         expect(botId).toBeTruthy();
@@ -106,7 +104,6 @@ test.describe('Bots Advanced & IDE', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Bot Publish & Marketplace ─────────────────────────────────────────────
 
     test('publish bot', async ({ request }) => {
         expect(botId).toBeTruthy();
@@ -144,7 +141,6 @@ test.describe('Bots Advanced & IDE', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Bot Commands & Scopes ─────────────────────────────────────────────────
 
     test('get bot commands', async ({ request }) => {
         expect(botId).toBeTruthy();
@@ -191,7 +187,6 @@ test.describe('Bots Advanced & IDE', () => {
         expect([200, 404]).toContain(res.status());
     });
 
-    // ── Bot Cleanup ───────────────────────────────────────────────────────────
 
     test('delete bot', async ({ request }) => {
         expect(botId).toBeTruthy();
@@ -201,7 +196,6 @@ test.describe('Bots Advanced & IDE', () => {
         expect([200, 204, 404]).toContain(res.status());
     });
 
-    // ── IDE — Projects & Execution ────────────────────────────────────────────
 
     test('create IDE project via compile', async ({ request }) => {
         expect(projectId).toBeTruthy();
@@ -272,7 +266,6 @@ test.describe('Bots Advanced & IDE', () => {
         expect([200, 503]).toContain(res.status());
     });
 
-    // ── IDE — Versioning ──────────────────────────────────────────────────────
 
     test('save project version', async ({ request }) => {
         expect(projectId).toBeTruthy();
@@ -299,7 +292,6 @@ test.describe('Bots Advanced & IDE', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── IDE — Monitoring ──────────────────────────────────────────────────────
 
     test('project analytics', async ({ request }) => {
         expect(projectId).toBeTruthy();

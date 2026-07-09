@@ -31,9 +31,7 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #36 — .env hot-reload
-# ══════════════════════════════════════════════════════════════════════════
 
 _env_mtime_cache: dict[str, float] = {}
 _env_watch_task: Optional[asyncio.Task] = None
@@ -88,9 +86,7 @@ async def hotreload_status() -> dict:
     return {"running": running, "cache_entries": len(_env_mtime_cache)}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #37 — Swagger / Redoc UI (actually just flip flags on FastAPI)
-# ══════════════════════════════════════════════════════════════════════════
 #
 # We can't re-create the FastAPI app — but we can serve our own docs
 # pages that reference the existing OpenAPI schema. Expose /docs and
@@ -141,9 +137,7 @@ async def redoc_docs() -> HTMLResponse:
     return HTMLResponse(html)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #38 — WebSocket inspector
-# ══════════════════════════════════════════════════════════════════════════
 
 _ws_observers: set[WebSocket] = set()
 
@@ -181,9 +175,7 @@ async def ws_inspect(ws: WebSocket) -> None:
         _ws_observers.discard(ws)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #39 — Postman collection export
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/postman.json")
 async def postman_collection(request: Request) -> JSONResponse:
@@ -222,9 +214,7 @@ async def postman_collection(request: Request) -> JSONResponse:
     })
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #40 — HTTP debug proxy (capture + replay)
-# ══════════════════════════════════════════════════════════════════════════
 
 _captures: list[dict] = []   # ring buffer
 _CAPTURE_CAP = 500
@@ -277,7 +267,6 @@ def record_request(method: str, path: str, status: int,
         _captures.pop(0)
 
 
-# ── Lifecycle ─────────────────────────────────────────────────────────────
 
 def install_devex_hooks(app) -> None:
     """Start hot-reload watcher at app startup."""

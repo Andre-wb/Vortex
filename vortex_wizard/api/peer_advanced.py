@@ -35,9 +35,7 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #16 — Reputation scoring
-# ══════════════════════════════════════════════════════════════════════════
 #
 # Score in range [0.0, 100.0]. Starting 50.0. Updated via:
 #   observe(peer, event) where event is one of:
@@ -104,9 +102,7 @@ async def reputation_list(request: Request) -> dict:
     return {"peers": rows}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #17 — Per-peer rate limit
-# ══════════════════════════════════════════════════════════════════════════
 
 class PerPeerRateBody(BaseModel):
     pubkey:     str = Field(..., min_length=32, max_length=128, pattern=r"^[0-9a-fA-F]+$")
@@ -134,9 +130,7 @@ async def rate_limit_set(body: PerPeerRateBody, request: Request) -> dict:
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #18 — Whitelist-only mode
-# ══════════════════════════════════════════════════════════════════════════
 
 class WhitelistSetBody(BaseModel):
     enabled:       bool
@@ -172,9 +166,7 @@ def is_whitelisted(env_file: Path, pubkey: str) -> Optional[bool]:
     return pubkey.lower() in wl.get("pubkeys", [])
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #19 — Peer diagnostics
-# ══════════════════════════════════════════════════════════════════════════
 
 class DiagnoseBody(BaseModel):
     base_url:  str = Field(..., min_length=8, max_length=2048)
@@ -266,9 +258,7 @@ async def diagnose(body: DiagnoseBody) -> dict:
     return out
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #20 — Blacklist with expiry (extends peer_tools blocklist)
-# ══════════════════════════════════════════════════════════════════════════
 
 class ExpiringBlockBody(BaseModel):
     pubkey:      str = Field(..., min_length=32, max_length=128, pattern=r"^[0-9a-fA-F]+$")

@@ -1,6 +1,4 @@
-# ══════════════════════════════════════════════════════════════════════════════
 # VORTEX Chat — systemd Service Unit
-# ══════════════════════════════════════════════════════════════════════════════
 #
 # Installation:
 #   1. Copy to /etc/systemd/system/vortex.service
@@ -13,7 +11,6 @@
 #   systemctl restart vortex     # Restart
 #   journalctl -u vortex -f      # Follow logs
 #
-# ══════════════════════════════════════════════════════════════════════════════
 
 [Unit]
 Description=Vortex Chat — Decentralized P2P Messenger
@@ -27,7 +24,6 @@ User=vortex
 Group=vortex
 WorkingDirectory=/opt/vortex
 
-# ── Environment ──────────────────────────────────────────────────────────────
 Environment=ENVIRONMENT=production
 Environment=HOST=0.0.0.0
 Environment=PORT=9000
@@ -35,7 +31,6 @@ Environment=LOG_FORMAT=json
 Environment=LOG_LEVEL=INFO
 EnvironmentFile=-/opt/vortex/.env
 
-# ── Execution ────────────────────────────────────────────────────────────────
 # FIX F13: --forwarded-allow-ips="" disables X-Forwarded-* trust. Gunicorn (and the
 # UvicornWorker) otherwise default to forwarded-allow-ips=127.0.0.1,::1, letting a loopback
 # peer spoof XFF and bypass the per-IP auth rate limiters. If this host sits behind a real
@@ -54,18 +49,15 @@ ExecStart=/opt/vortex/.venv/bin/python -m gunicorn \
 
 ExecReload=/bin/kill -HUP $MAINPID
 
-# ── Graceful shutdown ────────────────────────────────────────────────────────
 TimeoutStopSec=30
 KillMode=mixed
 KillSignal=SIGTERM
 
-# ── Restart policy ───────────────────────────────────────────────────────────
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
-# ── Security hardening ───────────────────────────────────────────────────────
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -88,13 +80,11 @@ ReadWritePaths=/opt/vortex/vortex.db-wal
 ReadWritePaths=/opt/vortex/vortex.db-shm
 ReadWritePaths=/opt/vortex/.env
 
-# ── Resource limits ──────────────────────────────────────────────────────────
 LimitNOFILE=65536
 LimitNPROC=4096
 MemoryMax=512M
 CPUQuota=200%
 
-# ── Logging ──────────────────────────────────────────────────────────────────
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=vortex

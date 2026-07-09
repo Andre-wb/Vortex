@@ -1,9 +1,7 @@
 // static/js/crypto.js
-// ============================================================================
 // E2E криптография: ECIES (X25519 + HKDF + AES-256-GCM) для ключей комнат.
 // Приватный ключ хранится как JWK JSON-строка (Web Crypto не позволяет
 // экспортировать X25519 private key как 'raw').
-// ============================================================================
 
 const toHex   = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
 const fromHex = h => {
@@ -93,11 +91,9 @@ export async function eciesDecrypt(ephemeralPubHex, ciphertextHex, ourPrivKeyJwk
     return new Uint8Array(roomKey);
 }
 
-// ============================================================================
 // Хранилище ключей комнат в памяти (roomId → Uint8Array)
 // Три уровня: JS heap → sessionStorage → localStorage
 // + BroadcastChannel для синхронизации между вкладками
-// ============================================================================
 
 const _roomKeys = {};
 const _rkHex = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
@@ -153,9 +149,7 @@ export function setRoomKey(roomId, keyBytes) {
     }
 }
 
-// ============================================================================
 // E2E File Encryption — шифрование файлов ключом комнаты
-// ============================================================================
 
 /**
  * Шифрует файл ключом комнаты (AES-256-GCM).
@@ -194,9 +188,7 @@ export async function decryptFile(encryptedData, roomKeyBytes) {
     return crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ct);
 }
 
-// ============================================================================
 // E2E Story Encryption — per-story random key + ECIES key wrapping
-// ============================================================================
 
 /**
  * Generate a random 32-byte story key.
@@ -301,9 +293,7 @@ export async function unwrapStoryKey(envelope, privKeyJwk) {
     return eciesDecrypt(envelope.ephemeral_pub, envelope.ciphertext, privKeyJwk);
 }
 
-// ============================================================================
 // Message Ratchet — KDF chain для forward secrecy
-// ============================================================================
 
 // Каждый отправитель в комнате имеет свой chain.
 // При каждом сообщении:

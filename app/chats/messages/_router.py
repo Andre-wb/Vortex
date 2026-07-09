@@ -13,7 +13,6 @@ from fastapi import APIRouter
 
 router = APIRouter(tags=["chat"])
 
-# ── Dangerous file extensions (double-extension check) ────────────────────────
 DANGEROUS_EXTS = frozenset({
     '.php', '.php3', '.php4', '.php5', '.phtml',
     '.asp', '.aspx', '.ascx', '.ashx',

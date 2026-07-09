@@ -31,7 +31,6 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-# ── VAPID key management ────────────────────────────────────────────────────
 
 @dataclass
 class VapidConfig:
@@ -55,7 +54,6 @@ class VapidConfig:
 vapid = VapidConfig()
 
 
-# ── Push subscription store ─────────────────────────────────────────────────
 
 @dataclass
 class PushSubscription:
@@ -91,7 +89,6 @@ def unregister_subscription(user_id: int, endpoint: str) -> None:
         ]
 
 
-# ── Sealed hint encryption ──────────────────────────────────────────────────
 
 def _derive_push_key(user_id: int) -> bytes:
     """Derive per-user push encryption key from app secret + user_id."""
@@ -114,7 +111,6 @@ def encrypt_push_hint(user_id: int, room_id: int, sender_pseudo: str, msg_type: 
     return base64.urlsafe_b64encode(nonce + ct).decode()
 
 
-# ── Push delivery ────────────────────────────────────────────────────────────
 
 async def send_sealed_push(
     user_id:       int,
@@ -156,7 +152,6 @@ async def send_sealed_push(
             except Exception as e:
                 logger.debug(f"Web Push failed for {user_id}: {e}")
 
-    # ── 4. UnifiedPush (open standard, no FCM/APNs) ──
     if not delivered and up_manager.has_subscription(user_id):
         payload_bytes = json.dumps(payload, separators=(",", ":")).encode()
         try:
@@ -188,7 +183,6 @@ async def _send_web_push(sub: PushSubscription, payload: dict) -> None:
         pass
 
 
-# ── Stats ────────────────────────────────────────────────────────────────────
 
 def push_stats() -> dict:
     total_subs = sum(len(v) for v in _subscriptions.values())

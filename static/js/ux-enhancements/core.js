@@ -3,9 +3,7 @@
  *                    ripple effects, smooth transitions.
  */
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 1. Haptic Feedback (vibration on actions)
-// ══════════════════════════════════════════════════════════════════════════════
 
 const Haptic = {
     /** Light tap — button press, toggle */
@@ -39,9 +37,7 @@ document.addEventListener('click', e => {
 window.Haptic = Haptic;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 2. Swipe Gestures (room list: swipe to archive/pin/mute)
-// ══════════════════════════════════════════════════════════════════════════════
 
 function initSwipeGestures() {
     let startX = 0, startY = 0, currentEl = null, swiping = false;
@@ -100,9 +96,7 @@ function initSwipeGestures() {
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 3. Custom Themes (accent color + background)
-// ══════════════════════════════════════════════════════════════════════════════
 
 const ThemeManager = {
     ACCENTS: ['purple', 'blue', 'green', 'red', 'orange', 'pink', 'cyan', 'yellow'],
@@ -143,9 +137,7 @@ const ThemeManager = {
 window.ThemeManager = ThemeManager;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 4. Ripple Effect (Material Design touch feedback)
-// ══════════════════════════════════════════════════════════════════════════════
 
 function initRipple() {
     document.addEventListener('pointerdown', e => {
@@ -168,9 +160,7 @@ function initRipple() {
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 5. Smooth Screen Transitions
-// ══════════════════════════════════════════════════════════════════════════════
 
 function transitionTo(elementId) {
     const el = document.getElementById(elementId);
@@ -184,9 +174,7 @@ function transitionTo(elementId) {
 window.transitionTo = transitionTo;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 6. Picture-in-Picture (for video calls)
-// ══════════════════════════════════════════════════════════════════════════════
 
 async function togglePiP(videoElement) {
     if (!videoElement) {
@@ -211,9 +199,7 @@ async function togglePiP(videoElement) {
 window.togglePiP = togglePiP;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Init all enhancements
-// ══════════════════════════════════════════════════════════════════════════════
 
 function initUXEnhancements() {
     initSwipeGestures();
@@ -229,9 +215,7 @@ if (document.readyState === 'loading') {
     initUXEnhancements();
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 7. Bottom Tab Bar Navigation
-// ══════════════════════════════════════════════════════════════════════════════
 
 function switchBottomTab(tab) {
     // Update tab buttons
@@ -308,9 +292,7 @@ function switchBottomTab(tab) {
 window.switchBottomTab = switchBottomTab;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 8. Room Info Panel (click room name → slide-in info)
-// ══════════════════════════════════════════════════════════════════════════════
 
 // Save rooms.js version before we overwrite window.openRoomInfo below.
 // main.js runs Object.assign(window, rooms, ...) before this module, so
@@ -399,9 +381,7 @@ window.openRoomInfo = openRoomInfo;
 window.closeRoomInfo = closeRoomInfo;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 9. Attachment Panel (скрепка → grid of options)
-// ══════════════════════════════════════════════════════════════════════════════
 
 function toggleAttachPanel() {
     const panel = document.getElementById('attach-panel');
@@ -450,9 +430,7 @@ function toggleExprPanel() {
 window.toggleExprPanel = toggleExprPanel;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 10. Recent Calls — load, render, filter
-// ══════════════════════════════════════════════════════════════════════════════
 
 let _callsFilter = 'all';
 

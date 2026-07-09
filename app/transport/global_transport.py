@@ -58,9 +58,7 @@ _DEAD_PEER_TIMEOUT = 90     # секунд до удаления мёртвог�
 _PEER_REQUEST_TIMEOUT = 8.0 # таймаут HTTP-запросов к пирам
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # GlobalPeerInfo
-# ══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class GlobalPeerInfo:
@@ -105,9 +103,7 @@ class GlobalPeerInfo:
         )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # GlobalTransport
-# ══════════════════════════════════════════════════════════════════════════════
 
 class GlobalTransport:
     """
@@ -127,7 +123,6 @@ class GlobalTransport:
         self._own_pubkey_hex: str = ""
         self.security: GossipSecurity = gossip_security
 
-    # ── CDN-aware URL ────────────────────────────────────────────────────
 
     def _get_peer_url(self, peer: GlobalPeerInfo, path: str) -> str:
         """Формирует URL для запроса к пиру, через CDN если включён."""
@@ -147,7 +142,6 @@ class GlobalTransport:
             f"http://{peer.ip}:{peer.port}{path}",
         ]
 
-    # ── Жизненный цикл ────────────────────────────────────────────────────
 
     async def start(self, bootstrap_peers: list[str]) -> None:
         """Запуск gossip-протокола и подключение к bootstrap-пирам."""
@@ -192,7 +186,6 @@ class GlobalTransport:
         self._save_peers()
         logger.info("🌐 Global transport остановлен")
 
-    # ── Gossip loop ───────────────────────────────────────────────────────
 
     async def _gossip_loop(self) -> None:
         """Обмен списком пиров с 3 случайными узлами (рандомизированный интервал)."""
@@ -339,7 +332,6 @@ class GlobalTransport:
         except Exception as e:
             logger.debug("PoW retry gossip failed for %s: %s", peer.addr, e)
 
-    # ── Health loop ───────────────────────────────────────────────────────
 
     async def _health_loop(self) -> None:
         """Пинг пиров, удаление мёртвых через 90 сек (рандомизированный интервал)."""
@@ -404,7 +396,6 @@ class GlobalTransport:
                 cdn_config.report_failure()
             return False
 
-    # ── Подключение к пиру ────────────────────────────────────────────────
 
     async def _connect_peer(self, addr: str) -> None:
         """Подключение к пиру по ip:port, получение его информации и списка пиров (с CDN failover)."""
@@ -466,7 +457,6 @@ class GlobalTransport:
 
         logger.warning(f"🌐 Не удалось подключиться к bootstrap-пиру {addr}")
 
-    # ── Мерж пиров ────────────────────────────────────────────────────────
 
     def _merge_peer(self, peer_data: dict) -> None:
         """Добавляем пира из gossip-данных, если он новый."""
@@ -514,7 +504,6 @@ class GlobalTransport:
             if new_pubkey and not existing.node_pubkey_hex:
                 existing.node_pubkey_hex = new_pubkey
 
-    # ── Поиск комнат ──────────────────────────────────────────────────────
 
     async def search_rooms(self, query: str) -> list[dict]:
         """Поиск публичных комнат по всем известным пирам."""
@@ -551,7 +540,6 @@ class GlobalTransport:
 
         return results
 
-    # ── Добавление пира вручную (из QR-кода) ──────────────────────────────
 
     async def add_bootstrap_peer(self, ip: str, port: int) -> bool:
         """Вручную добавить пира (из QR-кода или ввода). Возвращает True при успехе."""
@@ -563,7 +551,6 @@ class GlobalTransport:
             logger.warning(f"Не удалось добавить пира {addr}: {e}")
             return False
 
-    # ── Получение наших публичных комнат ──────────────────────────────────
 
     async def _get_our_public_rooms(self) -> list[dict]:
         """Возвращает список публичных комнат этого узла."""
@@ -589,7 +576,6 @@ class GlobalTransport:
             logger.debug(f"Ошибка получения публичных комнат: {e}")
             return []
 
-    # ── Персистентность ───────────────────────────────────────────────────
 
     def _load_peers(self) -> None:
         """Загрузка пиров из JSON-файла."""
@@ -619,7 +605,6 @@ class GlobalTransport:
         except Exception as e:
             logger.warning(f"Ошибка сохранения global_peers.json: {e}")
 
-    # ── Публичный API ─────────────────────────────────────────────────────
 
     def get_peers(self) -> list[GlobalPeerInfo]:
         """Все живые пиры."""
@@ -716,9 +701,7 @@ class GlobalTransport:
         }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Singleton + helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 global_transport = GlobalTransport()
 

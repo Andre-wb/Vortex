@@ -1,6 +1,4 @@
-/* ============================================================================
  * REPORT / MODERATION SYSTEM
- * ========================================================================== */
 
 /* Report modal alert */
 #report-modal .alert {
@@ -39,9 +37,7 @@
     font-weight: 600;
 }
 
-/* ============================================================================
  * UNIFIED PICKER — Emoji / Stickers / GIF above input
- * ============================================================================ */
 
 .unified-picker {
     position: fixed;
@@ -121,7 +117,6 @@
     pointer-events: auto;
 }
 
-/* ── Header (search + skin tone) ─────────────────────────────────────── */
 .ecp-header {
     display: flex;
     align-items: center;
@@ -168,7 +163,6 @@
 }
 .ecp-search-clear:hover { color: var(--text); }
 
-/* ── Skin tone ───────────────────────────────────────────────────────── */
 .ecp-skin-btn {
     width: 36px;
     height: 36px;
@@ -206,7 +200,6 @@
 }
 .ecp-skin-opt.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 
-/* ── Category tabs ───────────────────────────────────────────────────── */
 .ecp-categories {
     display: flex;
     gap: 2px;
@@ -249,7 +242,6 @@
     border-radius: 1px;
 }
 
-/* ── Emoji grid (scrollable body) ────────────────────────────────────── */
 .ecp-body {
     flex: 1;
     overflow-y: auto;
@@ -299,7 +291,6 @@
     font-family: var(--sans);
 }
 
-/* ── Footer (preview) ────────────────────────────────────────────────── */
 .ecp-footer {
     display: flex;
     align-items: center;
@@ -316,7 +307,6 @@
     font-family: var(--sans);
 }
 
-/* ── Mobile: adapt for small screens ────────────────────────────────── */
 @media (max-width: 640px) {
     .emoji-chat-picker {
         position: fixed;
@@ -357,7 +347,6 @@
     .unified-picker .ecp-emoji { font-size: 22px; }
 }
 
-/* ── Light theme ─────────────────────────────────────────────────────── */
 body[data-theme="light"] .emoji-chat-picker {
     background: #ffffff;
     border-color: #e5e5e5;

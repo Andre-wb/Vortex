@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tipping", tags=["tipping"])
 
 
-# ── Model (append to the node's SQLite / Postgres on startup) ──────────
 
 class TipEvent(Base):
     """Append-only tip log.
@@ -56,7 +55,6 @@ class TipEvent(Base):
     created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────
 
 def _public_profile(u: User) -> dict:
     return {
@@ -69,7 +67,6 @@ def _public_profile(u: User) -> dict:
     }
 
 
-# ── Endpoints (authenticated — DM tipping flow) ─────────────────────────
 
 class TipRecordBody(BaseModel):
     to_user_id: int
@@ -165,7 +162,6 @@ async def tip_history(
     }
 
 
-# ── Public donation jar ─────────────────────────────────────────────────
 
 @router.get("/donate/{username}", response_class=HTMLResponse)
 async def donate_page(username: str, db: Session = Depends(get_db)) -> HTMLResponse:

@@ -23,7 +23,6 @@ let _currentLocale = DEFAULT_LOCALE;
 let _translations = {};
 let _fallback = {};
 
-// ── Core translation function ───────────────────────────────────────────────
 
 /**
  * Translate a key.
@@ -45,7 +44,6 @@ function _resolve(obj, key) {
     return key.split('.').reduce((o, k) => o?.[k], obj);
 }
 
-// ── Locale management ───────────────────────────────────────────────────────
 
 export function getLocale() { return _currentLocale; }
 export function getSupportedLocales() { return [...SUPPORTED]; }
@@ -103,7 +101,6 @@ export async function initI18n() {
     await setLocale(detected);
 }
 
-// ── DOM auto-translation ────────────────────────────────────────────────────
 
 /**
  * Update all elements with data-i18n attribute.
@@ -142,7 +139,6 @@ function _updateDOM() {
     });
 }
 
-// ── Utility ─────────────────────────────────────────────────────────────────
 
 /**
  * Get current translations object (for modules that need bulk access).

@@ -32,7 +32,6 @@ from .manifest import canonical_json, verify_files
 logger = logging.getLogger("vortex_controller.integrity")
 
 
-# ── Pinned release pubkey ──────────────────────────────────────────────────
 # Operators running a private build set RELEASE_PUBKEY in the environment.
 # For the official Vortex release, replace the default below with the
 # upstream pubkey printed by ``sign_tool.py --show-pubkey``.

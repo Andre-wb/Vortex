@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/rooms", tags=["tasks"])
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
     m = db.query(RoomMember).filter(
@@ -55,7 +54,6 @@ def _task_dict(t: RoomTask) -> dict:
     }
 
 
-# ── Pydantic schemas ─────────────────────────────────────────────────────────
 
 class TaskCreate(BaseModel):
     text: str = Field(..., min_length=1, max_length=500)
@@ -68,7 +66,6 @@ class TaskUpdate(BaseModel):
     assignee_id: int | None = None
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/{room_id}/tasks")
 async def list_tasks(

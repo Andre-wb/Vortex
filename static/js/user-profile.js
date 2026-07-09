@@ -1,9 +1,7 @@
 // static/js/user-profile.js
-// =============================================================================
 // Модуль превью профиля пользователя.
 // Открывает боковую панель с фоном профиля, аватаром, статусом, ДР,
 // общими медиа и общими группами.
-// =============================================================================
 
 import { api } from './utils.js';
 
@@ -55,21 +53,17 @@ export function closeUserProfile() {
     setTimeout(() => { overlay.style.display = 'none'; }, 240);
 }
 
-// =============================================================================
 // Рендер данных профиля в DOM
-// =============================================================================
 
 function _renderUserProfile(data) {
     const { user, dm_room_id, common_groups, shared_media } = data;
 
-    // ── Hero background ──────────────────────────────────────────────────────
     const hero = document.getElementById('upm-hero');
     if (hero) {
         hero.style.background = user.profile_bg
             || 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)';
     }
 
-    // ── Hero icon (SVG on background) ─────────────────────────────────────────
     const heroIconWrap = document.getElementById('upm-hero-icon');
     const heroSvg      = document.getElementById('upm-hero-svg');
     if (heroIconWrap && heroSvg) {
@@ -84,7 +78,6 @@ function _renderUserProfile(data) {
         }
     }
 
-    // ── Avatar ───────────────────────────────────────────────────────────────
     const avatarEl = document.getElementById('upm-avatar');
     if (avatarEl) {
         if (user.avatar_url) {
@@ -95,7 +88,6 @@ function _renderUserProfile(data) {
         }
     }
 
-    // ── Presence ring ─────────────────────────────────────────────────────────
     const ring = document.getElementById('upm-presence-ring');
     if (ring) {
         if (user.is_online) {
@@ -106,14 +98,12 @@ function _renderUserProfile(data) {
         }
     }
 
-    // ── Name / username ───────────────────────────────────────────────────────
     const nameEl = document.getElementById('upm-name');
     if (nameEl) nameEl.textContent = user.display_name || user.username;
 
     const usernameEl = document.getElementById('upm-username');
     if (usernameEl) usernameEl.textContent = '@' + user.username;
 
-    // ── Status line ───────────────────────────────────────────────────────────
     const statusLine = document.getElementById('upm-status-line');
     if (statusLine) {
         if (user.custom_status) {
@@ -124,7 +114,6 @@ function _renderUserProfile(data) {
         }
     }
 
-    // ── Bio ───────────────────────────────────────────────────────────────────
     const bioEl = document.getElementById('upm-bio');
     if (bioEl) {
         if (user.bio) {
@@ -135,7 +124,6 @@ function _renderUserProfile(data) {
         }
     }
 
-    // ── Action buttons ────────────────────────────────────────────────────────
     const writeBtn = document.getElementById('upm-write-btn');
     if (writeBtn) {
         writeBtn.style.display = dm_room_id ? '' : 'none';
@@ -156,7 +144,6 @@ function _renderUserProfile(data) {
         };
     }
 
-    // ── Birthday ──────────────────────────────────────────────────────────────
     const bdSection = document.getElementById('upm-birthday-section');
     if (bdSection) {
         if (user.birth_date) {
@@ -168,7 +155,6 @@ function _renderUserProfile(data) {
         }
     }
 
-    // ── Shared media ──────────────────────────────────────────────────────────
     const mediaSection = document.getElementById('upm-media-section');
     if (mediaSection) {
         if (shared_media && shared_media.length > 0) {
@@ -230,7 +216,6 @@ function _renderUserProfile(data) {
         }
     }
 
-    // ── Common groups ─────────────────────────────────────────────────────────
     const groupsSection = document.getElementById('upm-groups-section');
     if (groupsSection) {
         if (common_groups && common_groups.length > 0) {
@@ -278,7 +263,6 @@ function _renderUserProfile(data) {
         }
     }
 
-    // ── Fingerprint verification ──────────────────────────────────────────────
     const fpSection = document.getElementById('upm-fp-section');
     if (fpSection) {
         if (user.x25519_public_key) {
@@ -321,9 +305,7 @@ function _renderUserProfile(data) {
     }
 }
 
-// =============================================================================
 // Вспомогательные функции
-// =============================================================================
 
 function _formatBirthDate(raw) {
     if (!raw) return '';

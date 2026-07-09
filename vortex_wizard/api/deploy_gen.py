@@ -36,7 +36,6 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ── Dockerfile ────────────────────────────────────────────────────────────
 
 def _dockerfile(env: dict) -> str:
     port = env.get("PORT", "9000")
@@ -124,7 +123,6 @@ volumes:
 """
 
 
-# ── systemd service unit ──────────────────────────────────────────────────
 
 def _systemd_unit(env: dict, workdir: Path) -> str:
     device = env.get("DEVICE_NAME", "vortex-node") or "vortex-node"
@@ -186,7 +184,6 @@ WantedBy=multi-user.target
 """
 
 
-# ── launchd plist (macOS) ─────────────────────────────────────────────────
 
 def _launchd_plist(env: dict, workdir: Path) -> str:
     device = env.get("DEVICE_NAME", "vortex-node") or "vortex-node"
@@ -237,7 +234,6 @@ def _launchd_plist(env: dict, workdir: Path) -> str:
 """
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────
 
 @router.get("/dockerfile")
 async def get_dockerfile(request: Request) -> Response:

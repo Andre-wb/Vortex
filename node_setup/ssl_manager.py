@@ -1,8 +1,6 @@
 # node_setup/ssl_manager.py
-# ==============================================================================
 # Тонкий модуль реэкспорта — сохраняет обратную совместимость.
 # Все реализации вынесены в ssl_result, ssl_generate, ssl_install, ssl_utils.
-# ==============================================================================
 
 from node_setup.ssl_result import SSLResult, _local_ips, _get_system  # noqa: F401
 from node_setup.ssl_generate import (  # noqa: F401

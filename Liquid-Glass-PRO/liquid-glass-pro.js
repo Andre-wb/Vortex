@@ -23,7 +23,6 @@
 //
 // Physically-based liquid glass rendering for the web, built on WebGL2 + CSS backdrop-filter.
 //
-// ── How it works ──────────────────────────────────────────────────────────────
 //
 //   1. html2canvas captures the page at reduced resolution and uploads the
 //      result to a WebGL2 texture (TEXTURE_UNIT1, sampler u_background).
@@ -60,7 +59,6 @@
 //      Fresnel F0, scatter amount, and per-variant caustic tinting — all driven
 //      by GLSL uniforms uploaded per frame, switchable at runtime without reinit.
 //
-// ── What's new in v4.1.0 ──────────────────────────────────────────────────────
 //
 //   Glass Variant System
 //     Twelve physically-grounded surface presets derived from real optical
@@ -100,7 +98,6 @@
 //     colours matching L0/L1/L2 from §15.K.  Thin-film CSS fallback phase offsets
 //     derived from Born & Wolf OPD equation at FILM_THICKNESS=320 nm.
 //
-// ── What's new in v4.0.0 ──────────────────────────────────────────────────────
 //
 //   Sellmeier dispersion replaces Cauchy approximation
 //     Equation: n²(λ) = 1 + Σ Bⱼλ²/(λ²−Cⱼ)   (three resonance terms)
@@ -139,7 +136,6 @@
 //   getOptions() returns a live reference — glass type can be changed at runtime
 //   without calling destroyLiquidGlass() / initLiquidGlass() again.
 //
-// ── Render loop frame budget  (at 60 fps, high-tier GPU) ────────────────────
 //
 //   Every frame     Spring integration (5 springs × N elements) + CSS writes
 //   Every 2 frames  Caustic WebGL pass          (~30 fps, imperceptible at these frequencies)
@@ -148,7 +144,6 @@
 //   Every 30 frames data-lg-refract attr sync    (~2 Hz, CSS only, no urgency)
 //   Idle / scroll   html2canvas background capture  (debounced 150 ms on scroll)
 //
-// ── Degradation tiers ────────────────────────────────────────────────────────
 //
 //   high  — desktop + Apple Silicon: full feature set, max aberration,
 //            background refraction, 6-octave caustics, PBR specular
@@ -157,27 +152,23 @@
 //   low   — legacy mobile (Adreno 2xx-4xx, Mali-2/4, PowerVR SGX):
 //            CSS-only (backdrop-filter + SVG no-op stubs), no WebGL
 //
-// ── IntersectionObserver viewport gate ──────────────────────────────────────
 //
 //   Off-screen elements are excluded from all GPU work entirely.
 //   The IO fires at threshold:0 so the gate activates the moment any pixel
 //   of a tracked element enters or leaves the viewport, with no root margin.
 //   This eliminates GPU cost for glass elements scrolled out of view.
 //
-// ── Limitations ───────────────────────────────────────────────────────────────
 //
 //   Refraction is a snapshot, not a live compositor feed. html2canvas fails on
 //   cross-origin <iframe>, CDN images without CORS headers and external fonts.
 //   The background is automatically re-captured every bgCaptureInterval ms,
 //   on scroll (debounced 150 ms) and on viewport resize.
 //
-// ── Dependencies ──────────────────────────────────────────────────────────────
 //
 //   html2canvas ^1.4.1 — must be loaded before initLiquidGlass() is called.
 //   WebGL2 — required for caustics and refraction. On failure the system
 //   degrades automatically: high → mid → low CSS-only tier.
 //
-// ── Quick start ───────────────────────────────────────────────────────────────
 //
 //   import {
 //     initLiquidGlass,
@@ -202,7 +193,6 @@
 //   setGlassVariant('obsidian')      // near-black, volcanic glass, purple sheen
 //   refreshBackground()              // immediate re-capture with new IOR values
 //
-// ── Module structure ──────────────────────────────────────────────────────────
 //
 //   §0   JSDoc type definitions
 //   §1   Module-level state + Glass Variant presets (GLASS_VARIANTS)
@@ -260,18 +250,15 @@
 //          §16.B  Hover box-shadow amplification (synced to L0 × 1.5)
 //          §16.C  Specular canvas transitions + thin-film CSS fallback
 //
-// ── License ───────────────────────────────────────────────────────────────────
 //
 //   Apache 2.0 © 2026 Boris Maltsev
 
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §0  JSDoc type definitions
 //
 //  These types are used throughout the module for IDE intellisense and static
 //  analysis (e.g. via VS Code + TypeScript "checkJs" mode).
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Three-tier GPU capability classification derived from WebGL renderer string
@@ -418,7 +405,6 @@
  */
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §1  Module-level state
 //
 //  All mutable singleton state lives in these two objects plus a handful of
@@ -426,7 +412,6 @@
 //    • makes destroyLiquidGlass() trivial — one Object.assign() resets it all
 //    • avoids hidden cross-function coupling through module-level locals
 //    • lets future versions snapshot/restore state across SPA navigations
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Compile-time defaults.  Never mutated — _opts is the live working copy.
@@ -460,7 +445,6 @@ const _defaults = {
     //   High V → low dispersion (colours stay together)
     //   Low  V → high dispersion (strong rainbow fringing)
     glassType:            'BK7',
-    // ── §v4.1  Glass Variant System ──────────────────────────────────────────
     // Controls the physical character of the glass surface beyond optical type.
     // Values: 'clear' | 'frosted' | 'smoke' | 'tinted-blue' | 'tinted-violet'
     //       | 'tinted-amber' | 'mirror' | 'ice' | 'bronze' | 'emerald'
@@ -488,21 +472,17 @@ let _opts = { ..._defaults };
  *   *Ready    — Boolean flags indicating subsystem initialisation status
  */
 const _state = {
-    // ── Lifecycle flags ──────────────────────────────────────────────────────
     ready:          false,   // true after initLiquidGlass() has been called
     svgReady:       false,   // true after SVG filter bank has been injected
     houdiniReg:     false,   // true after CSS.registerProperty() calls succeeded
     started:        false,
 
-    // ── DOM references ───────────────────────────────────────────────────────
     observer:       /** @type {MutationObserver|null} */ (null),  // watches for new .lg nodes
     styleEl:        /** @type {HTMLStyleElement|null} */ (null),  // injected <style> tag
     svgEl:          /** @type {SVGSVGElement|null}    */ (null),  // injected <svg> with filters
 
-    // ── rAF ──────────────────────────────────────────────────────────────────
     rafId:          0,  // non-zero while animation loop is running
 
-    // ── WebGL2 caustics back-end ─────────────────────────────────────────────
     // A single WebGL2 context services ALL glass elements — each frame the
     // viewport is resized to the current element's dimensions before drawing,
     // and the result is blitted via drawImage() into the element's 2D canvas.
@@ -514,7 +494,6 @@ const _state = {
     glBuffer:       /** @type {WebGLBuffer|null}            */ (null),  // fullscreen triangle VBO
     glStartTime:    0,   // performance.now() at context creation; used to derive u_time
 
-    // ── Background capture (introduced in v2.0.0) ────────────────────────────
     // html2canvas renders the page into a low-res canvas; that canvas is
     // uploaded to bgTexture on TEXTURE_UNIT1 for the refraction shader pass.
     bgTexture:      /** @type {WebGLTexture|null}             */ (null),
@@ -526,7 +505,6 @@ const _state = {
     bgScrollX:      0,       // window.scrollX at last capture — used to compute scroll drift
     bgScrollY:      0,       // window.scrollY at last capture
 
-    // ── Physical sensors ─────────────────────────────────────────────────────
     deviceTilt:     { x: 0, y: 0 },  // normalised gyroscope data; fed to tilt springs
     orientHandler:  /** @type {Function|null} */ (null),  // stored for removeEventListener
 };
@@ -578,7 +556,6 @@ const MAX_WEBGL_ELEMENTS = 32;
  */
 const MAX_DT = 0.05;  // 50 ms cap → equivalent to a ~20 fps minimum
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §1.5  Glass variant presets  (new in v4.1.0)
 //
 //  Each variant defines the complete optical + visual character of a glass
@@ -606,7 +583,6 @@ const MAX_DT = 0.05;  // 50 ms cap → equivalent to a ~20 fps minimum
 //    emerald 1.575 — mid-point of emerald IOR range 1.565–1.602
 //    obsidian 1.49 — volcanic obsidian (SiO₂-rich rhyolite glass)
 //    SF11    1.785 — used for mirror (maximum Fresnel F0 in catalogue)
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * @typedef {Object} GlassVariantDef
@@ -628,7 +604,6 @@ const MAX_DT = 0.05;  // 50 ms cap → equivalent to a ~20 fps minimum
 
 const GLASS_VARIANTS = Object.freeze({
 
-    // ── 1. Clear ──────────────────────────────────────────────────────────────
     // Near-invisible glass: maximum background transmission, minimal tint.
     // IOR 1.45 = soda-lime float glass, slight Δn, crisp caustics.
     clear: {
@@ -648,7 +623,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(255,255,255,0.04)',
     },
 
-    // ── 2. Frosted ────────────────────────────────────────────────────────────
     // Ground-glass / sandblasted surface.  Heavy scatter completely diffuses
     // the refracted image, leaving only soft light bleed through the surface.
     // backdrop-filter blur 40px approximates the sub-surface scatter MFP.
@@ -669,7 +643,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(255,255,255,0.20)',
     },
 
-    // ── 3. Smoke ──────────────────────────────────────────────────────────────
     // Dark smoked glass (automotive / architectural tint film).
     // Beer-Lambert: uniform σ across R/G/B → neutral-density absorption.
     // IOR 1.52 = standard commercial tinted float glass.
@@ -690,7 +663,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(18,20,28,0.52)',
     },
 
-    // ── 4. Tinted Blue ────────────────────────────────────────────────────────
     // Cobalt-blue architectural glass.
     // Beer-Lambert: σR=3.1, σG=1.8, σB=0.2 → strong red/green absorption.
     // Caustic tint maps absorption to vivid blue-cyan filaments.
@@ -711,7 +683,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(30,90,210,0.13)',
     },
 
-    // ── 5. Tinted Violet ──────────────────────────────────────────────────────
     // UV-filter glass / amethyst crystal.
     // Beer-Lambert: absorbs G (trough at 550nm), passes R+B → purple.
     'tinted-violet': {
@@ -731,7 +702,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(100,30,210,0.14)',
     },
 
-    // ── 6. Tinted Amber ───────────────────────────────────────────────────────
     // Amber / honey-gold / cognac glass.
     // Beer-Lambert: strong B absorption (σB=4.2), minimal R/G → warm glow.
     // Historically amber glass = UV-protective pharmaceutical / spirits bottles.
@@ -752,7 +722,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(220,130,20,0.13)',
     },
 
-    // ── 7. Mirror ─────────────────────────────────────────────────────────────
     // First-surface mirror coating (silver on glass).
     // IOR 1.785 = SF11 flint → F0 ≈ 0.079 (2× standard glass).
     // u_mirrorStrength = 0.92 collapses transmission, renders pure reflection.
@@ -774,7 +743,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(220,228,240,0.08)',
     },
 
-    // ── 8. Ice ────────────────────────────────────────────────────────────────
     // Polycrystalline water ice.
     // IOR = 1.309 (Warren & Brandt 2008, 550nm, T=–10°C).
     // Frosted 0.40 simulates polycrystalline grain-boundary scatter.
@@ -796,7 +764,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(165,215,255,0.16)',
     },
 
-    // ── 9. Bronze ─────────────────────────────────────────────────────────────
     // Bronze-tinted decorative glass / copper dichroic filter.
     // Beer-Lambert: absorbs B strongly, passes R+G at different rates.
     bronze: {
@@ -816,7 +783,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(180,100,20,0.14)',
     },
 
-    // ── 10. Emerald ───────────────────────────────────────────────────────────
     // Genuine emerald / chrome-doped beryl glass.
     // IOR 1.575 = mid emerald range. Cr³⁺ absorption peaks at 430nm and 610nm
     // create the distinctive green transmission window near 500–570nm.
@@ -837,7 +803,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(15,140,50,0.14)',
     },
 
-    // ── 11. Rose ──────────────────────────────────────────────────────────────
     // Rose-quartz / cranberry glass / ruby flash.
     // Manganese-doped silicate glass: absorbs 490–580nm (green), passes red+blue.
     rose: {
@@ -857,7 +822,6 @@ const GLASS_VARIANTS = Object.freeze({
         bgTint:       'rgba(240,80,120,0.12)',
     },
 
-    // ── 12. Obsidian ──────────────────────────────────────────────────────────
     // Natural volcanic obsidian (rhyolitic glass ~72% SiO₂).
     // Near-black: strong broadband absorption from Fe²⁺/Fe³⁺/magnetite inclusions.
     // IOR 1.49–1.52 (mid range). High mirror component from polished surface.
@@ -946,7 +910,6 @@ const _visibleElements = new Set();
 let _io = null;
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §2  GPU tier detection
 //
 //  Strategy:
@@ -959,7 +922,6 @@ let _io = null;
 //    5. Apple GPU: use the core count from the renderer string to distinguish
 //       low-core (≤7, iPad/iPhone) → 'mid' vs. high-core (≥10, M-series) → 'high'.
 //    6. Tear down the probe context immediately to avoid consuming GPU resources.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Detects the device GPU tier by probing WebGL renderer information.
@@ -1033,7 +995,6 @@ function _detectGpuTier() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §3  Spring physics
 //
 //  Implementation: semi-implicit (symplectic) Euler integration of a damped
@@ -1048,7 +1009,6 @@ function _detectGpuTier() {
 //
 //  The key property is that energy is conserved (never grows) for any
 //  positive dt, unlike explicit Euler which can diverge for stiff springs.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Constructs a SpringState with value, velocity, and target all set to
@@ -1080,7 +1040,6 @@ function _stepSpring(s, cfg, dt) {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §4  Houdini CSS custom properties
 //
 //  CSS.registerProperty() declares custom properties with explicit type
@@ -1102,7 +1061,6 @@ function _stepSpring(s, cfg, dt) {
 //  Errors are silently swallowed because:
 //    • The same property may have been registered by a prior initLiquidGlass() call
 //    • Older browsers (Safari < 15) may not implement registerProperty at all
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Registers typed Houdini CSS custom properties so they can be interpolated
@@ -1135,11 +1093,9 @@ function _registerHoudini() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §5  Background capture engine  (new in v2.0.0)
 //
 //  Overview
-//  ────────
 //  The refraction effect requires knowledge of what lies behind the glass
 //  element.  CSS backdrop-filter provides a blurred approximation, but it does
 //  not expose the actual pixel data to WebGL.  The solution is to use
@@ -1148,7 +1104,6 @@ function _registerHoudini() {
 //  shader at refracted UV coordinates.
 //
 //  Architecture
-//  ────────────
 //  ┌────────────────────────────────────────────────────────────────────────┐
 //  │  DOM (live page)                                                       │
 //  │       ↓  html2canvas (async, runs on JS thread, ~10–40 ms)            │
@@ -1160,7 +1115,6 @@ function _registerHoudini() {
 //  └────────────────────────────────────────────────────────────────────────┘
 //
 //  Refresh triggers
-//  ────────────────
 //  1. setInterval(bgCaptureInterval)       — steady-state periodic refresh
 //  2. window 'scroll' event (debounced 150 ms) — keeps refraction aligned
 //     after the user scrolls; scroll offset at capture time is stored in
@@ -1171,25 +1125,21 @@ function _registerHoudini() {
 //     DOM mutations (modal open, route change, dynamic content insertion)
 //
 //  Anti-flicker
-//  ────────────
 //  The previous texture remains bound and sampled while a new capture is in
 //  progress.  The bgCapturing mutex prevents concurrent html2canvas calls that
 //  could race on the texture upload.
 //
 //  Scroll drift compensation
-//  ──────────────────────────
 //  Between captures the user may scroll, causing the captured background to
 //  be misaligned with the current viewport.  The shader receives a u_scroll
 //  uniform that encodes (currentScroll − captureScroll) / viewportSize, and
 //  adds this offset to the screen-space UV before texture lookup.
 //
 //  CPU-side 2D copy
-//  ────────────────
 //  A second 2D canvas (_state.bgCanvas) stores a CPU-readable copy of the
 //  latest capture.  This is not currently consumed by the main render path but
 //  is available for future use cases such as CSS element() references or
 //  canvas-based fallback renderers for elements that exceed MAX_WEBGL_ELEMENTS.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Performs a single background capture using html2canvas and uploads the
@@ -1243,7 +1193,6 @@ async function _captureBackground() {
         _state.bgScrollX = window.scrollX;
         _state.bgScrollY = window.scrollY;
 
-        // ── GPU upload ────────────────────────────────────────────────────────
         const gl = _state.glBackend;
         if (gl && _state.bgTexture) {
             // Bind to unit 1 (unit 0 is reserved for future caustic LUT use).
@@ -1258,7 +1207,6 @@ async function _captureBackground() {
             _state.bgReady = true;
         }
 
-        // ── CPU-side 2D copy ──────────────────────────────────────────────────
         // Lazily create the 2D canvas on the first successful capture.
         if (!_state.bgCanvas) {
             _state.bgCanvas = document.createElement('canvas');
@@ -1297,7 +1245,6 @@ function _startBackgroundCapture() {
     const gl = _state.glBackend;
     if (!gl) return;
 
-    // ── Create background texture on TEXTURE_UNIT1 ────────────────────────────
     const tex = gl.createTexture();
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -1318,7 +1265,6 @@ function _startBackgroundCapture() {
     // Kick off first capture, then let _scheduleCapture() maintain the loop.
     _captureBackground().finally(_scheduleCapture);
 
-    // ── Scroll-driven refresh (debounced) ─────────────────────────────────────
     _state.bgScrollDebounce = 0;
     _state.bgScrollHandler = () => {
         clearTimeout(_state.bgScrollDebounce);
@@ -1326,7 +1272,6 @@ function _startBackgroundCapture() {
     };
     window.addEventListener('scroll', _state.bgScrollHandler, { passive: true });
 
-    // ── Resize-driven refresh ─────────────────────────────────────────────────
     _state.bgResizeObserver = new ResizeObserver(() => _captureBackground());
     _state.bgResizeObserver.observe(document.body);
 }
@@ -1421,11 +1366,9 @@ function _stopBackgroundCapture() {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §6  WebGL2 caustics + refraction render engine
 //
 //  Shader architecture
-//  ───────────────────
 //  A single fullscreen triangle is rasterized (3 vertices → 1 draw call),
 //  covering the entire canvas.  The fragment shader is responsible for:
 //
@@ -1454,17 +1397,13 @@ function _stopBackgroundCapture() {
 //     blended, then multiplied by a vignette mask.
 //
 //  Coordinate systems
-//  ──────────────────
 //  v_uv          0..1 in element local space (origin = top-left)
 //  screenUV      0..1 in viewport space; computed as:
 //                  elementPos + v_uv * elementSize
 //  refractedUV   screenUV displaced by Snell delta + IOR dispersion delta
 //  bgUV          = refractedUV, looked up in u_background (viewport-space)
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §6.0  GLSL source strings
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Vertex shader source.
@@ -1481,10 +1420,8 @@ function _stopBackgroundCapture() {
 const _VERT_SRC = /* glsl */`#version 300 es
 precision mediump float;
 
-// ── Inputs ───────────────────────────────────────────────────────────────────
 in  vec2 a_pos;  // clip-space position: one of (−1,−1), (3,−1), (−1,3)
 
-// ── Outputs ──────────────────────────────────────────────────────────────────
 out vec2 v_uv;   // element-local UV (0..1), interpolated across fragment
 
 void main() {
@@ -1520,20 +1457,16 @@ void main() {
 const _FRAG_SRC = /* glsl */`#version 300 es
 precision highp float;
 
-// ── Interpolants ─────────────────────────────────────────────────────────────
 in  vec2  v_uv;       // Element-local UV (0..1, top-left origin)
 
-// ── Output ───────────────────────────────────────────────────────────────────
 out vec4  fragColor;  // Premultiplied RGBA output
 
-// ── Uniforms ─────────────────────────────────────────────────────────────────
 uniform float     u_time;         // Seconds since context creation
 uniform vec2      u_mouse;        // Cursor position in element UV (spring-smoothed)
 uniform float     u_hover;        // Hover intensity scalar, 0=idle 1=hovered
 uniform vec2      u_tilt;         // Tilt angles per axis (−1..+1)
 uniform vec2      u_res;          // Physical canvas size in pixels
 
-// ── v2.0.0 background refraction uniforms ────────────────────────────────────
 uniform sampler2D u_background;   // html2canvas snapshot, bound to TEXTURE_UNIT1
 uniform vec2      u_bgRes;        // Background texture pixel dimensions (reserved)
 uniform vec2      u_elementPos;   // Element top-left in normalised screen space
@@ -1543,7 +1476,6 @@ uniform float     u_refractStr;   // UV displacement magnitude for refraction
 uniform float     u_bgReady;      // 1.0 when u_background contains valid data
 uniform vec2      u_scroll;       // Scroll drift since last capture, normalised
 
-// ── v3.1.0 glass material type ────────────────────────────────────────────────
 // Selects Sellmeier dispersion coefficients for the chosen optical glass.
 //   0 = BK7     borosilicate crown   Abbe V=64.17  standard optical glass
 //   1 = SF11    heavy flint          Abbe V=25.76  maximum prismatic effect
@@ -1552,7 +1484,6 @@ uniform vec2      u_scroll;       // Scroll drift since last capture, normalised
 //   4 = F2      flint                Abbe V=36.43  medium-high dispersion
 uniform float     u_glassType;
 
-// ── v4.1.0 glass variant uniforms ────────────────────────────────────────────
 uniform vec3      u_tintRGB;        // Beer-Lambert tint colour (linear RGB)
 uniform float     u_tintStrength;   // Absorption coefficient scale
 uniform float     u_frostedAmount;  // Scatter-blur amount 0..1
@@ -1561,7 +1492,6 @@ uniform float     u_smokeDensity;   // Uniform broadband darkening 0..1
 uniform float     u_causticScale;   // Caustic intensity multiplier
 uniform vec3      u_causticTint;    // RGB tint applied to caustic layer
 
-// ════════════════════════════════════════════════════════════════════════════
 // §A  Hash functions
 //
 //  Two independent hash families are used in this shader:
@@ -1581,7 +1511,6 @@ uniform vec3      u_causticTint;    // RGB tint applied to caustic layer
 //    GLSL ES 3.00 only.  The original hash2() is retained for gnoise()
 //    and surfaceNormal() where the slight lattice correlation is invisible
 //    at the noise frequencies used (7× and 11× UV scale).
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Classic trigonometric gradient hash.
@@ -1650,9 +1579,7 @@ vec2 pcg2f(vec2 p) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §B  Gradient noise  (Perlin-style)
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * 2D gradient noise (Perlin-style, value range ≈ [0,1]).
@@ -1681,7 +1608,6 @@ float gnoise(vec2 p) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §C  Sellmeier dispersion — replaces Cauchy approximation
 //
 //  Physical basis:
@@ -1700,7 +1626,6 @@ float gnoise(vec2 p) {
 //    Cauchy  Δn(R→B) ≈ 0.028  (empirically tuned, wrong shape)
 //    BK7     Δn(R→B) ≈ 0.011  (physically exact)
 //    SF11    Δn(R→B) ≈ 0.041  (heavy flint, strong rainbow)
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Sellmeier dispersion equation.
@@ -1720,7 +1645,6 @@ float sellmeier(float l) {
     float C1, C2, C3;
 
     if (u_glassType < 0.5) {
-        // ── BK7 — Borosilicate Crown (Schott N-BK7) ──────────────────────────
         // Most widely used optical glass: camera lenses, microscope objectives,
         // laser windows, display cover glass.
         // Abbe V = 64.17 | n_D = 1.51680 | Δn(R→B) = 0.01101
@@ -1730,7 +1654,6 @@ float sellmeier(float l) {
         B3 = 1.01046945;  C3 = 103.560653;      // far-IR phonon lattice
 
     } else if (u_glassType < 1.5) {
-        // ── SF11 — Heavy Flint (Schott SF11) ─────────────────────────────────
         // Dense flint glass: prisms, diffraction gratings, decorative crystal,
         // chandeliers, high-power laser optics.
         // Abbe V = 25.76 | n_D = 1.78472 | Δn(R→B) = 0.04079
@@ -1740,7 +1663,6 @@ float sellmeier(float l) {
         B3 = 1.17490871;  C3 = 121.922711;      // IR phonon
 
     } else if (u_glassType < 2.5) {
-        // ── N-FK51A — Fluorite Crown (Schott N-FK51A) ────────────────────────
         // Low-index fluorophosphate glass: APO camera lenses, telescope
         // objectives, UV optics, colour-corrected microscope objectives.
         // Abbe V = 81.61 | n_D = 1.48656 | Δn(R→B) = 0.00536
@@ -1750,7 +1672,6 @@ float sellmeier(float l) {
         B3 = 0.90448069;  C3 = 168.681840;      // shifted IR phonon
 
     } else if (u_glassType < 3.5) {
-        // ── N-BK10 — Thin Crown (Schott N-BK10) ─────────────────────────────
         // Low-index borosilicate crown: architectural window glass, display
         // panels, lightweight optical elements, eyeglass lenses.
         // Abbe V = 67.90 | n_D = 1.49780 | Δn(R→B) = 0.00841
@@ -1760,7 +1681,6 @@ float sellmeier(float l) {
         B3 = 0.95900362;  C3 = 95.7565128;      // IR phonon
 
     } else {
-        // ── F2 — Flint (Schott F2) ────────────────────────────────────────────
         // Classic medium flint: achromatic doublets, vintage optics,
         // ornamental glass, spectroscopic prisms.
         // Abbe V = 36.43 | n_D = 1.62005 | Δn(R→B) = 0.02265
@@ -1779,7 +1699,6 @@ float sellmeier(float l) {
     );
 }
 
-// ── Per-channel IOR via Sellmeier ─────────────────────────────────────────────
 // RGB primary wavelengths in micrometres — CIE standard illuminant D65.
 //   λR = 0.680 µm (680 nm) — red   primary, near photopic long-wavelength edge
 //   λG = 0.550 µm (550 nm) — green primary, peak of human photopic response
@@ -1796,7 +1715,6 @@ float sellmeier(float l) {
 // and any future multi-wavelength pass can share these values without recomputing.
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §D  Improved Voronoi caustic system
 //
 //  Overview of improvements vs v1.1.1 original:
@@ -1849,7 +1767,6 @@ float sellmeier(float l) {
 //    because domain warping and per-cell depth variation fill in the quality
 //    gap at less cost.  Total instruction count is comparable to the
 //    original 5×5 after accounting for the PCG2D hash savings vs sin().
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Rotates a 2D vector by the given angle (radians).
@@ -1927,7 +1844,6 @@ vec2 voronoiF2F1(vec2 p, float t) {
         for (int dx = -1; dx <= 1; dx++) {
             vec2 n = vec2(float(dx), float(dy));   // Neighbour cell offset
 
-            // ── PCG2D hash for this cell ──────────────────────────────────────
             // Four statistically independent values for this cell:
             //   r.xy → animation frequencies in X/Y: mapped to [0.4, 1.2]
             //   r.zw → initial phase offsets:         mapped to [0, 2π]
@@ -1949,7 +1865,6 @@ vec2 voronoiF2F1(vec2 p, float t) {
                     : depth;
             }
 
-            // ── Per-cell animated position ────────────────────────────────────
             // Each axis oscillates independently with its own frequency and phase.
             // Range clamp [0.04, 0.96] prevents cells from leaving their Voronoi
             // cell entirely, which would cause topology inversions.
@@ -2005,34 +1920,29 @@ vec2 voronoiF2F1(vec2 p, float t) {
 float causticBandImproved(vec2 uv, float cellFreq, float speed,
                            vec2 seed, float octIdx, float sharp) {
 
-    // ── Step 1: Rotation stagger — 11.25° per octave ─────────────────────────
     // Prevents the 45°/90° alignment that created a star-burst artefact
     // in the original four-octave fixed-grid composition.
     float rotAngle = octIdx * 0.19635;   // 11.25° in radians = π/16
     vec2 uvRot     = rot2(uv, rotAngle);
 
-    // ── Step 2: Domain warp ───────────────────────────────────────────────────
     // Breaks the square lattice regularity of the Voronoi cells.
     // The warp is applied BEFORE scaling so the warp scale is consistent
     // across all cell frequencies — prevents warp looking "finer" on
     // high-frequency octaves.
     vec2 uvWarped  = domainWarp(uvRot, u_time * speed * 0.25);
 
-    // ── Step 3: Evaluate improved Voronoi ─────────────────────────────────────
     // Scale warped UV to cell frequency, then offset by seed to prevent
     // multiple octaves starting at the same cell boundary pattern.
     vec2 result    = voronoiF2F1(uvWarped * cellFreq + seed, u_time * speed);
     float f2f1     = result.x;   // F2−F1: sharp at cell boundaries
     float cellDpth = result.y;   // Per-cell depth ∈ [0.5, 1.5]
 
-    // ── Step 4: Power curve ───────────────────────────────────────────────────
     // smoothstep(0, 0.35, f2f1) maps the boundary ridge to 0–1.
     // Threshold 0.35 (vs 0.30 original) is wider because F2−F1 has a
     // steeper natural falloff than F1 — 0.30 would be too narrow.
     // pow(·, sharp) tightens the bright filament further.
     float band     = pow(smoothstep(0.0, 0.35, f2f1), sharp);
 
-    // ── Step 5: Depth modulation ──────────────────────────────────────────────
     // Cells at greater depth (cellDpth > 1.0) contribute dimmer caustics,
     // simulating the natural variation of underwater light convergence.
     // The 0.65 factor caps the minimum contribution so dim cells remain visible.
@@ -2149,9 +2059,7 @@ vec3 chromaticCaustic(vec2 uvA) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §E  Surface normal  (bump-map from animated noise)
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Computes a view-space surface normal for this fragment from an animated
@@ -2186,9 +2094,7 @@ vec3 surfaceNormal(vec2 uv) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §F  Snell's law UV refraction  (thin-glass approximation)
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Computes the refracted screen-space UV for a given surface normal,
@@ -2207,9 +2113,7 @@ vec2 refractUV(vec2 screenUV, vec3 normal) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §G  Background sampling with chromatic refraction (Sellmeier)
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Returns transparent black if background is not yet ready.
@@ -2268,9 +2172,7 @@ vec3 chromaticRefraction(vec2 uv, vec3 normal) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §H  Schlick Fresnel approximation
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Schlick's approximation: R(θ) ≈ F0 + (1−F0)·(1−cosθ)⁵
@@ -2284,9 +2186,7 @@ float schlick(float cosTheta, float f0) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §I  Environment reflection probe
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Approximates environmental reflection at grazing angles via horizontal mirror.
@@ -2306,7 +2206,6 @@ vec3 environmentReflection(vec2 uv, vec3 normal, float fresnelFactor) {
     return texture(u_background, mirrorUV).rgb * fresnelFactor * 0.35;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // §H2  Beer-Lambert chromatic transmission
 //
 //  Physical model: I = I₀ · exp(−σ · d)
@@ -2323,7 +2222,6 @@ vec3 environmentReflection(vec2 uv, vec3 normal, float fresnelFactor) {
 //
 //  Applied to the refracted background colour BEFORE caustic compositing,
 //  so the caustic filaments still appear in the coloured-glass hue.
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Beer-Lambert spectral absorption applied to refracted background.
@@ -2343,7 +2241,6 @@ vec3 beerLambertTransmit(vec3 bgColor) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §H3  Frosted glass scatter refraction
 //
 //  Rough-surface glass scatters transmitted light across a broad solid angle.
@@ -2361,7 +2258,6 @@ vec3 beerLambertTransmit(vec3 bgColor) {
 //
 //  The result is mixed with the (sharp) chromaticRefraction based on
 //  u_frostedAmount, so partial frosting gives an intermediate haze level.
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Frosted-glass scatter: blurs the refraction lookup via noise UV jitter.
@@ -2408,9 +2304,7 @@ vec3 frostedScatterRefraction(vec2 uv, vec3 normal) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §J  Main fragment program
-// ════════════════════════════════════════════════════════════════════════════
 
 void main() {
     vec2  uv  = v_uv;
@@ -2418,11 +2312,9 @@ void main() {
     float ar  = u_res.x / max(u_res.y, 1.0);
     vec2  uvA = vec2(uv.x * ar, uv.y);
 
-    // ── 1. Surface normal ─────────────────────────────────────────────────────
     // Derived from animated noise; drives all refraction / reflection terms.
     vec3 N = surfaceNormal(uv);
 
-    // ── 2. Chromatic refraction — Sellmeier dispersion ────────────────────────
     // Per-channel background sample using physically accurate IOR per glass type.
     // Returns black if background texture is not yet ready.
     // §v4.1: Frosted variants replace sharp refraction with scatter-blur.
@@ -2443,7 +2335,6 @@ void main() {
         refractedBg = beerLambertTransmit(refractedBg);
     }
 
-    // ── 3. Fresnel factor ─────────────────────────────────────────────────────
     // F0 is derived from the Sellmeier reference IOR (green channel) rather
     // than the uniform u_ior, for consistency with the dispersion model.
     float iorG = sellmeier(0.550);   // Green channel IOR — reference wavelength
@@ -2455,23 +2346,19 @@ void main() {
     ));
     float fr = schlick(max(dot(Nfull, vec3(0, 0, 1)), 0.0), f0ref);
 
-    // ── 4. Environment reflection ─────────────────────────────────────────────
     vec3 envRefl = environmentReflection(uv, N, fr);
 
-    // ── 5. Improved Voronoi caustic base ──────────────────────────────────────
     // Six-octave composite with PCG2D hash, domain warping, F2−F1 distance,
     // per-cell depth variation, and rotation-staggered grids.
     // 1.7 power concentrates energy into bright caustic filaments.
     // §v4.1: u_causticScale and u_causticTint applied per variant.
     float cBase = pow(caustic(uvA), 1.7) * u_causticScale;
 
-    // ── 6. Chromatic caustic — physically-based spectral splitting ────────────
     // Per-channel caustic UV offsets derived from Sellmeier Δn, not fixed values.
     // RGB split magnitude scales with actual glass dispersion (SF11 >> BK7).
     // §v4.1: Tinted with per-variant causticTint colour.
     vec3 chromCaustic = chromaticCaustic(uvA) * u_causticScale * u_causticTint;
 
-    // ── 7. Specular highlight ─────────────────────────────────────────────────
     vec2  lightPos = vec2(0.22, 0.18)
                    + u_mouse * 0.28 * u_hover
                    + u_tilt  * 0.12;
@@ -2482,14 +2369,12 @@ void main() {
         + pow(max(0.0, 1.0 - sd * 5.8), 16.0) * 0.55   // Tight sharp highlight
         + pow(max(0.0, 1.0 - length(uv - (1.0 - lightPos)) * 4.0), 11.0) * 0.14;
 
-    // ── 8. Fresnel edge glow ──────────────────────────────────────────────────
     float edgeR   = length(centered);
     float topEdge = pow(smoothstep(0.15, 0.0, uv.y), 2.3) * 0.65;
     float botEdge = pow(smoothstep(0.90, 1.0, uv.y), 3.0) * 0.12;
     float lftEdge = pow(smoothstep(0.12, 0.0, uv.x), 2.0) * 0.32;
     float edgeGlow = topEdge + lftEdge + botEdge + fr * 0.28;
 
-    // ── 9. Thin-film iridescence ──────────────────────────────────────────────
     // Phase offsets (0, 2.0944, 4.1888) = 120° = Born & Wolf λR/λG/λB spacing
     float iridMask = smoothstep(0.25, 1.08, edgeR);
     float iridAng  = atan(centered.y, centered.x);
@@ -2500,7 +2385,6 @@ void main() {
         + vec3(0.0, 2.0944, 4.1888)
     )) * iridMask * 0.08;
 
-    // ── 10. Prismatic edge caustics ───────────────────────────────────────────
     float prismBand  = smoothstep(0.80, 0.92, edgeR)
                      * smoothstep(1.06, 0.92, edgeR);
     vec3  prismColor = (0.5 + 0.5 * cos(
@@ -2509,11 +2393,9 @@ void main() {
         + vec3(0.0, 2.0944, 4.1888)
     )) * prismBand * 0.16;
 
-    // ── 11. Surface undulation ────────────────────────────────────────────────
     float wave = gnoise(uv * 5.5 + u_time * 0.11) * 0.013
                + gnoise(uv * 9.2 - u_time * 0.08) * 0.006;
 
-    // ── 12. Composition ───────────────────────────────────────────────────────
     // §v4.1: Caustic tint already applied above; causticTint shifts hue of
     // cBase white contribution to match glass colour.
     vec3 causticColour = u_causticTint * cBase * 0.52;
@@ -2525,7 +2407,6 @@ void main() {
     vec3 envReflBoosted = envRefl * (1.0 + u_mirrorStrength * 5.5);
     col += envReflBoosted;
 
-    // ── 13. Background refraction blend ──────────────────────────────────────
     // §v4.1: Mirror variant reduces transmission (refractedBg contribution).
     // At mirrorStrength=1: refraction is fully replaced by reflection.
     float transmitFactor = 1.0 - u_mirrorStrength * 0.92;
@@ -2537,12 +2418,10 @@ void main() {
     // Simulates soot/metallic-oxide absorption not captured by Beer-Lambert tint.
     col *= (1.0 - u_smokeDensity * 0.68);
 
-    // ── 14. Vignette mask ─────────────────────────────────────────────────────
     float vx = smoothstep(0.0, 0.05, uv.x) * smoothstep(1.0, 0.95, uv.x);
     float vy = smoothstep(0.0, 0.05, uv.y) * smoothstep(1.0, 0.95, uv.y);
     col *= vx * vy;
 
-    // ── 15. Alpha derivation ──────────────────────────────────────────────────
     float luma  = dot(col, vec3(0.299, 0.587, 0.114));
     float alpha = clamp(luma * 1.85, 0.0, 1.0);
 
@@ -2552,9 +2431,7 @@ void main() {
 
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §6.1  WebGL2 helper functions
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Compiles a single GLSL shader stage and returns the WebGLShader handle.
@@ -2662,10 +2539,8 @@ function _initWebGL() {
     }
 
     try {
-        // ── Shader program ────────────────────────────────────────────────────
         const prog = _buildProgram(gl, _VERT_SRC, _FRAG_SRC);
 
-        // ── Fullscreen triangle VBO ───────────────────────────────────────────
         // Three vertices in clip-space that form a triangle covering the full
         // viewport when rasterized.  The third vertex at (3,−1) and fourth at
         // (−1,3) extend beyond the clip frustum but are harmlessly discarded
@@ -2685,12 +2560,10 @@ function _initWebGL() {
         gl.enableVertexAttribArray(aPos);
         gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
-        // ── Blending ──────────────────────────────────────────────────────────
         // ONE, ONE_MINUS_SRC_ALPHA: standard premultiplied-alpha over blend.
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-        // ── Uniform location cache ────────────────────────────────────────────
         // Calling getUniformLocation() every frame would be expensive; cache
         // all locations once here.  Includes both v1.1.1 and v2.0.0 uniforms.
         const uNames = [
@@ -2729,13 +2602,11 @@ function _initWebGL() {
         const uni = {};
         uNames.forEach(n => { uni[n] = gl.getUniformLocation(prog, n); });
 
-        // ── Bind background sampler to texture unit 1 ─────────────────────────
         // This only needs to be set once because the sampler-to-unit binding
         // is part of program state and survives gl.useProgram() calls.
         gl.useProgram(prog);
         gl.uniform1i(uni.u_background, 1);
 
-        // ── Persist shared state ──────────────────────────────────────────────
         _state.glCanvas    = canvas;
         _state.glBackend   = gl;
         _state.glProgram   = prog;
@@ -2743,7 +2614,6 @@ function _initWebGL() {
         _state.glBuffer    = buf;
         _state.glStartTime = performance.now();
 
-        // ── Background capture subsystem ──────────────────────────────────────
         // Must be started after the GL context is ready because _startBackgroundCapture()
         // calls gl.createTexture() and uploads to TEXTURE_UNIT1.
         _startBackgroundCapture();
@@ -2783,7 +2653,6 @@ function _renderCausticsGL(es, now) {
     const h = es.height;
     if (w < 1 || h < 1) return;
 
-    // ── Resize shared GL canvas to match this element ─────────────────────────
     // Avoid unnecessary framebuffer reallocations by checking dimensions first.
     if (_state.glCanvas.width !== w || _state.glCanvas.height !== h) {
         _state.glCanvas.width  = w;
@@ -2791,14 +2660,11 @@ function _renderCausticsGL(es, now) {
         gl.viewport(0, 0, w, h);
     }
 
-    // ── Clear ─────────────────────────────────────────────────────────────────
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // ── Time ──────────────────────────────────────────────────────────────────
     const t = (now - _state.glStartTime) * 0.001;  // Convert ms → seconds
 
-    // ── Viewport dimensions for aspect-ratio and UV mapping ───────────────────
     const sw = window.innerWidth;
     const sh = window.innerHeight;
 
@@ -2809,21 +2675,18 @@ function _renderCausticsGL(es, now) {
         width: w / es.dpr, height: h / es.dpr,
     };
 
-    // ── Screen-space element position and size ────────────────────────────────
     // Normalised to [0,1] viewport space for the refraction UV mapping pass.
     const ex = rect.left   / sw;  // Left edge fraction
     const ey = rect.top    / sh;  // Top edge fraction
     const ew = rect.width  / sw;  // Width fraction
     const eh = rect.height / sh;  // Height fraction
 
-    // ── Scroll drift compensation ─────────────────────────────────────────────
     // Amount the page has scrolled since the last background capture,
     // normalised to viewport dimensions.  Passed to the shader as u_scroll
     // so the background sample UV is offset accordingly.
     const sdx = (window.scrollX - _state.bgScrollX) / sw;
     const sdy = (window.scrollY - _state.bgScrollY) / sh;
 
-    // ── Upload uniforms ───────────────────────────────────────────────────────
     gl.uniform1f(uni.u_time,        t);
     gl.uniform2f(uni.u_mouse,       es.springX.value, es.springY.value);
     gl.uniform1f(uni.u_hover,       es.hoverSpring.value);
@@ -2846,11 +2709,9 @@ function _renderCausticsGL(es, now) {
         : Math.floor(_opts.glassType) % 5;          // numeric → clamp to valid range
     gl.uniform1f(uni.u_glassType, glassTypeIndex);
 
-    // ── Bind background texture to unit 1 ─────────────────────────────────────
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, _state.bgTexture);
 
-    // ── v4.1.0 glass variant upload ───────────────────────────────────────────
     const variantKey = typeof _opts.glassVariant === 'string' ? _opts.glassVariant : 'clear';
     const vd = GLASS_VARIANTS[variantKey] ?? GLASS_VARIANTS.clear;
     gl.uniform3f(uni.u_tintRGB,       vd.tintRGB[0],    vd.tintRGB[1],    vd.tintRGB[2]);
@@ -2861,10 +2722,8 @@ function _renderCausticsGL(es, now) {
     gl.uniform1f(uni.u_causticScale,  vd.causticScale);
     gl.uniform3f(uni.u_causticTint,   vd.causticTint[0], vd.causticTint[1], vd.causticTint[2]);
 
-    // ── Draw fullscreen triangle ──────────────────────────────────────────────
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-    // ── Blit GL output → element's 2D caustic canvas ─────────────────────────
     // This is the transfer step that moves the WebGL render result into the
     // CSS-composited canvas overlay on the glass element.
     es.ctx2d.clearRect(0, 0, w, h);
@@ -2872,7 +2731,6 @@ function _renderCausticsGL(es, now) {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §7  SVG filter bank
 //
 //  Two SVG filters are injected into a hidden <svg> element in <body>:
@@ -2901,7 +2759,6 @@ function _renderCausticsGL(es, now) {
 //    drift, giving the distortion a living, breathing quality.  The seed value
 //    is animated discretely to occasionally "snap" the turbulence pattern,
 //    adding micro-variation that prevents the animation from looking looped.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Builds the inner SVG <defs> markup containing the two filter definitions.
@@ -3027,7 +2884,6 @@ function _injectSVG() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §8  CSS injection
 //
 //  A single <style id="liquid-glass-pro-style-200"> element is injected into
@@ -3057,7 +2913,6 @@ function _injectSVG() {
 //    @keyframes           — lg-irid-spin, lg-grain-shift, lg-breathe
 //    @media (prefers-reduced-motion) — fully disables all motion
 //    CSS.registerProperty — Houdini typed transitions (see §4)
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Builds the complete CSS string for the Liquid Glass PRO visual system.
@@ -3079,9 +2934,7 @@ function _buildCSS() {
     const { before, hover, specCanvas } = _buildSpecularCSS();
 
     return `
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* .lg-outer — SVG filter wrapper                                              */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg-outer {
     display: inline-flex;
@@ -3099,9 +2952,7 @@ function _buildCSS() {
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* .lg — Main glass element                                                    */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg {
     --lg-mx:    50%;
@@ -3145,17 +2996,13 @@ function _buildCSS() {
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* .lg::before — CSS fallback specular (§16.A)                                 */
 /* Active only on .lg:not([data-lg-webgl]) — low tier / init failure.         */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 ${before}
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* .lg::after — Thin-film iridescence overlay                                  */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg::after {
     content:  '';
@@ -3183,9 +3030,7 @@ ${before}
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* .lg-grain — Film grain overlay                                               */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg-grain {
     position: absolute;
@@ -3204,9 +3049,7 @@ ${before}
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* .lg-caustic-canvas — WebGL caustic/refraction overlay                       */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg-caustic-canvas {
     position: absolute;
@@ -3224,18 +3067,14 @@ ${before}
 .lg.lg-interactive:hover .lg-caustic-canvas { opacity: 0.035; }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* Refraction status indicator                                                 */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg[data-lg-refract="1"]::before {
     outline: 1px solid rgba(100, 200, 255, 0.0);
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* Content children                                                            */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg > *:not(.lg-grain):not(.lg-caustic-canvas):not(.lg-specular-canvas) {
     position: relative;
@@ -3243,9 +3082,7 @@ ${before}
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* Interactive state                                                           */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg.lg-interactive { cursor: pointer; }
 
@@ -3264,9 +3101,7 @@ ${hover}
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* .lg-reply                                                                   */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg-reply {
     display:        flex;
@@ -3306,9 +3141,7 @@ ${hover}
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* .lg.lg-own                                                                  */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg.lg-own {
     background:
@@ -3343,9 +3176,7 @@ ${hover}
 .lg.lg-own .lg-sender { color: rgba(226,202,255,.92); }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* Shape modifiers                                                             */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg.lg-pill { border-radius: 999px; padding: 6px 18px; }
 .lg.lg-card { border-radius: 22px;  padding: 20px; }
@@ -3360,9 +3191,7 @@ ${hover}
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* @keyframes                                                                  */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 @keyframes lg-irid-spin {
     from { --lg-irid: 0deg;   }
@@ -3384,9 +3213,7 @@ ${hover}
 ${breatheKF}
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* Animation assignments                                                       */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg:not(.lg-pill):not(.lg-fab):not(.lg-reply) {
     animation: lg-irid-spin 15s linear infinite
@@ -3400,9 +3227,7 @@ ${breatheKF}
 .lg::after    { animation: lg-irid-spin 15s linear infinite; }
 
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* @media (prefers-reduced-motion)                                             */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
     .lg,
@@ -3422,13 +3247,10 @@ ${breatheKF}
     .lg-specular-canvas  { display: none; }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* §16.C  Specular canvas + thin-film CSS overrides                            */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 ${specCanvas}
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
 /* §v4.1  Glass Variant CSS Overrides                                          */
 /*                                                                             */
 /*  Each variant class overrides backdrop-filter and background gradient.      */
@@ -3436,9 +3258,7 @@ ${specCanvas}
 /*  Physical parameters (Beer-Lambert, scatter, mirror) live in GLSL §H2-H3.  */
 /*  The CSS layer handles perceptual "feel" and first-frame appearance before  */
 /*  the WebGL pass renders.                                                    */
-/* ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── 1. Clear ─────────────────────────────────────────────────────────────── */
 /* Near-invisible: minimal blur, maximum saturation boost, slight brightness.  */
 .lg.lg-v-clear {
     backdrop-filter:         blur(7px) saturate(155%) brightness(1.08);
@@ -3449,7 +3269,6 @@ ${specCanvas}
         rgba(255,255,255,0.04);
 }
 
-/* ── 2. Frosted ───────────────────────────────────────────────────────────── */
 /* 40px blur = full optical diffusion; saturate 78% = desaturated scatter.    */
 /* White radial gradient simulates light spread through ground glass surface.  */
 .lg.lg-v-frosted {
@@ -3468,7 +3287,6 @@ ${specCanvas}
         0  0   60px -20px rgba(220,230,255,0.18);
 }
 
-/* ── 3. Smoke ─────────────────────────────────────────────────────────────── */
 /* Low brightness (0.66) + reduced saturation = dark neutral-density glass.   */
 /* bg tint rgba(18,20,28) = very dark blue-grey (automotive tint film colour). */
 .lg.lg-v-smoke {
@@ -3487,7 +3305,6 @@ ${specCanvas}
         0  0   40px -15px rgba(60,70,120,0.20);
 }
 
-/* ── 4. Tinted Blue ───────────────────────────────────────────────────────── */
 /* hue-rotate(210deg) shifts existing warm tones toward cobalt blue.          */
 /* bg rgba(30,90,210) = cobalt blue float glass tint.                         */
 .lg.lg-v-tinted-blue {
@@ -3506,7 +3323,6 @@ ${specCanvas}
         0  0   60px -20px  rgba(50,120,255,0.28);
 }
 
-/* ── 5. Tinted Violet ─────────────────────────────────────────────────────── */
 /* hue-rotate(270deg) maximises shift toward violet/ultraviolet.              */
 .lg.lg-v-tinted-violet {
     backdrop-filter:         blur(12px) saturate(135%) brightness(1.02) hue-rotate(270deg);
@@ -3524,7 +3340,6 @@ ${specCanvas}
         0  0   60px -20px  rgba(130,60,255,0.32);
 }
 
-/* ── 6. Tinted Amber ──────────────────────────────────────────────────────── */
 /* sepia(25%) pushes CSS toward the amber/golden register before hue-rotate.  */
 /* bg rgba(220,130,20) = amber glass warm honey tone.                         */
 .lg.lg-v-tinted-amber {
@@ -3543,7 +3358,6 @@ ${specCanvas}
         0  0   55px -18px  rgba(220,150,30,0.30);
 }
 
-/* ── 7. Mirror ────────────────────────────────────────────────────────────── */
 /* Minimal blur (3px): mirror glass is optically flat, not diffusing.         */
 /* High brightness (1.18): reflects more than it absorbs.                     */
 /* box-shadow intensified: mirror surfaces have hard specular rim reflections. */
@@ -3564,7 +3378,6 @@ ${specCanvas}
         0  0   70px -20px  rgba(160,185,230,0.26);
 }
 
-/* ── 8. Ice ───────────────────────────────────────────────────────────────── */
 /* 20px blur + hue-rotate(200deg) = frosty blue haze.                         */
 /* High brightness (1.22): ice transmits very well in the visible range.      */
 .lg.lg-v-ice {
@@ -3583,7 +3396,6 @@ ${specCanvas}
         0  0   70px -22px  rgba(100,180,255,0.30);
 }
 
-/* ── 9. Bronze ────────────────────────────────────────────────────────────── */
 /* sepia(40%) + warm-shifted saturate for bronze/copper dichroic appearance.  */
 .lg.lg-v-bronze {
     backdrop-filter:         blur(13px) saturate(128%) brightness(0.96) sepia(40%);
@@ -3601,7 +3413,6 @@ ${specCanvas}
         0  0   50px -16px  rgba(200,110,20,0.28);
 }
 
-/* ── 10. Emerald ──────────────────────────────────────────────────────────── */
 /* hue-rotate(140deg) shifts blue toward green; high saturation = vivid gem. */
 .lg.lg-v-emerald {
     backdrop-filter:         blur(12px) saturate(158%) brightness(1.03) hue-rotate(140deg);
@@ -3619,7 +3430,6 @@ ${specCanvas}
         0  0   55px -18px  rgba(20,180,70,0.32);
 }
 
-/* ── 11. Rose ─────────────────────────────────────────────────────────────── */
 /* hue-rotate(330deg) = pink-red shift; slight sepia adds warmth.             */
 .lg.lg-v-rose {
     backdrop-filter:         blur(11px) saturate(138%) brightness(1.05) hue-rotate(330deg);
@@ -3637,7 +3447,6 @@ ${specCanvas}
         0  0   55px -18px  rgba(240,80,120,0.28);
 }
 
-/* ── 12. Obsidian ─────────────────────────────────────────────────────────── */
 /* Very dark: brightness(0.54) + near-black bg tint.                          */
 /* Subtle purple glow in shadow stack = characteristic obsidian iridescence.  */
 .lg.lg-v-obsidian {
@@ -3657,7 +3466,6 @@ ${specCanvas}
         0  0   45px -14px  rgba(80,40,140,0.22);
 }
 
-/* ── Variant hover amplification ─────────────────────────────────────────── */
 /* Shared for all tinted variants: slightly brighter on hover.               */
 .lg.lg-v-tinted-blue.lg-interactive:hover,
 .lg.lg-v-tinted-violet.lg-interactive:hover,
@@ -3705,7 +3513,6 @@ function _injectCSS() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §9  Device orientation (gyroscope tilt)
 //
 //  On supported mobile devices the 'deviceorientation' event provides real-time
@@ -3726,7 +3533,6 @@ function _injectCSS() {
 //  call before orientation events fire.  This module does not request that
 //  permission automatically; the host app should call it before init if
 //  gyroscope parallax is desired on iOS.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Attaches the 'deviceorientation' event listener and starts updating
@@ -3758,7 +3564,6 @@ function _stopOrientationTracking() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §10  Per-element attachment and detachment
 //
 //  _attach(el) is the core setup function called for each .lg element found
@@ -3776,7 +3581,6 @@ function _stopOrientationTracking() {
 //
 //  _detach(el) is the mirror: removes listeners, disconnects observer,
 //  removes DOM nodes, cleans up all state.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Attaches the Liquid Glass effect to a single DOM element.
@@ -3787,7 +3591,6 @@ function _stopOrientationTracking() {
 function _attach(el) {
     if (_tracked.has(el)) return;
 
-    // ── Per-element random specular offsets ───────────────────────────────────
     // Four CSS custom properties drive the GGX lobe position scatter in §16.A.
     // Randomised on every attach so each element gets a unique highlight angle.
     const r = () => (Math.random() * 4 - 2).toFixed(1) + '%';
@@ -3796,7 +3599,6 @@ function _attach(el) {
     el.style.setProperty('--lg-sc', r());
     el.style.setProperty('--lg-sd', r());
 
-    // ── DPR-aware canvas sizing ────────────────────────────────────────────────
     // Cap DPR at 2 to avoid excessive memory usage on 3× displays (Retina Plus).
     // MAX_CANVAS guards against browser limits: width * height > 268435456
     // (16384²) causes the canvas to silently fail on Safari and Chrome.
@@ -3806,7 +3608,6 @@ function _attach(el) {
     const w    = Math.min(Math.round(rect.width  * dpr) || 1, MAX_CANVAS);
     const h    = Math.min(Math.round(rect.height * dpr) || 1, MAX_CANVAS);
 
-    // ── Caustic canvas (§6) ───────────────────────────────────────────────────
     const cvs     = document.createElement('canvas');
     cvs.className = 'lg-caustic-canvas';
     cvs.width     = w;
@@ -3814,12 +3615,10 @@ function _attach(el) {
     const ctx2d   = cvs.getContext('2d', { alpha: true, willReadFrequently: false });
     el.insertBefore(cvs, el.firstChild);
 
-    // ── Film grain overlay ────────────────────────────────────────────────────
     if (_opts.grain && !el.querySelector('.lg-grain')) {
         el.insertBefore(createGrainLayer(), cvs.nextSibling);
     }
 
-    // ── Spring state ──────────────────────────────────────────────────────────
     const springX     = _createSpring(0.5);
     const springY     = _createSpring(0.3);
     const hoverSpring = _createSpring(0);
@@ -3828,7 +3627,6 @@ function _attach(el) {
 
     let es;  // forward ref for event handlers
 
-    // ── Pointer event handlers ────────────────────────────────────────────────
     const onMove = e => {
         const r = el.getBoundingClientRect();
         springX.target = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
@@ -3862,7 +3660,6 @@ function _attach(el) {
     el.addEventListener('pointerenter', onEnter, { passive: true });
     el.addEventListener('pointerleave', onLeave, { passive: true });
 
-    // ── ResizeObserver ─────────────────────────────────────────────────────────
     // Keeps the caustic canvas pixel dimensions in sync with the element layout.
     // MAX_CANVAS clamp applied here too — the element can grow after attach
     // (e.g. accordion open, font load reflow) and hit the same limit.
@@ -3884,7 +3681,6 @@ function _attach(el) {
     });
     ro.observe(el);
 
-    // ── Assemble ElementState ─────────────────────────────────────────────────
     es = {
         canvas:       cvs,
         ctx2d,
@@ -3916,7 +3712,6 @@ function _attach(el) {
     // page that deferred DOMContentLoaded) — the optional chain guards this.
     _io?.observe(el);
 
-    // ── WebGL caustics + specular enablement ──────────────────────────────────
     const tier = _detectGpuTier();
     if (_opts.caustics && tier !== 'low' && _activeWebGLCount < MAX_WEBGL_ELEMENTS) {
         if (_initWebGL()) {
@@ -3947,43 +3742,35 @@ function _detach(el) {
     const es = _elements.get(el);
     if (!es) return;
 
-    // ── Remove event listeners ────────────────────────────────────────────────
     el.removeEventListener('pointermove',  es.pointerMove);
     el.removeEventListener('pointerenter', es.pointerEnter);
     el.removeEventListener('pointerleave', es.pointerLeave);
 
-    // ── Disconnect ResizeObserver ─────────────────────────────────────────────
     es.ro.disconnect();
 
-    // ── Remove injected DOM nodes ─────────────────────────────────────────────
     es.canvas.remove();
     el.querySelector('.lg-grain')?.remove();
     es.specCanvas?.remove();
 
-    // ── Remove CSS custom properties set by the spring system ─────────────────
     ['--lg-mx', '--lg-my', '--lg-tx', '--lg-ty', '--lg-hover', 'transform']
         .forEach(p => el.style.removeProperty(p));
 
-    // ── Decrement WebGL usage counter ─────────────────────────────────────────
     if (el.dataset.lgWebgl) {
         _activeWebGLCount = Math.max(0, _activeWebGLCount - 1);
         delete el.dataset.lgWebgl;
         delete el.dataset.lgRefract;
     }
 
-    // ── Unregister from IntersectionObserver and visibility set ───────────────
     // Must happen before _tracked.delete() so the rAF loop stops scheduling
     // GL work for this element on the very next frame.
     _io?.unobserve(el);
     _visibleElements.delete(el);
 
-    // ── Clean up state records ────────────────────────────────────────────────
     _elements.delete(el);
     _tracked.delete(el);
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §11  requestAnimationFrame render loop
 //
 //  The loop runs continuously while any glass elements are tracked.  Each
@@ -4005,7 +3792,6 @@ function _detach(el) {
 //      single synchronous block before the browser performs style recalc.
 //    • The shared GL canvas approach (one context, N elements) avoids
 //      hitting browser limits on concurrent WebGL contexts (~16 on most GPUs).
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Timestamp of the previous rAF frame, used to compute dt. */
 let _lastTs = 0;
@@ -4032,20 +3818,16 @@ function _rafLoop(ts) {
     // Increment frame counter — wraps at 65535 via bitwise AND, stays integer.
     _rafFrame = (_rafFrame + 1) & 0xFFFF;
 
-    // ── Delta time ────────────────────────────────────────────────────────────
     const dt = Math.min((ts - (_lastTs || ts)) * 0.001, MAX_DT);
     _lastTs = ts;
 
-    // ── Device tilt (read once, shared across all elements this frame) ────────
     const gx = _state.deviceTilt.x;
     const gy = _state.deviceTilt.y;
 
-    // ── Per-element update ────────────────────────────────────────────────────
     for (const el of _tracked) {
         const es = _elements.get(el);
         if (!es) continue;
 
-        // ── Spring integration (every frame — needed for smooth CSS updates) ──
         _stepSpring(es.springX,     SPRING.cursor, dt);
         _stepSpring(es.springY,     SPRING.cursor, dt);
         _stepSpring(es.hoverSpring, SPRING.hover,  dt);
@@ -4058,19 +3840,16 @@ function _rafLoop(ts) {
             es.tiltY.target = gy * 0.45;
         }
 
-        // ── CSS custom property updates (every frame) ─────────────────────────
         el.style.setProperty('--lg-mx',    (es.springX.value * 100).toFixed(2) + '%');
         el.style.setProperty('--lg-my',    (es.springY.value * 100).toFixed(2) + '%');
         el.style.setProperty('--lg-tx',     es.tiltX.value.toFixed(4));
         el.style.setProperty('--lg-ty',     es.tiltY.value.toFixed(4));
         el.style.setProperty('--lg-hover',  es.hoverSpring.value.toFixed(4));
 
-        // ── CSS 3D perspective transform (every frame) ────────────────────────
         const rx = ( es.tiltY.value * 3.0).toFixed(3);
         const ry = (-es.tiltX.value * 3.0).toFixed(3);
         el.style.transform = `translateZ(0) perspective(700px) rotateX(${rx}deg) rotateY(${ry}deg)`;
 
-        // ── WebGL passes — gated on element visibility ────────────────────────
         // Off-screen elements skip all GPU work entirely.  The IntersectionObserver
         // in _startObserver() maintains _visibleElements in real time.
         if (!el.dataset.lgWebgl || !_visibleElements.has(el)) continue;
@@ -4128,7 +3907,6 @@ function _stopLoop() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §12  MutationObserver — automatic element discovery
 //
 //  The MutationObserver watches <body> for childList mutations (subtree:true).
@@ -4139,7 +3917,6 @@ function _stopLoop() {
 //  This enables glass effects on dynamically inserted content (e.g. modals,
 //  chat messages, infinite scroll items) without requiring the host app to
 //  call attachElement() manually.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Recursively attaches the glass effect to a DOM subtree root and all
@@ -4179,12 +3956,10 @@ function _detachSubtree(node) {
  * for dynamic content.
  */
 function _startObserver() {
-    // ── Initial attach: process all pre-existing matching elements ────────────
     // Must run before the observers are created so that _tracked is fully
     // populated by the time the IntersectionObserver loop runs below.
     document.querySelectorAll(_opts.selector).forEach(_attach);
 
-    // ── IntersectionObserver — viewport visibility gate ───────────────────────
     // threshold:0 → callback fires the moment any pixel crosses the viewport
     // boundary in either direction.  No rootMargin: we want strict viewport
     // intersection, not a pre-fetch buffer, because the goal is GPU savings.
@@ -4200,7 +3975,6 @@ function _startObserver() {
     // _io.observe(el) individually inside _attach().
     for (const el of _tracked) _io.observe(el);
 
-    // ── MutationObserver — dynamic content discovery ──────────────────────────
     // childList:true catches direct insertions/removals.
     // subtree:true catches mutations anywhere in the document tree, not just
     // direct children of <body> — necessary for SPA route changes that swap
@@ -4216,12 +3990,10 @@ function _startObserver() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §13  Public API
 //
 //  All exported symbols are stable across patch versions.  Breaking changes
 //  (if any) will increment the major version number.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Initialises Liquid Glass PRO on the current page.
@@ -4605,7 +4377,6 @@ export function getOptions() { return { ..._opts }; }
 export function version() { return '4.1.0'; }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §14  React hook adapter
 //
 //  useLiquidGlass() is a React hook that attaches the glass effect to a ref
@@ -4639,7 +4410,6 @@ export function version() { return '4.1.0'; }
 //      return { destroy: () => detachElement(node) }
 //    }
 //    // Usage: <div class="lg lg-card" use:liquidGlass>...</div>
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * React hook that attaches the Liquid Glass PRO effect to a React ref and
@@ -4688,7 +4458,6 @@ export function useLiquidGlass(ref) {
     }, [ref]);  // Re-run only if the ref object itself changes (uncommon)
     }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §15  Specular highlight system — full Cook-Torrance PBR
 //
 //  Replaces the CSS radial-gradient approximation with a physically-grounded
@@ -4758,11 +4527,8 @@ export function useLiquidGlass(ref) {
 //         Roughness LUT (E_avg for Kulla-Conty) is precomputed once into a
 //         1D 256-texel texture at init time to avoid sqrt/pow in the hot path.
 //         Draw call is a single fullscreen triangle (3 vertices).
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §15.0  Constants and shared state
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Physical constants for the glass medium.
@@ -4799,9 +4565,7 @@ const _spec = {
 };
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §15.1  Fragment shader — full Cook-Torrance + anisotropic + Kulla-Conty
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Fragment shader source for the specular pass.
@@ -4822,13 +4586,10 @@ const _spec = {
 const _SPEC_FRAG_SRC = /* glsl */`#version 300 es
 precision highp float;
 
-// ── Interpolants ─────────────────────────────────────────────────────────────
 in  vec2  v_uv;
 
-// ── Output ───────────────────────────────────────────────────────────────────
 out vec4  fragColor;
 
-// ── Uniforms ─────────────────────────────────────────────────────────────────
 uniform float     u_time;
 uniform vec2      u_mouse;
 uniform float     u_hover;
@@ -4842,9 +4603,7 @@ uniform float     u_filmThick;    // Thin-film thickness in nm
 uniform float     u_filmIOR;      // Thin-film coating IOR
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // Utility
-// ════════════════════════════════════════════════════════════════════════════
 
 const float PI    = 3.14159265358979;
 const float INV_PI = 0.31830988618;
@@ -4876,7 +4635,6 @@ float gnoise(vec2 p) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.A  Surface normal + tangent frame
 //
 //  The normal is computed identically to §6 surfaceNormal() so that the
@@ -4884,7 +4642,6 @@ float gnoise(vec2 p) {
 //  Additionally we extract the tangent T from the height field gradient
 //  for use in anisotropic GGX — this is the Gram-Schmidt-orthogonalised
 //  direction of maximum curvature on the noise surface.
-// ════════════════════════════════════════════════════════════════════════════
 
 struct SurfaceFrame {
     vec3 N;   // Surface normal
@@ -4925,7 +4682,6 @@ SurfaceFrame buildFrame(vec2 uv) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.B  GGX Isotropic NDF
 //
 //  Trowbridge & Reitz (1975), re-parameterised by Walter et al. (2007)
@@ -4936,7 +4692,6 @@ SurfaceFrame buildFrame(vec2 uv) {
 //  At NdotH = 1 (h perfectly aligned with N) → D = α²/π, the peak.
 //  At grazing NdotH → 0, D → 0 quickly for small α.
 //  Total solid-angle integral ∫D(h)(NdotH)dh = 1 (energy-preserving).
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * @param  NdotH    Cosine of angle between surface normal and half-vector.
@@ -4950,7 +4705,6 @@ float D_GGX(float NdotH, float alpha) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.C  Anisotropic GGX NDF
 //
 //  Burley (2012), as used in the Disney BRDF.
@@ -4962,7 +4716,6 @@ float D_GGX(float NdotH, float alpha) {
 //  D_aniso(h) = 1 / (π·αT·αB · (HdotT²/αT² + HdotB²/αB² + NdotH²)²)
 //
 //  When anisotropy=0: αT=αB=α, reduces exactly to isotropic D_GGX.
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * @param  H        Half-vector in view space
@@ -4987,7 +4740,6 @@ float D_GGX_aniso(vec3 H, SurfaceFrame frame, float alpha, float aniso) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.D  Schlick Fresnel with exact F0 from IOR
 //
 //  For a dielectric at normal incidence:
@@ -5000,7 +4752,6 @@ float D_GGX_aniso(vec3 H, SurfaceFrame frame, float alpha, float aniso) {
 //  Error vs exact Fresnel: < 2% for dielectrics, excellent for glass.
 //  Full Fresnel (using both s and p polarisations) has no closed form
 //  in terms of cosines alone; Schlick's approximation is standard in PBR.
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * @param  cosTheta  cos(angle between V and H), i.e. VdotH
@@ -5024,7 +4775,6 @@ vec3 F_Schlick_vec(float cosTheta, vec3 F0) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.E  Smith GGX Height-Correlated Visibility Function
 //
 //  Heitz (2014) "Understanding the Masking-Shadowing Function in
@@ -5043,7 +4793,6 @@ vec3 F_Schlick_vec(float cosTheta, vec3 F0) {
 //  Optimised form (Lagarde, de Rousiers 2014 — used in Filament, UE4):
 //  V(l,v) = G2 / (4·NdotL·NdotV)  [visibility term, denominator absorbed]
 //    = 0.5 / (NdotL·√(NdotV²(1−a²)+a²) + NdotV·√(NdotL²(1−a²)+a²))
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Height-correlated Smith GGX visibility term with denominator 4·NdotL·NdotV
@@ -5063,7 +4812,6 @@ float V_SmithGGX_heightCorrelated(float NdotL, float NdotV, float alpha) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.F  Anisotropic Smith-GGX Visibility
 //
 //  Belcour & Barla (2017) / Heitz (2014) anisotropic extension.
@@ -5073,7 +4821,6 @@ float V_SmithGGX_heightCorrelated(float NdotL, float NdotV, float alpha) {
 //
 //  Height-correlated form:
 //  V_aniso(l,v) = 0.5 / (NdotL·Λ_aniso(V) + NdotV·Λ_aniso(L))
-// ════════════════════════════════════════════════════════════════════════════
 
 float _lambdaAniso(float NdotX, float TdotX, float BdotX,
                    float alphaT, float alphaB) {
@@ -5111,7 +4858,6 @@ float V_SmithGGX_aniso(vec3 V, vec3 L, SurfaceFrame frame,
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.G  Kulla-Conty multi-bounce energy compensation
 //
 //  Kulla & Conty (2017) "Revisiting Physically Based Shading at Imageworks"
@@ -5135,7 +4881,6 @@ float V_SmithGGX_aniso(vec3 V, vec3 L, SurfaceFrame frame,
 //             − (0.5     + 0.2916·α               ) · (1−μ)²
 //             + (0.1     + 0.1532·α               ) · (1−μ)³
 //  E_avg(α) ≈ 1 − 0.2734·α − 0.4694·α² (fit to Monte Carlo table)
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Directional albedo E(μ, α) — analytical approximation.
@@ -5182,7 +4927,6 @@ float f_multiScatter(float NdotL, float NdotV, float alpha) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.H  Thin-film iridescence  (Born & Wolf, 1999)
 //
 //  A thin coating of thickness d and refractive index n_film creates
@@ -5206,7 +4950,6 @@ float f_multiScatter(float NdotL, float NdotV, float alpha) {
 //
 //  This replaces the CSS conic-gradient approximation with a derivation
 //  from Maxwell's equations of wave optics.
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Evaluates thin-film iridescence for three RGB wavelengths.
@@ -5242,7 +4985,6 @@ vec3 thinFilmIridescence(float VdotH, float filmThick, float filmIOR) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.I  Area light representative-point approximation
 //
 //  Karis (2013) "Real Shading in Unreal Engine 4", SIGGRAPH Course.
@@ -5261,7 +5003,6 @@ vec3 thinFilmIridescence(float VdotH, float filmThick, float filmIOR) {
 //  modifying α, a correction factor is applied:
 //    normFactor = α / α_modified
 //  This prevents the highlight from appearing dimmer as α_modified grows.
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Computes the effective roughness for an area light source.
@@ -5278,15 +5019,12 @@ vec2 areaLightRoughness(float alpha, float lightRadius, float lightDist) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.J  Full Cook-Torrance BRDF evaluation for one light
 //
 //  f_r(l,v) = D(h) · F(v,h) · V(l,v)  +  f_ms(l,v)
-//           ──────────────────────────
 //            single-scatter specular     multi-bounce correction
 //
 //  Returns radiance contribution L_out = f_r · NdotL · lightColour.
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Evaluates the full Cook-Torrance BRDF for a single directional light.
@@ -5313,26 +5051,20 @@ vec3 brdf_cookTorrance(vec3 V, vec3 L, SurfaceFrame frame,
     float NdotH = max(dot(frame.N, H), 0.0);
     float VdotH = max(dot(V, H), 0.0);
 
-    // ── Area light roughness modification ─────────────────────────────────────
     float lightRadius = 0.08 * (1.0 - u_hover * 0.6);   // focused on hover
     float lightDist   = length(fragUV - lightPos);
     vec2  areaResult  = areaLightRoughness(alpha, lightRadius, lightDist);
     float alphaEff    = areaResult.x;
     float normFactor  = areaResult.y;
 
-    // ── D: Anisotropic GGX NDF ─────────────────────────────────────────────────
     float D = D_GGX_aniso(H, frame, alphaEff, aniso) * normFactor * normFactor;
 
-    // ── F: Schlick Fresnel ─────────────────────────────────────────────────────
     float F = F_Schlick(VdotH, F0);
 
-    // ── V: Height-correlated Smith GGX (anisotropic) ──────────────────────────
     float Vis = V_SmithGGX_aniso(V, L, frame, alphaEff, aniso);
 
-    // ── Single-scatter specular term ───────────────────────────────────────────
     float singleSpec = D * F * Vis;
 
-    // ── Kulla-Conty multi-bounce (energy compensation) ────────────────────────
     // The F0 colour is F0·(1−F_avg) for the multi-bounce Fresnel tint.
     // F_avg(F0) ≈ F0 + (1−F0)·0.04762  (Kulla-Conty Eq. 12)
     float Favg  = F0 + (1.0 - F0) * 0.04762;
@@ -5345,7 +5077,6 @@ vec3 brdf_cookTorrance(vec3 V, vec3 L, SurfaceFrame frame,
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.K  Three-light configuration
 //
 //  L0  Primary: cursor-tracking warm key light
@@ -5362,7 +5093,6 @@ vec3 brdf_cookTorrance(vec3 V, vec3 L, SurfaceFrame frame,
 //      Colour: 0.76, 0.70, 1.00 (violet, approximates indirect bounced light)
 //      Position: mirror of L0 around element centre
 //      Intensity: 0.30
-// ════════════════════════════════════════════════════════════════════════════
 
 struct Light {
     vec3  colour;
@@ -5403,9 +5133,7 @@ void buildLights(vec2 uv, out Light L0, out Light L1, out Light L2) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.L  Vignette + alpha derivation
-// ════════════════════════════════════════════════════════════════════════════
 
 float vignetteSpecular(vec2 uv) {
     float vx = smoothstep(0.0, 0.06, uv.x) * smoothstep(1.0, 0.94, uv.x);
@@ -5414,31 +5142,24 @@ float vignetteSpecular(vec2 uv) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
 // §15.M  Main
-// ════════════════════════════════════════════════════════════════════════════
 
 void main() {
     vec2 uv  = v_uv;
 
-    // ── Surface frame ─────────────────────────────────────────────────────────
     SurfaceFrame frame = buildFrame(uv);
 
-    // ── Camera / view direction ───────────────────────────────────────────────
     // Orthographic projection: V is constant (0,0,1) plus a small tilt offset
     // that simulates perspective parallax from the viewer moving.
     vec3 V = safeNorm(vec3(-u_tilt.x * 0.15, -u_tilt.y * 0.15, 1.0));
 
-    // ── Material parameters ───────────────────────────────────────────────────
     // α = roughness², IOR-derived F0, anisotropy from §15 constants.
     float alpha = u_roughness * u_roughness;
     float F0    = pow((u_ior - 1.0) / (u_ior + 1.0), 2.0);
 
-    // ── Build lights ──────────────────────────────────────────────────────────
     Light L0, L1, L2;
     buildLights(uv, L0, L1, L2);
 
-    // ── BRDF sum over three lights ────────────────────────────────────────────
     vec3 specular = vec3(0.0);
     specular += brdf_cookTorrance(V, L0.dir, frame, alpha, u_anisotropy,
                                   F0, L0.colour, L0.uvPos, uv);
@@ -5447,7 +5168,6 @@ void main() {
     specular += brdf_cookTorrance(V, L2.dir, frame, alpha, u_anisotropy,
                                   F0, L2.colour, L2.uvPos, uv);
 
-    // ── Thin-film iridescence ─────────────────────────────────────────────────
     // Evaluate for the primary light half-vector.
     vec3  H0     = safeNorm(V + L0.dir);
     float VdotH0 = max(dot(V, H0), 0.0);
@@ -5458,13 +5178,10 @@ void main() {
     // Modulate iridescence strength: subtle at centre, vivid at edges
     vec3  iridContrib = irid * fresnelEdge * 0.12;
 
-    // ── Combine ───────────────────────────────────────────────────────────────
     vec3 col = specular + iridContrib;
 
-    // ── Vignette ──────────────────────────────────────────────────────────────
     col *= vignetteSpecular(uv);
 
-    // ── Alpha: luminance-driven, capped for glass translucency ────────────────
     float luma  = dot(col, vec3(0.2126, 0.7152, 0.0722));  // Rec. 709 coefficients
     float alpha_out = clamp(luma * 2.2, 0.0, 1.0) * 0.82;
 
@@ -5473,9 +5190,7 @@ void main() {
 }`;
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §15.1  WebGL2 initialisation for the specular pass
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Compiles and links a WebGL2 shader program.
@@ -5638,9 +5353,7 @@ export function initSpecularPass() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §15.2  Per-element specular canvas attachment
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Attaches a dedicated specular canvas to a glass element.
@@ -5674,9 +5387,7 @@ export function attachSpecularCanvas(el, causticCanvas) {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §15.3  Per-frame specular render
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Renders one frame of the Cook-Torrance specular pass for a single element.
@@ -5736,7 +5447,6 @@ export function renderSpecularGL(es, specCtx, now, opts) {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §15.4  CSS for the specular canvas layer
 //
 //  .lg-specular-canvas sits between caustic (z-index 4) and content (5).
@@ -5748,7 +5458,6 @@ export function renderSpecularGL(es, specCtx, now, opts) {
 //
 //  The transition curve uses a custom cubic-bezier matching a spring
 //  response (fast attack, soft tail) to feel physically plausible.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Returns the CSS rule block for the specular canvas layer.
@@ -5758,11 +5467,9 @@ export function renderSpecularGL(es, specCtx, now, opts) {
  */
 export function buildSpecularCSS() {
     return `
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* .lg-specular-canvas — Cook-Torrance PBR specular overlay (§15)             */
 /* Sits above caustic canvas (z 4), below content (z 5).                     */
 /* screen blend: specular adds light energy, satisfies energy conservation.  */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg-specular-canvas {
     position:       absolute;
@@ -5800,9 +5507,7 @@ export function buildSpecularCSS() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §15.5  Teardown
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Destroys the specular WebGL context and frees all GPU resources.
@@ -5825,11 +5530,9 @@ export function destroySpecularPass() {
     _spec.startTime = 0;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // §16  _buildSpecularCSS() — CSS complement layer для Cook-Torrance PBR (§15)
 //
 //  Контекст
-//  ────────
 //  §15 заменил CSS-аппроксимацию GGX настоящим WebGL2-пасом: полноценный
 //  Cook-Torrance BRDF с анизотропным GGX (Burley 2012), Smith height-correlated
 //  visibility (Heitz 2014), Kulla-Conty multi-bounce (2017) и тонкоплёночной
@@ -5860,7 +5563,6 @@ export function destroySpecularPass() {
 //     удваиваться.
 //
 //  Возвращаемые ключи
-//  ──────────────────
 //  { before, hover, specCanvas }
 //    before      — строка CSS для ::before (fallback specular, инжектируется
 //                  в _buildCSS() §8 вместо старого before-блока)
@@ -5869,7 +5571,6 @@ export function destroySpecularPass() {
 //                  (расширяет §15.4, добавляет per-tier conditional opacity)
 //
 //  Совместимость с §8 _buildCSS()
-//  ────────────────────────────────
 //  Деструктурирование осталось обратно совместимым: _buildCSS() читает
 //  { before, hover } как раньше; specCanvas опционально подключается
 //  в конец строки CSS:
@@ -5879,14 +5580,12 @@ export function destroySpecularPass() {
 //    return `...${before}...${hover}...${specCanvas}`;
 //
 //  Параметры (из §1 module-level constants, не передаются явно)
-//  ────────────────────────────────────────────────────────────
 //  GLASS_F0        (§15.0) ≈ 0.0426  — Fresnel at normal incidence
 //  BASE_ROUGHNESS  (§15.0) = 0.04    — задаёт ширину CSS-lobes
 //  ANISOTROPY      (§15.0) = 0.35    — задаёт aspect ratio эллипсов
 //  FILM_THICKNESS  (§15.0) = 320 nm  — фаза iridescence conic-gradient
 //
 //  Геометрия лобов (выведена аналитически из GGX NDF при α=0.04)
-//  ───────────────────────────────────────────────────────────────
 //  Полуширина CSS-эллипса для GGX-пика при α=0.04:
 //    FWHM ≈ 2·arctan(α/√2) ≈ 3.2°  →  в UV-space при 700px-элементе ≈ 3.9%
 //  С анизотропией 0.35:
@@ -5896,7 +5595,6 @@ export function destroySpecularPass() {
 //
 //  Fallback-слои не отображаются если WebGL-канвас присутствует:
 //  селектор .lg:not([data-lg-webgl]) фильтрует элементы без WebGL.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Строит CSS-строки для слоя спекулярных бликов, физически согласованные
@@ -5937,14 +5635,11 @@ function _buildSpecularCSS() {
     //  Inv-square falloff: градиенты переходят в transparent за 60-70%
     //  (аппроксимация att=1/(1+k·d²) из PBR; нет точного соответствия,
     //  но визуально согласовано с шириной реального GGX-лоба).
-    // ──────────────────────────────────────────────────────────────────────────
 
     const before = `
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* ::before — CSS fallback specular (§16)                                      */
 /* Активен только при отсутствии WebGL (.lg:not([data-lg-webgl])).            */
 /* Три лоба геометрически выведены из GGX NDF α=0.04, A=0.35 (§15.0/§15.C). */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg:not([data-lg-webgl])::before {
     content:  '';
@@ -5957,7 +5652,6 @@ function _buildSpecularCSS() {
     transition: opacity .26s ease;
 
     background:
-        /* ── Лоб A: GGX-пик L0 ──────────────────────────────────────────────
            ellipse 4.7% 3.2% ← αT/αB из BASE_ROUGHNESS=0.04, ANISOTROPY=0.35
            Cursor-driven через --lg-mx/my + рандомные §10-смещения (--lg-sa/sb)
            Warm-white: соответствует L0.colour = (1.00, 0.97, 0.92) §15.K     */
@@ -5970,7 +5664,6 @@ function _buildSpecularCSS() {
             transparent               68%
         ),
 
-        /* ── Лоб B: GGX shoulder L1 ──────────────────────────────────────────
            Шире: 7%×5% — аппроксимирует NDF shoulder (интеграл от NdotH<1)
            Перпендикулярная ось: var(--lg-sc/sd) ротируют лоб ≈90° от A
            Cool-blue: L1.colour = (0.88, 0.93, 1.00) @ intensity 0.55 §15.K   */
@@ -5982,7 +5675,6 @@ function _buildSpecularCSS() {
             transparent               62%
         ),
 
-        /* ── Лоб C: back-scatter L2 ──────────────────────────────────────────
            linear-gradient 142deg = направление зеркального L0 (pos2=1-pos0)
            Violet tint: L2.colour = (0.76, 0.70, 1.00) @ intensity 0.30 §15.K
            Постоянный (не cursor-driven) — L2 статичен в §15.K buildLights()   */
@@ -6018,14 +5710,11 @@ function _buildSpecularCSS() {
     //
     //  Значения взяты из оригинального hover-блока §15 и скорректированы
     //  пропорционально физическому увеличению интенсивности L0 (+50%).
-    // ──────────────────────────────────────────────────────────────────────────
 
     const hover = `
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* :hover — box-shadow amplification (§16)                                     */
 /* Синхронизирован с L0 intensity × 1.5 из §15.K (hover: 2.8 → 4.2).        */
 /* Применяется ко ВСЕМ .lg независимо от WebGL-тира.                         */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
 .lg.lg-interactive:hover {
     box-shadow:
@@ -6067,14 +5756,10 @@ function _buildSpecularCSS() {
     //
     //  c) Инверсия pointer-events: none гарантия — на случай если браузер
     //     создаёт hittest по canvas-элементу при определённых blend modes.
-    // ──────────────────────────────────────────────────────────────────────────
 
     const specCanvas = `
-/* ─────────────────────────────────────────────────────────────────────────── */
 /* §16.C  Specular canvas + thin-film iridescence CSS fallback                 */
-/* ─────────────────────────────────────────────────────────────────────────── */
 
-/* ── Specular canvas transition tuning (extends §15.4) ──────────────────── */
 /* Transition curve: cubic-bezier(0.34, 1.20, 0.64, 1)                       */
 /* Матчит spring response §3: stiffness=180, damping=18 (cursor пресет).     */
 /* Fast attack (0.34→1.20 overshoot) + soft tail (0.64→1) = физическая      */
@@ -6117,7 +5802,6 @@ function _buildSpecularCSS() {
     opacity: .94;
 }
 
-/* ── §16.C.2  Active state: highlight recession on press ─────────────────── */
 /* При press стекло «сжимается»: L0 удаляется, NdotL падает → dim specular. */
 /* .lg-specular-canvas opacity уже 0.35 из §15.4; синхронизируем ::after.   */
 .lg:not([data-lg-webgl]).lg-interactive:active::after {
@@ -6125,7 +5809,6 @@ function _buildSpecularCSS() {
     transition-duration: .06s;
 }
 
-/* ── §16.C.3  Reduced-motion guard ──────────────────────────────────────────*/
 /* §8 уже отключает анимации; явно обнуляем transition на specular-canvas    */
 /* чтобы opacity:0.045 не интерполировался при prefers-reduced-motion.       */
 @media (prefers-reduced-motion: reduce) {

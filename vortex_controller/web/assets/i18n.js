@@ -1,11 +1,9 @@
-/* ============================================================================
  * Controller website i18n — mirrors static/js/i18n.js from the main Vortex app
  *
  * - Auto-detect browser language
  * - Loads /locales/<code>.json from the same origin
  * - English is the ultimate fallback
  * - Safe DOM construction for strings containing whitelisted tags (<strong>, <br>)
- * ========================================================================== */
 
 (() => {
     'use strict';

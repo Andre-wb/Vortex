@@ -12,7 +12,6 @@
 
     const $ = sel => document.querySelector(sel);
 
-    // ── DOM helpers ────────────────────────────────────────────────────
     function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
     function td(text, className) {
@@ -40,7 +39,6 @@
         }
     }
 
-    // ── Tab switching ──────────────────────────────────────────────────
     document.querySelectorAll('.nav-item').forEach(btn => {
         btn.addEventListener('click', () => {
             const tab = btn.dataset.tab;
@@ -63,7 +61,6 @@
         });
     });
 
-    // ── Logs tab auto-refresh ────────────────────────────────────────
     // Only ticks while the Logs tab is actually visible, so we don't
     // burn cycles when the user is elsewhere.
     let _logsTimer = null;
@@ -97,7 +94,6 @@
         });
     });
 
-    // ── 1. Whole-repo integrity (wraps scripts/integrity_repo.py) ─────
     async function loadRepoIntegrity() {
         try {
             const d = await fetch('/api/wiz/admin/repo-integrity/status').then(r => r.json());
@@ -213,7 +209,6 @@
         }
     }
 
-    // ── 2. Identity ───────────────────────────────────────────────────
     async function loadIdentity() {
         const [id, ov] = await Promise.all([
             fetch('/api/wiz/admin/identity').then(r => r.json()),
@@ -272,7 +267,6 @@
         }
     }
 
-    // ── 3. Controller ─────────────────────────────────────────────────
     async function loadController() {
         const ov = await fetch('/api/wiz/admin/overview').then(r => r.json());
         $('#ctrl-url').textContent = ov.controller_url || '—';
@@ -305,7 +299,6 @@
         }
     }
 
-    // ── 4. Peers ──────────────────────────────────────────────────────
     async function loadPeers() {
         const d = await fetch('/api/wiz/admin/peers').then(r => r.json());
         const tbody = $('#peers-tbody');
@@ -339,7 +332,6 @@
         });
     }
 
-    // ── 5. Traffic ────────────────────────────────────────────────────
     // Rolling 2-minute window, one sample per poll tick. Kept in-memory,
     // never sent anywhere. Old samples drop off the left as new ones arrive.
     const TRAFFIC_BUF_MAX = 24;  // ≈ 2 min at 5s poll
@@ -467,7 +459,6 @@
         return v.toFixed(2);
     }
 
-    // ── 6. Certs & Keys ───────────────────────────────────────────────
     async function loadCerts() {
         const d = await fetch('/api/wiz/admin/certs').then(r => r.json());
         const ssl = d.ssl || {};
@@ -481,7 +472,6 @@
             ? d.csrf_secret_age_days + ' days' : '—';
     }
 
-    // ── 7. Logs ───────────────────────────────────────────────────────
     async function loadLogs() {
         const level = $('#logs-filter').value;
         const d = await fetch('/api/wiz/admin/logs?level=' + encodeURIComponent(level)).then(r => r.json());
@@ -490,7 +480,6 @@
         out.scrollTop = out.scrollHeight;
     }
 
-    // ── Node status (footer) ──────────────────────────────────────────
     async function loadNodeStatus() {
         try {
             const d = await fetch('/api/wiz/admin/node/status').then(r => r.json());
@@ -656,7 +645,6 @@
     $('#btn-node-start').addEventListener('click', startNode);
     $('#btn-node-stop') .addEventListener('click', stopNode);
 
-    // ── Reset setup (wipes .env + keys → back to Setup UI on reload) ──
     $('#btn-reset-setup').addEventListener('click', async () => {
         const msg = 'Delete node identity + config? You will return to '
                   + 'the setup flow. Chat history (vortex.db) is kept.';
@@ -684,7 +672,6 @@
         }
     });
 
-    // ── Earnings ──────────────────────────────────────────────────────
     async function loadEarnings() {
         try {
             const r = await fetch('/api/wiz/admin/earnings');
@@ -715,7 +702,6 @@
         }
     }
 
-    // ── Database (embedded PostgreSQL) ────────────────────────────────
     function _dbMsg(text, ok) {
         const el = $('#db-msg');
         el.textContent = text || '';
@@ -791,7 +777,6 @@
         } catch (e) { _dbMsg(String(e), false); }
     });
 
-    // ── DB viewer ─────────────────────────────────────────────────────
     const _dbView = { table: null, offset: 0, limit: 50 };
 
     async function loadDbTables() {
@@ -906,7 +891,6 @@
         loadBackupStatus();
     };
 
-    // ── Encrypted backup ─────────────────────────────────────────────
     function _backupMsg(text, ok) {
         const el = $('#backup-msg');
         if (!el) return;
@@ -1035,7 +1019,6 @@
         } catch (e) { _dbMsg(String(e), false); }
     });
 
-    // ── Bind actions ──────────────────────────────────────────────────
     $('#btn-repo-sign').addEventListener('click', repoSign);
     $('#btn-repo-verify').addEventListener('click', repoVerify);
     $('#btn-copy-pubkey').addEventListener('click', () => {
@@ -1048,7 +1031,6 @@
         copyText($('#logs-output').textContent || '');
     });
 
-    // ── Observability: audit + profiler + log rotation/search ─────────
     async function loadObservability() {
         loadAuditEntries();
         loadProfiler();
@@ -1430,7 +1412,6 @@
         if (e.key === 'Enter') $('#obs-logs-search').click();
     });
 
-    // ── AI (Ollama one-click setup) ───────────────────────────────────
     function _aiMsg(text, ok) {
         const el = $('#ai-msg'); if (!el) return;
         el.textContent = text || '';
@@ -1628,7 +1609,6 @@
         } catch (e) { _aiMsg(String(e), false); }
     });
 
-    // ── Settings panel (full .env editor) ─────────────────────────────
     let _settingsState = null;
 
     function _settingsMsg(text, ok) {
@@ -1793,7 +1773,6 @@
         if (_settingsState) _renderSettings(_settingsState);
     });
 
-    // ── Restore-on-new-device banner ──────────────────────────────────
     // Shows when:
     //   * there's a backup on the controller,
     //   * local DB looks "fresh" (very small — < 256 KiB) or doesn't exist,
@@ -1897,7 +1876,6 @@
         btn.textContent = prev;
     });
 
-    // ── Initial + polling ─────────────────────────────────────────────
     async function refreshAll() {
         try {
             await Promise.all([

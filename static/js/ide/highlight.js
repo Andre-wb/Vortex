@@ -1,4 +1,3 @@
-// ── Syntax highlighting ───────────────────────────────────────
 function ideUpdateHighlight() {
     const ta = document.getElementById('ide-textarea');
     const hl = document.getElementById('ide-highlight');
@@ -10,7 +9,6 @@ function ideUpdateHighlight() {
     hl.insertAdjacentHTML('beforeend', highlighted + '\n');
 }
 
-// ── Syntax highlight (line-segment aware) ─────────────────────
 function _highlightGravitix(code) {
     const diagFull = IDE._diagFull || [];
 
@@ -75,7 +73,6 @@ function _hlSegment(text) {
     return h;
 }
 
-// ── Architex syntax highlight ─────────────────────────────────
 function _highlightArchitex(code) {
     const lines = code.split('\n');
     return lines.map(line => _hlArxSegment(line)).join('\n');

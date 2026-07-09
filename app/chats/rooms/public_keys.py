@@ -43,14 +43,12 @@ logger = logging.getLogger(__name__)
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 
-# ── Schemas ─────────────────────────────────────────────────────────────
 class PublicKeyUpload(BaseModel):
     key_hex: str = Field(..., min_length=64, max_length=64,
                          description="AES-256 key, hex-encoded (32 bytes).")
     algorithm: str = Field("aes-256-gcm", max_length=32)
 
 
-# ── Library helpers (imported by crud.update_room on visibility flip) ──
 def invalidate_server_key(room_id: int, db: Session) -> bool:
     """Remove the server-held public key for a room.
 
@@ -156,7 +154,6 @@ async def invalidate_and_propagate(room_id: int, db: Session) -> bool:
     return wiped
 
 
-# ── Endpoints ───────────────────────────────────────────────────────────
 @router.post("/{room_id}/public-key")
 async def set_public_key(
     room_id: int,

@@ -60,7 +60,6 @@ class TierLimits:
         return {k: getattr(self, k) for k in self.__annotations__.keys()}
 
 
-# ── Plan tables ───────────────────────────────────────────────────────────
 
 FREE = TierLimits(
     is_premium=False,
@@ -103,7 +102,6 @@ PREMIUM = TierLimits(
 )
 
 
-# ── Resolution API ────────────────────────────────────────────────────────
 
 
 async def get_limits_for_wallet(wallet_pubkey: str) -> TierLimits:
@@ -134,7 +132,6 @@ async def get_limits_for_user(user: Any) -> TierLimits:
     return await get_limits_for_wallet(wallet)
 
 
-# ── Synchronous snapshot for middleware that can't await ─────────────────
 
 
 def peek_limits_for_wallet(wallet_pubkey: str) -> TierLimits:

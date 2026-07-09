@@ -9,9 +9,7 @@ import secrets
 from conftest import login_user, make_user, random_digits, random_str, _unique_phone
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _csrf(client):
     """Fetch a fresh CSRF token."""
@@ -42,9 +40,7 @@ def _register_and_login(client, suffix=None):
     return u
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — POST /api/authentication/register
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestRegister:
     def test_register_success(self, client):
@@ -182,9 +178,7 @@ class TestRegister:
         assert r.json()["username"] == uname.lower()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — POST /api/authentication/login
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestLogin:
     def test_login_by_username(self, client):
@@ -236,9 +230,7 @@ class TestLogin:
         assert r.status_code == 422
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — GET /api/authentication/challenge
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestChallenge:
     def test_challenge_valid_identifier(self, client):
@@ -261,9 +253,7 @@ class TestChallenge:
         assert "server_pubkey" in data
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — POST /api/authentication/login-key
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestLoginKey:
     def test_login_key_invalid_challenge_id(self, client):
@@ -288,9 +278,7 @@ class TestLoginKey:
         assert r.status_code == 401
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — 2FA endpoints
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestTwoFA:
     def test_2fa_setup_authenticated(self, client):
@@ -353,9 +341,7 @@ class TestTwoFA:
         assert "enabled" in r.json()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — POST /api/authentication/refresh
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestRefresh:
     def test_refresh_with_valid_cookie(self, client):
@@ -371,9 +357,7 @@ class TestRefresh:
         assert r.status_code in (200, 401)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — POST /api/authentication/logout
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestLogout:
     def test_logout_authenticated(self, client):
@@ -385,9 +369,7 @@ class TestLogout:
         assert r.json()["ok"] is True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — GET /api/authentication/me
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestMe:
     def test_me_authenticated(self, client):
@@ -407,9 +389,7 @@ class TestMe:
         assert "last_seen" in data
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — PUT /api/authentication/profile
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestUpdateProfile:
     def test_update_display_name(self, client):
@@ -455,9 +435,7 @@ class TestUpdateProfile:
         assert r.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — PUT /api/authentication/status
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestUpdateStatus:
     def test_presence_online(self, client):
@@ -510,9 +488,7 @@ class TestUpdateStatus:
         assert r.json()["status_emoji"] == "X"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — POST /api/authentication/avatar
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestAvatar:
     def test_upload_avatar_with_image(self, client):
@@ -543,9 +519,7 @@ class TestAvatar:
         assert r.status_code == 400
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — POST /api/authentication/password-strength
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPasswordStrength:
     def test_strong_password(self, client):
@@ -587,9 +561,7 @@ class TestPasswordStrength:
         assert "feedback" in data
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — GET /api/authentication/csrf-token
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestCsrfToken:
     def test_returns_token(self, client):
@@ -605,9 +577,7 @@ class TestCsrfToken:
         assert isinstance(t2, str)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # AUTH — GET /api/authentication/registration-info
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestRegistrationInfo:
     def test_returns_mode(self, client):
@@ -619,9 +589,7 @@ class TestRegistrationInfo:
         assert data["mode"] in ("open", "invite", "closed")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms (create)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestCreateRoom:
     def test_create_room_success(self, client):
@@ -672,9 +640,7 @@ class TestCreateRoom:
         assert r.status_code == 422
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms/join/{invite_code}
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestJoinRoom:
     def test_join_valid_code(self, client):
@@ -706,9 +672,7 @@ class TestJoinRoom:
         assert r.json()["joined"] is False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms/{room_id}/provide-key
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestProvideKey:
     def test_provide_key_valid(self, client):
@@ -753,9 +717,7 @@ class TestProvideKey:
         assert r.status_code == 403
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — GET /api/rooms/{room_id}/key-bundle
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestKeyBundle:
     def test_key_bundle_member(self, client):
@@ -778,9 +740,7 @@ class TestKeyBundle:
         assert r.status_code == 403
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — GET /api/rooms/my
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestMyRooms:
     def test_list_user_rooms(self, client):
@@ -793,9 +753,7 @@ class TestMyRooms:
         assert len(data["rooms"]) >= 1
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — GET /api/rooms/public
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPublicRooms:
     def test_public_rooms_no_auth(self, client):
@@ -804,9 +762,7 @@ class TestPublicRooms:
         assert "rooms" in r.json()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — GET /api/rooms/{room_id}
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestGetRoom:
     def test_get_room_member(self, client):
@@ -830,9 +786,7 @@ class TestGetRoom:
         assert r.status_code == 404
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — PUT /api/rooms/{room_id}
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestUpdateRoom:
     def test_update_name_owner(self, client):
@@ -863,9 +817,7 @@ class TestUpdateRoom:
         assert r.status_code == 403
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms/{room_id}/avatar
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestRoomAvatar:
     def test_upload_room_avatar(self, client):
@@ -884,9 +836,7 @@ class TestRoomAvatar:
         assert "avatar_url" in r.json()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — DELETE /api/rooms/{room_id}/leave
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestLeaveRoom:
     def test_member_leaves(self, client):
@@ -902,9 +852,7 @@ class TestLeaveRoom:
         assert r.json()["left"] is True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — GET /api/rooms/{room_id}/members
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestMembers:
     def test_list_members(self, client):
@@ -919,9 +867,7 @@ class TestMembers:
         assert len(data["members"]) >= 1
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms/{room_id}/kick/{target_id}
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestKick:
     def test_owner_kicks_member(self, client):
@@ -954,9 +900,7 @@ class TestKick:
         assert r.status_code == 403
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — PUT /api/rooms/{room_id}/members/{target_id}/role
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestChangeRole:
     def test_change_to_admin_owner_only(self, client):
@@ -991,9 +935,7 @@ class TestChangeRole:
         assert r.status_code == 403
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — PUT /api/rooms/{room_id}/members/{target_id}/mute
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestMuteMember:
     def test_mute_user(self, client):
@@ -1012,9 +954,7 @@ class TestMuteMember:
         assert "is_muted" in r.json()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — PUT /api/rooms/{room_id}/members/{target_id}/ban
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestBanMember:
     def test_ban_user(self, client):
@@ -1033,9 +973,7 @@ class TestBanMember:
         assert "is_banned" in r.json()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms/{room_id}/rotate-key
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestRotateKey:
     def test_rotate_key_with_new_key(self, client):
@@ -1048,9 +986,7 @@ class TestRotateKey:
         assert r.json()["ok"] is True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — DELETE /api/rooms/{room_id}
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestDeleteRoom:
     def test_owner_deletes(self, client):
@@ -1074,9 +1010,7 @@ class TestDeleteRoom:
         assert r.status_code == 403
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms/{room_id}/auto-delete
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestAutoDelete:
     def test_set_auto_delete_seconds(self, client):
@@ -1100,9 +1034,7 @@ class TestAutoDelete:
         assert r.json()["ok"] is True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms/{room_id}/slow-mode
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSlowMode:
     def test_set_slow_mode_seconds(self, client):
@@ -1125,9 +1057,7 @@ class TestSlowMode:
         assert r.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — GET /api/rooms/{room_id}/export
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestExportChat:
     def test_export_chat_member(self, client):
@@ -1150,9 +1080,7 @@ class TestExportChat:
         assert r.status_code == 403
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms/{room_id}/mute
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestMuteNotifications:
     def test_mute_toggle(self, client):
@@ -1187,9 +1115,7 @@ class TestMuteNotifications:
         assert r.status_code == 403
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # ROOMS — POST /api/rooms/{room_id}/pin
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPinMessage:
     def test_pin_message_unpin(self, client):

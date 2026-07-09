@@ -83,9 +83,7 @@ def _from_qr_string(s: str) -> dict:
     return json.loads(raw)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. Device-linking QR (#43)
-# ══════════════════════════════════════════════════════════════════════════
 #
 # Flow: admin UI generates a QR. A second device scans it, submits the
 # decoded envelope to the node's /api/session/accept endpoint (existing
@@ -114,9 +112,7 @@ async def make_device_link(body: DeviceLinkBody, request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. Session transfer (#45)
-# ══════════════════════════════════════════════════════════════════════════
 
 class SessionXferBody(BaseModel):
     target_pubkey: str = Field(..., min_length=64, max_length=128, pattern=r"^[0-9a-fA-F]+$")
@@ -148,9 +144,7 @@ async def make_session_transfer(body: SessionXferBody, request: Request) -> dict
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. Mobile companion QR (#46)
-# ══════════════════════════════════════════════════════════════════════════
 
 class MobileQRBody(BaseModel):
     # Optional hint — the mobile app uses this as its default public URL
@@ -180,9 +174,7 @@ async def make_mobile_qr(body: MobileQRBody, request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. Config-import QR (#2) — spawn a second node with same controller
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/config")
 async def export_config(request: Request) -> dict:
@@ -251,9 +243,7 @@ async def import_config(body: ImportConfigBody, request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 5. Restore-first-screen helper (#7)
-# ══════════════════════════════════════════════════════════════════════════
 #
 # The setup UI lands on an empty node. The user can either create a new
 # identity, restore from seed, OR restore from a controller backup. For
@@ -277,9 +267,7 @@ async def firstscreen_discover(body: FirstScreenDiscoverBody, request: Request) 
     ))
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Shared: QR preview PNG (for UIs that want a <img>)
-# ══════════════════════════════════════════════════════════════════════════
 
 class QrRenderBody(BaseModel):
     uri:  str = Field(..., max_length=8192)

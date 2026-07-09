@@ -40,7 +40,6 @@ test.describe('Security & Privacy', () => {
         userId = (await meRes.json()).user_id;
     });
 
-    // ── CSRF ──────────────────────────────────────────────────────────────────
 
     test('get fresh CSRF token', async ({ request }) => {
         const res = await request.get('/api/authentication/csrf-token');
@@ -50,7 +49,6 @@ test.describe('Security & Privacy', () => {
         expect(body.csrf_token.length).toBeGreaterThan(10);
     });
 
-    // ── Unauthorized access ───────────────────────────────────────────────────
 
     test('unauthenticated request to protected endpoint', async ({ freshRequest }) => {
         const res = await freshRequest.get('/api/rooms/my');
@@ -65,7 +63,6 @@ test.describe('Security & Privacy', () => {
         expect([400, 403, 422]).toContain(res.status());
     });
 
-    // ── Node Keys ─────────────────────────────────────────────────────────────
 
     test('get node X25519 public key', async ({ request }) => {
         const res = await request.get('/api/keys/pubkey', {
@@ -90,7 +87,6 @@ test.describe('Security & Privacy', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Key Backup ────────────────────────────────────────────────────────────
 
     test('upload key backup', async ({ request }) => {
         const res = await request.post('/api/keys/backup', {
@@ -118,7 +114,6 @@ test.describe('Security & Privacy', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Device Linking ────────────────────────────────────────────────────────
 
     test('request device link', async ({ request }) => {
         const res = await request.post('/api/keys/link/request', {
@@ -136,7 +131,6 @@ test.describe('Security & Privacy', () => {
         expect(getRes.ok()).toBeTruthy();
     });
 
-    // ── Password Change ───────────────────────────────────────────────────────
 
     test('change password', async ({ request }) => {
         const newPassword = 'NewE2ePass99!@#';
@@ -162,7 +156,6 @@ test.describe('Security & Privacy', () => {
         }
     });
 
-    // ── 2FA ───────────────────────────────────────────────────────────────────
 
     test('2FA setup — get secret', async ({ request }) => {
         const res = await request.post('/api/authentication/2fa/setup', {
@@ -179,7 +172,6 @@ test.describe('Security & Privacy', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Passkeys ──────────────────────────────────────────────────────────────
 
     test('passkey registration options', async ({ request }) => {
         const res = await request.post('/api/authentication/passkey/register-options', {
@@ -188,7 +180,6 @@ test.describe('Security & Privacy', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Crypto Status ─────────────────────────────────────────────────────────
 
     test('post-quantum crypto status', async ({ request }) => {
         const res = await request.get('/api/crypto/pq-status', {
@@ -197,7 +188,6 @@ test.describe('Security & Privacy', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Privacy Endpoints ─────────────────────────────────────────────────────
 
     test('Tor status', async ({ request }) => {
         const res = await request.get('/api/privacy/tor/status', {
@@ -250,7 +240,6 @@ test.describe('Security & Privacy', () => {
         expect([200, 422]).toContain(res.status());
     });
 
-    // ── Warrant Canary ────────────────────────────────────────────────────────
 
     test('warrant canary', async ({ request }) => {
         const res = await request.get('/api/privacy/canary', {
@@ -266,7 +255,6 @@ test.describe('Security & Privacy', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── GDPR / Privacy Rights ─────────────────────────────────────────────────
 
     test('GDPR data export', async ({ request }) => {
         const res = await request.get('/api/privacy/export', {
@@ -289,7 +277,6 @@ test.describe('Security & Privacy', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Panic Button ──────────────────────────────────────────────────────────
 
     test('panic verify', async ({ request }) => {
         const res = await request.post('/api/panic/verify', {

@@ -20,9 +20,7 @@ pub fn format_program(prog: &Program) -> String {
     out
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Items
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn format_item(out: &mut String, item: &Item, depth: usize) {
     match item {
@@ -369,9 +367,7 @@ fn format_test(out: &mut String, td: &TestDef, depth: usize) {
     push_line(out, depth, "}");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Statements
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn format_stmt(out: &mut String, stmt: &Stmt, depth: usize) {
     match stmt {
@@ -647,9 +643,7 @@ fn format_stmt_inline(stmt: &Stmt) -> String {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Expressions
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn format_expr(expr: &Expr) -> String {
     match expr {
@@ -819,9 +813,7 @@ pub fn format_expr(expr: &Expr) -> String {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn format_trigger_pub(t: &Trigger) -> String {
     format_trigger(t)
@@ -907,9 +899,7 @@ fn push_line(out: &mut String, depth: usize, line: &str) {
     out.push('\n');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

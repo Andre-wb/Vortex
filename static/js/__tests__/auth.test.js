@@ -8,7 +8,6 @@
  * a real DOM, server, or browser crypto implementation.
  */
 
-// ── Dependency mocks (must appear before any import of the module under test) ─
 
 jest.mock('../utils.js', () => ({
     $:          jest.fn((id) => global.document?.getElementById(id)),
@@ -25,7 +24,6 @@ jest.mock('../notifications.js', () => ({
     hasMention:         jest.fn(() => false),
 }));
 
-// ── Import module under test ───────────────────────────────────────────────────
 import {
     loadPrivateKey,
     getAccounts,
@@ -48,7 +46,6 @@ import {
 import { api, $, closeModal, showAlert } from '../utils.js';
 import { stopMultiplexCover } from '../notifications.js';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Build a minimal localStorage-like store backed by a plain object. */
 function makeStorage() {
@@ -62,7 +59,6 @@ function makeStorage() {
     };
 }
 
-// ── Test lifecycle ─────────────────────────────────────────────────────────────
 
 let localStorageMock;
 let sessionStorageMock;
@@ -114,9 +110,7 @@ beforeEach(() => {
     $.mockImplementation((id) => document.getElementById(id));
 });
 
-// =============================================================================
 // 1. loadPrivateKey()
-// =============================================================================
 
 describe('loadPrivateKey()', () => {
     test('returns null when no key is stored anywhere', () => {
@@ -146,9 +140,7 @@ describe('loadPrivateKey()', () => {
     });
 });
 
-// =============================================================================
 // 2. getAccounts()
-// =============================================================================
 
 describe('getAccounts()', () => {
     test('returns empty array when nothing is stored', () => {
@@ -172,9 +164,7 @@ describe('getAccounts()', () => {
     });
 });
 
-// =============================================================================
 // 3. removeAccount()
-// =============================================================================
 
 describe('removeAccount()', () => {
     const ACCOUNTS = [
@@ -211,9 +201,7 @@ describe('removeAccount()', () => {
     });
 });
 
-// =============================================================================
 // 4. switchAccount()
-// =============================================================================
 
 describe('switchAccount()', () => {
     beforeEach(() => {
@@ -256,9 +244,7 @@ describe('switchAccount()', () => {
     });
 });
 
-// =============================================================================
 // 5. addNewAccount()
-// =============================================================================
 
 describe('addNewAccount()', () => {
     test('alerts max accounts warning when limit is reached', async () => {
@@ -287,9 +273,7 @@ describe('addNewAccount()', () => {
     });
 });
 
-// =============================================================================
 // 6. switchTab()
-// =============================================================================
 
 describe('switchTab()', () => {
     beforeEach(() => {
@@ -340,9 +324,7 @@ describe('switchTab()', () => {
     });
 });
 
-// =============================================================================
 // 7. selectEmoji() and selectNetMode()
-// =============================================================================
 
 describe('selectEmoji()', () => {
     test('sets AppState.selectedEmoji from button data attribute', () => {
@@ -387,9 +369,7 @@ describe('selectNetMode()', () => {
     });
 });
 
-// =============================================================================
 // 8. doLogin()
-// =============================================================================
 
 describe('doLogin()', () => {
     beforeEach(() => {
@@ -455,9 +435,7 @@ describe('doLogin()', () => {
     });
 });
 
-// =============================================================================
 // 9. verify2FA()
-// =============================================================================
 
 describe('verify2FA()', () => {
     beforeEach(() => {
@@ -515,9 +493,7 @@ describe('verify2FA()', () => {
     });
 });
 
-// =============================================================================
 // 10. doLogout()
-// =============================================================================
 
 describe('doLogout()', () => {
     beforeEach(() => {
@@ -575,9 +551,7 @@ describe('doLogout()', () => {
     });
 });
 
-// =============================================================================
 // 11. checkSession()
-// =============================================================================
 
 describe('checkSession()', () => {
     test('sets AppState.user from /api/authentication/me response', async () => {
@@ -607,9 +581,7 @@ describe('checkSession()', () => {
     });
 });
 
-// =============================================================================
 // 12. checkRegistrationMode()
-// =============================================================================
 
 describe('checkRegistrationMode()', () => {
     beforeEach(() => {
@@ -650,9 +622,7 @@ describe('checkRegistrationMode()', () => {
     });
 });
 
-// =============================================================================
 // 13. exportPrivateKey()
-// =============================================================================
 
 describe('exportPrivateKey()', () => {
     test('alerts when no key is available', () => {
@@ -679,9 +649,7 @@ describe('exportPrivateKey()', () => {
     });
 });
 
-// =============================================================================
 // 14. importPrivateKey()
-// =============================================================================
 
 describe('importPrivateKey()', () => {
     test('stores valid JSON key in localStorage and AppState', async () => {

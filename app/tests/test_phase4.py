@@ -16,9 +16,7 @@ def _mock_response(method: str, url: str, status: int = 200, **kw) -> httpx.Resp
     return httpx.Response(status, request=req, **kw)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # IPFS publish
-# ══════════════════════════════════════════════════════════════════════════
 
 
 def test_ipfs_publish_sends_files_and_parses_root_cid(tmp_path: Path):
@@ -61,9 +59,7 @@ def test_ipfs_publish_errors_on_empty_dir(tmp_path: Path):
         publish_to_ipfs(src_dir=tmp_path, api_url="http://127.0.0.1:5001")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # SNS resolver
-# ══════════════════════════════════════════════════════════════════════════
 
 
 def test_sns_domain_validation():
@@ -124,9 +120,7 @@ async def test_sns_resolve_rejects_non_sol_domain():
         await resolve("vortexx.com")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Mirror health
-# ══════════════════════════════════════════════════════════════════════════
 
 
 @pytest.mark.asyncio
@@ -190,9 +184,7 @@ async def test_mirror_health_snapshot_shape():
     assert isinstance(m["last_checked"], int)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Controller integration: /v1/mirrors now includes health
-# ══════════════════════════════════════════════════════════════════════════
 
 
 @pytest.mark.asyncio

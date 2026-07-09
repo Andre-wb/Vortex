@@ -55,7 +55,6 @@ class AssetLocaleSource @Inject constructor(
         return key
     }
 
-    // ── internals ──────────────────────────────────────────────────────
 
     private fun loadBundle(code: String): Map<String, String> {
         cache[code]?.let { return it }

@@ -37,7 +37,6 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 log = logging.getLogger("mobile_sim")
 
 
-# ── Test harness: two nodes + one controller, all in-process ──────────────
 
 
 async def _build_stack(tmp: Path):
@@ -132,7 +131,6 @@ def _point_each_node_at_controller(ctrl_app):
     cfg.Config.NODE_ANNOUNCE_ENDPOINTS = "wss://node.test:9000"
 
 
-# ── Reference mobile client (the whole point of this file) ────────────────
 
 
 class MobileSim:
@@ -163,7 +161,6 @@ class MobileSim:
             r.raise_for_status()
             return r.json()
 
-    # ── 1. connect to a node ──
 
     async def connect(self, node_url: str, rooms: list[int]) -> None:
         self.current_node_url = node_url
@@ -175,7 +172,6 @@ class MobileSim:
         })
         log.info("[mobile] connected to %s with %d rooms", node_url, len(self.rooms))
 
-    # ── 2. observe node load / see alternatives ──
 
     async def get_migration_hint(self) -> dict:
         assert self.current_node_url
@@ -184,7 +180,6 @@ class MobileSim:
             user_pubkey=self.user_pubkey,
         )
 
-    # ── 3. start a handoff (still on current node) ──
 
     async def request_handoff(self) -> dict:
         assert self.current_node_url
@@ -195,7 +190,6 @@ class MobileSim:
             "last_bmp_ts": self.last_bmp_ts,
         })
 
-    # ── 4. finish the handoff on the target node ──
 
     async def finish_handoff(self, target_node_url: str, token: dict) -> dict:
         resp = await self._post(f"{target_node_url}/api/session/handoff/accept", {
@@ -209,7 +203,6 @@ class MobileSim:
         log.info("[mobile] handoff → %s (rooms=%d)", target_node_url, len(self.rooms))
         return resp
 
-    # ── 5. resume BMP sync using the cursor ──
 
     async def sync_bmp(self, mailbox_ids: list[str]) -> dict:
         assert self.current_node_url
@@ -233,7 +226,6 @@ class MobileSim:
         return mailboxes
 
 
-# ── The actual test ────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio

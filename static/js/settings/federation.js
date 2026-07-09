@@ -1,6 +1,4 @@
-// ══════════════════════════════════════════════════════════════════════════════
 // Federation Settings — управление федеративными узлами
-// ══════════════════════════════════════════════════════════════════════════════
 
 import { $, api } from '../utils.js';
 import { t } from '../i18n.js';
@@ -15,9 +13,7 @@ const STATUS_COLORS = {
     dead:      '#666',
 };
 
-// ════════════════════════════════════════════════════════════════════════════
 // Public API
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Добавить федеративный узел по URL из поля ввода.
@@ -158,9 +154,7 @@ export function cleanupFederationSettings() {
     }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Internal helpers
-// ════════════════════════════════════════════════════════════════════════════
 
 function _showStatus(el, text, color) {
     if (!el) return;
@@ -289,7 +283,6 @@ function _renderNodeCard(node) {
     card.style.cssText = 'background:var(--bg3,#1e1e1e);border-radius:10px;padding:14px;margin-bottom:10px;'
         + 'border:1px solid var(--border,#333);';
 
-    // ── Header: имя + статус ──
     const header = document.createElement('div');
     header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
 
@@ -318,17 +311,14 @@ function _renderNodeCard(node) {
     header.appendChild(badge);
     card.appendChild(header);
 
-    // ── URL ──
     const urlLine = document.createElement('div');
     urlLine.style.cssText = 'font-size:12px;color:var(--text3);margin-top:4px;font-family:var(--mono,monospace);'
         + 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
     urlLine.textContent = node.url || '';
     card.appendChild(urlLine);
 
-    // ── Trust bar ──
     card.appendChild(_createTrustBar(node.trust_score));
 
-    // ── Info row ──
     const info = document.createElement('div');
     info.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--text3);margin-top:2px;';
 
@@ -350,7 +340,6 @@ function _renderNodeCard(node) {
 
     card.appendChild(info);
 
-    // ── Token info (если есть) ──
     if (node.token_valid != null) {
         const tokenLine = document.createElement('div');
         tokenLine.style.cssText = 'font-size:11px;margin-top:6px;color:var(--text3);';
@@ -369,7 +358,6 @@ function _renderNodeCard(node) {
         card.appendChild(tokenLine);
     }
 
-    // ── Action buttons ──
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border,#333);';
 

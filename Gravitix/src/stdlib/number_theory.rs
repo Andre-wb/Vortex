@@ -2,9 +2,7 @@ use crate::value::Value;
 use crate::error::GravResult;
 use crate::runtime_err;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn call_number_theory_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>> {
     let v = match name {
@@ -159,15 +157,12 @@ pub fn call_number_theory_builtin(name: &str, args: &[Value]) -> GravResult<Opti
             }
         }
 
-        // ── Unknown — let the caller decide ─────────────────────────────────
         _ => return Ok(None),
     };
     Ok(Some(v))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Argument extraction helper
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn get_int(args: &[Value], idx: usize, fn_name: &str) -> GravResult<i64> {
     args.get(idx)
@@ -175,9 +170,7 @@ fn get_int(args: &[Value], idx: usize, fn_name: &str) -> GravResult<i64> {
         .ok_or_else(|| runtime_err!("{fn_name}: expected integer at position {idx}"))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal algorithms
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Euclidean algorithm for GCD on unsigned values.
 fn gcd(mut a: u64, mut b: u64) -> u64 {

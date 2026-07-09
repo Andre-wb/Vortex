@@ -30,7 +30,6 @@ import { _updateThreadPanelCount, _appendToOpenThread } from './thread.js';
 import { queueHistoryMessage } from '../key_backup.js';
 import { registerBMPHandler, MSG } from '../bmp-client.js';
 
-// ─── BMP Handler Registration ─────────────────────────────────────────────
 // Messages arriving via BMP are dispatched to the same handlers as WS.
 // During hybrid mode, dedup by msg_id prevents double-processing.
 const _bmpProcessed = new Set(); // msg_id dedup
@@ -58,7 +57,6 @@ function _bmpMsg(roomId, payload) {
  MSG.SIGNAL, MSG.VOICE_EVENT,
 ].forEach(type => registerBMPHandler(type, _bmpMsg));
 
-// ─── Детекция скриншотов ────────────────────────────────────────────────────
 document.addEventListener('keyup', e => {
     const S = window.AppState;
     if (!S.ws || S.ws.readyState !== WebSocket.OPEN) return;

@@ -42,7 +42,6 @@ test.describe('Contacts & Users Complete', () => {
         }
     });
 
-    // ── Fingerprint Verification ──────────────────────────────────────────────
 
     test('verify contact fingerprint', async ({ request }) => {
         expect(contactId).toBeTruthy();
@@ -61,7 +60,6 @@ test.describe('Contacts & Users Complete', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── User Reports ──────────────────────────────────────────────────────────
 
     test('view user reports', async ({ request }) => {
         const res = await request.get(`/api/users/${userId2}/reports`, {

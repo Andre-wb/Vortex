@@ -13,7 +13,6 @@ const TEST_USER = {
     phone: `+7900${randomDigits(7)}`,
 };
 
-// ── 1. Health Check ─────────────────────────────────────────────────────────
 
 test.describe('Health', () => {
     test('server is alive', async ({ request }) => {
@@ -32,7 +31,6 @@ test.describe('Health', () => {
     });
 });
 
-// ── 2. Registration ─────────────────────────────────────────────────────────
 
 test.describe('Registration', () => {
     test('register new user', async ({ request }) => {
@@ -70,7 +68,6 @@ test.describe('Registration', () => {
     });
 });
 
-// ── 3. Login ────────────────────────────────────────────────────────────────
 
 test.describe('Login', () => {
     test('login with correct credentials', async ({ request }) => {
@@ -96,7 +93,6 @@ test.describe('Login', () => {
     });
 });
 
-// ── 4. Authenticated Operations ─────────────────────────────────────────────
 
 test.describe('Authenticated', () => {
     let csrfToken = '';
@@ -198,7 +194,6 @@ test.describe('Authenticated', () => {
     });
 });
 
-// ── 5. UI Flow (Browser) ────────────────────────────────────────────────────
 
 test.describe('Browser UI', () => {
     test('landing page loads', async ({ page }) => {

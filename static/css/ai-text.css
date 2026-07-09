@@ -1,4 +1,3 @@
-/* ── AI Text Assistant ─────────────────────────────────────────── */
 
 /* Wrap around button + menu */
 .ai-text-wrap {
@@ -29,7 +28,6 @@
   50% { opacity: 1; box-shadow: 0 0 12px rgba(124,58,237,.5); }
 }
 
-/* ── Dropdown menu (fixed to escape overflow:hidden) ──────────── */
 .ai-text-menu {
   display: none;
   position: fixed;
@@ -105,7 +103,6 @@
   color: var(--accent, #a78bfa);
 }
 
-/* ── Preview card ─────────────────────────────────────────────── */
 .ai-preview {
   padding: 8px 12px;
   animation: ai-slide-up .2s ease-out;
@@ -183,7 +180,6 @@
   color: var(--text, #e0e0e0);
 }
 
-/* ── Mobile: bottom-sheet mode ────────────────────────────────── */
 .ai-text-menu.mobile {
   position: fixed;
   bottom: 0;
@@ -219,7 +215,6 @@
   }
 }
 
-/* ── Tablet ───────────────────────────────────────────────────── */
 @media (min-width: 601px) and (max-width: 1024px) {
   .ai-text-menu {
     min-width: 240px;

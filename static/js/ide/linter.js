@@ -1,6 +1,4 @@
-// ══════════════════════════════════════════════════════════════
 //  Gravitix Compile-Time Checker  (lexer + parser + semantic)
-// ══════════════════════════════════════════════════════════════
 
 const GX_KW = new Set([
     'let','fn','on','flow','state','emit','wait','every','at',
@@ -41,7 +39,6 @@ function ideLintCode(code) {
     }, 200);
 }
 
-// ── Lexer ──────────────────────────────────────────────────────
 function _gxLex(src) {
     const tokens = [];
     let i = 0, line = 1, col = 1;
@@ -116,7 +113,6 @@ function _gxLex(src) {
     return tokens;
 }
 
-// ── Parser + Semantic ──────────────────────────────────────────
 function _gxCompile(code) {
     const diag = []; // { sev:'error'|'warn'|'hint', line, col, msg }
 
@@ -168,7 +164,6 @@ function _gxCompile(code) {
     let loopDepth = 0;
     let stmtCount = 0;
 
-    // ── Helpers ────────────────────────────────────────────────
     function skipTo(...vals) {
         while (cur().kind !== 'EOF' && !vals.includes(cur().val)) eat();
     }
@@ -180,7 +175,6 @@ function _gxCompile(code) {
             warn(t, "Expected ';' — missing semicolon");
     }
 
-    // ── Expr parser ────────────────────────────────────────────
     function parseExpr() { return parsePipe(); }
 
     function parsePipe() {
@@ -271,7 +265,6 @@ function _gxCompile(code) {
             eat();
     }
 
-    // ── Statements ─────────────────────────────────────────────
     // Safe loop helper: guarantees at least one token consumed per iteration
     function safeWhile(cond, body) {
         while (cond()) {
@@ -542,10 +535,8 @@ function _gxCompile(code) {
         parseBlock();
     }
 
-    // ── Top-level parse ────────────────────────────────────────
     safeWhile(() => cur().kind !== 'EOF', parseStmt);
 
-    // ── Report ────────────────────────────────────────────────
     const errors = diag.filter(d => d.sev === 'error');
     const warns  = diag.filter(d => d.sev === 'warn');
     const hints  = diag.filter(d => d.sev === 'hint');
@@ -611,9 +602,7 @@ function _setIndicator(type, items) {
     if (count) count.textContent = items.length;
 }
 
-// ══════════════════════════════════════════════════════════════
 //  Architex Linter  (basic structural checks)
-// ══════════════════════════════════════════════════════════════
 
 const ARX_WIDGETS = new Set([
     'col','row','header','text','button','input','label','image','icon',

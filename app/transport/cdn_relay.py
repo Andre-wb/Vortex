@@ -28,7 +28,6 @@ import threading
 logger = logging.getLogger(__name__)
 
 
-# ── Cloudflare Worker скрипт ──────────────────────────────────────────────────
 
 CLOUDFLARE_WORKER_TEMPLATE = """
 // Cloudflare Worker — Vortex CDN Relay
@@ -108,7 +107,6 @@ compatibility_date = "2024-01-01"
 ENVIRONMENT = "production"
 """
 
-# ── AWS Lambda@Edge скрипт ───────────────────────────────────────────────────
 
 AWS_LAMBDA_EDGE_TEMPLATE = """
 // AWS Lambda@Edge — Vortex CDN Relay
@@ -147,7 +145,6 @@ exports.handler = async (event) => {{
 }};
 """
 
-# ── Azure Function скрипт ────────────────────────────────────────────────────
 
 AZURE_FUNCTION_TEMPLATE = """
 // Azure Function — Vortex CDN Relay
@@ -183,7 +180,6 @@ module.exports = async function (context, req) {{
 """
 
 
-# ── Генерация файлов для всех CDN-провайдеров ─────────────────────────────────
 
 def generate_worker_files(backend_url: str, relay_secret: str, output_dir: str = "cdn_worker") -> str:
     """
@@ -264,7 +260,6 @@ Vortex автоматически переключается между CDN пр
     return output_dir
 
 
-# ── Multi-CDN конфигурация с автоматическим failover ──────────────────────────
 
 class CDNRelayConfig:
     """Конфигурация Multi-CDN relay с автоматическим failover."""

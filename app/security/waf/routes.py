@@ -14,7 +14,6 @@ from app.security.waf.engine import WAFEngine
 logger = logging.getLogger(__name__)
 
 
-# ── WAFManager ────────────────────────────────────────────────────────────
 
 class WAFManager:
     def __init__(self, waf_engine: WAFEngine):
@@ -60,7 +59,6 @@ class WAFManager:
         return list(self.waf.ip_whitelist)
 
 
-# ── Global singleton ──────────────────────────────────────────────────────
 
 _waf_engine: Optional[WAFEngine] = None
 
@@ -81,7 +79,6 @@ def get_waf_manager() -> WAFManager:
     return WAFManager(get_waf_engine())
 
 
-# ── Router ────────────────────────────────────────────────────────────────
 
 waf_router = APIRouter(prefix="/waf", tags=["WAF"])
 
@@ -149,7 +146,6 @@ async def test_waf(request: Request):
     return JSONResponse({'status': 'ok', 'client_ip': request.client.host if request.client else 'unknown'})
 
 
-# ── Setup function ────────────────────────────────────────────────────────
 
 def setup_waf(app, config: Optional[Dict] = None) -> WAFEngine:
     waf_engine = WAFEngine(config)

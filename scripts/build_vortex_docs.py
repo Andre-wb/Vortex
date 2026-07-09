@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Iterable
 
 
-# ── helpers ───────────────────────────────────────────────────────────
 
 def section(title: str, subtitle: str, **items: str) -> dict:
     """Return {title, subtitle, **items} dict in a stable order."""
@@ -40,7 +39,6 @@ def list_items(*items: str) -> dict:
     return {f"li{i+1}": t for i, t in enumerate(items)}
 
 
-# ── big sections ──────────────────────────────────────────────────────
 
 ARCH = section(
     "Architecture overview",
@@ -677,7 +675,6 @@ ROADMAP = section(
 )
 
 
-# ── aggregate ─────────────────────────────────────────────────────────
 
 VORTEX_DOCS = {
     "meta": {
@@ -720,7 +717,6 @@ VORTEX_DOCS = {
 }
 
 
-# ── splicing ──────────────────────────────────────────────────────────
 
 def target_paths() -> Iterable[Path]:
     root = Path("/Users/borismaltsev/RustroverProjects")

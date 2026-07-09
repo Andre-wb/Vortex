@@ -23,9 +23,7 @@ const {
     scrollToBottom,
 } = require('../utils.js');
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Create a DOM element with the given id and append it to document.body. */
 function addEl(tag, id, extraClass = '') {
@@ -42,9 +40,7 @@ function removeEl(id) {
     if (el) el.remove();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 1 – $ (DOM id helper)
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('$ – getElementById shorthand', () => {
     beforeEach(() => addEl('div', 'test-node'));
@@ -65,9 +61,7 @@ describe('$ – getElementById shorthand', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 2 – esc (HTML escaping / XSS prevention)
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('esc – HTML special character escaping', () => {
     test('escapes ampersand', () => {
@@ -111,9 +105,7 @@ describe('esc – HTML special character escaping', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 3 – fmtTime
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('fmtTime – ISO date → HH:MM', () => {
     test('returns a string with a colon separator', () => {
@@ -137,9 +129,7 @@ describe('fmtTime – ISO date → HH:MM', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 4 – fmtDate
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('fmtDate – ISO date → human-readable date', () => {
     test('returns "Сегодня" for today\'s date', () => {
@@ -162,9 +152,7 @@ describe('fmtDate – ISO date → human-readable date', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 5 – fmtSize
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('fmtSize – byte size formatting', () => {
     test('formats bytes (< 1 KB) with Б suffix', () => {
@@ -193,9 +181,7 @@ describe('fmtSize – byte size formatting', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 6 – getCookie
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('getCookie', () => {
     afterEach(() => {
@@ -229,9 +215,7 @@ describe('getCookie', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 7 – api() function
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('api – HTTP request wrapper', () => {
     beforeEach(() => {
@@ -362,9 +346,7 @@ describe('api – HTTP request wrapper', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 8 – loadCsrfToken
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('loadCsrfToken', () => {
     beforeEach(() => {
@@ -394,9 +376,7 @@ describe('loadCsrfToken', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 9 – openModal / closeModal
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('openModal / closeModal', () => {
     beforeEach(() => addEl('div', 'my-modal', 'modal-overlay'));
@@ -432,9 +412,7 @@ describe('openModal / closeModal', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 10 – showAlert
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('showAlert', () => {
     beforeEach(() => addEl('div', 'alert-el'));
@@ -460,9 +438,7 @@ describe('showAlert', () => {
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Group 11 – scrollToBottom
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('scrollToBottom', () => {
     let container;

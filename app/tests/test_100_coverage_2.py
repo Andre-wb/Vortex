@@ -20,9 +20,7 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from pathlib import Path
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # crypto.py — Python fallback functions (lines 46-121)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestCryptoPythonFallbacks:
     """Test _py_* functions directly to cover lines 46-121."""
@@ -236,9 +234,7 @@ class TestCryptoNodeKeypair:
             cm._node_priv, cm._node_pub = old_priv, old_pub
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # key_exchange.py — line 156 (decrypt error)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestKeyExchangeErrors:
     def test_ecies_decrypt_node_invalid_data(self):
@@ -261,9 +257,7 @@ class TestKeyExchangeErrors:
         assert ct == "ccdd"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # auth_jwt.py — lines 100-142 (get_current_user, get_user_ws)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestAuthJWT:
     def test_create_and_decode_access_token(self):
@@ -360,9 +354,7 @@ class TestAuthJWT:
             db.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # secure_upload.py — UploadQuotaManager, image validation, temp files
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSecureUploadInternals:
     def test_file_upload_config_exists(self):
@@ -437,9 +429,7 @@ class TestSecureUploadInternals:
             cleanup_temp_files(temp_dir, path)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # antispam_bot.py — bot management and spam checks
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestAntispamBotInternals:
     def test_ensure_bot_creates(self):
@@ -588,9 +578,7 @@ class TestAntispamBotInternals:
             db.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # connection_manager.py — connect/disconnect/broadcast with mock WS
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestConnectionManagerMethods:
     @pytest.mark.asyncio
@@ -695,9 +683,7 @@ class TestConnectionManagerMethods:
         assert isinstance(stats, dict)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # config.py — _read_env, validate, _ensure_vapid_keys
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestConfigInternals:
     def test_config_validate(self):
@@ -726,9 +712,7 @@ class TestConfigInternals:
         assert Config.NETWORK_MODE in ("local", "global")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # database.py — engine info, init_db, URL resolution
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestDatabaseInternals:
     def test_get_engine_info(self):
@@ -767,9 +751,7 @@ class TestDatabaseInternals:
             pass
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # logging_config.py — edge cases
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestLoggingEdgeCases:
     def test_json_formatter_with_exception(self):
@@ -812,9 +794,7 @@ class TestLoggingEdgeCases:
         setup_logging(log_format="json", log_level="WARNING", log_dir=str(tmp_path))
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # models.py / models_rooms.py — __repr__, validators
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestModelEdgeCases:
     def test_user_model_repr(self):

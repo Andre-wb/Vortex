@@ -22,7 +22,6 @@ import pytest
 from conftest import make_user, login_user, random_str
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
 
 def _headers(client, user):
     h = login_user(client, user["username"], user["password"])
@@ -40,9 +39,7 @@ def _logged_user(client):
 import app.chats.link_preview as lp_module
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Unit tests for _parse_og
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestParseOG:
 
@@ -127,9 +124,7 @@ class TestParseOG:
         assert result["title"] == "Reverse Title"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Unit tests for LRU cache helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestLRUCache:
 
@@ -169,9 +164,7 @@ class TestLRUCache:
         assert keys[-1] == "https://a.example.com/"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Integration tests via HTTP endpoint
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestLinkPreviewEndpoint:
 

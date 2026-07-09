@@ -38,9 +38,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/session", tags=["session"])
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Per-user cursor (in-memory; a real deployment would back this with Redis)
-# ══════════════════════════════════════════════════════════════════════════
 
 class SessionCursor(BaseModel):
     user_pubkey: str
@@ -69,9 +67,7 @@ class _CursorStore:
 _cursor_store = _CursorStore()
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Load / health signal
-# ══════════════════════════════════════════════════════════════════════════
 
 class _NodeLoad:
     """Very rough load estimate — enough for "go elsewhere" hints.
@@ -120,9 +116,7 @@ def _active_ws_count() -> int:
 _load = _NodeLoad()
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Peer pubkey resolver (source-node trust for handoff)
-# ══════════════════════════════════════════════════════════════════════════
 
 def _default_source_resolver() -> "SourceResolver":
     """Build a resolver from whatever context this node has.
@@ -175,9 +169,7 @@ class SourceResolver:
 _resolver = _default_source_resolver()
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Request / response models
-# ══════════════════════════════════════════════════════════════════════════
 
 class MigrationHintAlt(BaseModel):
     pubkey: str
@@ -222,9 +214,7 @@ class CursorSetRequest(BaseModel):
     rooms: list[int] = Field(default_factory=list)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # Endpoints
-# ══════════════════════════════════════════════════════════════════════════
 
 def _require_signing_key(request: Optional[Request] = None) -> NodeSigningKey:
     """Load the node's Ed25519 signing key (shared with controller_client).

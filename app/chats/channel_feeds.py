@@ -35,14 +35,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/channels", tags=["channel-feeds"])
 
-# ── Pydantic ──────────────────────────────────────────────────────────────────
 
 class AddFeedRequest(BaseModel):
     type: str = Field(..., pattern="^(rss|webhook)$")
     url: str = Field(default="", max_length=2048)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _require_admin(room_id: int, user: User, db: Session) -> None:
     channel = db.query(Room).filter(Room.id == room_id, Room.is_channel == True).first()
@@ -119,9 +117,7 @@ async def _post_channel_message(room_id: int, text: str, db: Session) -> None:
         logger.warning("WS broadcast failed for channel %s feed message: %s", room_id, e)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # REST endpoints
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{room_id}/feeds", status_code=201)
 async def add_feed(room_id: int, body: AddFeedRequest,
@@ -216,9 +212,7 @@ async def receive_webhook(room_id: int, request: Request, db: Session = Depends(
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # RSS polling background task
-# ══════════════════════════════════════════════════════════════════════════════
 
 _XML_NAMESPACES = {
     "atom": "http://www.w3.org/2005/Atom",
@@ -241,7 +235,6 @@ def _parse_rss(xml_bytes: bytes) -> list[dict]:
 
     tag = root.tag.lower()
 
-    # ── Atom feed ──────────────────────────────────────────────────────────
     if "atom" in tag or root.tag == "{http://www.w3.org/2005/Atom}feed":
         ns = "http://www.w3.org/2005/Atom"
         for entry in root.findall(f"{{{ns}}}entry"):
@@ -254,7 +247,6 @@ def _parse_rss(xml_bytes: bytes) -> list[dict]:
             items.append({"guid": guid or link, "title": title, "link": link, "summary": summary})
         return items
 
-    # ── RSS 2.0 ────────────────────────────────────────────────────────────
     channel_el = root.find("channel")
     entries = (channel_el.findall("item") if channel_el is not None else root.findall(".//item"))
     for item in entries:

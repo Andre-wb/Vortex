@@ -37,9 +37,7 @@ router = APIRouter(prefix="/api/bridge", tags=["bridge"])
 _MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _get_or_create_external_user(username: str, display_name: str, db: Session) -> User:
     """Находит или создаёт пользователя-заглушку для внешних контактов."""
@@ -131,9 +129,7 @@ def _parse_tg_timestamp(ts: Any) -> datetime:
         return datetime.now(timezone.utc)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Telegram import
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _import_telegram(data: dict, user: User, db: Session) -> dict:
     """
@@ -213,9 +209,7 @@ def _import_telegram(data: dict, user: User, db: Session) -> dict:
     return stats
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Matrix import
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _import_matrix(data: dict | list, user: User, db: Session) -> dict:
     """
@@ -273,9 +267,7 @@ def _import_matrix(data: dict | list, user: User, db: Session) -> dict:
     return stats
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 
 @router.post("/telegram")
 async def import_telegram(

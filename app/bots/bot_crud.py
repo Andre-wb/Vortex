@@ -30,9 +30,7 @@ from app.bots.bot_shared import (
 logger = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bot management endpoints (for bot owners, JWT auth)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/bots", status_code=201)
 async def create_bot(
@@ -330,9 +328,7 @@ async def get_mini_app_token(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Add / remove bot from room (for bot owners, JWT auth)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/bots/{bot_id}/rooms/{room_id}")
 async def add_bot_to_room(

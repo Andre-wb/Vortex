@@ -35,7 +35,6 @@ async function resolveUserId(request, csrf, username) {
     return 0;
 }
 
-// ── Test suite ────────────────────────────────────────────────────────────────
 
 test.describe('Contacts', () => {
     // Primary user — owns the contacts
@@ -89,7 +88,6 @@ test.describe('Contacts', () => {
         } catch (_) {}
     }
 
-    // ── Setup: register both users, login as owner ────────────────────────────
 
     test.beforeAll(async ({ request }) => {
         // Register owner
@@ -110,7 +108,6 @@ test.describe('Contacts', () => {
         ownerCsrf = oc2;
     });
 
-    // ── 1. List contacts — empty initially ───────────────────────────────────
 
     test('1. GET /api/contacts returns empty list for new user', async ({ request }) => {
         const res = await request.get('/api/contacts', {
@@ -123,7 +120,6 @@ test.describe('Contacts', () => {
         expect(body.contacts.length).toBe(0);
     });
 
-    // ── 2. Add contact ────────────────────────────────────────────────────────
 
     test('2. POST /api/contacts adds a contact by user_id', async ({ request }) => {
         await ensureTarget(request); expect(targetId).toBeGreaterThan(0);
@@ -142,7 +138,6 @@ test.describe('Contacts', () => {
         contactId = body.contact_id;
     });
 
-    // ── 3. List contacts — non-empty after add ────────────────────────────────
 
     test('3. GET /api/contacts lists the newly added contact', async ({ request }) => {
         await ensureContact(request); expect(contactId).toBeGreaterThan(0);
@@ -161,7 +156,6 @@ test.describe('Contacts', () => {
         expect(found).toHaveProperty('presence');
     });
 
-    // ── 4. Duplicate add returns 409 ─────────────────────────────────────────
 
     test('4. POST /api/contacts duplicate contact returns 409', async ({ request }) => {
         await ensureTarget(request); expect(targetId).toBeGreaterThan(0);
@@ -173,7 +167,6 @@ test.describe('Contacts', () => {
         expect(res.status()).toBe(409);
     });
 
-    // ── 5. Cannot add self ────────────────────────────────────────────────────
 
     test('5. POST /api/contacts with own user_id returns 400', async ({ request }) => {
         const res = await request.post('/api/contacts', {
@@ -183,7 +176,6 @@ test.describe('Contacts', () => {
         expect(res.status()).toBe(400);
     });
 
-    // ── 6. Add non-existent user returns 404 ─────────────────────────────────
 
     test('6. POST /api/contacts with invalid user_id returns 404', async ({ request }) => {
         const res = await request.post('/api/contacts', {
@@ -193,7 +185,6 @@ test.describe('Contacts', () => {
         expect(res.status()).toBe(404);
     });
 
-    // ── 7. Update contact nickname ────────────────────────────────────────────
 
     test('7. PUT /api/contacts/{id} sets a nickname', async ({ request }) => {
         await ensureContact(request); expect(contactId).toBeGreaterThan(0);
@@ -209,7 +200,6 @@ test.describe('Contacts', () => {
         expect(body.contact_id).toBe(contactId);
     });
 
-    // ── 8. Nickname persists in listing ──────────────────────────────────────
 
     test('8. Updated nickname is reflected in GET /api/contacts', async ({ request }) => {
         await ensureContact(request); expect(contactId).toBeGreaterThan(0);
@@ -224,7 +214,6 @@ test.describe('Contacts', () => {
         expect(found.nickname).toBe('My Buddy');
     });
 
-    // ── 9. Update nickname — invalid contact id returns 404 ──────────────────
 
     test('9. PUT /api/contacts/999999 returns 404', async ({ request }) => {
         const res = await request.put('/api/contacts/999999', {
@@ -234,7 +223,6 @@ test.describe('Contacts', () => {
         expect(res.status()).toBe(404);
     });
 
-    // ── 10. Update nickname — empty string ───────────────────────────────────
 
     test('10. PUT /api/contacts/{id} clears nickname with empty string', async ({ request }) => {
         await ensureContact(request); expect(contactId).toBeGreaterThan(0);
@@ -247,7 +235,6 @@ test.describe('Contacts', () => {
         expect([200, 422]).toContain(res.status());
     });
 
-    // ── 11. Block user ────────────────────────────────────────────────────────
 
     test('11. POST /api/users/block/{id} blocks a user', async ({ request }) => {
         await ensureTarget(request); expect(targetId).toBeGreaterThan(0);
@@ -261,7 +248,6 @@ test.describe('Contacts', () => {
         expect(body.blocked).toBe(true);
     });
 
-    // ── 12. Block self returns 400 ────────────────────────────────────────────
 
     test('12. POST /api/users/block/{own_id} returns 400', async ({ request }) => {
         const res = await request.post(`/api/users/block/${ownerId}`, {
@@ -270,7 +256,6 @@ test.describe('Contacts', () => {
         expect(res.status()).toBe(400);
     });
 
-    // ── 13. Block non-existent user returns 404 ───────────────────────────────
 
     test('13. POST /api/users/block/999999999 returns 404', async ({ request }) => {
         const res = await request.post('/api/users/block/999999999', {
@@ -279,7 +264,6 @@ test.describe('Contacts', () => {
         expect(res.status()).toBe(404);
     });
 
-    // ── 14. Add extra user as contact ─────────────────────────────────────────
 
     test('14. POST /api/contacts adds extra user as second contact', async ({ request }) => {
         if (!extraId) extraId = await resolveUserId(request, ownerCsrf, extraUsername);
@@ -294,7 +278,6 @@ test.describe('Contacts', () => {
         expect(body.username).toBe(extraUsername);
     });
 
-    // ── 15. Unauthenticated request returns 401 ───────────────────────────────
 
     test('15. GET /api/contacts without auth returns 401', async ({ freshRequest: request }) => {
         // Fresh request context with no cookies
@@ -302,7 +285,6 @@ test.describe('Contacts', () => {
         expect([401, 403]).toContain(res.status());
     });
 
-    // ── 16. Search users finds target ────────────────────────────────────────
 
     test('16. GET /api/users/search returns matching users', async ({ request }) => {
         const res = await request.get(
@@ -315,7 +297,6 @@ test.describe('Contacts', () => {
         expect(Array.isArray(users)).toBe(true);
     });
 
-    // ── 17. Search empty query returns results or 422 ─────────────────────────
 
     test('17. GET /api/users/search with empty q is handled gracefully', async ({ request }) => {
         const res = await request.get('/api/users/search?q=', {
@@ -324,7 +305,6 @@ test.describe('Contacts', () => {
         expect([200, 422]).toContain(res.status());
     });
 
-    // ── 18. Delete contact ────────────────────────────────────────────────────
 
     test('18. DELETE /api/contacts/{id} removes a contact', async ({ request }) => {
         await ensureContact(request); expect(contactId).toBeGreaterThan(0);
@@ -337,7 +317,6 @@ test.describe('Contacts', () => {
         expect(body.ok).toBe(true);
     });
 
-    // ── 19. Deleted contact no longer in listing ──────────────────────────────
 
     test('19. Deleted contact is absent from GET /api/contacts', async ({ request }) => {
         await ensureContact(request); expect(contactId).toBeGreaterThan(0);
@@ -351,7 +330,6 @@ test.describe('Contacts', () => {
         expect(found).toBeUndefined();
     });
 
-    // ── 20. Delete non-existent contact returns 404 ───────────────────────────
 
     test('20. DELETE /api/contacts/999999 returns 404', async ({ request }) => {
         const res = await request.delete('/api/contacts/999999', {
@@ -360,7 +338,6 @@ test.describe('Contacts', () => {
         expect(res.status()).toBe(404);
     });
 
-    // ── Cleanup ───────────────────────────────────────────────────────────────
 
     test.afterAll(async ({ request }) => {
         await request.post('/api/authentication/logout', {

@@ -230,7 +230,6 @@ async def logs(request: Request, limit: int = 500, level: str = "all") -> dict:
     return {"lines": lines, "source": str(log_file)}
 
 
-# ── Whole-repo integrity (scripts/integrity_repo.py wrapped as HTTP) ──
 #
 # The wizard imports scripts/integrity_repo.py lazily via importlib so
 # users don't need to open a terminal to sign/verify the Vortex source
@@ -311,7 +310,6 @@ async def check_node(request: Request) -> dict:
     }
 
 
-# ── Node lifecycle (start / stop) ──────────────────────────────────────────
 #
 # The wizard can spawn the Vortex node (``python run.py``) as a child
 # process so operators don't have to keep a terminal open. Approach:

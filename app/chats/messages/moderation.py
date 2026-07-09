@@ -20,7 +20,6 @@ from app.security.auth_jwt import get_current_user
 logger = logging.getLogger(__name__)
 
 
-# ── Auto-delete ───────────────────────────────────────────────────────────────
 
 class _AutoDeleteRequest(BaseModel):
     seconds: int = 0  # 0 = disabled
@@ -55,7 +54,6 @@ async def set_auto_delete(
     return {"ok": True}
 
 
-# ── Slow mode ─────────────────────────────────────────────────────────────────
 
 class _SlowModeRequest(BaseModel):
     seconds: int = 0  # 0 = disabled
@@ -90,7 +88,6 @@ async def set_slow_mode(
     return {"ok": True}
 
 
-# ── Room mute toggle ──────────────────────────────────────────────────────────
 
 @router.post("/api/rooms/{room_id}/mute")
 async def toggle_mute(
@@ -111,7 +108,6 @@ async def toggle_mute(
     return {"muted": member.is_muted}
 
 
-# ── Pin message ───────────────────────────────────────────────────────────────
 
 class _PinRequest(BaseModel):
     msg_id: int | None = None
@@ -189,7 +185,6 @@ async def get_pinned_messages(
     return {"room_id": room_id, "pinned": pinned}
 
 
-# ── Drafts ────────────────────────────────────────────────────────────────────
 
 # In-memory draft storage (per user per room).
 _drafts: dict[tuple[int, int], str] = {}
@@ -233,7 +228,6 @@ async def clear_draft(
     return {"ok": True}
 
 
-# ── Chat export ───────────────────────────────────────────────────────────────
 
 @router.get("/api/rooms/{room_id}/export")
 async def export_chat(

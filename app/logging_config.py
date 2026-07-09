@@ -27,7 +27,6 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 
-# ── Context variables for request-scoped data ────────────────────────────────
 correlation_id: ContextVar[str] = ContextVar("correlation_id", default="-")
 request_user_id: ContextVar[int | None] = ContextVar("request_user_id", default=None)
 
@@ -37,7 +36,6 @@ def new_correlation_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-# ── JSON Formatter ───────────────────────────────────────────────────────────
 
 class JSONFormatter(logging.Formatter):
     """Formats log records as single-line JSON objects."""
@@ -72,7 +70,6 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_entry, ensure_ascii=False, default=str)
 
 
-# ── Console Formatter ────────────────────────────────────────────────────────
 
 class ConsoleFormatter(logging.Formatter):
     """Human-readable colored formatter for development."""
@@ -100,7 +97,6 @@ class ConsoleFormatter(logging.Formatter):
         return msg
 
 
-# ── Setup Function ───────────────────────────────────────────────────────────
 
 def setup_logging(
     log_format: str | None = None,
@@ -130,7 +126,6 @@ def setup_logging(
     # Remove existing handlers
     root.handlers.clear()
 
-    # ── Console handler ──────────────────────────────────────────────────
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(level)
 
@@ -141,7 +136,6 @@ def setup_logging(
 
     root.addHandler(console_handler)
 
-    # ── File handler (rotating, all levels) ──────────────────────────────
     file_handler = logging.handlers.RotatingFileHandler(
         log_path / "vortex.log",
         maxBytes=10 * 1024 * 1024,  # 10 MB
@@ -152,7 +146,6 @@ def setup_logging(
     file_handler.setFormatter(JSONFormatter())
     root.addHandler(file_handler)
 
-    # ── Error file handler (errors only) ─────────────────────────────────
     error_handler = logging.handlers.RotatingFileHandler(
         log_path / "vortex-error.log",
         maxBytes=10 * 1024 * 1024,
@@ -163,7 +156,6 @@ def setup_logging(
     error_handler.setFormatter(JSONFormatter())
     root.addHandler(error_handler)
 
-    # ── Silence noisy loggers ────────────────────────────────────────────
     for name in ("uvicorn.access", "httpx", "httpcore", "websockets"):
         logging.getLogger(name).setLevel(logging.WARNING)
 

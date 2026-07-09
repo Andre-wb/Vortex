@@ -53,7 +53,6 @@ test.describe('Rooms Complete', () => {
         });
     });
 
-    // ── Public rooms ──────────────────────────────────────────────────────────
 
     test('list public rooms', async ({ request }) => {
         const res = await request.get('/api/rooms/public', {
@@ -62,7 +61,6 @@ test.describe('Rooms Complete', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Member management ─────────────────────────────────────────────────────
 
     test('update member role', async ({ request }) => {
         const res = await request.put(`/api/rooms/${roomId}/members/${memberId}/role`, {
@@ -117,7 +115,6 @@ test.describe('Rooms Complete', () => {
         expect([200, 204, 403]).toContain(res.status());
     });
 
-    // ── Provide key ───────────────────────────────────────────────────────────
 
     test('provide key to room', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/provide-key`, {
@@ -127,7 +124,6 @@ test.describe('Rooms Complete', () => {
         expect([200, 201, 400, 422]).toContain(res.status());
     });
 
-    // ── Join by invite code ───────────────────────────────────────────────────
 
     test('join room by invalid invite code', async ({ request }) => {
         const res = await request.post('/api/rooms/join/invalid_code_e2e', {
@@ -137,7 +133,6 @@ test.describe('Rooms Complete', () => {
         expect([400, 404]).toContain(res.status());
     });
 
-    // ── Theme accept/reject ───────────────────────────────────────────────────
 
     test('theme accept', async ({ request }) => {
         const res = await request.post(`/api/rooms/${roomId}/theme/accept`, {
@@ -153,7 +148,6 @@ test.describe('Rooms Complete', () => {
         expect([200, 204, 400]).toContain(res.status());
     });
 
-    // ── Pinned messages ───────────────────────────────────────────────────────
 
     test('get pinned messages', async ({ request }) => {
         const res = await request.get(`/api/rooms/${roomId}/pinned`, {
@@ -162,7 +156,6 @@ test.describe('Rooms Complete', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Slowmode users update ─────────────────────────────────────────────────
 
     test('update slowmode users', async ({ request }) => {
         const res = await request.put(`/api/rooms/${roomId}/slowmode/users`, {
@@ -172,7 +165,6 @@ test.describe('Rooms Complete', () => {
         expect([200, 204, 400, 422]).toContain(res.status());
     });
 
-    // ── Leave room ────────────────────────────────────────────────────────────
 
     test('leave room', async ({ request }) => {
         // Create a room to leave
@@ -183,7 +175,6 @@ test.describe('Rooms Complete', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Delete room ───────────────────────────────────────────────────────────
 
     test('delete room', async ({ request }) => {
         const res = await request.delete(`/api/rooms/${roomToDelete}`, {

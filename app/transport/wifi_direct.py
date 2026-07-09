@@ -64,9 +64,7 @@ def is_wifi_direct_available() -> bool:
     return _WIFI_DIRECT_AVAILABLE
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Структуры данных
-# ─────────────────────────────────────────────────────────────────────────────
 
 @dataclass
 class WifiDirectPeer:
@@ -90,9 +88,7 @@ class WifiDirectPeer:
         }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Linux: wpa_supplicant P2P через wpa_cli
-# ─────────────────────────────────────────────────────────────────────────────
 
 class WpaCliInterface:
     """
@@ -245,9 +241,7 @@ class WpaCliInterface:
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Windows: WinRT WiFiDirect
-# ─────────────────────────────────────────────────────────────────────────────
 
 class WinRTWifiDirect:
     """
@@ -311,9 +305,7 @@ class WinRTWifiDirect:
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Unified Wi-Fi Direct Manager
-# ─────────────────────────────────────────────────────────────────────────────
 
 class WifiDirectManager:
     """
@@ -411,7 +403,6 @@ class WifiDirectManager:
         self._available = False
         logger.info("📶 Wi-Fi Direct остановлен")
 
-    # ── Scan loops ────────────────────────────────────────────────────────────
 
     async def _linux_scan_loop(self) -> None:
         while self._available:
@@ -453,7 +444,6 @@ class WifiDirectManager:
                 logger.debug(f"WinRT scan error: {e}")
             await asyncio.sleep(15.0)
 
-    # ── Auto-reconnect loop ─────────────────────────────────────────────────
 
     async def start_auto_reconnect(self) -> None:
         """Background loop: re-connect dropped Wi-Fi Direct peers (exp backoff)."""
@@ -478,7 +468,6 @@ class WifiDirectManager:
                 logger.debug(f"WiFi Direct reconnect error: {e}")
             await asyncio.sleep(backoff)
 
-    # ── Connect ───────────────────────────────────────────────────────────────
 
     async def connect_pbc(self, peer_mac: str) -> Optional[str]:
         """
@@ -508,7 +497,6 @@ class WifiDirectManager:
             return await self._winrt.connect(device_id)
         return None
 
-    # ── Status ────────────────────────────────────────────────────────────────
 
     @property
     def available(self) -> bool:

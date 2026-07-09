@@ -62,7 +62,6 @@ class PresenceImpl @Inject constructor(
         )))
     }
 
-    // ── WS observer ────────────────────────────────────────────────────
 
     private suspend fun observe() {
         ws.incoming.collect { frame ->

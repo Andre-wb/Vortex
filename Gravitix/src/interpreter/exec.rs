@@ -10,9 +10,7 @@ use super::{Interpreter, Env};
 #[allow(unused_imports)]
 use crate::ast::Pattern;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal control-flow error type (not public)
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug)]
 pub(crate) enum ExecErr {
@@ -41,7 +39,6 @@ impl std::fmt::Display for ExecErr {
 }
 
 impl Interpreter {
-    // ── execute a block of statements ─────────────────────────────────────────
 
     pub(crate) async fn exec_block(
         &self,
@@ -59,7 +56,6 @@ impl Interpreter {
         Ok(last)
     }
 
-    // ── execute a statement ───────────────────────────────────────────────────
 
     pub(crate) async fn exec_stmt(
         &self,
@@ -1033,11 +1029,9 @@ fn convert_wizard_value(s: String, ty: &crate::ast::TypeExpr) -> Result<Value, S
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helper: parse keyboard buttons from a Value
 // Expected format: list<list<list<str>>>
 //   e.g. [[ ["OK", "ok_data"], ["Cancel", "cancel_data"] ]]
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn extract_keyboard_buttons(val: Value) -> crate::error::GravResult<Vec<Vec<(String, String)>>> {
     let rows = match val {

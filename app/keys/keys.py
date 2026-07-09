@@ -18,7 +18,6 @@ from app.config import Config
 router = APIRouter(prefix="/api/keys", tags=["keys"])
 _logger = logging.getLogger(__name__)
 
-# ── Self-hosted TURN (coturn) ────────────────────────────────────────────────
 
 _TURN_SECRET = os.getenv("TURN_SECRET", "") or secrets.token_hex(32)
 _TURN_PORT = int(os.getenv("TURN_PORT", "3478"))

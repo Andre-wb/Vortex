@@ -42,7 +42,6 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# ── Try to import kyber from available libraries ─────────────────────────────
 _PQ_AVAILABLE = False
 _PQ_BACKEND = "none"
 _PQ_SIMULATED = False
@@ -158,9 +157,7 @@ def pq_backend() -> str:
     return _PQ_BACKEND
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Kyber-768 abstraction (works with any backend)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class Kyber768:
     """Abstraction over Kyber-768 KEM (Key Encapsulation Mechanism)."""
@@ -257,9 +254,7 @@ class Kyber768:
             return ss
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Hybrid X25519 + Kyber-768 Key Exchange
-# ══════════════════════════════════════════════════════════════════════════════
 
 def hybrid_keygen() -> dict:
     """Generate hybrid X25519 + Kyber-768 keypair.

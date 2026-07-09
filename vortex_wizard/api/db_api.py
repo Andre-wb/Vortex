@@ -57,7 +57,6 @@ logger = logging.getLogger(__name__)
 _PREFERRED_PG_MAJOR = "17"
 
 
-# ── Path resolution ────────────────────────────────────────────────────────
 
 
 def _env_path(request: Request) -> Path:
@@ -75,7 +74,6 @@ def _pglog(request: Request) -> Path:
     return logs / "postgres.log"
 
 
-# ── Binary discovery ──────────────────────────────────────────────────────
 
 
 _BREW_PREFIXES = (
@@ -121,7 +119,6 @@ def _find_brew() -> Optional[str]:
     return None
 
 
-# ── Running state ──────────────────────────────────────────────────────────
 
 
 def _pg_is_running(pgdata: Path) -> bool:
@@ -194,7 +191,6 @@ def _write_env_keys(env_file: Path, updates: dict[str, Optional[str]]) -> None:
         pass
 
 
-# ── Status ─────────────────────────────────────────────────────────────────
 
 
 @router.get("/status")
@@ -225,7 +221,6 @@ async def db_status(request: Request) -> dict:
     }
 
 
-# ── Setup (the big button) ────────────────────────────────────────────────
 
 
 class SetupBody(BaseModel):
@@ -436,7 +431,6 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
     }
 
 
-# ── Start / stop / uninstall ──────────────────────────────────────────────
 
 
 @router.post("/start")
@@ -522,10 +516,8 @@ async def db_uninstall(body: UninstallBody, request: Request) -> dict:
     return {"ok": True, "cluster_removed": removed}
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────
 
 
-# ── DB viewer (read-only introspection) ───────────────────────────────────
 
 
 def _resolve_db_url(env: dict[str, str], env_file: Path) -> tuple[str, str]:

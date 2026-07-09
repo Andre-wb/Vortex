@@ -1,11 +1,8 @@
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE: Custom Sticker Packs (Manager + Enhanced Picker)
-// ══════════════════════════════════════════════════════════════════════════════
 
 // Cached custom packs for the picker
 window._customStickerPacks = [];
 
-// ── Auto-load my packs when sticker section becomes visible ──
 (function() {
     var _loaded = false;
     var observer = new MutationObserver(function() {
@@ -22,7 +19,6 @@ window._customStickerPacks = [];
     });
 })();
 
-// ── Sticker Manager tab switching ──
 window.switchStickerMgrTab = function(tab, btn) {
     document.querySelectorAll('.sticker-mgr-tab').forEach(function(t) { t.classList.remove('active'); });
     document.querySelectorAll('.sticker-mgr-section').forEach(function(s) { s.classList.remove('active'); });
@@ -38,7 +34,6 @@ window.toggleStickerCreateForm = function() {
     if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
 };
 
-// ── CSRF helper ──
 function _stickerHeaders(isJSON) {
     var headers = {};
     var S = window.AppState;
@@ -47,14 +42,12 @@ function _stickerHeaders(isJSON) {
     return headers;
 }
 
-// ── HTML escape ──
 function _sesc(s) {
     var d = document.createElement('div');
     d.textContent = s || '';
     return d.innerHTML;
 }
 
-// ── Load user's own + favorited packs ──
 window.loadMyPacks = async function() {
     var list = document.getElementById('sticker-my-packs-list');
     if (!list) return;
@@ -111,12 +104,10 @@ function _pluralRu(n) {
     return 's';
 }
 
-// ── Click on pack card → open fullscreen editor ──
 window.togglePackExpand = function(cardEl, packId, isOwner) {
     if (window.openPackEditor) window.openPackEditor(packId, isOwner);
 };
 
-// ── Full-screen sticker pack detail (safe DOM construction) ──
 window.openStickerPackDetail = async function(packId, isOwner) {
     try {
         var resp = await fetch('/api/stickers/packs/' + packId, { credentials: 'include', headers: _stickerHeaders(false) });
@@ -319,7 +310,6 @@ function _renderPackStickers(container, pack, isOwner) {
     container.innerHTML = html;
 }
 
-// ── Create pack ──
 window.createStickerPack = async function() {
     var name = document.getElementById('sticker-pack-name')?.value?.trim();
     if (!name) return;
@@ -346,7 +336,6 @@ window.createStickerPack = async function() {
     }
 };
 
-// ── Delete pack ──
 window.deleteStickerPack = async function(packId) {
     if (!confirm((window.t?.('stickers.deleteConfirm')||'Delete this sticker pack?'))) return;
     try {
@@ -359,7 +348,6 @@ window.deleteStickerPack = async function(packId) {
     } catch(e) { console.warn('deleteStickerPack error:', e); }
 };
 
-// ── Upload sticker to pack ──
 window.triggerStickerUpload = function(packId) {
     var input = document.createElement('input');
     input.type = 'file';
@@ -392,7 +380,6 @@ window.uploadStickerFile = async function(packId, file) {
     }
 };
 
-// ── Delete sticker from pack ──
 window.deleteStickerFromPack = async function(packId, stickerId) {
     try {
         await fetch('/api/stickers/packs/' + packId + '/stickers/' + stickerId, {
@@ -404,7 +391,6 @@ window.deleteStickerFromPack = async function(packId, stickerId) {
     } catch(e) { console.warn('deleteStickerFromPack error:', e); }
 };
 
-// ── Favorite / unfavorite ──
 window.favoritePack = async function(packId) {
     try {
         await fetch('/api/stickers/packs/' + packId + '/favorite', {
@@ -428,7 +414,6 @@ window.unfavoritePack = async function(packId) {
     } catch(e) { console.warn('unfavoritePack error:', e); }
 };
 
-// ── Catalog (public packs) ──
 window.loadCatalogPacks = async function() {
     var list = document.getElementById('sticker-catalog-list');
     if (!list) return;
@@ -475,7 +460,6 @@ function _renderCatalogPacks(packs, container) {
     }).join('');
 }
 
-// ── Enhanced sticker picker: inject custom pack tabs ──
 window._loadCustomPackTabs = async function() {
     var tabsContainer = document.getElementById('custom-pack-tabs');
     if (!tabsContainer) return;
@@ -528,14 +512,12 @@ window.showCustomPackInPicker = async function(packId, btn) {
     }
 };
 
-// ── Send custom sticker ──
 window.sendCustomSticker = function(imageUrl) {
     if (window.closeModal) window.closeModal('sticker-modal');
     if (window.closeUnifiedPicker) window.closeUnifiedPicker();
     if (window.sendStickerDirect) window.sendStickerDirect('[STICKER] img:' + imageUrl);
 };
 
-// ── Single definitive openStickerPicker (no wrappers) ──
 window.openStickerPicker = function() {
     if (window._loadCustomPackTabs) window._loadCustomPackTabs();
     if (window.openModal) window.openModal('sticker-modal');
@@ -554,9 +536,7 @@ window.switchSettingsTab = function(tab) {
     }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE: Video Messages (circular video notes)
-// ══════════════════════════════════════════════════════════════════════════════
 
 var _videoRecorder = null;
 var _videoStream = null;

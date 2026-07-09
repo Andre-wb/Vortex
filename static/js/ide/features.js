@@ -3,7 +3,6 @@ window.ideToggleDocs   = ideToggleDocs;
 window.ideToggleSim    = ideToggleSim;
 window.ideShowCreateModal = ideShowCreateModal;
 
-// ── Bot Analytics ──────────────────────────────────────────────────────────
 
 async function ideLoadAnalytics(projectId) {
   if (!projectId) return;
@@ -69,9 +68,7 @@ function formatUptime(secs) {
   return Math.floor(secs / 3600) + 'h ' + Math.floor((secs % 3600) / 60) + 'm';
 }
 
-// ══════════════════════════════════════════════════════════════
 //  Feature 10: Bot Versioning + Rollback
-// ══════════════════════════════════════════════════════════════
 
 async function ideShowVersions() {
     if (!IDE.current) return;
@@ -175,9 +172,7 @@ async function ideRollback(version) {
     }
 }
 
-// ══════════════════════════════════════════════════════════════
 //  Feature 11: Visual Flow Graph
-// ══════════════════════════════════════════════════════════════
 
 async function ideShowGraph() {
     if (!IDE.current) return;
@@ -311,14 +306,12 @@ function _renderGraphSVG(nodes, edges) {
 }
 
 
-// ── Toolbar wiring (expose to window) ───────────────────────────────────────
 
 window.ideShowVersions = ideShowVersions;
 window.ideSaveVersion  = ideSaveVersion;
 window.ideRollback     = ideRollback;
 window.ideShowGraph    = ideShowGraph;
 
-// ── Bot Test ───────────────────────────────────────────────────────────────
 
 async function ideTestBot(code, message) {
   if (!code) {
@@ -360,7 +353,6 @@ async function ideTestBot(code, message) {
   }
 }
 
-// ── Round-3: Current project ID helper ────────────────────────────────────
 
 function ideGetCurrentProjectId() {
     // Prefer the private helper which derives a safe string from IDE.current.id
@@ -368,7 +360,6 @@ function ideGetCurrentProjectId() {
     return window._ideProjectId || localStorage.getItem('ide_current_project') || null;
 }
 
-// ── Round-3: Bot Metrics Panel ────────────────────────────────────────────
 
 async function ideShowBotMetrics() {
     const projectId = ideGetCurrentProjectId();
@@ -410,7 +401,6 @@ async function ideShowBotMetrics() {
     `);
 }
 
-// ── Round-3: AI Test Panel ─────────────────────────────────────────────────
 
 async function ideTestAI(prompt) {
     const res = await fetch('/api/ide/ai/proxy', {
@@ -425,7 +415,6 @@ async function ideTestAI(prompt) {
     return data.text || data.error || 'No response';
 }
 
-// ── Round-4/8: Webhook Info Panel ───────────────────────────────────────────
 
 async function ideShowWebhooks() {
     const pid = ideGetCurrentProjectId();
@@ -450,7 +439,6 @@ async function ideShowWebhooks() {
     _ideShowModal('Webhooks', html);
 }
 
-// ── Queue Monitor Panel ────────────────────────────────────────────────────
 async function ideShowQueues() {
     const pid = ideGetCurrentProjectId();
     if (!pid) return;
@@ -480,7 +468,6 @@ async function ideShowQueues() {
     _ideShowModal('ide-queues-modal', html);
 }
 
-// ── Audit Log Panel ────────────────────────────────────────────────────────
 async function ideShowAuditLog() {
     const pid = ideGetCurrentProjectId();
     if (!pid) return;
@@ -508,7 +495,6 @@ window.ideTestAI              = ideTestAI;
 window.ideShowQueues          = ideShowQueues;
 window.ideShowAuditLog        = ideShowAuditLog;
 
-// ── Admin Panel Preview ────────────────────────────────────────────────────
 async function ideShowAdminPanel() {
     const pid = ideGetCurrentProjectId();
     if (!pid) return;
@@ -551,7 +537,6 @@ async function ideShowAdminPanel() {
     _ideShowModal('Admin Panel', html);
 }
 
-// ── Middleware Info ─────────────────────────────────────────────────────────
 function ideShowMiddlewareInfo() {
     _ideShowModal('Middleware', `
         <p style="color:#aaa">Define middleware in your .grav script:</p>
@@ -570,7 +555,6 @@ use middleware logging</pre>
 window.ideShowAdminPanel    = ideShowAdminPanel;
 window.ideShowMiddlewareInfo = ideShowMiddlewareInfo;
 
-// ── Analytics Dashboard ────────────────────────────────────────────────────
 async function ideShowAnalyticsDashboard() {
     const pid = ideGetCurrentProjectId();
     if (!pid) return;
@@ -592,7 +576,6 @@ async function ideShowAnalyticsDashboard() {
     _ideShowModal('Analytics', html);
 }
 
-// ── Package Manager ────────────────────────────────────────────────────────
 async function ideShowPackages() {
     const res = await fetch('/api/ide/packages', {
         headers: {'X-Session-Token': localStorage.getItem('session_token') || ''}
@@ -632,7 +615,6 @@ async function ideInstallPackage(name) {
     }
 }
 
-// ── Circuit Breakers ───────────────────────────────────────────────────────
 async function ideShowBreakers() {
     const pid = ideGetCurrentProjectId();
     if (!pid) return;
@@ -662,7 +644,6 @@ window.ideShowPackages = ideShowPackages;
 window.ideInstallPackage = ideInstallPackage;
 window.ideShowBreakers = ideShowBreakers;
 
-// ── Form Preview ──────────────────────────────────────────────────────────
 function idePreviewForm(config) {
     let html = '<form onsubmit="return false" style="display:flex;flex-direction:column;gap:12px">';
     for (const f of (config.fields || [])) {
@@ -684,7 +665,6 @@ function idePreviewForm(config) {
     _ideShowModal('Form Preview', html);
 }
 
-// ── Permissions Panel ─────────────────────────────────────────────────────
 async function ideShowPermissions() {
     const pid = ideGetCurrentProjectId();
     if (!pid) return;

@@ -5,7 +5,6 @@ import type { StateAPI }  from '../reactive/types.js';
 import type { RenderCtx } from './types.js';
 import { resolveValue }   from './values.js';
 
-// ── Module-level drag state ──────────────────────────────────────────────────
 
 interface DragData {
   sourceKey:   string;
@@ -15,13 +14,11 @@ interface DragData {
 
 let _dragData: DragData | null = null;
 
-// ── Touch drag ghost element ─────────────────────────────────────────────────
 
 let _touchGhost: HTMLElement | null = null;
 let _touchDragActive = false;
 let _touchLongpressTimer: ReturnType<typeof setTimeout> | null = null;
 
-// ── Draggable modifier ───────────────────────────────────────────────────────
 
 /**
  * Makes an element draggable.
@@ -125,7 +122,6 @@ export function applyDraggable(
   }, { passive: true });
 }
 
-// ── Droppable modifier ───────────────────────────────────────────────────────
 
 /**
  * Makes an element a drop target.
@@ -203,7 +199,6 @@ export function applyDroppable(
   }) as EventListener);
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function _findContextListKey(ctx: RenderCtx): string {
   // Look for keys ending in 'Index' to find the list item context

@@ -5,7 +5,6 @@
 
 import { getRoomKey, encryptFile } from '../crypto.js';
 
-// ── Page Builder Modal ──────────────────────────────────────────────────────
 
 let _pageFiles = { html: null, css: null, js: null };
 
@@ -191,7 +190,6 @@ function _buildPage(html, css, js, title) {
         + '\n</body>\n</html>';
 }
 
-// ── Page Viewer (sandbox iframe) ────────────────────────────────────────────
 
 window.openPageViewer = async function(downloadUrl, fileName) {
     const overlay = document.getElementById('page-viewer-overlay');

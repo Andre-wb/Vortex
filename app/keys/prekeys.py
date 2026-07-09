@@ -32,7 +32,6 @@ _MAX_OPK_BATCH = 100
 _LOW_OPK_THRESHOLD = 10
 
 
-# ── Pydantic schemas ─────────────────────────────────────────────────────────
 
 class OneTimePreKeyUpload(BaseModel):
     """A single one-time Pre-Key for upload."""
@@ -100,7 +99,6 @@ class PreKeyStatusResponse(BaseModel):
     low_opk_warning: bool = False
 
 
-# ── Endpoints ──────────────────────────────────────────────────────────────
 
 @router.post("/publish", response_model=PreKeyStatusResponse)
 async def publish_prekeys(

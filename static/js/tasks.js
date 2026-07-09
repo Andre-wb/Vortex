@@ -1,8 +1,6 @@
 // static/js/tasks.js
-// =============================================================================
 // Collaborative task list for group chats.
 // Allows room members to create, toggle, update, and delete tasks.
-// =============================================================================
 
 import { api, openModal, closeModal } from './utils.js';
 

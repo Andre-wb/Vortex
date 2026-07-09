@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/translate", tags=["translate"])
 
-# ── Rate limiting (in-memory) ────────────────────────────────────────────────
 _RATE_LIMIT = 50
 _RATE_WINDOW = 3600  # 1 hour
 
@@ -39,7 +38,6 @@ def _check_rate_limit(user_id: int) -> None:
     _user_hits[user_id].append(now)
 
 
-# ── Schemas ──────────────────────────────────────────────────────────────────
 
 class TranslateRequest(BaseModel):
     text: str
@@ -52,7 +50,6 @@ class TranslateResponse(BaseModel):
     detectedLanguage: Optional[str] = None
 
 
-# ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("", response_model=TranslateResponse)
 async def translate_text(

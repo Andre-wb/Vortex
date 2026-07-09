@@ -21,7 +21,6 @@ const { randomStr, randomDigits, makePublicKey } = require('./helpers');
 
 test.describe('Browser UI', () => {
 
-    // ── Landing / Auth ────────────────────────────────────────────────────────
 
     test('landing page loads with auth screen', async ({ page }) => {
         await page.goto('/');
@@ -115,7 +114,6 @@ test.describe('Browser UI', () => {
         }
     });
 
-    // ── Full Registration + Login in Browser ──────────────────────────────────
 
     test('full browser registration and login flow', async ({ page }) => {
         const u = `br_e2e_${randomStr(6)}`;
@@ -154,7 +152,6 @@ test.describe('Browser UI', () => {
         }
     });
 
-    // ── Static Assets ─────────────────────────────────────────────────────────
 
     test('manifest.json loads', async ({ request }) => {
         const res = await request.get('/manifest.json');
@@ -196,7 +193,6 @@ test.describe('Browser UI', () => {
         }
     });
 
-    // ── Metrics ───────────────────────────────────────────────────────────────
 
     test('prometheus metrics endpoint', async ({ request }) => {
         const res = await request.get('/metrics');

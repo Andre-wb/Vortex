@@ -107,7 +107,6 @@ const _WIZ_LANGS = [
 let _wizLpSelected = null;
 let _wizTranslations = {};
 
-// ── Typewriter title rotation (same as registration) ──
 const _WIZ_TITLE_HINTS = _WIZ_LANGS.map(l => l.hint).filter(Boolean);
 let _wizTitleIdx = 0;
 let _wizTitleRunning = false;
@@ -159,7 +158,6 @@ function _wizStopTitleRotation() {
     _wizTitleRunning = false;
 }
 
-// ── Continue button text map ──
 const _WIZ_CONTINUE_MAP = {
     ru:"Продолжить",en:"Continue",uk:"Продовжити",es:"Continuar",fr:"Continuer",
     de:"Weiter",it:"Continua",pt:"Continuar",zh:"继续","zh-TW":"繼續",ja:"続ける",
@@ -172,7 +170,6 @@ const _WIZ_CONTINUE_MAP = {
     uz:"Davom",bn:"চালিয়ে যান",ms:"Teruskan",
 };
 
-// ── Subtitle text map ──
 const _WIZ_SUB_MAP = {
     ru:"Можно изменить позже в настройках",en:"You can change it later in settings",
     uk:"Можна змінити пізніше в налаштуваннях",es:"Puedes cambiarlo en ajustes",
@@ -183,7 +180,6 @@ const _WIZ_SUB_MAP = {
     ar:"يمكنك تغييرها في الإعدادات",hi:"सेटिंग्स में बदल सकते हैं",
 };
 
-// ── Render language list (safe DOM construction) ──
 function _wizLpRender(query) {
     var list = document.getElementById('wiz-lp-list');
     if (!list) return;
@@ -216,7 +212,6 @@ function _wizLpRender(query) {
     });
 }
 
-// ── Select language (with typewriter re-type) ──
 var _wizSelectVersion = 0;
 
 function _wizLpSelect(code) {
@@ -270,7 +265,6 @@ function _wizLpSelect(code) {
 
 window.wizLpFilter = function(q) { _wizLpRender(q); };
 
-// ── Confirm + load translations ──
 window.wizLpConfirm = async function() {
     if (!_wizLpSelected) return;
     _wizStopTitleRotation();
@@ -289,7 +283,6 @@ window.wizLpConfirm = async function() {
     _setStep(1);
 };
 
-// ── Simple i18n: translate all data-i18n elements ──
 function _applyWizTranslations() {
     document.querySelectorAll('[data-i18n]').forEach(function(el) {
         var key = el.dataset.i18n;
@@ -317,7 +310,6 @@ function _resolveKey(obj, keyPath) {
     return cur;
 }
 
-// ── Init: render list, auto-detect browser language, start typewriter ──
 window.addEventListener('DOMContentLoaded', function() {
     _wizLpRender();
     _wizStartTitleRotation();

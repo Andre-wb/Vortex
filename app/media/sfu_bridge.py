@@ -23,18 +23,14 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Configuration
-# ---------------------------------------------------------------------------
 
 SFU_MODE: str = os.getenv("SFU_MODE", "builtin")  # builtin | mediasoup | janus
 SFU_URL: str = os.getenv("SFU_URL", "")
 SFU_API_KEY: str = os.getenv("SFU_API_KEY", "")
 
 
-# ---------------------------------------------------------------------------
 # Data structures
-# ---------------------------------------------------------------------------
 
 @dataclass
 class SFUParticipantInfo:
@@ -50,9 +46,7 @@ class SFURoomInfo:
     created: bool = False
 
 
-# ---------------------------------------------------------------------------
 # Abstract SFU bridge
-# ---------------------------------------------------------------------------
 
 class SFUBridge(abc.ABC):
     """Abstract interface for SFU operations."""
@@ -94,9 +88,7 @@ class SFUBridge(abc.ABC):
         return False
 
 
-# ---------------------------------------------------------------------------
 # Builtin SFU (delegates to existing app/chats/sfu.py with aiortc)
-# ---------------------------------------------------------------------------
 
 class BuiltinSFU(SFUBridge):
     """
@@ -171,9 +163,7 @@ class BuiltinSFU(SFUBridge):
         return False
 
 
-# ---------------------------------------------------------------------------
 # Mediasoup bridge (HTTP API)
-# ---------------------------------------------------------------------------
 
 class MediasoupBridge(SFUBridge):
     """
@@ -289,9 +279,7 @@ class MediasoupBridge(SFUBridge):
             return False
 
 
-# ---------------------------------------------------------------------------
 # Janus bridge (HTTP API)
-# ---------------------------------------------------------------------------
 
 class JanusBridge(SFUBridge):
     """
@@ -480,9 +468,7 @@ class JanusBridge(SFUBridge):
             return []
 
 
-# ---------------------------------------------------------------------------
 # Factory
-# ---------------------------------------------------------------------------
 
 _cached_bridge: Optional[SFUBridge] = None
 

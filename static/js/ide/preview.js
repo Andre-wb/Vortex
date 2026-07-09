@@ -1,4 +1,3 @@
-// ── Architex Mini App Preview ─────────────────────────────────
 // Парсит .arx код и рендерит интерактивный UI в iframe-подобной панели
 
 let _previewDebounce = null;
@@ -9,7 +8,6 @@ let _previewHistory = [];    // навигация назад
 let _previewTheme = {};      // @theme цвета
 let _previewConsoleLog = []; // логи send() и т.д.
 
-// ── Публичные функции ────────────────────────────────────────
 
 function ideShowPreview() {
     const panel = document.getElementById('ide-preview');
@@ -52,7 +50,6 @@ function _previewRefreshFromEditor() {
     _previewRender(code);
 }
 
-// ── Парсер Architex ──────────────────────────────────────────
 
 function _previewParse(code) {
     const lines = code.split('\n');
@@ -239,7 +236,6 @@ function _parseValue(str) {
     return str;
 }
 
-// ── Рендер ───────────────────────────────────────────────────
 
 function _previewRender(code) {
     const parsed = _previewParse(code);
@@ -598,7 +594,6 @@ function _renderCondition(w) {
     return wrapper;
 }
 
-// ── Модификаторы ─> CSS ──────────────────────────────────────
 
 function _applyMods(el, mods) {
     if (mods.pad || mods.padding) el.style.padding = (mods.pad || mods.padding) + 'px';
@@ -670,7 +665,6 @@ function _ensurePreviewAnimations() {
     document.head.appendChild(style);
 }
 
-// ── Резолв контента и реактивных переменных ──────────────────
 
 function _resolveContent(w) {
     if (w.reactive) {
@@ -715,7 +709,6 @@ function _evalCondition(cond) {
     return false;
 }
 
-// ── Обработчики действий ─────────────────────────────────────
 
 function _execHandler(handler) {
     if (!handler) return;
@@ -806,7 +799,6 @@ function _previewToast(msg) {
     setTimeout(() => toast.remove(), 2500);
 }
 
-// ── Math SVG Icons (built via DOM API, no innerHTML) ────────
 
 function _buildMathSVG(name, size, color) {
     const ns = 'http://www.w3.org/2000/svg';

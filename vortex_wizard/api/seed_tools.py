@@ -41,9 +41,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/seed", tags=["seed"])
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. Shamir Secret Sharing over GF(256)
-# ══════════════════════════════════════════════════════════════════════════
 #
 # Classic SSS on polynomials over GF(256). Each share is
 #     bytes: [version (1B)] [k (1B)] [idx (1B)] [y-values (N-1 B)]
@@ -204,9 +202,7 @@ async def shamir_combine_endpoint(body: ShamirCombineBody) -> dict:
     return {"mnemonic": mnemonic}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. Duress seed
-# ══════════════════════════════════════════════════════════════════════════
 
 def _duress_hash(phrase: str) -> str:
     norm = " ".join(phrase.strip().lower().split())
@@ -273,9 +269,7 @@ async def duress_delete(request: Request) -> dict:
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. Contacts CSV staging
-# ══════════════════════════════════════════════════════════════════════════
 
 def _pending_contacts_path(env_file: Path) -> Path:
     return env_file.parent / "pending_contacts.csv"
@@ -326,9 +320,7 @@ async def contacts_pending_delete(request: Request) -> dict:
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. Pre-flight check
-# ══════════════════════════════════════════════════════════════════════════
 
 class PreflightBody(BaseModel):
     controller_url:   Optional[str] = None
@@ -398,9 +390,7 @@ async def preflight(body: PreflightBody, request: Request) -> dict:
     return {"all_ok": all_ok, "checks": checks}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 5. Backup-on-controller discovery (setup first-screen)
-# ══════════════════════════════════════════════════════════════════════════
 
 class BackupDiscoverBody(BaseModel):
     controller_url: str = Field(..., min_length=8, max_length=2048)

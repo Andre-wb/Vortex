@@ -12,7 +12,6 @@
  *   - Adaptive: mobile bottom sheet / desktop popup
  */
 
-// ── Emoji Database ──────────────────────────────────────────────────────────
 // Compact format: [emoji, name, keywords]
 
 const CATEGORIES = [
@@ -686,7 +685,6 @@ const SKIN_TONE_BASE = new Set([
     '👴','👵',
 ]);
 
-// ── State ───────────────────────────────────────────────────────────────────
 
 let _isOpen = false;
 let _currentCategory = 'recent';
@@ -731,7 +729,6 @@ function _applySkin(emoji) {
     return base + _skinTone;
 }
 
-// ── Build Picker DOM ────────────────────────────────────────────────────────
 
 function _buildPicker() {
     const el = document.createElement('div');
@@ -819,7 +816,6 @@ function _buildPicker() {
     return el;
 }
 
-// ── Render Emojis ───────────────────────────────────────────────────────────
 
 function _renderEmojis() {
     const body = _pickerEl?.querySelector('#ecp-body');
@@ -854,7 +850,6 @@ function _renderEmojis() {
     body.appendChild(grid);
 }
 
-// ── Sticker Tab ─────────────────────────────────────────────────────────────
 
 async function _renderStickerTab(body) {
     if (_stickerLoading) {
@@ -990,7 +985,6 @@ function _createGrid(entries) {
     return grid;
 }
 
-// ── Insert Emoji ────────────────────────────────────────────────────────────
 
 function _insertEmoji(emoji) {
     const input = document.getElementById('msg-input');
@@ -1011,7 +1005,6 @@ function _insertEmoji(emoji) {
     input.focus();
 }
 
-// ── Category Selection ──────────────────────────────────────────────────────
 
 function _selectCategory(catId) {
     _currentCategory = catId;
@@ -1028,7 +1021,6 @@ function _selectCategory(catId) {
     if (body) body.scrollTop = 0;
 }
 
-// ── Open / Close ────────────────────────────────────────────────────────────
 
 export function openPicker() {
     if (_isOpen) { closePicker(); return; }

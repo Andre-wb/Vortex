@@ -18,9 +18,7 @@ import pytest
 from conftest import make_user, login_user, random_str, random_digits
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 1. crypto.py
-# ═══════════════════════════════════════════════════════════════════════════════
 
 from app.security.crypto import (
     generate_key,
@@ -259,9 +257,7 @@ class TestGetNodePublicKeyHex:
             bytes.fromhex(hex_key)  # must be valid hex
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 2. key_exchange.py
-# ═══════════════════════════════════════════════════════════════════════════════
 
 from app.security.key_exchange import (
     ecies_encrypt,
@@ -380,9 +376,7 @@ class TestValidateEciesPayload:
         assert validate_ecies_payload({"ephemeral_pub": "zz" * 32, "ciphertext": "cc" * 30}) is False
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 3. auth_jwt.py
-# ═══════════════════════════════════════════════════════════════════════════════
 
 from app.security.auth_jwt import (
     create_access_token,
@@ -485,9 +479,7 @@ class TestVerifyRefreshToken:
             db.close()
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 4. security_validate.py
-# ═══════════════════════════════════════════════════════════════════════════════
 
 from app.security.security_validate import (
     validate_password,
@@ -611,9 +603,7 @@ class TestGenerateSecurePassword:
         assert len(pw) <= 64  # clamped to max 64
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 5. secure_upload.py
-# ═══════════════════════════════════════════════════════════════════════════════
 
 from app.security.secure_upload import (
     FileAnomalyDetector,
@@ -760,9 +750,7 @@ class TestCalculateFileHash:
         assert calculate_file_hash(b"aaa") != calculate_file_hash(b"bbb")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 6. middleware.py (via HTTP)
-# ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestSecurityHeadersMiddleware:
@@ -876,9 +864,7 @@ class TestCorrelationID:
         assert r.headers.get("X-Request-ID") == custom_id
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 7. waf.py (via HTTP)
-# ═══════════════════════════════════════════════════════════════════════════════
 
 from app.security.waf import WAFRule, WAFEngine
 
@@ -953,9 +939,7 @@ class TestWAFRulesEndpoint:
         assert len(data["rules"]) == data["total"]
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 8. logging_config.py
-# ═══════════════════════════════════════════════════════════════════════════════
 
 from app.logging_config import JSONFormatter, ConsoleFormatter, new_correlation_id
 

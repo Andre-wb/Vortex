@@ -11,7 +11,6 @@ use super::{Interpreter, Env};
 use super::exec::ExecErr;
 
 impl Interpreter {
-    // ── evaluate an expression ────────────────────────────────────────────────
 
     pub async fn eval_expr(
         &self,
@@ -720,7 +719,6 @@ impl Interpreter {
         }
     }
 
-    // ── evaluate interpolation hole by re-parsing ─────────────────────────────
 
     pub(crate) async fn eval_hole(&self, src: &str, env: &mut Env, ctx: Option<Rc<RefCell<BotCtx>>>) -> GravResult<Value> {
         use crate::lexer::Lexer;
@@ -731,7 +729,6 @@ impl Interpreter {
         Box::pin(self.eval_expr(&prog, env, ctx)).await
     }
 
-    // ── function call ─────────────────────────────────────────────────────────
 
     pub(crate) async fn call_fn(
         &self,
@@ -896,7 +893,6 @@ impl Interpreter {
         Err(last_err.unwrap_or_else(|| runtime_err!("retry exhausted")))
     }
 
-    // ── method call on a value ────────────────────────────────────────────────
 
     pub(crate) fn call_method(&self, obj: Value, method: &str, args: Vec<Value>) -> GravResult<Value> {
         match &obj {
@@ -1127,7 +1123,6 @@ impl Interpreter {
         }
     }
 
-    // ── Feature 4: list chain method helpers ─────────────────────────────────
 
     fn call_lambda_sync(&self, fn_val: &Value, args: Vec<Value>) -> GravResult<Value> {
         if let Value::Fn(fd) = fn_val {
@@ -1264,7 +1259,6 @@ impl Interpreter {
         Ok(Value::Null)
     }
 
-    // ── Feature 11: db query builder ─────────────────────────────────────────
 
     fn db_query_chain(&self, obj: Value, method: &str, args: Vec<Value>) -> GravResult<Value> {
         if let Value::Map(m) = &obj {

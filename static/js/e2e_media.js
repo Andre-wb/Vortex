@@ -1,5 +1,4 @@
 // static/js/e2e_media.js
-// ============================================================================
 // E2E Media Frame Encryption — AES-256-GCM поверх WebRTC DTLS-SRTP.
 //
 // Два пути в зависимости от браузера:
@@ -10,12 +9,10 @@
 //
 // Формат зашифрованного фрейма:
 //   [AES-GCM(payload)] [iv (12 bytes)] [0x0C]
-// ============================================================================
 
 const NONCE_LEN = 12;
 const TRAILER   = NONCE_LEN + 1;
 
-// ─── Feature detection ─────────────────────────────────────────────────────
 
 function _supportsScriptTransform() {
     return typeof RTCRtpScriptTransform !== 'undefined';
@@ -43,7 +40,6 @@ export function needsEncodedInsertableStreams() {
     return !_supportsScriptTransform() && _supportsEncodedStreams();
 }
 
-// ─── Worker (lazy singleton) ────────────────────────────────────────────────
 
 let _e2eWorker = null;
 
@@ -54,7 +50,6 @@ function _getWorker() {
     return _e2eWorker;
 }
 
-// ─── Key derivation ─────────────────────────────────────────────────────────
 
 /**
  * Создаёт AES-256-GCM ключ для медиа-шифрования из ключа комнаты и callId.
@@ -87,7 +82,6 @@ export async function deriveMediaKey(roomKeyBytes, callId) {
     return { key, raw };
 }
 
-// ─── Main-thread frame encrypt/decrypt (createEncodedStreams fallback) ──────
 
 async function encryptFrame(key, frame, controller) {
     const iv   = crypto.getRandomValues(new Uint8Array(NONCE_LEN));
@@ -138,7 +132,6 @@ async function decryptFrame(key, frame, controller) {
     controller.enqueue(frame);
 }
 
-// ─── Transform setup ────────────────────────────────────────────────────────
 
 /**
  * Устанавливает шифрующий transform на RTCRtpSender.

@@ -19,7 +19,6 @@ from app.security.security_validate import calculate_password_strength
 from app.authentication._helpers import router
 
 
-# ── /me ───────────────────────────────────────────────────────────────────
 
 @router.get("/me")
 async def me(current_user: User = Depends(get_current_user)):
@@ -48,7 +47,6 @@ async def me(current_user: User = Depends(get_current_user)):
     }
 
 
-# ── Profile update ────────────────────────────────────────────────────────
 
 class UpdateProfileBody(BaseModel):
     display_name: str | None = None
@@ -126,7 +124,6 @@ async def update_profile(body: UpdateProfileBody, u: User = Depends(get_current_
     }
 
 
-# ── Rich status ───────────────────────────────────────────────────────────
 
 @router.put("/status")
 async def update_rich_status(body: UpdateRichStatusRequest,
@@ -147,7 +144,6 @@ async def update_rich_status(body: UpdateRichStatusRequest,
     }
 
 
-# ── Avatar upload ─────────────────────────────────────────────────────────
 
 @router.post("/avatar")
 async def upload_avatar(file: UploadFile = File(...), u: User = Depends(get_current_user),
@@ -185,7 +181,6 @@ async def upload_avatar(file: UploadFile = File(...), u: User = Depends(get_curr
     return {"ok": True, "avatar_url": u.avatar_url}
 
 
-# ── Utility endpoints ─────────────────────────────────────────────────────
 
 @router.post("/password-strength")
 async def password_strength(body: PasswordStrengthRequest):

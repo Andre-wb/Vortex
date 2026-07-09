@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/admin/sec", tags=["security"])
 
 
-# ── Shared helpers ────────────────────────────────────────────────────────
 
 def _env_file(request: Request) -> Path:
     p = getattr(request.app.state, "env_file", None)
@@ -95,9 +94,7 @@ def _save_sec_state(env_file: Path, state: dict) -> None:
         logger.debug("sec state save: %s", e)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. TOTP — 2FA for the admin UI
-# ══════════════════════════════════════════════════════════════════════════
 
 _TOTP_COOKIE = "vx_wiz_2fa"
 _TOTP_DIGITS = 6
@@ -284,9 +281,7 @@ async def totp_disable(body: TOTPVerifyBody, request: Request, response: Respons
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. Panic button — wipe keys + stop
-# ══════════════════════════════════════════════════════════════════════════
 
 class PanicBody(BaseModel):
     confirm: str = Field(..., description='Must equal "WIPE AND STOP"')
@@ -339,9 +334,7 @@ async def panic(body: PanicBody, request: Request) -> dict:
     return {"ok": True, "removed": removed}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. JWT rotation scheduler job (registered externally)
-# ══════════════════════════════════════════════════════════════════════════
 
 async def job_jwt_rotate(env_file: Path) -> dict:
     """Rotate the node's JWT_SECRET. The node reads this at every boot;
@@ -360,9 +353,7 @@ async def job_jwt_rotate(env_file: Path) -> dict:
     return {"message": f"JWT_SECRET rotated (previous prefix {prev[:8]}…)"}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. Keys-at-rest passphrase
-# ══════════════════════════════════════════════════════════════════════════
 
 # In-memory cache of the unlocked signing key bytes. This module is the
 # only consumer; ed25519_signing.bin stays encrypted on disk as long as
@@ -511,9 +502,7 @@ def get_unlocked_signing_key_bytes(env_file: Path) -> bytes:
     return data
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 5. CSP / HSTS editor
-# ══════════════════════════════════════════════════════════════════════════
 
 _CSP_PROFILES = {
     "strict": (

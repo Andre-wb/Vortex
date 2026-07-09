@@ -21,9 +21,7 @@ use std::io::{self, BufRead, Write};
 use std::collections::HashMap;
 use serde_json::{json, Value as JVal};
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Entry point
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn run_lsp() {
     let stdin  = io::stdin();
@@ -64,7 +62,6 @@ pub fn run_lsp() {
         let params = msg.get("params").cloned().unwrap_or(JVal::Null);
 
         match method {
-            // ── Lifecycle ─────────────────────────────────────────────────
             "initialize" => {
                 let response = make_response(id, declare_capabilities());
                 send(&mut out, &response);
@@ -78,7 +75,6 @@ pub fn run_lsp() {
 
             "exit" => break,
 
-            // ── Document sync ─────────────────────────────────────────────
             "textDocument/didOpen" => {
                 if let (Some(uri), Some(text)) = (
                     params["textDocument"]["uri"].as_str(),
@@ -112,14 +108,12 @@ pub fn run_lsp() {
                 }
             }
 
-            // ── Completion ────────────────────────────────────────────────
             "textDocument/completion" => {
                 let items = completion_items();
                 let response = make_response(id, json!({ "isIncomplete": false, "items": items }));
                 send(&mut out, &response);
             }
 
-            // ── Hover ─────────────────────────────────────────────────────
             "textDocument/hover" => {
                 let text = doc_text(&docs, &params);
                 let line = params["position"]["line"].as_u64().unwrap_or(0) as usize;
@@ -135,7 +129,6 @@ pub fn run_lsp() {
                 send(&mut out, &response);
             }
 
-            // ── Signature help ────────────────────────────────────────────
             "textDocument/signatureHelp" => {
                 let text = doc_text(&docs, &params);
                 let line = params["position"]["line"].as_u64().unwrap_or(0) as usize;
@@ -147,7 +140,6 @@ pub fn run_lsp() {
                 send(&mut out, &response);
             }
 
-            // ── Go to definition ──────────────────────────────────────────
             "textDocument/definition" => {
                 let uri  = params["textDocument"]["uri"].as_str().unwrap_or("").to_string();
                 let text = docs.get(&uri).cloned().unwrap_or_default();
@@ -161,14 +153,12 @@ pub fn run_lsp() {
                 send(&mut out, &response);
             }
 
-            // ── Document symbols ──────────────────────────────────────────
             "textDocument/documentSymbol" => {
                 let text = doc_text(&docs, &params);
                 let symbols = document_symbols(&text);
                 send(&mut out, &make_response(id, json!(symbols)));
             }
 
-            // ── Formatting ────────────────────────────────────────────────
             "textDocument/formatting" => {
                 let uri  = params["textDocument"]["uri"].as_str().unwrap_or("").to_string();
                 let text = docs.get(&uri).cloned().unwrap_or_default();
@@ -179,28 +169,24 @@ pub fn run_lsp() {
                 send(&mut out, &response);
             }
 
-            // ── Code lens ─────────────────────────────────────────────────
             "textDocument/codeLens" => {
                 let text = doc_text(&docs, &params);
                 let lenses = code_lenses(&text);
                 send(&mut out, &make_response(id, json!(lenses)));
             }
 
-            // ── Inlay hints ───────────────────────────────────────────────
             "textDocument/inlayHint" => {
                 let text = doc_text(&docs, &params);
                 let hints = inlay_hints(&text);
                 send(&mut out, &make_response(id, json!(hints)));
             }
 
-            // ── Semantic tokens ───────────────────────────────────────────
             "textDocument/semanticTokens/full" => {
                 let text = doc_text(&docs, &params);
                 let data = semantic_tokens(&text);
                 send(&mut out, &make_response(id, json!({ "data": data })));
             }
 
-            // ── Workspace symbols ─────────────────────────────────────────
             "workspace/symbol" => {
                 let query = params["query"].as_str().unwrap_or("").to_string();
                 // Search across all open documents
@@ -232,9 +218,7 @@ pub fn run_lsp() {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Capabilities declaration
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn declare_capabilities() -> JVal {
     json!({
@@ -272,9 +256,7 @@ fn declare_capabilities() -> JVal {
     })
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Diagnostics (syntax checking)
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn compute_diagnostics(src: &str) -> Vec<JVal> {
     use crate::lexer::Lexer;
@@ -315,15 +297,12 @@ fn publish_diagnostics(out: &mut impl Write, uri: &str, diags: Vec<JVal>) {
     send(out, &notif);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Completions
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn completion_items() -> Vec<JVal> {
     // insertTextFormat 1 = plain, 2 = snippet
     let mut items: Vec<JVal> = Vec::new();
 
-    // ── Keyword snippets ─────────────────────────────────────────────────────
     let keyword_snippets: &[(&str, &str, &str)] = &[
         ("fn",       "fn ${1:name}(${2:params}) {\n\t$0\n}",                          "keyword"),
         ("on",       "on /${1:cmd} {\n\t$0\n}",                                        "keyword"),
@@ -368,7 +347,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Constants ────────────────────────────────────────────────────────────
     let constants: &[(&str, &str)] = &[
         ("pi",           "3.14159265358979…"),
         ("e",            "2.71828182845904…"),
@@ -387,7 +365,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Core builtins ────────────────────────────────────────────────────────
     let builtins: &[(&str, &str, &str)] = &[
         ("len",         "len(v)",                              "builtin"),
         ("type_of",     "type_of(v) -> str",                  "builtin"),
@@ -424,7 +401,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Math functions ───────────────────────────────────────────────────────
     let math: &[(&str, &str)] = &[
         ("sin",     "sin(x: float) -> float"),
         ("cos",     "cos(x: float) -> float"),
@@ -466,7 +442,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Complex functions ────────────────────────────────────────────────────
     let complex: &[(&str, &str)] = &[
         ("complex", "complex(re, im: float) -> complex"),
         ("re",      "re(z: complex) -> float"),
@@ -493,7 +468,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Special functions ────────────────────────────────────────────────────
     let special: &[(&str, &str)] = &[
         ("gamma",      "gamma(x: float) -> float"),
         ("lgamma",     "lgamma(x: float) -> float"),
@@ -517,7 +491,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Linear algebra ───────────────────────────────────────────────────────
     let linalg: &[(&str, &str)] = &[
         ("dot",          "dot(a, b: list) -> float"),
         ("cross",        "cross(a, b: list) -> list"),
@@ -541,7 +514,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Number theory ────────────────────────────────────────────────────────
     let numth: &[(&str, &str)] = &[
         ("gcd",       "gcd(a, b: int) -> int"),
         ("lcm",       "lcm(a, b: int) -> int"),
@@ -562,7 +534,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Statistics ───────────────────────────────────────────────────────────
     let stats: &[(&str, &str)] = &[
         ("sum",         "sum(list) -> float"),
         ("avg",         "avg(list) -> float"),
@@ -585,7 +556,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Transforms ───────────────────────────────────────────────────────────
     let transforms: &[(&str, &str)] = &[
         ("fft",       "fft(list) -> list"),
         ("ifft",      "ifft(list) -> list"),
@@ -601,7 +571,6 @@ fn completion_items() -> Vec<JVal> {
         }));
     }
 
-    // ── Calculus ─────────────────────────────────────────────────────────────
     let calculus: &[(&str, &str)] = &[
         ("deriv",            "deriv(f, x: float) -> float"),
         ("integral_trapz",   "integral_trapz(f, a, b: float, n?: int) -> float"),
@@ -623,9 +592,7 @@ fn completion_items() -> Vec<JVal> {
     items
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Hover docs
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn hover_for(word: &str) -> Option<String> {
     HOVER_MAP.iter()
@@ -634,7 +601,6 @@ fn hover_for(word: &str) -> Option<String> {
 }
 
 static HOVER_MAP: &[(&str, &str)] = &[
-    // ── Language keywords ────────────────────────────────────────────────────
     ("fn", "\
 ## `fn` — Function definition
 
@@ -869,7 +835,6 @@ fn abs(x: float) -> float {
     ("false",    "## `false`\n\nBoolean literal `false`."),
     ("null",     "## `null`\n\nThe null / absent value."),
 
-    // ── Constants ─────────────────────────────────────────────────────────────
     ("pi",          "## `pi` — Constant\n\n```\npi ≈ 3.14159265358979323846\n```\nRatio of a circle's circumference to its diameter."),
     ("e",           "## `e` — Constant\n\n```\ne ≈ 2.71828182845904523536\n```\nEuler's number — base of the natural logarithm."),
     ("tau",         "## `tau` — Constant\n\n```\ntau = 2π ≈ 6.28318530717958647692\n```\nFull turn in radians."),
@@ -877,7 +842,6 @@ fn abs(x: float) -> float {
     ("phi",         "## `phi` — Constant\n\n```\nφ ≈ 1.61803398874989484820\n```\nThe golden ratio."),
     ("euler_gamma", "## `euler_gamma` — Constant\n\n```\nγ ≈ 0.57721566490153286060\n```\nThe Euler–Mascheroni constant."),
 
-    // ── Core builtins ─────────────────────────────────────────────────────────
     ("len", "\
 ## `len(v)` — Length
 
@@ -988,7 +952,6 @@ Fails if `a == b`."),
     ("format_date", "## `format_date(ts, fmt?)`\n\n**Signature:** `format_date(ts: int, fmt?: str) -> str`\n\nFormats a Unix timestamp. Default format: `\"%Y-%m-%d %H:%M:%S\"`."),
     ("sleep_ms",    "## `sleep_ms(ms)`\n\n**Signature:** `sleep_ms(ms: int)`\n\nSleeps for `ms` milliseconds. Avoid in handlers; prefer `every`."),
 
-    // ── Math ──────────────────────────────────────────────────────────────────
     ("sin",  "## `sin(x)` — Sine\n\n**Signature:** `sin(x: float) -> float`\n\nReturns the sine of `x` (radians).\n\n```gravitix\nsin(pi / 2)  // 1.0\n```"),
     ("cos",  "## `cos(x)` — Cosine\n\n**Signature:** `cos(x: float) -> float`\n\nReturns the cosine of `x` (radians)."),
     ("tan",  "## `tan(x)` — Tangent\n\n**Signature:** `tan(x: float) -> float`\n\nReturns the tangent of `x` (radians). Undefined at `π/2 + nπ`."),
@@ -1019,7 +982,6 @@ Fails if `a == b`."),
     ("degrees","## `degrees(x)` — Radians → degrees\n\n**Signature:** `degrees(x: float) -> float`"),
     ("radians","## `radians(x)` — Degrees → radians\n\n**Signature:** `radians(x: float) -> float`"),
 
-    // ── Complex ───────────────────────────────────────────────────────────────
     ("complex","## `complex(re, im)` — Create complex number\n\n**Signature:** `complex(re: float, im: float) -> complex`\n\n```gravitix\nlet z = complex(1.0, 2.0)  // 1 + 2i\n```"),
     ("re",     "## `re(z)` — Real part\n\n**Signature:** `re(z: complex) -> float`"),
     ("im",     "## `im(z)` — Imaginary part\n\n**Signature:** `im(z: complex) -> float`"),
@@ -1035,7 +997,6 @@ Fails if `a == b`."),
     ("cpow",   "## `cpow(z, w)` — Complex power\n\n**Signature:** `cpow(z: complex, w: complex) -> complex`"),
     ("csqrt",  "## `csqrt(z)` — Complex square root\n\n**Signature:** `csqrt(z: complex) -> complex`\n\nPrincipal branch: non-negative real part."),
 
-    // ── Special functions ─────────────────────────────────────────────────────
     ("gamma",     "## `gamma(x)` — Gamma function\n\n**Signature:** `gamma(x: float) -> float`\n\nGeneralises factorial: `gamma(n+1) = n!` for positive integers."),
     ("lgamma",    "## `lgamma(x)` — Log-gamma\n\n**Signature:** `lgamma(x: float) -> float`\n\nNatural log of `|gamma(x)|`. More numerically stable for large `x`."),
     ("beta",      "## `beta(a, b)` — Beta function\n\n**Signature:** `beta(a: float, b: float) -> float`\n\n`beta(a,b) = gamma(a)*gamma(b) / gamma(a+b)`"),
@@ -1048,7 +1009,6 @@ Fails if `a == b`."),
     ("hermite",   "## `hermite(n, x)` — Hermite polynomial\n\n**Signature:** `hermite(n: int, x: float) -> float`\n\nPhysicists' `H_n(x)`."),
     ("chebyshev", "## `chebyshev(n, x)` — Chebyshev polynomial\n\n**Signature:** `chebyshev(n: int, x: float) -> float`\n\n`T_n(x)` (first kind), optimal for polynomial approximation."),
 
-    // ── Linear algebra ────────────────────────────────────────────────────────
     ("dot",         "## `dot(a, b)` — Dot product\n\n**Signature:** `dot(a: list, b: list) -> float`\n\nReturns the scalar dot product of two equal-length vectors."),
     ("cross",       "## `cross(a, b)` — Cross product\n\n**Signature:** `cross(a: list, b: list) -> list`\n\n3-D cross product. Both inputs must have length 3."),
     ("norm",        "## `norm(v)` — Euclidean norm\n\n**Signature:** `norm(v: list) -> float`\n\nReturns `sqrt(sum of squares)`."),
@@ -1061,7 +1021,6 @@ Fails if `a == b`."),
     ("solve",       "## `solve(A, b)` — Linear system\n\n**Signature:** `solve(A: list, b: list) -> list`\n\nSolves `A·x = b`. Returns `x`."),
     ("eigenvalues", "## `eigenvalues(m)` — Eigenvalues\n\n**Signature:** `eigenvalues(m: list) -> list`\n\nReturns a list of eigenvalues of square matrix `m`."),
 
-    // ── Number theory ─────────────────────────────────────────────────────────
     ("gcd",       "## `gcd(a, b)` — Greatest common divisor\n\n**Signature:** `gcd(a: int, b: int) -> int`"),
     ("lcm",       "## `lcm(a, b)` — Least common multiple\n\n**Signature:** `lcm(a: int, b: int) -> int`"),
     ("factorial", "## `factorial(n)` — Factorial\n\n**Signature:** `factorial(n: int) -> int`\n\n`n!` for `n ≥ 0`."),
@@ -1071,7 +1030,6 @@ Fails if `a == b`."),
     ("binomial",  "## `binomial(n, k)` — Binomial coefficient\n\n**Signature:** `binomial(n: int, k: int) -> int`\n\nReturns `C(n,k) = n! / (k! * (n-k)!)`."),
     ("euler_phi", "## `euler_phi(n)` — Euler's totient\n\n**Signature:** `euler_phi(n: int) -> int`\n\nCounts integers in `[1, n]` coprime to `n`."),
 
-    // ── Statistics ────────────────────────────────────────────────────────────
     ("sum",        "## `sum(list)` — Sum\n\n**Signature:** `sum(list: list) -> float`\n\nReturns the sum of all elements."),
     ("avg",        "## `avg(list)` — Arithmetic mean\n\n**Signature:** `avg(list: list) -> float`"),
     ("median",     "## `median(list)` — Median\n\n**Signature:** `median(list: list) -> float`\n\nMiddle value after sorting."),
@@ -1083,12 +1041,10 @@ Fails if `a == b`."),
     ("normal_cdf", "## `normal_cdf(x, mu, sigma)` — Normal CDF\n\n**Signature:** `normal_cdf(x: float, mu: float, sigma: float) -> float`\n\nProbability P(X ≤ x) for a normal distribution."),
     ("linreg",     "## `linreg(xs, ys)` — Linear regression\n\n**Signature:** `linreg(xs: list, ys: list) -> [slope, intercept]`\n\nOrdinary least squares fit of `y = slope*x + intercept`."),
 
-    // ── Transforms ────────────────────────────────────────────────────────────
     ("fft",      "## `fft(list)` — Fast Fourier Transform\n\n**Signature:** `fft(list: list) -> list`\n\nReturns a list of complex numbers (DFT output)."),
     ("ifft",     "## `ifft(list)` — Inverse FFT\n\n**Signature:** `ifft(list: list) -> list`\n\nReturns a list of complex numbers (IDFT output)."),
     ("convolve", "## `convolve(a, b)` — Discrete convolution\n\n**Signature:** `convolve(a: list, b: list) -> list`\n\nLinear convolution of two sequences."),
 
-    // ── Calculus ──────────────────────────────────────────────────────────────
     ("deriv",            "## `deriv(f, x)` — Numerical derivative\n\n**Signature:** `deriv(f: fn, x: float) -> float`\n\nCentral-difference approximation of `f'(x)`."),
     ("integral_trapz",   "## `integral_trapz(f, a, b, n?)` — Trapezoidal integration\n\n**Signature:** `integral_trapz(f: fn, a: float, b: float, n?: int) -> float`\n\nApproximates `∫_a^b f(x) dx` using the trapezoidal rule."),
     ("integral_simpson", "## `integral_simpson(f, a, b, n?)` — Simpson integration\n\n**Signature:** `integral_simpson(f: fn, a: float, b: float, n?: int) -> float`\n\nApproximates `∫_a^b f(x) dx` using Simpson's 1/3 rule."),
@@ -1097,9 +1053,7 @@ Fails if `a == b`."),
     ("taylor_eval",      "## `taylor_eval(coeffs, x)` — Taylor polynomial evaluation\n\n**Signature:** `taylor_eval(coeffs: list, x: float) -> float`\n\n`coeffs[i]` is the coefficient for `x^i`. Uses Horner's method."),
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Signature help
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn signature_help(src: &str, line: usize, col: usize) -> Option<JVal> {
     let lines: Vec<&str> = src.lines().collect();
@@ -1213,9 +1167,7 @@ static SIGNATURE_DB: &[(&str, &[(&str, &str, &[(&str, &str)])])] = &[
     ("assert_ne",&[("assert_ne(a: any, b: any, msg?: str)", "Fails if a == b.", &[("a", "First value"), ("b", "Second value"), ("msg", "Optional failure message")])]),
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Go to definition
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn find_definition(src: &str, uri: &str, name: &str) -> Option<JVal> {
     if name.is_empty() { return None; }
@@ -1247,9 +1199,7 @@ fn find_definition(src: &str, uri: &str, name: &str) -> Option<JVal> {
     None
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Document symbols
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn document_symbols(src: &str) -> Vec<JVal> {
     document_symbols_with_uri(src, "")
@@ -1343,9 +1293,7 @@ fn extract_quoted(s: &str) -> Option<String> {
     Some(s[start..end].to_string())
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Document formatting
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn format_document(src: &str) -> Option<JVal> {
     use crate::lexer::Lexer;
@@ -1368,9 +1316,7 @@ fn format_document(src: &str) -> Option<JVal> {
     }))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Code lens
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn code_lenses(src: &str) -> Vec<JVal> {
     let mut lenses: Vec<JVal> = Vec::new();
@@ -1418,9 +1364,7 @@ fn code_lenses(src: &str) -> Vec<JVal> {
     lenses
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Inlay hints
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn inlay_hints(src: &str) -> Vec<JVal> {
     let mut hints: Vec<JVal> = Vec::new();
@@ -1466,9 +1410,7 @@ fn inlay_hints(src: &str) -> Vec<JVal> {
     hints
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Semantic tokens
-// ─────────────────────────────────────────────────────────────────────────────
 //
 // Token type indices (must match legend in declare_capabilities):
 //   0 = keyword, 1 = number, 2 = string, 3 = function, 4 = variable, 5 = operator, 6 = comment
@@ -1579,9 +1521,7 @@ fn semantic_tokens(src: &str) -> Vec<u32> {
     result
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Utilities
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Extract the text of the document from params["textDocument"]["uri"] via the docs map.
 fn doc_text(docs: &HashMap<String, String>, params: &JVal) -> String {

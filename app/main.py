@@ -67,11 +67,9 @@ from app.security.middleware import (
 from app.transport.stealth import StealthMiddleware, is_stealth
 from app.security.waf import WAFMiddleware, init_waf_engine, waf_router
 
-# ── Structured Logging Setup ─────────────────────────────────────────────────
 setup_logging()
 logger = logging.getLogger(__name__)
 
-# ── Sentry Error Tracking ───────────────────────────────────────────────────
 _SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 if _SENTRY_DSN:
     try:
@@ -97,7 +95,6 @@ if _SENTRY_DSN:
     except Exception as e:
         logger.warning("Sentry initialization failed: %s", e)
 
-# ── Prometheus Metrics ────────────────────────────────────────────────────────
 try:
     from prometheus_client import (
         Counter,
@@ -134,7 +131,6 @@ try:
 except ImportError:
     _PROMETHEUS_AVAILABLE = False
 
-# ── Background task references (for graceful shutdown) ────────────────────────
 _background_tasks: list[asyncio.Task] = []
 _startup_time: float = 0.0
 
@@ -146,7 +142,6 @@ def _create_background_task(coro, name: str) -> asyncio.Task:
     return task
 
 
-# ── Lifespan ─────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -173,7 +168,6 @@ async def lifespan(app: FastAPI):
     _, pub = load_or_create_node_keypair(Config.KEYS_DIR)
     logger.info("X25519 node pubkey: %s...", pub.hex()[:32])
 
-    # ── Post-quantum crypto status (MANDATORY by default) ──────────────
     _pq_required = os.environ.get("VORTEX_PQ_REQUIRED", "true").lower() in ("1", "true", "yes")
     try:
         from app.security.post_quantum import get_pq_status
@@ -225,7 +219,6 @@ async def lifespan(app: FastAPI):
             )
         logger.warning("Could not determine PQ-crypto status: %s", _pq_err)
 
-    # ── Redis for horizontal scaling ─────────────────────────────────
     from app.peer.redis_pubsub import init_redis, start_subscriber, is_redis_available
     redis_ok = await init_redis()
     if redis_ok:
@@ -258,11 +251,9 @@ async def lifespan(app: FastAPI):
     else:
         start_discovery(name)
 
-    # ── Self-hosted TURN (coturn) ──────────────────────────────────────
     from app.keys.keys import start_coturn
     start_coturn()
 
-    # ── Tor Hidden Service (.onion) ─────────────────────────────────────
     if Config.TOR_HIDDEN_SERVICE:
         from app.security.tor_hidden_service import tor_hidden_service
         onion = await tor_hidden_service.start(listen_port=Config.PORT)
@@ -271,18 +262,15 @@ async def lifespan(app: FastAPI):
         else:
             logger.warning("TOR_HIDDEN_SERVICE=true but Tor HS could not start")
 
-    # ── Restore federated rooms from DB ──────────────────────────────────
     from app.federation.federation import relay as _fed_relay
     _fed_restored = await _fed_relay.restore_from_db()
     if _fed_restored:
         logger.info("Federation: restored %d virtual room(s) from DB", _fed_restored)
 
-    # ── Start trusted nodes monitor (health checks + token rotation) ─────
     from app.federation.trusted_nodes import start_federation_monitor
     await start_federation_monitor()
     logger.info("Federation: trusted nodes monitor started")
 
-    # ── Background cleanup tasks ─────────────────────────────────────────
     _create_background_task(cleanup_sessions_loop(), "cleanup-upload-sessions")
 
     async def _expired_msg_loop():
@@ -363,7 +351,6 @@ async def lifespan(app: FastAPI):
 
     _create_background_task(_rss_poll_loop(), "rss-feed-poller")
 
-    # ── Pending delivery queue cleanup (every 10 min) ────────────────────
     from app.peer.connection_manager import pending_queue as _pq
 
     async def _pending_queue_cleanup():
@@ -378,7 +365,6 @@ async def lifespan(app: FastAPI):
 
     _create_background_task(_pending_queue_cleanup(), "pending-queue-cleanup")
 
-    # ── Edge cache + sealed push init ───────────────────────────────────
     try:
         from app.peer.edge_cache import edge_cache as _ec
         _ec.start()
@@ -403,7 +389,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug("Sealed push init: %s", e)
 
-    # ── Smart relay + store-and-forward ────────────────────────────────
     try:
         from app.transport.smart_relay import smart_relay as _sr
         _create_background_task(_sr.start(), "smart-relay")
@@ -416,7 +401,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug("Store-forward init: %s", e)
 
-    # ── Blind Mailbox Protocol ────────────────────────────────────────
     try:
         from app.transport.blind_mailbox import start_bmp
         await start_bmp()
@@ -433,7 +417,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug("Stream schedule checker init: %s", e)
 
-    # ── Stealth transport startup ──────────────────────────────────────────
     try:
         from app.transport.auto_stealth import start_auto_stealth
         await start_auto_stealth()
@@ -480,7 +463,6 @@ async def lifespan(app: FastAPI):
         logger.debug("migration pusher stop failed: %s", e)
 
 
-    # ── Graceful shutdown ────────────────────────────────────────────────
     ws_count = manager.total_connections()
     logger.info("Shutting down — closing %d WebSocket connections, cancelling %d tasks",
                 ws_count, len(_background_tasks))
@@ -545,7 +527,6 @@ async def lifespan(app: FastAPI):
     logger.info("Vortex stopped")
 
 
-# ── App Instance ─────────────────────────────────────────────────────────────
 
 from app.docs.openapi_config import get_openapi_config
 _oapi = get_openapi_config()
@@ -563,7 +544,6 @@ app = FastAPI(
 )
 
 
-# ── Global Exception Handlers ────────────────────────────────────────────────
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -627,7 +607,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ── Correlation ID Middleware ─────────────────────────────────────────────────
 
 @app.middleware("http")
 async def correlation_id_middleware(request: Request, call_next):
@@ -642,7 +621,6 @@ async def correlation_id_middleware(request: Request, call_next):
         correlation_id.reset(token)
 
 
-# ── Prometheus Metrics Middleware ─────────────────────────────────────────────
 
 if _PROMETHEUS_AVAILABLE:
     @app.middleware("http")
@@ -674,7 +652,6 @@ if _PROMETHEUS_AVAILABLE:
         return response
 
 
-# ── Security Middleware Stack ─────────────────────────────────────────────────
 
 waf_config = {
     "rate_limit_requests": Config.WAF_RATE_LIMIT_REQUESTS,
@@ -694,7 +671,6 @@ if is_stealth():
     logger.info("🛡️ Stealth mode ENABLED — traffic camouflage active")
 
 
-# ── Routers ──────────────────────────────────────────────────────────────────
 
 app.include_router(keys_router)
 app.include_router(resumable_router)
@@ -785,7 +761,6 @@ app.include_router(prekeys_router)
 from app.bots.bot_advanced import router as bots_adv_router
 app.include_router(bots_adv_router)
 
-# ── Groups (Topics, Forum, Permissions, AutoMod, Slowmode) ───────────
 from app.chats.groups import router as groups_router
 app.include_router(groups_router)
 
@@ -796,11 +771,9 @@ from app.chats.spaces_advanced import router as spaces_adv_router
 app.include_router(spaces_adv_router)
 app.include_router(spaces_router)
 
-# ── Files Advanced (distributed storage, gallery, search, compression) ─
 from app.files.files_advanced import router as files_adv_router
 app.include_router(files_adv_router)
 
-# ── Post-Quantum Crypto (Kyber-768 hybrid) ────────────────────────────
 from app.security.post_quantum import get_pq_status
 
 @app.get("/api/crypto/pq-status", include_in_schema=True, tags=["crypto"])
@@ -808,27 +781,21 @@ async def pq_status():
     """Post-quantum cryptography subsystem status."""
     return get_pq_status()
 
-# ── Privacy (Tor, ephemeral IDs, ZK membership, metadata padding) ─────
 from app.security.privacy_routes import router as privacy_router
 app.include_router(privacy_router)
 
-# ── Native Bridge (Capacitor, UnifiedPush, biometric) ────────────────
 from app.services.native_bridge import router as native_bridge_router
 app.include_router(native_bridge_router)
 
-# ── Warrant Canary (cryptographically signed) ────────────────────────
 from app.security.canary import router as canary_router
 app.include_router(canary_router)
 
-# ── GDPR Compliance (export, erase, portability, rights) ─────────────
 from app.security.gdpr import router as gdpr_router
 app.include_router(gdpr_router)
 
-# ── SSE транспорт (альтернатива WebSocket, неотличим от HTTP/2) ───────
 from app.transport.sse_transport import router as sse_router
 app.include_router(sse_router)
 
-# ── Pluggable transports (obfs4, domain fronting, bridges, stego, tunnel) ──
 from app.transport.pluggable_routes import router as pluggable_router
 app.include_router(pluggable_router)
 
@@ -839,24 +806,20 @@ transport_manager.configure({
     "shadowsocks_password": os.getenv("SHADOWSOCKS_PASSWORD", ""),
 })
 
-# ── Global routes: always register so auth-protected endpoints exist ───
 # Global routes are always registered (regardless of NETWORK_MODE) so that
 # auth-protected endpoints (/api/global/peers, /api/global/cdn-status, etc.)
 # return 401 for unauthenticated access rather than 404.
 from app.transport.global_routes import router as global_router
 app.include_router(global_router)
 
-# ── NAT Traversal & Transport signaling (ICE candidates, hole punching, BLE, Wi-Fi Direct) ──
 from app.transport.routes import router as transport_router
 app.include_router(transport_router)
 
-# ── Cover-traffic pages (always available) ─────────────────────────────
 from app.transport.cover_traffic import router as cover_router
 app.include_router(cover_router)
 if Config.NETWORK_MODE == "global":
     logger.info("Global mode: gossip + cover routes enabled")
 
-# ── Obfuscation middleware (cover-заголовки + padding ко всем ответам) ────
 if Config.OBFUSCATION_ENABLED:
     from starlette.middleware.base import BaseHTTPMiddleware
     from starlette.requests import Request as StarletteRequest
@@ -897,7 +860,6 @@ if Config.OBFUSCATION_ENABLED:
 ## Stealth startup/shutdown moved to lifespan (above)
 
 
-# ── Static Files ─────────────────────────────────────────────────────────────
 
 if os.path.isdir("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -1029,7 +991,6 @@ class SafeUploadStaticFiles(StaticFiles):
 app.mount("/uploads", SafeUploadStaticFiles(directory="uploads"), name="uploads")
 
 
-# ── Routes ───────────────────────────────────────────────────────────────────
 
 from fastapi.templating import Jinja2Templates
 _templates = Jinja2Templates(directory="templates")
@@ -1170,7 +1131,6 @@ async def readiness():
     )
 
 
-# ── Prometheus Metrics Endpoint ──────────────────────────────────────────────
 
 if _PROMETHEUS_AVAILABLE:
     import ipaddress as _ipaddress

@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/admin/settings", tags=["settings"])
 
 
-# ── Schema ────────────────────────────────────────────────────────────────
 
 FieldType = Literal["bool", "str", "int", "password", "select", "textarea"]
 
@@ -158,7 +157,6 @@ def _is_bool_val(v: str) -> bool:
     return v.strip().lower() in ("1","true","yes","on","0","false","no","off","")
 
 
-# ── GET: schema + current values ─────────────────────────────────────────
 
 @router.get("")
 async def settings_get(request: Request) -> dict:
@@ -203,7 +201,6 @@ async def settings_get(request: Request) -> dict:
     }
 
 
-# ── POST: write one or many ──────────────────────────────────────────────
 
 class PatchBody(BaseModel):
     changes: dict[str, str | bool | int] = Field(..., description="key → new value")
@@ -260,7 +257,6 @@ async def settings_patch(body: PatchBody, request: Request) -> dict:
     }
 
 
-# ── DELETE single key ─────────────────────────────────────────────────────
 
 @router.delete("/{key}")
 async def settings_delete(key: str, request: Request) -> dict:
@@ -281,7 +277,6 @@ async def settings_delete(key: str, request: Request) -> dict:
     return {"ok": True, "removed": key}
 
 
-# ── Secret-reveal (requires passphrase-like confirm) ─────────────────────
 
 class RevealBody(BaseModel):
     key:      str

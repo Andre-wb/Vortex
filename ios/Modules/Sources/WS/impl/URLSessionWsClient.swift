@@ -41,7 +41,6 @@ public actor URLSessionWsClient: WsClient {
         catch { /* dropped — reconnect loop will recover */ }
     }
 
-    // ── internals ──────────────────────────────────────────────────────
 
     private func loop() async {
         let backoff: [UInt64] = [500_000_000, 1_000_000_000, 2_000_000_000, 5_000_000_000, 10_000_000_000]

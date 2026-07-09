@@ -6,7 +6,6 @@ import type { Action }    from '../ast/actions.js';
 import type { ValueNode } from '../ast/values.js';
 import { resolveValue }   from './values.js';
 
-// ── Gesture types ────────────────────────────────────────────────────────────
 
 export type SwipeDir = 'left' | 'right' | 'up' | 'down';
 
@@ -16,7 +15,6 @@ export interface GestureHandler {
   callback: () => void;
 }
 
-// ── Swipe detection ──────────────────────────────────────────────────────────
 
 const SWIPE_THRESHOLD = 30;
 
@@ -54,7 +52,6 @@ export function attachSwipe(
   }, { passive: true });
 }
 
-// ── Long press detection ─────────────────────────────────────────────────────
 
 const LONGPRESS_MS = 500;
 
@@ -89,7 +86,6 @@ export function attachLongpress(
   }, { passive: true });
 }
 
-// ── Double tap detection ─────────────────────────────────────────────────────
 
 const DOUBLETAP_MS = 300;
 
@@ -111,7 +107,6 @@ export function attachDoubletap(
   }, { passive: true });
 }
 
-// ── Pinch detection ──────────────────────────────────────────────────────────
 
 export function attachPinch(
   el:       HTMLElement,
@@ -145,7 +140,6 @@ export function attachPinch(
   }, { passive: true });
 }
 
-// ── Unified gesture attachment from modifiers ────────────────────────────────
 
 /**
  * Attach a gesture handler from a modifier.

@@ -54,7 +54,6 @@ import warnings
 _SECRET: bytes | None = None
 _audit_logger = logging.getLogger("vortex.sealed_sender.audit")
 
-# ── Resolution rate-limiter ──────────────────────────────────────────────────
 # Prevents an attacker (or compromised admin account) from bulk-resolving
 # the entire social graph in a single burst.
 #
@@ -82,7 +81,6 @@ def _check_resolve_rate() -> bool:
     return True
 
 
-# ── Secret loading ────────────────────────────────────────────────────────────
 
 def _get_secret() -> bytes:
     global _SECRET
@@ -112,7 +110,6 @@ def _get_secret() -> bytes:
     return _SECRET
 
 
-# ── Core functions ────────────────────────────────────────────────────────────
 
 try:
     import vortex_chat as _vc_rust

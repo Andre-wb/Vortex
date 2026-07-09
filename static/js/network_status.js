@@ -24,7 +24,6 @@ let _offlineQueue = [];
 let _heartbeatTimer = null;
 let _listeners = [];
 
-// ── State management ────────────────────────────────────────────────────
 
 function _setState(newState) {
     if (_state === newState) return;
@@ -45,7 +44,6 @@ function _setState(newState) {
     }
 }
 
-// ── UI ──────────────────────────────────────────────────────────────────
 
 function _createIndicator() {
     if (_indicator) return;
@@ -96,7 +94,6 @@ function _updateUI() {
     }
 }
 
-// ── Offline message queue ───────────────────────────────────────────────
 
 /**
  * Queue a message for sending when connection is restored.
@@ -141,7 +138,6 @@ async function _flushQueue(sendFn) {
     }
 }
 
-// ── Network detection ───────────────────────────────────────────────────
 
 function _onOnline() {
     if (_state === 'offline') {
@@ -158,7 +154,6 @@ function _onOffline() {
     _setState('offline');
 }
 
-// ── Public API ──────────────────────────────────────────────────────────
 
 /**
  * Initialize network status monitoring.

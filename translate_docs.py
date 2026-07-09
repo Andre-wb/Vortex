@@ -17,7 +17,6 @@ LOCALE_DIR = 'static/locales'
 BATCH_SIZE = 30  # prose lines per API call
 SEPARATOR = '\n|||SEP|||\n'
 
-# ── Google Translate code mapping (same as translate_locales.py) ──
 
 # Remap our locale codes to Google Translate codes where they differ
 CODE_MAP = {
@@ -47,7 +46,6 @@ def get_google_code(locale_code):
     return CODE_MAP.get(locale_code, locale_code)
 
 
-# ── Split document into translatable / non-translatable chunks ──
 
 _CODE_RE = re.compile(r'|'.join([
     r'^(let|fn |on |if |elif |else |while |for |match |state\s*\{|return |try\s*\{|catch\s*'
@@ -223,7 +221,6 @@ def reassemble(chunks, items, translated):
     return '\n'.join(content for _, content in chunks)
 
 
-# ── Translation with batching ──
 
 def batch_translate(strings, target_lang, retries=3):
     if not strings:
@@ -274,7 +271,6 @@ def _one_by_one(strings, target_lang):
     return results
 
 
-# ── Main ──
 
 def process_locale(locale_code, en_ref):
     google_code = get_google_code(locale_code)

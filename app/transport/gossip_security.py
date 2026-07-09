@@ -23,9 +23,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Constants
-# ══════════════════════════════════════════════════════════════════════════════
 
 MAX_GOSSIP_PEERS = 50       # max peers per gossip exchange
 MAX_GOSSIP_ROOMS = 100      # max rooms per gossip exchange
@@ -46,9 +44,7 @@ MAX_ROOM_MEMBERS = 100_000
 MAX_PEER_NAME_LENGTH = 64
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # GossipRateLimiter — sliding window, 1 exchange per peer per 30 seconds
-# ══════════════════════════════════════════════════════════════════════════════
 
 class GossipRateLimiter:
     """Sliding-window rate limiter for gossip exchanges.
@@ -83,9 +79,7 @@ class GossipRateLimiter:
         return len(stale)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # PeerReputation — simple scoring system for Sybil protection
-# ══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class PeerReputation:
@@ -216,9 +210,7 @@ class ReputationManager:
         return {"total": total, "banned": banned}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Proof-of-Work — hashcash-style challenge for new peers
-# ══════════════════════════════════════════════════════════════════════════════
 
 class ProofOfWork:
     """Hashcash-style proof-of-work for new peers.
@@ -367,9 +359,7 @@ class ProofOfWork:
             del cls._verified[k]
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # VectorClock — basic version tracking for gossip consistency
-# ══════════════════════════════════════════════════════════════════════════════
 
 class VectorClock:
     """Simple vector clock for tracking peer list versions.
@@ -468,9 +458,7 @@ class VectorClock:
         return vc
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # GossipValidator — data validation for gossip exchanges
-# ══════════════════════════════════════════════════════════════════════════════
 
 # Networks blocked for peer addresses (non-local mode)
 _PRIVATE_NETS = [
@@ -618,9 +606,7 @@ class GossipValidator:
         return valid
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # GossipSecurity — unified facade
-# ══════════════════════════════════════════════════════════════════════════════
 
 class GossipSecurity:
     """Unified security facade for the gossip protocol.
@@ -746,8 +732,6 @@ class GossipSecurity:
         }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Singleton
-# ══════════════════════════════════════════════════════════════════════════════
 
 gossip_security = GossipSecurity()

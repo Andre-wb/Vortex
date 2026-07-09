@@ -9,18 +9,14 @@ import { _checkMentionAutocomplete, _closeMentionDropdown, _insertMention } from
 import { saveDraft, _clearDraft } from './draft.js';
 import { isScheduleMode, getScheduleDatetime, resetScheduleMode } from './features.js';
 
-// =============================================================================
 // State
-// =============================================================================
 
 let _replyTo      = null;
 let _editingId    = null;
 let _typingActive = false;
 let _draftTimer   = null;
 
-// =============================================================================
 // Reply / Edit
-// =============================================================================
 
 window.setReplyTo = (msg, quoteText) => {
     _replyTo   = msg;
@@ -72,9 +68,7 @@ window.deleteMessage = (msgId) => {
 
 function _truncate(str, n) { return str?.length > n ? str.slice(0, n) + '…' : str || ''; }
 
-// =============================================================================
 // Отправка сообщений (с ACK)
-// =============================================================================
 
 export async function sendMessage() {
     const input   = document.getElementById('msg-input');
@@ -244,9 +238,7 @@ export function handleTyping() {
     _checkMentionAutocomplete(input);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // Slash command menu — shows bot commands when typing "/"
-// ═══════════════════════════════════════════════════════════════════════════
 
 let _slashMenuEl = null;
 

@@ -20,7 +20,6 @@ const { randomStr, randomDigits, makeHex, registerAndLogin, getMeId } = require(
 
 const makeHexSecret = (bytes = 32) => makeHex(bytes);
 
-// ── Test suite ────────────────────────────────────────────────────────────────
 
 test.describe('User Settings', () => {
     const username = `us_user_${randomStr(6)}`;
@@ -30,7 +29,6 @@ test.describe('User Settings', () => {
     let csrfToken = '';
     let userId    = 0;
 
-    // ── Setup: register + login ───────────────────────────────────────────────
 
     test.beforeAll(async ({ request }) => {
         const { csrfToken: csrf } = await registerAndLogin(request, username, phone, password);
@@ -38,7 +36,6 @@ test.describe('User Settings', () => {
         userId = await getMeId(request, csrfToken);
     });
 
-    // ── 1. Get current profile ────────────────────────────────────────────────
 
     test('1. GET /api/authentication/me returns user profile', async ({ request }) => {
         const res = await request.get('/api/authentication/me', {
@@ -55,7 +52,6 @@ test.describe('User Settings', () => {
         expect(body).toHaveProperty('created_at');
     });
 
-    // ── 2. Update display name ────────────────────────────────────────────────
 
     test('2. PUT /api/authentication/profile updates display_name', async ({ request }) => {
         const res = await request.put('/api/authentication/profile', {
@@ -68,7 +64,6 @@ test.describe('User Settings', () => {
         expect(body.display_name).toBe('New Display Name');
     });
 
-    // ── 3. Verify display name persists ──────────────────────────────────────
 
     test('3. Updated display_name is reflected in GET /me', async ({ request }) => {
         const res = await request.get('/api/authentication/me', {
@@ -79,7 +74,6 @@ test.describe('User Settings', () => {
         expect(body.display_name).toBe('New Display Name');
     });
 
-    // ── 4. Update avatar emoji ────────────────────────────────────────────────
 
     test('4. PUT /api/authentication/profile updates avatar_emoji', async ({ request }) => {
         const res = await request.put('/api/authentication/profile', {
@@ -91,7 +85,6 @@ test.describe('User Settings', () => {
         expect(body.avatar_emoji).toBe('🦊');
     });
 
-    // ── 5. Update email ───────────────────────────────────────────────────────
 
     test('5. PUT /api/authentication/profile updates email', async ({ request }) => {
         const email = `e2e_${randomStr(5)}@vortex.test`;
@@ -104,7 +97,6 @@ test.describe('User Settings', () => {
         expect(body.ok).toBe(true);
     });
 
-    // ── 6. Update display name with max-length value ──────────────────────────
 
     test('6. PUT /api/authentication/profile truncates display_name at 100 chars', async ({ request }) => {
         const longName = 'A'.repeat(120);
@@ -118,7 +110,6 @@ test.describe('User Settings', () => {
         expect(body.display_name.length).toBeLessThanOrEqual(100);
     });
 
-    // ── 7. Update rich status — custom_status ─────────────────────────────────
 
     test('7. PUT /api/authentication/status sets custom_status', async ({ request }) => {
         const res = await request.put('/api/authentication/status', {
@@ -131,7 +122,6 @@ test.describe('User Settings', () => {
         expect(body.custom_status).toBe('E2E Testing in Progress');
     });
 
-    // ── 8. Update rich status — status_emoji ──────────────────────────────────
 
     test('8. PUT /api/authentication/status sets status_emoji', async ({ request }) => {
         const res = await request.put('/api/authentication/status', {
@@ -143,7 +133,6 @@ test.describe('User Settings', () => {
         expect(body.status_emoji).toBe('⚙️');
     });
 
-    // ── 9. Update presence to "away" ──────────────────────────────────────────
 
     test('9. PUT /api/authentication/status sets presence=away', async ({ request }) => {
         const res = await request.put('/api/authentication/status', {
@@ -155,7 +144,6 @@ test.describe('User Settings', () => {
         expect(body.presence).toBe('away');
     });
 
-    // ── 10. Reset presence to "online" ────────────────────────────────────────
 
     test('10. PUT /api/authentication/status resets presence to online', async ({ request }) => {
         const res = await request.put('/api/authentication/status', {
@@ -167,7 +155,6 @@ test.describe('User Settings', () => {
         expect(body.presence).toBe('online');
     });
 
-    // ── 11. Clear custom_status with null ─────────────────────────────────────
 
     test('11. PUT /api/authentication/status clears custom_status', async ({ request }) => {
         const res = await request.put('/api/authentication/status', {
@@ -180,7 +167,6 @@ test.describe('User Settings', () => {
         expect([null, '']).toContain(body.custom_status);
     });
 
-    // ── 12. Password strength — strong password ───────────────────────────────
 
     test('12. POST /api/authentication/password-strength rates strong password high', async ({ request }) => {
         const res = await request.post('/api/authentication/password-strength', {
@@ -193,7 +179,6 @@ test.describe('User Settings', () => {
         expect(body.score).toBeGreaterThan(50);
     });
 
-    // ── 13. Password strength — weak password ─────────────────────────────────
 
     test('13. POST /api/authentication/password-strength rates weak password low', async ({ request }) => {
         const res = await request.post('/api/authentication/password-strength', {
@@ -206,7 +191,6 @@ test.describe('User Settings', () => {
         expect(body.score).toBeLessThan(50);
     });
 
-    // ── 14. 2FA setup ─────────────────────────────────────────────────────────
 
     test('14. POST /api/authentication/2fa/setup returns TOTP secret and URI', async ({ request }) => {
         const res = await request.post('/api/authentication/2fa/setup', {
@@ -221,7 +205,6 @@ test.describe('User Settings', () => {
         expect(body.uri).toContain('otpauth://totp/');
     });
 
-    // ── 15. 2FA status is not enabled yet ────────────────────────────────────
 
     test('15. GET /api/authentication/2fa/status returns enabled=false before enable', async ({ request }) => {
         const res = await request.get('/api/authentication/2fa/status', {
@@ -233,7 +216,6 @@ test.describe('User Settings', () => {
         expect(body.enabled).toBe(false);
     });
 
-    // ── 16. 2FA enable with wrong code returns 401 ───────────────────────────
 
     test('16. POST /api/authentication/2fa/enable with wrong code returns 401', async ({ request }) => {
         const res = await request.post('/api/authentication/2fa/enable', {
@@ -243,7 +225,6 @@ test.describe('User Settings', () => {
         expect(res.status()).toBe(401);
     });
 
-    // ── 17. 2FA disable when not enabled is idempotent ───────────────────────
 
     test('17. POST /api/authentication/2fa/disable when not enabled returns ok', async ({ request }) => {
         const res = await request.post('/api/authentication/2fa/disable', {
@@ -254,7 +235,6 @@ test.describe('User Settings', () => {
         expect([200, 401]).toContain(res.status());
     });
 
-    // ── 18. Registration info endpoint ────────────────────────────────────────
 
     test('18. GET /api/authentication/registration-info returns mode', async ({ request }) => {
         const res = await request.get('/api/authentication/registration-info');
@@ -265,7 +245,6 @@ test.describe('User Settings', () => {
         expect(body).toHaveProperty('invite_required');
     });
 
-    // ── 19. Unauthenticated access to profile returns 401/403 ────────────────
 
     test('19. GET /api/authentication/me without auth returns 401 or 403', async ({ request }) => {
         // Fresh context without cookies — this relies on cookie-based auth
@@ -278,7 +257,6 @@ test.describe('User Settings', () => {
         expect([200, 401, 403]).toContain(res.status());
     });
 
-    // ── 20. Privacy: Tor status ───────────────────────────────────────────────
 
     test('20. GET /api/privacy/tor/status returns availability status', async ({ request }) => {
         const res = await request.get('/api/privacy/tor/status', {
@@ -290,7 +268,6 @@ test.describe('User Settings', () => {
         expect(typeof body.available).toBe('boolean');
     });
 
-    // ── 21. Privacy: Ephemeral identity generation ────────────────────────────
 
     test('21. POST /api/privacy/ephemeral/generate returns ephemeral username', async ({ request }) => {
         const res = await request.post('/api/privacy/ephemeral/generate', {
@@ -308,7 +285,6 @@ test.describe('User Settings', () => {
         expect(typeof body.ephemeral_username).toBe('string');
     });
 
-    // ── 22. Ephemeral identity — same secret+room produces same username ──────
 
     test('22. POST /api/privacy/ephemeral/generate is deterministic', async ({ request }) => {
         const secret = makeHexSecret(32);
@@ -327,7 +303,6 @@ test.describe('User Settings', () => {
         expect(b1.ephemeral_username).toBe(b2.ephemeral_username);
     });
 
-    // ── 23. Ephemeral identity — different rooms produce different usernames ───
 
     test('23. POST /api/privacy/ephemeral/generate unlinkable across rooms', async ({ request }) => {
         const secret = makeHexSecret(32);
@@ -346,7 +321,6 @@ test.describe('User Settings', () => {
         expect(b1.ephemeral_username).not.toBe(b2.ephemeral_username);
     });
 
-    // ── 24. Ephemeral identity — wrong secret length returns 400 ─────────────
 
     test('24. POST /api/privacy/ephemeral/generate with short secret returns 400', async ({ request }) => {
         const res = await request.post('/api/privacy/ephemeral/generate', {
@@ -359,7 +333,6 @@ test.describe('User Settings', () => {
         expect(res.status()).toBe(400);
     });
 
-    // ── 25. Token refresh ─────────────────────────────────────────────────────
 
     test('25. POST /api/authentication/refresh extends the session', async ({ request }) => {
         const res = await request.post('/api/authentication/refresh', {
@@ -373,7 +346,6 @@ test.describe('User Settings', () => {
         }
     });
 
-    // ── 26. Logout ────────────────────────────────────────────────────────────
 
     test('26. POST /api/authentication/logout invalidates the session', async ({ request }) => {
         const res = await request.post('/api/authentication/logout', {
@@ -382,7 +354,6 @@ test.describe('User Settings', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── 27. After logout, /me returns 401/403 ────────────────────────────────
 
     test('27. After logout, GET /me returns 401 or 403', async ({ request }) => {
         const res = await request.get('/api/authentication/me', {
@@ -391,7 +362,6 @@ test.describe('User Settings', () => {
         expect([401, 403]).toContain(res.status());
     });
 
-    // ── 28. Re-login after logout ─────────────────────────────────────────────
 
     test('28. Login after logout succeeds and returns fresh profile', async ({ request }) => {
         const res = await request.post('/api/authentication/login', {
@@ -407,7 +377,6 @@ test.describe('User Settings', () => {
         csrfToken = (await csrfRes.json()).csrf_token;
     });
 
-    // ── 29. Profile after re-login matches updated fields ─────────────────────
 
     test('29. Re-fetched profile after re-login returns user data', async ({ request }) => {
         const res = await request.get('/api/authentication/me', {
@@ -419,7 +388,6 @@ test.describe('User Settings', () => {
         expect(body.user_id).toBe(userId);
     });
 
-    // ── Cleanup ───────────────────────────────────────────────────────────────
 
     test.afterAll(async ({ request }) => {
         await request.post('/api/authentication/logout', {

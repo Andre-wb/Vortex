@@ -23,7 +23,6 @@ _sys.path.insert(0, str(Path(__file__).parent))
 from build_vortex_docs_v2 import VORTEX_DOCS as BASE_DOCS  # type: ignore
 
 
-# ── helper ────────────────────────────────────────────────────────────
 
 def deep(title: str, subtitle: str, what: str, why: str, where: str,
         how: str, when: str, config: list[str], failures: list[str],
@@ -48,7 +47,6 @@ def deep(title: str, subtitle: str, what: str, why: str, where: str,
     return out
 
 
-# ── deep dives ────────────────────────────────────────────────────────
 
 DEEP_SUBSYSTEMS = {}
 
@@ -670,7 +668,6 @@ for key in SHORT_DEEP:
     )
 
 
-# ── combine with base ─────────────────────────────────────────────────
 
 merged_vortex_docs = {**BASE_DOCS, "deep": DEEP_SUBSYSTEMS}
 

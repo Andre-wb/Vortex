@@ -7,7 +7,6 @@ function t(key, params) {
     return params ? s.replace(/\{(\w+)\}/g, function(_, k) { return params[k] != null ? params[k] : k; }) : s;
 }
 
-// ── Vortex Custom Video Player ──
 window._openVideoViewer = async function(downloadUrl, fileName) {
     document.getElementById('video-viewer-overlay')?.remove();
 
@@ -22,27 +21,22 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
     var _speedIdx = 3; // index in speeds array
     var speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 
-    // ── Overlay ──
     var overlay = document.createElement('div');
     overlay.id = 'video-viewer-overlay';
     overlay.className = 'vp-overlay';
 
-    // ── Video container ──
     var container = document.createElement('div');
     container.className = 'vp-container';
 
-    // ── Video element ──
     var video = document.createElement('video');
     video.className = 'vp-video';
     video.playsInline = true;
     video.preload = 'auto';
 
-    // ── Big play button (center) ──
     var bigPlay = document.createElement('div');
     bigPlay.className = 'vp-big-play';
     bigPlay.innerHTML = '<svg width="64" height="64" viewBox="0 0 24 24" fill="white" opacity=".9"><path d="M8 5v14l11-7z"/></svg>';
 
-    // ── Header ──
     var header = document.createElement('div');
     header.className = 'vp-header';
     var nameEl = document.createElement('div');
@@ -53,7 +47,6 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
     closeBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
     header.append(nameEl, closeBtn);
 
-    // ── Controls bar ──
     var controls = document.createElement('div');
     controls.className = 'vp-controls';
 
@@ -119,7 +112,6 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
     bottomRow.append(playBtn, timeEl, spacer, volWrap, speedBtn, pipBtn, fsBtn);
     controls.append(progressWrap, bottomRow);
 
-    // ── Chapters panel ──
     var chaptersPanel = null;
     if (timecodes.length) {
         chaptersPanel = document.createElement('div');
@@ -149,7 +141,6 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
     if (chaptersPanel) overlay.appendChild(chaptersPanel);
     document.body.appendChild(overlay);
 
-    // ── Format time helper ──
     function _fmtTime(s) {
         if (!s || isNaN(s)) return '0:00';
         var h = Math.floor(s / 3600);
@@ -159,7 +150,6 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
         return m + ':' + String(sec).padStart(2, '0');
     }
 
-    // ── Show/hide controls ──
     function showControls() {
         container.classList.add('vp-show-ui');
         clearTimeout(_hideTimer);
@@ -170,7 +160,6 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
     container.addEventListener('mousemove', showControls);
     container.addEventListener('touchstart', showControls, { passive: true });
 
-    // ── Load video ──
     if (downloadUrl.startsWith('blob:')) {
         // Already decrypted blob URL — use directly
         video.src = downloadUrl;
@@ -190,7 +179,6 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
     }
     video.play().catch(function() {});
 
-    // ── Add timecode markers to progress bar after duration known ──
     video.addEventListener('loadedmetadata', function() {
         if (timecodes.length && video.duration) {
             timecodes.forEach(function(tc) {
@@ -203,7 +191,6 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
         }
     });
 
-    // ── Event handlers ──
     video.addEventListener('play', function() {
         playBtn.innerHTML = ICON_PAUSE;
         bigPlay.classList.add('hidden');
@@ -347,7 +334,6 @@ window._openVideoViewer = async function(downloadUrl, fileName) {
     showControls();
 };
 
-// ── Document Viewer ──
 window._openDocViewer = async function(downloadUrl, fileName, ext) {
     var overlay = document.getElementById('doc-viewer-overlay');
     var content = document.getElementById('doc-viewer-content');
@@ -419,7 +405,6 @@ window._closeDocViewer = function() {
     }
 };
 
-// ── Space create/join tab switching ──
 window._switchCsTab = function(tab) {
     var createPanel = document.getElementById('cs-panel-create');
     var joinPanel = document.getElementById('cs-panel-join');
@@ -431,7 +416,6 @@ window._switchCsTab = function(tab) {
     if (joinPanel) joinPanel.classList.toggle('active', tab === 'join');
 };
 
-// ── Avatar tab switching (registration form) ──
 window.switchAvatarTab = function(tab) {
     var emojiTab = document.getElementById('avatar-emoji-tab');
     var photoTab = document.getElementById('avatar-photo-tab');
@@ -460,10 +444,8 @@ window.previewAvatar = function(input) {
     reader.readAsDataURL(input.files[0]);
 };
 
-// ── Settings tab switching (legacy stub, sections now open full-screen) ──
 window.switchSettingsTab = function(tab) {};
 
-// ── Settings emoji picker ──
 window._settingsSelectedEmoji = null;
 window.selectSettingsEmoji = function(btn) {
     document.querySelectorAll('#settings-emoji-picker .emoji-btn').forEach(function(b) { b.classList.remove('emoji-selected'); });
@@ -471,7 +453,6 @@ window.selectSettingsEmoji = function(btn) {
     window._settingsSelectedEmoji = btn.dataset.emoji;
 };
 
-// ── Save profile from settings ──
 window.saveProfileSettings = async function() {
     var S = window.AppState;
     var body = {
@@ -518,7 +499,6 @@ window.saveProfileSettings = async function() {
     } catch(e) { alert(e.message); }
 };
 
-// ── Profile background picker ──
 window._settingsProfileBg = undefined;
 window._selectProfileBg = function(btn) {
     document.querySelectorAll('.pbg-swatch').forEach(function(b) { b.classList.remove('active'); });
@@ -531,7 +511,6 @@ window._selectProfileBg = function(btn) {
     if (piHero) piHero.style.background = btn.dataset.bg;
 };
 
-// ── Profile icon registry (shared with user-profile.js) ──
 window._PROFILE_ICONS = {
   bolt:     '<path d="M7 2v11h3v9l7-12h-4l4-8z"/>',
   diamond:  '<path d="M12 1l10 8-10 13L2 9z"/>',
@@ -554,7 +533,6 @@ window._PROFILE_ICONS = {
   key:      '<path d="M12.65 10A6 6 0 1 0 10 12.65l6.65 6.65 2.12-2.12-1.41-1.41 1.41-1.42-1.41-1.41-1.42 1.41-1.41-1.41 1.41-1.42zm-6.65 0a4 4 0 1 1 4 4 4 4 0 0 1-4-4z"/>',
 };
 
-// ── Profile icon picker ──
 window._settingsProfileIcon = undefined;
 window._selectProfileIcon = function(btn) {
     document.querySelectorAll('.pi-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -573,9 +551,7 @@ window._selectProfileIcon = function(btn) {
     }
 };
 
-// ══════════════════════════════════════════════════
 // BIRTHDAY CALENDAR PICKER
-// ══════════════════════════════════════════════════
 (function() {
     var _calMonth = 0;
     var _calYear  = new Date().getFullYear() - 20;
@@ -784,7 +760,6 @@ window._selectProfileIcon = function(btn) {
     };
 })();
 
-// ── Upload avatar from settings ──
 window.uploadSettingsAvatar = async function(input) {
     if (!input.files || !input.files[0]) return;
     var formData = new FormData();
@@ -806,20 +781,17 @@ window.uploadSettingsAvatar = async function(input) {
     } catch(e) { alert(e.message); }
 };
 
-// ── Import key from settings ──
 window.importKey = function(input) {
     if (!input.files || !input.files[0]) return;
     if (window.importPrivateKey) window.importPrivateKey(input.files[0]);
 };
 
-// ── Toggle push setting ──
 window.togglePushSetting = function(enabled) {
     if (enabled && window.requestNotificationPermission) {
         window.requestNotificationPermission();
     }
 };
 
-// ── Call settings (Force TCP / Relay / Traffic Masking) ──
 window._saveCallSetting = function(key, value) {
     localStorage.setItem(key, value ? 'true' : 'false');
 };
@@ -832,7 +804,6 @@ window._loadCallSettings = function() {
     }
 };
 
-// ── Device selection (Microphone / Speaker / Camera) ──
 window._saveDeviceSetting = function(key, deviceId) {
     localStorage.setItem('vortex_device_' + key, deviceId);
 };
@@ -904,9 +875,7 @@ window._loadDeviceSettings = function() {
     window._refreshDeviceList();
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // PIN-код: lock screen + settings
-// ══════════════════════════════════════════════════════════════════════════════
 async function _hashPIN(pin) {
     var enc = new TextEncoder();
     var buf = await crypto.subtle.digest('SHA-256', enc.encode(pin));
@@ -1047,9 +1016,7 @@ document.addEventListener('visibilitychange', function() {
 // are function declarations defined below — they are automatically on window
 // and called by openSettingsSection in ux-enhancements.js.
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Developer Mode
-// ══════════════════════════════════════════════════════════════════════════════
 
 (function initDevMode() {
     var enabled = localStorage.getItem('vortex_dev_mode') === '1';
@@ -1077,9 +1044,7 @@ window.toggleDevMode = function() {
     _applyDevMode(enabled);
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 1: 2FA Setup / Enable / Disable (settings)
-// ══════════════════════════════════════════════════════════════════════════════
 
 async function _load2FAStatus() {
     try {
@@ -1140,9 +1105,7 @@ window.disable2FA = async function() {
     } catch(e) { alert(e.message); }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 2: Chat Themes & Accent Colors
-// ══════════════════════════════════════════════════════════════════════════════
 
 var _chatThemes = {
     default:  { bg: '#09090b', bg2: '#111115', bg3: '#18181d', border: '#202027', text: '#e4e4e7', text2: '#71717a', text3: '#52525b' },
@@ -1154,7 +1117,6 @@ var _chatThemes = {
     light:    { bg: '#ffffff', bg2: '#f4f4f5', bg3: '#e4e4e7', border: '#d4d4d8', text: '#18181b', text2: '#52525b', text3: '#a1a1aa' },
 };
 
-// ── Theme Mode: dark / light / auto ──────────────────────────────────────────
 window.setThemeMode = function(mode) {
     localStorage.setItem('vortex_theme_mode', mode);
     _applyThemeMode(mode);
@@ -1458,9 +1420,7 @@ window.uploadChatBackground = function(input) {
     }
 })();
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 3: Location Sharing
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.shareLocation = function() {
     if (!navigator.geolocation) {
@@ -1503,10 +1463,7 @@ window.shareLocation = function() {
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════════════════════
 // UNIFIED PICKER — Emoji / Stickers / GIF in one panel
-// ══════════════════════════════════════════════════════════════════════════════
 
 var _upOpen = false;
 var _upCurrentTab = 'emoji';
@@ -1685,7 +1642,6 @@ function _renderGifsInPicker(container) {
 }
 
 // FEATURE 4: GIF Search (Tenor API)
-// ══════════════════════════════════════════════════════════════════════════════
 
 var _gifSearchTimer = null;
 
@@ -1790,9 +1746,7 @@ window.sendGif = function(url) {
     }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 5: Share Profile Link
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.copyProfileLink = function() {
     var u = window.AppState.user;
@@ -1809,9 +1763,7 @@ window.copyProfileLink = function() {
     }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE: Sticker Picker
-// ══════════════════════════════════════════════════════════════════════════════
 
 // Animated sticker definitions (vortex pack)
 var ANIMATED_STICKERS = [
@@ -1955,14 +1907,11 @@ window.sendSticker = function(emoji) {
     if (window.sendStickerDirect) window.sendStickerDirect('[STICKER] ' + emoji);
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE: Custom Sticker Packs (Manager + Enhanced Picker)
-// ══════════════════════════════════════════════════════════════════════════════
 
 // Cached custom packs for the picker
 window._customStickerPacks = [];
 
-// ── Sticker Manager tab switching ──
 window.switchStickerMgrTab = function(tab, btn) {
     document.querySelectorAll('.sticker-mgr-tab').forEach(function(t) { t.classList.remove('active'); });
     document.querySelectorAll('.sticker-mgr-section').forEach(function(s) { s.classList.remove('active'); });
@@ -1978,7 +1927,6 @@ window.toggleStickerCreateForm = function() {
     if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
 };
 
-// ── CSRF helper ──
 function _stickerHeaders(isJSON) {
     var headers = {};
     var S = window.AppState;
@@ -1987,14 +1935,12 @@ function _stickerHeaders(isJSON) {
     return headers;
 }
 
-// ── HTML escape ──
 function _sesc(s) {
     var d = document.createElement('div');
     d.textContent = s || '';
     return d.innerHTML;
 }
 
-// ── Load user's own + favorited packs ──
 window.loadMyPacks = async function() {
     var list = document.getElementById('sticker-my-packs-list');
     if (!list) return;
@@ -2051,7 +1997,6 @@ function _pluralRu(n) {
     return 's';
 }
 
-// ── Open fullscreen pack editor ──
 window.togglePackExpand = function(cardEl, packId, isOwner) {
     window.openPackEditor(packId, isOwner);
 };
@@ -2258,7 +2203,6 @@ window.openPackEditor = async function(packId, isOwner) {
     _render();
 };
 
-// ── Create pack ──
 window.createStickerPack = async function() {
     var name = document.getElementById('sticker-pack-name')?.value?.trim();
     if (!name) return;
@@ -2285,7 +2229,6 @@ window.createStickerPack = async function() {
     }
 };
 
-// ── Delete pack ──
 window.deleteStickerPack = async function(packId) {
     if (!confirm(t('stickers.deletePackConfirm'))) return;
     try {
@@ -2298,7 +2241,6 @@ window.deleteStickerPack = async function(packId) {
     } catch(e) { console.warn('deleteStickerPack error:', e); }
 };
 
-// ── Upload sticker to pack ──
 window.triggerStickerUpload = function(packId) {
     var input = document.createElement('input');
     input.type = 'file';
@@ -2331,7 +2273,6 @@ window.uploadStickerFile = async function(packId, file) {
     }
 };
 
-// ── Delete sticker from pack ──
 window.deleteStickerFromPack = async function(packId, stickerId) {
     try {
         await fetch('/api/stickers/packs/' + packId + '/stickers/' + stickerId, {
@@ -2343,7 +2284,6 @@ window.deleteStickerFromPack = async function(packId, stickerId) {
     } catch(e) { console.warn('deleteStickerFromPack error:', e); }
 };
 
-// ── Favorite / unfavorite ──
 window.favoritePack = async function(packId) {
     try {
         await fetch('/api/stickers/packs/' + packId + '/favorite', {
@@ -2367,7 +2307,6 @@ window.unfavoritePack = async function(packId) {
     } catch(e) { console.warn('unfavoritePack error:', e); }
 };
 
-// ── Catalog (public packs) ──
 window.loadCatalogPacks = async function() {
     var list = document.getElementById('sticker-catalog-list');
     if (!list) return;
@@ -2413,7 +2352,6 @@ function _renderCatalogPacks(packs, container) {
     }).join('');
 }
 
-// ── Enhanced sticker picker: inject custom pack tabs ──
 window._loadCustomPackTabs = async function() {
     var tabsContainer = document.getElementById('custom-pack-tabs');
     if (!tabsContainer) return;
@@ -2466,7 +2404,6 @@ window.showCustomPackInPicker = async function(packId, btn) {
     }
 };
 
-// ── Send custom sticker ──
 window.sendCustomSticker = function(imageUrl) {
     if (window.closeModal) window.closeModal('sticker-modal');
     if (window.sendStickerDirect) window.sendStickerDirect('[STICKER] img:' + imageUrl);
@@ -2487,9 +2424,7 @@ window.switchSettingsTab = function(tab) {
     }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE: Video Messages (circular video notes)
-// ══════════════════════════════════════════════════════════════════════════════
 
 var _videoRecorder = null;
 var _videoStream = null;
@@ -2592,9 +2527,7 @@ window.stopVideoMessage = async function(send) {
     _videoChunks = [];
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE: Statuses (24-hour ephemeral posts)
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.openStatusModal = function() {
     var ta = document.getElementById('status-text');
@@ -2668,7 +2601,6 @@ window.viewStatus = async function(userId) {
     } catch(e) { alert(e.message); }
 };
 
-// ── Media Gallery ──
 window._galleryFiles = [];
 window._galleryTab = 'photo';
 
@@ -2791,9 +2723,7 @@ window.openGalleryVideo = function(url, name) {
     obs.observe(overlay, { attributes: true, attributeFilter: ['class'] });
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Bot Management UI
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.showCreateBotForm = function() {
     var form = document.getElementById('create-bot-form');
@@ -3010,9 +2940,7 @@ window.editBotCommands = async function(botId) {
         .catch(function(e) { window.vxAlert(t('errors.errorWithMessage', {message: e.message || e})); });
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Mini App — Save URL for a bot
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.saveBotMiniAppUrl = async function(botId) {
     var input = document.getElementById('miniapp-url-' + botId);
@@ -3030,7 +2958,6 @@ window.testBotMiniApp = function(botId, url, title) {
     window.openMiniApp(botId, url, title || 'Mini App');
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Mini App Bridge — postMessage communication between Vortex and mini app iframe
 //
 // PROTOCOL (for bot/mini-app developers):
@@ -3053,7 +2980,6 @@ window.testBotMiniApp = function(botId, url, title) {
 // 4. Vortex responds to get_user with:
 //    { type: "user_info", user_id, username, display_name, theme }
 //
-// ══════════════════════════════════════════════════════════════════════════════
 
 (function() {
     var _miniAppState = {
@@ -3242,9 +3168,7 @@ window.testBotMiniApp = function(botId, url, title) {
     });
 })();
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Bot Marketplace: publish toggle from bot settings
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.toggleBotPublish = async function(botId, isPublic, category) {
     try {
@@ -3258,9 +3182,7 @@ window.toggleBotPublish = async function(botId, isPublic, category) {
     }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Bot Marketplace UI
-// ══════════════════════════════════════════════════════════════════════════════
 
 var _mpState = {
     category: '',
@@ -3571,7 +3493,6 @@ window.mpSubmitReview = async function(botId) {
     }
 };
 
-// ── Report system ──
 window.showReportModal = function(userId, messageId) {
     document.getElementById('report-target-id').value = userId || '';
     document.getElementById('report-message-id').value = messageId || '';

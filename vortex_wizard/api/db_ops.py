@@ -35,9 +35,7 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #11 — SQLite → PostgreSQL auto-migration
-# ══════════════════════════════════════════════════════════════════════════
 
 class MigrateBody(BaseModel):
     pg_host:      str = Field("127.0.0.1", min_length=1, max_length=253)
@@ -169,9 +167,7 @@ async def migrate_run(body: MigrateBody, request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #12 — Point-in-time restore
-# ══════════════════════════════════════════════════════════════════════════
 
 def _snap_dir(env_file: Path) -> Path:
     d = env_file.parent / "snapshots"
@@ -290,9 +286,7 @@ async def pitr_delete(tag: str, request: Request) -> dict:
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #13 — Schema diff
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/schema/diff")
 async def schema_diff(request: Request) -> dict:
@@ -364,9 +358,7 @@ async def schema_diff(request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #44 — Centralized audit aggregator
-# ══════════════════════════════════════════════════════════════════════════
 
 def _central_state_path(env_file: Path) -> Path:
     return env_file.parent / "audit_central.json"
@@ -448,9 +440,7 @@ async def central_audit_delete(node_id: str, request: Request) -> dict:
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #45 — Geo-distributed failover
-# ══════════════════════════════════════════════════════════════════════════
 #
 # A simple JSON table mapping primary_region → list of fallback nodes in
 # priority order. When a client's current node is unhealthy, the wizard
@@ -513,7 +503,6 @@ async def failover_resolve(request: Request, region: str) -> dict:
     raise HTTPException(404, f"unknown region: {region}")
 
 
-# ── Scheduler registration ────────────────────────────────────────────────
 
 def install_dbops_jobs(env_file: Path) -> None:
     # PITR snapshots — hourly. Operator can flip to 'off' if not on SQLite.

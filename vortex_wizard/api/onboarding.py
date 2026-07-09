@@ -38,9 +38,7 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. Quickstart (#1)
-# ══════════════════════════════════════════════════════════════════════════
 
 class QuickstartBody(BaseModel):
     device_name: str = Field(..., min_length=1, max_length=60)
@@ -90,9 +88,7 @@ async def quickstart(body: QuickstartBody, request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. Guest login (#3)
-# ══════════════════════════════════════════════════════════════════════════
 
 class GuestLoginBody(BaseModel):
     peer_url:     str = Field(..., min_length=8, max_length=2048)
@@ -124,9 +120,7 @@ async def guest_login(body: GuestLoginBody) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. Setup progress saved draft (#10)
-# ══════════════════════════════════════════════════════════════════════════
 
 def _draft_path(env_file: Path) -> Path:
     return env_file.parent / "setup_draft.json"
@@ -168,9 +162,7 @@ async def draft_delete(request: Request) -> dict:
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. DHT seed list (#33)
-# ══════════════════════════════════════════════════════════════════════════
 
 def _dht_path(env_file: Path) -> Path:
     return env_file.parent / "dht_seeds.json"
@@ -220,9 +212,7 @@ async def dht_clear(request: Request) -> dict:
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 5. Telegram import (#38)
-# ══════════════════════════════════════════════════════════════════════════
 #
 # Accept Telegram's ``result.json`` (exported via Settings → Export), count
 # chats / messages, save as pending_telegram_import.json. The node — when

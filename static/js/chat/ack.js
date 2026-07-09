@@ -8,7 +8,6 @@ const _pendingAcks = new Map();
 const ACK_BASE_TIMEOUT = 2000;   // base timeout 2s
 const ACK_MAX_RETRY    = 5;      // 5 retries: 2s, 4s, 8s, 16s, 32s
 
-// ── IndexedDB persistent offline queue ─────────────────────────────────────
 
 const _DB_NAME    = 'vortex_offline';
 const _DB_VERSION = 1;
@@ -61,7 +60,6 @@ async function _idbGetAll() {
 // In-memory fallback if IndexedDB unavailable
 const _memQueue = [];
 
-// ── Core ACK logic ─────────────────────────────────────────────────────────
 
 export function sendWithAck(payload) {
     const msgId = crypto.randomUUID();

@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/admin/ops", tags=["ops"])
 
 
-# ── Tunables (override via .env when needed) ──────────────────────────────
 
 _RES_DISK_FREE_PCT_WARN = 10     # warn if free disk < 10%
 _RES_MEM_RSS_MB_WARN    = 2048   # warn if RSS > 2 GB
@@ -43,7 +42,6 @@ _PRUNE_FILES_OLDER_DAYS = 30
 _UPTIME_WINDOW_DAYS     = 30
 
 
-# ── Job: cron backup ──────────────────────────────────────────────────────
 
 async def job_cron_backup(env_file: Path) -> dict:
     """Invoke the same path as the /backup/upload endpoint.
@@ -101,7 +99,6 @@ async def job_cron_backup(env_file: Path) -> dict:
     }
 
 
-# ── Job: auto-prune + VACUUM ──────────────────────────────────────────────
 
 async def job_prune(env_file: Path) -> dict:
     root = env_file.parent
@@ -150,7 +147,6 @@ async def job_prune(env_file: Path) -> dict:
     return {"message": "; ".join(actions) or "nothing to prune", "actions": actions}
 
 
-# ── Job: resource watchdog ────────────────────────────────────────────────
 
 _last_cpu_sec = 0.0
 
@@ -234,7 +230,6 @@ async def job_resource_watchdog(env_file: Path) -> dict:
     }
 
 
-# ── Job: uptime ping (updates rolling window) ─────────────────────────────
 
 def _uptime_path(env_file: Path) -> Path:
     return env_file.parent / "uptime.ndjson"
@@ -323,7 +318,6 @@ def _uptime_percent(env_file: Path, window_sec: int = _UPTIME_WINDOW_DAYS * 8640
     return round(100.0 * up / total, 2), total, up
 
 
-# ── Lifecycle hook (called from server.py at startup) ─────────────────────
 
 def install_default_jobs(env_file: Path) -> None:
     s = _sched.get(env_file)
@@ -380,7 +374,6 @@ def install_default_jobs(env_file: Path) -> None:
     s.start()
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────
 
 class IntervalBody(BaseModel):
     interval: str = Field(..., pattern=r"^(off|hourly|daily|weekly)$")

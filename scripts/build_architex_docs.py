@@ -21,7 +21,6 @@ ARCHITEX_DOCS: dict = {
     "title": "Architex Language Reference",
     "subtitle": "A declarative UI language for Vortex Mini Apps. Reactive state, composable layouts, zero build step.",
 
-    # ── Intro ──────────────────────────────────────────────────────
     "intro": "What is Architex?",
     "introDesc": "Architex is a small declarative DSL designed to ship UI inside the Vortex messenger. You describe what the screen should look like; the runtime keeps pixels in sync with state automatically. No virtual DOM, no bundler, no JSX — the `.arx` file is the app.",
     "designGoals": "Design goals",
@@ -35,7 +34,6 @@ ARCHITEX_DOCS: dict = {
     "howToRead": "How to read this reference",
     "howToReadDesc": "Each section builds on the one before. Start at Quick Start, then read Syntax, State, Layout, Modifiers, Actions, and the advanced section last. Jump around via the table of contents if you already know React or Svelte — the concepts map cleanly.",
 
-    # ── Quick Start ────────────────────────────────────────────────
     "quickStart": "Quick Start",
     "quickStartDesc": "The shortest path from a blank file to a running Mini App.",
     "yourFirstScreen": "Your first screen",
@@ -56,7 +54,6 @@ ARCHITEX_DOCS: dict = {
     "runningIt": "Running the screen",
     "runningItDesc": "Open the Architex tab in the Vortex bot studio, paste the code, press Run. The runtime renders into the preview pane and hot-reloads on save. When you publish, your users open the app from any chat — no installs.",
 
-    # ── Syntax at a glance ─────────────────────────────────────────
     "syntaxAtGlance": "Syntax at a Glance",
     "syntaxDesc": "Every Architex program is made of four things: declarations that start with `@`, reactive variables prefixed with `~`, components written as bare identifiers, and modifiers attached after `::`.",
     "anatomyDecl": "Anatomy of a declaration",
@@ -68,7 +65,6 @@ ARCHITEX_DOCS: dict = {
     "anatomyAction": "Anatomy of an action",
     "anatomyActionDesc": "`=>` on a button (or any interactive component) runs the assignment or function call that follows. Multiple `=>` chain side-by-side: `button \"Submit\" => ~busy = true => send(action: \"save\", data: ~form)`.",
 
-    # ── Variables & types ─────────────────────────────────────────
     "variablesAndTypes": "Variables & Types",
     "reactiveVars": "Reactive variables",
     "reactiveVarsDesc": "Any name prefixed with `~` is a reactive cell. Write `~count = 0` to declare, `~count = 5` to re-assign, `~count += 1` to update. Every UI node that reads the cell — directly or via interpolation — re-renders when the cell changes.",
@@ -81,7 +77,6 @@ ARCHITEX_DOCS: dict = {
     "stringInterpolation": "String interpolation",
     "stringInterpolationDesc": "Any string can embed expressions with `{...}`: `\"Hello, {~user.name}!\"`, `\"Total: {~count * ~price}\"`. Interpolation is always reactive.",
 
-    # ── Layout ─────────────────────────────────────────────────────
     "layout": "Layout",
     "layoutDesc": "Architex has two composable containers and a dozen leaf components. Nest them with indentation — no closing tags.",
     "containers": "Containers: col and row",
@@ -114,7 +109,6 @@ ARCHITEX_DOCS: dict = {
     "componentTabs": "tabs / tab",
     "componentTabsDesc": "Tab container bound to a reactive string: `tabs ~activeTab`. Inside it, each `tab \"Label\" \"key\"` declares one tab; the body indented beneath is shown when the key matches.",
 
-    # ── Modifiers ──────────────────────────────────────────────────
     "modifiers": "Modifiers",
     "modifiersDesc": "Modifiers are the only way to style a component. Chain them after `::`. They come in five families: spacing, sizing, colour, typography, and behaviour.",
     "modSpacing": "Spacing",
@@ -132,7 +126,6 @@ ARCHITEX_DOCS: dict = {
     "modRadius": "Radius and border",
     "modRadiusDesc": "`radius(px)` rounds corners. `border(#rrggbb)` draws a 1 px stroke. `border(px, #rrggbb)` sets thickness too.",
 
-    # ── Actions ────────────────────────────────────────────────────
     "actions": "Actions",
     "actionsDesc": "Actions mutate state or talk to the outside world. They run synchronously in the tap/keypress handler.",
     "actionAssign": "Assignment",
@@ -148,7 +141,6 @@ ARCHITEX_DOCS: dict = {
     "actionHostBuiltins": "Host built-ins",
     "actionHostBuiltinsDesc": "`copy(~text)`, `share(~text)`, `haptic(\"light\" | \"medium\" | \"heavy\")`, `vibrate(ms)`, `alert(\"…\")`, `confirm(\"…\") => ~ok = it` — the `it` shorthand is the return value of the preceding expression.",
 
-    # ── Advanced ───────────────────────────────────────────────────
     "advanced": "Advanced features",
     "theme": "@theme — design tokens",
     "themeDesc": "Declare a palette once, reuse everywhere. Tokens become regular reactive variables so your app can ship a dark-mode toggle in three lines.",
@@ -173,7 +165,6 @@ ARCHITEX_DOCS: dict = {
     "slots": "Slots",
     "slotsDesc": "Inside a component declaration, `slot` marks where the caller's body plugs in. Think of it as the React children / Vue default slot.",
 
-    # ── Reactivity deep dive ───────────────────────────────────────
     "reactivity": "How reactivity works",
     "reactivityDesc": "Each `~var` is a signal. When you read it inside a computed, modifier argument, or interpolation, the runtime notes the read in the current dependency graph. When you write, every node that read it gets re-evaluated — once, at the end of the current microtask.",
     "reactivityBatching": "Batching",
@@ -181,7 +172,6 @@ ARCHITEX_DOCS: dict = {
     "reactivityEquality": "Equality",
     "reactivityEqualityDesc": "By default the runtime uses strict equality (`===`). Writing the same value re-runs nothing. Pass a new object/array to force an update; immutability is encouraged but not required.",
 
-    # ── Examples ───────────────────────────────────────────────────
     "examples": "Examples",
     "examplesDesc": "Four canonical apps, each self-contained and under 40 lines. Copy any of them into the Architex tab and press Run.",
     "exampleCounter": "Counter — reactive state, computed, button handlers, text binding.",
@@ -189,7 +179,6 @@ ARCHITEX_DOCS: dict = {
     "exampleProfile": "Profile — image, badges, conditional visibility, navigation.",
     "exampleKiller": "Killer features — themes, imports, tabs, toasts, formatted numbers, ternaries, typed vars.",
 
-    # ── Error handling ─────────────────────────────────────────────
     "errors": "Common errors and what to do",
     "errUnknownName": "`unknown name ~foo` — you used a reactive variable before declaring it. Add `~foo = …` at the top of the enclosing `@screen`.",
     "errIndent": "`unexpected indent` — children must be one level deeper than their parent. Architex uses exactly two spaces per level; tabs are rejected to avoid invisible-whitespace bugs.",
@@ -197,14 +186,12 @@ ARCHITEX_DOCS: dict = {
     "errType": "`type mismatch` — e.g. you passed a string where a number is expected. Annotate the reactive variable (`~count: number`) and the parser will tell you where the bad value originates.",
     "errDebug": "To debug at runtime, wrap the suspect expression in `debug(...)` — the runtime logs every evaluation to the console without affecting the value.",
 
-    # ── Compatibility ──────────────────────────────────────────────
     "compatibility": "Runtime compatibility",
     "compatWeb": "Web — renders into vanilla DOM with CSS variables for theme tokens. No React / Vue / Svelte dependency.",
     "compatIOS": "iOS — the same `.arx` is parsed and rendered into SwiftUI views via the Vortex iOS host. Every modifier maps to a SwiftUI style.",
     "compatAndroid": "Android — the host renders into Jetpack Compose. Gesture modifiers (`:: onTap`, `:: onLongPress`) translate to Compose equivalents.",
     "compatVersions": "Version policy — Architex guarantees backward compatibility for `.arx` files across minor versions. A `.arx` file written against 0.1 still works on 0.9.",
 
-    # ── Next steps ─────────────────────────────────────────────────
     "nextSteps": "Next steps",
     "nextStepsDesc": "Read the cookbook for patterns (infinite lists, forms, payments), the tooling guide for the CLI and VS Code plugin, and the contribution guide if you want to add a built-in component. The full source is at github.com/vortex/Architex.",
     "close": "Close",

@@ -17,7 +17,6 @@ export function renderComponent(
 ): HTMLElement {
   const nm  = node.name.toLowerCase();
 
-  // ── Special components ──────────────────────────────────────────────────
 
   // P1 #10 — modal overlay
   if (nm === 'modal') return renderModal(node, state, ctx, rt);
@@ -64,7 +63,6 @@ export function renderComponent(
   // Pull to Refresh
   if (nm === 'pullrefresh') return renderPullRefresh(node, state, ctx, rt);
 
-  // ── Round 3 components ──
   if (nm === 'virtuallist')    return renderVirtualList(node, state, ctx, rt);
   if (nm === 'transitiongroup') return renderTransitionGroup(node, state, ctx, rt);
   if (nm === 'richtext' || nm === 'markdown') return renderRichText(node, state, ctx, rt);
@@ -76,7 +74,6 @@ export function renderComponent(
   if (nm === 'dropdown')       return renderDropdown(node, state, ctx, rt);
   if (nm === 'gallery' || nm === 'lightbox') return renderGallery(node, state, ctx, rt);
 
-  // ── Round 4 components ──
   if (nm === 'sortablelist')   return renderSortableList(node, state, ctx, rt);
   if (nm === 'commandpalette') return renderCommandPalette(node, state, ctx, rt);
   if (nm === 'datatable')      return renderDataTable(node, state, ctx, rt);
@@ -93,7 +90,6 @@ export function renderComponent(
   if (nm === 'fileupload' || nm === 'dropzone') return renderFileUpload(node, state, ctx, rt);
   if (nm === 'sparkline')      return renderSparkline(node, state, ctx);
 
-  // ── Round 4 batch 2 components ──
   if (nm === 'swipecard' || nm === 'swipe') return renderSwipeCard(node, state, ctx, rt);
   if (nm === 'circularprogress' || nm === 'circleprogress') return renderCircularProgress(node, state, ctx);
   if (nm === 'audioplayer')    return renderAudioPlayer(node, state, ctx, rt);
@@ -105,7 +101,6 @@ export function renderComponent(
   if (nm === 'kanban')         return renderKanban(node, state, ctx, rt);
   if (nm === 'meter' || nm === 'gauge') return renderMeter(node, state, ctx);
 
-  // ── Round 5 batch 1 ──
   if (nm === 'chart')              return renderChart(node, state, ctx, rt);
   if (nm === 'heatmap')            return renderHeatmap(node, state, ctx);
   if (nm === 'orgchart')           return renderOrgChart(node, state, ctx, rt);
@@ -117,7 +112,6 @@ export function renderComponent(
   if (nm === 'appbar' || nm === 'toolbar') return renderAppBar(node, state, ctx, rt);
   if (nm === 'terminal')           return renderTerminal(node, state, ctx, rt);
 
-  // ── Round 5 batch 2 ──
   if (nm === 'autocomplete')     return renderAutocomplete(node, state, ctx, rt);
   if (nm === 'taginput')         return renderTagInput(node, state, ctx);
   if (nm === 'wysiwyg')          return renderWysiwyg(node, state, ctx);
@@ -182,7 +176,6 @@ export function renderComponent(
     return wrapper;
   }
 
-  // ── Standard element ────────────────────────────────────────────────────
 
   const tag = TAG_MAP[nm] ?? 'div';
   const el  = document.createElement(tag);
@@ -369,7 +362,6 @@ export function renderComponent(
     // Content from positional args — handled below in main args block
   }
 
-  // ── Content from positional args ─────────────────────────────────────────
   if (node.args.length > 0) {
     const first    = node.args[0]!;
     const resolved = resolveValue(first, state, ctx);
@@ -416,7 +408,6 @@ export function renderComponent(
   return el;
 }
 
-// ── P1 #10: Modal overlay ─────────────────────────────────────────────────────
 
 function renderModal(
   node:  ComponentNode,
@@ -450,7 +441,6 @@ function renderModal(
   return overlay;
 }
 
-// ── Toast / Snackbar ──────────────────────────────────────────────────────────
 
 function renderToast(
   node:  ComponentNode,
@@ -536,7 +526,6 @@ function renderToast(
   return toast;
 }
 
-// ── P1 #11: Tabs ──────────────────────────────────────────────────────────────
 
 function renderTabs(
   node:  ComponentNode,
@@ -612,7 +601,6 @@ function renderTabs(
   return container;
 }
 
-// ── Spinner — CSS-only loading animation ─────────────────────────────────────
 
 function renderSpinner(
   node:  ComponentNode,
@@ -652,7 +640,6 @@ function renderSpinner(
   return el;
 }
 
-// ── Skeleton — shimmer loading placeholder ───────────────────────────────────
 
 function renderSkeleton(
   node:  ComponentNode,
@@ -685,7 +672,6 @@ function renderSkeleton(
   return el;
 }
 
-// ── Scoped state for @component local isolation ─────────────────────────────
 
 import type { Subscriber, Unsubscribe } from '../reactive/types.js';
 import type { Node as AstNode } from '../ast/nodes.js';
@@ -753,7 +739,6 @@ function _literalValueQuick(node: import('../ast/values.js').ValueNode): unknown
   }
 }
 
-// ── Feature 1: Accordion / Collapsible ────────────────────────────────────────
 
 function renderAccordion(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -803,7 +788,6 @@ function renderAccordion(
   return container;
 }
 
-// ── Feature 2: Carousel / Swiper ──────────────────────────────────────────────
 
 function renderCarousel(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -891,7 +875,6 @@ function renderCarousel(
   return container;
 }
 
-// ── Feature 3: Bottom Sheet ───────────────────────────────────────────────────
 
 function renderBottomSheet(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -949,7 +932,6 @@ function renderBottomSheet(
   return overlay;
 }
 
-// ── Feature 4: Date/Time Picker ───────────────────────────────────────────────
 
 function renderDatePicker(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -982,7 +964,6 @@ function renderDatePicker(
   return el;
 }
 
-// ── Feature 5: Search Input with Debounce ─────────────────────────────────────
 
 function renderSearch(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1023,7 +1004,6 @@ function renderSearch(
   return wrapper;
 }
 
-// ── Feature 6: Avatar ─────────────────────────────────────────────────────────
 
 function renderAvatar(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -1060,7 +1040,6 @@ function _initials(name: string): string {
   return name.split(/\s+/).map(w => w[0]?.toUpperCase() ?? '').join('').slice(0, 2);
 }
 
-// ── Feature 7: Chip / Tag ─────────────────────────────────────────────────────
 
 function renderChip(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1100,7 +1079,6 @@ function renderChip(
   return el;
 }
 
-// ── Feature 8: Stepper / Wizard ───────────────────────────────────────────────
 
 function renderStepper(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1182,7 +1160,6 @@ function renderStepper(
   return container;
 }
 
-// ── Feature 9: Infinite Scroll ────────────────────────────────────────────────
 
 function renderInfiniteScroll(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1246,7 +1223,6 @@ function renderInfiniteScroll(
   return container;
 }
 
-// ── Feature 10: Pull to Refresh ───────────────────────────────────────────────
 
 function renderPullRefresh(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1324,7 +1300,6 @@ function renderPullRefresh(
   return container;
 }
 
-// ── Round 3 Feature 1: Virtual List ──────────────────────────────────────────
 
 function renderVirtualList(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1392,7 +1367,6 @@ function renderVirtualList(
   return container;
 }
 
-// ── Round 3 Feature 2: Transition Group ──────────────────────────────────────
 
 function renderTransitionGroup(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1444,7 +1418,6 @@ function renderTransitionGroup(
   return container;
 }
 
-// ── Round 3 Feature 3: Rich Text / Markdown ──────────────────────────────────
 
 function renderRichText(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1490,7 +1463,6 @@ function renderRichText(
   return container;
 }
 
-// ── Round 3 Feature 4: Color Picker ──────────────────────────────────────────
 
 function renderColorPicker(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -1531,7 +1503,6 @@ function renderColorPicker(
   return wrapper;
 }
 
-// ── Round 3 Feature 5: Rating (Stars) ────────────────────────────────────────
 
 function renderRating(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1570,7 +1541,6 @@ function renderRating(
   return container;
 }
 
-// ── Round 3 Feature 6: Tooltip / Popover ─────────────────────────────────────
 
 function renderTooltip(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1623,7 +1593,6 @@ function renderTooltip(
   return wrapper;
 }
 
-// ── Round 3 Feature 7: Breadcrumb ────────────────────────────────────────────
 
 function renderBreadcrumb(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1659,7 +1628,6 @@ function renderBreadcrumb(
   return nav;
 }
 
-// ── Round 3 Feature 8: Pagination ────────────────────────────────────────────
 
 function renderPagination(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1729,7 +1697,6 @@ function renderPagination(
   return nav;
 }
 
-// ── Round 3 Feature 9: Dropdown Menu ─────────────────────────────────────────
 
 function renderDropdown(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1786,7 +1753,6 @@ function renderDropdown(
   return wrapper;
 }
 
-// ── Round 3 Feature 10: Gallery / Lightbox ───────────────────────────────────
 
 function renderGallery(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1877,7 +1843,6 @@ function renderGallery(
   return container;
 }
 
-// ── Round 4 Feature 1: Sortable List ─────────────────────────────────────────
 
 function renderSortableList(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -1944,7 +1909,6 @@ function renderSortableList(
   return container;
 }
 
-// ── Round 4 Feature 2: Command Palette ───────────────────────────────────────
 
 function renderCommandPalette(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2027,7 +1991,6 @@ function renderCommandPalette(
   return overlay;
 }
 
-// ── Round 4 Feature 3: Data Table ────────────────────────────────────────────
 
 function renderDataTable(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2115,7 +2078,6 @@ function renderDataTable(
   return wrapper;
 }
 
-// ── Round 4 Feature 4: Tree View ─────────────────────────────────────────────
 
 function renderTreeView(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2186,7 +2148,6 @@ function renderTreeView(
   return container;
 }
 
-// ── Round 4 Feature 5: Calendar ──────────────────────────────────────────────
 
 function renderCalendar(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2265,7 +2226,6 @@ function renderCalendar(
   return container;
 }
 
-// ── Round 4 Feature 6: Timeline ──────────────────────────────────────────────
 
 function renderTimeline(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2298,7 +2258,6 @@ function renderTimeline(
   return container;
 }
 
-// ── Round 4 Feature 7: Chat Bubble ───────────────────────────────────────────
 
 function renderChatBubble(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2341,7 +2300,6 @@ function renderChatBubble(
   return bubble;
 }
 
-// ── Round 4 Feature 8: Code Editor / Code Block ──────────────────────────────
 
 function renderCodeEditor(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2390,7 +2348,6 @@ function renderCodeEditor(
   return wrapper;
 }
 
-// ── Round 4 Feature 9: Signature Pad ─────────────────────────────────────────
 
 function renderSignaturePad(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2478,7 +2435,6 @@ function renderSignaturePad(
   return wrapper;
 }
 
-// ── Round 4 Feature 10: Confetti ─────────────────────────────────────────────
 
 function renderConfetti(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -2518,7 +2474,6 @@ function renderConfetti(
   return container;
 }
 
-// ── Round 4 Feature 11: Typewriter ───────────────────────────────────────────
 
 function renderTypewriter(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -2561,7 +2516,6 @@ function renderTypewriter(
   return el;
 }
 
-// ── Round 4 Feature 12: Count Up Animation ───────────────────────────────────
 
 function renderCountUp(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -2602,7 +2556,6 @@ function renderCountUp(
   return el;
 }
 
-// ── Round 4 Feature 13: OTP Input ────────────────────────────────────────────
 
 function renderOTPInput(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -2656,7 +2609,6 @@ function renderOTPInput(
   return container;
 }
 
-// ── Round 4 Feature 14: File Upload / Dropzone ───────────────────────────────
 
 function renderFileUpload(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2713,7 +2665,6 @@ function renderFileUpload(
   return container;
 }
 
-// ── Round 4 Feature 15: Sparkline ────────────────────────────────────────────
 
 function renderSparkline(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -2764,7 +2715,6 @@ function renderSparkline(
   return wrapper;
 }
 
-// ── Round 4 Feature 16: Swipe Card ───────────────────────────────────────────
 
 function renderSwipeCard(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2811,7 +2761,6 @@ function renderSwipeCard(
   return container;
 }
 
-// ── Round 4 Feature 17: Circular Progress ────────────────────────────────────
 
 function renderCircularProgress(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -2879,7 +2828,6 @@ function renderCircularProgress(
   return container;
 }
 
-// ── Round 4 Feature 18: Audio Player ─────────────────────────────────────────
 
 function renderAudioPlayer(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -2942,7 +2890,6 @@ function renderAudioPlayer(
   return container;
 }
 
-// ── Round 4 Feature 19: Video Player with Overlay ────────────────────────────
 
 function renderVideoPlayer(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -3015,7 +2962,6 @@ function renderVideoPlayer(
   return container;
 }
 
-// ── Round 4 Feature 20: QR Code Generator ────────────────────────────────────
 
 function renderQRCode(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3084,7 +3030,6 @@ function renderQRCode(
   return container;
 }
 
-// ── Round 4 Feature 21: Phone Input ──────────────────────────────────────────
 
 function renderPhoneInput(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3132,7 +3077,6 @@ function renderPhoneInput(
   return wrapper;
 }
 
-// ── Round 4 Feature 22: Image Cropper ────────────────────────────────────────
 
 function renderCropper(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3191,7 +3135,6 @@ function renderCropper(
   return container;
 }
 
-// ── Round 4 Feature 23: Diff Viewer ──────────────────────────────────────────
 
 function renderDiffViewer(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3250,7 +3193,6 @@ function renderDiffViewer(
   return container;
 }
 
-// ── Round 4 Feature 24: Kanban Board ─────────────────────────────────────────
 
 function renderKanban(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -3310,7 +3252,6 @@ function renderKanban(
   return container;
 }
 
-// ── Round 4 Feature 25: Meter / Gauge ────────────────────────────────────────
 
 function renderMeter(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3388,7 +3329,6 @@ function describeMeterArc(cx: number, cy: number, r: number, startAngle: number,
   return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} ${sweep} ${x2} ${y2}`;
 }
 
-// ── R5 Feature 11: Autocomplete ──────────────────────────────────────────────
 
 function renderAutocomplete(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -3453,7 +3393,6 @@ function renderAutocomplete(
   return wrapper;
 }
 
-// ── R5 Feature 12: Tag Input ─────────────────────────────────────────────────
 
 function renderTagInput(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3520,7 +3459,6 @@ function renderTagInput(
   return container;
 }
 
-// ── R5 Feature 13: WYSIWYG Editor ────────────────────────────────────────────
 
 function renderWysiwyg(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3564,7 +3502,6 @@ function renderWysiwyg(
   return container;
 }
 
-// ── R5 Feature 14: Dual Range Slider ─────────────────────────────────────────
 
 function renderDualRange(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3629,7 +3566,6 @@ function renderDualRange(
   return container;
 }
 
-// ── R5 Feature 15: Credit Card Input ─────────────────────────────────────────
 
 function renderCreditCard(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3702,7 +3638,6 @@ function renderCreditCard(
   return container;
 }
 
-// ── R5 Feature 16: Emoji Picker ──────────────────────────────────────────────
 
 function renderEmojiPicker(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -3771,7 +3706,6 @@ function renderEmojiPicker(
   return container;
 }
 
-// ── R5 Feature 17: Mention Input ─────────────────────────────────────────────
 
 function renderMention(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3829,7 +3763,6 @@ function renderMention(
   return wrapper;
 }
 
-// ── R5 Feature 18: Reactions Bar ─────────────────────────────────────────────
 
 function renderReactions(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -3870,7 +3803,6 @@ function renderReactions(
   return container;
 }
 
-// ── R5 Feature 19: Presence Indicator ────────────────────────────────────────
 
 function renderPresence(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -3908,7 +3840,6 @@ function renderPresence(
   return container;
 }
 
-// ── R5 Feature 20: Comment Thread ────────────────────────────────────────────
 
 function renderThread(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -3978,7 +3909,6 @@ function renderThread(
   return container;
 }
 
-// ── R5 Feature 1: Chart (bar/line/pie/donut) ────────────────────────────────
 
 function renderChart(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -4088,7 +4018,6 @@ function renderChart(
   return wrapper;
 }
 
-// ── R5 Feature 2: Heatmap ────────────────────────────────────────────────────
 
 function renderHeatmap(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -4131,7 +4060,6 @@ function renderHeatmap(
   return container;
 }
 
-// ── R5 Feature 3: Org Chart ──────────────────────────────────────────────────
 
 function renderOrgChart(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -4175,7 +4103,6 @@ function renderOrgChart(
   return container;
 }
 
-// ── R5 Feature 4: Funnel ─────────────────────────────────────────────────────
 
 function renderFunnel(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx,
@@ -4210,7 +4137,6 @@ function renderFunnel(
   return container;
 }
 
-// ── R5 Feature 5: Split Pane ─────────────────────────────────────────────────
 
 function renderSplitPane(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -4265,7 +4191,6 @@ function renderSplitPane(
   return container;
 }
 
-// ── R5 Feature 6: Drawer / Sidebar ───────────────────────────────────────────
 
 function renderDrawer(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -4306,7 +4231,6 @@ function renderDrawer(
   return overlay;
 }
 
-// ── R5 Feature 7: Bottom Navigation ──────────────────────────────────────────
 
 function renderBottomNav(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -4359,7 +4283,6 @@ function renderBottomNav(
   return nav;
 }
 
-// ── R5 Feature 8: FAB / Speed Dial ───────────────────────────────────────────
 
 function renderFAB(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -4406,7 +4329,6 @@ function renderFAB(
   return container;
 }
 
-// ── R5 Feature 9: App Bar / Toolbar ──────────────────────────────────────────
 
 function renderAppBar(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,
@@ -4439,7 +4361,6 @@ function renderAppBar(
   return bar;
 }
 
-// ── R5 Feature 10: Terminal Emulator ─────────────────────────────────────────
 
 function renderTerminal(
   node: ComponentNode, state: StateAPI, ctx: RenderCtx, rt: RuntimeHooks,

@@ -28,9 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/transport", tags=["transport"])
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Pydantic schemas
-# ─────────────────────────────────────────────────────────────────────────────
 
 class SignalRequest(BaseModel):
     """Incoming ICE candidates from a peer (for NAT hole punch signaling)."""
@@ -50,9 +48,7 @@ class WifiDirectConnectRequest(BaseModel):
     pin:      Optional[str] = None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/status")
 async def transport_status(u: User = Depends(get_current_user)):
@@ -141,9 +137,7 @@ async def initiate_hole_punch_sync(
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # BLE Endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/ble/peers")
 async def ble_peers(u: User = Depends(get_current_user)):
@@ -182,9 +176,7 @@ async def ble_send_message(
     return {"ok": True}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Wi-Fi Direct Endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/wifi-direct/peers")
 async def wifi_direct_peers(u: User = Depends(get_current_user)):
@@ -243,9 +235,7 @@ async def wifi_direct_create_group(u: User = Depends(get_current_user)):
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # STUN / NAT Info
-# ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/nat/info")
 async def nat_info(u: User = Depends(get_current_user)):

@@ -7,7 +7,6 @@
  */
 
 const QR = (() => {
-    // ── GF(256) arithmetic ──────────────────────────────────────────────
     const EXP = new Uint8Array(512);
     const LOG = new Uint8Array(256);
     (() => {
@@ -48,7 +47,6 @@ const QR = (() => {
         return g;
     }
 
-    // ── Alphanumeric encoding ───────────────────────────────────────────
     const ALNUM = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
 
     function encodeAlphanumeric(str) {
@@ -69,7 +67,6 @@ const QR = (() => {
         return { bits, charCountPos, charCount: str.length };
     }
 
-    // ── Version/capacity table (alphanumeric, EC=M) ─────────────────────
     // [totalCodewords, ecCodewordsPerBlock, numBlocks, dataCodewords]
     const VERSIONS = {
         1:  [26,  10, 1, 16],
@@ -92,7 +89,6 @@ const QR = (() => {
         throw new Error('QR: data too long');
     }
 
-    // ── Matrix construction ─────────────────────────────────────────────
     const SIZE = v => 17 + v * 4;
 
     function createMatrix(size) {
@@ -163,7 +159,6 @@ const QR = (() => {
         return res;
     }
 
-    // ── Data placement ──────────────────────────────────────────────────
     function placeData(m, dataBits) {
         const n = m.length;
         let bitIdx = 0;
@@ -182,7 +177,6 @@ const QR = (() => {
         }
     }
 
-    // ── Masking ─────────────────────────────────────────────────────────
     const MASKS = [
         (r, c) => (r + c) % 2 === 0,
         (r, c) => r % 2 === 0,
@@ -231,7 +225,6 @@ const QR = (() => {
         return p;
     }
 
-    // ── Format info ─────────────────────────────────────────────────────
     const FORMAT_BITS = (() => {
         const table = [];
         for (let mask = 0; mask < 8; mask++) {
@@ -263,7 +256,6 @@ const QR = (() => {
         for (let i = 8; i < 15; i++) m[POS_V[i]][8] = (bits >> i) & 1;
     }
 
-    // ── Main encode ─────────────────────────────────────────────────────
     function encode(text) {
         text = text.toUpperCase();
         const version = selectVersion(text.length);
@@ -365,7 +357,6 @@ const QR = (() => {
         return m.map(row => Array.from(row, v => v === 1));
     }
 
-    // ── Canvas renderer ─────────────────────────────────────────────────
     function toCanvas(matrix, cellSize = 4, quietZone = 4) {
         const n = matrix.length;
         const total = n + quietZone * 2;

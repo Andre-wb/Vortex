@@ -57,7 +57,6 @@ except ImportError:
     _HAS_RUST_STEG = False
 
 
-# ── Shared key for spread-spectrum PRNG ──────────────────────────────────────
 # In production: derive from room E2E key.  Fallback: env or random per-process.
 _STEG_KEY = os.environ.get("STEG_KEY", "").encode() or os.urandom(32)
 
@@ -70,9 +69,7 @@ def can_use_steganography() -> bool:
     return _PIL_AVAILABLE
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Cover image generation
-# ══════════════════════════════════════════════════════════════════════════════
 
 # Supported lossless output formats (preserve LSBs)
 LOSSLESS_FORMATS = {"PNG", "WEBP", "BMP"}
@@ -128,9 +125,7 @@ def generate_cover_image(
     return _save_lossless(img, fmt)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Spread-spectrum helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _derive_stream(key: bytes, nonce: bytes, length: int) -> bytes:
     """
@@ -164,9 +159,7 @@ def _permuted_indices(key: bytes, nonce: bytes, total: int, count: int) -> list[
     return indices[:count]
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Embed
-# ══════════════════════════════════════════════════════════════════════════════
 
 def embed_data(
     image_bytes: bytes, data: bytes,
@@ -204,7 +197,6 @@ def embed_data(
     if len(data) > max_data:
         raise ValueError(f"Data ({len(data)}B) does not fit in image ({max_data}B max)")
 
-    # ── Build payload ────────────────────────────────────────────────────
     nonce = os.urandom(16)
     marker = hmac.new(key, nonce + b"marker", hashlib.sha256).digest()[:16]
     length_bytes = struct.pack(">I", len(data))
@@ -214,7 +206,6 @@ def embed_data(
     xor_mask = _derive_stream(key, nonce + b"xor", len(phase2_raw))
     phase2_masked = bytes(a ^ b for a, b in zip(phase2_raw, xor_mask))
 
-    # ── Convert to bits ──────────────────────────────────────────────────
     def to_bits(data_bytes: bytes) -> list[int]:
         bits = []
         for byte in data_bytes:
@@ -225,7 +216,6 @@ def embed_data(
     nonce_bits = to_bits(nonce)        # 128 bits
     phase2_bits = to_bits(phase2_masked)  # (20 + data_len) * 8 bits
 
-    # ── Randomize ALL LSBs first (statistical cover) ─────────────────────
     flat = []
     pixels = img.load()
     for y in range(height):
@@ -239,7 +229,6 @@ def embed_data(
         rbit = (random_bytes[idx // 8] >> (7 - idx % 8)) & 1
         flat[idx] = (x, y, ch, (val & 0xFE) | rbit)
 
-    # ── Phase 1: Write nonce at fixed-seed positions ─────────────────────
     nonce_perm = _permuted_indices(key, b"\x00" * 16, total_bits, 128)
     used_positions = set(nonce_perm)
     for i, bit in enumerate(nonce_bits):
@@ -255,7 +244,6 @@ def embed_data(
         x, y, ch, val = flat[real_pos]
         flat[real_pos] = (x, y, ch, (val & 0xFE) | bit)
 
-    # ── Write back to image ──────────────────────────────────────────────
     for x, y, ch, val in flat:
         px = list(pixels[x, y])
         px[ch] = val
@@ -264,9 +252,7 @@ def embed_data(
     return _save_lossless(img, output_format)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Extract
-# ══════════════════════════════════════════════════════════════════════════════
 
 def extract_data(image_bytes: bytes, key: bytes | None = None) -> Optional[bytes]:
     """
@@ -310,7 +296,6 @@ def extract_data(image_bytes: bytes, key: bytes | None = None) -> Optional[bytes
         width, height = img.size
         total_bits = width * height * 3
 
-        # ── Extract ALL LSBs ─────────────────────────────────────────────
         all_lsb = []
         for y in range(height):
             for x in range(width):
@@ -319,12 +304,10 @@ def extract_data(image_bytes: bytes, key: bytes | None = None) -> Optional[bytes
                 all_lsb.append(g & 1)
                 all_lsb.append(b & 1)
 
-        # ── Phase 1: Read nonce from fixed-seed positions ────────────────
         nonce_perm = _permuted_indices(key, b"\x00" * 16, total_bits, 128)
         nonce_bits = [all_lsb[p] for p in nonce_perm]
         nonce = _bits_to_bytes(nonce_bits)
 
-        # ── Phase 2: Read marker + length from nonce-seeded positions ────
         used_positions = set(nonce_perm)
         available = [i for i in range(total_bits) if i not in used_positions]
 
@@ -383,9 +366,7 @@ def _extract_legacy(all_lsb: list[int]) -> Optional[bytes]:
     return all_bytes[8:8 + data_len]
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _bits_to_bytes(bits: list[int]) -> bytes:
     """Конвертирует список бит в байты."""

@@ -1,5 +1,3 @@
-// ── Helpers ─────────────────────────────────────────────────────────────────
-// ── Helpers ───────────────────────────────────────────────────
 function _esc(s) { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
 function _relTime(ts) {
     const diff = Date.now() - ts;
@@ -9,8 +7,6 @@ function _relTime(ts) {
     return Math.floor(diff/86400000) + 'd ago';
 }
 
-// ── Shared modal helpers ─────────────────────────────────────────────────────
-// ── Shared modal helpers ──────────────────────────────────────
 
 function _ideShowModal(id, innerHTML) {
     let overlay = document.getElementById(id + '-overlay');

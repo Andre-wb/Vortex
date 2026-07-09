@@ -225,7 +225,6 @@ export function showError(msg, opts) { return showToast(msg, 'error', opts); }
 export function showWarning(msg, opts) { return showToast(msg, 'warning', opts); }
 export function showInfo(msg, opts) { return showToast(msg, 'info', opts); }
 
-// ── Swipe-to-dismiss ────────────────────────────────────────────────────
 
 function _initSwipeDismiss(el, id) {
     let startX = 0, currentX = 0, swiping = false;

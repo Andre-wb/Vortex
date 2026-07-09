@@ -1,12 +1,9 @@
 // static/js/spaces.js
-// ============================================================================
 // Spaces (Discord-like servers): icon bar, space view, create/join/settings
-// ============================================================================
 
 import { $, api, esc, openModal, closeModal, showAlert } from './utils.js';
 import { renderRoomsList } from './rooms.js';
 
-// ── State ────────────────────────────────────────────────────────────────────
 let _activeSpaceId = null;   // null = home (DMs + standalone rooms)
 let _mySpaces = [];          // [{id, name, avatar_emoji, avatar_url, member_count, ...}]
 let _activeSpaceData = null; // full space detail with categories
@@ -15,7 +12,6 @@ let _collapsedCategories = new Set(); // category IDs collapsed in sidebar
 export function getActiveSpaceId() { return _activeSpaceId; }
 export function getMySpaces() { return _mySpaces; }
 
-// ── Load spaces list ─────────────────────────────────────────────────────────
 export async function loadMySpaces() {
     try {
         const data = await api('GET', '/api/spaces');
@@ -26,7 +22,6 @@ export async function loadMySpaces() {
     renderSpaceIconBar();
 }
 
-// ── Select a space ───────────────────────────────────────────────────────────
 export async function selectSpace(id) {
     if (id === null) {
         // Go home
@@ -61,7 +56,6 @@ async function _loadSpaceDetail(id) {
     }
 }
 
-// ── Render space icon bar ────────────────────────────────────────────────────
 export function renderSpaceIconBar() {
     const bar = document.getElementById('space-icon-bar');
     if (!bar) return;
@@ -103,7 +97,6 @@ export function renderSpaceIconBar() {
     bar.innerHTML = html;
 }
 
-// ── Show/hide views ──────────────────────────────────────────────────────────
 function _showHomeView() {
     const homeContent = document.getElementById('sidebar-home-content');
     const spaceContent = document.getElementById('sidebar-space-content');
@@ -141,7 +134,6 @@ function _showSpaceView() {
     if (spaceContent) spaceContent.style.display = '';
 }
 
-// ── Render categorized rooms for a space ─────────────────────────────────────
 export function renderSpaceRooms(space) {
     const el = document.getElementById('space-rooms-list');
     if (!el || !space) return;
@@ -206,7 +198,6 @@ function _spaceRoomIcon(r) {
     return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M5.41 21L6.12 17H2.12L2.47 15H6.47L7.53 9H3.53L3.88 7H7.88L8.59 3H10.59L9.88 7H15.88L16.59 3H18.59L17.88 7H21.88L21.53 9H17.53L16.47 15H20.47L20.12 17H16.12L15.41 21H13.41L14.12 17H8.12L7.41 21H5.41ZM9.53 9L8.47 15H14.47L15.53 9H9.53Z"/></svg>';
 }
 
-// ── Toggle category collapse ─────────────────────────────────────────────────
 window._toggleSpaceCategory = function(catId) {
     if (_collapsedCategories.has(catId)) {
         _collapsedCategories.delete(catId);
@@ -216,7 +207,6 @@ window._toggleSpaceCategory = function(catId) {
     if (_activeSpaceData) renderSpaceRooms(_activeSpaceData);
 };
 
-// ── Create Space Modal ───────────────────────────────────────────────────────
 export function showCreateSpaceModal() {
     openModal('create-space-modal');
     setTimeout(() => {
@@ -259,7 +249,6 @@ export async function createSpace() {
     }
 }
 
-// ── Join Space by code ───────────────────────────────────────────────────────
 export async function joinSpaceByCode() {
     const code = (document.getElementById('cs-join-code')?.value || '').trim().toUpperCase();
     if (!code) {
@@ -282,7 +271,6 @@ export async function joinSpaceByCode() {
     }
 }
 
-// ── Space Settings Modal ─────────────────────────────────────────────────────
 export function showSpaceSettings() {
     if (!_activeSpaceData) return;
     const sp = _activeSpaceData;
@@ -386,7 +374,6 @@ export async function deleteSpace() {
     }
 }
 
-// ── Copy invite code ─────────────────────────────────────────────────────────
 export function copySpaceInvite() {
     if (!_activeSpaceData?.invite_code) return;
     navigator.clipboard.writeText(_activeSpaceData.invite_code).then(() => {
@@ -398,7 +385,6 @@ export function copySpaceInvite() {
     });
 }
 
-// ── Create room in space ─────────────────────────────────────────────────────
 window._showCreateRoomInSpace = function(spaceId, categoryId) {
     const el = document.getElementById('crs-space-id');
     const catEl = document.getElementById('crs-category-id');
@@ -441,7 +427,6 @@ export async function createRoomInSpace() {
     }
 }
 
-// ── Create category in space ─────────────────────────────────────────────────
 export async function createCategory() {
     if (!_activeSpaceData) return;
     const name = await window.vxPrompt(t('spaces.categoryName'));
@@ -455,14 +440,12 @@ export async function createCategory() {
     }
 }
 
-// ── Helper: re-render space rooms when renderRoomsList triggers ──────────────
 window._refreshSpaceRoomsIfActive = function() {
     if (_activeSpaceId && _activeSpaceData) {
         renderSpaceRooms(_activeSpaceData);
     }
 };
 
-// ── Open a space room (ensure it's in S.rooms first) ────────────────────────
 window._openSpaceRoom = function(roomId) {
     const S = window.AppState;
     // If the room is already in the global rooms list, just open it
@@ -485,7 +468,6 @@ window._openSpaceRoom = function(roomId) {
     if (typeof window.openRoom === 'function') window.openRoom(roomId);
 };
 
-// ── Global exports ───────────────────────────────────────────────────────────
 window.selectSpace = selectSpace;
 window.showCreateSpaceModal = showCreateSpaceModal;
 window.createSpace = createSpace;

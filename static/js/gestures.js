@@ -23,7 +23,6 @@ let _isPinching = false;
 let _initialPinchDist = 0;
 let _gesturesEnabled = true;
 
-// ── Edge swipe (sidebar) ─────────────────────────────────────────────
 
 function _initEdgeSwipe() {
     const sidebar = document.getElementById('sidebar');
@@ -54,7 +53,6 @@ function _initEdgeSwipe() {
     }, { passive: true });
 }
 
-// ── Message swipe-to-reply ───────────────────────────────────────────
 
 function _initMessageSwipe() {
     const chatArea = document.getElementById('messages') || document.getElementById('chat-messages');
@@ -117,7 +115,6 @@ function _initMessageSwipe() {
     }, { passive: true });
 }
 
-// ── Long press context menu ──────────────────────────────────────────
 
 function _initLongPress() {
     const chatArea = document.getElementById('messages') || document.getElementById('chat-messages');
@@ -155,7 +152,6 @@ function _initLongPress() {
     }, { passive: true });
 }
 
-// ── Double tap to react ──────────────────────────────────────────────
 
 function _initDoubleTap() {
     const chatArea = document.getElementById('messages') || document.getElementById('chat-messages');
@@ -186,7 +182,6 @@ function _initDoubleTap() {
     }, { passive: true });
 }
 
-// ── Pinch to zoom images ─────────────────────────────────────────────
 
 function _initPinchZoom() {
     document.addEventListener('touchstart', (e) => {
@@ -224,7 +219,6 @@ function _initPinchZoom() {
     }, { passive: true });
 }
 
-// ── Pull to refresh (load older messages) ────────────────────────────
 
 function _initPullToRefresh() {
     const chatArea = document.getElementById('messages') || document.getElementById('chat-messages');
@@ -278,7 +272,6 @@ function _initPullToRefresh() {
     }, { passive: true });
 }
 
-// ── Public API ───────────────────────────────────────────────────────
 
 export function initGestures() {
     if (!('ontouchstart' in window)) return; // Desktop — skip

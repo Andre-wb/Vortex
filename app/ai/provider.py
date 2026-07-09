@@ -29,9 +29,7 @@ from app.config import Config
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Configuration (read once at import time, overridable via env)
-# ---------------------------------------------------------------------------
 
 AI_PROVIDER: str = os.getenv("AI_PROVIDER", "auto")  # auto | ollama | openai | anthropic
 AI_API_KEY: str = os.getenv("AI_API_KEY", "")
@@ -39,9 +37,7 @@ AI_API_URL: str = os.getenv("AI_API_URL", "")
 AI_MODEL: str = os.getenv("AI_MODEL", "")
 
 
-# ---------------------------------------------------------------------------
 # Abstract interface
-# ---------------------------------------------------------------------------
 
 class AIProvider(abc.ABC):
     """Abstract AI text-generation provider."""
@@ -95,9 +91,7 @@ class AIProvider(abc.ABC):
         return False
 
 
-# ---------------------------------------------------------------------------
 # Ollama
-# ---------------------------------------------------------------------------
 
 class OllamaProvider(AIProvider):
     """Local Ollama backend (http://localhost:11434 by default)."""
@@ -171,9 +165,7 @@ class OllamaProvider(AIProvider):
                             break
 
 
-# ---------------------------------------------------------------------------
 # OpenAI-compatible API
-# ---------------------------------------------------------------------------
 
 class OpenAIProvider(AIProvider):
     """OpenAI API or any compatible endpoint (vLLM, LiteLLM, Together, etc.)."""
@@ -276,9 +268,7 @@ class OpenAIProvider(AIProvider):
                         pass
 
 
-# ---------------------------------------------------------------------------
 # Anthropic API
-# ---------------------------------------------------------------------------
 
 class AnthropicProvider(AIProvider):
     """Anthropic Messages API (https://api.anthropic.com/v1/messages)."""
@@ -370,9 +360,7 @@ class AnthropicProvider(AIProvider):
                         pass
 
 
-# ---------------------------------------------------------------------------
 # Provider factory with auto-detection
-# ---------------------------------------------------------------------------
 
 _cached_provider: Optional[AIProvider] = None
 

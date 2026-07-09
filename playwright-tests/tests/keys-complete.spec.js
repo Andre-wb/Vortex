@@ -23,7 +23,6 @@ test.describe('Keys Complete', () => {
         userId = await getMeId(request, csrf);
     });
 
-    // ── Link Poll ─────────────────────────────────────────────────────────────
 
     test('link poll with fake request_id', async ({ request }) => {
         const res = await request.get('/api/keys/link/poll/fake_request_id', {
@@ -50,7 +49,6 @@ test.describe('Keys Complete', () => {
         }
     });
 
-    // ── Federated Backup Shards ───────────────────────────────────────────────
 
     test('store federated backup shard', async ({ request }) => {
         const res = await request.post('/api/keys/federated-backup/store-shard', {

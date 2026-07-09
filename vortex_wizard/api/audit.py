@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/admin/audit", tags=["audit"])
 
 
-# ── Storage ───────────────────────────────────────────────────────────────
 
 _DB_FILENAME = "wizard_audit.db"
 _SCHEMA = """
@@ -134,7 +133,6 @@ def _purge_old(env_file: Path, keep_entries: int = 10_000) -> None:
         pass
 
 
-# ── Middleware ────────────────────────────────────────────────────────────
 
 class AuditMiddleware(BaseHTTPMiddleware):
     """Stamp every /api/wiz/admin/* request with an audit row."""
@@ -204,7 +202,6 @@ class AuditMiddleware(BaseHTTPMiddleware):
             _purge_old(Path(env_file))
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────
 
 def _env(request: Request) -> Path:
     p = getattr(request.app.state, "env_file", None)

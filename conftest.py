@@ -9,16 +9,12 @@ import secrets
 import string
 import sys
 
-# ---------------------------------------------------------------------------
 # Добавляем корень проекта в sys.path чтобы импорт app.* работал
-# ---------------------------------------------------------------------------
 ROOT = os.path.dirname(__file__)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-# ---------------------------------------------------------------------------
 # Устанавливаем переменные окружения ДО импорта приложения
-# ---------------------------------------------------------------------------
 os.environ.setdefault('TESTING',                 'true')
 os.environ.setdefault('DB_PATH', 'file::memory:?cache=shared')
 os.environ.setdefault('JWT_SECRET',              'test_secret_key_minimum_32_chars_long_1234')
@@ -42,15 +38,11 @@ os.environ.setdefault('VORTEX_PQ_SIMULATE',        '1')      # enable PQ simulat
 import httpx
 import pytest
 
-# ---------------------------------------------------------------------------
 # Импорт приложения (после установки env)
-# ---------------------------------------------------------------------------
 from app.main import app  # noqa: E402
 
 
-# ===========================================================================
 # Обёртка над httpx.AsyncClient + ASGITransport
-# ===========================================================================
 
 class SyncASGIClient:
     """
@@ -105,9 +97,7 @@ class SyncASGIClient:
     def __exit__(self, *args): self.close()
 
 
-# ===========================================================================
 # SESSION-SCOPE: один клиент на всю сессию тестов
-# ===========================================================================
 
 @pytest.fixture(scope='session')
 def client() -> SyncASGIClient:
@@ -145,9 +135,7 @@ def client() -> SyncASGIClient:
     loop.close()
 
 
-# ===========================================================================
 # Вспомогательные утилиты (доступны из всех тестов через импорт conftest)
-# ===========================================================================
 
 def random_str(n: int = 10) -> str:
     return ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(n))
@@ -215,9 +203,7 @@ def login_user(client: SyncASGIClient, username: str, password: str) -> dict:
     return {'X-CSRF-Token': csrf}
 
 
-# ===========================================================================
 # FUNCTION-SCOPE фикстуры
-# ===========================================================================
 
 @pytest.fixture
 def anon_client(client: SyncASGIClient) -> SyncASGIClient:
@@ -266,9 +252,7 @@ def two_users(client: SyncASGIClient):
     return u1, u2
 
 
-# ===========================================================================
 # Хук: выводим метрики после тестов
-# ===========================================================================
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Добавляем секцию метрик в финальный отчёт."""

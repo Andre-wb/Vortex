@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/transport", tags=["transport"])
 
 
-# ── Pydantic models ──────────────────────────────────────────────────────────
 
 class BridgeAddRequest(BaseModel):
     bridge_line: str  # "bridge 1.2.3.4:9000 abcdef1234567890"
@@ -43,7 +42,6 @@ class StegoSendRequest(BaseModel):
     height: int = 480
 
 
-# ── Transport status ─────────────────────────────────────────────────────────
 
 @router.get("/status")
 async def transport_status(u: User = Depends(get_current_user)):
@@ -116,7 +114,6 @@ async def knock_hint():
     return get_knock_hint()
 
 
-# ── Bridge endpoints ─────────────────────────────────────────────────────────
 
 @router.post("/bridge/add")
 async def add_bridge(body: BridgeAddRequest, u: User = Depends(get_current_user)):
@@ -163,7 +160,6 @@ async def enable_bridge_mode(u: User = Depends(get_current_user)):
     return {"ok": True, "message": "This node is now a bridge relay"}
 
 
-# ── TLS-in-TLS Tunnel ────────────────────────────────────────────────────────
 
 @router.post("/tunnel/create")
 async def create_tunnel(u: User = Depends(get_current_user)):
@@ -207,7 +203,6 @@ async def close_tunnel(session_id: str, u: User = Depends(get_current_user)):
     return {"ok": True}
 
 
-# ── Steganography ─────────────────────────────────────────────────────────────
 
 @router.post("/stego/send")
 async def stego_send(body: StegoSendRequest, u: User = Depends(get_current_user)):
@@ -254,7 +249,6 @@ async def stego_receive(request: Request, u: User = Depends(get_current_user)):
     )
 
 
-# ── Shadowsocks proxy config ────────────────────────────────────────────────
 
 @router.get("/shadowsocks/config")
 async def shadowsocks_config(u: User = Depends(get_current_user)):
@@ -269,7 +263,6 @@ async def shadowsocks_config(u: User = Depends(get_current_user)):
     )
 
 
-# ── Domain fronting config ───────────────────────────────────────────────────
 
 @router.get("/domain-fronting/config")
 async def domain_fronting_config(u: User = Depends(get_current_user)):

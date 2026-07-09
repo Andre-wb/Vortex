@@ -1,6 +1,4 @@
-// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE: Statuses (24-hour ephemeral posts)
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.openStatusModal = function() {
     var ta = document.getElementById('status-text');
@@ -74,7 +72,6 @@ window.viewStatus = async function(userId) {
     } catch(e) { alert(e.message); }
 };
 
-// ── Media Gallery ──
 window._galleryFiles = [];
 window._galleryTab = 'photo';
 

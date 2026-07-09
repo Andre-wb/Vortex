@@ -1,5 +1,4 @@
 // static/js/key_backup.js
-// ============================================================================
 // Encrypted Key Backup & Multi-Device Sync
 //
 // Backup:
@@ -13,7 +12,6 @@
 //   2. Пользователь вводит код на старом устройстве
 //   3. Старое устройство шифрует ключи ECIES (X25519 DH + AES-GCM) для нового
 //   4. Новое устройство получает и расшифровывает ключи
-// ============================================================================
 
 import { $, api, showAlert, openModal, closeModal } from './utils.js';
 import { getRoomKey, setRoomKey, eciesEncrypt, eciesDecrypt } from './crypto.js';
@@ -23,9 +21,7 @@ const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)))
 
 const PBKDF2_ITERATIONS = 600000;
 
-// ============================================================================
 // Key Derivation from passphrase
-// ============================================================================
 
 async function _deriveBackupKey(passphrase, salt) {
     const enc = new TextEncoder();
@@ -41,9 +37,7 @@ async function _deriveBackupKey(passphrase, salt) {
     );
 }
 
-// ============================================================================
 // Collect all keys into a bundle
-// ============================================================================
 
 function _collectKeyBundle() {
     const bundle = { version: 1, keys: {} };
@@ -94,9 +88,7 @@ function _restoreKeyBundle(bundle) {
     }
 }
 
-// ============================================================================
 // Backup: encrypt & upload
-// ============================================================================
 
 export async function createKeyBackup(passphrase) {
     if (!passphrase || passphrase.length < 8) {
@@ -137,9 +129,7 @@ export async function createKeyBackup(passphrase) {
     }
 }
 
-// ============================================================================
 // Backup: download & decrypt
-// ============================================================================
 
 export async function restoreKeyBackup(passphrase) {
     if (!passphrase) {
@@ -213,9 +203,7 @@ export async function hasKeyBackup() {
     }
 }
 
-// ============================================================================
 // Device Linking — new device side
-// ============================================================================
 
 let _linkRequestId = null;
 let _linkEphemeralPriv = null;
@@ -329,9 +317,7 @@ async function _decryptLinkedKeys(encryptedHex) {
     }
 }
 
-// ============================================================================
 // Device Linking — existing device side
-// ============================================================================
 
 export async function checkLinkCode(code) {
     try {
@@ -397,9 +383,7 @@ export async function approveLinkRequest(code, newDevicePubHex) {
 }
 
 
-// ============================================================================
 // Privacy settings (stored locally + encrypted copy on server)
-// ============================================================================
 
 const _PREFS_KEY = 'vortex_sync_prefs';
 const _DEFAULT_PREFS = { auto_key_sync: true, history_sync: true, cross_sign: true };
@@ -446,9 +430,7 @@ export function _loadPrivacySettings() {
 }
 
 
-// ============================================================================
 // Auto-sync: push encrypted key updates to server for other devices
-// ============================================================================
 
 let _syncKey = null;
 let _lastSyncSeq = 0;
@@ -555,7 +537,6 @@ export function getSyncedHistory(roomId) {
     } catch { return []; }
 }
 
-// ── Batched history push (debounce per room) ────────────────────────────────
 const _historyBatch = {};      // roomId → messages[]
 let _historyFlushTimer = null;
 
@@ -617,7 +598,6 @@ export async function onRoomKeyChanged(roomId, keyBytes) {
     await _autoSyncKeys();
 }
 
-// ── Initial history migration for new devices ───────────────────────────────
 
 /**
  * Run initial history migration if this is a new device (never migrated before).
@@ -666,9 +646,7 @@ export async function runInitialHistoryMigration() {
 }
 
 
-// ============================================================================
 // Device list & backup status (safe DOM construction)
-// ============================================================================
 
 // _loadDevicesList replaced by _loadDevicesListWithFingerprint below
 
@@ -691,9 +669,7 @@ async function _loadBackupStatus() {
 }
 
 
-// ============================================================================
 // Settings UI handlers (safe DOM construction)
-// ============================================================================
 
 export function _showBackupPassphraseDialog(mode) {
     const title = mode === 'create' ? t('keyBackup.createBackupTitle') : t('keyBackup.restoreBackupTitle');
@@ -842,9 +818,7 @@ export async function _submitLinkCode() {
 }
 
 
-// ============================================================================
 // Shamir's Secret Sharing over GF(256) — client-side only
-// ============================================================================
 // Server NEVER sees plaintext shares. All math happens in the browser.
 // GF(256) with irreducible polynomial x^8 + x^4 + x^3 + x + 1 (0x11B)
 
@@ -935,9 +909,7 @@ export function shamirCombine(shares, threshold) {
 }
 
 
-// ============================================================================
 // SSSS: create shares, upload, recovery UI
-// ============================================================================
 
 export async function createSecretShares(threshold, contacts) {
     // contacts: array of { userId, pubKeyHex, label }
@@ -1006,9 +978,7 @@ export async function revokeShares() {
 }
 
 
-// ============================================================================
 // Per-device fingerprint — 6-emoji from device pub key
-// ============================================================================
 
 const _DEVICE_EMOJI = [
     '\u{1F436}','\u{1F431}','\u{1F42D}','\u{1F439}','\u{1F430}','\u{1F98A}','\u{1F43B}','\u{1F43C}',
@@ -1051,9 +1021,7 @@ export async function registerDevicePubKey() {
 }
 
 
-// ============================================================================
 // Updated device list with per-device fingerprint (safe DOM)
-// ============================================================================
 
 async function _loadDevicesListWithFingerprint() {
     const container = $('privacy-devices-list');
@@ -1107,9 +1075,7 @@ async function _loadDevicesListWithFingerprint() {
 }
 
 
-// ============================================================================
 // SSSS UI — status, create dialog (safe DOM)
-// ============================================================================
 
 async function _loadSsssStatus() {
     const el = $('privacy-ssss-status');
@@ -1259,9 +1225,7 @@ async function _loadSsssContacts(container) {
 }
 
 
-// ============================================================================
 // Federated Backup — distribute encrypted shards to federation peers
-// ============================================================================
 
 export async function distributeFederatedBackup(threshold) {
     // Get active peers
@@ -1361,9 +1325,7 @@ export async function deleteFederatedBackup() {
 }
 
 
-// ============================================================================
 // Key Transparency — verifiable key history
-// ============================================================================
 
 export async function _loadKeyTransparencyLog() {
     const el = $('privacy-kt-log');
@@ -1421,10 +1383,8 @@ export async function _loadKeyTransparencyLog() {
 }
 
 
-// ============================================================================
 // Auto-backup: синхронизирует ключи автоматически при bootApp
 // Можно отключить в конфиденциальности (auto_key_sync: false)
-// ============================================================================
 
 const _AUTO_BACKUP_KEY = 'vortex_auto_backup_ts';
 const _AUTO_BACKUP_INTERVAL = 3600_000; // не чаще раза в час

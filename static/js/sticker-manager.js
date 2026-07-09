@@ -13,7 +13,6 @@ const MY_PACK_ID = 'my_stickers';
 const STORAGE_KEY = 'vortex_my_stickers'; // [{name, emoji, blob_url, data_b64}]
 const MAX_STICKERS = 120;
 
-// ── Local sticker storage ───────────────────────────────────────────────────
 
 function _loadMyStickers() {
     try {
@@ -202,7 +201,6 @@ export async function sendMySticker(stickerId) {
 }
 
 
-// ── Context menu action ─────────────────────────────────────────────────────
 
 /**
  * Add image from chat to stickers (called from context menu).
@@ -233,7 +231,6 @@ export async function addImageToStickers(downloadUrl, fileName) {
 }
 
 
-// ── Expose to window ────────────────────────────────────────────────────────
 
 window.addToMyStickers = addToMyStickers;
 window.sendMySticker = sendMySticker;

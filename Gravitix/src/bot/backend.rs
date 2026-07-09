@@ -15,10 +15,8 @@ pub struct BotInfo {
     pub name:     String,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // BotBackend trait — Open/Closed Principle
 // New backends implement this without modifying BotRunner.
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[async_trait(?Send)]
 pub trait BotBackend: Send + Sync {

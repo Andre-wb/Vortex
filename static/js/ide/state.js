@@ -1,4 +1,3 @@
-// ── State ─────────────────────────────────────────────────────
 const IDE = {
     projects:        [],     // all projects
     current:         null,   // current project object
@@ -16,7 +15,6 @@ const IDE = {
 
 const STORAGE_KEY = 'gx_projects_v1';
 
-// ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     ideLoad();
     ideRenderDocs();

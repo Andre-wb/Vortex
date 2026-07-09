@@ -1,4 +1,3 @@
-// ── Docs ──────────────────────────────────────────────────────
 function ideToggleDocs() {
     IDE.docsVisible = !IDE.docsVisible;
     document.getElementById('ide-docs-panel').classList.toggle('open',   IDE.docsVisible);
@@ -32,7 +31,6 @@ function _docsTabsHTML() {
 }
 
 
-// ── Docs HTML ─────────────────────────────────────────────────
 const DOCS_HTML = `
 <div class="ide-docs-section">
   <div class="ide-docs-h1">Gravitix Language Reference</div>
@@ -853,7 +851,6 @@ gravitix install package    # install plugin</pre>
 </div>`;
 
 
-// ── Architex Docs HTML ───────────────────────────────────────
 const DOCS_ARX_HTML = `
 <div class="ide-docs-section">
   <div class="ide-docs-h1">Architex Language Reference</div>
@@ -1172,7 +1169,6 @@ col :: pad(20) gap(12)
   @else
     button "Submit" :: pad(14) radius(10) bg(#ccc) color(#999)
 
-// ── Counter with limits ──
 ~count = 0
 
 row :: gap(12) center
@@ -1185,7 +1181,6 @@ row :: gap(12) center
 @if ~count &gt; 99
   text "Maximum reached!" :: color(#e53935)
 
-// ── Toggle details ──
 ~show_details = false
 
 button "Show Details"
@@ -1194,7 +1189,6 @@ button "Show Details"
   card :: pad(16) radius(12) bg(#f8f8f8)
     text "Detailed information here..."
 
-// ── Tab navigation ──
 row :: gap(0) bg(#fff) pad(0)
   button "Tab 1" :: pad(14) grow center bold color(#7c3aed)
     =&gt; navigate(Tab1)
@@ -1218,7 +1212,6 @@ row :: gap(0) bg(#fff) pad(0)
       =&gt; send(action: "calc", expr: ~input_expr)
     text ~result :: bold size(20)
 
-// ── bot.grav (backend) ─────────────
 on msg {
     match ctx.action {
         "calc" =&gt; {

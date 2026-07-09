@@ -38,7 +38,6 @@ test.describe('Search & Translate & AI & Reports', () => {
         await sendMessage(request, csrf, roomId, 'Third gamma message for search');
     });
 
-    // ── User Search ───────────────────────────────────────────────────────────
 
     test('search users by name', async ({ request }) => {
         const res = await request.get(`/api/users/search?q=${username.slice(0, 6)}`, {
@@ -56,7 +55,6 @@ test.describe('Search & Translate & AI & Reports', () => {
         expect([200]).toContain(res.status());
     });
 
-    // ── Message Search ────────────────────────────────────────────────────────
 
     test('search messages in room', async ({ request }) => {
         const res = await request.get(`/api/rooms/${roomId}/messages/search?q=alpha`, {
@@ -72,7 +70,6 @@ test.describe('Search & Translate & AI & Reports', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Translation ───────────────────────────────────────────────────────────
 
     test('get supported languages', async ({ request }) => {
         const res = await request.get('/api/translate/languages', {
@@ -89,7 +86,6 @@ test.describe('Search & Translate & AI & Reports', () => {
         expect([200, 503]).toContain(res.status());
     });
 
-    // ── Link Preview ──────────────────────────────────────────────────────────
 
     test('get link preview', async ({ request }) => {
         const res = await request.get('/api/link-preview?url=https://example.com', {
@@ -98,7 +94,6 @@ test.describe('Search & Translate & AI & Reports', () => {
         expect([200, 422]).toContain(res.status());
     });
 
-    // ── AI Assistant ──────────────────────────────────────────────────────────
 
     test('AI status', async ({ request }) => {
         const res = await request.get('/api/ai/status', {
@@ -131,7 +126,6 @@ test.describe('Search & Translate & AI & Reports', () => {
         expect([200, 503]).toContain(res.status());
     });
 
-    // ── Reports ───────────────────────────────────────────────────────────────
 
     test('report user', async ({ request }) => {
         const res = await request.post(`/api/users/report/${userId}`, {

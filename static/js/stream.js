@@ -1,14 +1,11 @@
 // static/js/stream.js
-// ============================================================================
 // Модуль стримов (channel live streaming).
 // Полноценная стриминговая система: host broadcast, управление правами,
 // screen share, реакции, донаты, стрим-чат.
-// ============================================================================
 
 import { $, api, esc } from './utils.js';
 import { t } from './i18n.js';
 
-// ─── State ──────────────────────────────────────────────────────────────────
 
 let _streamState = 'idle'; // idle | settings | connecting | live | ended
 let _streamRoomId = null;
@@ -1117,7 +1114,6 @@ function _showStreamEnded() {
     }
 }
 
-// ─── Reactions ──────────────────────────────────────────────────────────────
 
 function _showReaction(emoji, username) {
     const container = $('stream-reactions-float');
@@ -1138,7 +1134,6 @@ function _showLocalReaction(emoji) {
     _showReaction(emoji, window.AppState.user?.username);
 }
 
-// ─── Donations ──────────────────────────────────────────────────────────────
 
 function _showDonation(data) {
     const container = $('stream-donation-alert');
@@ -1177,7 +1172,6 @@ function _hideDonateModal() {
     if (modal) modal.classList.remove('show');
 }
 
-// ─── Hand raised notifications ──────────────────────────────────────────────
 
 function _showHandRaised(data) {
     const list = $('stream-hands-list');
@@ -1242,7 +1236,6 @@ function _removeHandRaised(userId) {
     if (row) row.remove();
 }
 
-// ─── Stream chat ────────────────────────────────────────────────────────────
 
 function _appendStreamChat(data) {
     const chatEl = $('stream-chat-messages');
@@ -1322,7 +1315,6 @@ function _toggleDonationSection() {
     }
 }
 
-// ─── Window bindings ────────────────────────────────────────────────────────
 
 window._toggleStreamDonationSection = _toggleDonationSection;
 window._showDonateModal = _showDonateModal;
@@ -1337,7 +1329,6 @@ window._sendStreamChatMsg = function() {
     }
 };
 
-// ─── Minimize / Expand ─────────────────────────────────────────────────────
 
 export function minimizeStream() {
     _hideStreamOverlay();
@@ -1404,7 +1395,6 @@ export function expandStream() {
     _showStreamOverlay();
 }
 
-// ─── Zen Mode ──────────────────────────────────────────────────────────────
 
 let _streamZenMode = false;
 
@@ -1435,7 +1425,6 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// ─── Scheduled stream + waiting screen ─────────────────────────────────────
 
 let _scheduledTimer = null;
 let _selectedStreamBg = 'gradient-1';
@@ -1598,9 +1587,7 @@ export function hideScheduledStreamBanner() {
 }
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // STREAM RECORDING — MediaRecorder + upload as stream_recording message
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function _startStreamRecording(stream) {
     _streamRecordChunks = [];

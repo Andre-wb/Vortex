@@ -40,9 +40,7 @@ logger = logging.getLogger(__name__)
 PREKEY_BATCH_SIZE = 10  # generate 10 prekeys at a time
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Upload prekey packages (room creator or any member with key)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class PrekeyPackage(BaseModel):
     ephemeral_pub: str   # ECIES ephemeral public key (64 hex)
@@ -118,9 +116,7 @@ async def upload_sealed_prekeys(
     return {"ok": True, "added": added, "available": available}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Claim a prekey package (new member joining)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class ClaimPrekeyRequest(BaseModel):
     pubkey: str  # X25519 pubkey of the new member (64 hex)
@@ -211,9 +207,7 @@ async def claim_sealed_prekey(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Check prekey availability
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{room_id}/prekey-count")
 async def get_prekey_count(

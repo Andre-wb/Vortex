@@ -30,7 +30,6 @@ test.describe('Transport & Federation', () => {
         roomId = await createRoom(request, csrf, 'transport_room');
     });
 
-    // ── Peers ─────────────────────────────────────────────────────────────────
 
     test('list peers', async ({ request }) => {
         const res = await request.get('/api/peers', {
@@ -67,7 +66,6 @@ test.describe('Transport & Federation', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Federation ────────────────────────────────────────────────────────────
 
     test('federation guest login', async ({ request }) => {
         const res = await request.post('/api/federation/guest-login', {
@@ -84,7 +82,6 @@ test.describe('Transport & Federation', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Transport Core ────────────────────────────────────────────────────────
 
     test('transport status', async ({ request }) => {
         const res = await request.get('/api/transport/status', {
@@ -112,7 +109,6 @@ test.describe('Transport & Federation', () => {
         expect([200, 503]).toContain(res.status());
     });
 
-    // ── BLE ───────────────────────────────────────────────────────────────────
 
     test('BLE peers', async ({ request }) => {
         const res = await request.get('/api/transport/ble/peers', {
@@ -128,7 +124,6 @@ test.describe('Transport & Federation', () => {
         expect([200, 503]).toContain(res.status());
     });
 
-    // ── WiFi Direct ───────────────────────────────────────────────────────────
 
     test('WiFi-Direct peers', async ({ request }) => {
         const res = await request.get('/api/transport/wifi-direct/peers', {
@@ -144,7 +139,6 @@ test.describe('Transport & Federation', () => {
         expect([200, 201, 503]).toContain(res.status());
     });
 
-    // ── Pluggable Transports ──────────────────────────────────────────────────
 
     test('list bridges', async ({ request }) => {
         const res = await request.get('/api/transport/bridge/list', {
@@ -167,7 +161,6 @@ test.describe('Transport & Federation', () => {
         expect([200, 404]).toContain(res.status());
     });
 
-    // ── SSE Transport ─────────────────────────────────────────────────────────
 
     test('SSE stream endpoint', async ({ request }) => {
         const res = await request.get(`/api/stream/${roomId}`, {
@@ -176,7 +169,6 @@ test.describe('Transport & Federation', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Push ──────────────────────────────────────────────────────────────────
 
     test('push subscription', async ({ request }) => {
         const res = await request.post('/api/push/subscribe', {
@@ -189,7 +181,6 @@ test.describe('Transport & Federation', () => {
         expect([200, 201]).toContain(res.status());
     });
 
-    // ── Cover Traffic ─────────────────────────────────────────────────────────
 
     test('cover traffic landing', async ({ request }) => {
         const res = await request.get('/cover');
@@ -206,7 +197,6 @@ test.describe('Transport & Federation', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Global Network ────────────────────────────────────────────────────────
 
     test('global node info', async ({ request }) => {
         const res = await request.get('/api/global/node-info', {
@@ -243,7 +233,6 @@ test.describe('Transport & Federation', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Bridge Import ─────────────────────────────────────────────────────────
 
     test('Telegram bridge import', async ({ request }) => {
         const jsonBuf = Buffer.from(JSON.stringify({ chats: { list: [] } }));
@@ -267,7 +256,6 @@ test.describe('Transport & Federation', () => {
         expect([200, 201, 400]).toContain(res.status());
     });
 
-    // ── Native Bridge ─────────────────────────────────────────────────────────
 
     test('native capabilities', async ({ request }) => {
         const res = await request.get('/api/native/capabilities', {

@@ -49,7 +49,6 @@ class Argon2idHasher @Inject constructor() : PasswordHasher {
         return constantTimeEquals(got, expected)
     }
 
-    // ── internals ──────────────────────────────────────────────────────
 
     private fun charArrayToUtf8(chars: CharArray): ByteArray {
         // Don't go through String — that would pin an immutable copy in the

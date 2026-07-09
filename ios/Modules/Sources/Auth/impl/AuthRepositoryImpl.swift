@@ -42,7 +42,6 @@ public final class AuthRepositoryImpl: AuthRepository, AuthTokenSource, @uncheck
         return (priv, pub)
     }
 
-    // ── AuthRepository ─────────────────────────────────────────────────
 
     public var session: AsyncStream<Session> { sessionBridge.stream(initial: currentSession()) }
 
@@ -102,7 +101,6 @@ public final class AuthRepositoryImpl: AuthRepository, AuthTokenSource, @uncheck
         sessionBridge.publish(.loggedOut)
     }
 
-    // ── AuthTokenSource ────────────────────────────────────────────────
 
     public func accessToken() async -> String?  { store.getString(keyAccess) }
     public func refreshToken() async -> String? { store.getString(keyRefresh) }
@@ -124,7 +122,6 @@ public final class AuthRepositoryImpl: AuthRepository, AuthTokenSource, @uncheck
         }
     }
 
-    // ── internals ──────────────────────────────────────────────────────
 
     private func authCall(path: String, username: String, password: Data) async -> AuthResult {
         do {

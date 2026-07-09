@@ -36,7 +36,6 @@ test.describe('Key Sync & Backup', () => {
         roomId = await createRoom(request, csrf, 'keysync_room');
     });
 
-    // ── Backup ────────────────────────────────────────────────────────────────
 
     test('upload key backup', async ({ request }) => {
         const res = await request.post('/api/keys/backup', {
@@ -64,7 +63,6 @@ test.describe('Key Sync & Backup', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Device Linking ────────────────────────────────────────────────────────
 
     test('request device link', async ({ request }) => {
         const res = await request.post('/api/keys/link/request', {
@@ -93,7 +91,6 @@ test.describe('Key Sync & Backup', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Sync ──────────────────────────────────────────────────────────────────
 
     test('sync push', async ({ request }) => {
         const res = await request.post('/api/keys/sync/push', {
@@ -143,7 +140,6 @@ test.describe('Key Sync & Backup', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── Cross-Signing ─────────────────────────────────────────────────────────
 
     test('upload cross-signing keys', async ({ request }) => {
         const res = await request.post('/api/keys/cross-sign', {
@@ -166,7 +162,6 @@ test.describe('Key Sync & Backup', () => {
         expect(res.ok()).toBeTruthy();
     });
 
-    // ── SSSS ──────────────────────────────────────────────────────────────────
 
     test('create SSSS vault', async ({ request }) => {
         const res = await request.post('/api/keys/ssss/create', {
@@ -205,7 +200,6 @@ test.describe('Key Sync & Backup', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Device Pub Key ────────────────────────────────────────────────────────
 
     test('register device public key', async ({ request }) => {
         const res = await request.post('/api/keys/device-pub-key', {
@@ -215,7 +209,6 @@ test.describe('Key Sync & Backup', () => {
         expect([200, 201]).toContain(res.status());
     });
 
-    // ── Federated Backup ──────────────────────────────────────────────────────
 
     test('federated backup status', async ({ request }) => {
         const res = await request.get('/api/keys/federated-backup/status', {
@@ -246,7 +239,6 @@ test.describe('Key Sync & Backup', () => {
         expect([200, 204]).toContain(res.status());
     });
 
-    // ── Key Transparency ──────────────────────────────────────────────────────
 
     test('log to key transparency', async ({ request }) => {
         const res = await request.post('/api/keys/transparency/log', {

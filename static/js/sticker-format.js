@@ -29,7 +29,6 @@ const VXS_VERSION = 0x01;
 const STICKER_SIZE = 512;
 const STICKER_MAX_BYTES = 512 * 1024; // 512 KB max
 
-// ── Encode: image → .sticker binary ─────────────────────────────────────────
 
 /**
  * Convert any image (File/Blob) to .sticker format.
@@ -107,7 +106,6 @@ export async function createSticker(imageFile, meta = {}) {
 }
 
 
-// ── Decode: .sticker binary → image ─────────────────────────────────────────
 
 /**
  * Parse a .sticker file.
@@ -156,7 +154,6 @@ export function stickerToURL(data) {
 }
 
 
-// ── Verify signature ────────────────────────────────────────────────────────
 
 export async function verifySticker(data, authorPubKey) {
     const parsed = parseSticker(data);

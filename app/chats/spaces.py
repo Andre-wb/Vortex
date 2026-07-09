@@ -35,9 +35,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/spaces", tags=["spaces"])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pydantic-схемы
-# ══════════════════════════════════════════════════════════════════════════════
 
 class SpaceCreate(BaseModel):
     name:        str  = Field(..., min_length=1, max_length=100)
@@ -77,9 +75,7 @@ class ChangeRoleBody(BaseModel):
     role: str = Field(..., pattern="^(admin|member)$")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Вспомогательные функции
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _space_dict(s: Space) -> dict:
     return {
@@ -164,9 +160,7 @@ def _get_default_category(space_id: int, db: Session) -> SpaceCategory:
     return cat
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # CRUD пространств
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("", status_code=201)
 async def create_space(
@@ -386,9 +380,7 @@ async def delete_space(
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Членство в пространстве
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{space_id}/join")
 async def join_space_by_body(
@@ -593,9 +585,7 @@ async def kick_space_member(
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Категории
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{space_id}/categories", status_code=201)
 async def create_category(
@@ -694,9 +684,7 @@ async def delete_category(
     return {"ok": True, "rooms_moved_to": default_cat.id if default_cat else None}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Комнаты внутри пространства
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{space_id}/rooms", status_code=201)
 async def create_space_room(
@@ -766,9 +754,7 @@ async def create_space_room(
     return _room_dict(room)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Аватар пространства
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{space_id}/avatar")
 async def upload_space_avatar(
@@ -807,9 +793,7 @@ async def upload_space_avatar(
     return {"ok": True, "avatar_url": space.avatar_url}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Тема пространства (per-space theme)
-# ══════════════════════════════════════════════════════════════════════════════
 
 import json as _json
 

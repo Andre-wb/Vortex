@@ -225,9 +225,7 @@ async def list_envelopes(
     return {"count": len(out), "envelopes": out}
 
 
-# ──────────────────────────────────────────────────────────────────────────
 # Push (called from message send path)
-# ──────────────────────────────────────────────────────────────────────────
 
 async def push_envelope_to_peers(
     signing_key: NodeSigningKey,
@@ -286,9 +284,7 @@ async def push_envelope_to_peers(
     return report
 
 
-# ──────────────────────────────────────────────────────────────────────────
 # Convenience: caller-side wrapper used from the WS handler
-# ──────────────────────────────────────────────────────────────────────────
 
 def _signing_key_from_app(app) -> Optional[NodeSigningKey]:
     sk = getattr(getattr(app, "state", None), "signing_key", None)

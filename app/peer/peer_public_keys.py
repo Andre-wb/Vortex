@@ -41,7 +41,6 @@ logger = logging.getLogger(__name__)
 _peer_ssl_ctx = make_peer_ssl_context()
 
 
-# ── Outbound: we made a change, tell every peer ─────────────────────────
 async def propagate_public_key(
     room_id: int,
     key_hex: str,
@@ -96,7 +95,6 @@ async def propagate_public_key(
     await asyncio.gather(*[_one(p) for p in peers], return_exceptions=True)
 
 
-# ── Inbound: a peer tells us about its change ───────────────────────────
 class SyncRequest(BaseModel):
     ephemeral_pub:     Optional[str]  = Field(None, min_length=64, max_length=64)
     ciphertext:        Optional[str]  = None

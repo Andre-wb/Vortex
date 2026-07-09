@@ -44,7 +44,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/admin/backup", tags=["backup"])
 
 
-# ── Constants ─────────────────────────────────────────────────────────────
 
 _BLOB_MAGIC  = b"VTXBK1"     # 6-byte magic so we reject stray files
 _NONCE_LEN   = 12
@@ -58,7 +57,6 @@ def _canonical(data: Any) -> bytes:
     return _json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-# ── Env / file discovery ──────────────────────────────────────────────────
 
 def _env_path(request) -> Path:
     p = getattr(request.app.state, "env_file", None)
@@ -118,7 +116,6 @@ def _derive_blob_key(priv_bytes: bytes) -> bytes:
     ).derive(priv_bytes)
 
 
-# ── SQLite snapshot ───────────────────────────────────────────────────────
 
 def _is_sqlite(env: dict, node_root: Optional[Path] = None) -> tuple[bool, Optional[Path]]:
     """Return (is_sqlite, absolute_path_to_db_file).
@@ -176,7 +173,6 @@ def _sqlite_snapshot(src: Path) -> bytes:
             pass
 
 
-# ── Encrypt / decrypt blob ────────────────────────────────────────────────
 
 def _encrypt_blob(plaintext: bytes, blob_key: bytes) -> bytes:
     gz = gzip.compress(plaintext, compresslevel=6)
@@ -204,7 +200,6 @@ def _decrypt_blob(blob: bytes, blob_key: bytes) -> bytes:
         raise HTTPException(400, "decompression failed")
 
 
-# ── Signed controller request ─────────────────────────────────────────────
 
 def _controller_url(env: dict) -> str:
     url = env.get("CONTROLLER_URL", "").strip().rstrip("/")
@@ -246,7 +241,6 @@ async def _post_signed(controller_url: str, path: str, payload: dict,
     return r.json()
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────
 
 class RestoreBody(BaseModel):
     confirm: bool = False
@@ -422,7 +416,6 @@ async def backup_delete(request: Request) -> dict:
     return res
 
 
-# ── Internal helpers ──────────────────────────────────────────────────────
 
 def _node_is_alive(env: dict) -> bool:
     """True iff something is listening on the node's configured port."""

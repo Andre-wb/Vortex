@@ -1,12 +1,9 @@
 // static/js/fingerprint.js
-// =============================================================================
 // Fingerprint verification — compute, display, verify key fingerprints
-// =============================================================================
 
 import { api } from './utils.js';
 import QR from './vendor/qrcode.js';
 
-// ── Emoji set (64 visually distinct, non-confusable) ────────────────────────
 // 6 emojis from 64 = 36 bits entropy → 1 in ~69 billion collision chance
 
 const _VERIFY_EMOJI = [
@@ -20,7 +17,6 @@ const _VERIFY_EMOJI = [
     '💎','🔑','🎵','🎯','🚀','⚓','🏔️','🎲',
 ];
 
-// ── Fingerprint computation ─────────────────────────────────────────────────
 
 /**
  * Compute raw SHA-256 hash bytes from two X25519 public keys.
@@ -74,7 +70,6 @@ export async function hashPubkey(pubkeyHex) {
         .join('');
 }
 
-// ── Key change detection (localStorage) ─────────────────────────────────────
 
 const _KNOWN_KEYS_STORAGE = 'vortex_known_pubkeys';
 
@@ -110,7 +105,6 @@ export function markKeyKnown(userId, pubkey) {
     _saveKnownKeys(known);
 }
 
-// ── Fingerprint modal ───────────────────────────────────────────────────────
 
 let _currentFpData = null;
 
@@ -277,7 +271,6 @@ export async function copyFingerprint() {
     } catch {}
 }
 
-// ── Chat header shield ──────────────────────────────────────────────────────
 
 function _updateChatShield(verified) {
     const shield = document.getElementById('chat-fp-shield');
@@ -343,7 +336,6 @@ export function onShieldClick() {
     });
 }
 
-// ── QR Code generation ──────────────────────────────────────────────────────
 
 /**
  * Show the QR code panel in the fingerprint modal.
@@ -373,7 +365,6 @@ export function hideFingerprintQR() {
     if (panel) panel.style.display = 'none';
 }
 
-// ── QR Camera scanning ──────────────────────────────────────────────────────
 
 let _scanStream = null;
 let _scanInterval = null;
@@ -448,7 +439,6 @@ export function stopQRScan() {
     if (status) { status.classList.remove('fp-scan-success', 'fp-scan-fail'); }
 }
 
-// ── Cross-device verification ───────────────────────────────────────────────
 
 /**
  * Open device verification modal showing all user's devices with fingerprints.

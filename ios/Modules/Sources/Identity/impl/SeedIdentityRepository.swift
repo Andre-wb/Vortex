@@ -52,7 +52,6 @@ public final class SeedIdentityRepository: IdentityRepository, @unchecked Sendab
         lock.lock(); cached = nil; lock.unlock()
     }
 
-    // ── internals ──────────────────────────────────────────────────────
 
     private func derive(mnemonic: Mnemonic, seed: Data) throws -> Identity {
         let xSeed = try kdf.derive(ikm: seed, salt: Data(), info: Data("vortex/x25519".utf8), length: 32)

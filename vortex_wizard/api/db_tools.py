@@ -58,9 +58,7 @@ def _open_rw(env_file: Path) -> sqlite3.Connection:
     return sqlite3.connect(str(db_path))
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. SQL console (read-only)
-# ══════════════════════════════════════════════════════════════════════════
 
 # Accept only SELECT / WITH / EXPLAIN / PRAGMA … hint. Refuse DDL/DML.
 _READONLY_OK = re.compile(r"^\s*(select|with|explain|pragma)\b", re.IGNORECASE)
@@ -114,9 +112,7 @@ def _stringify(v):
     return v
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. Room graph (for D3 rendering in the UI)
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/graph")
 async def room_graph(request: Request, limit_rooms: int = 200) -> dict:
@@ -177,9 +173,7 @@ async def room_graph(request: Request, limit_rooms: int = 200) -> dict:
         conn.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. Per-user storage quota
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/storage")
 async def storage_stats(request: Request, top: int = 50) -> dict:
@@ -213,9 +207,7 @@ async def storage_stats(request: Request, top: int = 50) -> dict:
         conn.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. FTS5 toggle (over messages.sender_pseudo + created_at)
-# ══════════════════════════════════════════════════════════════════════════
 
 # Note — we deliberately do NOT index ciphertext; it's encrypted. The
 # index is for the admin console (pseudo lookup, timestamp range). If a
@@ -292,9 +284,7 @@ async def fts_disable(request: Request) -> dict:
         conn.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 5. Chat export (metadata-only — content stays ciphertext)
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/export/room/{room_id}")
 async def export_room(

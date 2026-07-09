@@ -27,7 +27,6 @@ from app.peer._router import router
 logger = logging.getLogger(__name__)
 
 
-# ── Allowlist of controller endpoints we agree to proxy ────────────────────
 # Keep this tight — the proxy is not a general-purpose HTTP relay.
 _ALLOWED_PATHS = {
     "GET":  {"/v1/health", "/v1/entries", "/v1/mirrors", "/v1/nodes/random", "/v1/nodes/lookup"},

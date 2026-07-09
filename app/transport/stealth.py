@@ -39,9 +39,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Configuration
-# ══════════════════════════════════════════════════════════════════════════════
 
 from app.config import Config
 
@@ -55,9 +53,7 @@ def is_stealth() -> bool:
     return STEALTH_ENABLED
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. WebSocket Path Obfuscation
-# ══════════════════════════════════════════════════════════════════════════════
 
 # Instead of /ws/chat/{room_id}, use /api/stream/{obfuscated_token}
 # The token is HMAC(secret, original_path) — stable but unrecognizable
@@ -82,9 +78,7 @@ def deobfuscate_ws_path(obfuscated_path: str) -> Optional[str]:
     return _WS_PATH_MAP.get(obfuscated_path)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. Header Sanitization — удаление всех идентификаторов
-# ══════════════════════════════════════════════════════════════════════════════
 
 # Headers that must NEVER appear in stealth mode
 _BANNED_HEADERS = {
@@ -141,9 +135,7 @@ def sanitize_response(response: Response) -> Response:
     return response
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. Traffic Camouflage — маскировка под обычный HTTPS
-# ══════════════════════════════════════════════════════════════════════════════
 
 def camouflage_payload(data: bytes) -> bytes:
     """
@@ -177,9 +169,7 @@ def decamouflage_payload(data: bytes) -> bytes:
     return data[4:4 + real_len]
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. UDP Discovery Encryption
-# ══════════════════════════════════════════════════════════════════════════════
 
 def encrypt_udp_broadcast(payload: bytes) -> bytes:
     """
@@ -216,9 +206,7 @@ def decrypt_udp_broadcast(data: bytes) -> Optional[bytes]:
     return bytes(decrypted)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 5. Port Randomization
-# ══════════════════════════════════════════════════════════════════════════════
 
 def get_stealth_port() -> int:
     """
@@ -239,9 +227,7 @@ def get_stealth_udp_port() -> int:
     return int(os.getenv("UDP_PORT", "4200"))
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 6. STUN Fallback — CDN/domain fronted STUN
-# ══════════════════════════════════════════════════════════════════════════════
 
 def get_stealth_ice_servers() -> list[dict]:
     """
@@ -270,9 +256,7 @@ def get_stealth_ice_servers() -> list[dict]:
     ]
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 7. Fake Site — маскировка под обычный сайт
-# ══════════════════════════════════════════════════════════════════════════════
 
 _FAKE_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -301,9 +285,7 @@ def get_fake_index() -> str:
     return _FAKE_HTML
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 8. Stealth Middleware — автоматическая маскировка всех ответов
-# ══════════════════════════════════════════════════════════════════════════════
 
 class StealthMiddleware(BaseHTTPMiddleware):
     """
@@ -338,9 +320,7 @@ class StealthMiddleware(BaseHTTPMiddleware):
         return sanitize_response(response)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 9. Stealth Status
-# ══════════════════════════════════════════════════════════════════════════════
 
 def get_stealth_status() -> dict:
     """Return stealth mode status."""

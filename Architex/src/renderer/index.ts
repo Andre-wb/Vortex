@@ -85,7 +85,6 @@ export function renderNode(
   }
 }
 
-// ── @for rendering with index support ───────────────────────────────────────
 
 function renderFor(
   node:  ForNode,

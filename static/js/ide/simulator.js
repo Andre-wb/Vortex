@@ -1,4 +1,3 @@
-// ── Bot Simulator (unique feature) ───────────────────────────
 function ideToggleSim() {
     IDE.simVisible = !IDE.simVisible;
     const sim = document.getElementById('ide-simulator');

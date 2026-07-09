@@ -3,9 +3,7 @@ import { t } from '../../i18n.js';
 import { _attachSwipeReply } from './helpers.js';
 import { _msgElements } from './shared.js';
 
-// =============================================================================
 // Polls — Telegram-style with all advanced features
-// =============================================================================
 
 const _pollElements = new Map();
 
@@ -407,7 +405,6 @@ export function updatePoll(data) {
     }
 }
 
-// ── Multiple choice helper ──────────────────────────────────────────────────
 
 const _multiSelections = new Map();
 
@@ -440,7 +437,6 @@ function _submitMultiVote(msgId) {
     _multiSelections.delete(msgId);
 }
 
-// ── Suggest option ──────────────────────────────────────────────────────────
 
 function _showSuggestInput(msgId, card) {
     if (card.querySelector('.poll-suggest-input-wrap')) return;
@@ -469,7 +465,6 @@ function _showSuggestInput(msgId, card) {
     input.focus();
 }
 
-// ── Quiz feedback ───────────────────────────────────────────────────────────
 
 function _showQuizFeedback(card, result) {
     let existing = card.querySelector('.poll-quiz-feedback');
@@ -488,7 +483,6 @@ function _showQuizFeedback(card, result) {
     setTimeout(() => fb.classList.add('show'), 10);
 }
 
-// ── Timer ───────────────────────────────────────────────────────────────────
 
 function _startPollTimer(msgId, closeAt) {
     const el = document.getElementById(`poll-timer-${msgId}`);
@@ -514,7 +508,6 @@ function _startPollTimer(msgId, closeAt) {
     _pollTimers.set(msgId, interval);
 }
 
-// ── Shuffle (deterministic by poll id) ──────────────────────────────────────
 
 function _shuffleArray(arr, seed) {
     let s = typeof seed === 'number' ? seed : 42;
@@ -526,7 +519,6 @@ function _shuffleArray(arr, seed) {
     return arr;
 }
 
-// ── Plural ──────────────────────────────────────────────────────────────────
 
 function _pluralVotes(n) {
     return n === 1 ? t('poll.vote') : t('poll.votes');

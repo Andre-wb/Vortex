@@ -38,9 +38,7 @@ router = APIRouter(prefix="/api/voice", tags=["voice"])
 ws_router = APIRouter(tags=["voice"])
 
 
-# ==============================================================================
 # In-memory voice state
-# ==============================================================================
 
 # room_id -> {user_id -> {username, display_name, avatar_emoji, avatar_url,
 #                          joined_at, is_muted, is_video}}
@@ -132,9 +130,7 @@ async def _remove_participant(room_id: int, user_id: int) -> Optional[dict]:
     return removed
 
 
-# ==============================================================================
 # REST: Join voice channel
-# ==============================================================================
 
 @router.post("/{room_id}/join")
 async def voice_join(
@@ -172,9 +168,7 @@ async def voice_join(
     }
 
 
-# ==============================================================================
 # REST: Leave voice channel
-# ==============================================================================
 
 @router.post("/{room_id}/leave")
 async def voice_leave(
@@ -228,9 +222,7 @@ async def voice_participants(
     }
 
 
-# ==============================================================================
 # REST: Mute / unmute / toggle video
-# ==============================================================================
 
 # In-memory: room_id -> list of recording chunks metadata
 _voice_recordings: dict[int, dict] = {}
@@ -301,9 +293,7 @@ async def voice_mute(
     }
 
 
-# ==============================================================================
 # SFU Configuration (Selective Forwarding Unit)
-# ==============================================================================
 
 @router.get("/{room_id}/sfu-config")
 async def sfu_config(room_id: int, u: User = Depends(get_current_user),
@@ -343,9 +333,7 @@ async def sfu_config(room_id: int, u: User = Depends(get_current_user),
     }
 
 
-# ==============================================================================
 # Recording (E2E encrypted call recording)
-# ==============================================================================
 
 @router.post("/{room_id}/recording/start")
 async def start_recording(room_id: int, u: User = Depends(get_current_user),
@@ -408,9 +396,7 @@ async def recording_status(room_id: int, u: User = Depends(get_current_user),
     }
 
 
-# ==============================================================================
 # Stage Mode (one-to-many: speakers + listeners)
-# ==============================================================================
 
 @router.post("/{room_id}/stage/enable")
 async def enable_stage(room_id: int, u: User = Depends(get_current_user),
@@ -526,9 +512,7 @@ async def stage_status(room_id: int, u: User = Depends(get_current_user),
     }
 
 
-# ==============================================================================
 # WebRTC Media Configuration (noise/echo/blur/PiP)
-# ==============================================================================
 
 @router.get("/{room_id}/media-config")
 async def media_config(room_id: int, u: User = Depends(get_current_user),
@@ -586,9 +570,7 @@ async def media_config(room_id: int, u: User = Depends(get_current_user),
     }
 
 
-# ==============================================================================
 # Voice-signal WebSocket (mesh topology signaling)
-# ==============================================================================
 
 @ws_router.websocket("/ws/voice-signal/{room_id}")
 async def ws_voice_signal(

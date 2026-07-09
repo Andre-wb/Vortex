@@ -1,6 +1,4 @@
-// ══════════════════════════════════════════════════════════════════════════════
 // PIN-код: lock screen + settings
-// ══════════════════════════════════════════════════════════════════════════════
 async function _hashPIN(pin) {
     var enc = new TextEncoder();
     var buf = await crypto.subtle.digest('SHA-256', enc.encode(pin));
@@ -169,9 +167,7 @@ document.addEventListener('visibilitychange', function() {
 // are function declarations defined below — they are automatically on window
 // and called by openSettingsSection in ux-enhancements.js.
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Developer Mode
-// ══════════════════════════════════════════════════════════════════════════════
 
 (function initDevMode() {
     var enabled = localStorage.getItem('vortex_dev_mode') === '1';

@@ -32,7 +32,6 @@ const DEFAULTS = {
     showAvatars: true,
 };
 
-// ── Core get/set ────────────────────────────────────────────────────────
 
 function _get(key) {
     try {
@@ -53,7 +52,6 @@ function _remove(key) {
     try { localStorage.removeItem(STORAGE_PREFIX + key); } catch {}
 }
 
-// ── Preferences API ─────────────────────────────────────────────────────
 
 /**
  * Get a preference value with fallback to default.
@@ -79,7 +77,6 @@ export function resetPrefs() {
     applyAllPrefs();
 }
 
-// ── Font Size ───────────────────────────────────────────────────────────
 
 /**
  * Get current font size (12–20px).
@@ -104,7 +101,6 @@ export function increaseFontSize() { setFontSize(getFontSize() + 1); }
  */
 export function decreaseFontSize() { setFontSize(getFontSize() - 1); }
 
-// ── Message Density ─────────────────────────────────────────────────────
 
 export function getMessageDensity() { return getPref('messageDensity'); }
 
@@ -114,7 +110,6 @@ export function setMessageDensity(density) {
     }
 }
 
-// ── Scroll Position (per room) ──────────────────────────────────────────
 
 /**
  * Save scroll position for a room.
@@ -149,12 +144,10 @@ export function getScrollPosition(roomId) {
     }
 }
 
-// ── Last Active Room ────────────────────────────────────────────────────
 
 export function getLastRoom() { return getPref('lastRoomId'); }
 export function setLastRoom(roomId) { setPref('lastRoomId', roomId); }
 
-// ── Apply preferences to DOM ────────────────────────────────────────────
 
 function _applyPref(key, value) {
     switch (key) {
@@ -200,7 +193,6 @@ export function applyAllPrefs() {
     });
 }
 
-// ── Initialize ──────────────────────────────────────────────────────────
 
 /**
  * Initialize preference system — apply saved prefs and set up listeners.

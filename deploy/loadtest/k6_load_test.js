@@ -20,11 +20,9 @@ import { check, sleep, group } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 import { randomString } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 
-// ── Configuration ────────────────────────────────────────────────────────────
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:9000';
 const WS_URL = BASE_URL.replace('http', 'ws');
 
-// ── Custom Metrics ───────────────────────────────────────────────────────────
 const registrationDuration = new Trend('vortex_registration_duration', true);
 const loginDuration = new Trend('vortex_login_duration', true);
 const messageSendDuration = new Trend('vortex_message_send_duration', true);
@@ -32,7 +30,6 @@ const wsConnectDuration = new Trend('vortex_ws_connect_duration', true);
 const errorRate = new Rate('vortex_errors');
 const messagesDelivered = new Counter('vortex_messages_delivered');
 
-// ── Scenarios ────────────────────────────────────────────────────────────────
 export const options = {
     scenarios: {
         // Smoke test: health endpoints
@@ -92,7 +89,6 @@ export const options = {
     },
 };
 
-// ── Helper Functions ─────────────────────────────────────────────────────────
 
 function getCSRF() {
     const res = http.get(`${BASE_URL}/api/authentication/csrf-token`);
@@ -143,7 +139,6 @@ function loginUser(username, password) {
     return { status: res.status, cookies: res.cookies, csrf: csrf };
 }
 
-// ── Test Scenarios ───────────────────────────────────────────────────────────
 
 export function smokeTest() {
     group('Health Checks', () => {

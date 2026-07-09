@@ -114,7 +114,6 @@ pub struct SharedState {
     #[allow(dead_code)]
     pub admin_def:          Option<crate::ast::AdminDef>,
 
-    // ── New features N1-N12 ──────────────────────────────────────────────────
 
     /// Intent definitions: intent_name -> phrases (Feature N1)
     pub intent_defs:        HashMap<String, Vec<String>>,
@@ -133,7 +132,6 @@ pub struct SharedState {
     /// Completed migrations (Feature N11)
     pub completed_migrations: HashSet<String>,
 
-    // ── New features W1-W12 ─────────────────────────────────────────────────
 
     /// Webhook definitions: path -> WebhookDef (Feature W5)
     #[allow(dead_code)]

@@ -1,9 +1,7 @@
-/* ============================================================
    Gravitix Language Reference — full-screen documentation
    ============================================================ */
 'use strict';
 
-/* ── TOC definition ──────────────────────────────────────── */
 /* Helper: get translated string or fallback to English */
 const _t = (key, fallback) => (window.t ? window.t(key) : fallback) || fallback;
 
@@ -53,10 +51,8 @@ const GX_TOC = [
   { id: 'bestpractices',i18n: 'gravitixDocs.bestPractices',   label: 'Best Practices',          icon: '✅' },
 ];
 
-/* ── Docs content ────────────────────────────────────────── */
 function _gxSections() { return {
 
-/* ─── INTRO ─────────────────────────────────────────────── */
 intro: `
 <h1>${_t('gravitixDocs.title', 'Gravitix Language Reference')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.introDesc', 'A concise, safe, and expressive scripting language for building Vortex bots — no boilerplate, just logic.')}</p>
@@ -92,7 +88,6 @@ intro: `
 </div>
 `,
 
-/* ─── QUICK START ────────────────────────────────────────── */
 quickstart: `
 <h1>${_t('gravitixDocs.quickStart', 'Quick Start')}</h1>
 <p>${_t('gravitixDocs.quickStartDesc', 'The fastest path from zero to a running bot.')}</p>
@@ -162,7 +157,6 @@ on /reset {
 </div>
 `,
 
-/* ─── SYNTAX AT A GLANCE ─────────────────────────────────── */
 syntax: `
 <h1>${_t('gravitixDocs.syntaxAtGlance', 'Syntax at a Glance')}</h1>
 <p>${_t('gravitixDocs.syntaxDesc', 'Every Gravitix program is built from three basic building blocks: <strong>handlers</strong>, <strong>emit statements</strong>, and <strong>logic</strong>. This page breaks down exactly what goes where.')}</p>
@@ -263,7 +257,6 @@ on /buy {
 </div>
 `,
 
-/* ─── VARIABLES ──────────────────────────────────────────── */
 variables: `
 <h1>${_t('gravitixDocs.variables', 'Variables')}</h1>
 <p>${_t('gxd.variables.p1', 'Variables store values that you can use and change throughout your program.')}</p>
@@ -324,7 +317,6 @@ score /= 4;            // ${_t('gxd.variables.cc5', 'score is now 6</pre>')}
 // ${_t('gxd.variables.cc7', 'greeting is not accessible here</pre>')}
 `,
 
-/* ─── TYPES ──────────────────────────────────────────────── */
 types: `
 <h1>${_t('gravitixDocs.types', 'Types')}</h1>
 <p>${_t('gravitixDocs.typesDesc', 'Every value in Gravitix has a type. The type system is <strong>static</strong>: types are checked at compile time, before your bot runs.')}</p>
@@ -475,7 +467,6 @@ on /profile {
 </div>
 `,
 
-/* ─── OPERATORS ──────────────────────────────────────────── */
 operators: `
 <h1>${_t('gravitixDocs.operators', 'Operators')}</h1>
 <p>${_t('gravitixDocs.operatorsDesc', 'Operators combine values to produce new values.')}</p>
@@ -565,7 +556,6 @@ let combined = first + second;    // ${_t('gxd.operators.cc8', '"Hello World"</p
 <p>${_t('gxd.operators.p4', 'Use parentheses to override: <code>(a + b) * c</code>.')}</p>
 `,
 
-/* ─── STRINGS ────────────────────────────────────────────── */
 strings: `
 <h1>${_t('gravitixDocs.strings', 'Strings')}</h1>
 <p>${_t('gravitixDocs.stringsDesc', 'Strings in Gravitix are UTF-8 encoded text. They support rich interpolation and a suite of built-in operations.')}</p>
@@ -693,7 +683,6 @@ for item in my_list {
 emit result;</pre>
 `,
 
-/* ─── CONTROL FLOW: IF ───────────────────────────────────── */
 if: `
 <h1>${_t('gxd.if.h1', 'if / elif / else')}</h1>
 <p>${_t('gxd.if.p1', 'Conditional execution: run different code depending on a condition.')}</p>
@@ -755,7 +744,6 @@ if !done { ... }
 if len(list) > 0 { ... }</pre>
 `,
 
-/* ─── LOOPS ──────────────────────────────────────────────── */
 loops: `
 <h1>${_t('gravitixDocs.loops', 'Loops')}</h1>
 <p>${_t('gxd.loops.p1', 'Repeat a block of code multiple times.')}</p>
@@ -821,7 +809,6 @@ for item in items {
 emit menu;</pre>
 `,
 
-/* ─── MATCH ──────────────────────────────────────────────── */
 match: `
 <h1>${_t('gxd.match.h1', 'match Expression')}</h1>
 <p>${_t('gravitixDocs.matchDesc', 'Pattern-match a value against multiple patterns. Think of it as a powerful <code>switch</code> statement.')}</p>
@@ -886,7 +873,6 @@ match score {
 }</pre>
 `,
 
-/* ─── FUNCTIONS ──────────────────────────────────────────── */
 functions: `
 <h1>${_t('gravitixDocs.functions', 'Functions')}</h1>
 <p>${_t('gravitixDocs.functionsDesc', 'Functions are reusable blocks of code. They help you avoid repetition and make code easier to understand.')}</p>
@@ -979,7 +965,6 @@ on /profile {
 }</pre>
 `,
 
-/* ─── HANDLERS ───────────────────────────────────────────── */
 handlers: `
 <h1>${_t('gravitixDocs.eventHandlers', 'Event Handlers')}</h1>
 <p>${_t('gravitixDocs.eventHandlersDesc', 'Handlers are the heart of a Gravitix bot. Each handler listens for a specific type of event and runs when that event occurs.')}</p>
@@ -1059,7 +1044,6 @@ on msg {
 </div>
 `,
 
-/* ─── GUARD ──────────────────────────────────────────────── */
 guard: `
 <h1>${_t('gravitixDocs.guardClauses', 'Guard Clauses')}</h1>
 <p>${_t('gravitixDocs.guardDesc', 'Guards let you add a condition to a handler. The handler only runs if the guard evaluates to <code>true</code>.')}</p>
@@ -1117,7 +1101,6 @@ on /settings {
 }</pre>
 `,
 
-/* ─── CONTEXT ────────────────────────────────────────────── */
 ctx: `
 <h1>${_t('gravitixDocs.contextObject', 'Context Object')}</h1>
 <p>${_t('gravitixDocs.contextDesc', 'The <code>ctx</code> object is automatically available inside every handler. It contains information about the current message and the user who sent it.')}</p>
@@ -1197,7 +1180,6 @@ on /start {
 }</pre>
 `,
 
-/* ─── STATE ──────────────────────────────────────────────── */
 state: `
 <h1>${_t('gravitixDocs.stateManagement', 'State Management')}</h1>
 <p>${_t('gravitixDocs.stateDesc', 'State lets your bot remember things between messages. Without state, every message is independent and the bot has no memory.')}</p>
@@ -1289,7 +1271,6 @@ on /list {
 }</pre>
 `,
 
-/* ─── FLOWS ──────────────────────────────────────────────── */
 flows: `
 <h1>${_t('gxd.flows.h1', 'Flows')}</h1>
 <p>${_t('gravitixDocs.flowsDesc', 'Flows let you write multi-step conversations in a linear, readable style. A flow can pause and wait for the user\'s next message.')}</p>
@@ -1380,7 +1361,6 @@ flow full_profile {
 }</pre>
 `,
 
-/* ─── EMIT ───────────────────────────────────────────────── */
 emit: `
 <h1>${_t('gxd.emit.h1', 'Emit & Messages')}</h1>
 <p>${_t('gravitixDocs.emitDesc', 'Sending messages is the primary output of a bot. Gravitix provides several ways to send content.')}</p>
@@ -1434,7 +1414,6 @@ on /result {
 }</pre>
 `,
 
-/* ─── SCHEDULING ─────────────────────────────────────────── */
 schedule: `
 <h1>${_t('gravitixDocs.scheduling', 'Scheduling')}</h1>
 <p>${_t('gravitixDocs.schedulingDesc', 'Run code automatically on a schedule — no cron jobs, no external services needed.')}</p>
@@ -1502,7 +1481,6 @@ every 24 hours {
 }</pre>
 `,
 
-/* ─── PIPE ───────────────────────────────────────────────── */
 pipe: `
 <h1>${_t('gxd.pipe.h1', 'Pipe Operator  |&gt;')}</h1>
 <p>${_t('gravitixDocs.pipeDesc', 'The pipe operator <code>|&gt;</code> passes a value as the first argument to the next function. It makes chaining operations readable, left to right.')}</p>
@@ -1564,7 +1542,6 @@ let fixed = "Hello World" |> replace("World", "Gravitix");
 </div>
 `,
 
-/* ─── BUILT-INS ──────────────────────────────────────────── */
 builtins: `
 <h1>${_t('gravitixDocs.builtinFunctions', 'Built-in Functions')}</h1>
 <p>${_t('gxd.builtins.p1', 'Gravitix includes a rich standard library. All built-in functions are always available — no imports needed.')}</p>
@@ -1800,7 +1777,6 @@ let dt = now_str();      // ${_t('gxd.builtins.cc7', 'e.g., "2024-03-24 10:15:30
 emit "Server time: {now_str()}";</pre>
 `,
 
-/* ─── EXAMPLES ───────────────────────────────────────────── */
 examples: `
 <h1>${_t('gravitixDocs.completeExamples', 'Complete Examples')}</h1>
 <p>${_t('gxd.examples.p1', 'Full, working bots illustrating common patterns.')}</p>
@@ -2007,7 +1983,6 @@ on /start {
 }</pre>
 `,
 
-/* ─── BEST PRACTICES ─────────────────────────────────────── */
 bestpractices: `
 <h1>${_t('gravitixDocs.bestPractices', 'Best Practices')}</h1>
 <p>${_t('gxd.bestpractices.p1', 'Patterns and habits that make your Gravitix bots more reliable, readable, and maintainable.')}</p>
@@ -2130,7 +2105,6 @@ on /expensive_operation {
 </div>
 `,
 
-/* ─── COMPLEX NUMBERS ───────────────────────────────────── */
 complex_type: `
 <h1>${_t('gravitixDocs.complexNumbers', 'Complex Numbers')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.complexDesc', 'Gravitix has a native <code>complex</code> type — a pair of 64-bit floats representing the real and imaginary parts. You can use it directly without any imports.')}</p>
@@ -2204,7 +2178,6 @@ csqrt(complex(-1.0, 0.0)); // → 0 + 1i</pre>
 </div>
 `,
 
-/* ─── BITWISE ───────────────────────────────────────────── */
 bitwise: `
 <h1>${_t('gxd.bitwise.h1', 'Bitwise Operators')}</h1>
 <p class="gxd-lead">${_t('gxd.bitwise.p1', 'Bitwise operators work directly on the binary representation of integers. Each integer is a 64-bit signed value; bitwise ops treat it as a sequence of 64 bits.')}</p>
@@ -2255,7 +2228,6 @@ a = a ^ b;  b = a ^ b;  a = a ^ b;
 // ${_t('gxd.bitwise.cc12', 'now a=20, b=10</pre>')}
 `,
 
-/* ─── ERROR HANDLING ────────────────────────────────────── */
 error: `
 <h1>${_t('gravitixDocs.errorHandling', 'Error Handling')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.errorDesc', 'Gravitix provides structured error handling with <code>try / catch / finally</code> blocks, similar to many modern languages but with a clean, minimal syntax.')}</p>
@@ -2318,7 +2290,6 @@ on /divide {
 </div>
 `,
 
-/* ─── STRUCTS & ENUMS ───────────────────────────────────── */
 structs: `
 <h1>${_t('gxd.structs.h1', 'Structs &amp; Enums')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.structsDesc', 'Structs let you group related data under a named type. Enums define a closed set of variants, optionally carrying data. Together they enable expressive domain modeling.')}</p>
@@ -2400,7 +2371,6 @@ area(Shape.Circle(5.0))           // → 78.539...
 area(Shape.Rectangle(4.0, 6.0))   // → 24.0</pre>
 `,
 
-/* ─── MATH CORE ─────────────────────────────────────────── */
 math_core: `
 <h1>${_t('gravitixDocs.coreMath', 'Core Mathematics')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.mathDesc', 'Gravitix ships a comprehensive math library with ~180 functions spanning basic arithmetic, trigonometry, logarithms, and advanced helpers. All functions work on <code>int</code> and <code>float</code> values unless noted.')}</p>
@@ -2509,7 +2479,6 @@ fn ease_in_out(t: float) -> float {
 }</pre>
 `,
 
-/* ─── COMPLEX ANALYSIS ──────────────────────────────────── */
 math_complex: `
 <h1>${_t('gravitixDocs.complexAnalysis', 'Complex Analysis')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.complexDesc', 'Complex analysis studies functions of complex variables. It is the foundation of signal processing, fluid dynamics, quantum mechanics, and many areas of pure mathematics. Gravitix gives you the full toolkit.')}</p>
@@ -2589,7 +2558,6 @@ cpow(complex(-1.0, 0.0), complex(1.0/3.0, 0.0))
 // ${_t('gxd.math_complex.cc11', 'principal root ≈ 0.5 + 0.866i</pre>')}
 `,
 
-/* ─── CALCULUS ──────────────────────────────────────────── */
 math_calculus: `
 <h1>${_t('gravitixDocs.calculus', 'Calculus')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.calculusDesc', 'Gravitix includes numerical calculus: derivatives and integrals computed on arbitrary functions. All methods are numerical approximations — the accuracy depends on the step size and method used.')}</p>
@@ -2674,7 +2642,6 @@ fn f(x: float) -> float { return x*x - 2.0; }  // ${_t('gxd.math_calculus.cc17',
 newton_step(f, 1.5)   // → 1.41666... → closer to √2</pre>
 `,
 
-/* ─── LINEAR ALGEBRA ────────────────────────────────────── */
 math_linalg: `
 <h1>${_t('gravitixDocs.linearAlgebra', 'Linear Algebra')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.linearAlgebraDesc', 'Linear algebra is the mathematics of vectors and matrices. It underlies machine learning, computer graphics, physics simulations, cryptography, and more. In Gravitix, vectors are <code>list&lt;float&gt;</code> and matrices are <code>list&lt;list&lt;float&gt;&gt;</code>.')}</p>
@@ -2743,7 +2710,6 @@ solve(coef, rhs)  // → [1.0, 2.0]  (x=1, y=2) ✓
 eigenvalues([[2.0,1.0],[1.0,2.0]])  // → [3.0, 1.0]</pre>
 `,
 
-/* ─── NUMBER THEORY ─────────────────────────────────────── */
 math_numth: `
 <h1>${_t('gravitixDocs.numberTheory', 'Number Theory')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.numberTheoryDesc', 'Number theory studies the properties of integers. It is the mathematical foundation of modern cryptography (RSA, elliptic curves, Diffie-Hellman) and has deep connections to physics and pure math.')}</p>
@@ -2817,7 +2783,6 @@ catalan(5)          // → 42   (number of valid bracket sequences of length 10)
 harmonic(10)        // → 2.928...  (1 + 1/2 + 1/3 + ... + 1/10)</pre>
 `,
 
-/* ─── STATISTICS ────────────────────────────────────────── */
 math_stats: `
 <h1>${_t('gravitixDocs.statistics', 'Statistics')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.statisticsDesc', 'Statistics provides tools to describe, analyze, and draw conclusions from data. Gravitix includes descriptive statistics, probability distributions, and regression — all from first principles.')}</p>
@@ -2915,7 +2880,6 @@ let r2        = result[2];   // → ~0.999  (very good fit)
 emit "y = {slope:.2}x + {intercept:.2}  (R²={r2:.3})";</pre>
 `,
 
-/* ─── SPECIAL FUNCTIONS ─────────────────────────────────── */
 math_special: `
 <h1>${_t('gravitixDocs.specialFunctions', 'Special Functions')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.specialDesc', 'Special functions are solutions to important differential equations or arise naturally in mathematics and physics. They appear in quantum mechanics, thermodynamics, signal processing, and pure analysis.')}</p>
@@ -3010,7 +2974,6 @@ fn ellipse_perimeter(a: float, b: float) -> float {
 }</pre>
 `,
 
-/* ─── TRANSFORMS & FFT ──────────────────────────────────── */
 math_transforms: `
 <h1>${_t('gxd.math_transforms.h1', 'Transforms &amp; FFT')}</h1>
 <p class="gxd-lead">${_t('gravitixDocs.fftDesc', 'The Fourier transform decomposes a signal into its constituent frequencies. It is the mathematical heart of audio processing, telecommunications, image compression (JPEG), and scientific computing. Gravitix provides both DFT and the fast O(n log n) algorithm.')}</p>

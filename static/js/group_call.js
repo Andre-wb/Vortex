@@ -1,10 +1,8 @@
 // static/js/group_call.js
-// ============================================================================
 // Модуль групповых звонков (ad-hoc group calls with invite lifecycle).
 // Mesh-топология: каждый участник создаёт RTCPeerConnection с каждым другим.
 // Smart mesh: адаптивный bitrate/resolution в зависимости от числа участников.
 // Dominant speaker detection через AudioContext AnalyserNode.
-// ============================================================================
 
 import { $, api } from './utils.js';
 import { t } from './i18n.js';
@@ -13,7 +11,6 @@ import { getRoomKey } from './crypto.js';
 import { isE2ESupported, needsEncodedInsertableStreams, deriveMediaKey, setupPeerE2E, setupNewSenderE2E } from './e2e_media.js';
 import { SFUClient, checkSFUAvailable } from './sfu_client.js';
 
-// ─── ICE servers (cached) ───────────────────────────────────────────────────
 
 let _iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 let _iceLoaded = false;
@@ -29,7 +26,6 @@ async function _loadIceServers() {
     }
 }
 
-// ─── State ──────────────────────────────────────────────────────────────────
 
 let _gcState       = 'idle';   // idle | ringing | connecting | connected | ended
 let _gcCallId      = null;
@@ -60,7 +56,6 @@ const _gcReconnectAttempts = {};  // peerId → count
 const MAX_RECONNECT = 5;
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000];
 
-// ─── Bandwidth profiles ─────────────────────────────────────────────────────
 
 const BW_PROFILES = {
     small:  { maxWidth: 1280, maxHeight: 720,  maxFrameRate: 30, maxBitrate: 2_500_000 },  // 2-3
@@ -82,9 +77,7 @@ function _connectedCount() {
     }).length;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // Exported functions
-// ═══════════════════════════════════════════════════════════════════════════════
 
 export async function startGroupCall(roomId, withVideo = false) {
     if (_gcState !== 'idle') return;
@@ -408,9 +401,7 @@ export function expandGroupCall()   { _hideGcPip(); _showGcOverlay(); }
 export function showGcAddModal()    { _showAddModal(); }
 export function hideGcAddModal()    { _hideAddModal(); }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // SFU mode — single PeerConnection to server
-// ═══════════════════════════════════════════════════════════════════════════════
 
 async function _connectSfu() {
     // Derive E2E media key (same as mesh — opaque SFU preserves encrypted frames)
@@ -495,9 +486,7 @@ async function _connectSfu() {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // Signal WebSocket (mesh mode)
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function _connectGcSignal(roomId) {
     if (_gcSignalWs) {
@@ -556,9 +545,7 @@ function _gcSignalSend(msg) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // Signal handling
-// ═══════════════════════════════════════════════════════════════════════════════
 
 async function _handleSignal(msg) {
     const S = window.AppState;
@@ -689,9 +676,7 @@ async function _handleSignal(msg) {
 
 let _pendingInvite = null;
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // Peer Connection management (mesh)
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function _createPeerConnection(peerId) {
     const config = { iceServers: _iceServers };
@@ -867,7 +852,6 @@ function _closePeer(peerId) {
     delete _gcReconnectAttempts[peerId];
 }
 
-// ─── Reconnection ───────────────────────────────────────────────────────────
 
 function _reconnectPeer(peerId) {
     const attempts = (_gcReconnectAttempts[peerId] || 0) + 1;
@@ -893,7 +877,6 @@ function _reconnectPeer(peerId) {
     }, delay);
 }
 
-// ─── Bandwidth adaptation ───────────────────────────────────────────────────
 
 function _adaptBitrate() {
     const profile = _getProfile();
@@ -927,7 +910,6 @@ function _adaptBitrate() {
     }
 }
 
-// ─── Dominant speaker detection ─────────────────────────────────────────────
 
 function _setupPeerAnalyser(peerId, stream) {
     const peer = _gcPeers[peerId];
@@ -998,9 +980,7 @@ function _stopSpeakingDetection() {
     _gcDominantSpeaker = null;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // Cleanup
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function _cleanup() {
     _stopSpeakingDetection();
@@ -1047,9 +1027,7 @@ function _cleanup() {
     _hideGcIncomingBanner();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // UI functions
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function _showGcOverlay() {
     const overlay = $('gc-overlay');
@@ -1132,7 +1110,6 @@ function _hideGcIncomingBanner() {
     if (banner) banner.classList.remove('show');
 }
 
-// ─── Video Grid rendering ───────────────────────────────────────────────────
 
 function _renderGcGrid() {
     const grid = $('gc-grid');
@@ -1277,7 +1254,6 @@ function _renderGcGrid() {
     });
 }
 
-// ─── Control button states ──────────────────────────────────────────────────
 
 function _updateMuteBtn() {
     const btn = $('gc-mute-btn');
@@ -1294,7 +1270,6 @@ function _updateScreenBtn() {
     if (btn) btn.classList.toggle('active', _gcScreenSharing);
 }
 
-// ─── Timer ──────────────────────────────────────────────────────────────────
 
 function _startGcTimer() {
     if (_gcCallTimer) return;
@@ -1322,7 +1297,6 @@ function _stopGcTimer() {
     _gcCallDuration = 0;
 }
 
-// ─── Add participant modal ──────────────────────────────────────────────────
 
 async function _showAddModal() {
     const modal = $('gc-add-modal');

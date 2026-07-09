@@ -27,7 +27,6 @@ from app.authentication._helpers import (
 logger = logging.getLogger(__name__)
 
 
-# ── FIX F7: password-verified marker for the 2FA second step ───────────────
 # verify-login must NOT mint cookies on a TOTP code alone — an attacker holding
 # only a victim's current TOTP code (e.g. shoulder-surfed) could otherwise log
 # in without knowing the password. /login records a short-lived, single-use
@@ -176,7 +175,6 @@ async def register(body: RegisterRequest, request: Request,
 
     db.refresh(user)
 
-    # ── Seed phrase for phoneless (anonymous) registration ────────────
     seed_phrase = None
     if not body.phone:
         seed_phrase = generate_mnemonic()

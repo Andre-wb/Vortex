@@ -8,9 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from conftest import make_user, login_user, random_str
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Key Backup CRUD
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestKeyBackup:
 
@@ -99,9 +97,7 @@ class TestKeyBackup:
         assert r.status_code == 400
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Device Linking
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestDeviceLinking:
 
@@ -217,9 +213,7 @@ class TestDeviceLinking:
         assert r3.status_code == 404
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Sync Push / Pull
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSyncPushPull:
 
@@ -310,9 +304,7 @@ class TestSyncPushPull:
         assert r.status_code in (401, 403)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Cross-Signing
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestCrossSigning:
 
@@ -384,9 +376,7 @@ class TestCrossSigning:
         assert r.status_code in (401, 403)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Sync Settings
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSyncSettings:
 
@@ -427,9 +417,7 @@ class TestSyncSettings:
         assert r.json()['payload'] == new_payload
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # SSSS (Shamir's Secret Sharing)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSSSSSharing:
 
@@ -563,9 +551,7 @@ class TestSSSSSharing:
         assert r.status_code == 400
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Device Public Key (per-device fingerprint)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestDevicePubKey:
 
@@ -607,9 +593,7 @@ class TestDevicePubKey:
         assert r.status_code in (401, 403)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Federated Backup
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestFederatedBackup:
 
@@ -744,9 +728,7 @@ class TestFederatedBackup:
         assert len(r.json()['shards']) == 3
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Key Transparency Log
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestKeyTransparency:
 
@@ -865,9 +847,7 @@ class TestKeyTransparency:
         assert r.status_code in (401, 403)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # History Export & Rooms Summary (cross-device history migration)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestHistoryExport:
 

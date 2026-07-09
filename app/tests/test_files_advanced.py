@@ -24,7 +24,6 @@ import pytest
 from conftest import make_user, login_user, random_str
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _register_and_login(client) -> dict:
     u = make_user(client)
@@ -49,7 +48,6 @@ def _valid_sha256() -> str:
     return hashlib.sha256(b"test_file_content").hexdigest()
 
 
-# ── Compression Presets (no auth required) ───────────────────────────────────
 
 class TestCompressionPresets:
 
@@ -97,7 +95,6 @@ class TestCompressionPresets:
         assert presets["data_saver"]["image_quality"] < presets["low"]["image_quality"]
 
 
-# ── Gallery ───────────────────────────────────────────────────────────────────
 
 class TestGallery:
 
@@ -188,7 +185,6 @@ class TestGallery:
         assert r.status_code in (403, 404)
 
 
-# ── File Search ────────────────────────────────────────────────────────────────
 
 class TestFileSearch:
 
@@ -251,7 +247,6 @@ class TestFileSearch:
             assert "pdf" in item.get("mime_type", "")
 
 
-# ── File Stats ────────────────────────────────────────────────────────────────
 
 class TestFileStats:
 
@@ -290,7 +285,6 @@ class TestFileStats:
         assert r.status_code in (403, 404)
 
 
-# ── Distributed Files ─────────────────────────────────────────────────────────
 
 class TestDistributedFiles:
 
@@ -385,7 +379,6 @@ class TestDistributedFiles:
         assert file_hash in hashes
 
 
-# ── Resumable Upload ──────────────────────────────────────────────────────────
 
 class TestResumableUpload:
 

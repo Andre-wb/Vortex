@@ -11,7 +11,6 @@
 let _lastFocusedElement = null;
 let _activeTrap = null;
 
-// ── Focus Trap for Modals ───────────────────────────────────────────────────
 
 /**
  * Activate focus trap inside a modal element.
@@ -84,7 +83,6 @@ function _getFocusable(container) {
 }
 
 
-// ── Screen Reader Announcements ─────────────────────────────────────────────
 
 let _announceEl = null;
 
@@ -115,7 +113,6 @@ export function announce(message, priority = 'polite') {
 }
 
 
-// ── Modal open/close helpers with a11y ──────────────────────────────────────
 
 /**
  * Open a modal with proper a11y: set aria-hidden on main, trap focus.
@@ -155,7 +152,6 @@ export function closeModalA11y(modalId) {
 }
 
 
-// ── Keyboard navigation for room list ───────────────────────────────────────
 
 export function initRoomListKeyboard() {
     const roomsList = document.getElementById('rooms-list');
@@ -184,7 +180,6 @@ export function initRoomListKeyboard() {
 }
 
 
-// ── Initialize a11y features ────────────────────────────────────────────────
 
 export function initA11y() {
     // Room list keyboard navigation

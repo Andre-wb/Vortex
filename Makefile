@@ -1,6 +1,4 @@
-# ══════════════════════════════════════════════════════════════════════════════
 # VORTEX Chat — Makefile
-# ══════════════════════════════════════════════════════════════════════════════
 #
 # Usage:
 #   make help          Show all available commands
@@ -11,14 +9,12 @@
 #   make docker-build  Build Docker image
 #   make ci            Run full CI pipeline locally
 #
-# ══════════════════════════════════════════════════════════════════════════════
 
 .DEFAULT_GOAL := help
 .PHONY: help install install-dev dev test test-fast lint format security \
         docker-build docker-up docker-down migrate migrate-create \
         clean ci check-deps db-backup db-restore
 
-# ── Variables ─────────────────────────────────────────────────────────────────
 PYTHON      ?= python3
 PIP         ?= pip
 PYTEST      ?= pytest
@@ -34,7 +30,6 @@ CYAN  := \033[36m
 GREEN := \033[32m
 RESET := \033[0m
 
-# ── Help ──────────────────────────────────────────────────────────────────────
 help: ## Show this help message
 	@echo ""
 	@echo "$(CYAN)VORTEX Chat v$(VERSION)$(RESET)"
@@ -43,7 +38,6 @@ help: ## Show this help message
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 
-# ── Installation ──────────────────────────────────────────────────────────────
 install: ## Install production dependencies
 	$(PIP) install -r requirements.txt
 
@@ -51,7 +45,6 @@ install-dev: install ## Install all dependencies (including dev tools)
 	$(PIP) install -e ".[dev]"
 	pre-commit install
 
-# ── Development ───────────────────────────────────────────────────────────────
 dev: ## Run development server with hot-reload
 	# FIX F13: do NOT trust X-Forwarded-* on this launch path. Without --no-proxy-headers
 	# uvicorn defaults to proxy_headers=True / forwarded-allow-ips=127.0.0.1, so a loopback
@@ -65,7 +58,6 @@ dev: ## Run development server with hot-reload
 run: ## Run production server
 	$(PYTHON) run.py
 
-# ── Testing ───────────────────────────────────────────────────────────────────
 test: ## Run tests with coverage report
 	TESTING=true \
 	DB_PATH="file::memory:?cache=shared" \
@@ -95,7 +87,6 @@ test-fast: ## Run tests without coverage (faster)
 test-security: ## Run security-marked tests only
 	$(PYTEST) -m security -v
 
-# ── Code Quality ──────────────────────────────────────────────────────────────
 lint: ## Run linter (ruff check)
 	$(RUFF) check app/ --fix
 
@@ -110,7 +101,6 @@ security: ## Run security scan (bandit)
 typecheck: ## Run type checker (mypy)
 	mypy app/ --ignore-missing-imports
 
-# ── Database ──────────────────────────────────────────────────────────────────
 migrate: ## Apply all pending database migrations
 	alembic upgrade head
 
@@ -141,7 +131,6 @@ db-restore: ## Restore vortex.db from latest backup
 		echo "$(GREEN)Restored from $$LATEST$(RESET)"; \
 	fi
 
-# ── Docker ────────────────────────────────────────────────────────────────────
 docker-build: ## Build Docker image
 	$(DOCKER) build -t $(APP_NAME):$(VERSION) -t $(APP_NAME):latest .
 
@@ -160,14 +149,11 @@ docker-dev: ## Start dev mode with Docker Compose
 docker-monitoring: ## Start with monitoring (Prometheus)
 	$(COMPOSE) --profile monitoring up -d
 
-# ── CI (run full pipeline locally) ────────────────────────────────────────────
 ci: lint test security ## Run full CI pipeline: lint + test + security
 
-# ── Dependency Check ──────────────────────────────────────────────────────────
 check-deps: ## Check for dependency vulnerabilities
 	pip install safety && safety check
 
-# ── Cleanup ───────────────────────────────────────────────────────────────────
 clean: ## Remove build artifacts, caches, logs
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true

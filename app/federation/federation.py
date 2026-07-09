@@ -37,7 +37,6 @@ import websockets
 
 from app.security.ssl_context import make_peer_ssl_context
 
-# ── Shared HTTP pool for federation server-to-server requests ────────────────
 _federation_http = httpx.AsyncClient(
     timeout=httpx.Timeout(6.0, connect=3.0),
     limits=httpx.Limits(max_keepalive_connections=10, max_connections=50, keepalive_expiry=30.0),
@@ -64,9 +63,7 @@ router = APIRouter(prefix="/api/federation", tags=["federation"])
 ws_router = APIRouter(tags=["federation-ws"])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # SSL helpers
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _make_peer_ssl_context() -> ssl.SSLContext:
     """Строит SSL-контекст для исходящих server-to-server соединений.
@@ -74,9 +71,7 @@ def _make_peer_ssl_context() -> ssl.SSLContext:
     return make_peer_ssl_context()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # DB-encryption helpers for remote_jwt at rest
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _derive_fed_storage_key() -> bytes:
     """Деривирует 32-байтовый AES-ключ из секретов приложения через HKDF-SHA256."""
@@ -113,9 +108,7 @@ def _decrypt_fed_jwt(stored: str) -> str:
     return AESGCM(key).decrypt(nonce, ct, None).decode()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Модели виртуальных комнат
-# ══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class FederatedRoomInfo:
@@ -148,9 +141,7 @@ def _fed_room_dict(r: FederatedRoomInfo) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # FederationRelayManager
-# ══════════════════════════════════════════════════════════════════════════════
 
 class FederationRelayManager:
     """
@@ -173,7 +164,6 @@ class FederationRelayManager:
         self._lock      = asyncio.Lock()
         self._next_id   = -1
 
-    # ── Persistence ───────────────────────────────────────────────────────────
 
     def _save_room_sync(self, info: FederatedRoomInfo) -> None:
         """Сохраняет/обновляет комнату в БД (синхронно, вызывается из async контекста через run_in_executor)."""
@@ -256,7 +246,6 @@ class FederationRelayManager:
             logger.warning("Federation restore_from_db error: %s", e)
             return 0
 
-    # ── Public API ────────────────────────────────────────────────────────────
 
     async def join(
             self,
@@ -352,7 +341,6 @@ class FederationRelayManager:
             loop = asyncio.get_event_loop()
             loop.run_in_executor(None, self._delete_room_sync, virtual_id)
 
-    # ── Relay loop ────────────────────────────────────────────────────────────
 
     async def _relay_loop(self, virtual_id: int, outbound: asyncio.Queue) -> None:
         info = self._rooms.get(virtual_id)
@@ -439,9 +427,7 @@ class FederationRelayManager:
 relay = FederationRelayManager()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Вспомогательная WS-аутентификация (cookie или query-param ?token=)
-# ══════════════════════════════════════════════════════════════════════════════
 
 async def _ws_get_user(websocket: WebSocket, db: Session) -> Optional[User]:
     """Получает пользователя из WebSocket по cookie access_token."""
@@ -457,9 +443,7 @@ async def _ws_get_user(websocket: WebSocket, db: Session) -> Optional[User]:
         return None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # WebSocket endpoint — виртуальная комната
-# ══════════════════════════════════════════════════════════════════════════════
 
 @ws_router.websocket("/ws/fed/{virtual_room_id}")
 async def federated_ws(
@@ -529,9 +513,7 @@ async def federated_ws(
         await ws_manager.disconnect(virtual_room_id, user.id)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # REST API — guest-login (Node B принимает запросы от Node A)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class GuestLoginRequest(BaseModel):
     username:      str
@@ -582,7 +564,6 @@ def _is_private_ip(ip: str) -> bool:
         return False
 
 
-# ── FIX F10: peer authentication + feature gate for federation guest-login ────
 # guest-login mints a real User + access JWT. Previously it was gated ONLY by a
 # private-IP check, so any host on the LAN/loopback could mint accounts/sessions.
 # We now: (a) gate behind FEDERATION_GUEST_ENABLED (default OFF → 403); and
@@ -784,9 +765,7 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # REST API — список федеративных комнат
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/my-rooms")
 async def my_federated_rooms(u: User = Depends(get_current_user)):
@@ -795,9 +774,7 @@ async def my_federated_rooms(u: User = Depends(get_current_user)):
     return {"rooms": [_fed_room_dict(r) for r in rooms]}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # REST API — выход из федеративной комнаты
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.delete("/leave/{virtual_id}")
 async def leave_federated_room(virtual_id: int, u: User = Depends(get_current_user)):

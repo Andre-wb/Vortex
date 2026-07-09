@@ -1,8 +1,6 @@
 import { Haptic } from './core.js';
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 13. Bot Store — load, render, search, categories
-// ══════════════════════════════════════════════════════════════════════════════
 
 let _botCategory = '';
 let _botSearchDebounce = null;
@@ -297,9 +295,7 @@ window.installBot = installBot;
 window.openBotDetail = openBotDetail;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // 14. Settings fullscreen view — sections, language picker
-// ══════════════════════════════════════════════════════════════════════════════
 
 const ALL_LANGUAGES = [
     {code:"af",name:"Afrikaans"},{code:"ak",name:"Akan"},{code:"am",name:"አማርኛ"},
@@ -633,9 +629,7 @@ window.filterLanguages = filterLanguages;
 window.selectLanguage = selectLanguage;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Sessions — active devices, terminate, auto-delete account
-// ══════════════════════════════════════════════════════════════════════════════
 
 async function _loadSessions() {
     const list = document.getElementById('sessions-list');
@@ -783,9 +777,7 @@ function _restoreTTLState() {
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Security Questions Setup Modal (onboarding + privacy settings)
-// ══════════════════════════════════════════════════════════════════════════════
 
 function _getDefaultQuestions() {
     return [
@@ -862,9 +854,7 @@ async function _saveSecurityQuestions() {
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Monthly Password Reminder
-// ══════════════════════════════════════════════════════════════════════════════
 
 function _showPasswordReminder() {
     let existing = document.getElementById('pw-reminder-modal');
@@ -1003,9 +993,7 @@ async function _pwDoChange() {
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Safe Cache Clear — preserves keys, removes media/temp data
-// ══════════════════════════════════════════════════════════════════════════════
 
 const _PROTECTED_PREFIXES = [
     'vortex_rk_',           // room keys (sessionStorage)
@@ -1288,7 +1276,6 @@ async function _loadSQStatus() {
     }
 }
 
-// ── Show Last Seen toggle ────────────────────────────────────────────────────
 
 async function _loadShowLastSeen() {
     const checkbox = document.getElementById('set-privacy-show-last-seen');
@@ -1391,9 +1378,7 @@ window._showCustomTTLModal = _showCustomTTLModal;
 window._saveCustomTTL = _saveCustomTTL;
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Font Settings — picker, size, custom upload
-// ══════════════════════════════════════════════════════════════════════════════
 
 const _FONTS = [
     { name: 'System',           family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', builtin: true },
@@ -1565,9 +1550,7 @@ window._setFontSize = _setFontSize;
 window._uploadCustomFont = _uploadCustomFont;
 window._renderFontPicker = _renderFontPicker;
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Mini App fullscreen viewer
-// ══════════════════════════════════════════════════════════════════════════════
 
 window.openMiniApp = function(botId, url, title) {
     const S      = window.AppState;
@@ -1615,9 +1598,7 @@ window.closeMiniApp = function() {
 };
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Multi-Account в настройках
-// ══════════════════════════════════════════════════════════════════════════════
 
 function _renderSettingsAccounts() {
     const container = document.getElementById('settings-accounts-section');

@@ -26,7 +26,6 @@ async-trait  = "0.1"          # async methods in traits
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
 
-# ── Cryptography ──────────────────────────────────────────────────────────────
 sha2    = "0.10"             # SHA-256 / SHA-512
 hmac    = "0.12"             # HMAC-SHA256
 md5     = "0.7"              # MD5 hash

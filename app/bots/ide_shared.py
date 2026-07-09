@@ -24,7 +24,6 @@ def _validate_id(pid: str) -> str:
     return pid
 
 
-# ── Project ownership registry ──────────────────────────────────────────────
 # IDE "projects" are just files in the shared bots_workspace/ directory keyed by
 # a free-chosen project_id. There is no DB row, so we maintain a lightweight
 # pid -> owner_user_id map on disk and enforce it on every request. This closes
@@ -95,7 +94,6 @@ def _project_owner(pid: str) -> Optional[int]:
         return _load_ownership().get(pid)
 
 
-# ── Request models ─────────────────────────────────────────────────────────
 
 class CompileRequest(BaseModel):
     project_id: str = Field(..., min_length=1, max_length=64)

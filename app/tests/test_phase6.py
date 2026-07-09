@@ -23,9 +23,7 @@ def _mock_response(method: str, url: str, status: int = 200, **kw) -> httpx.Resp
     return httpx.Response(status, request=req, **kw)
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. Integrity gate on controller
-# ══════════════════════════════════════════════════════════════════════════
 
 
 @pytest.mark.asyncio
@@ -115,9 +113,7 @@ async def test_integrity_gate_passes_when_no_manifest():
         assert (await http.get("/v1/nodes/random")).status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. ControllerClient verify-first behavior
-# ══════════════════════════════════════════════════════════════════════════
 
 
 @pytest.mark.asyncio
@@ -227,9 +223,7 @@ async def test_controller_client_skips_release_key_check_when_unset():
         assert chosen == "http://custom.example"
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. Vortex node load-gate on handoff
-# ══════════════════════════════════════════════════════════════════════════
 
 
 @pytest.mark.asyncio
@@ -317,9 +311,7 @@ async def test_handoff_accept_passes_when_not_overloaded():
         assert r.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. MigrationPusher payload shape
-# ══════════════════════════════════════════════════════════════════════════
 
 
 @pytest.mark.asyncio

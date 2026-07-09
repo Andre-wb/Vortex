@@ -38,9 +38,7 @@ def _env_file(request: Request) -> Path:
     return Path(p) if p else Path(".env")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #26 — Incremental delta (block-level hash diff)
-# ══════════════════════════════════════════════════════════════════════════
 
 def _manifest_path(env_file: Path) -> Path:
     return env_file.parent / "backup_blocks.manifest.json"
@@ -133,9 +131,7 @@ async def incremental_upload(request: Request) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #27 — Multi-controller push
-# ══════════════════════════════════════════════════════════════════════════
 
 class ControllersBody(BaseModel):
     controllers: list[str] = Field(..., min_length=1, max_length=8,
@@ -201,9 +197,7 @@ async def job_multi_controller_backup(env_file: Path) -> dict:
             "report": report}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #28 — IPFS
-# ══════════════════════════════════════════════════════════════════════════
 
 class IpfsConfigBody(BaseModel):
     api_url:   str = Field("http://127.0.0.1:5001", min_length=8)
@@ -279,9 +273,7 @@ async def ipfs_history(request: Request) -> dict:
     except Exception: return {"entries": []}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #29 — S3 / R2 / B2 (S3-compatible)
-# ══════════════════════════════════════════════════════════════════════════
 
 class S3ConfigBody(BaseModel):
     endpoint:     str = Field(..., min_length=8, max_length=512)
@@ -343,9 +335,7 @@ async def s3_upload(request: Request) -> dict:
     return {"ok": True, "key": key, "byte_size": len(blob)}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # #30 — Periodic integrity check
-# ══════════════════════════════════════════════════════════════════════════
 
 async def job_backup_integrity(env_file: Path) -> dict:
     """Monthly: re-download the blob from controller, verify SHA-256

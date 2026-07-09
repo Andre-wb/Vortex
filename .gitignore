@@ -127,6 +127,14 @@ bandit-report.json
 # AI models
 Qwen3-8B/
 
+# Pentest / test scratch artifacts (were committed by mistake)
+_xss_probe*.js
+results.json
+# Bot runtime workspace — regenerated at runtime, must not be tracked
+bots_workspace/
+# Playwright test reports (regenerated on every run)
+**/playwright-report/
+
 # --- iOS / SwiftPM / Xcode ---
 ios/Modules/.build/
 ios/Modules/.swiftpm/

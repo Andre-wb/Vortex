@@ -1,6 +1,5 @@
 /* setup/steps.css — SSL-опции, статус IP, список сводки, экран успеха, утилиты шагов */
 
-/* ── Карточки выбора опций (SSL, режим сети) ── */
 .ssl-options {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -60,7 +59,6 @@
 .ssl-title { font-size: 13px; font-weight: 700; color: var(--text1); margin-bottom: 3px; }
 .ssl-desc  { font-size: 11px; color: var(--text2); line-height: 1.4; }
 
-/* ── Бейджи ── */
 .ssl-badge {
     display: inline-block;
     font-size: 9px;
@@ -76,11 +74,9 @@
 .badge-internet    { background: rgba(168,85,247,.15);  color: var(--purple); }
 .badge-advanced    { background: rgba(245,158,11,.15);  color: var(--yellow); }
 
-/* ── Детальные панели SSL ── */
 .ssl-detail        { display: none; }
 .ssl-detail.active { display: block; animation: stepIn .25s ease; }
 
-/* ── Строка статуса (IP) ── */
 .status-row {
     display: flex;
     align-items: center;
@@ -97,7 +93,6 @@
 .dot-yellow  { background: var(--yellow); }
 .dot-red     { background: var(--red); }
 
-/* ── Список сводки (шаг 5) ── */
 .info-list { list-style: none; }
 
 .info-list li {
@@ -122,7 +117,6 @@
 
 .info-list .value { color: var(--text1); word-break: break-all; }
 
-/* ── Экран успеха (шаг 6) ── */
 .success-icon {
     font-size: 64px;
     text-align: center;
@@ -146,7 +140,6 @@
 
 .success-url:hover { background: rgba(78,205,196,.06); }
 
-/* ── SSO ── */
 .sso-section-label {
     margin-bottom: 10px;
     font-weight: 600;
@@ -163,7 +156,6 @@
     border: 1px solid var(--border);
 }
 
-/* ── Отображение инвайт-кода ── */
 .invite-display {
     margin-top: 12px;
     padding: 16px;

@@ -86,7 +86,6 @@ async def heartbeat(req: HeartbeatRequest, request: Request) -> RegisterAck:
     return RegisterAck(ok=True, approved=True)
 
 
-# ── Batch heartbeat ────────────────────────────────────────────────────────
 # For supernodes that aggregate heartbeats from downstream nodes.
 # Uses Rust's ed25519-dalek batch verifier: 3-5× faster than per-item
 # verify when N >= 8. Fails fast on ANY bad signature (batch semantics).

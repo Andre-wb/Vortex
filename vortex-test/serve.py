@@ -38,7 +38,6 @@ ROOT = Path(__file__).resolve().parent
 PUBLIC = ROOT / "public"
 
 
-# ── Generate a throwaway keypair so signatures verify cleanly ─────────────
 _PRIV = Ed25519PrivateKey.generate()
 _PUB_HEX = _PRIV.public_key().public_bytes(
     encoding=serialization.Encoding.Raw,
@@ -55,7 +54,6 @@ def sign_envelope(payload: dict) -> dict:
     return {"payload": payload, "signature": sig, "signed_by": _PUB_HEX}
 
 
-# ── Mock data ─────────────────────────────────────────────────────────────
 
 NOW = int(time.time())
 START = NOW
@@ -168,7 +166,6 @@ STATS = {
 }
 
 
-# ── App ───────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="vortex-test preview", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -209,7 +206,6 @@ async def _favicon():
     return FileResponse(PUBLIC / "favicon.ico")
 
 
-# ── API endpoints (signed where the website expects signatures) ──────────
 
 @app.get("/v1/health")
 async def health():
@@ -297,7 +293,6 @@ async def nodes_lookup(pubkey: str):
     return JSONResponse({"detail": "node not found"}, status_code=404)
 
 
-# ── Main ─────────────────────────────────────────────────────────────────
 
 def main() -> None:
     host = "127.0.0.1"

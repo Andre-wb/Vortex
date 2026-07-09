@@ -15,7 +15,6 @@
 
 let _shortcutsModalOpen = false;
 
-// ── Shortcut definitions (for cheatsheet) ───────────────────────────────────
 const SHORTCUTS = [
     { keys: ['Ctrl', 'K'],       mac: ['⌘', 'K'],       get desc() { return t('shortcuts.quickSearch'); } },
     { keys: ['Ctrl', 'E'],       mac: ['⌘', 'E'],       get desc() { return t('shortcuts.emojiPicker'); } },
@@ -34,7 +33,6 @@ const SHORTCUTS = [
 
 const _isMac = navigator.platform?.includes('Mac') || navigator.userAgent?.includes('Mac');
 
-// ── Global keydown handler ──────────────────────────────────────────────────
 
 export function initShortcuts() {
     document.addEventListener('keydown', _handleGlobalKey);
@@ -45,7 +43,6 @@ function _handleGlobalKey(e) {
     const tag = e.target?.tagName;
     const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable;
 
-    // ── Always-active shortcuts (work even in inputs) ───────────────
 
     // Ctrl/Cmd + K — Quick Switcher
     if (mod && e.key === 'k') {
@@ -89,7 +86,6 @@ function _handleGlobalKey(e) {
         return; // Let other handlers (emoji picker, image viewer, etc.) also handle Escape
     }
 
-    // ── Input-excluded shortcuts (only work outside text fields) ─────
     if (isInput) {
         // ↑ in empty msg-input → edit last message
         if (e.key === 'ArrowUp' && e.target.id === 'msg-input' && !e.target.value.trim()) {
@@ -123,7 +119,6 @@ function _handleGlobalKey(e) {
     }
 }
 
-// ── Quick Switcher (Ctrl+K) ─────────────────────────────────────────────────
 
 let _quickSwitcherOpen = false;
 let _qsEl = null;
@@ -293,7 +288,6 @@ function _selectQS() {
 window._qsOpenRoom = (id) => { _closeQuickSwitcher(); window.openRoom?.(id); };
 window._qsOpenContact = (id) => { _closeQuickSwitcher(); window.openDM?.(id); };
 
-// ── Switch Room (Alt+↑/↓) ──────────────────────────────────────────────────
 
 function _switchRoom(direction) {
     const S = window.AppState;
@@ -314,7 +308,6 @@ function _switchRoom(direction) {
     window.openRoom?.(visibleRooms[idx].id);
 }
 
-// ── Edit Last Own Message (↑ in empty input) ────────────────────────────────
 
 function _editLastOwnMessage() {
     const S = window.AppState;
@@ -334,7 +327,6 @@ function _editLastOwnMessage() {
     }
 }
 
-// ── Toggle Mute (Ctrl+Shift+M) ─────────────────────────────────────────────
 
 function _toggleMuteCurrentRoom() {
     const S = window.AppState;
@@ -342,7 +334,6 @@ function _toggleMuteCurrentRoom() {
     window.toggleRoomMute?.(S.currentRoom.id);
 }
 
-// ── Shortcuts Cheatsheet Modal (Ctrl+/) ─────────────────────────────────────
 
 export function toggleShortcutsModal() {
     _shortcutsModalOpen ? _closeShortcutsModal() : _openShortcutsModal();
@@ -388,7 +379,6 @@ function _closeShortcutsModal() {
 
 window._closeShortcutsModal = _closeShortcutsModal;
 
-// ── Utility ─────────────────────────────────────────────────────────────────
 
 function _esc(s) {
     if (!s) return '';

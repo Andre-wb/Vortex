@@ -2,9 +2,7 @@ use crate::value::Value;
 use crate::error::GravResult;
 use crate::runtime_err;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers — convert between Value and Rust numeric types
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn to_f64_list(v: &Value) -> Option<Vec<f64>> {
     if let Value::List(l) = v {
@@ -58,9 +56,7 @@ fn require_list(args: &[Value], idx: usize, fn_name: &str) -> GravResult<Vec<f64
         .ok_or_else(|| runtime_err!("{fn_name}: argument at position {idx} must be a list of numbers"))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
-// ─────────────────────────────────────────────────────────────────────────────
 
 pub fn call_transforms_builtin(name: &str, args: &[Value]) -> GravResult<Option<Value>> {
     let v = match name {
@@ -151,15 +147,12 @@ pub fn call_transforms_builtin(name: &str, args: &[Value]) -> GravResult<Option<
             Value::Float(num_val / den_val)
         }
 
-        // ── Unknown — let the caller decide ─────────────────────────────────
         _ => return Ok(None),
     };
     Ok(Some(v))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal algorithms
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Next power of 2 >= n.
 fn next_power_of_2(n: usize) -> usize {

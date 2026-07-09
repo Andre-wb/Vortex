@@ -27,7 +27,6 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# ── Загрузка Rust модуля ────────────────────────────────────────────────────
 
 try:
     import vortex_chat as _vc
@@ -39,9 +38,7 @@ except ImportError:
     logger.warning("   Скомпилируйте: cd rust_utils && maturin develop --release")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Python fallbacks
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _py_generate_key() -> bytes:
     return secrets.token_bytes(32)
@@ -128,9 +125,7 @@ def _py_derive_session_key(private_bytes: bytes, peer_public_bytes: bytes) -> by
     ).derive(shared)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Публичный API — единый для Rust и Python
-# ══════════════════════════════════════════════════════════════════════════════
 
 def generate_key() -> bytes:
     """Генерирует 32-байтный AES ключ."""
@@ -213,9 +208,7 @@ def rust_available() -> bool:
     return _RUST
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # X25519 ключи узла (хранятся на диске)
-# ══════════════════════════════════════════════════════════════════════════════
 
 _node_priv: Optional[bytes] = None
 _node_pub:  Optional[bytes] = None

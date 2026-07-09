@@ -60,9 +60,7 @@ def _save_state(env_file: Path, state: dict) -> None:
     _state_path(env_file).write_text(json.dumps(state, indent=2))
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 1. Blocklist
-# ══════════════════════════════════════════════════════════════════════════
 
 class BlockBody(BaseModel):
     pubkey: str   = Field(..., min_length=32, max_length=128, pattern=r"^[0-9a-fA-F]+$")
@@ -109,9 +107,7 @@ def is_blocked(env_file: Path, pubkey: str) -> bool:
     return any(e["pubkey"] == pk for e in state["blocklist"])
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 2. Bandwidth quota
-# ══════════════════════════════════════════════════════════════════════════
 
 class QuotaBody(BaseModel):
     daily_mb: int = Field(..., ge=0, le=1_000_000)   # 0 = no limit
@@ -167,9 +163,7 @@ async def quota_count(body: QuotaCountBody, request: Request) -> dict:
     return {"ok": True, "today_mb": counters[today], "exceeded": bool(exceeded)}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 3. Connectivity tester
-# ══════════════════════════════════════════════════════════════════════════
 
 class TestBody(BaseModel):
     peers: list[str] = Field(..., description="list of base URLs to probe")
@@ -205,9 +199,7 @@ async def connectivity_test(body: TestBody) -> dict:
     return {"results": results, "ok_count": ok_count, "total": len(results)}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 4. Bootstrap peers JSON import/export
-# ══════════════════════════════════════════════════════════════════════════
 
 class BootstrapBody(BaseModel):
     peers: list[dict] = Field(..., description="list of {pubkey, url} records")
@@ -257,9 +249,7 @@ async def bootstrap_clear(request: Request) -> dict:
     return {"ok": True, "cleared": n}
 
 
-# ══════════════════════════════════════════════════════════════════════════
 # 5. Dual-seal badge
-# ══════════════════════════════════════════════════════════════════════════
 
 class BadgeBody(BaseModel):
     pubkey:      str  = Field(..., min_length=32, max_length=128, pattern=r"^[0-9a-fA-F]+$")

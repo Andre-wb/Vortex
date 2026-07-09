@@ -17,9 +17,7 @@ import pytest
 from conftest import make_user, login_user, random_str, _unique_phone
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Groups: Topics, Forum, Permissions, AutoMod, Slowmode
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestTopics:
     def test_create_topic(self, client, logged_user, room):
@@ -144,9 +142,7 @@ class TestAutoModCheck:
             db.close()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Spaces Advanced
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestSpacesAdvanced:
     def _create_space(self, client, headers):
@@ -212,9 +208,7 @@ class TestSpacesAdvanced:
         assert r2.status_code in (200, 403)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Channels Advanced
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestChannelsAdvanced:
     def test_channel_stats(self, client, logged_user):
@@ -257,9 +251,7 @@ class TestChannelsAdvanced:
         assert r2.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Bots Advanced
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestBotsAdvanced:
     def test_sdk_info(self, client):
@@ -290,9 +282,7 @@ class TestBotsAdvanced:
         assert r.status_code in (200, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Files Advanced
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestFilesAdvanced:
     def test_compression_presets(self, client):
@@ -321,9 +311,7 @@ class TestFilesAdvanced:
         assert r.status_code in (200, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Privacy (Tor, Padding, Ephemeral, ZK)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPrivacy:
     def test_status(self, client, logged_user):
@@ -415,9 +403,7 @@ class TestPrivacyUnit:
         assert "available" in status
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Post-Quantum Crypto
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPostQuantum:
     def test_pq_status(self, client):
@@ -457,9 +443,7 @@ class TestPostQuantum:
         assert len(ss1) == 32
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Pluggable Transports
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPluggableTransports:
     def test_transport_status(self, client, logged_user):
@@ -520,9 +504,7 @@ class TestPluggableTransports:
         assert status["obfs4"] is True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Redis Pub/Sub
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestRedisPubSub:
     def test_redis_not_connected(self):
@@ -551,9 +533,7 @@ class TestRedisPubSub:
         assert result is None  # No Redis = no cache
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Voice Advanced (SFU, recording, stage)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestVoiceAdvanced:
     def test_sfu_config(self, client, logged_user, room):
@@ -577,9 +557,7 @@ class TestVoiceAdvanced:
         assert r.status_code in (200, 400, 404)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Permission Flags Unit Test
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestPermissionFlags:
     def test_all_flags(self):
@@ -596,9 +574,7 @@ class TestPermissionFlags:
         assert PermissionFlags.DEFAULT_OWNER & PermissionFlags.ADMINISTRATOR
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Call History
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TestCallHistory:
     def test_recent_calls_empty(self, client, logged_user):

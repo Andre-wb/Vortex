@@ -1,4 +1,3 @@
-// ── File tree ─────────────────────────────────────────────────
 function ideRenderFileTree() {
     const tree = document.getElementById('ide-file-tree');
     if (!tree || !IDE.current) return;
@@ -82,7 +81,6 @@ function _renderFolderContents(container, subFolders, fileNames, allFolders, all
     }
 }
 
-// ── File icon helper ───────────────────────────────────────────
 function _fileIcon(name, size = 12) {
     if (name.endsWith('.grav')) {
         return `<img src="/logo/gravitix.svg" width="${size}" height="${size}" style="flex-shrink:0;opacity:.85" alt=".grav">`;
@@ -93,7 +91,6 @@ function _fileIcon(name, size = 12) {
     return `<svg width="${size}" height="${size}" fill="var(--text3)" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>`;
 }
 
-// ── Folder context menu ────────────────────────────────────────
 function ideFolderCtx(folder, e) {
     IDE.ctxFolder = folder;
     const menu = document.getElementById('ide-folder-menu');

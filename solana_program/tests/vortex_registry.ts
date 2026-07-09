@@ -112,7 +112,6 @@ describe("vortex_registry", () => {
     assert.isNull(gone, "peer account should be closed");
   });
 
-  // ── Phase A: treasury + register-fee ─────────────────────────────────
   describe("phase A — register fee + config", () => {
     const [configPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("config")],
@@ -246,11 +245,9 @@ describe("vortex_registry", () => {
     });
   });
 
-  // ── Shared Phase B / other phases helpers ───────────────────────────
   const DEFAULT_TIER_PRICES = [33_333_333, 80_000_000, 133_333_333, 253_333_333];
   const DEFAULT_PLAN_MONTHS = [1, 3, 6, 12];
 
-  // ── Phase B: tier subscriptions + gifting ───────────────────────────
   describe("phase B — subscribe_tier", () => {
     const [configPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("config")],
@@ -520,7 +517,6 @@ describe("vortex_registry", () => {
     });
   });
 
-  // ── Phase C: staking ────────────────────────────────────────────────
   describe("phase C — stake / request_unstake / claim_unstake", () => {
     function stakePda(nodeKey: Buffer): anchor.web3.PublicKey {
       const [pda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -738,7 +734,6 @@ describe("vortex_registry", () => {
     // deployment smoke test.
   });
 
-  // ── Phase D: rewards ────────────────────────────────────────────────
   describe("phase D — fund / credit / claim rewards", () => {
     // Mirrors MAX_REWARD_PER_ENTRY_LAMPORTS from lib.rs.
     const MAX_REWARD_PER_ENTRY_LAMPORTS = 1_000 * 1_000_000_000;

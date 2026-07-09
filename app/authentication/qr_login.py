@@ -30,7 +30,6 @@ from app.authentication._helpers import (
 
 logger = logging.getLogger(__name__)
 
-# ── QR Session Storage ────────────────────────────────────────────────────
 
 @dataclass
 class _QRSession:
@@ -55,7 +54,6 @@ def _cleanup_qr_sessions() -> None:
             _qr_sessions.pop(sid, None)
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────
 
 @router.post("/qr-init")
 async def qr_init(request: Request, db: Session = Depends(get_db)):

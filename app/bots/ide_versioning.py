@@ -26,7 +26,6 @@ router = APIRouter(prefix="/api/ide", tags=["ide"])
 _MAX_VERSIONS = 20
 
 
-# ── Versioning helpers ────────────────────────────────────────────────────
 
 def _versions_path(project_id: str) -> Path:
     _BOTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -50,7 +49,6 @@ def _save_versions(project_id: str, versions: list) -> None:
     )
 
 
-# ── Graph extraction ─────────────────────────────────────────────────────
 
 def _extract_graph(code: str) -> dict:
     """Regex-based graph extraction from Gravitix source."""
@@ -111,7 +109,6 @@ def _extract_graph(code: str) -> dict:
     return {"nodes": nodes, "edges": edges}
 
 
-# ── Versioning endpoints ─────────────────────────────────────────────────
 
 @router.get("/versions/{project_id}")
 async def ide_list_versions(
@@ -190,7 +187,6 @@ async def ide_rollback_version(
     }
 
 
-# ── Visual Flow Graph ────────────────────────────────────────────────────
 
 @router.get("/graph/{project_id}")
 async def ide_flow_graph(

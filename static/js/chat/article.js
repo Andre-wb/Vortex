@@ -243,7 +243,6 @@ export function renderArticleInto(el, msgText) {
     _setSanitized(el, renderArticle(src));
 }
 
-// ── Composer ─────────────────────────────────────────────────────────────
 
 function _openComposer() {
     const root = document.getElementById('article-composer');

@@ -49,7 +49,6 @@ logger = logging.getLogger(__name__)
 ONLINE_WINDOW_SEC = 300  # 5 min
 
 
-# ── Cross-dialect JSON type ────────────────────────────────────────────────
 # PostgreSQL → JSONB, SQLite → JSON
 _JSONType = _SAJson().with_variant(JSONB(), "postgresql")
 
@@ -100,7 +99,6 @@ class Node(Base):
     )
 
 
-# ── URL resolver ───────────────────────────────────────────────────────────
 
 def resolve_database_url() -> str:
     """Determine the async SQLAlchemy URL from env vars."""
@@ -131,7 +129,6 @@ def _ensure_async_driver(url: str) -> str:
     return url
 
 
-# ── Storage ────────────────────────────────────────────────────────────────
 
 class Storage:
     """Async SQLAlchemy storage for controller nodes."""
@@ -170,7 +167,6 @@ class Storage:
     async def close(self) -> None:
         await self._engine.dispose()
 
-    # ── Writes ────────────────────────────────────────────────────────────
 
     async def register(
         self,
@@ -210,7 +206,6 @@ class Storage:
             await s.commit()
             return True
 
-    # ── Reads ─────────────────────────────────────────────────────────────
 
     async def get(self, pubkey_hex: str) -> Optional[dict]:
         async with self._session_maker() as s:
@@ -262,7 +257,6 @@ class Storage:
             weights.pop(idx)
         return [_to_dict(r) for r in rows]
 
-    # ── Encrypted backups (opaque blobs) ──────────────────────────────────
 
     # Hard cap on blob size to stop a node from occupying unbounded storage
     # on the controller. Real-world backups should compress far under this

@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/spaces", tags=["spaces-advanced"])
 
 
-# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class OnboardingUpdate(BaseModel):
     welcome_message: str | None = Field(None, max_length=2000)
@@ -52,7 +51,6 @@ class PermissionOverride(BaseModel):
     deny: int = 0
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _require_space_admin(space_id: int, user_id: int, db: Session) -> SpaceMember:
     m = db.query(SpaceMember).filter(
@@ -72,9 +70,7 @@ def _audit(db: Session, space_id: int, actor_id: int, action: str,
     db.commit()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. Granular Permissions per Channel
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{space_id}/permissions/{room_id}")
 async def get_channel_permissions(space_id: int, room_id: int,
@@ -123,9 +119,7 @@ async def set_channel_permission(space_id: int, body: PermissionOverride,
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. Nested Spaces (sub-spaces)
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{space_id}/sub-spaces", status_code=201)
 async def create_sub_space(space_id: int, body: BaseModel | None = None,
@@ -171,9 +165,7 @@ async def list_sub_spaces(space_id: int, u: User = Depends(get_current_user),
     ]}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. Onboarding Flow
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{space_id}/onboarding")
 async def get_onboarding(space_id: int, db: Session = Depends(get_db)):
@@ -205,9 +197,7 @@ async def set_onboarding(space_id: int, body: OnboardingUpdate,
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. Space Discovery
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/discover")
 async def discover_spaces(q: str = Query(default="", max_length=100),
@@ -226,9 +216,7 @@ async def discover_spaces(q: str = Query(default="", max_length=100),
     ]}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 5. Audit Log
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{space_id}/audit-log")
 async def get_audit_log(space_id: int, limit: int = Query(default=50, le=200),
@@ -247,9 +235,7 @@ async def get_audit_log(space_id: int, limit: int = Query(default=50, le=200),
     ]}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 6. Custom Emoji
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{space_id}/emojis")
 async def list_emojis(space_id: int, u: User = Depends(get_current_user),
@@ -317,9 +303,7 @@ async def delete_emoji(space_id: int, emoji_id: int,
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 7. Vanity URL
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.put("/{space_id}/vanity")
 async def set_vanity_url(space_id: int, body: VanityUpdate,
@@ -351,9 +335,7 @@ async def resolve_vanity(vanity: str, db: Session = Depends(get_db)):
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 8. Server Templates
-# ══════════════════════════════════════════════════════════════════════════════
 
 TEMPLATES = {
     "gaming": {

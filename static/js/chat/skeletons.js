@@ -8,7 +8,6 @@
  *   4. WebSocket connecting spinner
  */
 
-// ── Room List Skeleton ──────────────────────────────────────────────────────
 
 /**
  * Показать скелетоны в списке комнат (5 заглушек).
@@ -45,7 +44,6 @@ export function hideRoomsSkeleton() {
 }
 
 
-// ── Messages Skeleton ───────────────────────────────────────────────────────
 
 /**
  * Показать скелетоны сообщений (8 заглушек разной ширины).
@@ -87,7 +85,6 @@ export function hideMessagesSkeleton() {
 }
 
 
-// ── WebSocket Connecting Spinner ────────────────────────────────────────────
 
 /**
  * Показать спиннер подключения.
@@ -103,7 +100,6 @@ export function showConnectingSpinner() {
 }
 
 
-// ── File Upload Progress Bar ────────────────────────────────────────────────
 
 let _progressEl = null;
 

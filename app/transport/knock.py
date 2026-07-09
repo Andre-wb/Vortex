@@ -23,7 +23,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ── Dynamic knock path generation ────────────────────────────────────────────
 # Вместо фиксированных /cover/pricing, /cover/about
 # генерируем пути на основе HMAC(server_secret, time_bucket)
 # Все клиенты получают текущие пути через /api/transport/knock-hint
@@ -88,7 +87,6 @@ def _get_previous_knock_sequence() -> list[str]:
     return [_COVER_PATH_POOL[i] for i in indices]
 
 
-# ── Knock state ──────────────────────────────────────────────────────────────
 
 _knock_tokens: dict[str, float] = {}  # token -> expires_at (monotonic)
 _knock_progress: dict[str, tuple[list[str], float]] = {}

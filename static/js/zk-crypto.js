@@ -1,5 +1,4 @@
 // static/js/zk-crypto.js
-// ============================================================================
 // Zero-Knowledge Crypto Layer — клиентское шифрование ВСЕХ метаданных.
 //
 // Сервер не видит: профиль, имена комнат, контакты, имена файлов,
@@ -13,7 +12,6 @@
 //   Blind Key   = получается с сервера, зашифрован через ECIES
 //
 // Room metadata шифруется room_key (уже есть в crypto.js).
-// ============================================================================
 
 import { api } from './utils.js';
 import { eciesDecrypt, getRoomKey } from './crypto.js';
@@ -25,9 +23,7 @@ const _fromHex = h => {
     return Uint8Array.from(m.map(b => parseInt(b, 16)));
 };
 
-// ════════════════════════════════════════════════════════════════════════════
 // Key Derivation
-// ════════════════════════════════════════════════════════════════════════════
 
 let _masterKey   = null;  // CryptoKey (AES-GCM)
 let _profileKey  = null;
@@ -112,9 +108,7 @@ export function isZKReady() {
     return _masterKey !== null;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Core Encrypt / Decrypt
-// ════════════════════════════════════════════════════════════════════════════
 
 async function _encrypt(key, plaintext) {
     const data = new TextEncoder().encode(typeof plaintext === 'string' ? plaintext : JSON.stringify(plaintext));
@@ -144,9 +138,7 @@ async function _decryptWithRaw(rawKeyBytes, hex) {
     return _decrypt(key, hex);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Profile Vault — encrypt/decrypt user profile
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Encrypt user profile data.
@@ -206,9 +198,7 @@ export async function loadUserProfileVault(userId) {
     return resp;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Room Vault — encrypt/decrypt room metadata with room key
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Encrypt room metadata with room key.
@@ -249,9 +239,7 @@ export async function loadRoomVault(roomId) {
     return decryptRoomMeta(roomId, resp.vault_data);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Contact Vault — encrypted contact list
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Encrypt a contact entry.
@@ -312,9 +300,7 @@ export async function loadContactVaults() {
     return decrypted;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Encrypted File Metadata — file_name, forwarded_from
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Encrypt file metadata with room key.
@@ -352,9 +338,7 @@ export async function decryptFileMeta(roomId, encryptedMeta) {
     return result;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Encrypted Call History
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Encrypt call record.
@@ -401,9 +385,7 @@ export async function loadCallRecords() {
     return decrypted;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Sealed Sender — per-room pseudonyms
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Derive sealed sender pseudonym for a room.
@@ -417,9 +399,7 @@ export async function deriveSealedSender(roomId) {
     return _toHex(sig);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Blind Index — search encrypted data without revealing query
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Compute blind index for search.
@@ -446,9 +426,7 @@ export async function blindSearch(query, type = 'user') {
     return resp.ok ? resp.results : [];
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Encrypted Notifications — ECIES for recipient
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Encrypt notification for a recipient using their public key.
@@ -459,9 +437,7 @@ export async function encryptNotification(recipientPubHex, payload) {
     return eciesEncrypt(data, recipientPubHex);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // Encrypted Audit Log
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Encrypt audit log entry with room key.
@@ -493,9 +469,7 @@ export async function decryptAuditEntries(roomId, entries) {
     return result;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
 // ZK Status
-// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * Get ZK architecture status from server.

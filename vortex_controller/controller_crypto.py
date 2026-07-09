@@ -25,7 +25,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from cryptography.exceptions import InvalidSignature
 
 
-# ── Canonical JSON encoding ─────────────────────────────────────────────────
 
 try:
     import vortex_chat as _vc_rust
@@ -46,7 +45,6 @@ def canonical_json(data: Any) -> bytes:
     return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-# ── Controller keypair (persistent) ─────────────────────────────────────────
 
 class ControllerKey:
     """Controller's persistent Ed25519 keypair."""
@@ -94,7 +92,6 @@ class ControllerKey:
         return self._priv.sign(data).hex()
 
 
-# ── Verification helpers ────────────────────────────────────────────────────
 
 def verify_signature(pubkey_hex: str, signature_hex: str, payload: Any) -> bool:
     """Verify a signature over canonical JSON of payload.
@@ -133,7 +130,6 @@ def sign_response(controller_key: ControllerKey, data: Any) -> dict:
     }
 
 
-# ── Utility: base64 helpers for misc use ────────────────────────────────────
 
 def b64encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")

@@ -12,9 +12,7 @@ import pytest
 from conftest import make_user, login_user, random_str, _unique_phone, random_digits, _unique_phone
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 1. app/main.py — health, readiness, exception handlers, Prometheus
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class TestMainHealthAndReadiness:
@@ -90,9 +88,7 @@ class TestMainBackgroundTasks:
         assert callable(_create_background_task)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 2. app/authentication/auth.py
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class TestAuthRateLimiting:
@@ -561,9 +557,7 @@ class TestAuthProfile:
         assert resp.status_code in (200, 400, 500)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 3. app/security/waf.py — WAFEngine unit tests
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class TestWAFEngine:
@@ -1283,9 +1277,7 @@ class TestWAFSetupFunction:
         assert isinstance(engine, WAFEngine)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 4. app/security/middleware.py
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class TestSecurityHeadersMiddleware:
@@ -1410,9 +1402,7 @@ class TestTokenRefreshMiddleware:
         assert resp.status_code == 200
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # 5. app/database.py
-# ══════════════════════════════════════════════════════════════════════════════
 
 
 class TestDatabase:

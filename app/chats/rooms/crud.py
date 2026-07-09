@@ -39,9 +39,7 @@ def _random_aes256_hex() -> str:
     return _secrets.token_hex(32)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Room creation
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("", status_code=201)
 async def create_room(
@@ -155,9 +153,7 @@ async def create_room(
     })
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Standard room operations
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/my")
 async def my_rooms(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -254,9 +250,7 @@ async def get_room(
     return d
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Room settings update
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.put("/{room_id}")
 async def update_room(
@@ -374,9 +368,7 @@ async def update_room(
     return _room_dict(r)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Cross-node replication toggle (owner-only, DM-forbidden)
-# ══════════════════════════════════════════════════════════════════════════════
 
 class ReplicationBody(BaseModel):
     mode: str = Field(..., pattern=r"^(none|federated)$")

@@ -5,9 +5,7 @@ import { t } from '../i18n.js';
 import { showWelcome } from '../ui.js';
 import { renderRoomsList, loadMyRooms } from './core.js';
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Панель информации / настроек комнаты
-// ══════════════════════════════════════════════════════════════════════════════
 
 export async function openRoomInfo() {
     const S = window.AppState;
@@ -375,9 +373,7 @@ window._onAntispamToggle = function() {
 
 window.openRoomInfo = openRoomInfo;
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Channel management: Authors, Streaming, Discussion
-// ══════════════════════════════════════════════════════════════════════════════
 
 async function _loadChannelAuthors(roomId) {
     const list = $('channel-authors-list');
@@ -740,7 +736,6 @@ window._loadRecentActions = async function() {
     }
 };
 
-// ── Глобальный режим: поиск комнат по mesh-сети ──────────────────────────────
 
 let _globalSearchTimeout = null;
 
@@ -787,7 +782,6 @@ export async function searchGlobalRooms(query) {
     }, 500);
 }
 
-// ── Глобальный режим: добавление узла ────────────────────────────────────────
 
 export async function addGlobalPeer() {
     const addr = $('peer-address').value.trim();
@@ -805,7 +799,6 @@ export async function addGlobalPeer() {
     }
 }
 
-// ── Глобальный поиск (sidebar) ────────────────────────────────────────────────
 
 let _globalSearchTimer = null;
 

@@ -1,6 +1,4 @@
-/* ══════════════════════════════════════════════════════════════════════════════
  * BOTTOM TAB BAR (Telegram-style mobile navigation)
- * ════════════════════════════════════════════════════════════════════════════ */
 
 .bottom-tabs {
     display: flex;
@@ -80,9 +78,7 @@ body[data-theme="light"] .bottom-tabs {
 }
 
 
-/* ══════════════════════════════════════════════════════════════════════════════
  * INPUT ATTACHMENT PANEL (скрепка → выдвижная панель вместо кучи иконок)
- * ════════════════════════════════════════════════════════════════════════════ */
 
 .attach-panel {
     display: none;
@@ -152,9 +148,7 @@ body[data-theme="light"] .bottom-tabs {
 .attach-icon.payment { background: #10b981; color: #fff; }
 
 
-/* ══════════════════════════════════════════════════════════════════════════════
  * ROOM INFO PANEL (shown when clicking room name in header)
- * ════════════════════════════════════════════════════════════════════════════ */
 
 .room-info-panel {
     position: fixed;
@@ -226,14 +220,12 @@ body[data-theme="light"] .bottom-tabs {
 }
 
 
-/* ── Tab bar spacing: only on screens where tabs are visible ──────────── */
 @media (max-width: 768px) {
     body.chat-open .bottom-tabs {
         display: none !important;
     }
 }
 
-/* ── Extra small phones (< 380px, iPhone SE etc) ─────────────────────────── */
 @media (max-width: 380px) {
     .input-btn { width: 32px; height: 32px; min-width: 32px; font-size: 14px; }
     #msg-input { font-size: 14px; padding: 6px 8px; }
@@ -245,7 +237,6 @@ body[data-theme="light"] .bottom-tabs {
 }
 
 
-/* ── Smooth page transitions ─────────────────────────────────────────────── */
 
 #chat-area, #welcome-screen, #auth-screen {
     transition: opacity 0.2s ease, transform 0.25s var(--ease-out-expo);
@@ -266,9 +257,7 @@ body[data-theme="light"] .bottom-tabs {
 }
 
 
-/* ══════════════════════════════════════════════════════════════════════════════
  * BOT STORE GRID
- * ════════════════════════════════════════════════════════════════════════════ */
 
 .bot-grid {
     display: grid;
@@ -279,7 +268,6 @@ body[data-theme="light"] .bottom-tabs {
     .bot-grid { grid-template-columns: 1fr; }
 }
 
-/* ── Bots Settings Page ──────────────────────────────────────────────────── */
 .bots-header {
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 16px; padding-bottom: 12px;
@@ -447,11 +435,8 @@ body[data-theme="light"] .bot-badge.miniapp { background: rgba(249,115,22,.1); }
 body[data-theme="light"] .bots-create-form { background: rgba(124,58,237,.04); }
 
 
-/* ══════════════════════════════════════════════════════════════════════════════
  * SETTINGS FULLSCREEN VIEW
- * ════════════════════════════════════════════════════════════════════════════ */
 
-/* ═══════════════════════════════════════════════════════════════════════════
    Settings — Premium Design
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -560,7 +545,6 @@ body[data-theme="light"] .bots-create-form { background: rgba(124,58,237,.04); }
 }
 .set-item:hover .set-icon { transform: scale(1.08); }
 
-/* ── Sub-page ─────────────────────────────────────────────────────────── */
 .set-sub-page {
     flex-direction: column; height: 100%; overflow: hidden;
 }
@@ -604,7 +588,6 @@ body[data-theme="light"] .bots-create-form { background: rgba(124,58,237,.04); }
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
-/* ── Settings section titles (inside sub-pages) ──────────────────────────── */
 #settings-sub-content [style*="font-weight:600"] {
     letter-spacing: -.01em;
 }
@@ -645,7 +628,6 @@ body[data-theme="light"] .bots-create-form { background: rgba(124,58,237,.04); }
     background: var(--accent);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
    Sessions Page
    ═══════════════════════════════════════════════════════════════════════════ */
 .sessions-section-header {
@@ -792,7 +774,6 @@ body[data-theme="light"] .bots-create-form { background: rgba(124,58,237,.04); }
     color: var(--text2); font-size: 14px; cursor: pointer;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
    Storage & Data Page
    ═══════════════════════════════════════════════════════════════════════════ */
 .storage-header {
@@ -899,7 +880,6 @@ body[data-theme="light"] .lang-item:hover { background: #f5f3ff; }
 body[data-theme="light"] .lang-code { background: #f0f0f5; }
 body[data-theme="light"] .set-value { background: #f0edff; }
 
-/* ── Video-note button short-press reveal ────────────────────────────── */
 @keyframes vn-appear {
     from { opacity: 0; transform: scale(0.55) translateX(6px); }
     to   { opacity: 1; transform: scale(1)    translateX(0); }
@@ -908,7 +888,6 @@ body[data-theme="light"] .set-value { background: #f0edff; }
     animation: vn-appear 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* ── Expression picker (GIF / Emoji / Sticker) ──────────────────────── */
 .expr-trigger-wrap {
     position: static;
     flex-shrink: 0;
@@ -952,7 +931,6 @@ body[data-theme="light"] .set-value { background: #f0edff; }
 }
 .expr-item svg    { width: 22px; height: 22px; }
 
-/* ── Room Settings Screen (full-panel inside #main) ─────────────────────── */
 .rss-wrap {
     flex-direction: column;
     background: var(--bg);
@@ -1168,7 +1146,6 @@ body[data-theme="light"] .set-value { background: #f0edff; }
 .rss-file-item svg { flex-shrink: 0; color: var(--text2); }
 .rss-file-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ── Header popup (call picker & dots menu) ──────────────────────────────── */
 .header-popup-wrap {
     position: relative;
 }
@@ -1211,7 +1188,6 @@ body[data-theme="light"] .set-value { background: #f0edff; }
 .header-popup-item:last-child  { border-radius: 0 0 10px 10px; }
 .header-popup-item svg { flex-shrink: 0; color: var(--text2); }
 
-/* ── Room info panel — quick action buttons ──────────────────────────────── */
 .ri-quick-actions {
     display: grid;
     grid-template-columns: repeat(4, 1fr);

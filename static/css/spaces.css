@@ -1,6 +1,4 @@
-/* ============================================================================
  * SPACES — Discord-like server icon bar + categorized room list
- * ========================================================================== */
 
 /* Inner content wrapper (holds everything the sidebar held before) */
 .sidebar-content {
@@ -11,7 +9,6 @@
     overflow: hidden;
 }
 
-/* ── Space Icon Bar (left strip) ──────────────────────────────────────────── */
 .space-icon-bar {
     width: 56px;
     min-width: 56px;
@@ -116,7 +113,6 @@
     flex-shrink: 0;
 }
 
-/* ── Space View in Sidebar ────────────────────────────────────────────────── */
 .space-view {
     flex: 1;
     display: flex;
@@ -163,7 +159,6 @@
     padding: 4px 0;
 }
 
-/* ── Category ─────────────────────────────────────────────────────────────── */
 .space-category {
     margin-bottom: 2px;
 }
@@ -215,7 +210,6 @@
     background: var(--bg3);
 }
 
-/* ── Room item inside space ───────────────────────────────────────────────── */
 .space-category-rooms {
     padding: 0 4px;
 }
@@ -287,7 +281,6 @@
     color: var(--accent);
 }
 
-/* ── Space Settings Modal ─────────────────────────────────────────────────── */
 .ss-member-row {
     display: flex;
     align-items: center;
@@ -363,7 +356,6 @@
 .cs-panel { display: none; }
 .cs-panel.active { display: block; }
 
-/* ── Mobile: space bar horizontal at top ──────────────────────────────────── */
 @media (max-width: 640px) {
     #sidebar {
         flex-direction: column !important;
@@ -402,7 +394,6 @@
     }
 }
 
-/* ── Light theme overrides ────────────────────────────────────────────────── */
 body[data-theme="light"] .space-icon-bar {
     background: #f4f4f5;
     border-right-color: #e4e4e7;

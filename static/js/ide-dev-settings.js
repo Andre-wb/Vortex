@@ -1,9 +1,7 @@
-/* ============================================================
    IDE Dev Settings — themes, editor features, unique extras
    ============================================================ */
 'use strict';
 
-/* ── 55 editor themes ─────────────────────────────────────── */
 const IDE_THEMES = [
   /* id, label, dark?, bg, gutter, text, kw, type, str, comment, num, regex, arrow, ctx, interp, sel, cursor, preview[3] */
   { id:'vortex-night',       label:'Vortex Night',       dark:true,  bg:'#0d0d18', gutter:'#0b0b14', text:'#e2e8f0', kw:'#c084fc', type:'#67e8f9', str:'#86efac', comment:'#475569', num:'#fde68a', regex:'#fda4af', arrow:'#a78bfa', ctx:'#38bdf8', interp:'#fb923c', sel:'rgba(167,139,250,.22)', cursor:'#c084fc',  preview:['#0d0d18','#c084fc','#86efac'] },
@@ -62,7 +60,6 @@ const IDE_THEMES = [
   { id:'monochrome',         label:'Monochrome',         dark:true,  bg:'#111111', gutter:'#0d0d0d', text:'#cccccc', kw:'#ffffff', type:'#aaaaaa', str:'#888888', comment:'#444444', num:'#eeeeee', regex:'#ffffff', arrow:'#aaaaaa', ctx:'#cccccc', interp:'#ffffff', sel:'rgba(255,255,255,.12)',  cursor:'#ffffff',  preview:['#111111','#ffffff','#888888'] },
 ];
 
-/* ── Current settings ────────────────────────────────────── */
 const DS_KEY = 'vortex_dev_settings';
 
 function _dsLoad() {
@@ -73,7 +70,6 @@ function _dsSave(data) {
     localStorage.setItem(DS_KEY, JSON.stringify(Object.assign(cur, data)));
 }
 
-/* ── Colour utils ────────────────────────────────────────── */
 function _hexToRgb(hex) {
     hex = hex.replace('#', '');
     if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
@@ -90,13 +86,11 @@ function _rgba(hex, a) {
     return `rgba(${r},${g},${b},${a})`;
 }
 
-/* ── Apply theme ─────────────────────────────────────────── */
 function _applyTheme(id) {
     const t = IDE_THEMES.find(t => t.id === id);
     if (!t) return;
     const root = document.documentElement;
 
-    /* ─ Syntax colours ─ */
     root.style.setProperty('--gx-kw',      t.kw);
     root.style.setProperty('--gx-type',    t.type);
     root.style.setProperty('--gx-string',  t.str);
@@ -108,7 +102,6 @@ function _applyTheme(id) {
     root.style.setProperty('--gx-interp',  t.interp);
     root.style.setProperty('--gx-command', t.kw);
 
-    /* ─ Editor core ─ */
     root.style.setProperty('--ide-editor-bg', t.bg);
     root.style.setProperty('--ide-gutter-bg', t.gutter);
     root.style.setProperty('--ide-sel-bg',    t.sel);
@@ -116,7 +109,6 @@ function _applyTheme(id) {
     root.style.setProperty('--ide-cursor',    t.cursor);
     root.style.setProperty('--ide-accent',    t.cursor);
 
-    /* ─ Compute surface colours from bg ─ */
     const shift = t.dark ? 1 : -1; // direction of offset (lighter vs darker)
     const surface1    = _lighten(t.bg, shift * 8);   // topbar
     const surface2    = _lighten(t.bg, shift * 5);   // sidebar
@@ -144,14 +136,12 @@ function _applyTheme(id) {
     root.style.setProperty('--ide-user-msg-bg',  userMsgBg);
     root.style.setProperty('--ide-hover-bg',     hoverBg);
 
-    /* ─ mark selected card ─ */
     document.querySelectorAll('.dev-theme-card').forEach(c => {
         c.classList.toggle('active', c.dataset.themeId === id);
     });
     _dsSave({ theme: id });
 }
 
-/* ── Apply editor font settings ──────────────────────────── */
 function _applyEditorFont(family, size, lineHeight) {
     const root = document.documentElement;
     if (family)     root.style.setProperty('--ide-font-family', family);
@@ -159,7 +149,6 @@ function _applyEditorFont(family, size, lineHeight) {
     if (lineHeight) root.style.setProperty('--ide-line-height', lineHeight);
 }
 
-/* ── Apply feature flags ─────────────────────────────────── */
 function _applyFeature(key, val) {
     document.documentElement.classList.toggle('ide-feat-' + key, !!val);
     _dsSave({ ['feat_' + key]: val });
@@ -174,7 +163,6 @@ function _applyFeature(key, val) {
     }
 }
 
-/* ── Typing sound engine ─────────────────────────────────── */
 let _typingAudio = null;
 function _initTypingSound() {
     document.addEventListener('keydown', _onTypingKey);
@@ -196,7 +184,6 @@ function _onTypingKey(e) {
     } catch {}
 }
 
-/* ── Code rain (idle matrix) ─────────────────────────────── */
 let _rainCanvas = null, _rainAnim = null, _rainTimer = null;
 const _RAIN_IDLE_DELAY = 45000; // 45s idle
 function _initCodeRain() {
@@ -258,7 +245,6 @@ function _hideRain() {
     setTimeout(() => { _rainCanvas && _rainCanvas.remove(); _rainCanvas = null; }, 1000);
 }
 
-/* ── Zen mode ────────────────────────────────────────────── */
 function _activateZenMode() {
     const ide = document.getElementById('tab-view-ide');
     if (!ide) return;
@@ -274,7 +260,6 @@ function _activateZenMode() {
     });
 }
 
-/* ── Background image ────────────────────────────────────── */
 function _applyCodeBg(dataUrl, blur, opacity) {
     const root = document.documentElement;
     if (dataUrl) {
@@ -297,7 +282,6 @@ function _clearCodeBg() {
     document.getElementById('dev-bg-clear') && (document.getElementById('dev-bg-clear').style.display = 'none');
 }
 
-/* ── Pomodoro timer ──────────────────────────────────────── */
 let _pom = null;
 let _pomMinutes = parseInt(localStorage.getItem('pom-minutes') || '25', 10);
 function _togglePomodoro() {
@@ -363,7 +347,6 @@ function _showPomDone() {
     setTimeout(() => n.remove(), 5000);
 }
 
-/* ── Boot: restore settings ──────────────────────────────── */
 function _bootRestore() {
     const ds = _dsLoad();
     if (ds.theme) _applyTheme(ds.theme);
@@ -377,7 +360,6 @@ function _bootRestore() {
     if (ds.tabSize) document.documentElement.style.setProperty('--ide-tab-size', ds.tabSize);
 }
 
-/* ── Render dev settings section ─────────────────────────── */
 function renderDevSettings() {
     const ds = _dsLoad();
     const curTheme = ds.theme || 'vortex-night';
@@ -446,7 +428,6 @@ function renderDevSettings() {
     });
 }
 
-/* ── Public API ──────────────────────────────────────────── */
 window.DevSettings = {
     themes: IDE_THEMES,
     applyTheme: _applyTheme,

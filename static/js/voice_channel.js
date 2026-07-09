@@ -1,16 +1,13 @@
 // static/js/voice_channel.js
-// ============================================================================
 // Модуль голосовых каналов (persistent voice channels, Discord-style).
 // Mesh-топология: каждый участник создает RTCPeerConnection с каждым другим.
 // Сосуществует с 1:1 звонками из webrtc.js (те используют AppState.pc).
-// ============================================================================
 
 import { $, api, esc } from './utils.js';
 import { renderRoomsList } from './rooms.js';
 import { eciesEncrypt, setRoomKey } from './crypto.js';
 import { t } from './i18n.js';
 
-// ─── Voice channel state ─────────────────────────────────────────────────────
 
 const _voicePeers = {};          // peerId -> { pc, audioEl, stream, speaking }
 let _voiceRoomId     = null;     // id текущего голосового канала
@@ -40,7 +37,6 @@ async function _loadIceServers() {
     }
 }
 
-// ─── Join flow ───────────────────────────────────────────────────────────────
 
 export async function joinVoiceChannel(roomId) {
     const S = window.AppState;
@@ -100,7 +96,6 @@ export async function joinVoiceChannel(roomId) {
     console.log('[VoiceChannel] Joined room', roomId, 'participants:', participants.length);
 }
 
-// ─── Leave flow ──────────────────────────────────────────────────────────────
 
 export async function leaveVoiceChannel() {
     if (!_voiceRoomId) return;
@@ -149,7 +144,6 @@ export async function leaveVoiceChannel() {
     console.log('[VoiceChannel] Left room', roomId);
 }
 
-// ─── Mute toggle ─────────────────────────────────────────────────────────────
 
 export function toggleVoiceMute() {
     _voiceMuted = !_voiceMuted;
@@ -173,7 +167,6 @@ export function toggleVoiceMute() {
     _renderVoiceParticipants();
 }
 
-// ─── Signal WS for voice channel ─────────────────────────────────────────────
 
 function _connectVoiceSignal(roomId) {
     if (_voiceSignalWs) {
@@ -232,7 +225,6 @@ function _voiceSignal(msg) {
     }
 }
 
-// ─── Handle incoming voice signals ──────────────────────────────────────────
 
 async function _handleVoiceSignal(msg) {
     const S = window.AppState;
@@ -314,7 +306,6 @@ async function _handleVoiceSignal(msg) {
     }
 }
 
-// ─── Peer Connection management (mesh) ───────────────────────────────────────
 
 function _createPeerConnection(peerId) {
     const config = { iceServers: _iceServers };
@@ -487,7 +478,6 @@ function _closePeer(peerId) {
     delete _voicePeers[peerId];
 }
 
-// ─── Participant management ──────────────────────────────────────────────────
 
 function _addParticipant(info) {
     const existing = _voiceParticipants.find(p => p.user_id === info.user_id);
@@ -503,7 +493,6 @@ function _removeParticipant(userId) {
     _voiceParticipants = _voiceParticipants.filter(p => p.user_id !== userId);
 }
 
-// ─── Speaking detection ──────────────────────────────────────────────────────
 
 function _startLocalSpeakingDetection() {
     if (!_voiceLocalStream) return;
@@ -577,7 +566,6 @@ function _startPeerSpeakingDetection(peerId, stream) {
     }
 }
 
-// ─── UI: Voice Channel Panel ─────────────────────────────────────────────────
 
 function _showVoicePanel() {
     const panel = document.getElementById('voice-channel-panel');
@@ -674,7 +662,6 @@ function _updateMuteButton() {
     }
 }
 
-// ─── Create Voice Channel Modal ──────────────────────────────────────────────
 
 export function showCreateVoiceModal() { showCreateVoiceChannelModal(); }
 
@@ -746,7 +733,6 @@ export async function createVoiceChannel() {
     }
 }
 
-// ─── Public getters ──────────────────────────────────────────────────────────
 
 export function getVoiceRoomId() {
     return _voiceRoomId;
@@ -765,7 +751,6 @@ export function getVoiceParticipantCount(roomId) {
     return room?.voice_participants?.length || 0;
 }
 
-// ─── Sidebar connector bar (shows at bottom when in voice) ───────────────────
 
 export function renderVoiceConnectorBar() {
     let bar = document.getElementById('vc-connector-bar');

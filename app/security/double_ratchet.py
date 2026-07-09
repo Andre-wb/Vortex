@@ -53,9 +53,7 @@ _HKDF_INFO_X3DH = b"vortex-x3dh"
 _X3DH_F = b"\xff" * 32
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Вспомогательные функции для работы с ключами
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _priv_to_bytes(key: X25519PrivateKey) -> bytes:
     """Сериализует X25519 приватный ключ в 32 байта (raw)."""
@@ -84,9 +82,7 @@ def _dh(private: X25519PrivateKey, public: X25519PublicKey) -> bytes:
     return private.exchange(public)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Ed25519 подпись для Signed Pre-Key
-# ══════════════════════════════════════════════════════════════════════════════
 
 def sign_spk(identity_private: Ed25519PrivateKey, spk_public_bytes: bytes) -> bytes:
     """Подписывает публичный Signed Pre-Key идентификационным ключом Ed25519.
@@ -123,9 +119,7 @@ def verify_spk_signature(
         return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # X3DH — Extended Triple Diffie-Hellman Key Agreement
-# ══════════════════════════════════════════════════════════════════════════════
 
 def x3dh_initiate(
     ik_private: X25519PrivateKey,
@@ -220,9 +214,7 @@ def x3dh_respond(
     return shared_secret
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # KDF Chains — деривация ключей
-# ══════════════════════════════════════════════════════════════════════════════
 
 try:
     import vortex_chat as _vc_rust
@@ -264,9 +256,7 @@ def kdf_ck(ck: bytes) -> Tuple[bytes, bytes]:
     return new_ck, mk
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Заголовок сообщения
-# ══════════════════════════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)
 class Header:
@@ -312,9 +302,7 @@ class Header:
         return cls(dh_public=dh_pub, prev_count=prev_count, msg_number=msg_number)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Состояние Double Ratchet
-# ══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class RatchetState:
@@ -345,9 +333,7 @@ class RatchetState:
     skipped_keys: dict = field(default_factory=dict)  # (bytes, int) → bytes
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Инициализация Ratchet
-# ══════════════════════════════════════════════════════════════════════════════
 
 def ratchet_init_alice(shared_secret: bytes, bob_ratchet_pub: X25519PublicKey) -> RatchetState:
     """Инициализирует Double Ratchet для стороны Alice (инициатор).
@@ -403,9 +389,7 @@ def ratchet_init_bob(shared_secret: bytes, bob_ratchet_pair: X25519PrivateKey) -
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Шифрование / Дешифрование
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _encrypt_aes_gcm(message_key: bytes, plaintext: bytes, aad: bytes) -> bytes:
     """Шифрует plaintext с помощью AES-256-GCM.
@@ -613,9 +597,7 @@ def ratchet_decrypt(state: RatchetState, header: Header, ciphertext: bytes) -> b
     return _decrypt_aes_gcm(mk, ciphertext, header.serialize())
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # Утилиты для сериализации (хранение состояния на клиенте)
-# ══════════════════════════════════════════════════════════════════════════════
 
 def serialize_state(state: RatchetState) -> dict:
     """Сериализует RatchetState в словарь для хранения (например, в IndexedDB).

@@ -25,7 +25,6 @@ import json
 from pathlib import Path
 
 
-# ── helpers ──────────────────────────────────────────────────────────
 
 def chapter(title: str, subtitle: str, intro: str, *blocks) -> dict:
     """A chapter = title + subtitle + intro + N heading/paragraph/list blocks.
@@ -51,7 +50,6 @@ def glossary(*pairs: tuple[str, str]) -> dict:
     return out
 
 
-# ── dense chapters ──────────────────────────────────────────────────
 
 ARCHITECTURE = chapter(
     "Architecture overview",
@@ -941,7 +939,6 @@ STORAGE = chapter(
 )
 
 
-# ── lots more chapters (shortened but each substantial) ───────────────
 
 BOTS = chapter(
     "Bot framework",

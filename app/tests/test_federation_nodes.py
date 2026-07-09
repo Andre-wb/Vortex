@@ -17,7 +17,6 @@ def _csrf_headers(client: SyncASGIClient) -> dict:
 class TestFederationNodes:
     """Tests for federation trusted nodes management."""
 
-    # ── Node CRUD ────────────────────────────────────────────────────────────
 
     def test_add_node_invalid_url(self, client: SyncASGIClient, logged_user: dict):
         """Empty URL / no scheme → 400/422."""
@@ -92,7 +91,6 @@ class TestFederationNodes:
         r = anon_client.delete('/api/federation/nodes/1')
         assert r.status_code in (401, 403)
 
-    # ── Network Status ────────────────────────────────────────────────────────
 
     def test_network_status_empty(self, client: SyncASGIClient, logged_user: dict):
         """GET status → 200, contains expected fields."""
@@ -109,7 +107,6 @@ class TestFederationNodes:
         r = anon_client.get('/api/federation/nodes/status')
         assert r.status_code in (401, 403)
 
-    # ── Code Verification ─────────────────────────────────────────────────────
 
     def test_code_hash_returns_hash(self, client: SyncASGIClient):
         """GET code-hash → 200, has code_hash string field."""
@@ -139,7 +136,6 @@ class TestFederationNodes:
         assert r2.status_code == 200
         assert r1.json()['code_hash'] == r2.json()['code_hash']
 
-    # ── Handshake ─────────────────────────────────────────────────────────────
 
     def test_handshake_missing_fields(self, client: SyncASGIClient, logged_user: dict):
         """POST handshake with empty body → 422."""
@@ -176,7 +172,6 @@ class TestFederationNodes:
         assert body['accepted'] is False
         assert body.get('reason') == 'code_hash_mismatch'
 
-    # ── Gossip ────────────────────────────────────────────────────────────────
 
     def test_gossip_node_joined(self, client: SyncASGIClient, logged_user: dict):
         """POST gossip/node-joined with valid data → 200."""
@@ -203,7 +198,6 @@ class TestFederationNodes:
         body = r.json()
         assert 'status' in body
 
-    # ── Token Validation ──────────────────────────────────────────────────────
 
     def test_validate_token_invalid(self, client: SyncASGIClient, logged_user: dict):
         """POST with wrong token → 200 with valid=false."""
@@ -220,7 +214,6 @@ class TestFederationNodes:
         r = client.post('/api/federation/validate-token', json={}, headers=logged_user['headers'])
         assert r.status_code == 422
 
-    # ── My Tasks ──────────────────────────────────────────────────────────────
 
     def test_my_tasks_returns_list(self, client: SyncASGIClient, logged_user: dict):
         """GET my-tasks → 200, has tasks array."""
