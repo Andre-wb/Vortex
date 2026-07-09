@@ -11,6 +11,7 @@ For the navigable multi-root docs portal (Vortex / Gravitix / Architex with acco
 | `QUICKSTART.md`       | New operator             | Install → first boot → first message in ~5 minutes. Bare-metal path, no Docker.         |
 | `API_REFERENCE.md`    | Third-party integrator   | Flat API reference. The authoritative copy is the generated `apiSurface` in the locale JSON, but this file is kept for users who want a single Markdown page. |
 | `BOT_DEVELOPMENT.md`  | Bot author               | End-to-end Gravitix walkthrough: install CLI → first handler → publish to marketplace. Cross-references the full Gravitix reference at `../Gravitix/README.md`. |
+| `adr/`                | Core developer, reviewer | Architecture Decision Records. `001` — message-encryption protocol versioning (`enc_v` registry) and the Double Ratchet migration target. |
 
 ## How these relate to the locale docs
 
