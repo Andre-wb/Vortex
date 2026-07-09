@@ -46,6 +46,22 @@ def parse_client_ts(raw: str | None) -> datetime | None:
         return None
 
 
+def parse_enc_v(data: dict) -> int | None:
+    """Validate the envelope encryption-version field (ADR-001, enc_v registry).
+
+    Returns the version as int when it is a sane small integer, otherwise None
+    (treated as a pre-versioning envelope). Unknown-but-valid versions are kept
+    as-is: the server stores and relays ciphertext opaquely and must not reject
+    formats it does not understand.
+    """
+    v = data.get("enc_v")
+    if isinstance(v, bool):  # bool is an int subclass — never a version
+        return None
+    if isinstance(v, int) and 0 <= v <= 255:
+        return v
+    return None
+
+
 def check_double_extension(filename: str) -> bool:
     """Return True if filename has a dangerous intermediate extension (e.g. file.php.jpg)."""
     name  = Path(filename).name

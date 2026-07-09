@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.chats.messages._router import utc_iso
+from app.chats.messages._router import utc_iso, parse_enc_v
 from app.models import User
 from app.models_rooms import Message, MessageType
 from app.peer.connection_manager import manager
@@ -36,12 +36,14 @@ async def handle_timed_message(room_id: int, user: User, data: dict, db: Session
         return
 
     expires = datetime.now(timezone.utc) + timedelta(seconds=min(int(ttl_seconds), 86400))
+    enc_v   = parse_enc_v(data)
 
     msg = Message(
         room_id           = room_id,
         sender_pseudo     = compute_sender_pseudo(room_id, user.id),
         msg_type          = MessageType.TEXT,
         content_encrypted = ciphertext_bytes,
+        enc_version       = enc_v,
         expires_at        = expires,
     )
     db.add(msg)
@@ -65,6 +67,7 @@ async def handle_timed_message(room_id: int, user: User, data: dict, db: Session
         "avatar_emoji":  user.avatar_emoji,
         "avatar_url":    user.avatar_url,
         "ciphertext":    ciphertext_hex,
+        "enc_v":         enc_v,
         "status":        "sent",
         "expires_at":    utc_iso(expires),
         "created_at":    utc_iso(msg.created_at),
@@ -119,6 +122,7 @@ async def handle_schedule_message(room_id: int, user: User, data: dict, db: Sess
         sender_pseudo     = compute_sender_pseudo(room_id, user.id),
         msg_type          = MessageType.TEXT,
         content_encrypted = ciphertext_bytes,
+        enc_version       = parse_enc_v(data),
         reply_to_id       = data.get("reply_to_id"),
         scheduled_at      = scheduled_at,
         is_scheduled      = True,
@@ -168,6 +172,7 @@ async def deliver_scheduled_messages(db: Session) -> int:
             "avatar_emoji": msg.sender.avatar_emoji if msg.sender else None,
             "avatar_url":   msg.sender.avatar_url if msg.sender else None,
             "ciphertext":   ciphertext_hex,
+            "enc_v":        msg.enc_version,
             "reply_to_id":  msg.reply_to_id,
             "status":       "sent",
             "created_at":   utc_iso(msg.created_at),

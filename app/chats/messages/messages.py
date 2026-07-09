@@ -18,7 +18,11 @@ from app.models_rooms import (
 from app.peer.connection_manager import manager
 from app.security.crypto import hash_message
 
-from app.chats.messages._router import utc_iso as _utc_iso, parse_client_ts as _parse_client_ts
+from app.chats.messages._router import (
+    utc_iso as _utc_iso,
+    parse_client_ts as _parse_client_ts,
+    parse_enc_v as _parse_enc_v,
+)
 from app.chats.messages.flood import check_flood as _check_flood, _FLOOD_THRESHOLD
 from app.chats.messages.push import send_web_push as _send_web_push
 from app.federation.replication import maybe_replicate as _maybe_replicate
@@ -227,6 +231,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         auto_expire = datetime.now(timezone.utc) + timedelta(seconds=room_obj.auto_delete_seconds)
 
     client_created_at = _parse_client_ts(data.get("client_ts"))
+    enc_v             = _parse_enc_v(data)
 
     msg = Message(
         room_id           = room_id,
@@ -234,6 +239,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         msg_type          = MessageType.TEXT,
         content_encrypted = ciphertext_bytes,
         content_hash      = content_hash,
+        enc_version       = enc_v,
         reply_to_id       = reply_to_id,
         expires_at        = auto_expire,
     )
@@ -284,6 +290,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         "reply_icon":    user.reply_icon,
         "ciphertext":    ciphertext_hex,
         "hash":          hash_hex or (content_hash.hex() if content_hash else None),
+        "enc_v":         enc_v,
         "reply_to_id":   reply_to_id,
         "reply_quote":   data.get("reply_quote"),
         "status":        "sent",
@@ -519,6 +526,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
             content_hash = bytes(content_hash_result)
 
     reply_to_id = data.get("reply_to_id")
+    enc_v       = _parse_enc_v(data)
 
     msg = Message(
         room_id           = room_id,
@@ -526,6 +534,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         msg_type          = MessageType.TEXT,
         content_encrypted = ciphertext_bytes,
         content_hash      = content_hash,
+        enc_version       = enc_v,
         reply_to_id       = reply_to_id,
         thread_id         = thread_id,
     )
@@ -577,6 +586,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         "avatar_url":    user.avatar_url,
         "ciphertext":    ciphertext_hex,
         "hash":          hash_hex or (content_hash.hex() if content_hash else None),
+        "enc_v":         enc_v,
         "reply_to_id":   reply_to_id,
         "reply_quote":   data.get("reply_quote"),
         "thread_id":     thread_id,
@@ -639,18 +649,22 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
 
     from app.models_rooms import MessageEditHistory
 
-    # Сохранить предыдущую версию в историю
+    # Сохранить предыдущую версию в историю (вместе с её enc_v, чтобы
+    # просмотрщик истории мог выбрать правильную схему расшифровки)
     if msg.content_encrypted:
         history_entry = MessageEditHistory(
             message_id=msg.id,
             ciphertext_hex=msg.content_encrypted.hex() if isinstance(msg.content_encrypted, (bytes, bytearray)) else str(msg.content_encrypted),
+            enc_version=msg.enc_version,
             edited_at=datetime.now(timezone.utc),
         )
         db.add(history_entry)
 
+    enc_v                 = _parse_enc_v(data)
     content_hash_result   = hash_message(ciphertext_bytes)
     msg.content_encrypted = ciphertext_bytes
     msg.content_hash      = bytes(content_hash_result) if isinstance(content_hash_result, (bytes, bytearray)) else None
+    msg.enc_version       = enc_v
     msg.is_edited         = True
     msg.edited_at         = datetime.now(timezone.utc)
     try:
@@ -664,6 +678,7 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
         "type":       "message_edited",
         "msg_id":     msg_id,
         "ciphertext": ciphertext_hex,
+        "enc_v":      enc_v,
         "is_edited":  True,
     }
     await manager.broadcast_to_room(room_id, _edit_payload)

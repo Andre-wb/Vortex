@@ -417,6 +417,9 @@ def init_db() -> None:
                 "CREATE INDEX IF NOT EXISTS ix_fed_env_origin ON federated_envelopes(origin_pubkey_hex)",
                 "CREATE INDEX IF NOT EXISTS ix_fed_env_room_origin ON federated_envelopes(room_id_origin, origin_pubkey_hex)",
                 "CREATE INDEX IF NOT EXISTS ix_fed_env_created_at ON federated_envelopes(created_at)",
+                # Envelope encryption-version registry (ADR-001): NULL = pre-versioning
+                "ALTER TABLE messages ADD COLUMN enc_version INTEGER",
+                "ALTER TABLE message_edit_history ADD COLUMN enc_version INTEGER",
             ]
             with engine.connect() as conn:
                 try:

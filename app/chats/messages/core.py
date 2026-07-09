@@ -262,10 +262,11 @@ async def get_message_edit_history(
         "msg_id": msg_id,
         "current": {
             "ciphertext_hex": msg.content_encrypted.hex() if isinstance(msg.content_encrypted, (bytes, bytearray)) else str(msg.content_encrypted or ""),
+            "enc_v": msg.enc_version,
             "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
         },
         "history": [
-            {"ciphertext_hex": h.ciphertext_hex, "edited_at": h.edited_at.isoformat()}
+            {"ciphertext_hex": h.ciphertext_hex, "enc_v": h.enc_version, "edited_at": h.edited_at.isoformat()}
             for h in history
         ],
     }

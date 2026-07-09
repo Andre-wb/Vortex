@@ -42,6 +42,11 @@ class Message(Base):
     # Сервер может проверить целостность без расшифровки
     content_hash      = Column(LargeBinary(32),   nullable=True)
 
+    # Версия схемы шифрования конверта (реестр enc_v в ADR-001).
+    # NULL — сообщение до введения версионирования (клиент различает
+    # форматы эвристикой). Сервер значение не интерпретирует.
+    enc_version       = Column(Integer,           nullable=True)
+
     file_name         = Column(String(255),       nullable=True)
     file_size         = Column(Integer,           nullable=True)
     reply_to_id       = Column(Integer,           ForeignKey("messages.id", ondelete="SET NULL"),
@@ -89,6 +94,7 @@ class Message(Base):
             "msg_type":      self.msg_type.value,
             "ciphertext": self.content_encrypted.hex() if self.content_encrypted else None,
             "hash":       self.content_hash.hex()      if self.content_hash      else None,
+            "enc_v":      self.enc_version,
             "file_name":  self.file_name,
             "file_size":  self.file_size,
             "reply_to_id":    self.reply_to_id,
@@ -150,5 +156,7 @@ class MessageEditHistory(Base):
     message_id     = Column(Integer,  ForeignKey("messages.id", ondelete="CASCADE"),
                             nullable=False, index=True)
     ciphertext_hex = Column(Text,     nullable=False)
+    # enc_v предыдущей версии сообщения (ADR-001); NULL — до-версионная запись
+    enc_version    = Column(Integer,  nullable=True)
     edited_at      = Column(DateTime, nullable=False,
                             default=lambda: datetime.now(timezone.utc))
