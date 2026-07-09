@@ -493,18 +493,16 @@ export async function sendPendingFile() {
         S.ws.send(JSON.stringify({ action: 'file_sending', filename: fileName }));
     }
 
-    // Encrypt caption if present
+    // Encrypt caption if present. Captions travel through the REST upload
+    // path, which does not carry enc_v yet (ADR-001 defers file-caption
+    // versioning) — the receiver decrypts them via the v0/v1 heuristic.
     let captionCt = null;
     if (caption) {
         try {
-            const { ratchetEncrypt } = await import('../crypto.js');
-            captionCt = await ratchetEncrypt(caption, S.currentRoom.id, S.user.id, roomKey);
-        } catch {
-            try {
-                const { encryptText } = await import('../crypto.js');
-                captionCt = await encryptText(caption, roomKey);
-            } catch {}
-        }
+            const { encryptMessage } = await import('./message-cipher.js');
+            ({ ciphertext: captionCt } =
+                await encryptMessage(S.currentRoom.id, S.user.id, caption, roomKey));
+        } catch {}
     }
 
     try {

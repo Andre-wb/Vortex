@@ -1,9 +1,10 @@
 // static/js/chat/thread.js — thread panel (open, close, reply, live update)
 
-import { getRoomKey, ratchetDecrypt, ratchetEncrypt } from '../crypto.js';
+import { getRoomKey } from '../crypto.js';
+import { isKnownEncVersion } from './enc-version.js';
+import { encryptMessage, decryptMessage } from './message-cipher.js';
 import { appendSystemMessage } from './messages.js';
 import { sendWithAck } from './ack.js';
-import { decryptText } from './room-crypto.js';
 
 let _openThreadId = null;
 
@@ -89,12 +90,13 @@ window.sendThreadReply = async function() {
         return;
     }
 
-    const ciphertext = await ratchetEncrypt(text, S.currentRoom.id, S.user.id, roomKey);
+    const { enc_v, ciphertext } = await encryptMessage(S.currentRoom.id, S.user.id, text, roomKey);
 
     sendWithAck({
         action:    'thread_reply',
         thread_id: _openThreadId,
         ciphertext,
+        enc_v,
     }).catch(err => {
         console.error('[ACK] thread reply не доставлено:', err.message);
     });
@@ -147,12 +149,13 @@ async function _renderThreadMessage(msg, isRoot) {
     const cached = window._msgTexts?.get(msg.msg_id);
     if (cached?.text) {
         text = cached.text;
+    } else if (msg.ciphertext && !isKnownEncVersion(msg.enc_v)) {
+        text = `[${t('chat.unsupportedEncVersion')}]`;
     } else if (msg.ciphertext && roomKey) {
         try {
-            text = await ratchetDecrypt(msg.ciphertext, S.currentRoom?.id, msg.sender_id, roomKey);
+            text = await decryptMessage(msg.ciphertext, S.currentRoom?.id, msg.sender_id, roomKey);
         } catch {
-            try { text = await decryptText(msg.ciphertext, roomKey); }
-            catch { text = `[${t('chat.decryptError')}]`; }
+            text = `[${t('chat.decryptError')}]`;
         }
     }
 

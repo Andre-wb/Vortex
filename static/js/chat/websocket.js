@@ -3,7 +3,9 @@
 import { scrollToBottom } from '../utils.js';
 import { renderRoomsList } from '../rooms.js';
 import { showWelcome } from '../ui.js';
-import { eciesDecrypt, eciesEncrypt, getRoomKey, setRoomKey, ratchetDecrypt, clearRatchet } from '../crypto.js';
+import { eciesDecrypt, eciesEncrypt, getRoomKey, setRoomKey, clearRatchet } from '../crypto.js';
+import { isKnownEncVersion } from './enc-version.js';
+import { decryptMessage } from './message-cipher.js';
 import {
     appendMessage,
     appendFileMessage,
@@ -20,7 +22,7 @@ import {
     initScrollArrow,
 } from './messages.js';
 import { showMessagesSkeleton, hideMessagesSkeleton, showConnectingSpinner } from './skeletons.js';
-import { decryptText, _saveRoomKeyToSession, _loadRoomKeyFromSession, _clearRoomKeyFromSession } from './room-crypto.js';
+import { _saveRoomKeyToSession, _loadRoomKeyFromSession, _clearRoomKeyFromSession } from './room-crypto.js';
 import { _handleAck, _cancelAllPendingAcks, _flushOfflineQueue } from './ack.js';
 import { _updateOnlineMembersCache } from './mention.js';
 import { _showTyping, _showFileSending, _updateReaction, _showPinnedBar, _hidePinnedBar } from './indicators.js';
@@ -490,12 +492,14 @@ async function handleWsMessage(msg) {
         case 'file': {
             // Decrypt caption if present
             if (msg.ciphertext) {
-                const _fRoomKey = getRoomKey(S.currentRoom?.id);
-                if (_fRoomKey) {
-                    try {
-                        msg.text = await ratchetDecrypt(msg.ciphertext, S.currentRoom?.id, msg.sender_id, _fRoomKey);
-                    } catch {
-                        try { msg.text = await decryptText(msg.ciphertext, _fRoomKey); } catch {}
+                if (!isKnownEncVersion(msg.enc_v)) {
+                    msg.text = `[${t('chat.unsupportedEncVersion')}]`;
+                } else {
+                    const _fRoomKey = getRoomKey(S.currentRoom?.id);
+                    if (_fRoomKey) {
+                        try {
+                            msg.text = await decryptMessage(msg.ciphertext, S.currentRoom?.id, msg.sender_id, _fRoomKey);
+                        } catch {}
                     }
                 }
             }
@@ -776,13 +780,15 @@ async function _decryptAndAppend(msg) {
         const roomKey = getRoomKey(S.currentRoom?.id);
 
         if (msg.ciphertext) {
-            if (roomKey) {
+            if (!isKnownEncVersion(msg.enc_v)) {
+                // Более новая версия протокола (ADR-001): не пытаемся
+                // расшифровать чужой формат эвристиками — просим обновиться.
+                msg.text = `[${t('chat.unsupportedEncVersion')}]`;
+            } else if (roomKey) {
                 try {
-                    msg.text = await ratchetDecrypt(msg.ciphertext, S.currentRoom?.id, msg.sender_id, roomKey);
+                    msg.text = await decryptMessage(msg.ciphertext, S.currentRoom?.id, msg.sender_id, roomKey);
                 } catch {
-                    // Fallback to legacy (non-ratchet) decrypt
-                    try { msg.text = await decryptText(msg.ciphertext, roomKey); }
-                    catch { msg.text = `[${t('chat.decryptError')}]`; }
+                    msg.text = `[${t('chat.decryptError')}]`;
                 }
             } else {
                 msg.text = `[${t('chat.encryptedNoKey')}]`;
@@ -809,13 +815,12 @@ async function _decryptAndUpdateMessage(msg) {
     const S       = window.AppState;
     const roomKey = getRoomKey(S.currentRoom?.id);
     let   text    = `[${t('chat.decryptError')}]`;
-    if (roomKey && msg.ciphertext) {
+    if (!isKnownEncVersion(msg.enc_v)) {
+        text = `[${t('chat.unsupportedEncVersion')}]`;
+    } else if (roomKey && msg.ciphertext) {
         try {
-            text = await ratchetDecrypt(msg.ciphertext, S.currentRoom?.id, msg.sender_id, roomKey);
-        } catch {
-            // Fallback to legacy (non-ratchet) decrypt
-            try { text = await decryptText(msg.ciphertext, roomKey); } catch {}
-        }
+            text = await decryptMessage(msg.ciphertext, S.currentRoom?.id, msg.sender_id, roomKey);
+        } catch {}
     }
     updateMessageText(msg.msg_id, text, msg.is_edited);
 }

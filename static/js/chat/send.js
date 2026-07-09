@@ -1,7 +1,8 @@
 // static/js/chat/send.js — reply/edit state, sendMessage, sendStickerDirect, handleKey, handleTyping
 
 import { scrollToBottom } from '../utils.js';
-import { getRoomKey, ratchetEncrypt } from '../crypto.js';
+import { getRoomKey } from '../crypto.js';
+import { encryptMessage } from './message-cipher.js';
 import { appendSystemMessage } from './messages.js';
 import { extractMentions } from './messages.js';
 import { sendWithAck } from './ack.js';
@@ -83,8 +84,8 @@ export async function sendMessage() {
             appendSystemMessage(t('chat.noRoomKeySend'));
             return;
         }
-        const ciphertext = await ratchetEncrypt(text, S.currentRoom.id, S.user.id, roomKey);
-        S.ws?.send(JSON.stringify({ action: 'edit_message', msg_id: _editingId, ciphertext }));
+        const { enc_v, ciphertext } = await encryptMessage(S.currentRoom.id, S.user.id, text, roomKey);
+        S.ws?.send(JSON.stringify({ action: 'edit_message', msg_id: _editingId, ciphertext, enc_v }));
         _editingId = null;
         const bar = document.getElementById('reply-bar');
         if (bar) { bar.classList.remove('visible'); delete bar.dataset.mode; }
@@ -93,11 +94,11 @@ export async function sendMessage() {
             appendSystemMessage(t('chat.keyNotReceivedWait'));
             return;
         }
-        const ciphertext = await ratchetEncrypt(text, S.currentRoom.id, S.user.id, roomKey);
+        const { enc_v, ciphertext } = await encryptMessage(S.currentRoom.id, S.user.id, text, roomKey);
 
         // Отложенное сообщение (Feature 2)
         if (isScheduleMode()) {
-            const payload = { action: 'schedule_message', ciphertext, scheduled_at: getScheduleDatetime() };
+            const payload = { action: 'schedule_message', ciphertext, enc_v, scheduled_at: getScheduleDatetime() };
             if (_replyTo?.msg_id) payload.reply_to_id = _replyTo.msg_id;
             S.ws?.send(JSON.stringify(payload));
             _replyTo = null;
@@ -111,7 +112,7 @@ export async function sendMessage() {
 
         // Самоуничтожающееся сообщение
         if (window.isTimedMode?.()) {
-            const payload = { action: 'timed_message', ciphertext, ttl_seconds: window.getTimedTtl?.() };
+            const payload = { action: 'timed_message', ciphertext, enc_v, ttl_seconds: window.getTimedTtl?.() };
             sendWithAck(payload).catch(err => {
                 console.error('[ACK] timed msg не доставлено:', err.message);
             });
@@ -123,7 +124,7 @@ export async function sendMessage() {
             return;
         }
 
-        const payload    = { action: 'message', ciphertext, client_ts: new Date().toISOString() };
+        const payload    = { action: 'message', ciphertext, enc_v, client_ts: new Date().toISOString() };
         if (_replyTo?.msg_id) {
             payload.reply_to_id = _replyTo.msg_id;
             if (_replyTo._quoteText) payload.reply_quote = _replyTo._quoteText;
@@ -162,8 +163,8 @@ export async function sendStickerDirect(text) {
         appendSystemMessage(t('chat.keyNotReceived') + '.');
         return;
     }
-    const ciphertext = await ratchetEncrypt(text, S.currentRoom.id, S.user.id, roomKey);
-    sendWithAck({ action: 'message', ciphertext }).catch(err => {
+    const { enc_v, ciphertext } = await encryptMessage(S.currentRoom.id, S.user.id, text, roomKey);
+    sendWithAck({ action: 'message', ciphertext, enc_v }).catch(err => {
         console.error('[ACK] sticker not delivered:', err.message);
     });
 }

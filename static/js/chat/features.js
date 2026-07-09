@@ -2,8 +2,9 @@
 // auto-delete/slow-mode indicators, mute toggle, files modal, drag & drop, export
 
 import { appendSystemMessage } from './messages.js';
-import { getRoomKey, ratchetDecrypt, ratchetEncrypt } from '../crypto.js';
-import { decryptText } from './room-crypto.js';
+import { getRoomKey } from '../crypto.js';
+import { isKnownEncVersion } from './enc-version.js';
+import { decryptMessage } from './message-cipher.js';
 
 // Файлы
 
@@ -528,12 +529,12 @@ export async function exportChat() {
             let content = '[encrypted]';
             if (m.msg_type === 'system') {
                 try { content = m.ciphertext ? new TextDecoder().decode(new Uint8Array(m.ciphertext.match(/.{1,2}/g).map(b => parseInt(b, 16)))) : '[system]'; } catch { content = '[system]'; }
+            } else if (m.ciphertext && !isKnownEncVersion(m.enc_v)) {
+                content = `[${t('chat.unsupportedEncVersion')}]`;
             } else if (roomKey && m.ciphertext) {
                 try {
-                    content = await ratchetDecrypt(m.ciphertext, S.currentRoom.id, m.sender_id, roomKey);
-                } catch {
-                    try { content = await decryptText(m.ciphertext, roomKey); } catch { content = '[encrypted - cannot decrypt]'; }
-                }
+                    content = await decryptMessage(m.ciphertext, S.currentRoom.id, m.sender_id, roomKey);
+                } catch { content = '[encrypted - cannot decrypt]'; }
             }
             const time = m.created_at ? new Date(m.created_at).toLocaleString() : '?';
             const edited = m.is_edited ? ' [edited]' : '';
