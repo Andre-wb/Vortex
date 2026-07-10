@@ -79,4 +79,33 @@ test.describe('DR session-store: real IndexedDB + Web Locks', () => {
             req.onsuccess = req.onerror = req.onblocked = () => res();
         }));
     });
+
+    test('history-store: плейнтекст переживает reload через реальный IndexedDB', async ({ page }) => {
+        await page.goto('/');
+
+        await page.evaluate(async () => {
+            window.AppState = { user: { user_id: 999 } };
+            const H = await import('/static/js/dr/history-store.js');
+            const S = await import('/static/js/dr/session-store.js');
+            const store = H.createHistoryStore(S.indexedDbBackend('vortex_v2_history_test', 'messages'));
+            await store.put(7, 4242, 'история переживает reload');
+        });
+
+        await page.reload();
+
+        const restored = await page.evaluate(async () => {
+            window.AppState = { user: { user_id: 999 } };
+            const H = await import('/static/js/dr/history-store.js');
+            const S = await import('/static/js/dr/session-store.js');
+            const store = H.createHistoryStore(S.indexedDbBackend('vortex_v2_history_test', 'messages'));
+            return store.get(7, 4242);
+        });
+
+        expect(restored).toBe('история переживает reload');
+
+        await page.evaluate(() => new Promise(res => {
+            const req = indexedDB.deleteDatabase('vortex_v2_history_test');
+            req.onsuccess = req.onerror = req.onblocked = () => res();
+        }));
+    });
 });

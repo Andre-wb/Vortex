@@ -10,6 +10,7 @@ const { encodeV2, decodeV2 } = require('../dr/v2-envelope.js');
 const { createSessionStore, memoryBackend } = require('../dr/session-store.js');
 const { encryptV2, decryptV2, dmSessionId, SessionError, importX25519PrivJwk } = require('../dr/session.js');
 const { storePrekeyPrivates, getOpkPrivate } = require('../dr/prekey-store.js');
+const { createHistoryStore, decryptWithCache } = require('../dr/history-store.js');
 
 /** Генерирует X25519 пару → { pubHex, privJwk, priv }. */
 async function genX25519() {
@@ -158,6 +159,35 @@ describe('TOFU и forward secrecy', () => {
         await decryptV2(bobStore, dmSessionId(42),
             { myIkPriv: bobIkPriv, senderIdentityPubHex: aliceIk.pubHex }, env);
         expect(getOpkPrivate(100)).toBeNull();       // после — израсходован и удалён
+    });
+});
+
+describe('история v2 после «перезагрузки» (кэш плейнтекста, §2.7)', () => {
+    test('сообщение с израсходованным ключом читается из кэша, транспортная расшифровка НЕ вызывается', async () => {
+        const bob = await setupBob({ withOpk: true });
+        const bobIkPriv = await importX25519PrivJwk(bob.ik.privJwk);
+        const aliceIk = await genX25519();
+        const aliceStore = createSessionStore(memoryBackend());
+        const bobSess = createSessionStore(memoryBackend());
+        const bobRecv = { myIkPriv: bobIkPriv, senderIdentityPubHex: aliceIk.pubHex };
+        const hist = createHistoryStore(memoryBackend());
+
+        const env0 = await encryptV2(aliceStore, dmSessionId(42),
+            { myIkPriv: aliceIk.priv, myIkPubHex: aliceIk.pubHex, getPeerBundle: async () => bob.bundle }, 'история m0');
+
+        // 1. Живая доставка m0: cache miss → транспортная расшифровка → кэш; ратчет продвигается за m0.
+        const thunk = jest.fn(() => decryptV2(bobSess, dmSessionId(42), bobRecv, env0));
+        expect(await decryptWithCache(hist, 42, 1, thunk)).toBe('история m0');
+        expect(thunk).toHaveBeenCalledTimes(1);
+
+        // Докажем, что ключ израсходован: прямая повторная расшифровка m0 падает.
+        await expect(decryptV2(bobSess, dmSessionId(42), bobRecv, env0)).rejects.toThrow(SessionError);
+
+        // 2. «Перезагрузка/ре-рендер истории»: cache HIT → тот же плейнтекст,
+        //    транспортный thunk (который бы бросил) НЕ вызывается повторно.
+        const thunk2 = jest.fn(() => decryptV2(bobSess, dmSessionId(42), bobRecv, env0));
+        expect(await decryptWithCache(hist, 42, 1, thunk2)).toBe('история m0');
+        expect(thunk2).not.toHaveBeenCalled();
     });
 });
 
