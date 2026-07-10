@@ -297,6 +297,7 @@
     "encrypted": "(encrypted)",
     "encryptedNoKey": "encrypted — key not received",
     "decryptError": "decryption error",
+    "unsupportedEncVersion": "unsupported encryption version — please update your client",
     "noFiles": "No files",
     "matchesOf": "of",
     "matches": "matches",

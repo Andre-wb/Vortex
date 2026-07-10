@@ -297,6 +297,7 @@
     "encrypted": "зашифровано",
     "encryptedNoKey": "зашифровано — ключ не получен",
     "decryptError": "ошибка расшифровки",
+    "unsupportedEncVersion": "неподдерживаемая версия шифрования — обновите клиент",
     "noFiles": "Файлов нет",
     "matchesOf": "из",
     "matches": "совпадений",

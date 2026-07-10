@@ -483,8 +483,11 @@ export async function removeAccount(userId) {
     accounts = accounts.filter(a => a.user_id !== userId);
     _setAccounts(accounts);
 
-    // Удаляем приватный ключ и backup room keys
+    // Удаляем приватные ключи и backup room keys удаляемого аккаунта
     localStorage.removeItem(`vortex_x25519_priv_${userId}`);
+    localStorage.removeItem(`vortex_ed25519_identity_${userId}`);
+    localStorage.removeItem(`vortex_dr_prekeys_${userId}`);
+    localStorage.removeItem(`vortex_dr_opk_next_${userId}`);
     localStorage.removeItem(`vortex_rk_backup_${userId}`);
 }
 
@@ -1000,10 +1003,14 @@ export async function doLogout() {
         // room keys (vortex_rk_<room>) and per-account room-key backups (vortex_rk_backup_<id>).
         for (let i = localStorage.length - 1; i >= 0; i--) {
             const k = localStorage.key(i);
-            if (k && (k.startsWith('vortex_x25519_priv_') || k.startsWith('vortex_rk_'))) {
+            if (k && (k.startsWith('vortex_x25519_priv_') || k.startsWith('vortex_rk_')
+                      || k.startsWith('vortex_ed25519_identity_')
+                      || k.startsWith('vortex_dr_'))) {   // приватные prekey (ADR-001 батч 6)
                 localStorage.removeItem(k);
             }
         }
+        // Состояния DR-сессий (IndexedDB) — тоже чувствительны, удаляем.
+        try { indexedDB?.deleteDatabase?.('vortex_dr'); } catch (_) {}
         // sessionStorage holds the decrypted private key + room keys — drop it entirely.
         sessionStorage.clear();
     } catch (e) { console.debug('logout storage wipe failed:', e); }
