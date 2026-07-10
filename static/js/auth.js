@@ -488,6 +488,8 @@ export async function removeAccount(userId) {
     localStorage.removeItem(`vortex_ed25519_identity_${userId}`);
     localStorage.removeItem(`vortex_dr_prekeys_${userId}`);
     localStorage.removeItem(`vortex_dr_opk_next_${userId}`);
+    // Удаление history-ключа делает кэш v2-истории аккаунта нечитаемым (=wipe).
+    localStorage.removeItem(`vortex_dr_hist_key_${userId}`);
     localStorage.removeItem(`vortex_rk_backup_${userId}`);
 }
 
@@ -1009,8 +1011,9 @@ export async function doLogout() {
                 localStorage.removeItem(k);
             }
         }
-        // Состояния DR-сессий (IndexedDB) — тоже чувствительны, удаляем.
+        // Состояния DR-сессий и кэш v2-истории (IndexedDB) — чувствительны, удаляем.
         try { indexedDB?.deleteDatabase?.('vortex_dr'); } catch (_) {}
+        try { indexedDB?.deleteDatabase?.('vortex_v2_history'); } catch (_) {}
         // sessionStorage holds the decrypted private key + room keys — drop it entirely.
         sessionStorage.clear();
     } catch (e) { console.debug('logout storage wipe failed:', e); }

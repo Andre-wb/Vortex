@@ -5,7 +5,7 @@ import { renderRoomsList } from '../rooms.js';
 import { showWelcome } from '../ui.js';
 import { eciesDecrypt, eciesEncrypt, getRoomKey, setRoomKey, clearRatchet } from '../crypto.js';
 import { isKnownEncVersion } from './enc-version.js';
-import { decryptMessage, decryptV2Message } from './message-cipher.js';
+import { decryptMessage, decryptV2WithHistory, getV2Cached } from './message-cipher.js';
 import {
     appendMessage,
     appendFileMessage,
@@ -785,8 +785,19 @@ async function _decryptAndAppend(msg) {
                 // клиент умеет расшифровать, но сам v2 не отправляет (до 6b).
                 if (S.currentRoom?.is_dm) {
                     const peerPub = S.currentRoom?.dm_user?.x25519_public_key;
+                    const _myId = S.user?.user_id ?? S.user?.id;
+                    const _isOwn = msg.sender_id != null && msg.sender_id === _myId;
                     try {
-                        msg.text = await decryptV2Message(msg.ciphertext, S.currentRoom.id, peerPub);
+                        if (_isOwn) {
+                            // Своё эхо: расшифровать по receiving-цепочке нельзя
+                            // (DR асимметричен) — только из кэша (заполнен по ACK).
+                            const cached = await getV2Cached(S.currentRoom.id, msg.msg_id);
+                            msg.text = cached != null ? cached : `[${t('chat.decryptError')}]`;
+                        } else {
+                            // Cache-first: история/дубли читаются из локального стора,
+                            // не расходуя ключи ратчета повторно (ADR-001 §2.7).
+                            msg.text = await decryptV2WithHistory(msg.ciphertext, S.currentRoom.id, msg.msg_id, peerPub);
+                        }
                     } catch {
                         msg.text = `[${t('chat.decryptError')}]`;
                     }

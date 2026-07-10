@@ -2,7 +2,7 @@
 
 import { scrollToBottom } from '../utils.js';
 import { getRoomKey } from '../crypto.js';
-import { encryptMessage, encryptV2ForDm } from './message-cipher.js';
+import { encryptMessage, encryptV2ForDm, cacheV2Sent } from './message-cipher.js';
 import { appendSystemMessage } from './messages.js';
 import { extractMentions } from './messages.js';
 import { sendWithAck } from './ack.js';
@@ -144,7 +144,13 @@ export async function sendMessage() {
         // If text starts with '/', include plaintext so server can forward to bots
         if (text.startsWith('/')) payload.plaintext_command = text;
 
-        sendWithAck(payload).catch(err => {
+        const _v2RoomId = S.currentRoom.id;
+        const _v2Text = text;
+        sendWithAck(payload).then(serverId => {
+            // Своё v2-сообщение не расшифровать по receiving-цепочке — кэшируем
+            // плейнтекст под серверным id, чтобы читать его на эхе и после reload.
+            if (enc_v === 2 && serverId != null) cacheV2Sent(_v2RoomId, serverId, _v2Text);
+        }).catch(err => {
             console.error('[ACK] не доставлено:', err.message);
         });
 

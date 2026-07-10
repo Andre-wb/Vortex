@@ -19,6 +19,7 @@ import { api } from '../utils.js';
 import { createSessionStore, indexedDbBackend } from '../dr/session-store.js';
 import { decryptV2 as _drDecryptV2, encryptV2 as _drEncryptV2, dmSessionId, importX25519PrivJwk } from '../dr/session.js';
 import { edVerify } from '../dr/prekeys.js';
+import { createHistoryStore, historyBackend, decryptWithCache } from '../dr/history-store.js';
 
 const _fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
 
@@ -78,6 +79,12 @@ function _sessionStore() {
     return _v2Store;
 }
 
+let _histStore = null;
+function _historyStore() {
+    if (!_histStore) _histStore = createHistoryStore(historyBackend());
+    return _histStore;
+}
+
 function _identityPrivJwk() {
     return window.AppState?.x25519PrivateKey
         || sessionStorage.getItem('vortex_x25519_priv')
@@ -101,6 +108,39 @@ export async function decryptV2Message(envelopeHex, roomId, senderIdentityPubHex
         _sessionStore(), dmSessionId(roomId),
         { myIkPriv, senderIdentityPubHex }, envelopeHex,
     );
+}
+
+/**
+ * Расшифровка v2 с локальным кэшем плейнтекста (ADR-001 §2.7). Кэш ключуется по
+ * msgId: история и дубли доставки читаются из кэша, БЕЗ повторного расхода
+ * ключей ратчета (израсходованный ключ иначе не переиспользуем → плейсхолдер).
+ * Живая первая доставка расшифровывается транспортно и кэшируется.
+ * @param {string} envelopeHex
+ * @param {string|number} roomId — id DM-комнаты
+ * @param {string|number} msgId — серверный id сообщения (ключ кэша)
+ * @param {string} senderIdentityPubHex — x25519_public_key отправителя (TOFU)
+ * @returns {Promise<string>} plaintext
+ */
+export async function decryptV2WithHistory(envelopeHex, roomId, msgId, senderIdentityPubHex) {
+    return decryptWithCache(_historyStore(), roomId, msgId,
+        () => decryptV2Message(envelopeHex, roomId, senderIdentityPubHex));
+}
+
+/**
+ * Кэширует плейнтекст ОТПРАВЛЕННОГО v2-сообщения под серверным msgId. Свои
+ * сообщения нельзя расшифровать по receiving-цепочке (DR асимметричен), поэтому
+ * их плейнтекст берётся только из этого кэша — на перезагрузке истории и на
+ * собственном эхе. Вызывать по ACK (когда известен server_id). Best-effort.
+ */
+export async function cacheV2Sent(roomId, msgId, plaintext) {
+    try { await _historyStore().put(roomId, msgId, plaintext); }
+    catch (e) { console.debug('[v2] cacheV2Sent failed:', e?.message); }
+}
+
+/** Читает кэшированный плейнтекст v2 (для своих сообщений — единственный источник). */
+export async function getV2Cached(roomId, msgId) {
+    try { return await _historyStore().get(roomId, msgId); }
+    catch { return null; }
 }
 
 /** Проверяет подписи бандла адресата против его Ed25519 identity (defense-in-depth). */
