@@ -5,7 +5,7 @@ import { renderRoomsList } from '../rooms.js';
 import { showWelcome } from '../ui.js';
 import { eciesDecrypt, eciesEncrypt, getRoomKey, setRoomKey, clearRatchet } from '../crypto.js';
 import { isKnownEncVersion } from './enc-version.js';
-import { decryptMessage } from './message-cipher.js';
+import { decryptMessage, decryptV2Message } from './message-cipher.js';
 import {
     appendMessage,
     appendFileMessage,
@@ -780,7 +780,20 @@ async function _decryptAndAppend(msg) {
         const roomKey = getRoomKey(S.currentRoom?.id);
 
         if (msg.ciphertext) {
-            if (!isKnownEncVersion(msg.enc_v)) {
+            if (msg.enc_v === 2) {
+                // v2 Double Ratchet (ADR-001, батч 6a) — только 1:1 DM. Приём:
+                // клиент умеет расшифровать, но сам v2 не отправляет (до 6b).
+                if (S.currentRoom?.is_dm) {
+                    const peerPub = S.currentRoom?.dm_user?.x25519_public_key;
+                    try {
+                        msg.text = await decryptV2Message(msg.ciphertext, S.currentRoom.id, peerPub);
+                    } catch {
+                        msg.text = `[${t('chat.decryptError')}]`;
+                    }
+                } else {
+                    msg.text = `[${t('chat.unsupportedEncVersion')}]`;
+                }
+            } else if (!isKnownEncVersion(msg.enc_v)) {
                 // Более новая версия протокола (ADR-001): не пытаемся
                 // расшифровать чужой формат эвристиками — просим обновиться.
                 msg.text = `[${t('chat.unsupportedEncVersion')}]`;

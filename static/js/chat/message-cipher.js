@@ -15,6 +15,8 @@
 import { ratchetEncrypt, ratchetDecrypt } from '../crypto.js';
 import { decryptText } from './room-crypto.js';
 import { ENC_V_CURRENT } from './enc-version.js';
+import { createSessionStore, indexedDbBackend } from '../dr/session-store.js';
+import { decryptV2 as _drDecryptV2, dmSessionId, importX25519PrivJwk } from '../dr/session.js';
 
 /**
  * Шифрует текст сообщения текущей продовой схемой (v1, sender-chain).
@@ -53,4 +55,35 @@ export async function decryptMessage(ciphertextHex, roomId, senderId, roomKey) {
     } catch {
         return await decryptText(ciphertextHex, roomKey);
     }
+}
+
+// v2 — Double Ratchet (ADR-001, батч 6a). ТОЛЬКО ПРИЁМ: клиент умеет
+// расшифровывать v2, но ничего в v2 не отправляет до батча 6b.
+
+let _v2Store = null;
+function _sessionStore() {
+    // Ленивая инициализация — IndexedDB создаётся только при первом v2-сообщении.
+    if (!_v2Store) _v2Store = createSessionStore(indexedDbBackend());
+    return _v2Store;
+}
+
+/**
+ * Расшифровывает v2-конверт (парная DR-сессия) для DM-комнаты. Бросает
+ * SessionError при невозможности установить/расшифровать — call-site деградирует
+ * в плейсхолдер.
+ * @param {string} envelopeHex — v2-конверт
+ * @param {string|number} roomId — id DM-комнаты (ключ сессии)
+ * @param {string} senderIdentityPubHex — опубликованный x25519_public_key отправителя (TOFU)
+ * @returns {Promise<string>} plaintext
+ */
+export async function decryptV2Message(envelopeHex, roomId, senderIdentityPubHex) {
+    const privJwk = window.AppState?.x25519PrivateKey
+        || sessionStorage.getItem('vortex_x25519_priv')
+        || localStorage.getItem('vortex_x25519_priv');
+    if (!privJwk) throw new Error('no identity private key for v2 decrypt');
+    const myIkPriv = await importX25519PrivJwk(privJwk);
+    return _drDecryptV2(
+        _sessionStore(), dmSessionId(roomId),
+        { myIkPriv, senderIdentityPubHex }, envelopeHex,
+    );
 }

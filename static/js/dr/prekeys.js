@@ -14,6 +14,7 @@
 // отпечатков по паре (identity_key, identity_key_ed).
 
 import { api } from '../utils.js';
+import { storePrekeyPrivates, hasPrekeyPrivates } from './prekey-store.js';
 
 // Идентичность хранится ПЕР-АККАУНТ: слот `vortex_ed25519_identity_<userId>`.
 // Общий слот использовать нельзя — на общем устройстве он мог бы принадлежать
@@ -93,15 +94,29 @@ export async function edSign(edPrivJwk, messageBytes) {
 
 const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
 
-async function _genX25519Pub() {
+// SPK id фиксирован (одна активная пара на аккаунт); ротация SPK — вне скоупа 6a.
+const SPK_ID = 1;
+
+/** Генерирует X25519 пару. @returns {Promise<{pubHex, privJwk}>} */
+async function _genX25519() {
     const pair = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
     const raw = await crypto.subtle.exportKey('raw', pair.publicKey);
-    return toHex(raw);
+    const privJwk = JSON.stringify(await crypto.subtle.exportKey('jwk', pair.privateKey));
+    return { pubHex: toHex(raw), privJwk };
+}
+
+/** Монотонный per-account счётчик id для OPK (уникален между републикациями). */
+function _nextOpkId(userId, count) {
+    const k = `vortex_dr_opk_next_${userId}`;
+    const start = parseInt(localStorage.getItem(k) || '1', 10);
+    localStorage.setItem(k, String(start + count));
+    return start;
 }
 
 /**
  * Собирает prekey-бандл: X25519 SPK + подпись Ed25519, cross-signature на
- * X25519 identity_key, и пачку one-time prekeys.
+ * X25519 identity_key, и пачку one-time prekeys. Приватные ключи SPK/OPK
+ * персистятся локально (prekey-store), чтобы отвечать на входящие X3DH (6a).
  * @param {string} identityKeyHex — X25519 публичный identity_key пользователя
  * @param {number} opkCount
  * @returns {Promise<object>} тело запроса для POST /api/keys/prekeys/publish
@@ -109,22 +124,32 @@ async function _genX25519Pub() {
 export async function buildPrekeyBundle(identityKeyHex, opkCount = OPK_BATCH) {
     const { privJwk: edPriv, pubHex: edPub } = await loadOrCreateEd25519Identity();
 
-    const spkHex = await _genX25519Pub();
-    const spkSig = await edSign(edPriv, fromHex(spkHex));
+    const spk = await _genX25519();
+    const spkSig = await edSign(edPriv, fromHex(spk.pubHex));
     // Cross-signature: Ed25519 идентичность подписывает X25519 identity_key,
     // связывая два ключа (ADR §2.4г).
     const idSig = await edSign(edPriv, fromHex(identityKeyHex));
 
+    const userId = window.AppState?.user?.user_id;
+    const baseId = _nextOpkId(userId, opkCount);
     const oneTimePrekeys = [];
+    const opkPrivates = [];
     for (let i = 0; i < opkCount; i++) {
-        oneTimePrekeys.push({ key_id: Date.now() % 1e9 + i, public_key: await _genX25519Pub() });
+        const opk = await _genX25519();
+        const id = baseId + i;
+        oneTimePrekeys.push({ key_id: id, public_key: opk.pubHex });
+        opkPrivates.push({ id, jwk: opk.privJwk });
     }
+
+    // Персистим приватные ДО возврата — публиковать публичные без сохранённых
+    // приватных бессмысленно (не сможем ответить на X3DH).
+    storePrekeyPrivates({ id: SPK_ID, jwk: spk.privJwk }, opkPrivates);
 
     return {
         identity_key:      identityKeyHex,
-        signed_prekey:     spkHex,
+        signed_prekey:     spk.pubHex,
         signed_prekey_sig: spkSig,
-        signed_prekey_id:  1,
+        signed_prekey_id:  SPK_ID,
         identity_key_ed:   edPub,
         identity_key_sig:  idSig,
         one_time_prekeys:  oneTimePrekeys,
@@ -153,7 +178,10 @@ export async function ensurePrekeysPublished() {
 
     const needsPublish = !status?.published
         || status.low_opk_warning
-        || (status.available_opk_count ?? 0) < LOW_OPK_THRESHOLD;
+        || (status.available_opk_count ?? 0) < LOW_OPK_THRESHOLD
+        // Пользователи батча 4 опубликовали публичные, но не имеют локальных
+        // приватных SPK/OPK — форсируем один republish, чтобы уметь отвечать на v2.
+        || !hasPrekeyPrivates();
     if (!needsPublish) return false;
 
     try {
