@@ -2,7 +2,7 @@
 
 import { scrollToBottom } from '../utils.js';
 import { getRoomKey } from '../crypto.js';
-import { encryptMessage } from './message-cipher.js';
+import { encryptMessage, encryptV2ForDm } from './message-cipher.js';
 import { appendSystemMessage } from './messages.js';
 import { extractMentions } from './messages.js';
 import { sendWithAck } from './ack.js';
@@ -94,10 +94,10 @@ export async function sendMessage() {
             appendSystemMessage(t('chat.keyNotReceivedWait'));
             return;
         }
-        const { enc_v, ciphertext } = await encryptMessage(S.currentRoom.id, S.user.id, text, roomKey);
 
-        // Отложенное сообщение (Feature 2)
+        // Отложенное сообщение (Feature 2) — остаётся v1 (v2 только для немедленной отправки).
         if (isScheduleMode()) {
+            const { enc_v, ciphertext } = await encryptMessage(S.currentRoom.id, S.user.id, text, roomKey);
             const payload = { action: 'schedule_message', ciphertext, enc_v, scheduled_at: getScheduleDatetime() };
             if (_replyTo?.msg_id) payload.reply_to_id = _replyTo.msg_id;
             S.ws?.send(JSON.stringify(payload));
@@ -110,8 +110,9 @@ export async function sendMessage() {
             return;
         }
 
-        // Самоуничтожающееся сообщение
+        // Самоуничтожающееся сообщение — остаётся v1.
         if (window.isTimedMode?.()) {
+            const { enc_v, ciphertext } = await encryptMessage(S.currentRoom.id, S.user.id, text, roomKey);
             const payload = { action: 'timed_message', ciphertext, enc_v, ttl_seconds: window.getTimedTtl?.() };
             sendWithAck(payload).catch(err => {
                 console.error('[ACK] timed msg не доставлено:', err.message);
@@ -123,6 +124,12 @@ export async function sendMessage() {
             input.style.height = 'auto';
             return;
         }
+
+        // Основной путь: v2 Double Ratchet для подходящих DM (флаг + capability),
+        // иначе — v1. encryptV2ForDm возвращает null при недоступности v2.
+        const v2 = await encryptV2ForDm(S.currentRoom, text);
+        const { enc_v, ciphertext } = v2
+            || await encryptMessage(S.currentRoom.id, S.user.id, text, roomKey);
 
         const payload    = { action: 'message', ciphertext, enc_v, client_ts: new Date().toISOString() };
         if (_replyTo?.msg_id) {

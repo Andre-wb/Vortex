@@ -90,6 +90,26 @@ export async function edSign(edPrivJwk, messageBytes) {
     return toHex(sig);
 }
 
+const _fromHexTop = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
+
+/**
+ * Проверяет Ed25519-подпись публичным ключом (hex). Возвращает false при любой
+ * ошибке. Используется отправителем v2 для defense-in-depth проверки бандла
+ * адресата (сервер верифицирует при publish, но в warn-only мог принять битый).
+ * @param {string} pubHex — Ed25519 публичный (hex)
+ * @param {Uint8Array} messageBytes
+ * @param {string} sigHex — подпись (hex)
+ * @returns {Promise<boolean>}
+ */
+export async function edVerify(pubHex, messageBytes, sigHex) {
+    try {
+        const key = await crypto.subtle.importKey('raw', _fromHexTop(pubHex), { name: 'Ed25519' }, false, ['verify']);
+        return await crypto.subtle.verify('Ed25519', key, _fromHexTop(sigHex), messageBytes);
+    } catch {
+        return false;
+    }
+}
+
 // Prekey bundle
 
 const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
@@ -152,6 +172,7 @@ export async function buildPrekeyBundle(identityKeyHex, opkCount = OPK_BATCH) {
         signed_prekey_id:  SPK_ID,
         identity_key_ed:   edPub,
         identity_key_sig:  idSig,
+        supports_v2:       true,   // этот клиент умеет принимать v2 (ADR-001 6b)
         one_time_prekeys:  oneTimePrekeys,
     };
 }
@@ -181,7 +202,11 @@ export async function ensurePrekeysPublished() {
         || (status.available_opk_count ?? 0) < LOW_OPK_THRESHOLD
         // Пользователи батча 4 опубликовали публичные, но не имеют локальных
         // приватных SPK/OPK — форсируем один republish, чтобы уметь отвечать на v2.
-        || !hasPrekeyPrivates();
+        // Этот арм self-heal'ит устройство, потерявшее localStorage (гейт #3).
+        || !hasPrekeyPrivates()
+        // Опубликованный бандл ещё не заявляет v2-приём (пред-6b) — republish,
+        // чтобы отправители знали, что нам можно слать v2.
+        || status.supports_v2 !== true;
     if (!needsPublish) return false;
 
     try {

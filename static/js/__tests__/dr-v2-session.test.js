@@ -81,7 +81,7 @@ describe('v2 session round-trip (X3DH + Double Ratchet)', () => {
         return {
             store: createSessionStore(memoryBackend()),
             sessionId: dmSessionId(42),
-            ctx: { myIkPriv: aliceIk.priv, myIkPubHex: aliceIk.pubHex, peerBundle: bobBundle },
+            ctx: { myIkPriv: aliceIk.priv, myIkPubHex: aliceIk.pubHex, getPeerBundle: async () => bobBundle },
             aliceIkPubHex: aliceIk.pubHex,
         };
     }
@@ -136,7 +136,7 @@ describe('TOFU и forward secrecy', () => {
         const aliceIk = await genX25519();
         const store = createSessionStore(memoryBackend());
         const env = await encryptV2(store, dmSessionId(42),
-            { myIkPriv: aliceIk.priv, myIkPubHex: aliceIk.pubHex, peerBundle: bob.bundle }, 'spoof?');
+            { myIkPriv: aliceIk.priv, myIkPubHex: aliceIk.pubHex, getPeerBundle: async () => bob.bundle }, 'spoof?');
 
         const bobStore = createSessionStore(memoryBackend());
         // Отправитель по метаданным — «кто-то другой» (identity не совпадает с прелюдой)
@@ -151,7 +151,7 @@ describe('TOFU и forward secrecy', () => {
         const aliceIk = await genX25519();
         const store = createSessionStore(memoryBackend());
         const env = await encryptV2(store, dmSessionId(42),
-            { myIkPriv: aliceIk.priv, myIkPubHex: aliceIk.pubHex, peerBundle: bob.bundle }, 'burn opk');
+            { myIkPriv: aliceIk.priv, myIkPubHex: aliceIk.pubHex, getPeerBundle: async () => bob.bundle }, 'burn opk');
 
         expect(getOpkPrivate(100)).not.toBeNull();   // до установления OPK на месте
         const bobStore = createSessionStore(memoryBackend());
@@ -168,7 +168,7 @@ describe('graceful degradation', () => {
         const aliceIk = await genX25519();
         const store = createSessionStore(memoryBackend());
         const env = await encryptV2(store, dmSessionId(42),
-            { myIkPriv: aliceIk.priv, myIkPubHex: aliceIk.pubHex, peerBundle: bob.bundle }, 'hi');
+            { myIkPriv: aliceIk.priv, myIkPubHex: aliceIk.pubHex, getPeerBundle: async () => bob.bundle }, 'hi');
 
         localStorage.removeItem('vortex_dr_prekeys_2');   // приватные потеряны
         const bobStore = createSessionStore(memoryBackend());

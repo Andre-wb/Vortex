@@ -423,6 +423,8 @@ def init_db() -> None:
                 # Ed25519 identity key + binding signature (ADR-001 batch 4)
                 "ALTER TABLE prekey_bundles ADD COLUMN identity_key_ed BLOB",
                 "ALTER TABLE prekey_bundles ADD COLUMN identity_key_sig BLOB",
+                # v2 Double Ratchet receive capability (ADR-001 batch 6b)
+                "ALTER TABLE prekey_bundles ADD COLUMN supports_v2 BOOLEAN",
             ]
             with engine.connect() as conn:
                 try:

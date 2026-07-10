@@ -42,7 +42,8 @@ def _register_and_login(tc):
 
 
 def _build_bundle(ik_hex, *, ed_priv=None, spk_priv=None, bad_spk_sig=False,
-                  bad_id_sig=False, omit_ed=False, omit_id_sig=False, n_opk=3):
+                  bad_id_sig=False, omit_ed=False, omit_id_sig=False, n_opk=3,
+                  supports_v2=None):
     """Собирает тело publish-запроса с корректными или намеренно битыми подписями."""
     ed = ed_priv or Ed25519PrivateKey.generate()
     spk = spk_priv or X25519PrivateKey.generate()
@@ -67,6 +68,8 @@ def _build_bundle(ik_hex, *, ed_priv=None, spk_priv=None, bad_spk_sig=False,
         body["identity_key_ed"] = ed.public_key().public_bytes_raw().hex()
     if not omit_id_sig:
         body["identity_key_sig"] = id_sig.hex()
+    if supports_v2 is not None:
+        body["supports_v2"] = supports_v2
     return body
 
 
@@ -178,6 +181,47 @@ class TestWarnOnly:
                         json=_build_bundle(ik, omit_ed=True, omit_id_sig=True),
                         headers={"X-CSRF-Token": csrf})
             assert r.status_code == 200, r.text
+
+
+class TestSupportsV2Capability:
+    """ADR-001 батч 6b: capability-флаг supports_v2 хранится и отдаётся в
+    fetch/status, чтобы отправитель знал, можно ли слать адресату v2."""
+
+    def test_supports_v2_stored_and_returned(self, warn_only):
+        from starlette.testclient import TestClient
+        with TestClient(app, raise_server_exceptions=False) as tc:
+            csrf, ik = _register_and_login(tc)
+            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik, supports_v2=True),
+                    headers={"X-CSRF-Token": csrf})
+            me = tc.get("/api/authentication/me").json()
+
+            fetched = tc.get(f"/api/keys/prekeys/{me['user_id']}").json()
+            assert fetched["supports_v2"] is True
+
+            status = tc.get("/api/keys/prekeys/status/me").json()
+            assert status["supports_v2"] is True
+
+    def test_legacy_bundle_without_supports_v2_is_null(self, warn_only):
+        """Пред-6b бандл (без supports_v2) → null: отправитель не шлёт v2."""
+        from starlette.testclient import TestClient
+        with TestClient(app, raise_server_exceptions=False) as tc:
+            csrf, ik = _register_and_login(tc)
+            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik),  # без supports_v2
+                    headers={"X-CSRF-Token": csrf})
+            status = tc.get("/api/keys/prekeys/status/me").json()
+            assert status["supports_v2"] in (None, False)
+
+    def test_republish_flips_supports_v2(self, warn_only):
+        """republish с supports_v2=True обновляет ранее опубликованный бандл."""
+        from starlette.testclient import TestClient
+        with TestClient(app, raise_server_exceptions=False) as tc:
+            csrf, ik = _register_and_login(tc)
+            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik),
+                    headers={"X-CSRF-Token": csrf})
+            assert tc.get("/api/keys/prekeys/status/me").json()["supports_v2"] in (None, False)
+            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik, supports_v2=True),
+                    headers={"X-CSRF-Token": csrf})
+            assert tc.get("/api/keys/prekeys/status/me").json()["supports_v2"] is True
 
 
 class TestOpkConsumption:

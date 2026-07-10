@@ -66,9 +66,12 @@ async function _establishInitiator(myIkPriv, myIkPubHex, peerBundle, plaintextBy
 /**
  * Шифрует сообщение в парную сессию. Если сессии нет — устанавливает её как
  * инициатор (X3DH initiate) и шлёт prekey-сообщение; иначе — normal-сообщение.
+ *
  * @param {object} store — session-store
  * @param {string} sessionId
- * @param {{myIkPriv:CryptoKey, myIkPubHex:string, peerBundle:object}} ctx
+ * @param {{myIkPriv:CryptoKey, myIkPubHex:string, getPeerBundle:()=>Promise<object>}} ctx
+ *        getPeerBundle вызывается ТОЛЬКО при установлении (сессии ещё нет) —
+ *        для установленной сессии сетевой запрос бандла не делается.
  * @param {string} plaintext
  * @returns {Promise<string>} v2-конверт (hex)
  */
@@ -79,8 +82,9 @@ export async function encryptV2(store, sessionId, ctx, plaintext) {
             const { header, ciphertext } = await ratchetEncrypt(state, pt);
             return { state, result: encodeV2({ prelude: null, header, aead: ciphertext }) };
         }
+        const peerBundle = await ctx.getPeerBundle();
         const { state: newState, hex } = await _establishInitiator(
-            ctx.myIkPriv, ctx.myIkPubHex, ctx.peerBundle, pt,
+            ctx.myIkPriv, ctx.myIkPubHex, peerBundle, pt,
         );
         return { state: newState, result: hex };
     });

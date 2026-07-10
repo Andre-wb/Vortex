@@ -60,6 +60,10 @@ class PreKeyBundle(Base):
     # Nullable for backward compatibility with bundles published before batch 4.
     identity_key_ed = Column(LargeBinary(32), nullable=True)
     identity_key_sig = Column(LargeBinary(64), nullable=True)
+    # Capability (ADR-001 батч 6b): клиент умеет ПРИНИМАТЬ v2 Double Ratchet.
+    # NULL/False — пред-6a бандл (батч 4) либо клиент без v2-приёма → отправитель
+    # не шлёт v2 такому адресату (падает в v1).
+    supports_v2 = Column(Boolean, nullable=True)
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),

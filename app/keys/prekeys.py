@@ -91,6 +91,10 @@ class PublishPreKeysRequest(BaseModel):
         description="Ed25519 signature of the X25519 identity_key, binding it to "
                     "identity_key_ed. Optional for pre-batch-4 clients.",
     )
+    supports_v2: Optional[bool] = Field(
+        default=None,
+        description="Client can RECEIVE v2 Double Ratchet messages (ADR-001 batch 6b).",
+    )
     one_time_prekeys: List[OneTimePreKeyUpload] = Field(
         default_factory=list,
         max_length=_MAX_OPK_BATCH,
@@ -107,6 +111,7 @@ class PreKeyBundleResponse(BaseModel):
     signed_prekey_id: int
     identity_key_ed: Optional[str] = None    # hex Ed25519 identity pub or None
     identity_key_sig: Optional[str] = None   # hex Ed25519 sig of identity_key or None
+    supports_v2: Optional[bool] = None       # peer can receive v2 Double Ratchet
     one_time_prekey: Optional[str] = None   # hex — single OPK or None
     one_time_prekey_id: Optional[int] = None
 
@@ -117,6 +122,7 @@ class PreKeyStatusResponse(BaseModel):
     signed_prekey_id: Optional[int] = None
     available_opk_count: int = 0
     low_opk_warning: bool = False
+    supports_v2: Optional[bool] = None
 
 
 
@@ -194,6 +200,7 @@ async def publish_prekeys(
             signed_prekey_id=body.signed_prekey_id,
             identity_key_ed=ik_ed_bytes,
             identity_key_sig=ik_sig_bytes,
+            supports_v2=body.supports_v2,
             created_at=now,
             updated_at=now,
         )
@@ -205,6 +212,7 @@ async def publish_prekeys(
         bundle.signed_prekey_id = body.signed_prekey_id
         bundle.identity_key_ed = ik_ed_bytes
         bundle.identity_key_sig = ik_sig_bytes
+        bundle.supports_v2 = body.supports_v2
         bundle.updated_at = now
 
     # Add one-time keys
@@ -245,6 +253,7 @@ async def publish_prekeys(
         signed_prekey_id=bundle.signed_prekey_id,
         available_opk_count=available,
         low_opk_warning=available < _LOW_OPK_THRESHOLD,
+        supports_v2=bundle.supports_v2,
     )
 
 
@@ -320,6 +329,7 @@ async def get_prekey_bundle(
         signed_prekey_id=bundle.signed_prekey_id,
         identity_key_ed=bundle.identity_key_ed.hex() if bundle.identity_key_ed else None,
         identity_key_sig=bundle.identity_key_sig.hex() if bundle.identity_key_sig else None,
+        supports_v2=bundle.supports_v2,
         one_time_prekey=opk_hex,
         one_time_prekey_id=opk_key_id,
     )
@@ -358,4 +368,5 @@ async def get_prekey_status(
         signed_prekey_id=bundle.signed_prekey_id,
         available_opk_count=available,
         low_opk_warning=available < _LOW_OPK_THRESHOLD,
+        supports_v2=bundle.supports_v2,
     )
