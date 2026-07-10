@@ -85,6 +85,7 @@
       "alice_before_b_replies": {
         "dh_receiving": "2cc1154c638eb6d38cbedcb5cb4b9b7347b120caa4a3847b791859b373044423",
         "dh_sending": "78c1ccb996e9a3949fdd63e2ddb2f8abe8ea40cb205d1a06e0df9f4c1eff4efa",
+        "dh_sending_pub": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f",
         "prev_send_count": 0,
         "receiving_chain_key": null,
         "recv_count": 0,
@@ -96,6 +97,7 @@
       "alice_final": {
         "dh_receiving": "dc8dad37594fee2a055d28f47179db03f62f96f4b26c11647440e7464f207d58",
         "dh_sending": "212e76176e8d913ce95aa228716c38bb9da2bbfb67344dcd0cd89a50f17e11e1",
+        "dh_sending_pub": "7cef5de097079ed11b3fa4396ae7c5ecee3c18dcde10c42637aca6d85c749c1c",
         "prev_send_count": 4,
         "receiving_chain_key": "390b0d1d598b65d88cf83aa08ff7fa817e2dd5635effe842216b06d23fe442f7",
         "recv_count": 2,
@@ -107,6 +109,7 @@
       "alice_initial": {
         "dh_receiving": "2cc1154c638eb6d38cbedcb5cb4b9b7347b120caa4a3847b791859b373044423",
         "dh_sending": "78c1ccb996e9a3949fdd63e2ddb2f8abe8ea40cb205d1a06e0df9f4c1eff4efa",
+        "dh_sending_pub": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f",
         "prev_send_count": 0,
         "receiving_chain_key": null,
         "recv_count": 0,
@@ -118,6 +121,7 @@
       "bob_before_a_second_chain": {
         "dh_receiving": "02d3cda65da422b24706091f61ddd2d908522b35f0003383003fc68a9339540f",
         "dh_sending": "8a6dc11f67250790690885a2e9d1986ad49a17088fbe48b2ab5faaeacd2c811d",
+        "dh_sending_pub": "dc8dad37594fee2a055d28f47179db03f62f96f4b26c11647440e7464f207d58",
         "prev_send_count": 0,
         "receiving_chain_key": "f77158540becac0e5079fb51fc3ae05bf7877da9917a9ed506b29a82269e5099",
         "recv_count": 4,
@@ -129,6 +133,7 @@
       "bob_final": {
         "dh_receiving": "7cef5de097079ed11b3fa4396ae7c5ecee3c18dcde10c42637aca6d85c749c1c",
         "dh_sending": "7b5920f1bea3a1561d418bd994307850eb7f6126dbd79e51048ac94a9de4e228",
+        "dh_sending_pub": "1bade0a08b9614d1d1baa5db41f350c8f8d404a412d60299164fbca59c4bd93f",
         "prev_send_count": 2,
         "receiving_chain_key": "e8aee7f4147cb6f4e5989657e3315b1cd2ca363e6a89f50b93864469ce6c8e45",
         "recv_count": 1,
@@ -140,6 +145,7 @@
       "bob_initial": {
         "dh_receiving": null,
         "dh_sending": "efe9d06c3c71add32eba4f1f65f6aa07aca442479879cd5effa687a902c6d124",
+        "dh_sending_pub": "2cc1154c638eb6d38cbedcb5cb4b9b7347b120caa4a3847b791859b373044423",
         "prev_send_count": 0,
         "receiving_chain_key": null,
         "recv_count": 0,

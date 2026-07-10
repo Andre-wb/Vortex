@@ -175,9 +175,25 @@ def gen_transcript(det: _DetSource, x3dh: dict) -> dict:
     bob = dr.ratchet_init_bob(shared, bob_spk)
     alice = dr.ratchet_init_alice(shared, bob_spk.public_key())
 
+    def _ser(state):
+        """serialize_state + производный dh_sending_pub.
+
+        Web Crypto не импортирует X25519 private как raw — только JWK, которому
+        нужен публичный ключ (поле x). Публичный ключ dh_sending и так неявно
+        присутствует (заголовки сообщений, X3DH) — добавляем его как удобство,
+        чтобы JS мог собрать {d,x} JWK и восстановить состояние. Секрета не
+        раскрывает; Python deserialize_state лишнее поле игнорирует.
+        """
+        d = dr.serialize_state(state)
+        d["dh_sending_pub"] = (
+            X25519PrivateKey.from_private_bytes(bytes.fromhex(d["dh_sending"]))
+            .public_key().public_bytes_raw().hex()
+        )
+        return d
+
     checkpoints = {
-        "alice_initial": dr.serialize_state(alice),
-        "bob_initial": dr.serialize_state(bob),
+        "alice_initial": _ser(alice),
+        "bob_initial": _ser(bob),
     }
 
     messages = []
@@ -201,7 +217,7 @@ def gen_transcript(det: _DetSource, x3dh: dict) -> dict:
     _send(alice, "alice", "a1", "Второе сообщение")
     _send(alice, "alice", "a2", "Придёт раньше первого")
     _send(alice, "alice", "a3_same_chain", "Хвост первой цепочки")
-    checkpoints["alice_before_b_replies"] = dr.serialize_state(alice)
+    checkpoints["alice_before_b_replies"] = _ser(alice)
 
     def _recv(state, msg_id):
         m = next(m for m in messages if m["id"] == msg_id)
@@ -220,7 +236,7 @@ def gen_transcript(det: _DetSource, x3dh: dict) -> dict:
 
     _send(bob, "bob", "b0", "Привет, Алиса!")
     _send(bob, "bob", "b1", "Ответ во второй цепочке")
-    checkpoints["bob_before_a_second_chain"] = dr.serialize_state(bob)
+    checkpoints["bob_before_a_second_chain"] = _ser(bob)
 
     # Сегмент 2: alice получает ответы (её первый DH-шаг)
     alice_delivery = ["b0", "b1"]
@@ -232,8 +248,8 @@ def gen_transcript(det: _DetSource, x3dh: dict) -> dict:
     # Сегмент 3: bob получает сообщение новой цепочки (его второй DH-шаг)
     _recv(bob, "a4_new_chain")
 
-    checkpoints["alice_final"] = dr.serialize_state(alice)
-    checkpoints["bob_final"] = dr.serialize_state(bob)
+    checkpoints["alice_final"] = _ser(alice)
+    checkpoints["bob_final"] = _ser(bob)
 
     return {
         "shared_secret": shared.hex(),
