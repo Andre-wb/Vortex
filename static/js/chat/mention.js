@@ -55,7 +55,7 @@ function _showMentionDropdown(members, input) {
         const item = document.createElement('div');
         item.className = 'mention-item' + (i === 0 ? ' active' : '');
         item.dataset.username = m.username;
-        // FIX M2: avatar_emoji / display_name / username are user-controlled — escape before HTML injection
+        // avatar_emoji / display_name / username are user-controlled — escape before HTML injection
         item.innerHTML = `<span class="mention-item-avatar">${esc(m.avatar_emoji)}</span><span class="mention-item-name">${esc(m.display_name)}</span><span class="mention-item-username">@${esc(m.username)}</span>`;
         item.addEventListener('mousedown', (e) => {
             e.preventDefault();

@@ -1,19 +1,18 @@
 // static/js/dr/session.js
-// Установление и использование парных v2-сессий Double Ratchet (ADR-001, батч 6a).
+// Установление и использование парных v2-сессий Double Ratchet.
 //
 // Связывает X3DH (x3dh.js) + ратчет (ratchet.js) + хранилище состояния
 // (session-store.js) + приватные prekey (prekey-store.js) + провод (v2-envelope.js).
 //
-// Область: 1:1 DM. Сессия ключуется по roomId DM: `dm:<roomId>`.
+// Область: 1:1 DM, device-rooted (Sesame). Сессия ключуется по устройству
+// пира: `dm:<roomId>:<peerClientDeviceId>` (см. dmSessionId).
 //
-// В батче 6a продовая проводка — ТОЛЬКО приём (decryptV2). encryptV2/установление
-// инициатора написаны для тестов (нужны, чтобы создать v2-конверт), но из
-// продового пути отправки не вызываются до батча 6b.
-//
-// БЕЗОПАСНОСТЬ: initiator IK не аутентифицирован криптографически — это TOFU
-// (ADR §2.4г). decryptV2 требует, чтобы IK из прелюды совпал с опубликованным
-// x25519_public_key отправителя, иначе отвергает. Но пока этот ключ не
-// верифицирован внеполосно, злонамеренный сервер может подменить пару целиком.
+// БЕЗОПАСНОСТЬ: инициатор — КОНКРЕТНОЕ УСТРОЙСТВО; его X3DH-ключ (IK) — device
+// x3dh key, аутентифицированный device-cert'ом инициатора, который едет в
+// прелюде. decryptV2 проверяет cert (verifyDeviceCert) против ПРИПИНЕННОГО
+// аккаунтного Ed25519 отправителя — устройство без валидного cert (в т.ч.
+// вставленное сервером) отвергается. Корень доверия — припиненный аккаунтный
+// Ed25519 (TOFU по нему; внеполосная safety-number — ортогональный трек).
 
 import { x3dhInitiate, x3dhRespond } from './x3dh.js';
 import {
@@ -21,14 +20,15 @@ import {
 } from './ratchet.js';
 import { encodeV2, decodeV2 } from './v2-envelope.js';
 import { getSpkPrivate, getOpkPrivate, deleteOpkPrivate } from './prekey-store.js';
+import { verifyDeviceCert } from './device-identity.js';
 
 /** Ошибка установления/использования сессии — caller деградирует в плейсхолдер. */
 export class SessionError extends Error {
     constructor(code, message) { super(message || code); this.name = 'SessionError'; this.code = code; }
 }
 
-/** Идентификатор парной сессии для DM-комнаты. */
-export function dmSessionId(roomId) { return `dm:${roomId}`; }
+/** Идентификатор парной сессии: DM-комната × устройство пира (client_device_id). */
+export function dmSessionId(roomId, peerDeviceId) { return `dm:${roomId}:${peerDeviceId}`; }
 
 // Импорт X25519-приватных из JWK-строк (полный {d,x} JWK, как хранит prekey-store)
 
@@ -45,33 +45,40 @@ function _pubHexFromX25519Jwk(jwkString) {
     return Array.from(bin, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
 }
 
-// Отправка (написано для тестов; НЕ подключено к продовой отправке в 6a)
+// Отправка инициатором (X3DH-initiate)
 
-async function _establishInitiator(myIkPriv, myIkPubHex, peerBundle, plaintextBytes) {
+async function _establishInitiator(ctx, peerBundle, plaintextBytes) {
     const opkPub = peerBundle.one_time_prekey || null;
+    // X3DH против DEVICE-ключей пира (device_x3dh_pub = IK_B), IK_A = свой device x3dh.
     const { sharedSecret, ekPubHex } = await x3dhInitiate(
-        myIkPriv, peerBundle.identity_key, peerBundle.signed_prekey, opkPub,
+        ctx.myDeviceX3dhPriv, peerBundle.device_x3dh_pub, peerBundle.signed_prekey, opkPub,
     );
     const state = await ratchetInitAlice(sharedSecret, peerBundle.signed_prekey);
     const { header, ciphertext } = await ratchetEncrypt(state, plaintextBytes);
     const prelude = {
-        ikPubHex: myIkPubHex,
+        ikPubHex: ctx.myDeviceX3dhPubHex,
         ekPubHex,
         spkId: peerBundle.signed_prekey_id,
         opkId: peerBundle.one_time_prekey_id ?? null,
+        // device-cert инициатора едет в прелюде (ответчик привяжет к аккаунту)
+        clientDeviceId: ctx.myCert.clientDeviceId,
+        deviceSignPub: ctx.myCert.deviceSignPub,
+        deviceCertSig: ctx.myCert.deviceCertSig,
     };
     return { state, hex: encodeV2({ prelude, header, aead: ciphertext }) };
 }
 
 /**
- * Шифрует сообщение в парную сессию. Если сессии нет — устанавливает её как
- * инициатор (X3DH initiate) и шлёт prekey-сообщение; иначе — normal-сообщение.
+ * Шифрует сообщение в парную сессию с КОНКРЕТНЫМ устройством пира. Если сессии
+ * нет — устанавливает её как инициатор (X3DH initiate) и шлёт prekey-сообщение
+ * (с device-cert'ом инициатора в прелюде); иначе — normal-сообщение.
  *
  * @param {object} store — session-store
- * @param {string} sessionId
- * @param {{myIkPriv:CryptoKey, myIkPubHex:string, getPeerBundle:()=>Promise<object>}} ctx
- *        getPeerBundle вызывается ТОЛЬКО при установлении (сессии ещё нет) —
- *        для установленной сессии сетевой запрос бандла не делается.
+ * @param {string} sessionId — dmSessionId(roomId, peerClientDeviceId)
+ * @param {{myDeviceX3dhPriv:CryptoKey, myDeviceX3dhPubHex:string,
+ *          myCert:{clientDeviceId:string, deviceSignPub:string, deviceCertSig:string},
+ *          getPeerBundle:()=>Promise<object>}} ctx
+ *        getPeerBundle (device-бандл пира) вызывается ТОЛЬКО при установлении.
  * @param {string} plaintext
  * @returns {Promise<string>} v2-конверт (hex)
  */
@@ -83,21 +90,21 @@ export async function encryptV2(store, sessionId, ctx, plaintext) {
             return { state, result: encodeV2({ prelude: null, header, aead: ciphertext }) };
         }
         const peerBundle = await ctx.getPeerBundle();
-        const { state: newState, hex } = await _establishInitiator(
-            ctx.myIkPriv, ctx.myIkPubHex, peerBundle, pt,
-        );
+        const { state: newState, hex } = await _establishInitiator(ctx, peerBundle, pt);
         return { state: newState, result: hex };
     });
 }
 
-// Приём (подключается к продовому приёму в 6a)
+// Приём
 
 /**
- * Расшифровывает v2-конверт. Если сессии нет и конверт prekey — устанавливает
- * её как ответчик (X3DH respond). Атомарно под блокировкой сессии.
+ * Расшифровывает v2-конверт. Если сессии нет и конверт prekey — проверяет
+ * device-cert инициатора и устанавливает сессию как ответчик (X3DH respond).
+ * Атомарно под блокировкой сессии.
  * @param {object} store — session-store
- * @param {string} sessionId
- * @param {{myIkPriv:CryptoKey, senderIdentityPubHex:string}} ctx
+ * @param {string} sessionId — dmSessionId(roomId, senderClientDeviceId)
+ * @param {{myDeviceX3dhPriv:CryptoKey, trustedSenderAccountEd:string}} ctx
+ *        trustedSenderAccountEd — ПРИПИНЕННЫЙ аккаунтный Ed25519 отправителя.
  * @param {string} envelopeHex
  * @returns {Promise<string>} plaintext
  * @throws {SessionError} при невозможности установить/расшифровать — caller деградирует
@@ -124,12 +131,16 @@ export async function decryptV2(store, sessionId, ctx, envelopeHex) {
         // Сессии нет: установить можно только из prekey-сообщения.
         if (!env.isPrekey) throw new SessionError('no_session');
 
-        // TOFU: IK инициатора обязан совпасть с опубликованным identity отправителя.
-        if (!ctx.senderIdentityPubHex || env.prelude.ikPubHex !== ctx.senderIdentityPubHex) {
-            throw new SessionError('identity_mismatch');
-        }
+        // Аутентичность инициатора: device-cert из прелюды против ПРИПИНЕННОГО
+        // аккаунтного Ed25519 отправителя (НЕ против ключа из прелюды — было бы
+        // циркулярно). Устройство без валидного cert отвергается.
+        if (!ctx.trustedSenderAccountEd) throw new SessionError('no_sender_pin');
+        const certOk = await verifyDeviceCert(
+            env.prelude.clientDeviceId, env.prelude.ikPubHex, env.prelude.deviceSignPub,
+            env.prelude.deviceCertSig, ctx.trustedSenderAccountEd);
+        if (!certOk) throw new SessionError('cert_invalid');
 
-        // Приватные наши prekey (батч-4 пользователи их не имеют → деградация).
+        // Приватные наши prekey (могут отсутствовать → деградация).
         const spk = getSpkPrivate(env.prelude.spkId);
         if (!spk) throw new SessionError('no_prekey_privates');
         const spkPriv = await importX25519PrivJwk(spk.jwk);
@@ -143,9 +154,10 @@ export async function decryptV2(store, sessionId, ctx, envelopeHex) {
             // сойдётся → ratchetDecrypt бросит → SessionError('decrypt_failed').
         }
 
+        // X3DH respond своим DEVICE x3dh priv (IK_B) + своим SPK priv.
         let shared;
         try {
-            shared = await x3dhRespond(ctx.myIkPriv, spkPriv, opkPriv, env.prelude.ikPubHex, env.prelude.ekPubHex);
+            shared = await x3dhRespond(ctx.myDeviceX3dhPriv, spkPriv, opkPriv, env.prelude.ikPubHex, env.prelude.ekPubHex);
         } catch (e) {
             throw new SessionError('x3dh_failed', e.message);
         }

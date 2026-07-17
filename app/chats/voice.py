@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.chats.messages.core import ws_origin_ok  # FIX H4: shared CSWSH guard
+from app.chats.messages.core import ws_origin_ok  # shared CSWSH guard
 from app.database import get_db
 from app.models import User
 from app.models_rooms import Room, RoomMember
@@ -600,7 +600,7 @@ async def ws_voice_signal(
       {type: "voice_peer_left", user_id, username}
       {type: "voice_mute", from: user_id, is_muted, is_video}
     """
-    # FIX H4: reject cross-site WS origins (CSWSH) before any processing.
+    # reject cross-site WS origins (CSWSH) before any processing.
     if not ws_origin_ok(websocket):
         await websocket.accept()
         await websocket.close(code=4403)

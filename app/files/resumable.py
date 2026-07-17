@@ -76,7 +76,7 @@ MAX_CHUNKS         = 10_240                 # ≈ 10 ГБ при 1МБ-чанк�
 SESSION_TTL        = 24 * 3600             # TTL сессии (24 часа)
 TEMP_DIR           = Config.UPLOAD_DIR / "_chunks"
 
-# FIX M5: web-shell / server-executable extensions, mirrors the direct path
+# web-shell / server-executable extensions, mirrors the direct path
 # (app/chats/messages/_router.py DANGEROUS_EXTS). The chunked path previously
 # skipped this check, accepting e.g. shell.php as the final extension.
 WEBSHELL_EXTS = frozenset({
@@ -294,7 +294,7 @@ async def upload_init(
         raise HTTPException(400, "Invalid characters in filename")
     if FileAnomalyDetector.detect_path_traversal(file_name):
         raise HTTPException(400, "Invalid filename")
-    # FIX M5: mirror the direct path — reject double-extension web-shells
+    # mirror the direct path — reject double-extension web-shells
     # (shell.php.jpg) and web-shell/server-executable final extensions.
     if FileAnomalyDetector.detect_double_extension(file_name):
         raise HTTPException(400, "Invalid file extension")
@@ -532,7 +532,7 @@ async def upload_complete(
             await _store.delete(upload_id)
             raise HTTPException(400, img_err or "Invalid image content")
 
-    # FIX H8: strip ALL metadata before writing to disk, mirroring the direct
+    # strip ALL metadata before writing to disk, mirroring the direct
     # path (app/chats/messages/files.py:91). The chunked path previously stored
     # the assembled bytes verbatim, leaking EXIF/GPS (images), creation time and
     # device info (video/audio), and author/dates (PDF). The integrity check
@@ -597,7 +597,7 @@ async def upload_complete(
         "download_url": download_url,
         "msg_type":     msg_type.value,
         "created_at":   ft.created_at.isoformat(),
-        "file_hash":    stored_hash,  # FIX H8: hash of stored (stripped) bytes
+        "file_hash":    stored_hash,  # hash of stored (stripped) bytes
     }
     await manager.broadcast_to_room(session.room_id, broadcast_payload)
 
@@ -612,7 +612,7 @@ async def upload_complete(
         "ok":          True,
         "file_id":     ft.id,
         "download_url": download_url,
-        "file_hash":   stored_hash,  # FIX H8: hash of stored (stripped) bytes
+        "file_hash":   stored_hash,  # hash of stored (stripped) bytes
         "size_bytes":  len(content),
         "mime_type":   mime_type,
     }

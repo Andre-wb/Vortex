@@ -1,4 +1,4 @@
-"""Interop-тест JS→Python для Double Ratchet (ADR-001, батч 5).
+"""Interop-тест JS→Python для Double Ratchet.
 
 Запускает node-продюсер (scripts/dr_js_producer.mjs), где JS-Alice шифрует
 сообщение клиентской реализацией (static/js/dr/*), и расшифровывает его

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import RefreshToken, User, UserDevice
+from app.models.prekeys import OneTimePreKey, PreKeyBundle
 from app.security.auth_jwt import get_current_user, verify_refresh_token
 
 from app.authentication._helpers import _set_auth_cookies, router
@@ -149,6 +150,13 @@ async def logout_device(device_id: int, request: Request,
         ).first()
         if rec:
             rec.revoked_at = datetime.now(timezone.utc)
+    # Отзыв v2 (A1): явно удаляем prekey-бандл + OPK устройства, чтобы сервер
+    # перестал отдавать его в /devices → отправители исключают устройство из
+    # fan-out (окно доставки старым отправителям ограничено TTL discovery-кэша;
+    # это НЕ мгновенный кросс-клиент push). Явно, а не только через ON DELETE
+    # CASCADE — не зависим от pragma foreign_keys в каждом пути.
+    db.query(OneTimePreKey).filter(OneTimePreKey.device_id == device.id).delete(synchronize_session=False)
+    db.query(PreKeyBundle).filter(PreKeyBundle.device_id == device.id).delete(synchronize_session=False)
     db.delete(device)
     db.commit()
     return {"ok": True}
@@ -193,7 +201,7 @@ class _VerifyPasswordRequest(_BM):
 
 class _ChangePasswordRequest(_BM):
     new_password: str
-    # FIX H7: re-authentication with the current password. Optional only so the
+    # re-authentication with the current password. Optional only so the
     # security-questions recovery flow (which has no current password to supply)
     # can omit it; non-recovery sessions MUST provide it (enforced below).
     current_password: str | None = None
@@ -233,7 +241,7 @@ async def change_password(
     if not is_recovery and not _can_manage_sessions(current_device, u.id, db):
         raise HTTPException(403, "Session must be active for at least 7 days to change password")
 
-    # FIX H7: outside the recovery flow, require the caller to prove knowledge of
+    # outside the recovery flow, require the caller to prove knowledge of
     # the CURRENT password before changing it. This is the definitive anti-CSRF
     # control — a forged cross-site request cannot supply the victim's password —
     # and also blocks session-hijack-only password takeovers.
@@ -252,7 +260,7 @@ async def change_password(
         if not pw_ok:
             raise HTTPException(403, "Current password is incorrect")
 
-    # FIX L1: enforce the full password policy (not just length>=8) and forbid
+    # enforce the full password policy (not just length>=8) and forbid
     # embedding the username, matching registration's strength requirements.
     from app.security.security_validate import validate_password_with_context
     ok, msg = validate_password_with_context(body.new_password, u.username or "")
@@ -268,7 +276,7 @@ async def change_password(
 
     db.commit()
 
-    # FIX H7: after a successful password change, revoke every OTHER refresh
+    # after a successful password change, revoke every OTHER refresh
     # token / device session so a stolen session cannot survive the rotation.
     # The current session's refresh token is preserved so the user stays logged
     # in on this device.

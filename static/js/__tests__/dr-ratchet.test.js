@@ -1,6 +1,6 @@
 /**
  * dr-ratchet.test.js
- * Паритет JS Double Ratchet с Python-референсом (ADR-001, батч 5).
+ * Паритет JS Double Ratchet с Python-референсом.
  * Векторы: app/tests/vectors/dr_vectors.json (сгенерированы double_ratchet.py).
  * Проверяет KDF, X3DH, Header, полный транскрипт (out-of-order + DH-шаги),
  * сериализацию и JS-внутренние round-trip'ы.

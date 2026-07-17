@@ -887,7 +887,7 @@ _INLINE_SAFE_UPLOAD_EXT = {
 }
 
 
-# FIX H1: directories under uploads/ that are intentionally public — loaded by
+# directories under uploads/ that are intentionally public — loaded by
 # the frontend via <img src> without credentials (avatars, stickers, gifs). Files
 # stored directly at uploads/<random>.<ext> (chat ATTACHMENTS) are NOT public and
 # require a valid session + room membership.
@@ -908,7 +908,7 @@ class SafeUploadStaticFiles(StaticFiles):
     served inline (for <img>/<video>/<audio>); anything else is sent as an
     attachment with a neutral Content-Type and nosniff.
 
-    FIX H1: also enforces authorization. Public sub-dirs (avatars/stickers/…) are
+    also enforces authorization. Public sub-dirs (avatars/stickers/…) are
     served openly, but a root-level chat attachment (uploads/<random>.<ext>)
     requires a valid access_token session AND membership of the file's room.
     """
@@ -973,7 +973,7 @@ class SafeUploadStaticFiles(StaticFiles):
             db.close()
 
     async def get_response(self, path, scope):
-        # FIX H1: gate root-level attachments behind session + room membership.
+        # gate root-level attachments behind session + room membership.
         if self._top_dir(path) not in _PUBLIC_UPLOAD_DIRS:
             if not self._authorize_attachment(path, scope):
                 # 404 (not 403) so we don't confirm the file exists to a stranger.
@@ -1178,7 +1178,7 @@ if _PROMETHEUS_AVAILABLE:
 
 if __name__ == "__main__":
     import uvicorn
-    # FIX H6: don't trust X-Forwarded-* unless an explicit proxy allowlist is set
+    # don't trust X-Forwarded-* unless an explicit proxy allowlist is set
     # via TRUSTED_PROXY_IPS. By default request.client.host stays the real TCP
     # peer so forged XFF headers can't bypass per-IP rate limiting.
     _trusted_proxies = os.environ.get("TRUSTED_PROXY_IPS", "").strip()

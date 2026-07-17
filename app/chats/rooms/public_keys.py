@@ -1,4 +1,4 @@
-"""Public-room key escrow endpoints (Variant B).
+"""Public-room key escrow endpoints.
 
 A small, opt-in fast-path for public rooms/channels/public-spaces:
 

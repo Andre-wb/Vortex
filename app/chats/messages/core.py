@@ -36,7 +36,7 @@ from app.peer.connection_manager import manager
 from app.transport.blind_mailbox import deposit_envelope
 
 
-# FIX H4: Shared Origin validation for ALL WebSocket endpoints (anti-CSWSH).
+# Shared Origin validation for ALL WebSocket endpoints (anti-CSWSH).
 # Imported by ws_signal.py, voice.py, sfu.py, stream.py, federation.py.
 def ws_origin_ok(websocket: WebSocket) -> bool:
     """
@@ -283,7 +283,7 @@ async def ws_chat(
         token:     Optional[str] = None,
         db:        Session       = Depends(get_db),
 ):
-    # FIX H4: reject cross-site WS origins (CSWSH) before any processing.
+    # reject cross-site WS origins (CSWSH) before any processing.
     if not ws_origin_ok(websocket):
         await websocket.accept()
         await websocket.close(code=4403)

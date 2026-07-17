@@ -202,7 +202,7 @@ async def qr_check(session_id: str, request: Request, db: Session = Depends(get_
         "presence": user.presence or "online",
         "created_at": user.created_at.isoformat() if user.created_at else "",
     }
-    # FIX L3: set Secure when the request is over HTTPS, not only in production.
+    # set Secure when the request is over HTTPS, not only in production.
     secure_cookie = Config.IS_PRODUCTION or request.url.scheme == "https"
     response = JSONResponse(content=data)
     response.set_cookie("access_token",  qs.access_token,  httponly=True, secure=secure_cookie, samesite="Lax", max_age=3600)

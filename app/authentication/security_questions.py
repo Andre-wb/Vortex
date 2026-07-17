@@ -123,7 +123,7 @@ async def setup_security_questions(
 def _decoy_questions(username: str) -> list[str]:
     """Deterministic decoy questions for a username.
 
-    FIX M8: returned for unknown users (and users without configured questions)
+    returned for unknown users (and users without configured questions)
     so the response is indistinguishable from a real user with 3 questions,
     preventing username enumeration. The choice is stable per-username so an
     attacker cannot tell decoys apart by varying answers across requests.
@@ -141,7 +141,7 @@ async def load_security_questions(
 ):
     """Load questions (not answers!) for a username. Public endpoint.
 
-    FIX M8: always returns exactly 3 questions and never reveals whether the
+    always returns exactly 3 questions and never reveals whether the
     username exists. Real users with configured questions get their own; every
     other case (unknown user / no questions) gets opaque decoys. IP rate-limited.
     """
@@ -174,7 +174,7 @@ async def recover_with_security_questions(
     db: Session = Depends(get_db),
 ):
     """Verify 3 answers and issue JWT if correct."""
-    # FIX M8: IP rate limit + uniform, non-attributing failure so this endpoint
+    # IP rate limit + uniform, non-attributing failure so this endpoint
     # cannot be used to enumerate usernames or brute-force answers cheaply.
     ip = raw_ip_for_ratelimit(request)
     if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
@@ -195,7 +195,7 @@ async def recover_with_security_questions(
             .all()
         )
 
-    # FIX M8: when the user is unknown or has no questions, still burn a few
+    # when the user is unknown or has no questions, still burn a few
     # PBKDF2 verifications against a throwaway hash so timing does not leak
     # existence, then fail with the same generic error used for wrong answers.
     if len(questions) != 3:

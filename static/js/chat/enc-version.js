@@ -1,11 +1,10 @@
 // static/js/chat/enc-version.js
-// Реестр версий шифрования конверта сообщений (ADR-001,
-// docs/adr/001-message-encryption-versions.md).
+// Реестр версий шифрования конверта сообщений.
 //
 //   0 — legacy: прямой AES-256-GCM на roomKey (голый или padded 0x5678)
 //   1 — sender-chain: симметричная HKDF-цепочка, seed = roomKey (текущий формат)
-//   2 — pairwise Double Ratchet (зарезервировано, батчи 5-6)
-//   3 — групповые sender-keys поверх DR (зарезервировано, батч 7)
+//   2 — pairwise Double Ratchet (зарезервировано)
+//   3 — групповые sender-keys поверх DR (зарезервировано)
 //
 // enc_v — поле JSON-конверта. Отсутствие поля = до-версионное сообщение,
 // расшифровка идёт по существующей эвристике (crypto.js:349, :356).

@@ -15,6 +15,8 @@
 
 import { $, api, showAlert, openModal, closeModal } from './utils.js';
 import { getRoomKey, setRoomKey, eciesEncrypt, eciesDecrypt } from './crypto.js';
+import { loadOrCreateDeviceIdentity, applyIssuedCert, certMessage } from './dr/device-identity.js';
+import { loadEd25519Identity, edSign, saveAccountLinkMaterial } from './dr/prekeys.js';
 
 const toHex   = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
 const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
@@ -39,7 +41,7 @@ async function _deriveBackupKey(passphrase, salt) {
 
 // Collect all keys into a bundle
 
-function _collectKeyBundle() {
+function _collectKeyBundle({ includeEd25519 = true } = {}) {
     const bundle = { version: 1, keys: {} };
 
     // X25519 private key (JWK string)
@@ -50,12 +52,13 @@ function _collectKeyBundle() {
         bundle.keys.x25519_private_jwk = privKey;
     }
 
-    // Ed25519 identity private key (JWK string) — ADR-001 батч 4. Долговременная
-    // идентичность бэкапится; состояния DR-сессий (батч 5+) в vault НЕ попадают
-    // (это уничтожило бы forward secrecy, ADR §2.4в). Ключ хранится per-account
-    // (`vortex_ed25519_identity_<userId>`), поэтому читаем по текущему userId.
+    // Ed25519 identity private key (JWK string). Для VAULT-backup (self-restore)
+    // — да; для ЛИНКОВКИ (approver → чужое устройство) — НЕТ (M4b, blast-radius
+    // ADR-003 §3.3: аккаунтный Ed25519-приватный остаётся только на авторизаторах;
+    // линкуемое устройство получает cert, а не корневой ключ). Хранится per-account
+    // (`vortex_ed25519_identity_<userId>`).
     const _uid = window.AppState?.user?.user_id;
-    const edPriv = _uid
+    const edPriv = includeEd25519 && _uid
         ? (localStorage.getItem(`vortex_ed25519_identity_${_uid}`)
            || sessionStorage.getItem(`vortex_ed25519_identity_${_uid}`))
         : null;
@@ -93,7 +96,7 @@ function _restoreKeyBundle(bundle) {
         }
     }
 
-    // Restore Ed25519 identity private key (ADR-001 батч 4) в per-account слот
+    // Restore Ed25519 identity private key в per-account слот
     // текущего пользователя. Публичный ключ выводится из приватного при
     // следующей публикации prekeys.
     if (bundle.keys.ed25519_identity_jwk) {
@@ -242,9 +245,23 @@ export async function requestDeviceLink() {
     const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
     _linkEphemeralPriv = keyPair.privateKey;
 
+    // M4b: тройка device-identity этого устройства — одобряющий подпишет её cert
+    // аккаунтным Ed25519 (нам его приватный НЕ передадут). Cert отложен (нет
+    // локального аккаунтного Ed) — device-identity.js это поддерживает.
+    let triple = {};
+    try {
+        const d = await loadOrCreateDeviceIdentity();
+        triple = {
+            new_device_x3dh_pub: d.x3dhPub,
+            new_device_sign_pub: d.signPub,
+            new_device_client_id: d.deviceId,
+        };
+    } catch (e) { console.debug('[link] device identity unavailable:', e?.message); }
+
     try {
         const resp = await api('POST', '/api/keys/link/request', {
             new_device_pub: toHex(pubRaw),
+            ...triple,
         });
         _linkRequestId = resp.request_id;
         return {
@@ -282,6 +299,16 @@ export function startLinkPoll(requestId, onSuccess, onExpired) {
                 const bundle = await _decryptLinkedKeys(resp.encrypted_keys);
                 if (bundle) {
                     _restoreKeyBundle(bundle);
+                    // M4b: если одобряющий выдал cert (новый флоу) — применяем его и
+                    // сохраняем аккаунт-материал, чтобы публиковать бандл БЕЗ аккаунтного
+                    // Ed25519-приватного. Если cert'а нет (старый одобряющий) —
+                    // _restoreKeyBundle уже восстановил перенесённый Ed25519 (Q3 skew:
+                    // принимаем ЛИБО Ed-перенос, ЛИБО cert — что пришло).
+                    const _uid = window.AppState?.user?.user_id;
+                    if (_uid && resp.device_cert_sig && resp.account_ed_pub && resp.identity_key_sig) {
+                        applyIssuedCert(_uid, resp.device_cert_sig, resp.account_ed_pub);
+                        saveAccountLinkMaterial(_uid, resp.account_ed_pub, resp.identity_key_sig);
+                    }
                     if (onSuccess) onSuccess();
                 }
             } else if (resp.status === 'expired') {
@@ -352,9 +379,17 @@ export async function checkLinkCode(code) {
     }
 }
 
-export async function approveLinkRequest(code, newDevicePubHex) {
-    // Collect current keys
-    const bundle = _collectKeyBundle();
+export async function approveLinkRequest(code, req) {
+    // M4b: если новое устройство прислало тройку И у нас есть аккаунтный Ed25519 —
+    // ПОДПИСЫВАЕМ его device-cert и НЕ переносим аккаунтный Ed25519-приватный
+    // (blast-radius §3.3). Иначе (старое новое-устройство без тройки) — legacy:
+    // переносим Ed, чтобы оно смогло self-sign'ить (Q3 skew-совместимость).
+    const hasTriple = req.new_device_x3dh_pub && req.new_device_sign_pub && req.new_device_client_id;
+    const acctEd = loadEd25519Identity();
+    const acctX25519 = window.AppState?.user?.x25519_public_key;
+    const m4b = !!(hasTriple && acctEd && acctX25519);
+
+    const bundle = _collectKeyBundle({ includeEd25519: !m4b });
     if (!bundle.keys.x25519_private_jwk) {
         showAlert(t('keyBackup.noKeysToTransfer'), 'error');
         return false;
@@ -369,7 +404,7 @@ export async function approveLinkRequest(code, newDevicePubHex) {
     const ephPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', ephPair.publicKey));
 
     const recipientPub = await crypto.subtle.importKey(
-        'raw', fromHex(newDevicePubHex), { name: 'X25519' }, false, []
+        'raw', fromHex(req.new_device_pub), { name: 'X25519' }, false, []
     );
 
     const sharedBits = await crypto.subtle.deriveBits(
@@ -395,10 +430,17 @@ export async function approveLinkRequest(code, newDevicePubHex) {
     packed.set(nonce, 32);
     packed.set(new Uint8Array(ct), 44);
 
+    const approveBody = { encrypted_keys: toHex(packed) };
+    if (m4b) {
+        // Подписываем cert устройства + отдаём аккаунт-материал (публичный, константный):
+        approveBody.device_cert_sig = await edSign(
+            acctEd.privJwk, certMessage(req.new_device_client_id, req.new_device_x3dh_pub, req.new_device_sign_pub));
+        approveBody.account_ed_pub = acctEd.pubHex;
+        approveBody.identity_key_sig = await edSign(acctEd.privJwk, fromHex(acctX25519));
+    }
+
     try {
-        await api('POST', `/api/keys/link/${code}/approve`, {
-            encrypted_keys: toHex(packed),
-        });
+        await api('POST', `/api/keys/link/${code}/approve`, approveBody);
         showAlert(t('keyBackup.keysTransferred'), 'success');
         return true;
     } catch (e) {
@@ -832,7 +874,7 @@ export async function _submitLinkCode() {
     const req = await checkLinkCode(code);
     if (!req) { showAlert(t('keyBackup.invalidOrExpiredCode'), 'error'); return; }
     if (status) status.textContent = t('keyBackup.transferringKeys');
-    const ok = await approveLinkRequest(code, req.new_device_pub);
+    const ok = await approveLinkRequest(code, req);   // req несёт тройку нового устройства (M4b)
     if (ok && status) {
         status.textContent = '';
         const s = document.createElement('span');

@@ -1,9 +1,7 @@
 // static/js/dr/primitives.js
-// Криптографические примитивы Double Ratchet (ADR-001, батч 5).
-// БАЙТ-В-БАЙТ совместимы с референсом app/security/double_ratchet.py —
-// проверяется против app/tests/vectors/dr_vectors.json.
-//
-// Не подключено к продовому коду (батч 5 — только ядро + тесты).
+// Криптографические примитивы Double Ratchet. Байт-в-байт совместимы с
+// референсом app/security/double_ratchet.py (проверяется против
+// app/tests/vectors/dr_vectors.json).
 //
 // X25519: Web Crypto не экспортирует/импортирует X25519 private как raw, но
 // умеет через JWK ({d,x}). Приватный скаляр сериализуем как d (raw hex),

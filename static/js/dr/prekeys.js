@@ -1,20 +1,21 @@
 // static/js/dr/prekeys.js
-// Ed25519-идентичность + публикация X3DH prekey-бандла (ADR-001, батч 4).
+// Ed25519-идентичность + публикация X3DH prekey-бандла.
 //
 // Долговременная идентичность пользователя — ПАРА ключей:
 //   • X25519 identity_key   — уже есть (генерируется при регистрации, auth.js),
-//                             используется для DH в X3DH (батч 6);
+//                             используется для DH в X3DH;
 //   • Ed25519 identity_key  — вводится здесь, подписывает Signed Pre-Key и
 //                             (cross-signature) сам X25519 identity_key.
-// XEdDSA не используется (ADR §2.4г), поэтому подписывающий ключ отдельный.
+// XEdDSA не используется, поэтому подписывающий ключ отдельный.
 //
-// ВНИМАНИЕ по угрозам (ADR §2.4г): серверная верификация подписей проверяет
-// целостность бандла относительно ОПУБЛИКОВАННОГО Ed25519-ключа, но не даёт
+// ВНИМАНИЕ по угрозам: серверная верификация подписей проверяет целостность
+// бандла относительно ОПУБЛИКОВАННОГО Ed25519-ключа, но не даёт
 // substitution-resistance — она появится только с внеполосной верификацией
 // отпечатков по паре (identity_key, identity_key_ed).
 
 import { api } from '../utils.js';
 import { storePrekeyPrivates, hasPrekeyPrivates } from './prekey-store.js';
+import { loadOrCreateDeviceIdentity } from './device-identity.js';
 
 // Идентичность хранится ПЕР-АККАУНТ: слот `vortex_ed25519_identity_<userId>`.
 // Общий слот использовать нельзя — на общем устройстве он мог бы принадлежать
@@ -41,36 +42,59 @@ function _pubHexFromJwk(jwkString) {
     } catch { return null; }
 }
 
+// Аккаунт-уровневый материал для публикации на устройстве БЕЗ аккаунтного
+// Ed25519-приватного (свежелинкованное). `identity_key_sig` (= аккаунтный Ed25519
+// подписал аккаунтный X25519 identity_key) и `account_ed_pub` — КОНСТАНТНЫ на
+// аккаунт и ПУБЛИЧНЫ; одобряющее устройство передаёт их при линковке. Так
+// линкованное устройство публикует полный бандл, не имея аккаунтного приватного.
+const ACCT_LINK_PREFIX = 'vortex_account_link_material';   // + `_${userId}`
+function _acctLinkSlot(userId) { return `${ACCT_LINK_PREFIX}_${userId}`; }
+
+/** Сохраняет аккаунт-материал линковки (account_ed_pub + identity_key_sig). */
+export function saveAccountLinkMaterial(userId, accountEdPub, identityKeySig) {
+    localStorage.setItem(_acctLinkSlot(userId), JSON.stringify({ accountEdPub, identityKeySig }));
+}
+
+/** @returns {{accountEdPub:string, identityKeySig:string}|null} */
+export function loadAccountLinkMaterial(userId) {
+    try { return JSON.parse(localStorage.getItem(_acctLinkSlot(userId))); } catch { return null; }
+}
+
 // Ed25519 identity
 
 /**
- * Загружает Ed25519-идентичность из хранилища или создаёт и сохраняет новую.
- * Приватный ключ хранится как JWK-строка (как X25519, auth.js), публичный — hex.
+ * Загружает Ed25519-идентичность аккаунта из хранилища. Возвращает null, если
+ * её нет — НЕ генерирует новую (иначе на logout→login без восстановления
+ * молча появилась бы другая идентичность). Генерация — только при регистрации
+ * (loadOrCreateEd25519Identity). Публичный ключ выводится из приватного JWK.
+ * @returns {{privJwk: string, pubHex: string}|null}
+ */
+export function loadEd25519Identity() {
+    const userId = window.AppState?.user?.user_id;
+    if (!userId) return null;
+    const slot = _edSlot(userId);
+    const priv = localStorage.getItem(slot) || sessionStorage.getItem(slot);
+    if (!priv) return null;
+    const pubHex = _pubHexFromJwk(priv);
+    if (!pubHex) return null;
+    sessionStorage.setItem(slot, priv);
+    return { privJwk: priv, pubHex };
+}
+
+/**
+ * Возвращает Ed25519-идентичность аккаунта, СОЗДАВАЯ её, если отсутствует.
+ * Вызывать только при регистрации — где создание новой идентичности корректно.
  * @returns {Promise<{privJwk: string, pubHex: string}>}
  */
 export async function loadOrCreateEd25519Identity() {
+    const existing = loadEd25519Identity();
+    if (existing) return existing;
     const userId = window.AppState?.user?.user_id;
     if (!userId) throw new Error('Ed25519 identity requires a logged-in user');
     const slot = _edSlot(userId);
-
-    const existingPriv = localStorage.getItem(slot) || sessionStorage.getItem(slot);
-    if (existingPriv) {
-        // Публичный ключ всегда выводим из приватного JWK (поле x) — отдельно
-        // не храним, что делает restore из vault (только priv) самодостаточным.
-        const pubHex = _pubHexFromJwk(existingPriv);
-        if (pubHex) {
-            sessionStorage.setItem(slot, existingPriv);   // переживает reload вкладки
-            return { privJwk: existingPriv, pubHex };
-        }
-    }
-
     const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
     const pubRaw = await crypto.subtle.exportKey('raw', pair.publicKey);
     const privJwk = JSON.stringify(await crypto.subtle.exportKey('jwk', pair.privateKey));
-
-    // Незашифрованная копия (как X25519 в auth.js). Зашифрованную passphrase-копию
-    // делает vault (key_backup.js) — сюда пароль не тянем, чтобы работал и путь
-    // восстановления сессии без пароля.
     localStorage.setItem(slot, privJwk);
     sessionStorage.setItem(slot, privJwk);
     return { privJwk, pubHex: toHex(pubRaw) };
@@ -114,7 +138,7 @@ export async function edVerify(pubHex, messageBytes, sigHex) {
 
 const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
 
-// SPK id фиксирован (одна активная пара на аккаунт); ротация SPK — вне скоупа 6a.
+// SPK id фиксирован (одна активная пара на аккаунт); ротация SPK не поддерживается.
 const SPK_ID = 1;
 
 /** Генерирует X25519 пару. @returns {Promise<{pubHex, privJwk}>} */
@@ -136,21 +160,52 @@ function _nextOpkId(userId, count) {
 /**
  * Собирает prekey-бандл: X25519 SPK + подпись Ed25519, cross-signature на
  * X25519 identity_key, и пачку one-time prekeys. Приватные ключи SPK/OPK
- * персистятся локально (prekey-store), чтобы отвечать на входящие X3DH (6a).
+ * персистятся локально (prekey-store), чтобы отвечать на входящие X3DH.
  * @param {string} identityKeyHex — X25519 публичный identity_key пользователя
  * @param {number} opkCount
  * @returns {Promise<object>} тело запроса для POST /api/keys/prekeys/publish
  */
 export async function buildPrekeyBundle(identityKeyHex, opkCount = OPK_BATCH) {
-    const { privJwk: edPriv, pubHex: edPub } = await loadOrCreateEd25519Identity();
+    const userId = window.AppState?.user?.user_id;
+
+    // Device-identity тройка: device X3DH-ключ, device signing-ключ и
+    // authorization-cert аккаунта над ними. Цепочка доверия:
+    //   account Ed25519 ──cert──▶ device signing key ──sign──▶ SPK.
+    // SPK подписывает device signing-ключ; cert авторизует его.
+    let device = null;
+    try {
+        device = await loadOrCreateDeviceIdentity();
+    } catch (e) {
+        console.debug('[prekeys] device identity unavailable:', e?.message);
+    }
+
+    // Аккаунт-уровневый материал (identity_key_ed + identity_key_sig) — два пути:
+    //  • authorizer/primary: держит аккаунтный Ed25519-приватный → ВЫЧИСЛЯЕТ idSig;
+    //  • linked (без аккаунтного Ed-приватного): берёт account_ed_pub + idSig из
+    //    linking-payload (константны на аккаунт, публичны; переданы одобряющим).
+    // idSig аккаунт-уровневый и НЕ опционален — это binding account-X25519↔account-Ed,
+    // который проверяет sender-гейт; ослаблять его нельзя.
+    const identity = loadEd25519Identity();
+    let edPub, idSig;
+    if (identity) {
+        edPub = identity.pubHex;
+        idSig = await edSign(identity.privJwk, fromHex(identityKeyHex));
+    } else {
+        const mat = loadAccountLinkMaterial(userId);
+        if (!mat?.accountEdPub || !mat?.identityKeySig) {
+            throw new Error('no account signing material — cannot publish prekeys');
+        }
+        edPub = mat.accountEdPub;
+        idSig = mat.identityKeySig;
+    }
 
     const spk = await _genX25519();
-    const spkSig = await edSign(edPriv, fromHex(spk.pubHex));
-    // Cross-signature: Ed25519 идентичность подписывает X25519 identity_key,
-    // связывая два ключа (ADR §2.4г).
-    const idSig = await edSign(edPriv, fromHex(identityKeyHex));
+    // SPK подписан device signing-ключом (cert его авторизует). Fallback на
+    // аккаунтный Ed — только если device-идентичности нет И есть аккаунтный Ed.
+    const spkSigner = device ? device.signPriv : (identity ? identity.privJwk : null);
+    if (!spkSigner) throw new Error('no signing key for SPK — cannot publish prekeys');
+    const spkSig = await edSign(spkSigner, fromHex(spk.pubHex));
 
-    const userId = window.AppState?.user?.user_id;
     const baseId = _nextOpkId(userId, opkCount);
     const oneTimePrekeys = [];
     const opkPrivates = [];
@@ -165,16 +220,22 @@ export async function buildPrekeyBundle(identityKeyHex, opkCount = OPK_BATCH) {
     // приватных бессмысленно (не сможем ответить на X3DH).
     storePrekeyPrivates({ id: SPK_ID, jwk: spk.privJwk }, opkPrivates);
 
-    return {
+    const body = {
         identity_key:      identityKeyHex,
         signed_prekey:     spk.pubHex,
         signed_prekey_sig: spkSig,
         signed_prekey_id:  SPK_ID,
         identity_key_ed:   edPub,
         identity_key_sig:  idSig,
-        supports_v2:       true,   // этот клиент умеет принимать v2 (ADR-001 6b)
+        supports_v2:       true,   // этот клиент умеет принимать v2
         one_time_prekeys:  oneTimePrekeys,
     };
+    if (device) {
+        body.device_x3dh_pub  = device.x3dhPub;
+        body.device_sign_pub  = device.signPub;
+        body.device_cert_sig  = device.certSig;   // null, если аккаунтный Ed25519 недоступен (свежелинкованное устройство)
+    }
+    return body;
 }
 
 /**
@@ -200,11 +261,11 @@ export async function ensurePrekeysPublished() {
     const needsPublish = !status?.published
         || status.low_opk_warning
         || (status.available_opk_count ?? 0) < LOW_OPK_THRESHOLD
-        // Пользователи батча 4 опубликовали публичные, но не имеют локальных
+        // Клиент опубликовал публичные, но не имеет локальных
         // приватных SPK/OPK — форсируем один republish, чтобы уметь отвечать на v2.
-        // Этот арм self-heal'ит устройство, потерявшее localStorage (гейт #3).
+        // Этот арм self-heal'ит устройство, потерявшее localStorage.
         || !hasPrekeyPrivates()
-        // Опубликованный бандл ещё не заявляет v2-приём (пред-6b) — republish,
+        // Опубликованный бандл ещё не заявляет v2-приём — republish,
         // чтобы отправители знали, что нам можно слать v2.
         || status.supports_v2 !== true;
     if (!needsPublish) return false;

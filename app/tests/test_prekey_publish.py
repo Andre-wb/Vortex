@@ -1,6 +1,6 @@
 """Тесты публикации prekey-бандлов и серверной верификации подписей.
 
-ADR-001, батч 4. Проверяют verify_spk_signature (первое живое использование
+Проверяют verify_spk_signature (первое живое использование
 double_ratchet.py), режимы warn-only/enforce, cross-signature identity_key_sig,
 хранение Ed25519-ключа и расход one-time prekeys.
 """
@@ -184,7 +184,7 @@ class TestWarnOnly:
 
 
 class TestSupportsV2Capability:
-    """ADR-001 батч 6b: capability-флаг supports_v2 хранится и отдаётся в
+    """Capability-флаг supports_v2 хранится и отдаётся в
     fetch/status, чтобы отправитель знал, можно ли слать адресату v2."""
 
     def test_supports_v2_stored_and_returned(self, warn_only):

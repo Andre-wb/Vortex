@@ -184,6 +184,20 @@ async function _tryLoadKey(password) {
             if (pubHex) window.AppState.user.x25519_public_key = pubHex;
         }
     }
+
+    // Аккаунтный Ed25519 (корень binding-цепочки): восстанавливаем
+    // из `_enc` по паролю, чтобы не форкнуть его на boot. Плюс миграция: если
+    // плейнтекст есть, а `_enc` ещё нет — создаём `_enc`.
+    const uid = window.AppState.user?.user_id;
+    if (uid) {
+        try {
+            const { restoreEd25519Enc, saveEd25519Enc } = await import('./dr/identity-persist.js');
+            await restoreEd25519Enc(uid, password);
+            if (password && !localStorage.getItem(`vortex_ed25519_identity_${uid}_enc`)) {
+                await saveEd25519Enc(uid, password);
+            }
+        } catch (e) { console.debug('Ed25519 identity restore skipped:', e?.message); }
+    }
 }
 
 // MULTI-ACCOUNT (до 4 аккаунтов)
@@ -490,6 +504,7 @@ export async function removeAccount(userId) {
     localStorage.removeItem(`vortex_dr_opk_next_${userId}`);
     // Удаление history-ключа делает кэш v2-истории аккаунта нечитаемым (=wipe).
     localStorage.removeItem(`vortex_dr_hist_key_${userId}`);
+    localStorage.removeItem(`vortex_device_identity_${userId}`);   // Sesame device identity
     localStorage.removeItem(`vortex_rk_backup_${userId}`);
 }
 
@@ -876,6 +891,16 @@ export async function doRegister() {
             const uid = window.AppState.user?.user_id;
             if (uid) localStorage.setItem(`vortex_x25519_priv_${uid}`, privateKeyJwk);
             console.info('X25519 keypair создан, приватный ключ зашифрован в localStorage');
+
+            // Аккаунтный Ed25519 (корень binding-цепочки): создаём
+            // при регистрации и `_enc`-бэкапим паролем, чтобы он переживал logout
+            // и НЕ форкался. Иначе он бы лениво создавался на boot без `_enc`.
+            try {
+                const { loadOrCreateEd25519Identity } = await import('./dr/prekeys.js');
+                await loadOrCreateEd25519Identity();
+                const { saveEd25519Enc } = await import('./dr/identity-persist.js');
+                if (uid) await saveEd25519Enc(uid, password);
+            } catch (e) { console.warn('Ed25519 identity setup failed:', e?.message); }
         } catch (e) {
             console.warn('Не удалось сохранить приватный ключ:', e);
         }
@@ -989,25 +1014,31 @@ export async function doLogout() {
     if (window.AppState.notifWs) { window.AppState.notifWs.onclose = null; window.AppState.notifWs.close(); window.AppState.notifWs = null; }
     if (window.AppState.signalWs) { window.AppState.signalWs.onclose = null; window.AppState.signalWs.close(); window.AppState.signalWs = null; }
 
-    // FIX M7: logout must wipe sensitive client-side state, not just in-memory vars.
+    // logout must wipe sensitive client-side state, not just in-memory vars.
     // Otherwise private keys / room keys / account list survive in the browser and the
     // SW API cache may still hold authenticated responses for the next person on the device.
     try {
         // Static sensitive keys (private keys, device keys, account list, recovery flags)
+        // Пароль-шифрованные `_enc`-копии аккаунтных
+        // идентичностей ПЕРЕЖИВАЮТ logout (плейнтекст ниже чистится) — чтобы
+        // корень binding-цепочки (Ed25519) и X25519 не терялись/не форкались
+        // на рутинном logout→login. At-rest без пароля нечитаемо.
         const _sensitiveKeys = [
-            'vortex_x25519_priv', 'vortex_x25519_priv_enc', 'vortex_x25519', 'vortex_x25519_pub',
+            'vortex_x25519_priv', 'vortex_x25519', 'vortex_x25519_pub',   // НЕ _enc
             'vortex_device_priv_jwk', 'vortex_device_pub', 'vortex_device_id',
             'vortex_accounts', 'vortex_current_account_id',
             'vortex_sq_done', 'vortex_pw_check_ts',
         ];
         for (const k of _sensitiveKeys) localStorage.removeItem(k);
-        // Prefix-matched sensitive keys: per-user private keys (vortex_x25519_priv_<id>),
-        // room keys (vortex_rk_<room>) and per-account room-key backups (vortex_rk_backup_<id>).
+        // Prefix-matched sensitive keys: per-user private keys, room keys, prekey
+        // privates, DR state. Исключаем `_enc`-recovery-копии (`*_enc`) —
+        // vortex_x25519_priv_enc и vortex_ed25519_identity_<id>_enc переживают.
         for (let i = localStorage.length - 1; i >= 0; i--) {
             const k = localStorage.key(i);
             if (k && (k.startsWith('vortex_x25519_priv_') || k.startsWith('vortex_rk_')
                       || k.startsWith('vortex_ed25519_identity_')
-                      || k.startsWith('vortex_dr_'))) {   // приватные prekey (ADR-001 батч 6)
+                      || k.startsWith('vortex_dr_'))
+                  && !k.endsWith('_enc')) {   // сохраняем зашифрованные recovery-копии
                 localStorage.removeItem(k);
             }
         }

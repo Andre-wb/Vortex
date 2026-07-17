@@ -134,12 +134,12 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         "/api/authentication/security-questions/load",
         "/api/authentication/security-questions/recover",
         "/api/authentication/security-questions/setup",
-        # FIX M6: neither /api/authentication/profile nor /avatar is CSRF-exempt
+        # neither /api/authentication/profile nor /avatar is CSRF-exempt
         # anymore. profile is called via the api() fetch wrapper (sends
         # X-CSRF-Token on PUT); the three avatar-upload call sites now also send
         # X-CSRF-Token: window.AppState.csrfToken, so enforcing CSRF on both does
         # not break the client.
-        # FIX H7: /api/authentication/verify-password and /change-password are
+        # /api/authentication/verify-password and /change-password are
         # CSRF-defended differently. verify-password is a pure read (no state
         # change → no CSRF impact); change-password now mandates current-password
         # re-authentication (a CSRF attacker cannot supply the victim's current

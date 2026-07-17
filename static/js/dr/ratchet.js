@@ -1,7 +1,6 @@
 // static/js/dr/ratchet.js
-// Double Ratchet — состояние и операции encrypt/decrypt (ADR-001, батч 5).
+// Double Ratchet — состояние и операции encrypt/decrypt.
 // Соответствует RatchetState / ratchet_* в app/security/double_ratchet.py.
-// Не подключено к продовому коду.
 //
 // RatchetState — обычный объект (мутируется на месте, как в Python):
 //   dhSendingPriv     CryptoKey (X25519 private, extractable)

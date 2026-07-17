@@ -48,10 +48,10 @@ class Room(Base):
     # Закреплённое сообщение
     pinned_message_id = Column(Integer, ForeignKey("messages.id", ondelete="SET NULL"), nullable=True)
 
-    # Автоудаление сообщений (Feature 3: disappearing messages per-chat)
+    # Автоудаление сообщений (disappearing messages per-chat)
     auto_delete_seconds = Column(Integer, nullable=True)  # 0/None = disabled, 30, 300, 3600, 86400
 
-    # Медленный режим (Feature 4: slow mode for groups)
+    # Медленный режим (slow mode for groups)
     slow_mode_seconds = Column(Integer, default=0)  # 0 = disabled
 
     # Аватар комнаты

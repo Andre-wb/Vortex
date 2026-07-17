@@ -116,7 +116,7 @@ class Config:
     # BMP Delivery — route message delivery through Blind Mailbox Protocol
     BMP_DELIVERY_ENABLED = os.getenv("BMP_DELIVERY", "true").lower() in ("true", "1", "yes")
 
-    # ADR-001 batch 4: verify Signed Pre-Key / identity-key Ed25519 signatures on
+    # verify Signed Pre-Key / identity-key Ed25519 signatures on
     # publish. "false" (default) = warn-only: log invalid/missing signatures but
     # still store the bundle (safe rollout). "true" = enforce: reject bundles with
     # a missing or invalid signature. Rollback = set back to false; no client redeploy.

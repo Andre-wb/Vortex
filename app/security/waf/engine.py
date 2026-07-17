@@ -120,7 +120,7 @@ class WAFEngine:
         body = request_data.get('body', '')
         if body:
             if len(body) > self.max_content_length:
-                # FIX M4: an over-limit body is now a blocking finding ('high')
+                # an over-limit body is now a blocking finding ('high')
                 # rather than 'medium' (which the middleware never blocked). The
                 # ASGI layer already caps absolute size with a 413; this guards
                 # the analysis path for content-type-mismatched oversized bodies.
@@ -231,7 +231,7 @@ class WAFEngine:
                             'description': f'Dangerous file extension {ext} in multipart upload',
                         })
                         break
-            # FIX M5: the resumable upload-init posts the intended filename as a
+            # the resumable upload-init posts the intended filename as a
             # TEXT form field named "file_name" (not a filename= token), so the
             # check above missed it. Inspect that field value for web-shell
             # extensions too. Compare against the original (un-decoded) body so

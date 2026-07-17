@@ -1,11 +1,10 @@
 // static/js/dr/x3dh.js
 // X3DH (Extended Triple Diffie-Hellman) — начальный обмен ключами.
 // Соответствует x3dh_initiate/x3dh_respond в app/security/double_ratchet.py.
-// ADR-001, батч 5. Не подключено к продовому коду.
 //
 // Подпись Signed Pre-Key здесь НЕ проверяется — верификация идентичности
-// делается отдельно (батч 4: серверная verify_spk_signature; клиентская
-// проверка бандла — батч 6). X3DH тут только выполняет DH-обмен.
+// делается отдельно (сервер при публикации, клиент при получении бандла).
+// X3DH тут только выполняет DH-обмен.
 
 import { generateX25519, dh, kdfX3dh, concatBytes, X3DH_F } from './primitives.js';
 

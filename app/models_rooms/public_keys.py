@@ -1,4 +1,4 @@
-"""Server-held room key for PUBLIC rooms only (Variant B escrow).
+"""Server-held room key for PUBLIC rooms only (escrow).
 
 Design goal: in public rooms, channels, and public spaces, members can
 catch up offline without waiting for an online peer to ECIES-wrap the

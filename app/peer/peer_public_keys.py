@@ -1,4 +1,4 @@
-"""Cross-node replication of public-room keys (Variant B federation).
+"""Cross-node replication of public-room keys (federation).
 
 When a node creates/rotates/invalidates the server-held key for a public
 room, it fans the change out to every active peer in the registry over

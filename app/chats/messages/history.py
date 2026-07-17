@@ -112,7 +112,7 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
         if m.is_scheduled:
             continue
 
-        # Polls (Feature 1) — pass as poll
+        # Polls — pass as poll
         if m.msg_type == MessageType.SYSTEM and m.content_encrypted:
             try:
                 poll_data = json.loads(m.content_encrypted.decode())

@@ -1,11 +1,12 @@
 // static/js/chat/websocket.js — WebSocket connection management + message handler
 
-import { scrollToBottom } from '../utils.js';
+import { scrollToBottom, getClientDeviceId } from '../utils.js';
 import { renderRoomsList } from '../rooms.js';
 import { showWelcome } from '../ui.js';
 import { eciesDecrypt, eciesEncrypt, getRoomKey, setRoomKey, clearRatchet } from '../crypto.js';
 import { isKnownEncVersion } from './enc-version.js';
 import { decryptMessage, decryptV2WithHistory, getV2Cached } from './message-cipher.js';
+import { selectForThisDevice, fanoutSender } from '../dr/v2-fanout.js';
 import {
     appendMessage,
     appendFileMessage,
@@ -781,22 +782,35 @@ async function _decryptAndAppend(msg) {
 
         if (msg.ciphertext) {
             if (msg.enc_v === 2) {
-                // v2 Double Ratchet (ADR-001, батч 6a) — только 1:1 DM. Приём:
-                // клиент умеет расшифровать, но сам v2 не отправляет (до 6b).
+                // v2 Double Ratchet — только 1:1 DM, device-rooted fan-out.
                 if (S.currentRoom?.is_dm) {
-                    const peerPub = S.currentRoom?.dm_user?.x25519_public_key;
-                    const _myId = S.user?.user_id ?? S.user?.id;
-                    const _isOwn = msg.sender_id != null && msg.sender_id === _myId;
+                    // Эхо определяется по УСТРОЙСTВУ-отправителю (`from`), не по
+                    // аккаунту: сообщение со СВОЕГО ДРУГОГО устройства имеет
+                    // sender_id === мой, но это НЕ эхо — под-конверт для нас есть
+                    // (own-device fan-out), его надо расшифровать.
+                    const senderDeviceId = fanoutSender(msg.ciphertext);
+                    const _isEcho = senderDeviceId != null && senderDeviceId === getClientDeviceId();
                     try {
-                        if (_isOwn) {
-                            // Своё эхо: расшифровать по receiving-цепочке нельзя
-                            // (DR асимметричен) — только из кэша (заполнен по ACK).
+                        if (_isEcho) {
+                            // Своё эхо С ЭТОГО устройства: своего под-конверта нет
+                            // (себя исключили из fan-out), расшифровать по receiving-
+                            // цепочке нельзя (DR асимметричен) — только из кэша.
                             const cached = await getV2Cached(S.currentRoom.id, msg.msg_id);
                             msg.text = cached != null ? cached : `[${t('chat.decryptError')}]`;
                         } else {
-                            // Cache-first: история/дубли читаются из локального стора,
-                            // не расходуя ключи ратчета повторно (ADR-001 §2.7).
-                            msg.text = await decryptV2WithHistory(msg.ciphertext, S.currentRoom.id, msg.msg_id, peerPub);
+                            // Fan-out blob: выбираем свой под-конверт по своему
+                            // client_device_id, сессию ключуем по устройству-
+                            // отправителю (`from`). Ветвь покрывает и пира, и СВОЁ
+                            // ДРУГОЕ устройство (own-device fan-out).
+                            const inner = selectForThisDevice(msg.ciphertext);
+                            if (inner == null || senderDeviceId == null) {
+                                msg.text = `[${t('chat.decryptError')}]`;
+                            } else {
+                                // Cache-first: история/дубли читаются из локального
+                                // стора, не расходуя ключи ратчета повторно.
+                                msg.text = await decryptV2WithHistory(
+                                    inner, S.currentRoom.id, msg.msg_id, msg.sender_id, senderDeviceId);
+                            }
                         }
                     } catch {
                         msg.text = `[${t('chat.decryptError')}]`;
@@ -805,7 +819,7 @@ async function _decryptAndAppend(msg) {
                     msg.text = `[${t('chat.unsupportedEncVersion')}]`;
                 }
             } else if (!isKnownEncVersion(msg.enc_v)) {
-                // Более новая версия протокола (ADR-001): не пытаемся
+                // Более новая версия протокола: не пытаемся
                 // расшифровать чужой формат эвристиками — просим обновиться.
                 msg.text = `[${t('chat.unsupportedEncVersion')}]`;
             } else if (roomKey) {

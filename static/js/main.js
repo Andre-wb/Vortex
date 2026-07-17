@@ -189,7 +189,7 @@ window.bootApp = async function bootApp() {
         console.warn('ZK crypto init failed:', e.message);
     }
 
-    // X3DH prekey bundle (ADR-001 батч 4): лениво публикуем Ed25519-идентичность
+    // X3DH prekey bundle: лениво публикуем Ed25519-идентичность
     // и prekeys, если ещё не опубликованы. Неблокирующе — сбой не мешает boot.
     (async () => {
         try {

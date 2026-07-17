@@ -42,7 +42,7 @@ class Message(Base):
     # Сервер может проверить целостность без расшифровки
     content_hash      = Column(LargeBinary(32),   nullable=True)
 
-    # Версия схемы шифрования конверта (реестр enc_v в ADR-001).
+    # Версия схемы шифрования конверта.
     # NULL — сообщение до введения версионирования (клиент различает
     # форматы эвристикой). Сервер значение не интерпретирует.
     enc_version       = Column(Integer,           nullable=True)
@@ -67,7 +67,7 @@ class Message(Base):
     # Самоуничтожающиеся сообщения
     expires_at        = Column(DateTime,          nullable=True)
 
-    # Отложенные сообщения (Feature 2: scheduled messages)
+    # Отложенные сообщения (scheduled messages)
     scheduled_at      = Column(DateTime,          nullable=True)  # Когда доставить
     is_scheduled      = Column(Boolean,           default=False)
 
@@ -156,7 +156,7 @@ class MessageEditHistory(Base):
     message_id     = Column(Integer,  ForeignKey("messages.id", ondelete="CASCADE"),
                             nullable=False, index=True)
     ciphertext_hex = Column(Text,     nullable=False)
-    # enc_v предыдущей версии сообщения (ADR-001); NULL — до-версионная запись
+    # enc_v предыдущей версии сообщения; NULL — до-версионная запись
     enc_version    = Column(Integer,  nullable=True)
     edited_at      = Column(DateTime, nullable=False,
                             default=lambda: datetime.now(timezone.utc))

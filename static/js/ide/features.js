@@ -68,7 +68,7 @@ function formatUptime(secs) {
   return Math.floor(secs / 3600) + 'h ' + Math.floor((secs % 3600) / 60) + 'm';
 }
 
-//  Feature 10: Bot Versioning + Rollback
+//  Bot Versioning + Rollback
 
 async function ideShowVersions() {
     if (!IDE.current) return;
@@ -172,7 +172,7 @@ async function ideRollback(version) {
     }
 }
 
-//  Feature 11: Visual Flow Graph
+//  Visual Flow Graph
 
 async function ideShowGraph() {
     if (!IDE.current) return;

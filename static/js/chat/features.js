@@ -139,7 +139,7 @@ window.toggleMuteRoom = async function() {
     } catch(e) { console.error('Mute error:', e); }
 };
 
-// Feature 1: Polls — Telegram-style creation, voting, management
+// Polls — Telegram-style creation, voting, management
 
 export function openPollModal() {
     _resetPollModal();
@@ -362,7 +362,7 @@ window.sendPaymentRequest = function() {
     if (window.closeModal) window.closeModal('payment-modal');
 };
 
-// Feature 2: Scheduled messages
+// Scheduled messages
 
 let _scheduleMode = false;
 let _scheduleDatetime = null;
@@ -407,7 +407,7 @@ export function resetScheduleMode() {
     if (picker) picker.style.display = 'none';
 }
 
-// Feature 3 & 4: Auto-delete & Slow mode indicators
+// Auto-delete & Slow mode indicators
 
 function _fmtSeconds(s) {
     if (s >= 86400) return t('chat.days').replace('{n}', Math.round(s / 86400));
@@ -462,7 +462,7 @@ export function _startSlowModeCooldown(seconds) {
     if (input) input.disabled = true;
 }
 
-// Feature 3: Auto-delete settings UI
+// Auto-delete settings UI
 
 window.showAutoDeleteMenu = async function() {
     const S = window.AppState;
@@ -487,7 +487,7 @@ window.showAutoDeleteMenu = async function() {
     } catch (e) { window.vxAlert?.(e.message) || alert(e.message); }
 };
 
-// Feature 4: Slow mode settings UI
+// Slow mode settings UI
 
 window.showSlowModeMenu = async function() {
     const S = window.AppState;
@@ -512,7 +512,7 @@ window.showSlowModeMenu = async function() {
     } catch (e) { window.vxAlert?.(e.message) || alert(e.message); }
 };
 
-// Feature 5: Chat Export
+// Chat Export
 
 export async function exportChat() {
     const S = window.AppState;

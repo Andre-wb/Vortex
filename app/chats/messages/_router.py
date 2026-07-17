@@ -47,7 +47,7 @@ def parse_client_ts(raw: str | None) -> datetime | None:
 
 
 def parse_enc_v(data: dict) -> int | None:
-    """Validate the envelope encryption-version field (ADR-001, enc_v registry).
+    """Validate the envelope encryption-version field.
 
     Returns the version as int when it is a sane small integer, otherwise None
     (treated as a pre-versioning envelope). Unknown-but-valid versions are kept

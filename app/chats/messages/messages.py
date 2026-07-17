@@ -31,7 +31,7 @@ from app.transport.blind_mailbox import deposit_envelope
 
 logger = logging.getLogger(__name__)
 
-# FIX M3: upper bound on E2E ciphertext (hex string). Mirrors the 64 KB WS
+# upper bound on E2E ciphertext (hex string). Mirrors the 64 KB WS
 # frame cap in core.py — rejects oversized payloads before decode/store/broadcast.
 MAX_CIPHERTEXT_HEX_LEN = 65536  # 64 KB of hex chars
 
@@ -170,7 +170,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         })
         return
 
-    # FIX M3: reject oversized ciphertext before decode/store/broadcast.
+    # reject oversized ciphertext before decode/store/broadcast.
     if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
         await manager.send_to_user(room_id, user.id, {
             "type": "error", "message": "Ciphertext too large"
@@ -433,7 +433,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         })
         return
 
-    # FIX M3: reject oversized ciphertext before decode/store/broadcast.
+    # reject oversized ciphertext before decode/store/broadcast.
     if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
         await manager.send_to_user(room_id, user.id, {
             "type": "error", "message": "Ciphertext too large"
@@ -623,7 +623,7 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
     if not msg_id or not ciphertext_hex or len(ciphertext_hex) < 48:
         return
 
-    # FIX M3: reject oversized ciphertext before decode/store/broadcast.
+    # reject oversized ciphertext before decode/store/broadcast.
     if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
         return
 

@@ -21,7 +21,7 @@ from typing import Optional
 from app.database import get_db
 from app.models import User
 from app.models_rooms import Message, MessageType, Room, RoomMember, MessageReaction, MessageEditHistory
-from app.models_rooms.blocks import BlockedUser  # FIX M1: block enforcement on DM send
+from app.models_rooms.blocks import BlockedUser  # block enforcement on DM send
 
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
@@ -29,7 +29,7 @@ from app.security.crypto import hash_message
 from app.security.sealed_sender import compute_sender_pseudo
 
 from app.chats.messages._router import router, utc_iso
-from app.chats.messages.actions import is_valid_reaction_emoji  # FIX L4: emoji whitelist
+from app.chats.messages.actions import is_valid_reaction_emoji  # emoji whitelist
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ async def send_message(
 
     _require_member(room_id, u.id, db)
 
-    # FIX M1: в DM-комнате запрещаем отправку, если получатель заблокировал
+    # в DM-комнате запрещаем отправку, если получатель заблокировал
     # отправителя. (WS send-path в messages.py принадлежит другому агенту —
     # см. residual.)
     if room.is_dm:
@@ -325,7 +325,7 @@ async def react_to_message(
         raise HTTPException(404, "Message not found")
 
     emoji = body.emoji.strip()
-    # FIX L4: валидируем по emoji/grapheme whitelist (раньше — только обрезка до 10);
+    # валидируем по emoji/grapheme whitelist (раньше — только обрезка до 10);
     # отвергаем HTML (<, >, ", &) и нелегитимный текст, чтобы исключить XSS-вектор.
     if not is_valid_reaction_emoji(emoji):
         raise HTTPException(422, "Invalid emoji")

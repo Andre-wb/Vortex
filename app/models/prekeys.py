@@ -2,8 +2,8 @@
 app/models/prekeys.py — Модели для хранения Pre-Key Bundle (X3DH / Double Ratchet).
 
 Таблицы:
-  prekey_bundles  — Identity Key + Signed Pre-Key пользователя (одна запись на user).
-  onetime_prekeys — Одноразовые Pre-Keys (пачка на пользователя, каждый используется один раз).
+  prekey_bundles  — Identity Key + Signed Pre-Key (одна запись на устройство: (user_id, device_id)).
+  onetime_prekeys — Одноразовые Pre-Keys (пачка на устройство, каждый используется один раз).
 """
 from __future__ import annotations
 
@@ -16,22 +16,29 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     LargeBinary,
+    String,
+    UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
 
 from app.base import Base
 
 
 class PreKeyBundle(Base):
-    """Хранит Identity Key и Signed Pre-Key пользователя.
+    """Хранит Identity Key и Signed Pre-Key устройства.
 
-    Каждый пользователь публикует один набор (identity_key, signed_prekey)
-    и периодически ротирует signed_prekey. Identity Key фиксирован на время
-    жизни аккаунта (или устройства).
+    Каждое устройство аккаунта публикует свой набор (signed_prekey + OPK);
+    строки различаются по device_id (FK → user_devices.id). Ключ уникальности —
+    (user_id, device_id), а не user_id: у аккаунта может быть несколько устройств.
+    device_id=NULL — бандл без привязки к устройству (клиент без стабильного
+    client_device_id либо доступ из тестового клиента без заголовка X-Device-Id).
+
+    identity_key остаётся АККАУНТНЫМ X25519 (общий для устройств): переход на
+    per-device identity требует проверки device→account cert, что придёт с fan-out.
 
     Attributes:
         user_id:           ID пользователя (FK → users.id).
-        identity_key:      32 байта — X25519 публичный Identity Key.
+        device_id:         ID устройства (FK → user_devices.id) или NULL.
+        identity_key:      32 байта — X25519 публичный Identity Key аккаунта.
         signed_prekey:     32 байта — X25519 публичный Signed Pre-Key.
         signed_prekey_sig: 64 байта — Ed25519 подпись signed_prekey ключом identity_key.
         signed_prekey_id:  идентификатор SPK для ротации.
@@ -39,31 +46,48 @@ class PreKeyBundle(Base):
         updated_at:        время последнего обновления SPK.
     """
     __tablename__ = "prekey_bundles"
+    __table_args__ = (
+        UniqueConstraint("user_id", "device_id", name="uq_prekey_bundle_user_device"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
-        unique=True,
+        index=True,
+    )
+    device_id = Column(
+        Integer,
+        ForeignKey("user_devices.id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     identity_key = Column(LargeBinary(32), nullable=False)
     signed_prekey = Column(LargeBinary(32), nullable=False)
     signed_prekey_sig = Column(LargeBinary(64), nullable=False)
     signed_prekey_id = Column(Integer, nullable=False, default=0)
-    # ADR-001 batch 4: separate Ed25519 identity public key (XEdDSA is out of
+    # Separate Ed25519 identity public key (XEdDSA is out of
     # scope, so identity_key above is X25519-for-DH only and cannot itself sign).
     # signed_prekey_sig is verified against this key; identity_key_sig binds the
     # X25519 identity_key to this Ed25519 identity (Ed25519 signs the X25519 pub),
     # so a future out-of-band Ed25519 fingerprint transitively covers the DH key.
-    # Nullable for backward compatibility with bundles published before batch 4.
+    # Nullable for backward compatibility with bundles published before this field existed.
     identity_key_ed = Column(LargeBinary(32), nullable=True)
     identity_key_sig = Column(LargeBinary(64), nullable=True)
-    # Capability (ADR-001 батч 6b): клиент умеет ПРИНИМАТЬ v2 Double Ratchet.
-    # NULL/False — пред-6a бандл (батч 4) либо клиент без v2-приёма → отправитель
+    # Capability: клиент умеет ПРИНИМАТЬ v2 Double Ratchet.
+    # NULL/False — пред-v2 бандл либо клиент без v2-приёма → отправитель
     # не шлёт v2 такому адресату (падает в v1).
     supports_v2 = Column(Boolean, nullable=True)
+    # Device-identity тройка (публичные части). Forward-looking: отправитель
+    # начнёт проверять cert и вести X3DH по device_x3dh_pub на fan-out; пока это
+    # опубликованные, но неиспользуемые данные. cert подписывает аккаунтный
+    # Ed25519 (identity_key_ed) над (client_device_id ‖ device_x3dh_pub ‖
+    # device_sign_pub) — верификатор восстанавливает это сообщение из полей ниже.
+    device_x3dh_pub = Column(LargeBinary(32), nullable=True)   # X25519 device X3DH pub (per-account)
+    device_sign_pub = Column(LargeBinary(32), nullable=True)   # Ed25519 device signing pub
+    device_cert_sig = Column(LargeBinary(64), nullable=True)   # Ed25519 подпись аккаунта над cert-сообщением
+    client_device_id = Column(String(32), nullable=True)       # стабильный id устройства, подписанный в cert
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),
@@ -92,6 +116,8 @@ class OneTimePreKey(Base):
 
     Attributes:
         user_id:    ID пользователя (FK → users.id).
+        device_id:  ID устройства (FK → user_devices.id) или NULL — OPK свои
+                    на устройство, чтобы выдавать OPK того же устройства, чей SPK.
         key_id:     локальный идентификатор OPK (назначается клиентом).
         public_key: 32 байта — X25519 публичный ключ.
         used:       True после выдачи в составе Pre-Key Bundle.
@@ -104,6 +130,12 @@ class OneTimePreKey(Base):
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
+    )
+    device_id = Column(
+        Integer,
+        ForeignKey("user_devices.id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     key_id = Column(Integer, nullable=False)

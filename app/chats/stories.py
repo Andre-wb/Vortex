@@ -348,7 +348,7 @@ async def react_to_story(
     if story.user_id == u.id:
         raise HTTPException(400, "Cannot react to own story")
 
-    # FIX L5: ранее проверялось лишь существование стори и что она не своя —
+    # ранее проверялось лишь существование стори и что она не своя —
     # любой пользователь мог реагировать на чужую приватную стори. Требуем,
     # чтобы у вызывающего был StoryKeyEnvelope (как в get_story_media/_music).
     has_key = db.query(StoryKeyEnvelope).filter(
@@ -384,7 +384,7 @@ async def reply_to_story(
     if story.user_id == u.id:
         raise HTTPException(400, "Cannot reply to own story")
 
-    # FIX L5: требуем наличие StoryKeyEnvelope у вызывающего (зеркалит проверку
+    # требуем наличие StoryKeyEnvelope у вызывающего (зеркалит проверку
     # доступа в get_story_media/get_story_music) — иначе посторонний мог слать
     # ответы на чужую приватную стори.
     has_key = db.query(StoryKeyEnvelope).filter(

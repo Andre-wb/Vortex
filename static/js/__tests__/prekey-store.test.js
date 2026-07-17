@@ -1,6 +1,6 @@
 /**
  * prekey-store.test.js
- * Клиентское хранилище приватных prekey (ADR-001, батч 6a): персист/чтение
+ * Клиентское хранилище приватных prekey: персист/чтение
  * SPK и OPK по id, per-account изоляция, удаление OPK (forward secrecy).
  */
 
@@ -30,7 +30,7 @@ test('getSpkPrivate возвращает null для другого (ротир�
     expect(getSpkPrivate(2)).toBeNull();
 });
 
-test('hasPrekeyPrivates() = false до публикации (пользователь батча 4)', () => {
+test('hasPrekeyPrivates() = false до публикации', () => {
     expect(hasPrekeyPrivates()).toBe(false);
 });
 

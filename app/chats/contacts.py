@@ -20,7 +20,7 @@ from app.database import get_db
 from app.models import User
 from app.models.contact import Contact
 from app.models_rooms import Room, RoomMember
-from app.models_rooms.blocks import BlockedUser  # FIX M1: real block model
+from app.models_rooms.blocks import BlockedUser  # real block model
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 
@@ -395,7 +395,7 @@ async def block_user(
 ):
     """Заблокировать/разблокировать пользователя — запрещает ему отправлять DM.
 
-    FIX M1: блокировка теперь хранится в отдельной таблице BlockedUser
+    блокировка теперь хранится в отдельной таблице BlockedUser
     (blocker_id → blocked_id), а не только как RoomMember.is_banned на
     существующей DM-комнате. Раньше заблокированный пользователь мог открыть
     свежий DM и продолжать писать — блок применялся лишь к старой комнате.
@@ -416,7 +416,7 @@ async def block_user(
     ).first()
 
     if existing_block:
-        # FIX M1: разблокировка — удаляем запись и снимаем бан с DM-комнаты
+        # разблокировка — удаляем запись и снимаем бан с DM-комнаты
         db.delete(existing_block)
         if dm_room_id:
             member = db.query(RoomMember).filter(
@@ -428,7 +428,7 @@ async def block_user(
         db.commit()
         return {"ok": True, "blocked": False}
 
-    # FIX M1: создаём запись блокировки (источник правды независимо от DM)
+    # создаём запись блокировки (источник правды независимо от DM)
     db.add(BlockedUser(blocker_id=u.id, blocked_id=user_id))
 
     # Сохраняем прежнее поведение: баним заблокированного в существующей DM

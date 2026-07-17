@@ -1,6 +1,6 @@
 /**
  * prekeys.test.js
- * Тесты Ed25519-идентичности и сборки prekey-бандла (ADR-001, батч 4).
+ * Тесты Ed25519-идентичности и сборки prekey-бандла.
  * Включает JS↔Python interop против векторов из app/tests/vectors/dr_vectors.json
  * (тот же spk_signature, что проверяет double_ratchet.py в test_double_ratchet.py).
  */
@@ -10,9 +10,16 @@ const path = require('path');
 
 const {
     loadOrCreateEd25519Identity,
-    edSign,
+    edSign, edVerify,
     buildPrekeyBundle,
+    saveAccountLinkMaterial,
 } = require('../dr/prekeys.js');
+const { getClientDeviceId } = require('../utils.js');
+const {
+    certMessage, verifyDeviceCert, loadOrCreateDeviceIdentity, applyIssuedCert,
+} = require('../dr/device-identity.js');
+
+const toHex = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
 
 const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
 
@@ -79,28 +86,78 @@ describe('Ed25519 identity', () => {
 });
 
 describe('buildPrekeyBundle', () => {
-    test('SPK и identity_key подписаны Ed25519-идентичностью (обе подписи валидны)', async () => {
-        const identityKeyHex = 'ab'.repeat(32);  // фиктивный X25519 pub (32 байта)
+    test('SPK подписан device signing-ключом, identity_key — аккаунтным (binding)', async () => {
+        await loadOrCreateEd25519Identity();     // идентичность должна существовать
+        const identityKeyHex = 'ab'.repeat(32);
         const bundle = await buildPrekeyBundle(identityKeyHex, 3);
 
         expect(bundle.identity_key).toBe(identityKeyHex);
         expect(bundle.signed_prekey).toMatch(/^[0-9a-f]{64}$/);
         expect(bundle.signed_prekey_sig).toMatch(/^[0-9a-f]{128}$/);
         expect(bundle.identity_key_ed).toMatch(/^[0-9a-f]{64}$/);
+        expect(bundle.device_sign_pub).toMatch(/^[0-9a-f]{64}$/);
         expect(bundle.one_time_prekeys).toHaveLength(3);
 
-        // SPK-подпись проверяется по опубликованному Ed25519-ключу
+        // SPK-подпись проверяется по DEVICE signing-ключу (не аккаунтному)
+        expect(await verifyEd25519(
+            bundle.device_sign_pub, fromHex(bundle.signed_prekey), bundle.signed_prekey_sig
+        )).toBe(true);
+        // SPK НЕ подписан аккаунтным Ed25519 (свап цепочки на device-ключ)
         expect(await verifyEd25519(
             bundle.identity_key_ed, fromHex(bundle.signed_prekey), bundle.signed_prekey_sig
-        )).toBe(true);
-        // Cross-signature: identity_key подписан тем же ключом (binding, ADR §2.4г)
+        )).toBe(false);
+        // Cross-signature: identity_key подписан аккаунтным ключом (binding, остаётся)
         expect(await verifyEd25519(
             bundle.identity_key_ed, fromHex(bundle.identity_key), bundle.identity_key_sig
         )).toBe(true);
     });
+
+    test('публикует device-identity тройку с валидным cert (self-sign первого устройства)', async () => {
+        await loadOrCreateEd25519Identity();     // аккаунтный Ed25519 присутствует → cert self-sign
+        const bundle = await buildPrekeyBundle('ab'.repeat(32), 2);
+
+        expect(bundle.device_x3dh_pub).toMatch(/^[0-9a-f]{64}$/);
+        expect(bundle.device_sign_pub).toMatch(/^[0-9a-f]{64}$/);
+        expect(bundle.device_cert_sig).toMatch(/^[0-9a-f]{128}$/);
+
+        // Cert, СГЕНЕРИРОВАННЫЙ клиентом, верифицируется против опубликованного
+        // identity_key_ed по certMessage(deviceId, x3dhPub, signPub) — именно это
+        // проверит отправитель на fan-out. Замыкает серверный round-trip тест.
+        const msg = certMessage(getClientDeviceId(), bundle.device_x3dh_pub, bundle.device_sign_pub);
+        expect(await verifyEd25519(bundle.identity_key_ed, msg, bundle.device_cert_sig)).toBe(true);
+    });
+
+    test('M4b: устройство БЕЗ аккаунтного Ed-приватного публикует бандл, принятый sender-цепочкой', async () => {
+        // Линкованное устройство: аккаунтного Ed25519-приватного НЕТ; аккаунт-материал
+        // (account_ed_pub + identity_key_sig) и cert выданы одобряющим при линковке.
+        const acctX25519 = 'ab'.repeat(32);                 // аккаунтный X25519 identity_key
+        // Аккаунтный Ed25519 (у одобряющего; локально НЕ хранится)
+        const acctEd = await globalThis.crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+        const acctEdPub = toHex(await globalThis.crypto.subtle.exportKey('raw', acctEd.publicKey));
+        const edSignRaw = async (m) => toHex(await globalThis.crypto.subtle.sign('Ed25519', acctEd.privateKey, m));
+
+        const device = await loadOrCreateDeviceIdentity();  // тройка, certSig=null (нет локального аккаунтного Ed)
+        // Одобряющий подписывает cert устройства + отдаёт аккаунт-материал:
+        const certSig = await edSignRaw(certMessage(getClientDeviceId(), device.x3dhPub, device.signPub));
+        applyIssuedCert(42, certSig, acctEdPub);
+        const idSig = await edSignRaw(fromHex(acctX25519));
+        saveAccountLinkMaterial(42, acctEdPub, idSig);
+
+        // Аккаунтного Ed-приватного локально нет — done-signal: publish НЕ бросает
+        const bundle = await buildPrekeyBundle(acctX25519, 2);
+
+        expect(bundle.identity_key_ed).toBe(acctEdPub);
+        expect(bundle.device_cert_sig).toBe(certSig);
+        // Sender-цепочка принимает бандл: cert против account_ed, SPK device-ключом, idSig
+        expect(await verifyDeviceCert(
+            getClientDeviceId(), bundle.device_x3dh_pub, bundle.device_sign_pub, bundle.device_cert_sig, acctEdPub
+        )).toBe(true);
+        expect(await verifyEd25519(bundle.device_sign_pub, fromHex(bundle.signed_prekey), bundle.signed_prekey_sig)).toBe(true);
+        expect(await verifyEd25519(bundle.identity_key_ed, fromHex(bundle.identity_key), bundle.identity_key_sig)).toBe(true);
+    });
 });
 
-describe('JS↔Python interop (векторы батча 1)', () => {
+describe('JS↔Python interop (векторы)', () => {
     const vectorsPath = path.resolve(__dirname, '../../../app/tests/vectors/dr_vectors.json');
 
     test('подпись SPK из dr_vectors.json проверяется в Web Crypto Ed25519', async () => {
@@ -116,5 +173,31 @@ describe('JS↔Python interop (векторы батча 1)', () => {
         const v = vectors.spk_signature;
         const tampered = v.signature.slice(0, -2) + (v.signature.endsWith('00') ? '01' : '00');
         expect(await verifyEd25519(v.ed25519_pub, fromHex(v.spk_pub), tampered)).toBe(false);
+    });
+
+    test('device_cert из вектора: certMessage совпадает байт-в-байт и cert валиден', async () => {
+        const vectors = JSON.parse(fs.readFileSync(vectorsPath, 'utf8'));
+        const v = vectors.device_cert;
+        // Раскладка cert-сообщения JS обязана совпасть с Python (cid‖x3dh‖sign)
+        const msg = certMessage(v.client_device_id, v.device_x3dh_pub, v.device_sign_pub);
+        expect(toHex(msg)).toBe(v.cert_message);
+        // Cert, подписанный Python-аккаунтным Ed25519, проверяется в JS
+        expect(await verifyDeviceCert(
+            v.client_device_id, v.device_x3dh_pub, v.device_sign_pub, v.cert_sig, v.account_ed_pub
+        )).toBe(true);
+    });
+
+    test('device_cert: порча любого поля → cert не проверяется', async () => {
+        const vectors = JSON.parse(fs.readFileSync(vectorsPath, 'utf8'));
+        const v = vectors.device_cert;
+        const flip = h => h.slice(0, -2) + (h.endsWith('00') ? '01' : '00');
+        // подмена x3dh-ключа (пересборка cert-сообщения) → подпись не сходится
+        expect(await verifyDeviceCert(
+            v.client_device_id, flip(v.device_x3dh_pub), v.device_sign_pub, v.cert_sig, v.account_ed_pub
+        )).toBe(false);
+        // порча самой подписи
+        expect(await verifyDeviceCert(
+            v.client_device_id, v.device_x3dh_pub, v.device_sign_pub, flip(v.cert_sig), v.account_ed_pub
+        )).toBe(false);
     });
 });

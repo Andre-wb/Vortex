@@ -43,7 +43,7 @@ class RoomCreate(BaseModel):
         ...,
         description="room_key(32 bytes), encrypted with ECIES using the creator's X25519 public key"
     )
-    # Variant-B plaintext copy — used ONLY for is_private=False rooms so the
+    # plaintext copy — used ONLY for is_private=False rooms so the
     # server can hand the key to new joiners without a round-trip to an
     # online member. Ignored for private rooms. If omitted on a public
     # room the server generates its own key server-side.

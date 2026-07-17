@@ -112,6 +112,10 @@ class UserDevice(Base):
     created_at         = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
     refresh_token_hash = Column(String(64),  nullable=True, index=True)
     device_pub_key     = Column(String(64),  nullable=True)            # per-device X25519 pub (hex, 32 bytes)
+    # Стабильный client-side id физического устройства. Сервер
+    # дедуплицирует UserDevice по (user_id, client_device_id) вместо новой строки
+    # на каждый логин — стабильный набор устройств для Sesame. NULL — pre-P2 клиент.
+    client_device_id   = Column(String(32),  nullable=True, index=True)
 
     user = relationship("User", backref="devices")
 
@@ -156,6 +160,14 @@ class DeviceLinkRequest(Base):
     new_device_pub  = Column(String(64),  nullable=False)   # X25519 ephemeral pub of new device (hex)
     status          = Column(String(20),  default="pending") # pending, approved, expired
     encrypted_keys  = Column(Text,        nullable=True)     # ECIES encrypted key bundle (set on approve)
+    # M4b: тройка device-identity нового устройства (для approver-signing cert'а)
+    new_device_x3dh_pub  = Column(String(64),  nullable=True)   # device X3DH pub (hex)
+    new_device_sign_pub  = Column(String(64),  nullable=True)   # device signing pub (hex)
+    new_device_client_id = Column(String(32),  nullable=True)   # client_device_id (hex)
+    # M4b: аккаунт-уровневый материал, выданный одобряющим на approve (публичный)
+    device_cert_sig  = Column(String(128), nullable=True)   # account Ed25519 подписал cert устройства
+    account_ed_pub   = Column(String(64),  nullable=True)   # аккаунтный Ed25519 pub (подписант)
+    identity_key_sig = Column(String(128), nullable=True)   # account Ed25519 подписал account X25519 identity_key
     created_at      = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
     expires_at      = Column(DateTime,    nullable=False)
 

@@ -19,6 +19,7 @@ import ipaddress
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -157,10 +158,18 @@ class BackupUploadRequest(BaseModel):
 
 class LinkRequestCreate(BaseModel):
     new_device_pub: str = Field(..., min_length=64, max_length=64, description="X25519 pub hex of new device")
+    # M4b: тройка device-identity нового устройства (одобряющий подпишет её cert).
+    new_device_x3dh_pub: Optional[str] = Field(default=None, min_length=64, max_length=64)
+    new_device_sign_pub: Optional[str] = Field(default=None, min_length=64, max_length=64)
+    new_device_client_id: Optional[str] = Field(default=None, min_length=32, max_length=32)
 
 
 class LinkApproveRequest(BaseModel):
     encrypted_keys: str = Field(..., min_length=24, description="ECIES encrypted key bundle (hex)")
+    # M4b: аккаунт-уровневый материал, выданный одобряющим (публичный, константный на аккаунт).
+    device_cert_sig: Optional[str] = Field(default=None, min_length=128, max_length=128)
+    account_ed_pub: Optional[str] = Field(default=None, min_length=64, max_length=64)
+    identity_key_sig: Optional[str] = Field(default=None, min_length=128, max_length=128)
 
 
 # Key Backup CRUD
@@ -262,6 +271,9 @@ async def create_link_request(
         user_id=user.id,
         link_code_hash=code_hash,
         new_device_pub=body.new_device_pub,
+        new_device_x3dh_pub=body.new_device_x3dh_pub,
+        new_device_sign_pub=body.new_device_sign_pub,
+        new_device_client_id=body.new_device_client_id,
         status="pending",
         expires_at=now + timedelta(minutes=_LINK_CODE_TTL_MIN),
     )
@@ -299,6 +311,10 @@ async def get_link_request(
             return {
                 "request_id": req.id,
                 "new_device_pub": req.new_device_pub,
+                # M4b: тройка нового устройства — одобряющий подпишет её cert
+                "new_device_x3dh_pub": req.new_device_x3dh_pub,
+                "new_device_sign_pub": req.new_device_sign_pub,
+                "new_device_client_id": req.new_device_client_id,
                 "created_at": req.created_at.isoformat() if req.created_at else None,
             }
 
@@ -331,6 +347,12 @@ async def approve_link_request(
     for req in pending:
         if verify_token_hash(code, req.link_code_hash):
             req.encrypted_keys = body.encrypted_keys
+            # M4b: аккаунт-материал, выданный одобряющим (публичный) — cert устройства
+            # + account Ed25519 pub (подписант) + identity_key_sig. Сервер их только
+            # ретранслирует (A1); не проверяет (подпись проверит новое устройство/отправители).
+            req.device_cert_sig = body.device_cert_sig
+            req.account_ed_pub = body.account_ed_pub
+            req.identity_key_sig = body.identity_key_sig
             req.status = "approved"
             db.commit()
             return {"ok": True, "message": "Keys transferred"}
@@ -365,6 +387,12 @@ async def poll_link_request(
     result = {"status": req.status}
     if req.status == "approved" and req.encrypted_keys:
         result["encrypted_keys"] = req.encrypted_keys
+        # M4b: аккаунт-материал линковки (публичный) — cert устройства + account Ed25519
+        # pub + identity_key_sig. Новое устройство публикует бандл, не имея аккаунтного
+        # Ed25519-приватного. Может отсутствовать (старый одобряющий → Ed-перенос в бандле).
+        result["device_cert_sig"] = req.device_cert_sig
+        result["account_ed_pub"] = req.account_ed_pub
+        result["identity_key_sig"] = req.identity_key_sig
         # One-time read: delete after retrieval
         req.status = "completed"
         req.encrypted_keys = None

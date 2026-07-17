@@ -451,7 +451,7 @@ async def federated_ws(
         websocket: WebSocket,
         db: Session = Depends(get_db),
 ):
-    # FIX H4: reject cross-site WS origins (CSWSH) before any processing.
+    # reject cross-site WS origins (CSWSH) before any processing.
     # Local import to avoid import-order coupling with the chat package.
     from app.chats.messages.core import ws_origin_ok
     if not ws_origin_ok(websocket):

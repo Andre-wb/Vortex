@@ -110,7 +110,7 @@ async def media_preview(room_id: int, file_id: int,
     if not member:
         raise HTTPException(403, "Not a member")
 
-    # FIX H2: scope the file lookup to the path room_id — without this a member
+    # scope the file lookup to the path room_id — without this a member
     # of any room could read preview metadata of a file belonging to another room.
     ft = db.query(FileTransfer).filter(
         FileTransfer.id == file_id,

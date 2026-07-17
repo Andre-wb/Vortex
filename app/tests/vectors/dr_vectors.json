@@ -1,4 +1,13 @@
 {
+  "device_cert": {
+    "account_ed_pub": "a8435cb492b9f9e786c41de4481e71684e59a2217ff9923b866e19f6628955f1",
+    "account_ed_seed": "1f0263763b98d2d63eabf5734fd2052f2f8f1dd1c5a9ca5bd9e8b48da7d7f8f2",
+    "cert_message": "b3b4779981aa14654f82aefcb29b129c55daaa05db1b0634e3dcfecfed4fb13cccb268ddf0d88b03365ea00d3819ea46c10f941c035e163b667551d3188e5e5bde9a821064aa699a1110316e78bebfe9",
+    "cert_sig": "0836983b196fa7c9fa7869e0cd8d1ae3e7dd603a1420a2755eb9e9ad0eb4ef48249cfe7afd61223b7faa75c472d37d7aaa8a65d0966bb68a0c9b854a5e70500a",
+    "client_device_id": "b3b4779981aa14654f82aefcb29b129c",
+    "device_sign_pub": "c10f941c035e163b667551d3188e5e5bde9a821064aa699a1110316e78bebfe9",
+    "device_x3dh_pub": "55daaa05db1b0634e3dcfecfed4fb13cccb268ddf0d88b03365ea00d3819ea46"
+  },
   "header": [
     {
       "dh_public": "4b8df0075d545254d6dfcc0bf8df15f4006537da4246d0ca49ed24c775ed82dc",

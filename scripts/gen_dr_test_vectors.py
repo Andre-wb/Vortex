@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Генератор кросс-языковых тест-векторов для Double Ratchet (ADR-001, батч 1).
+"""Генератор кросс-языковых тест-векторов для Double Ratchet.
 
 Прогоняет референс-реализацию app/security/double_ratchet.py на детерминированных
 ключах/нонсах и пишет app/tests/vectors/dr_vectors.json. Повторный запуск даёт
@@ -7,7 +7,7 @@
 
 Векторы предназначены для:
   - пиннинга Python-референса (app/tests/test_double_ratchet.py, класс TestVectors);
-  - будущей JS-реализации (батч 5): JS обязан расшифровать все транскрипты
+  - будущей JS-реализации: JS обязан расшифровать все транскрипты
     и сойтись по KDF/X3DH/Header байт-в-байт.
 
 ВНИМАНИЕ: файл векторов содержит приватные ключи — это тестовые данные,
@@ -120,6 +120,30 @@ def gen_spk_vector() -> dict:
         "ed25519_pub": identity.public_key().public_bytes_raw().hex(),
         "spk_pub": spk_pub.hex(),
         "signature": sig.hex(),
+    }
+
+
+def gen_device_cert_vector() -> dict:
+    """Authorization-cert устройства: аккаунтный Ed25519 подписывает
+    (client_device_id ‖ device_x3dh_pub ‖ device_sign_pub) = 80 байт.
+    Раскладка зеркалит certMessage() из static/js/dr/device-identity.js —
+    вектор пиннит JS↔Python byte-parity перед включением проверки cert'а (M3)."""
+    seed = _det_bytes("device-cert-account-ed")
+    account = Ed25519PrivateKey.from_private_bytes(seed)
+    client_device_id = _det_bytes("device-cert-cid", 16)        # 16 байт = 32 hex
+    x3dh_pub = _det_priv("device-cert-x3dh").public_key().public_bytes_raw()
+    sign_pub = Ed25519PrivateKey.from_private_bytes(
+        _det_bytes("device-cert-sign")).public_key().public_bytes_raw()
+    cert_message = client_device_id + x3dh_pub + sign_pub       # cid(16)‖x3dh(32)‖sign(32)
+    cert_sig = account.sign(cert_message)
+    return {
+        "account_ed_seed": seed.hex(),
+        "account_ed_pub": account.public_key().public_bytes_raw().hex(),
+        "client_device_id": client_device_id.hex(),
+        "device_x3dh_pub": x3dh_pub.hex(),
+        "device_sign_pub": sign_pub.hex(),
+        "cert_message": cert_message.hex(),
+        "cert_sig": cert_sig.hex(),
     }
 
 
@@ -287,6 +311,7 @@ def main() -> None:
         "kdf_rk": kdf["kdf_rk"],
         "header": gen_header_vectors(),
         "spk_signature": gen_spk_vector(),
+        "device_cert": gen_device_cert_vector(),
         "x3dh": x3dh,
         "transcript": gen_transcript(det, x3dh),
     }

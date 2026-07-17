@@ -35,7 +35,7 @@ from app.security.sealed_sender import compute_sender_pseudo
 
 # Валидация эмодзи-реакций
 
-# FIX L4: ранее проверялось только len(emoji) <= 10 без charset-фильтра,
+# ранее проверялось только len(emoji) <= 10 без charset-фильтра,
 # что позволяло протащить HTML/текст (XSS-вектор при рендере реакций).
 # Запрещённые символы — потенциальная HTML/атрибутная инъекция.
 _REACTION_FORBIDDEN_CHARS = set('<>"&\'/`=')
@@ -80,7 +80,7 @@ def _is_emoji_codepoint(ch: str) -> bool:
 
 
 def is_valid_reaction_emoji(raw: str | None) -> bool:
-    """FIX L4: принимает только эмодзи/grapheme, отвергает HTML и обычный текст."""
+    """принимает только эмодзи/grapheme, отвергает HTML и обычный текст."""
     if not raw:
         return False
     emoji = raw.strip()
@@ -137,7 +137,7 @@ async def handle_reaction(room_id: int, user: User, data: dict, db: Session) -> 
     """Toggle-реакция: добавить если нет, удалить если есть."""
     msg_id = data.get("msg_id")
     emoji  = data.get("emoji", "").strip()
-    # FIX L4: charset/emoji whitelist (раньше — только len <= 10).
+    # charset/emoji whitelist (раньше — только len <= 10).
     if not msg_id or not is_valid_reaction_emoji(emoji):
         return
 

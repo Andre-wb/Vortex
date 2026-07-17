@@ -1,4 +1,4 @@
-# FIX M1: real block model so blocking persists independently of any DM room
+# real block model so blocking persists independently of any DM room
 """
 app/models_rooms/blocks.py — Модель блокировок пользователей.
 

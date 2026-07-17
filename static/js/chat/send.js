@@ -95,7 +95,7 @@ export async function sendMessage() {
             return;
         }
 
-        // Отложенное сообщение (Feature 2) — остаётся v1 (v2 только для немедленной отправки).
+        // Отложенное сообщение — остаётся v1 (v2 только для немедленной отправки).
         if (isScheduleMode()) {
             const { enc_v, ciphertext } = await encryptMessage(S.currentRoom.id, S.user.id, text, roomKey);
             const payload = { action: 'schedule_message', ciphertext, enc_v, scheduled_at: getScheduleDatetime() };

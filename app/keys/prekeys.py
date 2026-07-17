@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from app.config import Config
 from app.database import get_db
-from app.models import User
+from app.models import User, UserDevice
 from app.models.prekeys import OneTimePreKey, PreKeyBundle
 from app.security.auth_jwt import get_current_user
 from app.security.double_ratchet import verify_spk_signature
@@ -35,6 +35,65 @@ _MAX_OPK_BATCH = 100
 # the client should replenish the pool.
 _LOW_OPK_THRESHOLD = 10
 
+
+def _validated_client_device_id(request: Request) -> Optional[str]:
+    """Return the caller's X-Device-Id header if it is a well-formed 32-hex id."""
+    cid = request.headers.get("x-device-id")
+    if not cid or not (len(cid) == 32 and all(c in "0123456789abcdef" for c in cid)):
+        return None
+    return cid
+
+
+def _resolve_device_id(request: Request, user_id: int, db: Session) -> Optional[int]:
+    """Map the caller's X-Device-Id header to a UserDevice.id for this user.
+
+    Returns None when the header is absent/malformed or no matching device row
+    exists — the bundle is then stored/looked-up under device_id=NULL (a client
+    without a stable device id, or a test client sending no header).
+    """
+    cid = _validated_client_device_id(request)
+    if cid is None:
+        return None
+    device = (
+        db.query(UserDevice)
+        .filter(UserDevice.user_id == user_id, UserDevice.client_device_id == cid)
+        .first()
+    )
+    return device.id if device is not None else None
+
+
+def _consume_one_opk(db: Session, user_id: int, device_id: Optional[int]) -> tuple[Optional[str], Optional[int]]:
+    """Mark one unused OPK of (user_id, device_id) as used; return (hex, key_id).
+
+    Returns (None, None) when the device has no OPK left — X3DH may proceed
+    without an OPK. Does not commit; caller commits.
+    """
+    opk: Optional[OneTimePreKey] = (
+        db.query(OneTimePreKey)
+        .filter(
+            OneTimePreKey.user_id == user_id,
+            OneTimePreKey.device_id == device_id,
+            OneTimePreKey.used == False,  # noqa: E712
+        )
+        .order_by(OneTimePreKey.id)
+        .first()
+    )
+    if opk is None:
+        return None, None
+    opk.used = True
+    return opk.public_key.hex(), opk.key_id
+
+
+def _device_identity_fields(bundle: PreKeyBundle) -> dict:
+    """Device-identity triple + cert as hex, for a fetch response. Lets the
+    sender recompute (client_device_id ‖ device_x3dh_pub ‖ device_sign_pub) and
+    verify device_cert_sig against the account identity_key_ed at fan-out."""
+    return {
+        "device_x3dh_pub": bundle.device_x3dh_pub.hex() if bundle.device_x3dh_pub else None,
+        "device_sign_pub": bundle.device_sign_pub.hex() if bundle.device_sign_pub else None,
+        "device_cert_sig": bundle.device_cert_sig.hex() if bundle.device_cert_sig else None,
+        "client_device_id": bundle.client_device_id,
+    }
 
 
 class OneTimePreKeyUpload(BaseModel):
@@ -93,7 +152,20 @@ class PublishPreKeysRequest(BaseModel):
     )
     supports_v2: Optional[bool] = Field(
         default=None,
-        description="Client can RECEIVE v2 Double Ratchet messages (ADR-001 batch 6b).",
+        description="Client can RECEIVE v2 Double Ratchet messages.",
+    )
+    device_x3dh_pub: Optional[str] = Field(
+        default=None, min_length=64, max_length=64,
+        description="X25519 device X3DH public key in hex (device-identity triple).",
+    )
+    device_sign_pub: Optional[str] = Field(
+        default=None, min_length=64, max_length=64,
+        description="Ed25519 device signing public key in hex (device-identity triple).",
+    )
+    device_cert_sig: Optional[str] = Field(
+        default=None, min_length=128, max_length=128,
+        description="Ed25519 account signature over (client_device_id ‖ device_x3dh_pub ‖ "
+                    "device_sign_pub) in hex. Null when the account Ed25519 is not on this device.",
     )
     one_time_prekeys: List[OneTimePreKeyUpload] = Field(
         default_factory=list,
@@ -105,6 +177,7 @@ class PublishPreKeysRequest(BaseModel):
 class PreKeyBundleResponse(BaseModel):
     """Response with a user's Pre-Key Bundle."""
     user_id: int
+    device_id: Optional[int] = None          # device this bundle belongs to, or None
     identity_key: str           # hex
     signed_prekey: str          # hex
     signed_prekey_sig: str      # hex
@@ -112,8 +185,40 @@ class PreKeyBundleResponse(BaseModel):
     identity_key_ed: Optional[str] = None    # hex Ed25519 identity pub or None
     identity_key_sig: Optional[str] = None   # hex Ed25519 sig of identity_key or None
     supports_v2: Optional[bool] = None       # peer can receive v2 Double Ratchet
+    # Device-identity triple (public parts) — forward-looking, verified at fan-out.
+    device_x3dh_pub: Optional[str] = None    # hex X25519 device X3DH pub
+    device_sign_pub: Optional[str] = None    # hex Ed25519 device signing pub
+    device_cert_sig: Optional[str] = None    # hex Ed25519 account cert over the triple
+    client_device_id: Optional[str] = None   # id signed inside the cert
     one_time_prekey: Optional[str] = None   # hex — single OPK or None
     one_time_prekey_id: Optional[int] = None
+
+
+class DeviceBundle(BaseModel):
+    """One device's Pre-Key Bundle within a multi-device fetch."""
+    device_id: Optional[int] = None
+    identity_key: str
+    signed_prekey: str
+    signed_prekey_sig: str
+    signed_prekey_id: int
+    identity_key_ed: Optional[str] = None
+    identity_key_sig: Optional[str] = None
+    supports_v2: Optional[bool] = None
+    device_x3dh_pub: Optional[str] = None
+    device_sign_pub: Optional[str] = None
+    device_cert_sig: Optional[str] = None
+    client_device_id: Optional[str] = None
+    one_time_prekey: Optional[str] = None
+    one_time_prekey_id: Optional[int] = None
+
+
+class PreKeyBundleListResponse(BaseModel):
+    """All active per-device Pre-Key Bundles for a user (Sesame fan-out).
+
+    One entry per publishing device; each consumes its own device-scoped OPK.
+    """
+    user_id: int
+    bundles: List[DeviceBundle]
 
 
 class PreKeyStatusResponse(BaseModel):
@@ -129,13 +234,15 @@ class PreKeyStatusResponse(BaseModel):
 @router.post("/publish", response_model=PreKeyStatusResponse)
 async def publish_prekeys(
     body: PublishPreKeysRequest,
+    request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PreKeyStatusResponse:
-    """Publishes or updates the current user's Pre-Key Bundle.
+    """Publishes or updates the current device's Pre-Key Bundle.
 
-    If a record already exists — updates SPK (and signature).
-    One-time keys are added to the existing pool.
+    The publishing device is resolved from the X-Device-Id header; its bundle is
+    upserted on (user_id, device_id). If a record already exists — updates SPK
+    (and signature). One-time keys are added to that device's pool.
     """
     try:
         ik_bytes = bytes.fromhex(body.identity_key)
@@ -147,7 +254,7 @@ async def publish_prekeys(
     if len(ik_bytes) != 32 or len(spk_bytes) != 32 or len(sig_bytes) != 64:
         raise HTTPException(status_code=400, detail="Invalid key lengths")
 
-    # Ed25519 identity key + binding signature (ADR-001 batch 4). Verify BEFORE
+    # Ed25519 identity key + binding signature. Verify BEFORE
     # any db write so a rejected bundle never partially persists. Config flag is
     # read at call time so tests can toggle enforce/warn.
     ik_ed_bytes: Optional[bytes] = None
@@ -182,10 +289,35 @@ async def publish_prekeys(
         # No Ed25519 key at all — nothing to verify against (pre-batch-4 client).
         _sig_error("No Ed25519 identity key provided — signature cannot be verified")
 
-    # Upsert PreKeyBundle
+    # Device-identity triple (public parts) + account cert over it. Forward-
+    # looking: stored now, verified/used at fan-out. Length-check here so a
+    # malformed publish is rejected before any db write. Cert signature is NOT
+    # verified here — that is the sender's job at fan-out, against the account
+    # Ed25519 the sender trusts out-of-band.
+    dev_x3dh_bytes: Optional[bytes] = None
+    dev_sign_bytes: Optional[bytes] = None
+    dev_cert_bytes: Optional[bytes] = None
+    try:
+        if body.device_x3dh_pub is not None:
+            dev_x3dh_bytes = bytes.fromhex(body.device_x3dh_pub)
+        if body.device_sign_pub is not None:
+            dev_sign_bytes = bytes.fromhex(body.device_sign_pub)
+        if body.device_cert_sig is not None:
+            dev_cert_bytes = bytes.fromhex(body.device_cert_sig)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid hex encoding in device-identity fields")
+    if (dev_x3dh_bytes is not None and len(dev_x3dh_bytes) != 32) \
+            or (dev_sign_bytes is not None and len(dev_sign_bytes) != 32) \
+            or (dev_cert_bytes is not None and len(dev_cert_bytes) != 64):
+        raise HTTPException(status_code=400, detail="Invalid device-identity field lengths")
+
+    # Upsert PreKeyBundle for the publishing device (device_id=NULL for a client
+    # without a stable device id). filter(device_id == None) → IS NULL in SQL.
+    device_id = _resolve_device_id(request, user.id, db)
+    client_device_id = _validated_client_device_id(request)
     bundle: Optional[PreKeyBundle] = (
         db.query(PreKeyBundle)
-        .filter(PreKeyBundle.user_id == user.id)
+        .filter(PreKeyBundle.user_id == user.id, PreKeyBundle.device_id == device_id)
         .first()
     )
 
@@ -194,6 +326,7 @@ async def publish_prekeys(
     if bundle is None:
         bundle = PreKeyBundle(
             user_id=user.id,
+            device_id=device_id,
             identity_key=ik_bytes,
             signed_prekey=spk_bytes,
             signed_prekey_sig=sig_bytes,
@@ -201,6 +334,10 @@ async def publish_prekeys(
             identity_key_ed=ik_ed_bytes,
             identity_key_sig=ik_sig_bytes,
             supports_v2=body.supports_v2,
+            device_x3dh_pub=dev_x3dh_bytes,
+            device_sign_pub=dev_sign_bytes,
+            device_cert_sig=dev_cert_bytes,
+            client_device_id=client_device_id,
             created_at=now,
             updated_at=now,
         )
@@ -213,6 +350,10 @@ async def publish_prekeys(
         bundle.identity_key_ed = ik_ed_bytes
         bundle.identity_key_sig = ik_sig_bytes
         bundle.supports_v2 = body.supports_v2
+        bundle.device_x3dh_pub = dev_x3dh_bytes
+        bundle.device_sign_pub = dev_sign_bytes
+        bundle.device_cert_sig = dev_cert_bytes
+        bundle.client_device_id = client_device_id
         bundle.updated_at = now
 
     # Add one-time keys
@@ -228,6 +369,7 @@ async def publish_prekeys(
 
         db.add(OneTimePreKey(
             user_id=user.id,
+            device_id=device_id,
             key_id=opk.key_id,
             public_key=opk_bytes,
             used=False,
@@ -236,10 +378,14 @@ async def publish_prekeys(
 
     db.commit()
 
-    # Count available OPKs
+    # Count this device's available OPKs
     available = (
         db.query(OneTimePreKey)
-        .filter(OneTimePreKey.user_id == user.id, OneTimePreKey.used == False)  # noqa: E712
+        .filter(
+            OneTimePreKey.user_id == user.id,
+            OneTimePreKey.device_id == device_id,
+            OneTimePreKey.used == False,  # noqa: E712
+        )
         .count()
     )
 
@@ -263,14 +409,17 @@ async def get_prekey_bundle(
     _user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PreKeyBundleResponse:
-    """Retrieves the Pre-Key Bundle for the specified user.
+    """Retrieves a single Pre-Key Bundle for the specified user.
 
-    Consumes (marks used=True) one One-Time Pre-Key if available.
-    If OPKs are exhausted — returns bundle without OPK (acceptable per X3DH protocol).
+    Backward-compatible pairwise fetch: returns the most recently updated
+    device bundle (multi-device fan-out uses GET /{user_id}/devices instead).
+    Consumes one One-Time Pre-Key of that same device if available; if exhausted,
+    returns the bundle without an OPK (acceptable per X3DH protocol).
     """
     bundle: Optional[PreKeyBundle] = (
         db.query(PreKeyBundle)
         .filter(PreKeyBundle.user_id == user_id)
+        .order_by(PreKeyBundle.updated_at.desc())
         .first()
     )
 
@@ -280,49 +429,34 @@ async def get_prekey_bundle(
             detail=f"Pre-key bundle not found for user {user_id}",
         )
 
-    # Retrieve and consume one OPK (FIFO by id)
-    opk: Optional[OneTimePreKey] = (
-        db.query(OneTimePreKey)
-        .filter(
-            OneTimePreKey.user_id == user_id,
-            OneTimePreKey.used == False,  # noqa: E712
-        )
-        .order_by(OneTimePreKey.id)
-        .first()
-    )
+    opk_hex, opk_key_id = _consume_one_opk(db, user_id, bundle.device_id)
 
-    opk_hex: Optional[str] = None
-    opk_key_id: Optional[int] = None
-
-    if opk is not None:
-        opk.used = True
-        opk_hex = opk.public_key.hex()
-        opk_key_id = opk.key_id
+    if opk_hex is not None:
         db.commit()
-
-        # Check remaining OPK reserve
         remaining = (
             db.query(OneTimePreKey)
             .filter(
                 OneTimePreKey.user_id == user_id,
+                OneTimePreKey.device_id == bundle.device_id,
                 OneTimePreKey.used == False,  # noqa: E712
             )
             .count()
         )
         if remaining < _LOW_OPK_THRESHOLD:
             logger.warning(
-                "User %d has only %d OPKs left (threshold=%d) — "
+                "User %d device %s has only %d OPKs left (threshold=%d) — "
                 "client should replenish",
-                user_id, remaining, _LOW_OPK_THRESHOLD,
+                user_id, bundle.device_id, remaining, _LOW_OPK_THRESHOLD,
             )
     else:
         logger.warning(
-            "No OPKs available for user %d — X3DH will proceed without OPK",
-            user_id,
+            "No OPKs available for user %d device %s — X3DH will proceed without OPK",
+            user_id, bundle.device_id,
         )
 
     return PreKeyBundleResponse(
         user_id=user_id,
+        device_id=bundle.device_id,
         identity_key=bundle.identity_key.hex(),
         signed_prekey=bundle.signed_prekey.hex(),
         signed_prekey_sig=bundle.signed_prekey_sig.hex(),
@@ -332,21 +466,71 @@ async def get_prekey_bundle(
         supports_v2=bundle.supports_v2,
         one_time_prekey=opk_hex,
         one_time_prekey_id=opk_key_id,
+        **_device_identity_fields(bundle),
     )
+
+
+@router.get("/{user_id}/devices", response_model=PreKeyBundleListResponse)
+async def get_prekey_bundles_all(
+    user_id: int,
+    _user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PreKeyBundleListResponse:
+    """Retrieves every active per-device Pre-Key Bundle for a user (Sesame fan-out).
+
+    Returns one entry per publishing device, each consuming its own
+    device-scoped OPK (a device with none is returned without an OPK). Empty
+    list (not 404) when the user has published nothing, so a caller can fall
+    back to v1 without special-casing errors.
+    """
+    bundles: List[PreKeyBundle] = (
+        db.query(PreKeyBundle)
+        .filter(PreKeyBundle.user_id == user_id)
+        .order_by(PreKeyBundle.device_id)
+        .all()
+    )
+
+    out: List[DeviceBundle] = []
+    consumed_any = False
+    for bundle in bundles:
+        opk_hex, opk_key_id = _consume_one_opk(db, user_id, bundle.device_id)
+        consumed_any = consumed_any or opk_hex is not None
+        out.append(DeviceBundle(
+            device_id=bundle.device_id,
+            identity_key=bundle.identity_key.hex(),
+            signed_prekey=bundle.signed_prekey.hex(),
+            signed_prekey_sig=bundle.signed_prekey_sig.hex(),
+            signed_prekey_id=bundle.signed_prekey_id,
+            identity_key_ed=bundle.identity_key_ed.hex() if bundle.identity_key_ed else None,
+            identity_key_sig=bundle.identity_key_sig.hex() if bundle.identity_key_sig else None,
+            supports_v2=bundle.supports_v2,
+            one_time_prekey=opk_hex,
+            one_time_prekey_id=opk_key_id,
+            **_device_identity_fields(bundle),
+        ))
+
+    if consumed_any:
+        db.commit()
+
+    return PreKeyBundleListResponse(user_id=user_id, bundles=out)
 
 
 @router.get("/status/me", response_model=PreKeyStatusResponse)
 async def get_prekey_status(
+    request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PreKeyStatusResponse:
-    """Returns the Pre-Key Bundle status for the current user.
+    """Returns the Pre-Key Bundle status for the current device.
 
+    Scoped to the caller's device (X-Device-Id) so each device self-heals its
+    own bundle: another device having published does not make this one skip.
     Useful for the client to determine whether OPK replenishment is needed.
     """
+    device_id = _resolve_device_id(request, user.id, db)
     bundle: Optional[PreKeyBundle] = (
         db.query(PreKeyBundle)
-        .filter(PreKeyBundle.user_id == user.id)
+        .filter(PreKeyBundle.user_id == user.id, PreKeyBundle.device_id == device_id)
         .first()
     )
 
@@ -359,7 +543,11 @@ async def get_prekey_status(
 
     available = (
         db.query(OneTimePreKey)
-        .filter(OneTimePreKey.user_id == user.id, OneTimePreKey.used == False)  # noqa: E712
+        .filter(
+            OneTimePreKey.user_id == user.id,
+            OneTimePreKey.device_id == device_id,
+            OneTimePreKey.used == False,  # noqa: E712
+        )
         .count()
     )
 

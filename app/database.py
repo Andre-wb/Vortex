@@ -253,6 +253,58 @@ def _run_alembic_upgrade() -> bool:
 
 
 # Initialization
+def _rebuild_prekey_bundles_if_legacy(conn) -> None:
+    """SQLite: снять UNIQUE(user_id) с prekey_bundles и добавить device_id.
+
+    SQLite не умеет ALTER'ом убрать inline UNIQUE — пересобираем таблицу
+    (create new → INSERT SELECT → drop old → rename). Guard: срабатывает только
+    если у существующей таблицы ещё нет колонки device_id (⟺ старая схема с
+    UNIQUE(user_id)) — на свежей БД (create_all из модели) device_id уже есть,
+    значит no-op. Ничто не ссылается на prekey_bundles как на родителя, поэтому
+    DROP/RENAME безопасны; существующие бандлы копируются с device_id=NULL.
+    """
+    old_cols = [row[1] for row in conn.execute(_text("PRAGMA table_info(prekey_bundles)")).fetchall()]
+    if not old_cols or "device_id" in old_cols:
+        return
+    logger.info("Rebuilding prekey_bundles: drop UNIQUE(user_id), add device_id")
+
+    # Target columns of the rebuilt table. device_id is always seeded NULL (the
+    # guard proves the old table has none); every other column is copied only if
+    # it exists in the old table, so the rebuild tolerates any legacy schema
+    # variant (columns added by earlier ALTERs may or may not be present).
+    new_cols = [
+        "id", "user_id", "device_id", "identity_key", "signed_prekey", "signed_prekey_sig",
+        "signed_prekey_id", "identity_key_ed", "identity_key_sig", "supports_v2",
+        "device_x3dh_pub", "device_sign_pub", "device_cert_sig", "client_device_id",
+        "created_at", "updated_at",
+    ]
+    old = set(old_cols)
+    select_exprs = ["NULL" if c == "device_id" else (c if c in old else "NULL") for c in new_cols]
+    insert_sql = (
+        f"INSERT INTO prekey_bundles_new ({', '.join(new_cols)})"
+        f" SELECT {', '.join(select_exprs)} FROM prekey_bundles"
+    )
+    for stmt in (
+        "DROP TABLE IF EXISTS prekey_bundles_new",
+        "CREATE TABLE prekey_bundles_new ("
+        " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+        " device_id INTEGER REFERENCES user_devices(id) ON DELETE CASCADE,"
+        " identity_key BLOB NOT NULL, signed_prekey BLOB NOT NULL,"
+        " signed_prekey_sig BLOB NOT NULL, signed_prekey_id INTEGER NOT NULL DEFAULT 0,"
+        " identity_key_ed BLOB, identity_key_sig BLOB, supports_v2 BOOLEAN,"
+        " device_x3dh_pub BLOB, device_sign_pub BLOB, device_cert_sig BLOB, client_device_id VARCHAR(32),"
+        " created_at DATETIME, updated_at DATETIME,"
+        " UNIQUE(user_id, device_id))",
+        insert_sql,
+        "DROP TABLE prekey_bundles",
+        "ALTER TABLE prekey_bundles_new RENAME TO prekey_bundles",
+        "CREATE INDEX IF NOT EXISTS ix_prekey_bundles_user_id ON prekey_bundles(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_prekey_bundles_device_id ON prekey_bundles(device_id)",
+    ):
+        conn.execute(_text(stmt))
+
+
 def init_db() -> None:
     """Create/migrate database schema.
 
@@ -330,7 +382,7 @@ def init_db() -> None:
                 "ALTER TABLE spaces ADD COLUMN theme_json TEXT",
                 "ALTER TABLE users ADD COLUMN kyber_public_key TEXT",
                 "CREATE TABLE IF NOT EXISTS channel_feeds (id INTEGER PRIMARY KEY AUTOINCREMENT, room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE, feed_type VARCHAR(20) NOT NULL, url TEXT NOT NULL, last_fetched DATETIME, last_item_id TEXT, is_active BOOLEAN DEFAULT 1, created_at DATETIME)",
-                # Variant-B public-room key escrow (server stores the symmetric
+                # public-room key escrow (server stores the symmetric
                 # key in plaintext; rows exist ONLY for is_private=0 rooms).
                 "CREATE TABLE IF NOT EXISTS public_room_keys (room_id INTEGER PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE, key_hex VARCHAR(64) NOT NULL, algorithm VARCHAR(32) NOT NULL DEFAULT 'aes-256-gcm', created_at DATETIME, rotated_at DATETIME)",
                 "CREATE INDEX IF NOT EXISTS ix_channel_feeds_room_id ON channel_feeds(room_id)",
@@ -348,6 +400,13 @@ def init_db() -> None:
                 "CREATE TABLE IF NOT EXISTS device_link_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, link_code_hash VARCHAR(64) NOT NULL, new_device_pub VARCHAR(64) NOT NULL, status VARCHAR(20) DEFAULT 'pending', encrypted_keys TEXT, created_at DATETIME, expires_at DATETIME NOT NULL)",
                 "CREATE INDEX IF NOT EXISTS ix_device_link_requests_user_id ON device_link_requests(user_id)",
                 "CREATE INDEX IF NOT EXISTS ix_device_link_requests_code ON device_link_requests(link_code_hash)",
+                # M4b: тройка нового устройства + аккаунт-материал для approver-signing
+                "ALTER TABLE device_link_requests ADD COLUMN new_device_x3dh_pub VARCHAR(64)",
+                "ALTER TABLE device_link_requests ADD COLUMN new_device_sign_pub VARCHAR(64)",
+                "ALTER TABLE device_link_requests ADD COLUMN new_device_client_id VARCHAR(32)",
+                "ALTER TABLE device_link_requests ADD COLUMN device_cert_sig VARCHAR(128)",
+                "ALTER TABLE device_link_requests ADD COLUMN account_ed_pub VARCHAR(64)",
+                "ALTER TABLE device_link_requests ADD COLUMN identity_key_sig VARCHAR(128)",
                 "CREATE TABLE IF NOT EXISTS sync_events (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, device_id INTEGER NOT NULL, event_type VARCHAR(20) NOT NULL, payload TEXT NOT NULL, seq INTEGER DEFAULT 0, created_at DATETIME)",
                 "CREATE INDEX IF NOT EXISTS ix_sync_events_user_seq ON sync_events(user_id, seq)",
                 "CREATE TABLE IF NOT EXISTS device_cross_signs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, signer_device INTEGER NOT NULL, signed_device INTEGER NOT NULL, signature TEXT NOT NULL, signer_pub_hash VARCHAR(64) NOT NULL, signed_pub_hash VARCHAR(64) NOT NULL, created_at DATETIME)",
@@ -378,11 +437,16 @@ def init_db() -> None:
                 "ALTER TABLE users ADD COLUMN passkey_sign_count INTEGER DEFAULT 0",
                 "ALTER TABLE users ADD COLUMN show_last_seen BOOLEAN DEFAULT 1",
                 # Double Ratchet / X3DH pre-key tables
-                "CREATE TABLE IF NOT EXISTS prekey_bundles (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE, identity_key BLOB NOT NULL, signed_prekey BLOB NOT NULL, signed_prekey_sig BLOB NOT NULL, signed_prekey_id INTEGER NOT NULL DEFAULT 0, created_at DATETIME, updated_at DATETIME)",
+                "CREATE TABLE IF NOT EXISTS prekey_bundles (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, device_id INTEGER REFERENCES user_devices(id) ON DELETE CASCADE, identity_key BLOB NOT NULL, signed_prekey BLOB NOT NULL, signed_prekey_sig BLOB NOT NULL, signed_prekey_id INTEGER NOT NULL DEFAULT 0, created_at DATETIME, updated_at DATETIME, UNIQUE(user_id, device_id))",
                 "CREATE INDEX IF NOT EXISTS ix_prekey_bundles_user_id ON prekey_bundles(user_id)",
-                "CREATE TABLE IF NOT EXISTS onetime_prekeys (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, key_id INTEGER NOT NULL, public_key BLOB NOT NULL, used BOOLEAN DEFAULT 0, created_at DATETIME)",
+                # device_id index for prekey_bundles is created by the model on a
+                # fresh DB and by _rebuild_prekey_bundles_if_legacy on an old one —
+                # not here, where the column may not exist yet on a legacy table.
+                "CREATE TABLE IF NOT EXISTS onetime_prekeys (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, device_id INTEGER REFERENCES user_devices(id) ON DELETE CASCADE, key_id INTEGER NOT NULL, public_key BLOB NOT NULL, used BOOLEAN DEFAULT 0, created_at DATETIME)",
+                "ALTER TABLE onetime_prekeys ADD COLUMN device_id INTEGER",
                 "CREATE INDEX IF NOT EXISTS ix_onetime_prekeys_user_id ON onetime_prekeys(user_id)",
                 "CREATE INDEX IF NOT EXISTS ix_onetime_prekeys_available ON onetime_prekeys(user_id, used)",
+                "CREATE INDEX IF NOT EXISTS ix_onetime_prekeys_device ON onetime_prekeys(user_id, device_id, used)",
                 # Push subscriptions
                 "CREATE TABLE IF NOT EXISTS push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, endpoint VARCHAR(512) NOT NULL UNIQUE, p256dh VARCHAR(256) NOT NULL, auth VARCHAR(256) NOT NULL, created_at DATETIME)",
                 "CREATE INDEX IF NOT EXISTS ix_push_subscriptions_user_id ON push_subscriptions(user_id)",
@@ -417,14 +481,22 @@ def init_db() -> None:
                 "CREATE INDEX IF NOT EXISTS ix_fed_env_origin ON federated_envelopes(origin_pubkey_hex)",
                 "CREATE INDEX IF NOT EXISTS ix_fed_env_room_origin ON federated_envelopes(room_id_origin, origin_pubkey_hex)",
                 "CREATE INDEX IF NOT EXISTS ix_fed_env_created_at ON federated_envelopes(created_at)",
-                # Envelope encryption-version registry (ADR-001): NULL = pre-versioning
+                # Envelope encryption-version registry: NULL = pre-versioning
                 "ALTER TABLE messages ADD COLUMN enc_version INTEGER",
                 "ALTER TABLE message_edit_history ADD COLUMN enc_version INTEGER",
-                # Ed25519 identity key + binding signature (ADR-001 batch 4)
+                # Ed25519 identity key + binding signature
                 "ALTER TABLE prekey_bundles ADD COLUMN identity_key_ed BLOB",
                 "ALTER TABLE prekey_bundles ADD COLUMN identity_key_sig BLOB",
-                # v2 Double Ratchet receive capability (ADR-001 batch 6b)
+                # v2 Double Ratchet receive capability
                 "ALTER TABLE prekey_bundles ADD COLUMN supports_v2 BOOLEAN",
+                # Device-identity triple (public parts) + cert over it
+                "ALTER TABLE prekey_bundles ADD COLUMN device_x3dh_pub BLOB",
+                "ALTER TABLE prekey_bundles ADD COLUMN device_sign_pub BLOB",
+                "ALTER TABLE prekey_bundles ADD COLUMN device_cert_sig BLOB",
+                "ALTER TABLE prekey_bundles ADD COLUMN client_device_id VARCHAR(32)",
+                # Stable physical-device id for UserDevice dedup
+                "ALTER TABLE user_devices ADD COLUMN client_device_id VARCHAR(32)",
+                "CREATE INDEX IF NOT EXISTS ix_user_devices_client_device_id ON user_devices(client_device_id)",
             ]
             with engine.connect() as conn:
                 try:
@@ -440,6 +512,7 @@ def init_db() -> None:
                             if isinstance(orig, sqlite3.OperationalError) and "duplicate column" in str(orig).lower():
                                 continue
                             raise
+                    _rebuild_prekey_bundles_if_legacy(conn)
                     conn.commit()
                 except Exception:
                     conn.rollback()

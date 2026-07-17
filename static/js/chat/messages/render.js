@@ -304,12 +304,12 @@ export function appendMessage(msg) {
                 textEl.innerHTML = `<span class="animated-sticker ${animClass}">${emoji}</span>`;
             } else {
                 // Legacy plain-emoji sticker: "[STICKER] emoji"
-                // FIX H5: stored XSS — decrypted payload is attacker-controlled, must be escaped
+                // stored XSS — decrypted payload is attacker-controlled, must be escaped
                 textEl.innerHTML = `<span style="font-size:64px;line-height:1;">${esc(stickerPayload)}</span>`;
             }
         }
     }
-    // Feature 4: GIF messages — render as inline image
+    // GIF messages — render as inline image
     else if (msg.text && msg.text.startsWith('[GIF] ')) {
         const gifUrl = msg.text.substring(6).trim();
         const safeUrl = esc(gifUrl);
@@ -425,7 +425,7 @@ export function appendMessage(msg) {
             textEl.textContent = msg.text;
         }
     }
-    // Feature 3: Location messages — render as clickable link with map icon
+    // Location messages — render as clickable link with map icon
     else if (msg.text && msg.text.includes('maps.google.com/maps?q=')) {
         const lines = msg.text.split('\n');
         const mapLink = lines.find(l => l.includes('maps.google.com'));
@@ -447,7 +447,7 @@ export function appendMessage(msg) {
             const appUrl = appData.url || '';
             const appTitleRaw = appData.title || 'Mini App';
             const botId = msg.bot_id || 0;
-            // FIX L9: do NOT build onclick="...'${esc(appUrl)}'..." — esc() encodes ' to
+            // do NOT build onclick="...'${esc(appUrl)}'..." — esc() encodes ' to
             // &#39; which the HTML parser decodes back inside the inline JS string, letting
             // a crafted url break out of the JS string literal. Wire via addEventListener
             // so the raw values stay in a JS closure and never touch the HTML parser.
@@ -593,7 +593,7 @@ export function appendMessage(msg) {
             btn.dataset.emoji = emoji;
             btn.dataset.count = data.count;
             btn.dataset.users = JSON.stringify(data.users);
-            // FIX L4: emoji is server-relayed user input — escape before injecting as HTML
+            // emoji is server-relayed user input — escape before injecting as HTML
             btn.innerHTML = `${esc(emoji)}${data.count > 1 ? ` <span class="reaction-count">${data.count}</span>` : ''}`;
             btn.onclick = () => {
                 if (S.ws?.readyState === WebSocket.OPEN) {

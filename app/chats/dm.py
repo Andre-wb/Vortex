@@ -20,7 +20,7 @@ from app.models.contact import Contact
 from app.models_rooms import (
     EncryptedRoomKey, Message, PendingKeyRequest, Room, RoomMember, RoomRole,
 )
-from app.models_rooms.blocks import BlockedUser  # FIX M1: enforce blocks on DM open
+from app.models_rooms.blocks import BlockedUser  # enforce blocks on DM open
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 from app.security.key_exchange import validate_ecies_payload
@@ -134,7 +134,7 @@ async def create_or_get_dm(
     if not target:
         raise HTTPException(404, "User not found or deactivated")
 
-    # FIX M1: отказываем в открытии/переоткрытии DM, если любая из сторон
+    # отказываем в открытии/переоткрытии DM, если любая из сторон
     # заблокировала другую (раньше блок применялся лишь как is_banned на
     # старой комнате, и заблокированный мог открыть свежий DM).
     is_blocked = db.query(BlockedUser).filter(

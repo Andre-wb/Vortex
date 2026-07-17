@@ -272,7 +272,7 @@ class ConnectionManager:
     3. Метод check_rate_limit() для проверки перед обработкой входящего сообщения.
     """
 
-    # FIX L6: per-user concurrent WebSocket connection cap (room + global WS).
+    # per-user concurrent WebSocket connection cap (room + global WS).
     # Sane default; override via env MAX_WS_PER_USER. 0/negative disables the cap.
     import os as _os
     try:
@@ -286,7 +286,7 @@ class ConnectionManager:
         self._global_ws:  dict[int, WebSocket] = {}
         self._sse_queues: dict[str, asyncio.Queue] = {}
         self._lock        = asyncio.Lock()
-        # FIX L6: live count of concurrent sockets per user (room + global).
+        # live count of concurrent sockets per user (room + global).
         self._ws_count:   dict[int, int] = defaultdict(int)
 
     def _ws_cap_reached(self, user_id: int) -> bool:
@@ -315,7 +315,7 @@ class ConnectionManager:
             ws:           WebSocket,
     ) -> None:
         await ws.accept()
-        # FIX L6: enforce per-user concurrent WS cap. Reject (close) over the limit.
+        # enforce per-user concurrent WS cap. Reject (close) over the limit.
         async with self._lock:
             if self._ws_cap_reached(user_id):
                 logger.warning("WS cap reached for user %s (room) — rejecting", user_id)
@@ -349,7 +349,7 @@ class ConnectionManager:
             if not self._rooms[room_id]:
                 del self._rooms[room_id]
             if user:
-                self._ws_count_dec(user_id)  # FIX L6
+                self._ws_count_dec(user_id)
 
         if user:
             logger.debug("WS- connection (sanitized)")
@@ -504,7 +504,7 @@ class ConnectionManager:
     async def connect_global(self, user_id: int, ws: WebSocket) -> None:
         """Подключает глобальный WS для уведомлений пользователя."""
         await ws.accept()
-        # FIX L6: count global WS toward the per-user cap. A pre-existing global
+        # count global WS toward the per-user cap. A pre-existing global
         # WS is being replaced, so only increment when there wasn't one already.
         had_global = user_id in self._global_ws
         if not had_global and self._ws_cap_reached(user_id):
@@ -532,7 +532,7 @@ class ConnectionManager:
     def disconnect_global(self, user_id: int) -> None:
         """Отключает глобальный WS пользователя."""
         if self._global_ws.pop(user_id, None) is not None:
-            self._ws_count_dec(user_id)  # FIX L6
+            self._ws_count_dec(user_id)
         logger.debug("Global WS- (sanitized)")
 
     async def notify_user(self, user_id: int, payload: dict) -> bool:
@@ -659,7 +659,7 @@ class ConnectionManager:
                     ws = conn.websocket
                     if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
                         del self._rooms[room_id][uid]
-                        self._ws_count_dec(uid)  # FIX L6: keep cap counter in sync
+                        self._ws_count_dec(uid)  # keep cap counter in sync
                         removed += 1
                 if not self._rooms[room_id]:
                     del self._rooms[room_id]
@@ -668,7 +668,7 @@ class ConnectionManager:
                 ws = self._global_ws[uid]
                 if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
                     del self._global_ws[uid]
-                    self._ws_count_dec(uid)  # FIX L6: keep cap counter in sync
+                    self._ws_count_dec(uid)  # keep cap counter in sync
                     removed += 1
         if removed:
             logger.info("Cleaned up %d stale WebSocket connections", removed)
@@ -684,7 +684,7 @@ class ConnectionManager:
                     except Exception:
                         pass
             self._rooms.clear()
-            # FIX L6: room sockets are gone; drop their cap contribution.
+            # room sockets are gone; drop their cap contribution.
             # Global WS counts remain (they aren't closed here).
             self._ws_count = defaultdict(
                 int,

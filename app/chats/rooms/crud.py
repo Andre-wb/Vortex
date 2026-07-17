@@ -124,7 +124,7 @@ async def create_room(
         recipient_pub = u.x25519_public_key,
     ))
 
-    # Variant-B auto-escrow: every public room gets a server-held symmetric
+    # auto-escrow: every public room gets a server-held symmetric
     # key so new joiners and offline catch-up work without waiting for an
     # online peer. Private rooms keep the pure ECIES-per-member flow.
     if not body.is_private:

@@ -134,7 +134,7 @@ async def register(body: RegisterRequest, request: Request,
     elif reg_mode != "open":
         raise HTTPException(403, "Registration is unavailable")
 
-    # FIX L2: collapse the per-field "X already taken" responses into a single
+    # collapse the per-field "X already taken" responses into a single
     # non-attributing message so registration cannot be used to enumerate which
     # phones / usernames / emails / keys already exist on the node. The 409
     # status is preserved for the client.

@@ -1,6 +1,6 @@
 /**
  * dr-session-store.test.js
- * Персистентность DR-сессий и дисциплина single-writer (ADR-001, батч 5).
+ * Персистентность DR-сессий и дисциплина single-writer.
  * IndexedDB/Web Locks в jsdom отсутствуют — тестируем логику против
  * инъектируемого in-memory бэкенда и мок-lockManager.
  */

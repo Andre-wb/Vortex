@@ -121,20 +121,45 @@ def _set_auth_cookies(response: Response, user: User, db: Session, request: Requ
     raw_refresh, _exp = create_refresh_token(user.id, db, ip, ua)
 
     device_name, device_type = _parse_device_name(ua)
-    device = UserDevice(
-        user_id=user.id,
-        device_name=device_name,
-        device_type=device_type,
-        ip_address=ip,
-        refresh_token_hash=hash_token(raw_refresh),
-    )
-    db.add(device)
+
+    # Дедуп UserDevice по стабильному client_device_id (заголовок
+    # X-Device-Id) — переиспользуем строку физического устройства вместо новой
+    # на каждый логин. Обновление refresh_token_hash консистентно с refresh-флоу
+    # (session.py тоже переиспользует и обновляет строку). Без заголовка
+    # (старый клиент) — прежнее поведение: новая строка.
+    client_device_id = request.headers.get("x-device-id")
+    if client_device_id and not (len(client_device_id) == 32 and all(c in "0123456789abcdef" for c in client_device_id)):
+        client_device_id = None  # игнорируем мусорный заголовок
+
+    device = None
+    if client_device_id:
+        device = db.query(UserDevice).filter(
+            UserDevice.user_id == user.id,
+            UserDevice.client_device_id == client_device_id,
+        ).first()
+
+    if device is not None:
+        device.refresh_token_hash = hash_token(raw_refresh)
+        device.ip_address = ip
+        device.device_name = device_name
+        device.device_type = device_type
+        device.last_active = datetime.now(timezone.utc)
+    else:
+        device = UserDevice(
+            user_id=user.id,
+            device_name=device_name,
+            device_type=device_type,
+            ip_address=ip,
+            refresh_token_hash=hash_token(raw_refresh),
+            client_device_id=client_device_id,
+        )
+        db.add(device)
     db.commit()
 
     # Enforce session limit — only if user explicitly set one (0 = unlimited)
     # Session limit is stored in localStorage on client, not on server by default
 
-    # FIX L3: mark auth cookies Secure whenever the connection is HTTPS, not only
+    # mark auth cookies Secure whenever the connection is HTTPS, not only
     # in production, so tokens are never sent over plaintext on TLS deployments
     # that are not flagged as production.
     secure_cookie = Config.IS_PRODUCTION or request.url.scheme == "https"

@@ -1,6 +1,5 @@
 """Тесты референс-реализации Double Ratchet (app/security/double_ratchet.py).
 
-Батч 1 миграции по ADR-001 (docs/adr/001-message-encryption-versions.md):
 модуль пока не используется в проде — эти тесты пиннят его как спецификацию
 для будущей клиентской (JS) реализации и валидируют кросс-языковые векторы
 app/tests/vectors/dr_vectors.json (генератор: scripts/gen_dr_test_vectors.py).
@@ -280,7 +279,7 @@ class TestStateSerialization:
 
 class TestVectors:
     """Валидация кросс-языковых векторов: Python-референс обязан
-    воспроизводить их. Батч 5 добавит зеркальную проверку из JS."""
+    воспроизводить их. Позже добавится зеркальная проверка из JS."""
 
     @pytest.fixture(scope="class")
     def vectors(self):
@@ -316,6 +315,21 @@ class TestVectors:
         pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(v["ed25519_pub"]))
         assert dr.verify_spk_signature(pub, bytes.fromhex(v["spk_pub"]), bytes.fromhex(v["signature"]))
 
+    def test_device_cert_vector(self, vectors):
+        """Byte-parity cert'а: раскладка cert-сообщения (cid‖x3dh‖sign) и подпись
+        аккаунтного Ed25519 должны сойтись — то же самое проверяет JS (verifyDeviceCert)."""
+        v = vectors["device_cert"]
+        cid = bytes.fromhex(v["client_device_id"])
+        x3dh = bytes.fromhex(v["device_x3dh_pub"])
+        sign = bytes.fromhex(v["device_sign_pub"])
+        # Раскладка cert-сообщения: client_device_id(16) ‖ x3dh(32) ‖ sign(32) = 80
+        assert len(cid) == 16 and len(x3dh) == 32 and len(sign) == 32
+        cert_message = cid + x3dh + sign
+        assert cert_message.hex() == v["cert_message"]
+        # Подпись аккаунтного Ed25519 над cert-сообщением
+        pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(v["account_ed_pub"]))
+        pub.verify(bytes.fromhex(v["cert_sig"]), cert_message)  # не бросает → валидна
+
     def test_x3dh_vectors(self, vectors):
         x = vectors["x3dh"]
         bob_ik = _priv(x["bob"]["ik_priv"])
@@ -333,7 +347,7 @@ class TestVectors:
 
         Покрывает: out-of-order (skipped keys), оба DH-шага и восстановление
         состояния из сериализованного вида — тот же протокол воспроизведения,
-        который будет использовать JS-реализация в батче 5.
+        который будет использовать JS-реализация.
         """
         t = vectors["transcript"]
         by_id = {m["id"]: m for m in t["messages"]}

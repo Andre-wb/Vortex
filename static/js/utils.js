@@ -91,6 +91,22 @@ export function getCookie(name) {
  * @returns {Promise<any>} распарсенный JSON ответа
  * @throws {Error} с сообщением об ошибке
  */
+/**
+ * Стабильный идентификатор физического устройства (ADR-002/003 P2). 16 байт hex,
+ * генерируется один раз, ПЕРЕЖИВАЕТ logout (в отличие от legacy vortex_device_id).
+ * Отправляется как X-Device-Id, чтобы сервер дедуплицировал UserDevice до
+ * физического устройства (а не создавал новую строку на каждый логин).
+ */
+export function getClientDeviceId() {
+    let id = null;
+    try { id = localStorage.getItem('vortex_client_device_id'); } catch {}
+    if (!id || !/^[0-9a-f]{32}$/.test(id)) {
+        id = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+        try { localStorage.setItem('vortex_client_device_id', id); } catch {}
+    }
+    return id;
+}
+
 export async function api(method, path, body) {
     const opts = { method, credentials: 'include', headers: {} };
     if (body) {
@@ -101,6 +117,7 @@ export async function api(method, path, body) {
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && state?.csrfToken) {
         opts.headers['X-CSRF-Token'] = state.csrfToken;
     }
+    try { opts.headers['X-Device-Id'] = getClientDeviceId(); } catch {}
 
     // Таймаут 10 секунд
     const controller = new AbortController();

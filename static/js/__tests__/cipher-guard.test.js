@@ -1,16 +1,16 @@
 /**
  * cipher-guard.test.js
- * Статический guard (ADR-001, батч 3): вне message-cipher.js и crypto.js
+ * Статический guard: вне message-cipher.js и crypto.js
  * никто не должен вызывать ratchetEncrypt/ratchetDecrypt напрямую — всё
  * шифрование/расшифровка сообщений идёт через абстракцию message-cipher.js.
  *
  * indicators.js легитимно использует decryptText (это legacy-примитив, не
  * ratchet-вызов) и guard не нарушает.
  *
- * Каталог dr/ (батч 5) — крипто-ядро Double Ratchet: там ФУНКЦИИ
+ * Каталог dr/ — крипто-ядро Double Ratchet: там ФУНКЦИИ
  * ratchetEncrypt/ratchetDecrypt определяются (совпадение имён с Python-
  * референсом), это не chat call-site. Исключаем его из проверки; message-cipher
- * подключит dr/ в батче 6, а chat-код вне dr/ по-прежнему под запретом.
+ * подключит dr/, а chat-код вне dr/ по-прежнему под запретом.
  */
 
 const fs = require('fs');

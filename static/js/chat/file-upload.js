@@ -494,8 +494,8 @@ export async function sendPendingFile() {
     }
 
     // Encrypt caption if present. Captions travel through the REST upload
-    // path, which does not carry enc_v yet (ADR-001 defers file-caption
-    // versioning) — the receiver decrypts them via the v0/v1 heuristic.
+    // path, which does not carry enc_v yet — the receiver decrypts them
+    // via the v0/v1 heuristic.
     let captionCt = null;
     if (caption) {
         try {
