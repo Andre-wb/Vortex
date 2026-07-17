@@ -122,8 +122,9 @@ class TestPerDeviceBundles:
             assert len(lst["bundles"]) == 2
             assert len(device_ids) == 2 and None not in device_ids
 
-    def test_list_consumes_per_device_opk(self, warn_only):
-        """Каждое устройство отдаёт OPK из СВОЕГО пула — ключи не пересекаются."""
+    def test_claim_opk_per_device(self, warn_only):
+        """M4a: discovery (/devices) OPK НЕ выдаёт; /claim-opk расходует OPK
+        СВОЕГО устройства из его пула — ключи разных устройств не пересекаются."""
         with TestClient(app, raise_server_exceptions=False) as tc:
             username, ik = _register(tc)
             cid_a, cid_b = _dev_id(), _dev_id()
@@ -133,16 +134,23 @@ class TestPerDeviceBundles:
             _publish(tc, csrf_b, ik, cid_b, n_opk=2, supports_v2=True)
 
             me = tc.get("/api/authentication/me").json()
-            first = tc.get(f"/api/keys/prekeys/{me['user_id']}/devices").json()["bundles"]
-            opks = {b["device_id"]: b["one_time_prekey"] for b in first}
-            assert all(v is not None for v in opks.values())
-            # OPK разных устройств различаются
-            assert len(set(opks.values())) == 2
+            uid = me["user_id"]
+            h = {"X-CSRF-Token": csrf_b}
+            bundles = tc.get(f"/api/keys/prekeys/{uid}/devices").json()["bundles"]
+            assert all(b["one_time_prekey"] is None for b in bundles)   # discovery без OPK
+            dev_ids = [b["device_id"] for b in bundles]
 
-            # Пул каждого устройства = 2 → второй забор ещё отдаёт OPK, третий — нет
-            tc.get(f"/api/keys/prekeys/{me['user_id']}/devices")
-            third = tc.get(f"/api/keys/prekeys/{me['user_id']}/devices").json()["bundles"]
-            assert all(b["one_time_prekey"] is None for b in third)
+            # claim по каждому устройству → OPK своего пула, разные ключи
+            claims = {}
+            for did in dev_ids:
+                claims[did] = tc.post(f"/api/keys/prekeys/{uid}/claim-opk", json={"device_id": did}, headers=h).json()["one_time_prekey"]
+            assert all(v is not None for v in claims.values())
+            assert len(set(claims.values())) == 2
+
+            # Пул устройства = 2 → второй claim отдаёт OPK, третий — нет
+            tc.post(f"/api/keys/prekeys/{uid}/claim-opk", json={"device_id": dev_ids[0]}, headers=h)
+            third = tc.post(f"/api/keys/prekeys/{uid}/claim-opk", json={"device_id": dev_ids[0]}, headers=h).json()
+            assert third["one_time_prekey"] is None
 
     def test_single_fetch_backward_compatible(self, warn_only):
         """GET /{user_id} без device-заголовка (legacy) — один бандл, работает."""
@@ -153,7 +161,7 @@ class TestPerDeviceBundles:
 
             me = tc.get("/api/authentication/me").json()
             single = tc.get(f"/api/keys/prekeys/{me['user_id']}").json()
-            assert single["one_time_prekey"] is not None
+            assert single["one_time_prekey"] is None    # discovery без OPK (M4a)
             assert single["device_id"] is None
             lst = tc.get(f"/api/keys/prekeys/{me['user_id']}/devices").json()
             assert len(lst["bundles"]) == 1

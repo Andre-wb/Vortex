@@ -117,7 +117,7 @@ class TestPublishValid:
             fetched = r.json()
             assert fetched["identity_key_ed"] == bundle["identity_key_ed"]
             assert fetched["identity_key_sig"] == bundle["identity_key_sig"]
-            assert fetched["one_time_prekey"] is not None  # один OPK выдан
+            assert fetched["one_time_prekey"] is None  # discovery не выдаёт OPK (M4a)
 
 
 class TestEnforceRejects:
@@ -226,21 +226,27 @@ class TestSupportsV2Capability:
 
 class TestOpkConsumption:
 
-    def test_opk_consumed_once(self, warn_only):
+    def test_opk_consumed_via_claim_not_discovery(self, warn_only):
+        """M4a: discovery (GET) OPK НЕ расходует; расход — только через /claim-opk."""
         from starlette.testclient import TestClient
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
             tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik, n_opk=2),
                     headers={"X-CSRF-Token": csrf})
-            me = tc.get("/api/authentication/me").json()
+            uid = tc.get("/api/authentication/me").json()["user_id"]
+            h = {"X-CSRF-Token": csrf}
 
-            first = tc.get(f"/api/keys/prekeys/{me['user_id']}").json()
-            second = tc.get(f"/api/keys/prekeys/{me['user_id']}").json()
-            # Каждый fetch расходует свой OPK — ключи разные
+            # Discovery не расходует — сколько ни фетчь, OPK не выдаётся
+            assert tc.get(f"/api/keys/prekeys/{uid}").json()["one_time_prekey"] is None
+            assert tc.get(f"/api/keys/prekeys/{uid}").json()["one_time_prekey"] is None
+
+            # claim-opk расходует по одному (device_id=None — публикация без X-Device-Id)
+            first = tc.post(f"/api/keys/prekeys/{uid}/claim-opk", json={"device_id": None}, headers=h).json()
+            second = tc.post(f"/api/keys/prekeys/{uid}/claim-opk", json={"device_id": None}, headers=h).json()
             assert first["one_time_prekey"] is not None
             assert second["one_time_prekey"] is not None
             assert first["one_time_prekey"] != second["one_time_prekey"]
 
-            # Пул иссяк — третий fetch отдаёт бандл без OPK
-            third = tc.get(f"/api/keys/prekeys/{me['user_id']}").json()
+            # Пул иссяк — третий claim без OPK
+            third = tc.post(f"/api/keys/prekeys/{uid}/claim-opk", json={"device_id": None}, headers=h).json()
             assert third["one_time_prekey"] is None

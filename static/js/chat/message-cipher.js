@@ -213,15 +213,16 @@ async function _collectValidDevices(list, trustedAccountEd, peerX25519, excludeD
 
 // TTL discovery-кэша набора устройств. Сессии durable (IndexedDB) — устройству с
 // установленной сессией бандл/фетч не нужны; `/devices` дёргается ТОЛЬКО чтобы
-// (пере)открыть набор устройств. Стационарная переписка = 0 фетчей, 0 OPK; OPK
-// тратятся лишь на периодический TTL-рефреш (ловит новые/убранные устройства).
+// (пере)открыть набор устройств. `/devices` OPK НЕ расходует (M4a) — свежий OPK
+// берётся на УСТАНОВЛЕНИИ сессии через /claim-opk. Стационарная переписка = 0
+// фетчей, 0 OPK; на TTL-рефреше — тоже 0 OPK (только discovery).
 const _V2_DISCOVERY_TTL_MS = 5 * 60 * 1000;
 
 /**
  * Открывает набор валидных целевых устройств (адресат + свои другие): фетч
- * `/devices`, пин аккаунтного Ed25519 адресата, проверка cert-цепочки.
- * Расходует OPK (эндпоинт M1) — поэтому кэшируется вызывающим. Бросает с
- * _fallback=true при окончательных причинах (не v2).
+ * `/devices` (БЕЗ расхода OPK, M4a), пин аккаунтного Ed25519 адресата, проверка
+ * cert-цепочки. Каждое устройство помечается userId (у кого claim'ить OPK на
+ * установлении). Бросает с _fallback=true при окончательных причинах (не v2).
  */
 async function _discoverTargets(peer, device) {
     const reject = (m) => { const e = new Error(m); e._fallback = true; throw e; };
@@ -231,7 +232,8 @@ async function _discoverTargets(peer, device) {
     const pin = pinPeerAccountEd(peer.user_id, peerEd);
     if (pin.changed) { console.warn('[v2] peer account Ed25519 changed — blocking v2'); reject('acct_ed_changed'); }
     if (!pin.trusted) reject('no_acct_ed');
-    const peerTargets = await _collectValidDevices(peerList, pin.trusted, peer.x25519_public_key, null);
+    const peerTargets = (await _collectValidDevices(peerList, pin.trusted, peer.x25519_public_key, null))
+        .map(t => ({ ...t, userId: peer.user_id }));
     if (!peerTargets.length) reject('no_valid_peer_devices');
 
     let ownTargets = [];
@@ -240,10 +242,51 @@ async function _discoverTargets(peer, device) {
     if (myAccountEd && myUserId) {
         try {
             const ownList = await api('GET', `/api/keys/prekeys/${myUserId}/devices`);
-            ownTargets = await _collectValidDevices(ownList, myAccountEd, null, device.deviceId);
+            ownTargets = (await _collectValidDevices(ownList, myAccountEd, null, device.deviceId))
+                .map(t => ({ ...t, userId: myUserId }));
         } catch (e) { console.debug('[v2] own-device fan-out skipped:', e?.message); }
     }
     return [...peerTargets, ...ownTargets];
+}
+
+/**
+ * M4d: удаляет DR-сессии комнаты для устройств, которых больше нет в валидном
+ * наборе (отозваны/удалены) — сессия к ним брошена и лишь занимает IndexedDB.
+ * Вызывается после СВЕЖЕГО discovery (валидный набор устройств известен).
+ * Отзыв ЧУЖОГО устройства доходит сюда через серверное удаление его бандла
+ * (A1) — на TTL-рефреше discovery, не мгновенным push.
+ */
+async function _pruneAbandonedSessions(roomId, validDeviceIds) {
+    try {
+        const store = _sessionStore();
+        if (typeof store.sessionIds !== 'function') return;
+        const prefix = dmSessionId(roomId, '');   // "dm:<roomId>:"
+        for (const sid of await store.sessionIds()) {
+            if (!sid.startsWith(prefix)) continue;
+            const deviceId = sid.slice(prefix.length);
+            if (!validDeviceIds.has(deviceId)) {
+                await store.delete(sid);
+                console.debug('[v2] pruned abandoned session', sid);
+            }
+        }
+    } catch (e) { console.debug('[v2] session prune skipped:', e?.message); }
+}
+
+/**
+ * Устанавливающий getPeerBundle: claim'ит свежий OPK устройства (discovery его не
+ * даёт — M4a). Вызывается _drEncryptV2 ТОЛЬКО при отсутствии сессии (установление);
+ * для установленной сессии не зовётся → OPK не тратится. Нет OPK → 3-DH без OPK.
+ */
+async function _claimingBundle(target) {
+    let opk = null;
+    try {
+        opk = await api('POST', `/api/keys/prekeys/${target.userId}/claim-opk`, { device_id: target.bundle.device_id });
+    } catch (e) { console.debug('[v2] claim-opk failed, X3DH without OPK:', e?.message); }
+    return {
+        ...target.bundle,
+        one_time_prekey: opk?.one_time_prekey ?? null,
+        one_time_prekey_id: opk?.one_time_prekey_id ?? null,
+    };
 }
 
 /**
@@ -274,21 +317,25 @@ export async function encryptV2ForDm(room, plaintext) {
         // Discovery-кэш: свежий набор → без фетча `/devices` (0 OPK); иначе открываем.
         let cached = room._v2Discovery && room._v2Discovery.expiresAt > Date.now();
         if (!cached) {
-            room._v2Discovery = { targets: await _discoverTargets(peer, device), expiresAt: Date.now() + _V2_DISCOVERY_TTL_MS };
+            const targets = await _discoverTargets(peer, device);
+            room._v2Discovery = { targets, expiresAt: Date.now() + _V2_DISCOVERY_TTL_MS };
+            // M4d: почистить сессии к устройствам, ушедшим из набора. Редко (только на
+            // TTL-рефреше discovery) и быстро (локальный IndexedDB) — awaited, не блокер.
+            await _pruneAbandonedSessions(room.id, new Set(targets.map(t => t.clientDeviceId)));
         }
         const targets = room._v2Discovery.targets;
 
         // Шифруем по под-конверту на каждое устройство (своя per-device сессия).
+        // getPeerBundle claim'ит свежий OPK — ТОЛЬКО при установлении (нет сессии).
         const subs = {};
         try {
             for (const t of targets) {
-                const ctx = { myDeviceX3dhPriv, myDeviceX3dhPubHex: device.x3dhPub, myCert, getPeerBundle: async () => t.bundle };
+                const ctx = { myDeviceX3dhPriv, myDeviceX3dhPubHex: device.x3dhPub, myCert, getPeerBundle: () => _claimingBundle(t) };
                 subs[t.clientDeviceId] = await _drEncryptV2(_sessionStore(), dmSessionId(room.id, t.clientDeviceId), ctx, plaintext);
             }
         } catch (e) {
-            // Establish/encrypt упал. Если шли из кэша — бандл мог протухнуть
-            // (израсходованный OPK): сбрасываем кэш, следующее сообщение перефетчит
-            // свежие бандлы. НЕ переиспользуем протухший бандл для повторной установки.
+            // Establish/encrypt упал — сбрасываем discovery-кэш (набор мог устареть),
+            // следующее сообщение перефетчит. Свежий OPK claim'ится заново.
             if (cached) delete room._v2Discovery;
             throw e;
         }

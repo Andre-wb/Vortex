@@ -23,6 +23,7 @@ jest.mock('../dr/session-store.js', () => {
 });
 
 const { decodeFanout } = require('../dr/v2-fanout.js');
+const { decodeV2 } = require('../dr/v2-envelope.js');
 const { certMessage } = require('../dr/device-identity.js');
 const { loadOrCreateEd25519Identity } = require('../dr/prekeys.js');
 const { createSessionStore, memoryBackend } = require('../dr/session-store.js');
@@ -57,6 +58,7 @@ async function recipientDevice(cid, spkId, opkId, acctEd, acctX25519Hex, { tampe
     let certSig = await edSignRaw(acctEd.priv, certMessage(cid, x3dh.pubHex, sign.pubHex));
     if (tamperCert) certSig = (certSig.endsWith('00') ? certSig.slice(0, -2) + '01' : certSig.slice(0, -2) + '00');
     const bundle = {
+        device_id: spkId,   // серверный UserDevice.id (в тестах = spkId, различает устройства)
         client_device_id: cid,
         device_x3dh_pub: x3dh.pubHex, device_sign_pub: sign.pubHex, device_cert_sig: certSig,
         signed_prekey: spk.pubHex, signed_prekey_id: spkId,
@@ -64,9 +66,25 @@ async function recipientDevice(cid, spkId, opkId, acctEd, acctX25519Hex, { tampe
         identity_key: acctX25519Hex, identity_key_ed: acctEd.pubHex,
         identity_key_sig: await edSignRaw(acctEd.priv, fromHex(acctX25519Hex)),
         supports_v2: true,
-        one_time_prekey: opk.pubHex, one_time_prekey_id: opkId,
+        // M4a: discovery (/devices) OPK НЕ отдаёт; клиент claim'ит через /claim-opk
     };
     return { cid, x3dh, spk, opk, spkId, opkId, bundle };
+}
+
+/** Мок сети M4a: GET /{uid}/devices → бандлы (без OPK); POST /{uid}/claim-opk → OPK устройства. */
+function installMock(devicesByUser) {
+    mockApi.mockImplementation(async (method, url, body) => {
+        for (const [uid, devs] of Object.entries(devicesByUser)) {
+            if (url.endsWith(`/${uid}/devices`)) return { bundles: devs.map(d => d.bundle) };
+            if (url.endsWith(`/${uid}/claim-opk`)) {
+                const d = devs.find(x => x.bundle.device_id === body?.device_id);
+                return d
+                    ? { one_time_prekey: d.opk.pubHex, one_time_prekey_id: d.opkId }
+                    : { one_time_prekey: null, one_time_prekey_id: null };
+            }
+        }
+        return { bundles: [] };
+    });
 }
 
 /** Готовит Alice (инициатора): аккаунтный Ed25519 + device-identity через buildPrekeyBundle-путь. */
@@ -114,11 +132,7 @@ test('fan-out на 2 устройства адресата: один blob, ка�
     const dev1 = await recipientDevice('11'.repeat(16), 1, 101, bobEd, bobX25519.pubHex);
     const dev2 = await recipientDevice('12'.repeat(16), 2, 102, bobEd, bobX25519.pubHex);
 
-    mockApi.mockImplementation(async (method, url) => {
-        if (url.endsWith('/2/devices')) return { user_id: 2, bundles: [dev1.bundle, dev2.bundle] };
-        if (url.endsWith('/1/devices')) return { user_id: 1, bundles: [] };   // свои другие устройства — нет
-        throw new Error('unexpected ' + url);
-    });
+    installMock({ '2': [dev1, dev2], '1': [] });   // свои другие устройства — нет
 
     const r = await encryptV2ForDm(dmRoom(bobX25519.pubHex, 42), 'hello fan-out');
     expect(r.enc_v).toBe(2);
@@ -137,8 +151,7 @@ test('N=1 (одно устройство адресата) — вырожден�
     const bobEd = await genEd25519();
     const bobX25519 = await genX25519();
     const dev = await recipientDevice('21'.repeat(16), 1, 101, bobEd, bobX25519.pubHex);
-    mockApi.mockImplementation(async (m, url) =>
-        url.endsWith('/2/devices') ? { bundles: [dev.bundle] } : { bundles: [] });
+    installMock({ '2': [dev], '1': [] });
 
     const r = await encryptV2ForDm(dmRoom(bobX25519.pubHex, 51), 'solo');
     const blob = decodeFanout(r.ciphertext);
@@ -152,8 +165,7 @@ test('устройство с битым cert отбрасывается из fa
     const bobX25519 = await genX25519();
     const good = await recipientDevice('31'.repeat(16), 1, 101, bobEd, bobX25519.pubHex);
     const bad = await recipientDevice('32'.repeat(16), 2, 102, bobEd, bobX25519.pubHex, { tamperCert: true });
-    mockApi.mockImplementation(async (m, url) =>
-        url.endsWith('/2/devices') ? { bundles: [good.bundle, bad.bundle] } : { bundles: [] });
+    installMock({ '2': [good, bad], '1': [] });
 
     const r = await encryptV2ForDm(dmRoom(bobX25519.pubHex, 52), 'skip bad');
     const blob = decodeFanout(r.ciphertext);
@@ -165,8 +177,7 @@ test('нет валидных устройств адресата → null, кэ
     const bobEd = await genEd25519();
     const bobX25519 = await genX25519();
     const bad = await recipientDevice('41'.repeat(16), 2, 102, bobEd, bobX25519.pubHex, { tamperCert: true });
-    mockApi.mockImplementation(async (m, url) =>
-        url.endsWith('/2/devices') ? { bundles: [bad.bundle] } : { bundles: [] });
+    installMock({ '2': [bad], '1': [] });
 
     const room = dmRoom(bobX25519.pubHex, 53);
     expect(await encryptV2ForDm(room, 'x')).toBeNull();
@@ -178,8 +189,7 @@ test('смена аккаунтного Ed25519 адресата → блок v2
     const bobEd = await genEd25519();
     const bobX25519 = await genX25519();
     const dev = await recipientDevice('51'.repeat(16), 1, 101, bobEd, bobX25519.pubHex);
-    mockApi.mockImplementation(async (m, url) =>
-        url.endsWith('/2/devices') ? { bundles: [dev.bundle] } : { bundles: [] });
+    installMock({ '2': [dev], '1': [] });
 
     // Первый контакт пиннит bobEd
     expect((await encryptV2ForDm(dmRoom(bobX25519.pubHex, 54), 'first')).enc_v).toBe(2);
@@ -187,8 +197,7 @@ test('смена аккаунтного Ed25519 адресата → блок v2
     // Сервер подменяет аккаунтный Ed25519 (и cert под него) — пин ловит смену
     const evilEd = await genEd25519();
     const evilDev = await recipientDevice('52'.repeat(16), 1, 101, evilEd, bobX25519.pubHex);
-    mockApi.mockImplementation(async (m, url) =>
-        url.endsWith('/2/devices') ? { bundles: [evilDev.bundle] } : { bundles: [] });
+    installMock({ '2': [evilDev], '1': [] });
     const room2 = dmRoom(bobX25519.pubHex, 55);
     expect(await encryptV2ForDm(room2, 'blocked')).toBeNull();
     expect(room2._v2).toBe('no');
@@ -199,8 +208,7 @@ test('discovery-кэш: второе сообщение не фетчит /devic
     const bobEd = await genEd25519();
     const bobX25519 = await genX25519();
     const dev = await recipientDevice('61'.repeat(16), 1, 101, bobEd, bobX25519.pubHex);
-    mockApi.mockImplementation(async (m, url) =>
-        url.endsWith('/2/devices') ? { bundles: [dev.bundle] } : { bundles: [] });
+    installMock({ '2': [dev], '1': [] });
 
     const room = dmRoom(bobX25519.pubHex, 60);
     expect((await encryptV2ForDm(room, 'first')).enc_v).toBe(2);
@@ -209,4 +217,32 @@ test('discovery-кэш: второе сообщение не фетчит /devic
     // Второе сообщение: набор устройств из кэша, сессия установлена → 0 фетчей, 0 OPK
     expect((await encryptV2ForDm(room, 'second')).enc_v).toBe(2);
     expect(mockApi.mock.calls.length).toBe(afterFirst);
+});
+
+test('M4d: сессия к ушедшему устройству вычищается (повторный контакт → re-establish)', async () => {
+    const alice = await setupAlice();
+    const bobEd = await genEd25519();
+    const bobX25519 = await genX25519();
+    const dev1 = await recipientDevice('71'.repeat(16), 1, 101, bobEd, bobX25519.pubHex);
+    const dev2 = await recipientDevice('72'.repeat(16), 2, 102, bobEd, bobX25519.pubHex);
+    const room = dmRoom(bobX25519.pubHex, 70);
+
+    installMock({ '2': [dev1, dev2], '1': [] });
+    const b1 = decodeFanout((await encryptV2ForDm(room, 'm1')).ciphertext);
+    expect(decodeV2(b1.subs[dev2.cid]).isPrekey).toBe(true);    // первое — establish
+    const b2 = decodeFanout((await encryptV2ForDm(room, 'm2')).ciphertext);
+    expect(decodeV2(b2.subs[dev2.cid]).isPrekey).toBe(false);   // сессия есть → normal
+
+    // dev2 удалён, кэш истёк → свежий discovery ({dev1}) → prune сессии dev2
+    installMock({ '2': [dev1], '1': [] });
+    delete room._v2Discovery;
+    const b3 = decodeFanout((await encryptV2ForDm(room, 'm3')).ciphertext);
+    expect(Object.keys(b3.subs)).toEqual([dev1.cid]);           // dev2 больше не в наборе
+
+    // dev2 вернулся, кэш истёк → сессия к нему была вычищена → снова establish (prekey)
+    installMock({ '2': [dev1, dev2], '1': [] });
+    delete room._v2Discovery;
+    const b4 = decodeFanout((await encryptV2ForDm(room, 'm4')).ciphertext);
+    expect(decodeV2(b4.subs[dev2.cid]).isPrekey).toBe(true);    // сессия вычищена → re-establish
+    expect(decodeV2(b4.subs[dev1.cid]).isPrekey).toBe(false);   // dev1 сессия жива → normal
 });

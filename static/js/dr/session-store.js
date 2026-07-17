@@ -56,6 +56,15 @@ export function createSessionStore(backend, opts = {}) {
             return backend.delete(k(sessionId));
         },
 
+        /** Все sessionId в хранилище (для GC брошенных сессий, M4d). */
+        async sessionIds() {
+            if (typeof backend.keys !== 'function') return [];
+            const keys = await backend.keys();
+            return (keys || [])
+                .filter(key => typeof key === 'string' && key.startsWith(KEY_PREFIX))
+                .map(key => key.slice(KEY_PREFIX.length));
+        },
+
         /**
          * Атомарно (под блокировкой) load → fn(state) → save. Единственный
          * безопасный способ провести encrypt/decrypt: загрузка, мутация/создание
@@ -121,6 +130,7 @@ export function indexedDbBackend(dbName = 'vortex_dr', storeName = 'sessions') {
         get: key => _tx('readonly', store => store.get(key)).then(v => v ?? null),
         put: (key, value) => _tx('readwrite', store => store.put(value, key)),
         delete: key => _tx('readwrite', store => store.delete(key)),
+        keys: () => _tx('readonly', store => store.getAllKeys()).then(v => v ?? []),
     };
 }
 
@@ -131,5 +141,6 @@ export function memoryBackend() {
         get: async key => (map.has(key) ? JSON.parse(map.get(key)) : null),
         put: async (key, value) => { map.set(key, JSON.stringify(value)); },
         delete: async key => { map.delete(key); },
+        keys: async () => [...map.keys()],
     };
 }

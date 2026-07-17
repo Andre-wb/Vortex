@@ -213,12 +213,22 @@ class DeviceBundle(BaseModel):
 
 
 class PreKeyBundleListResponse(BaseModel):
-    """All active per-device Pre-Key Bundles for a user (Sesame fan-out).
+    """All active per-device Pre-Key Bundles for a user (Sesame fan-out discovery).
 
-    One entry per publishing device; each consumes its own device-scoped OPK.
+    One entry per publishing device; OPK НЕ включён (см. /claim-opk).
     """
     user_id: int
     bundles: List[DeviceBundle]
+
+
+class ClaimOpkRequest(BaseModel):
+    """Claim one OPK of a specific device for X3DH establishment."""
+    device_id: Optional[int] = None   # UserDevice.id бандла; None → device_id IS NULL
+
+
+class ClaimOpkResponse(BaseModel):
+    one_time_prekey: Optional[str] = None      # hex или None (пул пуст)
+    one_time_prekey_id: Optional[int] = None
 
 
 class PreKeyStatusResponse(BaseModel):
@@ -411,10 +421,9 @@ async def get_prekey_bundle(
 ) -> PreKeyBundleResponse:
     """Retrieves a single Pre-Key Bundle for the specified user.
 
-    Backward-compatible pairwise fetch: returns the most recently updated
-    device bundle (multi-device fan-out uses GET /{user_id}/devices instead).
-    Consumes one One-Time Pre-Key of that same device if available; if exhausted,
-    returns the bundle without an OPK (acceptable per X3DH protocol).
+    Backward-compatible pairwise fetch: returns the most recently updated device
+    bundle. НЕ расходует OPK (M4a) — используется для чтения identity/pin;
+    установление сессии берёт OPK через POST /{user_id}/claim-opk.
     """
     bundle: Optional[PreKeyBundle] = (
         db.query(PreKeyBundle)
@@ -429,31 +438,6 @@ async def get_prekey_bundle(
             detail=f"Pre-key bundle not found for user {user_id}",
         )
 
-    opk_hex, opk_key_id = _consume_one_opk(db, user_id, bundle.device_id)
-
-    if opk_hex is not None:
-        db.commit()
-        remaining = (
-            db.query(OneTimePreKey)
-            .filter(
-                OneTimePreKey.user_id == user_id,
-                OneTimePreKey.device_id == bundle.device_id,
-                OneTimePreKey.used == False,  # noqa: E712
-            )
-            .count()
-        )
-        if remaining < _LOW_OPK_THRESHOLD:
-            logger.warning(
-                "User %d device %s has only %d OPKs left (threshold=%d) — "
-                "client should replenish",
-                user_id, bundle.device_id, remaining, _LOW_OPK_THRESHOLD,
-            )
-    else:
-        logger.warning(
-            "No OPKs available for user %d device %s — X3DH will proceed without OPK",
-            user_id, bundle.device_id,
-        )
-
     return PreKeyBundleResponse(
         user_id=user_id,
         device_id=bundle.device_id,
@@ -464,8 +448,8 @@ async def get_prekey_bundle(
         identity_key_ed=bundle.identity_key_ed.hex() if bundle.identity_key_ed else None,
         identity_key_sig=bundle.identity_key_sig.hex() if bundle.identity_key_sig else None,
         supports_v2=bundle.supports_v2,
-        one_time_prekey=opk_hex,
-        one_time_prekey_id=opk_key_id,
+        one_time_prekey=None,        # discovery не выдаёт OPK — см. /claim-opk
+        one_time_prekey_id=None,
         **_device_identity_fields(bundle),
     )
 
@@ -476,12 +460,13 @@ async def get_prekey_bundles_all(
     _user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PreKeyBundleListResponse:
-    """Retrieves every active per-device Pre-Key Bundle for a user (Sesame fan-out).
+    """Discovery: every активный per-device Pre-Key Bundle пользователя (Sesame).
 
-    Returns one entry per publishing device, each consuming its own
-    device-scoped OPK (a device with none is returned without an OPK). Empty
-    list (not 404) when the user has published nothing, so a caller can fall
-    back to v1 without special-casing errors.
+    НЕ расходует OPK (M4a): открытие набора устройств дёргается часто (discovery-
+    кэш, TTL) и для устройств с уже установленной сессией — расход OPK за фетч
+    дренировал бы пул. OPK берётся ОТДЕЛЬНО на установлении сессии через
+    POST /{user_id}/claim-opk (свежий OPK на сессию — forward secrecy). Пустой
+    список (не 404) → caller падает в v1 без спец-обработки.
     """
     bundles: List[PreKeyBundle] = (
         db.query(PreKeyBundle)
@@ -490,12 +475,8 @@ async def get_prekey_bundles_all(
         .all()
     )
 
-    out: List[DeviceBundle] = []
-    consumed_any = False
-    for bundle in bundles:
-        opk_hex, opk_key_id = _consume_one_opk(db, user_id, bundle.device_id)
-        consumed_any = consumed_any or opk_hex is not None
-        out.append(DeviceBundle(
+    out = [
+        DeviceBundle(
             device_id=bundle.device_id,
             identity_key=bundle.identity_key.hex(),
             signed_prekey=bundle.signed_prekey.hex(),
@@ -504,15 +485,46 @@ async def get_prekey_bundles_all(
             identity_key_ed=bundle.identity_key_ed.hex() if bundle.identity_key_ed else None,
             identity_key_sig=bundle.identity_key_sig.hex() if bundle.identity_key_sig else None,
             supports_v2=bundle.supports_v2,
-            one_time_prekey=opk_hex,
-            one_time_prekey_id=opk_key_id,
+            one_time_prekey=None,        # discovery не выдаёт OPK — см. /claim-opk
+            one_time_prekey_id=None,
             **_device_identity_fields(bundle),
-        ))
-
-    if consumed_any:
-        db.commit()
-
+        )
+        for bundle in bundles
+    ]
     return PreKeyBundleListResponse(user_id=user_id, bundles=out)
+
+
+@router.post("/{user_id}/claim-opk", response_model=ClaimOpkResponse)
+async def claim_opk(
+    user_id: int,
+    body: ClaimOpkRequest,
+    _user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ClaimOpkResponse:
+    """Расходует ОДИН OPK устройства (user_id, device_id) для установления X3DH.
+
+    Единственная точка расхода OPK на приёме бандла (M4a): discovery (/devices,
+    /{user_id}) не расходует. Свежий OPK на каждую новую сессию — forward secrecy.
+    Нет свободного OPK → {null,null} (X3DH идёт 3-DH без OPK).
+    """
+    opk_hex, opk_key_id = _consume_one_opk(db, user_id, body.device_id)
+    if opk_hex is not None:
+        db.commit()
+        remaining = (
+            db.query(OneTimePreKey)
+            .filter(
+                OneTimePreKey.user_id == user_id,
+                OneTimePreKey.device_id == body.device_id,
+                OneTimePreKey.used == False,  # noqa: E712
+            )
+            .count()
+        )
+        if remaining < _LOW_OPK_THRESHOLD:
+            logger.warning(
+                "User %d device %s has only %d OPKs left — client should replenish",
+                user_id, body.device_id, remaining,
+            )
+    return ClaimOpkResponse(one_time_prekey=opk_hex, one_time_prekey_id=opk_key_id)
 
 
 @router.get("/status/me", response_model=PreKeyStatusResponse)
