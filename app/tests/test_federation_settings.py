@@ -16,7 +16,10 @@ import time
 
 import pytest
 
-from conftest import SyncASGIClient, make_user, login_user, random_str
+from conftest import SyncASGIClient, make_user, login_user, random_str, fed_proof_headers
+
+from app.federation.federation import make_guest_proof
+from app.federation.trusted_nodes import make_federation_proof
 
 
 # Auto-bypass PoW for test client IP (127.0.0.1 / testclient)
@@ -51,7 +54,8 @@ def _h(client: SyncASGIClient, extra: dict | None = None) -> dict:
 
 def _code_hash(client: SyncASGIClient) -> str:
     """Get local code hash."""
-    return client.get('/api/federation/code-hash').json()['code_hash']
+    r = client.get('/api/federation/code-hash', headers=fed_proof_headers())
+    return r.json()['code_hash']
 
 
 def _register_node_via_handshake(
@@ -72,7 +76,7 @@ def _register_node_via_handshake(
         'url': _url,
         'code_hash': _hash,
         'version': version,
-    }, headers=headers)
+    }, headers={**headers, 'X-Federation-Proof': make_federation_proof(_nid)})
     assert r.status_code == 200
     return {'url': _url, 'node_id': _nid, 'response': r.json()}
 
@@ -213,7 +217,7 @@ class TestGuestLogin:
             'display_name': 'Alice Remote',
             'avatar_emoji': '👩',
             'x25519_pubkey': secrets.token_hex(32),
-        }, headers=logged_user['headers'])
+        }, headers={**logged_user['headers'], 'X-Federation-Proof': make_guest_proof()})
         # Тестовый сервер ходит с 127.0.0.1, это приватный IP
         assert r.status_code == 200
         body = r.json()
@@ -231,8 +235,9 @@ class TestGuestLogin:
             'avatar_emoji': '🔁',
             'x25519_pubkey': secrets.token_hex(32),
         }
-        r1 = client.post('/api/federation/guest-login', json=payload, headers=logged_user['headers'])
-        r2 = client.post('/api/federation/guest-login', json=payload, headers=logged_user['headers'])
+        guest_headers = {**logged_user['headers'], 'X-Federation-Proof': make_guest_proof()}
+        r1 = client.post('/api/federation/guest-login', json=payload, headers=guest_headers)
+        r2 = client.post('/api/federation/guest-login', json=payload, headers=guest_headers)
         assert r1.status_code == 200
         assert r2.status_code == 200
         # Тот же user_id при повторном логине
@@ -251,7 +256,7 @@ class TestGuestLogin:
             'display_name': f'JWT Check {tag}',
             'avatar_emoji': '🔑',
             'x25519_pubkey': '',
-        }, headers=logged_user['headers'])
+        }, headers={**logged_user['headers'], 'X-Federation-Proof': make_guest_proof()})
         assert r.status_code == 200
         jwt = r.json()['access_token']
 
@@ -398,7 +403,8 @@ class TestCodeVerification:
 
     def test_code_manifest_file_count(self, client: SyncASGIClient, logged_user: dict):
         """code-manifest возвращает hash и file_count > 0."""
-        r = client.post('/api/federation/code-manifest', headers=logged_user['headers'])
+        r = client.post('/api/federation/code-manifest',
+                        headers={**logged_user['headers'], **fed_proof_headers()})
         assert r.status_code == 200
         body = r.json()
         assert body['file_count'] > 0
@@ -439,7 +445,8 @@ class TestTokenValidation:
         r = client.post('/api/federation/validate-token', json={
             'node_id': 'fake-node',
             'token': 'fake-token-1234',
-        }, headers=logged_user['headers'])
+        }, headers={**logged_user['headers'],
+                    'X-Federation-Proof': make_federation_proof('fake-node')})
         assert r.status_code == 200
         assert r.json()['valid'] is False
 
@@ -458,7 +465,7 @@ class TestTokenValidation:
         r = client.post('/api/federation/validate-token', json={
             'node_id': nid,
             'token': 'probably-wrong-token',
-        }, headers=h)
+        }, headers={**h, 'X-Federation-Proof': make_federation_proof(nid)})
         assert r.status_code == 200
         # Без реального токена — false
         assert r.json()['valid'] is False
@@ -637,7 +644,7 @@ class TestFullFederationScenario:
             r = client.post('/api/federation/handshake', json={
                 'node_id': nid, 'url': url,
                 'code_hash': local_hash, 'version': '1.0.0',
-            }, headers=h)
+            }, headers={**h, 'X-Federation-Proof': make_federation_proof(nid)})
             assert r.status_code == 200
             assert r.json()['accepted'] is True
             node_ids.append(nid)

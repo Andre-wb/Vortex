@@ -112,6 +112,38 @@ export async function kdfX3dh(kmBytes) {
 /** Байт-префикс X3DH: 0xFF * 32 (доменное разделение). */
 export const X3DH_F = new Uint8Array(32).fill(0xff);
 
+const X3DH_PQ_INFO = new TextEncoder().encode('vortex-pqxdh');
+
+/**
+ * PQXDH KDF: HKDF-SHA256(ikm = km ‖ pqpk ‖ ct ‖ ss, salt=0x00*32,
+ * info="vortex-pqxdh", 32 байта). Привязывает KEM-транскрипт (публичный
+ * pre-key адресата + ciphertext + shared secret) прямо в деривацию — строго
+ * сильнее спек-минимума PQXDH (SS в KDF + PQPK в AD) и не зависит от
+ * внутреннего binding-свойства ML-KEM. info домен-сепарирует от классического
+ * "vortex-x3dh" (тот не трогаем). Порядок конкатенации здесь — канон (байт-lock).
+ * @param {Uint8Array} kmBytes — 0xFF*32 ‖ DH1‖DH2‖DH3[‖DH4]
+ * @param {Uint8Array} pqpkBytes — Kyber pre-key pub адресата (1184 байта)
+ * @param {Uint8Array} ctBytes — KEM ciphertext (1088 байт)
+ * @param {Uint8Array} ssBytes — KEM shared secret (32 байта)
+ * @returns {Promise<Uint8Array>} 32 байта
+ */
+export async function kdfX3dhPq(kmBytes, pqpkBytes, ctBytes, ssBytes) {
+    // Tripwire на порядок аргументов: KEM-части ML-KEM-768 имеют фиксированные
+    // длины — перестановка pqpk/ct/ss (обе JS-стороны разделили бы её и молча
+    // interop'нули бы на не-спек-деривации) ловится сразу.
+    if (pqpkBytes.length !== 1184 || ctBytes.length !== 1088 || ssBytes.length !== 32) {
+        throw new Error(
+            `kdfX3dhPq: bad KEM lengths pqpk=${pqpkBytes.length} ct=${ctBytes.length} ss=${ssBytes.length}`);
+    }
+    const ikm = concatBytes(kmBytes, pqpkBytes, ctBytes, ssBytes);
+    const key = await subtle().importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
+    const bits = await subtle().deriveBits(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: X3DH_PQ_INFO },
+        key, 256,
+    );
+    return new Uint8Array(bits);
+}
+
 // AES-256-GCM
 
 /** Шифрует: nonce(12) + AES-256-GCM(pt) с aad. Возвращает Uint8Array. */

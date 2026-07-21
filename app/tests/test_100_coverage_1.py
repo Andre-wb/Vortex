@@ -423,6 +423,9 @@ class TestAuth2FA:
                     json={"code": code}, headers=headers)
         if enable_resp.status_code != 200:
             pytest.skip("2FA enable failed")
+        # verify-login требует свежую проверку пароля — логинимся заново,
+        # теперь /login видит включённую 2FA и ставит маркер
+        login_user(client, user["username"], user["password"])
         user_id = user["data"].get("user_id") or user["data"].get("id")
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
         code2 = totp.now()
@@ -1202,9 +1205,14 @@ class TestWAFMiddlewareHelpers:
         # From client tuple
         assert mw._get_client_ip({"client": ("1.2.3.4", 80)}) == "1.2.3.4"
 
-    def test_get_client_ip_from_header(self):
+    def test_get_client_ip_from_header(self, monkeypatch):
         """Covers _get_client_ip: trusts X-Forwarded-For only from trusted proxy."""
+        import ipaddress
+        import app.security.waf.middleware as mw_mod
         from app.security.waf import WAFMiddleware, WAFEngine
+        # Список доверенных прокси читается из env при импорте — патчим глобал
+        monkeypatch.setattr(mw_mod, "_TRUSTED_PROXY_NETS",
+                            [ipaddress.ip_network("127.0.0.0/8")])
         waf = WAFEngine()
 
         async def dummy_app(scope, receive, send):

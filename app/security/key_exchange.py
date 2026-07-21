@@ -2,7 +2,13 @@
 app/security/key_exchange.py — ECIES и P2P шифрование между узлами.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  СХЕМА ECIES (Elliptic Curve Integrated Encryption Scheme)
+  ДВА ДИАЛЕКТА ECIES — НЕ ПУТАТЬ (иначе тихий InvalidTag):
+    • CLIENT (server→browser): ecies_encrypt_for_client — salt=None,
+      совпадает с браузерным eciesDecrypt (static/js/crypto.js). Схема ниже — про НЕГО.
+    • NODE  (node↔node P2P):   ecies_encrypt / ecies_decrypt_node — salt=sorted(pubs),
+      симметричный, Rust-mirrored (handshake.rs). Браузер его НЕ расшифрует.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  СХЕМА ECIES (CLIENT-диалект — ecies_encrypt_for_client)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Шифрование (сервер → участнику комнаты):
@@ -111,12 +117,48 @@ def ecies_encrypt(plaintext: bytes, recipient_pub_hex: str) -> dict:
     ephemeral_priv, ephemeral_pub = generate_x25519_keypair()
 
     # X25519 DH: ephemeral_priv × recipient_pub → 32-byte shared secret
-    # Rust: derive_session_key использует HKDF-SHA256 поверх DH
+    # ВНИМАНИЕ: NODE-диалект — derive_x25519_session_key = HKDF(salt=sorted(pubs)),
+    # симметричный, Rust-mirrored (handshake.rs). Совпадает с ecies_decrypt_node на
+    # ДРУГОМ УЗЛЕ (P2P). Браузер его НЕ расшифрует (там salt=пусто) — для server→client
+    # используй ecies_encrypt_for_client.
     shared_key = derive_x25519_session_key(ephemeral_priv, recipient_pub)
 
     # AES-256-GCM: результат = nonce(12) + ciphertext + tag(16)
     ciphertext = encrypt_message(plaintext, shared_key)
 
+    return {
+        "ephemeral_pub": ephemeral_pub.hex(),
+        "ciphertext":    ciphertext.hex(),
+    }
+
+
+def ecies_encrypt_for_client(plaintext: bytes, recipient_pub_hex: str) -> dict:
+    """CLIENT-facing ECIES: X25519 + HKDF(salt=None) + AES-256-GCM.
+
+    Идентичен ecies_encrypt, КРОМЕ деривации ключа: сырой X25519 DH → HKDF-SHA256
+    с salt=None, info="vortex-session". Это БАЙТ-В-БАЙТ совпадает с браузерным
+    eciesDecrypt (static/js/crypto.js: salt=Uint8Array(0); WebCrypto пустая соль ==
+    HKDF salt=None — оба паддятся HMAC-ключом в 64 нуля). Использовать для ВСЕХ
+    server→client ECIES (браузер расшифровывает своим X25519-приватным).
+
+    НЕ путать с ecies_encrypt (NODE-диалект, salt=sorted, node↔node/Rust-mirrored):
+    именно эта путаница делала /api/zk/blind-key тихо-мёртвым (InvalidTag).
+    """
+    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives import hashes
+
+    if len(recipient_pub_hex) != 64:
+        raise ValueError(f"recipient_pub_hex must be 64 hex chars, got {len(recipient_pub_hex)}")
+
+    ephemeral_priv, ephemeral_pub = generate_x25519_keypair()
+    # ЕДИНСТВЕННОЕ отличие от ecies_encrypt: salt=None (client-диалект), не salt=sorted.
+    shared = X25519PrivateKey.from_private_bytes(ephemeral_priv).exchange(
+        X25519PublicKey.from_public_bytes(bytes.fromhex(recipient_pub_hex)))
+    shared_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                      info=b"vortex-session").derive(shared)
+
+    ciphertext = encrypt_message(plaintext, shared_key)
     return {
         "ephemeral_pub": ephemeral_pub.hex(),
         "ciphertext":    ciphertext.hex(),

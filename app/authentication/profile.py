@@ -32,6 +32,7 @@ async def me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "x25519_public_key": current_user.x25519_public_key,
         "kyber_public_key": current_user.kyber_public_key,
+        "kyber_public_key_sig": current_user.kyber_public_key_sig,   # Ed25519-подпись (для проверки отправителем)
         "network_mode": current_user.network_mode or "local",
         "custom_status": current_user.custom_status,
         "status_emoji": current_user.status_emoji,

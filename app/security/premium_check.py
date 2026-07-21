@@ -39,7 +39,7 @@ SOLANA_RPC_URL = os.getenv(
     "https://api.mainnet-beta.solana.com",
 ).strip()
 _IS_DEFAULT_RPC = SOLANA_RPC_URL == "https://api.mainnet-beta.solana.com"
-if _IS_DEFAULT_RPC:
+if _IS_DEFAULT_RPC and os.getenv("TESTING", "").strip().lower() != "true":
     logger.warning(
         "SOLANA_RPC_URL is using the public mainnet-beta endpoint — "
         "it rate-limits heavily (HTTP 429) and will cause false 'no subscription' "

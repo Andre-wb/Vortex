@@ -195,6 +195,10 @@ window.bootApp = async function bootApp() {
         try {
             const { ensurePrekeysPublished } = await import('./dr/prekeys.js');
             await ensurePrekeysPublished();
+            // Синхронизируем OOB-верификации с сервера (дормантно за флагом; после
+            // prekeys — device-cert к этому моменту выпущен).
+            const { syncAttestations } = await import('./dr/verify-mirror.js');
+            await syncAttestations();
         } catch (e) {
             console.debug('prekey publish skipped:', e.message);
         }

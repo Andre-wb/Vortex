@@ -381,6 +381,7 @@ def init_db() -> None:
                 "ALTER TABLE rooms ADD COLUMN theme_json TEXT",
                 "ALTER TABLE spaces ADD COLUMN theme_json TEXT",
                 "ALTER TABLE users ADD COLUMN kyber_public_key TEXT",
+                "ALTER TABLE users ADD COLUMN kyber_public_key_sig TEXT",
                 "CREATE TABLE IF NOT EXISTS channel_feeds (id INTEGER PRIMARY KEY AUTOINCREMENT, room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE, feed_type VARCHAR(20) NOT NULL, url TEXT NOT NULL, last_fetched DATETIME, last_item_id TEXT, is_active BOOLEAN DEFAULT 1, created_at DATETIME)",
                 # public-room key escrow (server stores the symmetric
                 # key in plaintext; rows exist ONLY for is_private=0 rooms).
@@ -419,6 +420,8 @@ def init_db() -> None:
                 "CREATE INDEX IF NOT EXISTS ix_fed_backup_shards_user ON federated_backup_shards(user_id)",
                 "CREATE TABLE IF NOT EXISTS key_transparency_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, key_type VARCHAR(30) NOT NULL, pub_key_hash VARCHAR(64) NOT NULL, prev_hash VARCHAR(64), signature TEXT NOT NULL, device_id INTEGER, seq INTEGER DEFAULT 0, created_at DATETIME)",
                 "CREATE INDEX IF NOT EXISTS ix_kt_log_user_seq ON key_transparency_log(user_id, seq)",
+                "CREATE TABLE IF NOT EXISTS verification_attestations (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, peer_user_id INTEGER NOT NULL, verified_ed VARCHAR(64) NOT NULL, state VARCHAR(10) NOT NULL, signed_at INTEGER NOT NULL, client_device_id VARCHAR(32) NOT NULL, device_x3dh_pub VARCHAR(64) NOT NULL, device_sign_pub VARCHAR(64) NOT NULL, device_cert_sig VARCHAR(128) NOT NULL, attest_sig VARCHAR(128) NOT NULL, created_at DATETIME)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_verify_attest_owner_peer ON verification_attestations(owner_user_id, peer_user_id)",
                 "ALTER TABLE rooms ADD COLUMN discussion_enabled BOOLEAN DEFAULT 0",
                 "ALTER TABLE rooms ADD COLUMN reactions_type VARCHAR(20) DEFAULT 'all'",
                 "ALTER TABLE rooms ADD COLUMN allowed_reactions TEXT DEFAULT ''",
@@ -497,6 +500,33 @@ def init_db() -> None:
                 # Stable physical-device id for UserDevice dedup
                 "ALTER TABLE user_devices ADD COLUMN client_device_id VARCHAR(32)",
                 "CREATE INDEX IF NOT EXISTS ix_user_devices_client_device_id ON user_devices(client_device_id)",
+                # Post-quantum hybrid: ML-KEM-768 ciphertext рядом с X25519-обёрткой ключа
+                "ALTER TABLE encrypted_room_keys ADD COLUMN kyber_ciphertext TEXT",
+                "ALTER TABLE story_key_envelopes ADD COLUMN kyber_ciphertext TEXT",
+                # PQXDH: per-device Kyber pre-key (ML-KEM-768) в prekey-бандле
+                "ALTER TABLE prekey_bundles ADD COLUMN device_kyber_pub BLOB",
+                "ALTER TABLE prekey_bundles ADD COLUMN device_kyber_sig BLOB",
+                "ALTER TABLE prekey_bundles ADD COLUMN device_kyber_id INTEGER",
+                # Heal: удаляем «отравленные» ключи от сломанного sealed-prekey пути
+                # (обёртка на one-time pubkey, чей приватный отброшен → недекриптуемо).
+                # Старый consumer копировал ephemeral_pub+ciphertext дословно из
+                # sealed_key_packages → матчим ровно эти строки (случайные ephemeral+
+                # nonce не коллизят с легит-обёрткой → ноль false-positive, не зависит
+                # от recipient_pub/escrow). Участник заново получит ключ через key_request.
+                "DELETE FROM encrypted_room_keys WHERE id IN ("
+                " SELECT erk.id FROM encrypted_room_keys erk"
+                " JOIN sealed_key_packages skp"
+                " ON skp.room_id = erk.room_id"
+                " AND skp.ephemeral_pub = erk.ephemeral_pub"
+                " AND skp.ciphertext = erk.ciphertext)",
+                # Обнуляем легаси серверные Kyber-pub (старая серверная keygen видела
+                # приватный и выбрасывала → мусор, downgrade-риска нет). Client-publish
+                # ставит и pub, и sig — легаси имеет pub без sig. Провижн-устройства
+                # републишат на login; непровижн останутся на классике (осознанно).
+                "UPDATE users SET kyber_public_key = NULL "
+                "WHERE kyber_public_key IS NOT NULL AND kyber_public_key_sig IS NULL",
+                # TTL invite-escrow ссылок (ADR-005 O7)
+                "ALTER TABLE room_invites ADD COLUMN expires_at DATETIME",
             ]
             with engine.connect() as conn:
                 try:

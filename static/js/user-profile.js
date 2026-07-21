@@ -270,14 +270,20 @@ function _renderUserProfile(data) {
 
             const fpIcon   = document.getElementById('upm-fp-icon');
             const fpStatus = document.getElementById('upm-fp-status');
-            const verified = data.fingerprint_verified || false;
+            const legacyVerified = data.fingerprint_verified || false;
+            // Миграция на Ed (§4.6, дормантно): статус/режим из единого хелпера.
+            const st = window.dmVerifiedState
+                ? window.dmVerifiedState(user.id, legacyVerified)
+                : { verified: legacyVerified, needsReverify: false };
+            const verified = st.verified;
 
             if (fpIcon) {
                 fpIcon.classList.toggle('fp-ok', verified);
                 fpIcon.classList.toggle('fp-pending', !verified);
             }
             if (fpStatus) {
-                fpStatus.textContent = verified ? t('fingerprint.verified') : t('upm.tapToVerify');
+                fpStatus.textContent = st.needsReverify ? t('fingerprint.reverifyIdentity')
+                                     : verified ? t('fingerprint.verified') : t('upm.tapToVerify');
                 fpStatus.classList.toggle('verified', verified);
             }
 
@@ -289,13 +295,15 @@ function _renderUserProfile(data) {
             const fpRow = document.getElementById('upm-fp-row');
             if (fpRow) {
                 fpRow.onclick = () => {
-                    window.openFingerprintModal?.({
-                        userId:      user.id,
-                        username:    user.username,
-                        displayName: user.display_name || user.username,
-                        contactId:   contact?.contact_id || null,
-                        pubkey:      user.x25519_public_key,
-                        verified:    verified,
+                    (window.openDmFingerprint || window.openFingerprintModal)?.({
+                        userId:         user.id,
+                        username:       user.username,
+                        displayName:    user.display_name || user.username,
+                        contactId:      contact?.contact_id || null,
+                        x25519:         user.x25519_public_key,
+                        pubkey:         user.x25519_public_key,
+                        legacyVerified: legacyVerified,
+                        verified:       legacyVerified,
                     });
                 };
             }

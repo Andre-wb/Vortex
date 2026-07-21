@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
+from app.models.prekeys import PreKeyBundle
 from app.models_rooms import EncryptedRoomKey, PendingKeyRequest, RoomMember, RoomRole
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
@@ -18,6 +19,7 @@ from app.chats.rooms.helpers import (
     router,
     ChangeRoleRequest,
     _require_member,
+    _invalidate_room_escrows,
 )
 
 import json as _json
@@ -97,6 +99,62 @@ async def members(
     }
 
 
+@router.get("/{room_id}/member-keys")
+async def member_keys(
+        room_id: int,
+        u: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+):
+    """Ключи участников для верификации личности + PQ-обёртки room-key (ADR-008 G1).
+
+    Единая точка клиентской сверки: отдаёт per-member ПОЛНУЮ цепочку доверия —
+    account Ed25519 (identity_key_ed), X25519-обёрточный ключ (= bundle.identity_key,
+    который подписывает identity_key_sig) и Kyber с их подписями. Клиент пиннит Ed
+    (TOFU/OOB) и проверяет edVerify(ed, x25519, identity_key_sig) + kyber_public_key_sig
+    — верификация Ed транзитивно покрывает X25519+Kyber.
+
+    ВАЖНО (ADR-008 §3): x25519 здесь — bundle.identity_key (ключ, который РЕАЛЬНО
+    покрывает identity_key_sig), НЕ произвольный серверный pubkey. Клиент заворачивает
+    room-key именно на проверенный ключ, а не на for_pubkey из broadcast. Сервер
+    недоверен — вся суть в клиентской OOB-сверке; здесь он лишь отдаёт данные.
+
+    Только участникам комнаты (_require_member). Забаненные исключены (ключи не выдаём).
+    identity_key_ed — account-константа (одна на аккаунт, на всех device-бандлах);
+    берём из самого свежего бандла.
+    """
+    _require_member(room_id, u.id, db)
+    all_m = (
+        db.query(RoomMember)
+        .filter(RoomMember.room_id == room_id, RoomMember.is_banned == False)  # noqa: E712
+        .all()
+    )
+
+    out = []
+    for m in all_m:
+        user = m.user
+        if not user:
+            continue
+        bundle = (
+            db.query(PreKeyBundle)
+            .filter(PreKeyBundle.user_id == user.id)
+            .order_by(PreKeyBundle.updated_at.desc())
+            .first()
+        )
+        ident_x25519 = bundle.identity_key.hex() if bundle and bundle.identity_key else None
+        out.append({
+            "user_id":              user.id,
+            # Корень: account Ed25519 (пиннится/верифицируется OOB).
+            "identity_key_ed":      bundle.identity_key_ed.hex() if bundle and bundle.identity_key_ed else None,
+            # X25519-обёрточный = account identity_key (то, что подписывает identity_key_sig).
+            # Fallback на users.x25519, если v2-бандла нет → неверифицируемо (клиент → unverified).
+            "x25519_public_key":    ident_x25519 or user.x25519_public_key,
+            "identity_key_sig":     bundle.identity_key_sig.hex() if bundle and bundle.identity_key_sig else None,
+            "kyber_public_key":     user.kyber_public_key,
+            "kyber_public_key_sig": user.kyber_public_key_sig,
+        })
+    return {"room_id": room_id, "members": out}
+
+
 @router.post("/{room_id}/kick/{target_id}")
 async def kick(
         room_id: int, target_id: int,
@@ -125,6 +183,7 @@ async def kick(
 
     # Ротация ключа — кикнутый участник не сможет расшифровать новые сообщения
     db.query(EncryptedRoomKey).filter(EncryptedRoomKey.room_id == room_id).delete()
+    _invalidate_room_escrows(room_id, db)   # escrow'ы на старый ключ устарели
     db.commit()
     await manager.broadcast_to_room(room_id, {"type": "key_rotated"})
     logger.info(f"Room key rotated after kick in room {room_id}")

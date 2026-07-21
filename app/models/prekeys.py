@@ -88,6 +88,13 @@ class PreKeyBundle(Base):
     device_sign_pub = Column(LargeBinary(32), nullable=True)   # Ed25519 device signing pub
     device_cert_sig = Column(LargeBinary(64), nullable=True)   # Ed25519 подпись аккаунта над cert-сообщением
     client_device_id = Column(String(32), nullable=True)       # стабильный id устройства, подписанный в cert
+    # PQXDH per-device Kyber pre-key (ML-KEM-768). Публичный подписан device
+    # signing-ключом (как SPK); отправитель проверяет против device_sign_pub на
+    # fan-out (та же цепочка, что SPK). Приватный — только на устройстве.
+    # Nullable: бандлы до PQXDH и клиенты без ML-KEM остаются на классике.
+    device_kyber_pub = Column(LargeBinary(1184), nullable=True)  # ML-KEM-768 pub (1184 байта)
+    device_kyber_sig = Column(LargeBinary(64), nullable=True)    # Ed25519 подпись device-ключа над kyber pub
+    device_kyber_id = Column(Integer, nullable=True)             # id pre-key для ротации (пока фикс)
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),
@@ -150,5 +157,45 @@ class OneTimePreKey(Base):
     def __repr__(self) -> str:
         return (
             f"<OneTimePreKey user_id={self.user_id} "
+            f"key_id={self.key_id} used={self.used}>"
+        )
+
+
+class OneTimeKyberPreKey(Base):
+    """Одноразовый Kyber pre-key (ML-KEM-768) для PQXDH (ADR-006 P6).
+
+    Зеркалит OneTimePreKey, но публичный — 1184 байта ML-KEM-768. Даёт KEM-
+    forward-secrecy: каждая PQXDH-сессия предпочитает свежий PQOPK (используется
+    один раз, удаляется у адресата), иначе fallback на last-resort PQSPK. Свои на
+    устройство. Расходуется через /claim-opk (want_kyber=true) — только когда
+    сессия реально идёт в PQ, иначе не-PQ трафик выжигал бы пул.
+    """
+    __tablename__ = "onetime_kyber_prekeys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    device_id = Column(
+        Integer,
+        ForeignKey("user_devices.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    key_id = Column(Integer, nullable=False)
+    public_key = Column(LargeBinary(1184), nullable=False)   # ML-KEM-768 pub
+    used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<OneTimeKyberPreKey user_id={self.user_id} "
             f"key_id={self.key_id} used={self.used}>"
         )

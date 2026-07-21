@@ -30,6 +30,16 @@ if str(ROOT) not in sys.path:
 
 from conftest import SyncASGIClient, make_user, login_user, random_str
 
+import app.bots.ide_shared as ide_shared
+
+
+@pytest.fixture(autouse=True)
+def _isolate_ide_ownership(tmp_path_factory, monkeypatch):
+    """Каждый тест получает чистый ownership-файл: project_id из прошлых
+    запусков/тестов остаются закреплёнными за чужими user_id и дают 404."""
+    p = tmp_path_factory.mktemp("ownership") / ".ownership.json"
+    monkeypatch.setattr(ide_shared, "_ownership_path", lambda: p)
+
 
 # Helpers
 
@@ -42,6 +52,12 @@ def _auth_headers(client: SyncASGIClient, suffix: str | None = None) -> dict:
     # Fetch a fresh CSRF token *after* login (the login itself consumes one)
     csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
     return {"X-CSRF-Token": csrf}
+
+
+def _claim_project(client: SyncASGIClient, pid: str, headers: dict) -> None:
+    """Закрепить проект за текущим пользователем (read-эндпоинты не создают его)."""
+    r = client.post(f"/api/ide/save/{pid}", json={"code": ""}, headers=headers)
+    assert r.status_code == 200, f"claim {pid} failed: {r.text}"
 
 
 VALID_CODE = """\
@@ -938,6 +954,7 @@ class TestIDEStatus:
 
     def test_status_stopped_project(self, client: SyncASGIClient):
         headers = _auth_headers(client, "stat1")
+        _claim_project(client, "status_test", headers)
         import app.bots.ide_runner as runner
         runner._procs.pop("status_test", None)
 
@@ -949,6 +966,7 @@ class TestIDEStatus:
 
     def test_status_running_project(self, client: SyncASGIClient):
         headers = _auth_headers(client, "stat2")
+        _claim_project(client, "status_run", headers)
         import app.bots.ide_runner as runner
         from app.bots.ide_runner import _BotProcess
 
@@ -985,6 +1003,7 @@ class TestIDELogs:
 
     def test_logs_no_process(self, client: SyncASGIClient):
         headers = _auth_headers(client, "log1")
+        _claim_project(client, "log_test", headers)
         import app.bots.ide_runner as runner
         runner._procs.pop("log_test", None)
 
@@ -995,6 +1014,7 @@ class TestIDELogs:
 
     def test_logs_with_process(self, client: SyncASGIClient):
         headers = _auth_headers(client, "log2")
+        _claim_project(client, "log_run", headers)
         import app.bots.ide_runner as runner
         from app.bots.ide_runner import _BotProcess
 
@@ -1014,6 +1034,7 @@ class TestIDELogs:
 
     def test_logs_n_param_capped_at_500(self, client: SyncASGIClient):
         headers = _auth_headers(client, "log3")
+        _claim_project(client, "log_cap", headers)
         import app.bots.ide_runner as runner
         from app.bots.ide_runner import _BotProcess
 
@@ -1034,6 +1055,7 @@ class TestIDELogs:
 
     def test_logs_default_n(self, client: SyncASGIClient):
         headers = _auth_headers(client, "log4")
+        _claim_project(client, "log_def", headers)
         import app.bots.ide_runner as runner
         from app.bots.ide_runner import _BotProcess
 
@@ -1063,6 +1085,7 @@ class TestIDEStop:
 
     def test_stop_nonexistent_returns_ok(self, client: SyncASGIClient):
         headers = _auth_headers(client, "stop1")
+        _claim_project(client, "stop_absent", headers)
         import app.bots.ide_runner as runner
         runner._procs.pop("stop_absent", None)
 
@@ -1074,6 +1097,7 @@ class TestIDEStop:
 
     def test_stop_running_process(self, client: SyncASGIClient):
         headers = _auth_headers(client, "stop2")
+        _claim_project(client, "stop_run", headers)
         import app.bots.ide_runner as runner
         from app.bots.ide_runner import _BotProcess
 
@@ -1167,6 +1191,7 @@ class TestIDEEdgeCases:
 
     def test_status_after_crash_cleans_up(self, client: SyncASGIClient):
         headers = _auth_headers(client, "edge3")
+        _claim_project(client, "crash_proj", headers)
         import app.bots.ide_runner as runner
         from app.bots.ide_runner import _BotProcess
 
@@ -1187,6 +1212,7 @@ class TestIDEEdgeCases:
     def test_logs_n_param_zero(self, client: SyncASGIClient):
         """n=0 → last_n=min(0,500)=0 → logs[-0:] = logs[0:] (all items in Python)."""
         headers = _auth_headers(client, "edge4")
+        _claim_project(client, "edge_log", headers)
         import app.bots.ide_runner as runner
         from app.bots.ide_runner import _BotProcess
 

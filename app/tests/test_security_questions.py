@@ -102,7 +102,8 @@ class TestSecurityQuestions:
             "username": u.get("username", ""),
             "answers": ["a", "b", "c"],
         })
-        assert r.status_code in (400, 404)
+        # Единый 403 для «нет вопросов» и «неверные ответы» — против перебора имён
+        assert r.status_code in (400, 403, 404)
 
 
 # 4. CONTACT SYNC

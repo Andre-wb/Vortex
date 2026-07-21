@@ -543,6 +543,7 @@ function openSettingsSection(section) {
         _loadSQStatus();
         _loadShowLastSeen();
         _loadBMPSetting();
+        _loadHardModeSetting();
     }
     if (section === 'federation') {
         if (typeof window.initFederationSettings === 'function') window.initFederationSettings();
@@ -1322,6 +1323,22 @@ function _loadBMPSetting() {
     if (!el) return;
     el.checked = localStorage.getItem('vortex_bmp_enabled') === '1';
 }
+
+// Hard-mode верификации участников (ADR-008 §4.4): refuse-unverified при обёртке
+// room-key. Единый источник флага — member-verify.setHardMode/isHardModeEnabled.
+async function _toggleVerifyHardMode(enabled) {
+    const { setHardMode } = await import('../dr/member-verify.js');
+    setHardMode(enabled);
+    window.showToast?.(enabled ? t('privacy.hardModeOn') : t('privacy.hardModeOff'), enabled ? 'success' : 'info');
+}
+
+async function _loadHardModeSetting() {
+    const el = document.getElementById('set-privacy-hard-mode');
+    if (!el) return;
+    const { isHardModeEnabled } = await import('../dr/member-verify.js');
+    el.checked = isHardModeEnabled();
+}
+window._toggleVerifyHardMode = _toggleVerifyHardMode;
 
 window._toggleBMP = _toggleBMP;
 window._toggleShowLastSeen = _toggleShowLastSeen;

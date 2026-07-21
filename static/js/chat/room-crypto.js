@@ -3,6 +3,42 @@
 export const toHex   = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
 export const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
 
+// Self-heal негодного room-key (ADR-005 §4.0 / O2b). Если полученный/хранимый
+// room_key не расшифровывается (провижн/escrow оказался мусором / обёрнут не на
+// наш ключ), удаляем СЕРВЕРНУЮ строку (локальная-only зациклит: сервер переотдаёт)
+// и пере-запрашиваем через key_request. LIVE, всегда-вкл. Bounded — иначе
+// delete→re-request→тот же яд→delete крутился бы.
+const _healAttempts = new Map();   // roomId → count
+const HEAL_MAX = 2;
+
+/** Сброс счётчика при УСПЕШНОЙ расшифровке ключа комнаты. */
+export function markRoomKeyHealthy(roomId) { _healAttempts.delete(roomId); }
+
+/**
+ * Пробует self-heal негодного room-key. НЕ хилит: (1) "requires local Kyber
+ * identity" — нет аккаунтного Kyber-priv, re-request даст такой же гибрид
+ * (структурно нехилимо, K5-лимит); (2) когда X25519-priv не загружен (транзиент/
+ * мультиаккаунт — иначе удалили бы ХОРОШИЙ ключ). Bounded HEAL_MAX на комнату,
+ * потом 'unrecoverable' (caller показывает user-visible), НИКОГДА не крутить.
+ * @param {number} roomId
+ * @param {Error} error — из decryptRoomKeyEnvelope
+ * @param {boolean} privKeyPresent — загружен ли аккаунтный X25519-priv
+ * @returns {Promise<'healing'|'unrecoverable'|'skip'>}
+ */
+export async function selfHealRoomKey(roomId, error, privKeyPresent) {
+    if (!roomId) return 'skip';
+    if (error && /Kyber identity/i.test(error.message || '')) return 'skip';
+    if (!privKeyPresent) return 'skip';
+    const n = _healAttempts.get(roomId) || 0;
+    if (n >= HEAL_MAX) return 'unrecoverable';
+    _healAttempts.set(roomId, n + 1);
+    try {
+        const { api } = await import('../utils.js');
+        await api('DELETE', `/api/rooms/${roomId}/my-key`);
+        return 'healing';
+    } catch { return 'skip'; }
+}
+
 // Room keys: primary store in JS heap, backed by sessionStorage for page reload survival.
 const _roomKeyCache = new Map();
 

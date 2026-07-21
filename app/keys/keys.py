@@ -9,7 +9,10 @@ import shutil
 import subprocess
 import time
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+from app.database import get_db
 from app.security.crypto import load_or_create_node_keypair
 from app.security.auth_jwt import get_current_user
 from app.models import User
@@ -17,6 +20,33 @@ from app.config import Config
 
 router = APIRouter(prefix="/api/keys", tags=["keys"])
 _logger = logging.getLogger(__name__)
+
+
+class KyberPublishRequest(BaseModel):
+    kyber_public_key: str = Field(..., min_length=2368, max_length=2368)    # ML-KEM-768 pub = 1184 байта
+    kyber_public_key_sig: str = Field(..., min_length=128, max_length=128)  # Ed25519 подпись hex
+
+
+@router.post("/kyber")
+async def publish_kyber(
+    body: KyberPublishRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Публикация аккаунтного Kyber-pub (ML-KEM-768), подписанного аккаунтным
+    Ed25519 (ADR-004 K2). Пару генерит КЛИЕНТ (E2E — сервер не видит приватный);
+    сервер хранит pub+sig, подпись проверяют ОТПРАВИТЕЛИ против доверенного
+    аккаунтного Ed25519 (сервер не корень доверия)."""
+    try:
+        if len(bytes.fromhex(body.kyber_public_key)) != 1184 \
+                or len(bytes.fromhex(body.kyber_public_key_sig)) != 64:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(400, "Invalid kyber public key / signature")
+    user.kyber_public_key = body.kyber_public_key
+    user.kyber_public_key_sig = body.kyber_public_key_sig
+    db.commit()
+    return {"ok": True}
 
 
 _TURN_SECRET = os.getenv("TURN_SECRET", "") or secrets.token_hex(32)

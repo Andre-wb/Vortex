@@ -239,15 +239,23 @@ async function _handleRoomKeyFromNotif(data) {
     // Ключ пришёл через notification WS (fallback когда room WS уже обработал или нет)
     const S = window.AppState;
     try {
-        const { eciesDecrypt, setRoomKey } = await import('./crypto.js');
+        const { decryptRoomKeyEnvelope, setRoomKey } = await import('./crypto.js');
+        const { _saveRoomKeyToSession, selfHealRoomKey, markRoomKeyHealthy } = await import('./chat/room-crypto.js');
         const privKey = S.x25519PrivateKey;
         if (!privKey) return;
 
-        const keyBytes = await eciesDecrypt(data.ephemeral_pub, data.ciphertext, privKey);
+        let keyBytes;
+        try {
+            keyBytes = await decryptRoomKeyEnvelope(data, privKey);
+        } catch (de) {
+            // Негодный ключ → self-heal (ADR-005 §4.0): удалить серверную строку + re-request.
+            await selfHealRoomKey(data.room_id, de, !!privKey);
+            return;
+        }
         setRoomKey(data.room_id, keyBytes);
+        markRoomKeyHealthy(data.room_id);
 
         // Сохраняем в in-memory cache + sessionStorage
-        const { _saveRoomKeyToSession } = await import('./chat/room-crypto.js');
         _saveRoomKeyToSession(data.room_id, keyBytes);
         if (window.registerRoomSecret) window.registerRoomSecret(data.room_id);
         console.info('🔑 Ключ комнаты получен через notification WS, room', data.room_id);
@@ -308,16 +316,24 @@ async function _handleKeyRequestFromNotif(data) {
             roomKeyBytes = Uint8Array.from(hex.match(/.{2}/g).map(b => parseInt(b, 16)));
         }
 
-        // Шифруем ключ для запрашивающего пользователя
-        const { eciesEncrypt } = await import('./crypto.js');
-        const enc = await eciesEncrypt(roomKeyBytes, data.for_pubkey);
+        // Гейт идентичности участника перед обёрткой (флаг
+        // vortex_member_verify_enabled — дефолт ВКЛ, kill-switch '0'):
+        // block на changed / подмену for_pubkey; обёртка на ПРОВЕРЕННЫЙ ключ.
+        const { hybridEciesEncrypt } = await import('./crypto.js');
+        const { verifyMemberForWrap } = await import('./dr/member-verify.js');
+        const gate = await verifyMemberForWrap(
+            data.room_id, data.for_user_id, data.for_pubkey, data.for_kyber_pubkey, data.for_kyber_sig);
+        if (!gate.allow) {
+            console.warn('[key_request/notif] обёртка заблокирована (идентичность):', gate.status);
+            return;
+        }
+        const enc = await hybridEciesEncrypt(roomKeyBytes, gate.wrapX25519, gate.wrapKyber);
 
         // Сохраняем через REST API
         const { api } = await import('./utils.js');
         await api('POST', `/api/dm/store-key/${data.room_id}`, {
-            user_id:       data.for_user_id,
-            ephemeral_pub: enc.ephemeral_pub,
-            ciphertext:    enc.ciphertext,
+            user_id: data.for_user_id,
+            ...enc,
         });
         console.info('✅ Ключ передан пользователю', data.for_user_id, 'для room', data.room_id);
     } catch (e) {

@@ -14,7 +14,7 @@
 // Room metadata шифруется room_key (уже есть в crypto.js).
 
 import { api } from './utils.js';
-import { eciesDecrypt, getRoomKey } from './crypto.js';
+import { decryptRoomKeyEnvelope, getRoomKey } from './crypto.js';
 
 const _toHex   = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
 const _fromHex = h => {
@@ -87,9 +87,9 @@ async function _exportRaw(key) {
 async function _fetchBlindKey(privKeyJwk) {
     try {
         const resp = await api('GET', '/api/zk/blind-key');
-        if (resp.ok && resp.ephemeral_pub && resp.ciphertext) {
+        if (resp.ok && resp.ciphertext && (resp.ephemeral_pub || resp.x25519_ephemeral_pub)) {
             const jkStr = typeof privKeyJwk === 'string' ? privKeyJwk : JSON.stringify(privKeyJwk);
-            const decrypted = await eciesDecrypt(resp.ephemeral_pub, resp.ciphertext, jkStr);
+            const decrypted = await decryptRoomKeyEnvelope(resp, jkStr);
             _blindKey = decrypted;
         }
     } catch (e) {

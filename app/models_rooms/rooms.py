@@ -156,3 +156,26 @@ class RoomMember(Base):
         UniqueConstraint("room_id", "user_id"),
         Index("ix_rm_room_user", "room_id", "user_id"),
     )
+
+
+class JoinRequest(Base):
+    """Ожидающая заявка на вступление в комнату с join_approval (ADR-005 O3).
+
+    Pending-заявка — это НЕ RoomMember (важно: _require_member/все member-запросы
+    возвращают 403 для заявителя, пока админ не одобрит). approve-join создаёт
+    RoomMember + pre-wrap ключа и удаляет заявку; reject-join просто удаляет.
+    """
+    __tablename__ = "room_join_requests"
+
+    id         = Column(Integer,  primary_key=True, index=True)
+    room_id    = Column(Integer,  ForeignKey("rooms.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    user_id    = Column(Integer,  ForeignKey("users.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    x25519_pub = Column(String(64), nullable=True)   # pubkey заявителя для pre-wrap
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("room_id", "user_id"),
+        Index("ix_jr_room_user", "room_id", "user_id"),
+    )

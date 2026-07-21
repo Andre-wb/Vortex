@@ -342,6 +342,36 @@ class TestVectors:
             )
             assert shared.hex() == x[name]["shared_secret"], name
 
+    def test_x3dh_pq_vectors(self, vectors):
+        """PQXDH byte-parity: respond_pq воспроизводит shared_secret из вектора
+        (KEM-части фиксированы — тот же km‖pqpk‖ct‖ss обязан дать JS)."""
+        x = vectors["x3dh_pq"]
+        bob_ik = _priv(x["bob"]["ik_priv"])
+        bob_spk = _priv(x["bob"]["spk_priv"])
+        alice_ik_pub = _pub(x["alice"]["ik_pub"])
+        pqpk = bytes.fromhex(x["pqpk_pub"])
+        ct = bytes.fromhex(x["kem_ciphertext"])
+        ss = bytes.fromhex(x["kem_shared"])
+
+        for name, opk in [("with_opk", _priv(x["bob"]["opk_priv"])), ("without_opk", None)]:
+            shared = dr.x3dh_respond_pq(
+                bob_ik, bob_spk, opk, alice_ik_pub, _pub(x[name]["ek_pub"]),
+                pqpk, ct, ss,
+            )
+            assert shared.hex() == x[name]["shared_secret"], name
+
+    def test_x3dh_pq_domain_separation(self, vectors):
+        """PQXDH info домен-сепарирует: та же km-часть под классическим X3DH
+        (без KEM) даёт другой ключ — треки не коллизят."""
+        x = vectors["x3dh_pq"]
+        bob_ik = _priv(x["bob"]["ik_priv"])
+        bob_spk = _priv(x["bob"]["spk_priv"])
+        alice_ik_pub = _pub(x["alice"]["ik_pub"])
+        classical = dr.x3dh_respond(
+            bob_ik, bob_spk, None, alice_ik_pub, _pub(x["without_opk"]["ek_pub"])
+        )
+        assert classical.hex() != x["without_opk"]["shared_secret"]
+
     def test_transcript_segments_decrypt(self, vectors):
         """Каждый сегмент транскрипта расшифровывается из своего чекпойнта.
 

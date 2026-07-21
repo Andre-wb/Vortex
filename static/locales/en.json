@@ -1,4 +1,8 @@
 {
+  "verify": {
+    "roomSafetyNumber": "ROOM SAFETY NUMBER",
+    "roomSafetyHint": "Matches for every member with the same roster. Compare it out loud — a mismatch means a member's key changed or was substituted."
+  },
   "app": {
     "name": "VORTEX",
     "tagline": "decentralized chat without internet",
@@ -1408,6 +1412,10 @@
     "autoKeySyncHint": "When a new room key is received — automatically forward to all your devices (E2E encrypted)",
     "historySync": "History sync",
     "historySyncHint": "Encrypted copy of messages available on all devices. Server sees only noise",
+    "hardMode": "Strict member verification",
+    "hardModeHint": "You won't share the room key with members whose identity you haven't verified by hand. Other members may still share it — this only guarantees you won't be the one who does",
+    "hardModeOn": "Strict verification enabled",
+    "hardModeOff": "Strict verification disabled",
     "devicesSection": "Devices",
     "crossSign": "Cross-signing",
     "crossSignHint": "Automatically verify new devices via HMAC signature (protection against substitution)",
@@ -1495,6 +1503,7 @@
     "noDevices": "No devices",
     "keyVerification": "Key verification",
     "hideKey": "Hide key",
+    "reverifyIdentity": "Verification model updated — please re-confirm identity",
     "notVerified": "Not verified"
   },
   "settings_profile": {

@@ -78,3 +78,38 @@ export async function restoreEd25519Enc(userId, password) {
         return false;
     }
 }
+
+// Аккаунтный ML-KEM-768 (Kyber) приватный — та же `_enc`-дисциплина (ADR-004 K2).
+// Приватный — hex-строка (не JWK), поэтому валидация — hex, не JSON.parse.
+function _kyberSlot(userId) { return `vortex_kyber_priv_${userId}`; }
+function _kyberEncSlot(userId) { return `vortex_kyber_priv_${userId}_enc`; }
+
+/** Создаёт `_enc`-копию Kyber-приватного из плейнтекст-слота. No-op без пароля/плейнтекста. */
+export async function saveKyberEnc(userId, password) {
+    if (!userId || !password) return;
+    const plain = localStorage.getItem(_kyberSlot(userId)) || sessionStorage.getItem(_kyberSlot(userId));
+    if (!plain) return;
+    try {
+        localStorage.setItem(_kyberEncSlot(userId), await _encrypt(plain, password));
+    } catch (e) {
+        console.warn('[identity-persist] Kyber _enc save failed:', e?.message);
+    }
+}
+
+/** Восстанавливает Kyber-приватный из `_enc` по паролю. @returns {Promise<boolean>} */
+export async function restoreKyberEnc(userId, password) {
+    if (!userId) return false;
+    if (localStorage.getItem(_kyberSlot(userId)) || sessionStorage.getItem(_kyberSlot(userId))) return true;
+    const enc = localStorage.getItem(_kyberEncSlot(userId));
+    if (!enc || !password) return false;
+    try {
+        const hex = await _decrypt(enc, password);
+        if (!/^[0-9a-f]+$/i.test(hex)) throw new Error('not hex');
+        localStorage.setItem(_kyberSlot(userId), hex);
+        sessionStorage.setItem(_kyberSlot(userId), hex);
+        return true;
+    } catch (e) {
+        console.warn('[identity-persist] Kyber _enc restore failed:', e?.message);
+        return false;
+    }
+}

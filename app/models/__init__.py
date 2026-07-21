@@ -20,6 +20,7 @@ from app.models.user import (
     SecretShare,
     FederatedBackupShard,
     KeyTransparencyEntry,
+    VerificationAttestation,
     RegisterRequest,
     LoginRequest,
     KeyLoginRequest,
@@ -34,11 +35,11 @@ from app.models.bot import Bot, BotReview
 from app.models.moderation import UserReport, UserStrike
 from app.models.media import CallHistory, UploadQuota, PushSubscription
 from app.models.contact import Contact
-from app.models.prekeys import PreKeyBundle, OneTimePreKey
+from app.models.prekeys import PreKeyBundle, OneTimePreKey, OneTimeKyberPreKey
 
 __all__ = [
     # user
-    "User", "UserDevice", "RefreshToken", "UserStatus", "KeyBackup", "DeviceLinkRequest", "SyncEvent", "DeviceCrossSign", "SecretShare", "FederatedBackupShard", "KeyTransparencyEntry",
+    "User", "UserDevice", "RefreshToken", "UserStatus", "KeyBackup", "DeviceLinkRequest", "SyncEvent", "DeviceCrossSign", "SecretShare", "FederatedBackupShard", "KeyTransparencyEntry", "VerificationAttestation",
     "RegisterRequest", "LoginRequest", "KeyLoginRequest", "SeedLoginRequest",
     "UpdateProfileRequest", "UpdateRichStatusRequest",
     "PasswordStrengthRequest", "TwoFAVerifyRequest", "TwoFALoginRequest",
@@ -51,5 +52,5 @@ __all__ = [
     # contact
     "Contact",
     # prekeys (Double Ratchet / X3DH)
-    "PreKeyBundle", "OneTimePreKey",
+    "PreKeyBundle", "OneTimePreKey", "OneTimeKyberPreKey",
 ]

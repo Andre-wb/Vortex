@@ -66,6 +66,19 @@ function _collectKeyBundle({ includeEd25519 = true } = {}) {
         bundle.keys.ed25519_identity_jwk = edPriv;
     }
 
+    // Аккаунтный Kyber (ML-KEM-768) приватный — портируется в тире X25519, НЕ
+    // Ed25519: KEM-ключ только расшифровывает, не подписывает, поэтому blast-radius
+    // линковки (ADR-003 §3.3) к нему не относится. Включаем ВСЕГДА (даже при
+    // линковке, вне includeEd25519): без него устройство, восстановленное из
+    // бандла, имеет аккаунтный X25519, но не развернёт гибридный room-key.
+    const kyberPriv = _uid
+        ? (localStorage.getItem(`vortex_kyber_priv_${_uid}`)
+           || sessionStorage.getItem(`vortex_kyber_priv_${_uid}`))
+        : null;
+    if (kyberPriv) {
+        bundle.keys.kyber_private_hex = kyberPriv;
+    }
+
     // Room keys (from crypto.js in-memory store)
     // We iterate known rooms from AppState
     const roomKeys = {};
@@ -105,6 +118,16 @@ function _restoreKeyBundle(bundle) {
         if (_uid) {
             localStorage.setItem(`vortex_ed25519_identity_${_uid}`, edJwk);
             sessionStorage.setItem(`vortex_ed25519_identity_${_uid}`, edJwk);
+        }
+    }
+
+    // Restore аккаунтного Kyber (ML-KEM-768) приватного в per-account слот —
+    // тир X25519 (портируемый). Публичный выводится из приватного (mlkemGetPublic).
+    if (bundle.keys.kyber_private_hex) {
+        const _uid = window.AppState?.user?.user_id;
+        if (_uid) {
+            localStorage.setItem(`vortex_kyber_priv_${_uid}`, bundle.keys.kyber_private_hex);
+            sessionStorage.setItem(`vortex_kyber_priv_${_uid}`, bundle.keys.kyber_private_hex);
         }
     }
 

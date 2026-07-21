@@ -28,6 +28,7 @@ from app.chats.rooms.helpers import (
     RoomUpdate,
     _room_dict,
     _require_member,
+    _invalidate_room_escrows,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,9 +67,8 @@ async def create_room(
     if not u.x25519_public_key:
         raise HTTPException(400, "X25519 public key required to create a room")
 
-    # Validate ECIES payload
-    payload = body.encrypted_room_key.model_dump()
-    if not validate_ecies_payload(payload):
+    # Validate ECIES payload (классика или post-quantum гибрид)
+    if not validate_ecies_payload(body.encrypted_room_key.ecies_dict()):
         raise HTTPException(400, "Invalid encrypted_room_key format")
 
     # Free-tier cap on rooms with >100-member capacity (the default
@@ -117,11 +117,12 @@ async def create_room(
 
     # Save encrypted key for creator
     db.add(EncryptedRoomKey(
-        room_id       = room.id,
-        user_id       = u.id,
-        ephemeral_pub = body.encrypted_room_key.ephemeral_pub,
-        ciphertext    = body.encrypted_room_key.ciphertext,
-        recipient_pub = u.x25519_public_key,
+        room_id          = room.id,
+        user_id          = u.id,
+        ephemeral_pub    = body.encrypted_room_key.eph_pub,
+        ciphertext       = body.encrypted_room_key.ciphertext,
+        kyber_ciphertext = body.encrypted_room_key.kyber_ciphertext,
+        recipient_pub    = u.x25519_public_key,
     ))
 
     # auto-escrow: every public room gets a server-held symmetric
@@ -506,6 +507,8 @@ async def leave_room(
     # Key rotation — the leaving member won't be able to decrypt new messages
     # For DMs rotation is not needed — room is deleted along with the member
     if r and not r.is_dm:
+        _invalidate_room_escrows(room_id, db)   # escrow'ы на старый ключ устарели
+        db.commit()
         await manager.broadcast_to_room(room_id, {"type": "key_rotated"})
         logger.info(f"Room key rotated after leave in room {room_id}")
 

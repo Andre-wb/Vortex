@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from conftest import make_user, login_user, random_str
 
+from app.security.key_backup import make_shard_proof
+
 
 # Key Backup CRUD
 
@@ -676,7 +678,7 @@ class TestFederatedBackup:
             'shard_index': 1,
             'encrypted_shard': secrets.token_hex(64),
             'shard_hash': secrets.token_hex(32),
-        }, headers=h)
+        }, headers={**h, 'X-Federation-Proof': make_shard_proof('vortex-shard-store')})
         assert r.status_code == 200
 
     def test_retrieve_shard_peer_endpoint(self, client):
@@ -690,8 +692,11 @@ class TestFederatedBackup:
             'shard_index': 1,
             'encrypted_shard': secrets.token_hex(64),
             'shard_hash': secrets.token_hex(32),
-        }, headers=h)
-        r = client.get(f'/api/keys/federated-backup/retrieve-shard/{owner_id}', headers=h)
+        }, headers={**h, 'X-Federation-Proof': make_shard_proof('vortex-shard-store')})
+        r = client.get(f'/api/keys/federated-backup/retrieve-shard/{owner_id}', headers={
+            **h,
+            'X-Federation-Proof': make_shard_proof(f'vortex-shard-retrieve:{owner_id}'),
+        })
         assert r.status_code == 200
         assert len(r.json()['shards']) >= 1
 
@@ -700,7 +705,10 @@ class TestFederatedBackup:
         h = login_user(client, u['username'], u['password'])
         # Use own user_id — guaranteed to exist but has no shards stored
         own_id = u['data']['user_id']
-        r = client.get(f'/api/keys/federated-backup/retrieve-shard/{own_id}', headers=h)
+        r = client.get(f'/api/keys/federated-backup/retrieve-shard/{own_id}', headers={
+            **h,
+            'X-Federation-Proof': make_shard_proof(f'vortex-shard-retrieve:{own_id}'),
+        })
         assert r.status_code == 404
 
     def test_threshold_gt_total_rejected(self, client):

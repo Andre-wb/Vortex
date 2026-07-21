@@ -35,6 +35,19 @@ function _v2SendEnabled() {
     try { return localStorage.getItem('vortex_v2_dm_enabled') !== '0'; } catch { return false; }
 }
 
+// Фичефлаг PQXDH-отправки (post-quantum X3DH). ПО УМОЛЧАНИЮ ВКЛ (активировано
+// pre-launch: приложение ещё не в сети, нет прод-риска, нет оператора-флиппера).
+// Отдельно от v2-send (`vortex_v2_dm_enabled`) и room-key-гибрида (`vortex_pq_hybrid_enabled`).
+// Kill-switch: per-client `vortex_pqxdh_enabled='0'` → отправка классическим X3DH
+// (0x01); приём PQ (0x03) всегда-вкл (P4) — уже-отправленное остаётся читаемым.
+// Безопасность default-on: ML-KEM — pure-JS (детерминирован, engine-independent);
+// сбой движка на отправке → mlkemEncaps throw → encryptV2ForDm возвращает null →
+// v1 fallback (не broken 0x03). Приём self-gated: 0x03 шлётся лишь устройству,
+// опубликовавшему валидный PQSPK (⟹ его движок уже прогнал ML-KEM keygen).
+function _pqxdhEnabled() {
+    try { return localStorage.getItem('vortex_pqxdh_enabled') !== '0'; } catch { return false; }
+}
+
 /**
  * Шифрует текст сообщения текущей продовой схемой (v1, sender-chain).
  *
@@ -190,6 +203,23 @@ async function _bundleWellSigned(bundle, trustedAccountEdPub) {
 }
 
 /**
+ * Capability PQXDH: несёт ли бандл ВАЛИДНЫЙ подписанный per-device Kyber pre-key.
+ * device_kyber_sig проверяется над СЫРЫМИ байтами device_kyber_pub против
+ * device_sign_pub — тот же ключ и те же байты, что P2 подписывал (byte-lock seam).
+ * device_sign_pub уже доверен (cert против припиненного account Ed в _bundleWellSigned),
+ * поэтому валидная подпись = аутентичный PQSPK. Вызывать ТОЛЬКО для well-signed бандла.
+ */
+async function _pqspkVerified(bundle) {
+    if (!bundle.device_kyber_pub || !bundle.device_kyber_sig || bundle.device_kyber_id == null) return false;
+    return edVerify(bundle.device_sign_pub, _fromHex(bundle.device_kyber_pub), bundle.device_kyber_sig);
+}
+
+/** Копия бандла без PQSPK-полей → адресат таргетится классическим X3DH (0x01). */
+function _stripPqspk(bundle) {
+    return { ...bundle, device_kyber_pub: null, device_kyber_sig: null, device_kyber_id: null };
+}
+
+/**
  * Из ответа `/devices` собирает валидные целевые устройства для fan-out:
  * capability, account X25519 TOFU (для пира) и цепочка cert'а против
  * trustedAccountEd. Устройства без валидного cert (в т.ч. вставленные сервером)
@@ -203,7 +233,11 @@ async function _collectValidDevices(list, trustedAccountEd, peerX25519, excludeD
         if (b.supports_v2 !== true) continue;
         if (peerX25519 && b.identity_key !== peerX25519) continue;                 // account X25519 TOFU
         if (await _bundleWellSigned(b, trustedAccountEd)) {
-            out.push({ clientDeviceId: b.client_device_id, bundle: b });
+            // PQXDH capability: держим PQSPK-поля ТОЛЬКО при вкл-флаге И валидной
+            // подписи; иначе снимаем → адресат таргетится классикой (плохой PQSPK
+            // не ломает v2, лишь отключает PQ для этого устройства).
+            const pqOk = _pqxdhEnabled() && await _pqspkVerified(b);
+            out.push({ clientDeviceId: b.client_device_id, bundle: pqOk ? b : _stripPqspk(b) });
         } else {
             console.debug('[v2] fan-out: skipping device (invalid cert)', b.client_device_id);
         }
@@ -278,14 +312,20 @@ async function _pruneAbandonedSessions(roomId, validDeviceIds) {
  * для установленной сессии не зовётся → OPK не тратится. Нет OPK → 3-DH без OPK.
  */
 async function _claimingBundle(target) {
+    // PQOPK claim'им ТОЛЬКО когда сессия реально идёт в PQ (бандл несёт проверенный
+    // PQSPK ⟺ флаг вкл + валидная подпись). Иначе не-PQ трафик выжигал бы пул PQOPK.
+    const wantKyber = target.bundle.device_kyber_pub != null;
     let opk = null;
     try {
-        opk = await api('POST', `/api/keys/prekeys/${target.userId}/claim-opk`, { device_id: target.bundle.device_id });
+        opk = await api('POST', `/api/keys/prekeys/${target.userId}/claim-opk`,
+            { device_id: target.bundle.device_id, want_kyber: wantKyber });
     } catch (e) { console.debug('[v2] claim-opk failed, X3DH without OPK:', e?.message); }
     return {
         ...target.bundle,
         one_time_prekey: opk?.one_time_prekey ?? null,
         one_time_prekey_id: opk?.one_time_prekey_id ?? null,
+        one_time_kyber_prekey: opk?.one_time_kyber_prekey ?? null,
+        one_time_kyber_prekey_id: opk?.one_time_kyber_prekey_id ?? null,
     };
 }
 

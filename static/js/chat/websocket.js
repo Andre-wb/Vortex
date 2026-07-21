@@ -3,7 +3,8 @@
 import { scrollToBottom, getClientDeviceId } from '../utils.js';
 import { renderRoomsList } from '../rooms.js';
 import { showWelcome } from '../ui.js';
-import { eciesDecrypt, eciesEncrypt, getRoomKey, setRoomKey, clearRatchet } from '../crypto.js';
+import { hybridEciesEncrypt, decryptRoomKeyEnvelope, getRoomKey, setRoomKey, clearRatchet } from '../crypto.js';
+import { myKyberPub } from '../dr/pq-capability.js';
 import { isKnownEncVersion } from './enc-version.js';
 import { decryptMessage, decryptV2WithHistory, getV2Cached } from './message-cipher.js';
 import { selectForThisDevice, fanoutSender } from '../dr/v2-fanout.js';
@@ -23,7 +24,8 @@ import {
     initScrollArrow,
 } from './messages.js';
 import { showMessagesSkeleton, hideMessagesSkeleton, showConnectingSpinner } from './skeletons.js';
-import { _saveRoomKeyToSession, _loadRoomKeyFromSession, _clearRoomKeyFromSession } from './room-crypto.js';
+import { _saveRoomKeyToSession, _loadRoomKeyFromSession, _clearRoomKeyFromSession,
+         selfHealRoomKey, markRoomKeyHealthy } from './room-crypto.js';
 import { _handleAck, _cancelAllPendingAcks, _flushOfflineQueue } from './ack.js';
 import { _updateOnlineMembersCache } from './mention.js';
 import { _showTyping, _showFileSending, _updateReaction, _showPinnedBar, _hidePinnedBar } from './indicators.js';
@@ -76,12 +78,27 @@ document.addEventListener('keyup', e => {
 let _msgQueue    = Promise.resolve();
 let _pendingHistory = null;
 
+// Расшифровать отложенную (ждавшую ключ) историю после получения room key.
+async function _flushPendingHistory() {
+    if (!_pendingHistory) return;
+    const S = window.AppState;
+    const pending = _pendingHistory;
+    _pendingHistory = null;
+    resetMessageState();
+    const mc = document.getElementById('messages-container');
+    if (mc) while (mc.firstChild) mc.removeChild(mc.firstChild);
+    for (const m of pending) await _decryptAndAppend(m);
+    const unread = S.currentRoom?.unread_count || 0;
+    if (unread > 0) insertUnreadDivider(unread);
+    else scrollToBottom();
+}
+
 /**
  * Авто-pull зашифрованного ключа комнаты с сервера.
  * Если ключ есть в БД (зашифрован ECIES для нашего X25519 pubkey),
  * расшифровываем и сохраняем — история станет доступна без ожидания online-участника.
  */
-async function _pullKeyFromServer(roomId) {
+export async function _pullKeyFromServer(roomId) {
     const S = window.AppState;
     const privKey = S.x25519PrivateKey;
     if (!privKey) return;
@@ -92,25 +109,43 @@ async function _pullKeyFromServer(roomId) {
         });
         if (!resp.ok) return;
         const data = await resp.json();
-        if (data.has_key && data.ephemeral_pub && data.ciphertext) {
-            const keyBytes = await eciesDecrypt(data.ephemeral_pub, data.ciphertext, privKey);
+        if (data.has_key && data.ciphertext && (data.ephemeral_pub || data.x25519_ephemeral_pub)) {
+            let keyBytes;
+            try {
+                keyBytes = await decryptRoomKeyEnvelope(data, privKey);
+            } catch (de) {
+                // Хранимый ключ негоден (провижн/escrow-мусор) → self-heal (изолируем
+                // от внешнего catch, который ловит и сетевые ошибки).
+                const heal = await selfHealRoomKey(roomId, de, !!privKey);
+                if (heal === 'unrecoverable' && S.currentRoom?.id === roomId) {
+                    appendSystemMessage(t('chat.keyDecryptErrorFull'));
+                }
+                return;
+            }
             setRoomKey(roomId, keyBytes);
+            markRoomKeyHealthy(roomId);
             _saveRoomKeyToSession(roomId, keyBytes);
             // Register BMP secret for this room
             if (window.registerRoomSecret) window.registerRoomSecret(roomId);
             console.info('🔑 Ключ комнаты получен с сервера для room', roomId);
-            // Если история ждёт ключ — расшифровываем
-            if (_pendingHistory) {
-                const pending = _pendingHistory;
-                _pendingHistory = null;
-                resetMessageState();
-                const mc = document.getElementById('messages-container');
-                while (mc.firstChild) mc.removeChild(mc.firstChild);
-                for (const m of pending) await _decryptAndAppend(m);
-                const unread = S.currentRoom?.unread_count || 0;
-                if (unread > 0) insertUnreadDivider(unread);
-                else scrollToBottom();
-            }
+            await _flushPendingHistory();
+        } else if (location.hash && location.hash.length > 1) {
+            // Нет хранимого ключа, но есть invite-фрагмент → offline-join через escrow
+            // (ADR-005 O6). Провал/устаревший → падаем в обычный key_request-путь.
+            try {
+                const { redeemInviteEscrow } = await import('../dr/invite-link.js');
+                const rk = await redeemInviteEscrow(roomId, location.hash);
+                if (rk) {
+                    // Стираем приватные invite-ключи из URL/истории (иначе {x,k} висят
+                    // в address bar и ре-триггерят redeem на каждом open). ADR-005 O6.
+                    try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+                    markRoomKeyHealthy(roomId);
+                    _saveRoomKeyToSession(roomId, rk);
+                    if (window.registerRoomSecret) window.registerRoomSecret(roomId);
+                    console.info('🔑 Ключ комнаты получен через invite-escrow, room', roomId);
+                    await _flushPendingHistory();
+                }
+            } catch { /* fallback в key_request */ }
         }
     } catch (e) {
         console.debug('[WS] Key pull failed:', e.message);
@@ -224,8 +259,9 @@ async function handleWsMessage(msg) {
                 break;
             }
             try {
-                const keyBytes = await eciesDecrypt(msg.ephemeral_pub, msg.ciphertext, privKey);
+                const keyBytes = await decryptRoomKeyEnvelope(msg, privKey);
                 setRoomKey(roomId, keyBytes);
+                markRoomKeyHealthy(roomId);
                 _saveRoomKeyToSession(roomId, keyBytes);
                 if (window.registerRoomSecret) window.registerRoomSecret(roomId);
                 console.info('🔑 Ключ комнаты получен и сохранён, room', roomId);
@@ -244,7 +280,16 @@ async function handleWsMessage(msg) {
                     }
                 }
             } catch (e) {
-                appendSystemMessage(t('chat.keyDecryptErrorDetail').replace('{error}', e.message));
+                // Self-heal (ADR-005 §4.0): негодный ключ → удалить серверную строку
+                // + пере-запрос. Bounded; "requires Kyber identity" не хилим.
+                const heal = await selfHealRoomKey(roomId, e, !!privKey);
+                if (heal === 'healing') {
+                    appendSystemMessage(t('chat.keyUpdated'));
+                } else if (heal === 'unrecoverable') {
+                    appendSystemMessage(t('chat.keyDecryptErrorFull'));
+                } else {
+                    appendSystemMessage(t('chat.keyDecryptErrorDetail').replace('{error}', e.message));
+                }
             }
             break;
         }
@@ -255,25 +300,34 @@ async function handleWsMessage(msg) {
             const roomKey = getRoomKey(roomId);
             if (!roomKey) break;
             try {
-                const enc = await eciesEncrypt(roomKey, msg.for_pubkey);
-                // Always persist via REST API first (reliable delivery)
-                try {
-                    const { api } = await import('../utils.js');
-                    await api('POST', `/api/dm/store-key/${roomId}`, {
-                        user_id: msg.for_user_id,
-                        ephemeral_pub: enc.ephemeral_pub,
-                        ciphertext: enc.ciphertext,
-                    });
-                } catch {
-                    // REST failed — try WS as fallback
+                // Гейт идентичности участника перед обёрткой (флаг
+                // vortex_member_verify_enabled — дефолт ВКЛ, kill-switch '0'):
+                // block на changed / подмену for_pubkey; обёртка на ПРОВЕРЕННЫЙ
+                // ключ, НЕ на серверный for_pubkey. Kyber — тоже проверенный.
+                const { verifyMemberForWrap } = await import('../dr/member-verify.js');
+                const gate = await verifyMemberForWrap(
+                    roomId, msg.for_user_id, msg.for_pubkey, msg.for_kyber_pubkey, msg.for_kyber_sig);
+                if (gate.allow) {
+                    const enc = await hybridEciesEncrypt(roomKey, gate.wrapX25519, gate.wrapKyber);
+                    // Always persist via REST API first (reliable delivery)
                     try {
-                        S.ws.send(JSON.stringify({
-                            action:        'key_response',
-                            for_user_id:   msg.for_user_id,
-                            ephemeral_pub: enc.ephemeral_pub,
-                            ciphertext:    enc.ciphertext,
-                        }));
-                    } catch {}
+                        const { api } = await import('../utils.js');
+                        await api('POST', `/api/dm/store-key/${roomId}`, {
+                            user_id: msg.for_user_id,
+                            ...enc,
+                        });
+                    } catch {
+                        // REST failed — try WS as fallback
+                        try {
+                            S.ws.send(JSON.stringify({
+                                action:      'key_response',
+                                for_user_id: msg.for_user_id,
+                                ...enc,
+                            }));
+                        } catch {}
+                    }
+                } else {
+                    console.warn('[key_request] обёртка room-key заблокирована (идентичность):', gate.status);
                 }
             } catch (e) { console.error('Key re-encryption error:', e); }
             break;
@@ -295,16 +349,6 @@ async function handleWsMessage(msg) {
         case 'node_pubkey':
             S.nodePublicKey = msg.pubkey_hex;
             break;
-
-        case 'prekeys_low': {
-            // Replenish sealed prekeys when running low
-            const _pkRoomId = msg.room_id;
-            const _pkRoomKey = getRoomKey(_pkRoomId);
-            if (_pkRoomKey && window._uploadSealedPrekeys) {
-                window._uploadSealedPrekeys(_pkRoomId, _pkRoomKey).catch(() => {});
-            }
-            break;
-        }
 
         case 'history': {
             hideMessagesSkeleton();
@@ -596,17 +640,21 @@ async function handleWsMessage(msg) {
                 const myPubkey = S.user?.x25519_public_key;
                 if (myPubkey) {
                     try {
-                        const enc = await eciesEncrypt(newKey, myPubkey);
+                        const enc = await hybridEciesEncrypt(newKey, myPubkey, myKyberPub());
                         // Only clear old key AFTER new key is ready
                         clearRatchet(roomId);
                         setRoomKey(roomId, newKey);
                         _saveRoomKeyToSession(roomId, newKey);
+                        // Re-wrap invite-escrow'ов на новый ключ (флаг-гейт внутри; no-op
+                        // без активных invite'ов). ADR-005 O5b.
+                        import('../dr/invite-link.js')
+                            .then(m => m.rewrapInvitesAfterRotation(roomId, newKey))
+                            .catch(() => {});
                         try {
                             S.ws?.send(JSON.stringify({
-                                action:        'key_response',
-                                for_user_id:   S.user.id,
-                                ephemeral_pub: enc.ephemeral_pub,
-                                ciphertext:    enc.ciphertext,
+                                action:      'key_response',
+                                for_user_id: S.user.id,
+                                ...enc,
                             }));
                         } catch {}
                         appendSystemMessage(t('chat.newRoomKey'));

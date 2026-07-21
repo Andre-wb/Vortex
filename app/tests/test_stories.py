@@ -17,7 +17,7 @@ import json
 import os
 import pytest
 
-from conftest import make_user, random_str, SyncASGIClient
+from conftest import make_user, login_user, random_str, SyncASGIClient
 
 
 
@@ -256,10 +256,18 @@ class TestReactToStory:
     """POST /api/stories/{id}/react"""
 
     def test_react_to_story(self, client):
-        _, h1 = _make_auth(client)
-        cr = _create_text_story(client, h1)
+        # cookie-jar \u0443 \u043A\u043B\u0438\u0435\u043D\u0442\u0430 \u043E\u0431\u0449\u0438\u0439: \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044F \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0430\u0435\u0442 \u0441\u0435\u0441\u0441\u0438\u044E,
+        # \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u0432\u043B\u0430\u0434\u0435\u043B\u044C\u0446\u0435\u043C \u0441\u0442\u043E\u0440\u0438 \u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0439 \u0437\u0430\u043B\u043E\u0433\u0438\u043D\u0435\u043D\u043D\u044B\u0439
+        u1, _ = _make_auth(client)
+        u2, _ = _make_auth(client)
+        h1 = login_user(client, u1["username"], u1["password"])
+        cr = _create_text_story(client, h1, envelopes=[{
+            "user_id": u2["data"]["user_id"],
+            "ephemeral_pub": "aa" * 32,
+            "ciphertext": "bb" * 60,
+        }])
         story_id = cr.json()["id"]
-        _, h2 = _make_auth(client)
+        h2 = login_user(client, u2["username"], u2["password"])
         r = client.post(f"/api/stories/{story_id}/react", data={"emoji": "\u2764\uFE0F"}, files={"_": ("", b"")}, headers=h2)
         assert r.status_code == 200
 
@@ -280,10 +288,16 @@ class TestReplyToStory:
     """POST /api/stories/{id}/reply"""
 
     def test_reply_to_story(self, client):
-        _, h1 = _make_auth(client)
-        cr = _create_text_story(client, h1)
+        u1, _ = _make_auth(client)
+        u2, _ = _make_auth(client)
+        h1 = login_user(client, u1["username"], u1["password"])
+        cr = _create_text_story(client, h1, envelopes=[{
+            "user_id": u2["data"]["user_id"],
+            "ephemeral_pub": "aa" * 32,
+            "ciphertext": "bb" * 60,
+        }])
         story_id = cr.json()["id"]
-        _, h2 = _make_auth(client)
+        h2 = login_user(client, u2["username"], u2["password"])
         r = client.post(f"/api/stories/{story_id}/reply", data={"text": "Nice story!"}, files={"_": ("", b"")}, headers=h2)
         assert r.status_code == 200
 

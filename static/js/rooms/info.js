@@ -83,6 +83,9 @@ export async function openRoomInfo() {
     const createdDate = room.created_at ? new Date(room.created_at).toLocaleDateString('ru') : '';
     const _meta = $('room-info-meta'); if (_meta) _meta.textContent = `${room.member_count} ${t('rooms.members')} \u00b7 ${room.online_count} ${t('rooms.online')} \u00b7 ${createdDate}`;
 
+    // \u041a\u043e\u0434 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438 \u043a\u043e\u043c\u043d\u0430\u0442\u044b (\u0444\u043e\u043d\u043e\u0432\u044b\u0439 \u0444\u0435\u0442\u0447 \u043a\u043b\u044e\u0447\u0435\u0439 \u2014 \u043d\u0435 \u0431\u043b\u043e\u043a\u0438\u0440\u0443\u0435\u0442 \u043e\u0442\u043a\u0440\u044b\u0442\u0438\u0435 \u043f\u0430\u043d\u0435\u043b\u0438).
+    _renderRoomSafetyNumber(room);
+
     // Invite code + channel-specific UI adjustments
     console.log('[RoomInfo] room.is_channel =', room.is_channel, '| room.name =', room.name, '| isAdmin =', isAdmin, '| my_role =', room.my_role);
     const _invite = $('room-info-invite'); if (_invite) _invite.textContent = room.invite_code || '';
@@ -250,6 +253,34 @@ export async function openRoomInfo() {
         window.openRoomSettingsScreen();
     } else {
         openModal('room-info-modal');
+    }
+}
+
+// Код безопасности комнаты — агрегированный отпечаток account-Ed всех участников.
+// Одинаков у всех, у кого совпадает состав; расхождение = смена/подмена ключа участника.
+// Только для групп (не DM, не канал, не федерация). Информативный блок, ничего не блокирует.
+async function _renderRoomSafetyNumber(room) {
+    const section = $('rss-safety-section');
+    if (!section) return;
+    if (room.is_dm || room.is_channel || room.is_federated) { section.style.display = 'none'; return; }
+    try {
+        const [{ getMemberStatuses }, { computeRoomSafetyNumber }] = await Promise.all([
+            import('../dr/member-verify.js'),
+            import('../fingerprint.js'),
+        ]);
+        const vstat = await getMemberStatuses(room.id);
+        const eds = Object.values(vstat.entries).map(e => e?.identity_key_ed).filter(Boolean);
+        // Нужен хотя бы двусторонний состав с v2-идентичностью, иначе код бессмыслен.
+        if (eds.length < 2) { section.style.display = 'none'; return; }
+        const sn = await computeRoomSafetyNumber(room.id, eds);
+        const codeEl = $('room-info-safety-code');
+        const emojiEl = $('room-info-safety-emoji');
+        if (codeEl) codeEl.textContent = sn.blocks;
+        if (emojiEl) emojiEl.textContent = sn.emojis.join(' ');
+        section.style.display = '';
+    } catch (e) {
+        console.debug('[verify] room safety number skipped:', e?.message);
+        section.style.display = 'none';
     }
 }
 

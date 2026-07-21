@@ -83,9 +83,10 @@ class TestProfileVault:
         vault = _fake_vault()
         client.put('/api/zk/profile', json={'vault_data': vault}, headers=h)
 
-        # Another user reads it
+        # Another user reads it (needs a relationship — profile vault is contact-gated)
         u2 = make_user(client)
         h2 = login_user(client, u2['username'], u2['password'])
+        client.post('/api/contacts', json={'user_id': uid}, headers=h2)
         r = client.get(f'/api/zk/profile/{uid}', headers=h2)
         assert r.status_code == 200
         assert r.json()['vault_data'] == vault

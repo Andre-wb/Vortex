@@ -157,15 +157,17 @@ async def search_users(
     results = []
     for sim, user in scored[:20]:
         results.append({
-            "user_id":            user.id,
-            "username":           user.username,
-            "display_name":       user.display_name or user.username,
-            "avatar_emoji":       user.avatar_emoji,
-            "avatar_url":         user.avatar_url,
-            "phone":              _mask_phone(user.phone),
-            "x25519_public_key":  user.x25519_public_key,
-            "is_contact":         user.id in contact_ids,
-            "is_self":            user.id == u.id,
+            "user_id":               user.id,
+            "username":              user.username,
+            "display_name":          user.display_name or user.username,
+            "avatar_emoji":          user.avatar_emoji,
+            "avatar_url":            user.avatar_url,
+            "phone":                 _mask_phone(user.phone),
+            "x25519_public_key":     user.x25519_public_key,
+            "kyber_public_key":      user.kyber_public_key,
+            "kyber_public_key_sig":  user.kyber_public_key_sig,
+            "is_contact":            user.id in contact_ids,
+            "is_self":               user.id == u.id,
         })
 
     return {"users": results}

@@ -61,10 +61,18 @@ def _story_dict(s: Story, u: User, envelope: StoryKeyEnvelope | None = None) -> 
         d["has_media"] = s.media_blob is not None
         d["has_music"] = s.music_blob is not None
         if envelope:
-            d["key_envelope"] = {
-                "ephemeral_pub": envelope.ephemeral_pub,
-                "ciphertext": envelope.ciphertext,
-            }
+            if envelope.kyber_ciphertext:
+                d["key_envelope"] = {
+                    "hybrid":               True,
+                    "x25519_ephemeral_pub": envelope.ephemeral_pub,
+                    "kyber_ciphertext":     envelope.kyber_ciphertext,
+                    "ciphertext":           envelope.ciphertext,
+                }
+            else:
+                d["key_envelope"] = {
+                    "ephemeral_pub": envelope.ephemeral_pub,
+                    "ciphertext":    envelope.ciphertext,
+                }
     else:
         # Legacy plaintext (backward compat)
         d["media_url"] = s.media_url
@@ -196,7 +204,10 @@ async def create_story(
 
     for env in envs:
         uid = env.get("user_id")
-        eph = env.get("ephemeral_pub", "")
+        # Обе формы: гибрид (x25519_ephemeral_pub + kyber_ciphertext) или классика.
+        # X25519-эфемерный хранится в единой колонке ephemeral_pub.
+        kyber_ct = env.get("kyber_ciphertext")
+        eph = env.get("x25519_ephemeral_pub") if env.get("hybrid") else env.get("ephemeral_pub", "")
         ct = env.get("ciphertext", "")
         if uid and eph and ct:
             db.add(StoryKeyEnvelope(
@@ -204,6 +215,7 @@ async def create_story(
                 user_id=uid,
                 ephemeral_pub=eph,
                 ciphertext=ct,
+                kyber_ciphertext=kyber_ct,
             ))
 
     # Also store envelope for self (author needs to view own stories)

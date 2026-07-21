@@ -14,8 +14,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.models_rooms import RoomMember, Room, RoomRole
+from app.models_rooms import RoomMember, Room, RoomRole, RoomInviteEscrow
 from app.peer.connection_manager import manager
+from app.security.ecies_schema import EciesKeyFields
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
@@ -23,12 +24,8 @@ router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
 # Pydantic schemas
 
-class EncryptedKeyPayload(BaseModel):
-    """ECIES-encrypted room key."""
-    ephemeral_pub: str = Field(..., min_length=64, max_length=64,
-                               description="X25519 ephemeral pubkey hex (32 bytes)")
-    ciphertext:    str = Field(..., min_length=24,
-                               description="AES-256-GCM ciphertext hex (nonce+ct+tag)")
+class EncryptedKeyPayload(EciesKeyFields):
+    """ECIES-обёртка комнатного ключа (классика или post-quantum гибрид)."""
 
 
 class RoomCreate(BaseModel):
@@ -143,20 +140,49 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
     return m
 
 
+def _approval_enforced(room) -> bool:
+    """Энфорсится ли апрув для этой комнаты: per-room join_approval И глобальный
+    Config-флаг (дефолт OFF — существующие join_approval=True не гейтятся до флипа)."""
+    from app.config import Config
+    return bool(getattr(room, "join_approval", False)) and \
+        bool(getattr(Config, "JOIN_APPROVAL_ENFORCED", False))
+
+
+def _invalidate_room_escrows(room_id: int, db: Session) -> int:
+    """Удаляет ВСЕ invite-escrow'ы комнаты при ротации room key (ADR-005 O4): escrow
+    обёрнут на СТАРЫЙ ключ → устаревший escrow отдал бы вступающему мёртвый ключ.
+    Отсутствующий escrow → вступающий падает в key_request. Вызывать ВЕЗДЕ, где
+    рассылается key_rotated (rotate-key, kick, leave)."""
+    return db.query(RoomInviteEscrow).filter(RoomInviteEscrow.room_id == room_id).delete()
+
+
+def _can_admit(actor: RoomMember, room) -> bool:
+    """Может ли actor ДОБАВИТЬ нового участника: ADMIN/OWNER — всегда; иначе только
+    если апрув НЕ энфорсится (обычный член не должен обходить апрув). ЕДИНЫЙ предикат
+    для provision-key и approve-join — без дрейфа между сайтами (ADR-005 O3)."""
+    if actor.role in (RoomRole.ADMIN, RoomRole.OWNER):
+        return True
+    return not _approval_enforced(room)
+
+
 async def _broadcast_key_request(room_id: int, for_user_id: int, for_pubkey: str,
-                                  for_kyber_pubkey: str | None = None) -> None:
+                                  for_kyber_pubkey: str | None = None,
+                                  for_kyber_sig: str | None = None) -> None:
     """
     Broadcasts a key re-encryption request to all online room members.
     Any member who has the room_key should encrypt it for the new member.
-    Includes kyber_public_key for hybrid PQ encryption (if available).
+    Несёт аккаунтный Kyber-pub + подпись реквестера для гибридной PQ-обёртки:
+    отвечающий проверяет подпись против припиненного Ed реквестера (клиент,
+    resolvePeerKyberPub) — сам pub из broadcast НЕ доверенный.
     """
     payload = {
         "type":        "key_request",
         "for_user_id": for_user_id,
         "for_pubkey":  for_pubkey,
     }
-    if for_kyber_pubkey:
+    if for_kyber_pubkey and for_kyber_sig:
         payload["for_kyber_pubkey"] = for_kyber_pubkey
+        payload["for_kyber_sig"]    = for_kyber_sig
     await manager.broadcast_to_room(room_id, payload, exclude=for_user_id)
 
 

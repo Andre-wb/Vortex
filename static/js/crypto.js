@@ -91,6 +91,107 @@ export async function eciesDecrypt(ephemeralPubHex, ciphertextHex, ourPrivKeyJwk
     return new Uint8Array(roomKey);
 }
 
+// Post-quantum ГИБРИД: X25519 + ML-KEM-768 (ADR-004 K3). Комбинатор —
+// конкатенация shared secret'ов в HKDF: `ikm = x25519_shared ‖ kyber_shared`.
+// Безопасно, пока держится ХОТЯ БЫ ОДИН (классика сегодня, PQ против будущего
+// кванта — HNDL). Домен-сепарация info отделяет гибрид от классического ECIES.
+// ML-KEM грузится ЛЕНИВО (вендорный файл ~28КБ подтягивается только на гибрид-
+// операции — дормантно до провязки K4/активации K5).
+
+async function _hybridAesKey(x25519Shared, kyberShared, usage) {
+    const ikm = new Uint8Array(x25519Shared.length + kyberShared.length);
+    ikm.set(x25519Shared, 0);
+    ikm.set(kyberShared, x25519Shared.length);
+    const hkdfKey = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode('vortex-pq-hybrid-v2') },
+        hkdfKey, { name: 'AES-GCM', length: 256 }, false, [usage]
+    );
+}
+
+/**
+ * Гибридно (X25519+ML-KEM) шифрует данные для получателя. Если у получателя нет
+ * Kyber-pub → FALLBACK на классический X25519 ECIES (обратная совместимость).
+ * @param {Uint8Array} dataBytes
+ * @param {string} recipientX25519PubHex
+ * @param {string|null} recipientKyberPubHex — ML-KEM-768 pub (2368 hex) или null
+ * @returns {Promise<object>} гибрид `{hybrid:true, x25519_ephemeral_pub, kyber_ciphertext, ciphertext}`
+ *          ЛИБО классический `{ephemeral_pub, ciphertext}` (fallback). Имена полей
+ *          согласованы с серверным `validate_ecies_payload` (key_exchange.py).
+ */
+export async function hybridEciesEncrypt(dataBytes, recipientX25519PubHex, recipientKyberPubHex) {
+    if (!recipientKyberPubHex) return eciesEncrypt(dataBytes, recipientX25519PubHex);
+
+    const ephPair = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
+    const ephPubRaw = await crypto.subtle.exportKey('raw', ephPair.publicKey);
+    const recipPub = await crypto.subtle.importKey('raw', fromHex(recipientX25519PubHex), { name: 'X25519' }, false, []);
+    const x25519Shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'X25519', public: recipPub }, ephPair.privateKey, 256));
+
+    const { mlkemEncaps } = await import('./dr/mlkem.js');
+    const { cipherTextHex, sharedSecret: kyberShared } = mlkemEncaps(recipientKyberPubHex);
+
+    const encKey = await _hybridAesKey(x25519Shared, kyberShared, 'encrypt');
+    const nonce = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, encKey, dataBytes);
+    return {
+        hybrid: true,
+        x25519_ephemeral_pub: toHex(ephPubRaw),
+        kyber_ciphertext: cipherTextHex,
+        ciphertext: toHex(nonce) + toHex(new Uint8Array(ct)),
+    };
+}
+
+/**
+ * Расшифровывает конверт: гибрид (`hybrid:true` + `kyber_ciphertext`) →
+ * X25519+ML-KEM; иначе → классический X25519 ECIES. Форма определяется по конверту
+ * (обратная совместимость). Имена полей — как в серверном `validate_ecies_payload`.
+ * @param {object} envelope — классика `{ephemeral_pub, ciphertext}` ИЛИ
+ *        гибрид `{hybrid:true, x25519_ephemeral_pub, kyber_ciphertext, ciphertext}`
+ * @param {string} ourX25519PrivJwk
+ * @param {string|null} ourKyberPrivHex — нужен ТОЛЬКО для гибрид-конверта
+ * @returns {Promise<Uint8Array>} расшифрованные данные
+ */
+export async function hybridEciesDecrypt(envelope, ourX25519PrivJwk, ourKyberPrivHex) {
+    if (!envelope || !envelope.hybrid || !envelope.kyber_ciphertext) {
+        return eciesDecrypt(envelope.ephemeral_pub, envelope.ciphertext, ourX25519PrivJwk);
+    }
+    if (!ourKyberPrivHex) throw new Error('hybrid envelope requires Kyber private key');
+
+    const ephPub = await crypto.subtle.importKey('raw', fromHex(envelope.x25519_ephemeral_pub), { name: 'X25519' }, false, []);
+    const ourPriv = await crypto.subtle.importKey('jwk', JSON.parse(ourX25519PrivJwk), { name: 'X25519' }, false, ['deriveBits']);
+    const x25519Shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'X25519', public: ephPub }, ourPriv, 256));
+
+    const { mlkemDecaps } = await import('./dr/mlkem.js');
+    const kyberShared = mlkemDecaps(envelope.kyber_ciphertext, ourKyberPrivHex);
+
+    const encKey = await _hybridAesKey(x25519Shared, kyberShared, 'decrypt');
+    const ctBytes = fromHex(envelope.ciphertext);
+    const nonce = ctBytes.slice(0, 12), ct = ctBytes.slice(12);
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, encKey, ct));
+}
+
+/**
+ * Разворачивает конверт комнатного ключа, пришедший с сервера (WS/REST). Для
+ * гибрид-конверта подхватывает аккаунтный Kyber-priv текущего пользователя;
+ * классический конверт разворачивается без Kyber (обратная совместимость).
+ * Приём всегда понимает обе формы — отправка гибрида включается отдельно.
+ * @param {object} envelope — `{ephemeral_pub, ciphertext}` ИЛИ
+ *        `{hybrid, x25519_ephemeral_pub, kyber_ciphertext, ciphertext}`
+ * @param {string} x25519PrivJwk — наш X25519 приватный (JWK-строка)
+ * @returns {Promise<Uint8Array>} расшифрованный room key
+ */
+export async function decryptRoomKeyEnvelope(envelope, x25519PrivJwk) {
+    let kyberPrivHex = null;
+    if (envelope && envelope.hybrid && envelope.kyber_ciphertext) {
+        const uid = window.AppState?.user?.user_id;
+        const { loadKyberIdentity } = await import('./dr/kyber-identity.js');
+        const identity = uid ? loadKyberIdentity(uid) : null;
+        if (!identity) throw new Error('hybrid room key requires local Kyber identity');
+        kyberPrivHex = identity.privHex;
+    }
+    return hybridEciesDecrypt(envelope, x25519PrivJwk, kyberPrivHex);
+}
+
 // Хранилище ключей комнат в памяти (roomId → Uint8Array)
 // Три уровня: JS heap → sessionStorage → localStorage
 // + BroadcastChannel для синхронизации между вкладками
@@ -260,22 +361,21 @@ export async function storyDecryptBlob(encBuf, keyBytes) {
 }
 
 /**
- * Wrap story_key for a list of contacts via ECIES.
+ * Wrap story_key for a list of contacts. Гибрид (X25519+ML-KEM), если у контакта
+ * есть проверенный Kyber-pub (`kyber_pub`, разрешён вызывающим через
+ * resolvePeerKyberPub); иначе классика. crypto.js остаётся чистым — capability/
+ * проверку подписи делает stories.js.
  * @param {Uint8Array} storyKey - 32-byte random key
- * @param {Array<{user_id: number, pub_key: string}>} contacts - list with X25519 pub hex
- * @returns {Promise<Array<{user_id, ephemeral_pub, ciphertext}>>}
+ * @param {Array<{user_id: number, pub_key: string, kyber_pub?: string|null}>} contacts
+ * @returns {Promise<Array<object>>} конверты (классика или гибрид) + user_id
  */
 export async function wrapStoryKeyForContacts(storyKey, contacts) {
     const envelopes = [];
     for (const c of contacts) {
         if (!c.pub_key) continue;
         try {
-            const { ephemeral_pub, ciphertext } = await eciesEncrypt(storyKey, c.pub_key);
-            envelopes.push({
-                user_id: c.user_id,
-                ephemeral_pub,
-                ciphertext,
-            });
+            const env = await hybridEciesEncrypt(storyKey, c.pub_key, c.kyber_pub || null);
+            envelopes.push({ user_id: c.user_id, ...env });
         } catch (e) {
             console.warn('[STORY] Failed to wrap key for user', c.user_id, e);
         }
@@ -284,13 +384,14 @@ export async function wrapStoryKeyForContacts(storyKey, contacts) {
 }
 
 /**
- * Unwrap story_key from an ECIES envelope.
- * @param {{ephemeral_pub: string, ciphertext: string}} envelope
- * @param {string} privKeyJwk - our X25519 private key (JWK JSON string)
+ * Unwrap story_key из конверта — понимает обе формы (гибрид/классика), подхватывая
+ * аккаунтный Kyber-priv текущего пользователя для гибрида (decryptRoomKeyEnvelope).
+ * @param {object} envelope - `{ephemeral_pub, ciphertext}` ИЛИ гибрид-конверт
+ * @param {string} privKeyJwk - наш X25519 приватный (JWK-строка)
  * @returns {Promise<Uint8Array>} - 32-byte story key
  */
 export async function unwrapStoryKey(envelope, privKeyJwk) {
-    return eciesDecrypt(envelope.ephemeral_pub, envelope.ciphertext, privKeyJwk);
+    return decryptRoomKeyEnvelope(envelope, privKeyJwk);
 }
 
 // Message Ratchet — KDF chain для forward secrecy

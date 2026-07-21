@@ -754,6 +754,18 @@
                 </label>
             </div>
 
+            <div class="toggle-row">
+                <div>
+                    <div style="font-weight:600;" data-i18n="privacy.hardMode">Строгая проверка участников</div>
+                    <div style="font-size:12px;color:var(--text2);" data-i18n="privacy.hardModeHint">Вы не будете передавать ключ комнаты участникам, чью личность не сверили вручную. Другие участники всё равно могут поделиться ключом — гарантия лишь в том, что это сделаете не вы</div>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="set-privacy-hard-mode" onchange="window._toggleVerifyHardMode(this.checked)">
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                </label>
+            </div>
+
             <div style="font-weight:600;font-size:13px;color:var(--accent);margin:24px 0 8px;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;">
                 <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
                 <span data-i18n="privacy.devicesSection">Устройства</span>

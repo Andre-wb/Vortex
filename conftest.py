@@ -34,12 +34,31 @@ os.environ.setdefault('OBFUSCATION_ENABLED',      'false')   # no obfuscation in
 os.environ['STEALTH_MODE'] = 'false'                          # stealth off in tests
 os.environ.setdefault('VORTEX_PQ_REQUIRED',       'false')   # allow tests without real PQ lib
 os.environ.setdefault('VORTEX_PQ_SIMULATE',        '1')      # enable PQ simulation for tests
+os.environ.setdefault('FEDERATION_PSK',            'test-federation-psk-32-chars-long!')
+os.environ.setdefault('FEDERATION_GUEST_ENABLED',  '1')
 
 import httpx
 import pytest
 
 # Импорт приложения (после установки env)
 from app.main import app  # noqa: E402
+
+# Тесты не должны ходить в реальный DNS: несуществующие хосты вроде
+# node-xxx.example.com резолвятся до 30+ секунд и роняют pytest-timeout.
+# Литеральные IP проверяем как раньше (SSRF-тесты), домены считаем публичными.
+from app.federation import trusted_nodes as _trusted_nodes  # noqa: E402
+
+def _test_resolve_safe_ips(hostname: str) -> list[str]:
+    import ipaddress
+    try:
+        addr = ipaddress.ip_address(hostname)
+    except ValueError:
+        return ['203.0.113.10']
+    if _trusted_nodes._ip_is_internal(addr):
+        raise ValueError(f"Blocked internal address: {hostname}")
+    return [str(addr)]
+
+_trusted_nodes._resolve_safe_ips = _test_resolve_safe_ips
 
 
 # Обёртка над httpx.AsyncClient + ASGITransport
@@ -189,6 +208,15 @@ def make_user(client: SyncASGIClient, suffix: str | None = None) -> dict:
         'data':       r.json(),
         'headers':    {'X-CSRF-Token': csrf},
         'x25519_pub': payload['x25519_public_key'],
+    }
+
+
+def fed_proof_headers(node_id: str = 'test-peer') -> dict:
+    """Заголовки peer proof для федеративных эндпоинтов (code-hash, handshake и т.п.)."""
+    from app.federation.trusted_nodes import make_federation_proof
+    return {
+        'X-Federation-Node':  node_id,
+        'X-Federation-Proof': make_federation_proof(node_id),
     }
 
 

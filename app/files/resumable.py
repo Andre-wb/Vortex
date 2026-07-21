@@ -273,7 +273,9 @@ async def upload_init(
     tier = await get_limits_for_user(u)
     tier_limit_bytes = tier.max_file_mb * 1024 * 1024
     effective_limit = min(tier_limit_bytes, FileUploadConfig.MAX_FILE_SIZE)
-    if file_size <= 0 or file_size > effective_limit:
+    if file_size <= 0:
+        raise HTTPException(400, {"error": "invalid_file_size", "size": file_size})
+    if file_size > effective_limit:
         raise HTTPException(
             413,
             {

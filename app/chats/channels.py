@@ -18,11 +18,13 @@ from app.models import User
 from app.models_rooms import (
     ChannelDonation, ChannelMonetization, ChannelSubscription,
     Message, MessageType, PostReaction, PostView,
-    Room, RoomMember, RoomRole, EncryptedRoomKey,
+    Room, RoomMember, RoomRole, EncryptedRoomKey, JoinRequest,
 )
+from app.chats.rooms.helpers import _approval_enforced
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 from app.security.blockchain_verify import verify_transaction
+from app.security.ecies_schema import EciesKeyFields
 from app.security.sealed_sender import compute_sender_pseudo
 from app.utilites.utils import generative_invite_code
 
@@ -31,9 +33,8 @@ router = APIRouter(prefix="/api/channels", tags=["channels"])
 
 
 
-class _EncryptedKeyPayload(BaseModel):
-    ephemeral_pub: str = Field(..., min_length=64, max_length=64)
-    ciphertext:    str = Field(..., min_length=24)
+class _EncryptedKeyPayload(EciesKeyFields):
+    """ECIES-обёртка ключа канала (классика или post-quantum гибрид)."""
 
 
 class CreateChannelRequest(BaseModel):
@@ -138,11 +139,12 @@ async def create_channel(body: CreateChannelRequest, u: User = Depends(get_curre
     db.add(RoomMember(room_id=channel.id, user_id=u.id, role=RoomRole.OWNER))
     if body.encrypted_room_key:
         db.add(EncryptedRoomKey(
-            room_id       = channel.id,
-            user_id       = u.id,
-            ephemeral_pub = body.encrypted_room_key.ephemeral_pub,
-            ciphertext    = body.encrypted_room_key.ciphertext,
-            recipient_pub = u.x25519_public_key,
+            room_id          = channel.id,
+            user_id          = u.id,
+            ephemeral_pub    = body.encrypted_room_key.eph_pub,
+            ciphertext       = body.encrypted_room_key.ciphertext,
+            kyber_ciphertext = body.encrypted_room_key.kyber_ciphertext,
+            recipient_pub    = u.x25519_public_key,
         ))
     db.commit()
     db.refresh(channel)
@@ -200,6 +202,18 @@ async def join_channel(invite_code: str, u: User = Depends(get_current_user),
                 "currency": mon.currency,
                 "network": mon.network,
             }
+    # join_approval (энфорс за Config-флагом): pending-заявка, НЕ добавляем членом.
+    # Одобрение/отклонение — общими /api/rooms/{id}/approve-join|reject-join (ADR-005 O3).
+    if _approval_enforced(channel):
+        req = db.query(JoinRequest).filter(
+            JoinRequest.room_id == channel.id, JoinRequest.user_id == u.id
+        ).first()
+        if not req:
+            db.add(JoinRequest(room_id=channel.id, user_id=u.id, x25519_pub=u.x25519_public_key))
+            db.commit()
+        return {"joined": False, "pending": True,
+                "message": "Join request awaiting admin approval"}
+
     db.add(RoomMember(room_id=channel.id, user_id=u.id, role=RoomRole.MEMBER))
     db.commit()
     return {"joined": True, "channel": _channel_dict(channel, db, u.id)}

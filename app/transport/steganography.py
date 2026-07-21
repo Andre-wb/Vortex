@@ -176,6 +176,15 @@ def embed_data(
     """
     key = key or _STEG_KEY
 
+    # Проверка ёмкости ДО Rust-пути: в Rust переполнение usize в расчёте
+    # ёмкости приводит к панике (index out of bounds) вместо ошибки.
+    if _PIL_AVAILABLE:
+        with Image.open(io.BytesIO(image_bytes)) as probe:
+            probe_w, probe_h = probe.size
+        probe_max = (probe_w * probe_h * 3) // 8 - 36  # -16 nonce -16 marker -4 length
+        if len(data) > probe_max:
+            raise ValueError(f"Data ({len(data)}B) does not fit in image ({probe_max}B max)")
+
     # Rust fast path — bit-compatible со spread-spectrum форматом.
     if _HAS_RUST_STEG and output_format.upper() == "PNG":
         try:

@@ -3,7 +3,8 @@
 // открытие личных сообщений (DM), группы контактов (client-side).
 
 import { $, api, esc, openModal, closeModal, showAlert, vxPrompt, vxConfirm, vxAlert } from './utils.js';
-import { eciesEncrypt, getRoomKey, setRoomKey } from './crypto.js';
+import { eciesEncrypt, hybridEciesEncrypt, getRoomKey, setRoomKey } from './crypto.js';
+import { pqSendEnabled, resolvePeerKyberPub, myKyberPub } from './dr/pq-capability.js';
 
 function _avatarEl(obj) {
     const presence = obj.presence || 'online';
@@ -623,12 +624,14 @@ export async function openDM(targetUserId) {
 
         let encryptedKey = null;
         if (myPubkey) {
-            encryptedKey = await eciesEncrypt(roomKeyBytes, myPubkey);
+            encryptedKey = await hybridEciesEncrypt(roomKeyBytes, myPubkey, myKyberPub());
         }
 
-        // Пытаемся получить pubkey получателя заранее (из кэша поиска)
+        // Пытаемся получить pubkey получателя заранее (из кэша поиска). При PQ
+        // pre-wrap пропускаем: гибриду нужен Kyber-pub + подпись из other_user
+        // (доступны только после создания) — оборачиваем в store-key ниже.
         let encryptedKeyForTarget = null;
-        const cachedPubkey = window._cachedUserPubkeys?.[targetUserId];
+        const cachedPubkey = pqSendEnabled() ? null : window._cachedUserPubkeys?.[targetUserId];
         if (cachedPubkey) {
             try {
                 encryptedKeyForTarget = await eciesEncrypt(roomKeyBytes, cachedPubkey);
@@ -642,14 +645,17 @@ export async function openDM(targetUserId) {
         });
 
         // Если не передали ключ для получателя — шифруем по pubkey из ответа
+        // (гибридно, если пир PQ-capable и подпись Kyber-pub сошлась с пином).
         if (!encryptedKeyForTarget && data.other_user?.x25519_public_key) {
             try {
-                const encForTarget = await eciesEncrypt(roomKeyBytes, data.other_user.x25519_public_key);
+                const targetKyber = await resolvePeerKyberPub(
+                    targetUserId, data.other_user.kyber_public_key, data.other_user.kyber_public_key_sig);
+                const encForTarget = await hybridEciesEncrypt(
+                    roomKeyBytes, data.other_user.x25519_public_key, targetKyber);
                 const roomId = (data.room || data).id;
                 await api('POST', `/api/dm/store-key/${roomId}`, {
                     user_id: targetUserId,
-                    ephemeral_pub: encForTarget.ephemeral_pub,
-                    ciphertext: encForTarget.ciphertext,
+                    ...encForTarget,
                 });
             } catch (e) { console.warn('Не удалось сохранить ключ для получателя:', e); }
         }
@@ -660,10 +666,6 @@ export async function openDM(targetUserId) {
         if (encryptedKey && room.id) {
             setRoomKey(room.id, roomKeyBytes);
             if (window.registerRoomSecret) window.registerRoomSecret(room.id);
-            // Upload sealed prekeys for offline key distribution
-            if (window._uploadSealedPrekeys) {
-                window._uploadSealedPrekeys(room.id, roomKeyBytes).catch(() => {});
-            }
             try {
                 const hex = Array.from(roomKeyBytes, b => b.toString(16).padStart(2, '0')).join('');
                 sessionStorage.setItem(`vortex_rk_${room.id}`, hex);

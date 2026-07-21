@@ -10,7 +10,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from app.security.ecies_schema import EciesKeyFields
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
@@ -32,9 +33,8 @@ router = APIRouter(prefix="/api/dm", tags=["dm"])
 
 # Pydantic схемы
 
-class EncryptedKeyPayload(BaseModel):
-    ephemeral_pub: str = Field(..., min_length=64, max_length=64)
-    ciphertext:    str = Field(..., min_length=24)
+class EncryptedKeyPayload(EciesKeyFields):
+    pass
 
 
 class CreateDMRequest(BaseModel):
@@ -96,8 +96,9 @@ def _room_to_dict(room: Room, other_user: User, has_key: bool) -> dict:
             "display_name":      other_user.display_name or other_user.username,
             "avatar_emoji":      other_user.avatar_emoji,
             "avatar_url":        other_user.avatar_url,
-            "x25519_public_key": other_user.x25519_public_key,
-            "kyber_public_key":  other_user.kyber_public_key,
+            "x25519_public_key":     other_user.x25519_public_key,
+            "kyber_public_key":      other_user.kyber_public_key,
+            "kyber_public_key_sig":  other_user.kyber_public_key_sig,
             "is_bot":            getattr(other_user, 'is_bot', False) or False,
             "is_online":         _is_user_online(other_user.id),
             "last_seen":         other_user.last_seen.isoformat() if other_user.last_seen and getattr(other_user, 'show_last_seen', True) not in (False,) else None,
@@ -178,32 +179,26 @@ async def create_or_get_dm(
 
     # Сохраняем зашифрованный ключ для создателя (если передан)
     if body.encrypted_room_key:
-        payload = {
-            "ephemeral_pub": body.encrypted_room_key.ephemeral_pub,
-            "ciphertext":    body.encrypted_room_key.ciphertext,
-        }
-        if validate_ecies_payload(payload):
+        if validate_ecies_payload(body.encrypted_room_key.ecies_dict()):
             db.add(EncryptedRoomKey(
-                room_id       = room.id,
-                user_id       = u.id,
-                ephemeral_pub = body.encrypted_room_key.ephemeral_pub,
-                ciphertext    = body.encrypted_room_key.ciphertext,
-                recipient_pub = u.x25519_public_key,
+                room_id          = room.id,
+                user_id          = u.id,
+                ephemeral_pub    = body.encrypted_room_key.eph_pub,
+                ciphertext       = body.encrypted_room_key.ciphertext,
+                kyber_ciphertext = body.encrypted_room_key.kyber_ciphertext,
+                recipient_pub    = u.x25519_public_key,
             ))
 
     # Сохраняем зашифрованный ключ для получателя (если передан)
     if body.encrypted_key_for_target and target.x25519_public_key:
-        payload_t = {
-            "ephemeral_pub": body.encrypted_key_for_target.ephemeral_pub,
-            "ciphertext":    body.encrypted_key_for_target.ciphertext,
-        }
-        if validate_ecies_payload(payload_t):
+        if validate_ecies_payload(body.encrypted_key_for_target.ecies_dict()):
             db.add(EncryptedRoomKey(
-                room_id       = room.id,
-                user_id       = target_user_id,
-                ephemeral_pub = body.encrypted_key_for_target.ephemeral_pub,
-                ciphertext    = body.encrypted_key_for_target.ciphertext,
-                recipient_pub = target.x25519_public_key,
+                room_id          = room.id,
+                user_id          = target_user_id,
+                ephemeral_pub    = body.encrypted_key_for_target.eph_pub,
+                ciphertext       = body.encrypted_key_for_target.ciphertext,
+                kyber_ciphertext = body.encrypted_key_for_target.kyber_ciphertext,
+                recipient_pub    = target.x25519_public_key,
             ))
     elif target.x25519_public_key:
         # Fallback: PendingKeyRequest если клиент не передал ключ для получателя
@@ -245,10 +240,8 @@ async def create_or_get_dm(
     return entry
 
 
-class StoreKeyRequest(BaseModel):
-    user_id:       int
-    ephemeral_pub: str = Field(..., min_length=64, max_length=64)
-    ciphertext:    str = Field(..., min_length=24)
+class StoreKeyRequest(EciesKeyFields):
+    user_id: int
 
 
 @router.post("/store-key/{room_id}", status_code=200)
@@ -290,17 +283,17 @@ async def store_key_for_user(
     if existing:
         return {"ok": True, "message": "Key already exists"}
 
-    payload = {"ephemeral_pub": body.ephemeral_pub, "ciphertext": body.ciphertext}
-    if not validate_ecies_payload(payload):
+    if not validate_ecies_payload(body.ecies_dict()):
         raise HTTPException(400, "Invalid ECIES payload")
 
     target_user = db.query(User).filter(User.id == body.user_id).first()
     db.add(EncryptedRoomKey(
-        room_id       = room_id,
-        user_id       = body.user_id,
-        ephemeral_pub = body.ephemeral_pub,
-        ciphertext    = body.ciphertext,
-        recipient_pub = target_user.x25519_public_key if target_user else None,
+        room_id          = room_id,
+        user_id          = body.user_id,
+        ephemeral_pub    = body.eph_pub,
+        ciphertext       = body.ciphertext,
+        kyber_ciphertext = body.kyber_ciphertext,
+        recipient_pub    = target_user.x25519_public_key if target_user else None,
     ))
 
     # Удаляем PendingKeyRequest если есть
@@ -314,10 +307,9 @@ async def store_key_for_user(
 
     # Доставляем ключ получателю через room WS (если подключён) и notification WS
     key_payload = {
-        "type":          "room_key",
-        "room_id":       room_id,
-        "ephemeral_pub": body.ephemeral_pub,
-        "ciphertext":    body.ciphertext,
+        "type":    "room_key",
+        "room_id": room_id,
+        **body.ecies_dict(),
     }
     # BMP mode: key delivery through BMP room deposit
     from app.config import Config

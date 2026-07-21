@@ -18,6 +18,7 @@ const { getClientDeviceId } = require('../utils.js');
 const {
     certMessage, verifyDeviceCert, loadOrCreateDeviceIdentity, applyIssuedCert,
 } = require('../dr/device-identity.js');
+const { hasPqspkPrivate, getPqspkPrivate } = require('../dr/prekey-store.js');
 
 const toHex = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
 
@@ -154,6 +155,25 @@ describe('buildPrekeyBundle', () => {
         )).toBe(true);
         expect(await verifyEd25519(bundle.device_sign_pub, fromHex(bundle.signed_prekey), bundle.signed_prekey_sig)).toBe(true);
         expect(await verifyEd25519(bundle.identity_key_ed, fromHex(bundle.identity_key), bundle.identity_key_sig)).toBe(true);
+    });
+
+    test('P2: публикует per-device Kyber pre-key, подписанный device-ключом; приватный сохранён', async () => {
+        await loadOrCreateEd25519Identity();
+        const bundle = await buildPrekeyBundle('ab'.repeat(32), 2);
+
+        expect(bundle.device_kyber_pub).toMatch(/^[0-9a-f]{2368}$/);   // ML-KEM-768 pub = 1184 байта
+        expect(bundle.device_kyber_sig).toMatch(/^[0-9a-f]{128}$/);
+        expect(bundle.device_kyber_id).toBe(1);
+        // Byte-lock: подпись над СЫРЫМИ байтами kyber pub против device_sign_pub —
+        // ровно то, что верифицирует sender в P5 (_bundleWellSigned). Та же цепочка, что SPK.
+        expect(await verifyEd25519(
+            bundle.device_sign_pub, fromHex(bundle.device_kyber_pub), bundle.device_kyber_sig
+        )).toBe(true);
+        // Приватный PQSPK сохранён локально (нужен для decaps входящего PQXDH в P4).
+        expect(hasPqspkPrivate()).toBe(true);
+        const priv = getPqspkPrivate(1);
+        expect(priv.id).toBe(1);
+        expect(priv.sk).toMatch(/^[0-9a-f]{4800}$/);   // ML-KEM-768 secret = 2400 байт
     });
 });
 

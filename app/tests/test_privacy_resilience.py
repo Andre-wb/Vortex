@@ -17,6 +17,8 @@ import pytest
 
 from conftest import make_user, login_user, random_str
 
+from app.security.key_backup import make_shard_proof
+
 
 # 1. БЭКАП КЛЮЧЕЙ — ПОЛНЫЙ ЦИКЛ
 
@@ -257,10 +259,13 @@ class TestFederatedBackup:
             'shard_index': 1,
             'encrypted_shard': shard_data,
             'shard_hash': shard_hash,
-        }, headers=h)
+        }, headers={**h, 'X-Federation-Proof': make_shard_proof('vortex-shard-store')})
         assert r.status_code == 200
 
-        r = client.get(f'/api/keys/federated-backup/retrieve-shard/{uid}', headers=h)
+        r = client.get(f'/api/keys/federated-backup/retrieve-shard/{uid}', headers={
+            **h,
+            'X-Federation-Proof': make_shard_proof(f'vortex-shard-retrieve:{uid}'),
+        })
         assert r.status_code == 200
 
 

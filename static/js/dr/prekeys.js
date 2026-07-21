@@ -14,7 +14,7 @@
 // отпечатков по паре (identity_key, identity_key_ed).
 
 import { api } from '../utils.js';
-import { storePrekeyPrivates, hasPrekeyPrivates } from './prekey-store.js';
+import { storePrekeyPrivates, hasPrekeyPrivates, storePqspkPrivate, hasPqspkPrivate, storePqopkPrivates } from './prekey-store.js';
 import { loadOrCreateDeviceIdentity } from './device-identity.js';
 
 // Идентичность хранится ПЕР-АККАУНТ: слот `vortex_ed25519_identity_<userId>`.
@@ -140,6 +140,19 @@ const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)))
 
 // SPK id фиксирован (одна активная пара на аккаунт); ротация SPK не поддерживается.
 const SPK_ID = 1;
+// PQXDH Kyber pre-key id — фиксирован (одна активная пара, как SPK).
+const PQSPK_ID = 1;
+// One-time Kyber pre-keys (PQXDH P6): малый батч (ML-KEM-ключи тяжелее X25519;
+// значение out-of-scope под A1). Исчерпание → fallback на last-resort PQSPK.
+const PQOPK_BATCH = 6;
+
+/** Монотонный per-account счётчик id для PQOPK (отдельный от OPK namespace). */
+function _nextPqopkId(userId, count) {
+    const k = `vortex_dr_pqopk_next_${userId}`;
+    const start = parseInt(localStorage.getItem(k) || '1', 10);
+    localStorage.setItem(k, String(start + count));
+    return start;
+}
 
 /** Генерирует X25519 пару. @returns {Promise<{pubHex, privJwk}>} */
 async function _genX25519() {
@@ -235,6 +248,39 @@ export async function buildPrekeyBundle(identityKeyHex, opkCount = OPK_BATCH) {
         body.device_sign_pub  = device.signPub;
         body.device_cert_sig  = device.certSig;   // null, если аккаунтный Ed25519 недоступен (свежелинкованное устройство)
     }
+
+    // PQXDH Kyber pre-key (ML-KEM-768) — публикуем безусловно (receive-ready
+    // везде, дормантно: отправку включит отдельный флаг). Подписан тем же
+    // spkSigner, что и SPK (device signing-ключ). ML-KEM грузится лениво (~28КБ
+    // вендор). All-or-nothing: сбой → публикуем классику, приватный НЕ храним
+    // (без half-state); prekey-publish не ломаем.
+    try {
+        const { mlkemKeygen } = await import('./mlkem.js');
+        const pqspk = mlkemKeygen();   // {publicKeyHex, secretKeyHex}
+        const pqspkSig = await edSign(spkSigner, fromHex(pqspk.publicKeyHex));
+        storePqspkPrivate(PQSPK_ID, pqspk.secretKeyHex);
+        body.device_kyber_pub = pqspk.publicKeyHex;
+        body.device_kyber_sig = pqspkSig;
+        body.device_kyber_id  = PQSPK_ID;
+
+        // One-time Kyber pre-keys (P6): опортунистический батч. Приватные хранятся
+        // локально (удаляются у адресата после использования — KEM-FS). Публичные
+        // НЕ подписываем: связывание идёт через km_pq (§3.2), а аутентичность
+        // устройства — из cert-цепочки (device_sign_pub). Исчерпание → PQSPK.
+        const pqopkBase = _nextPqopkId(userId, PQOPK_BATCH);
+        const pqopks = [], pqopkPrivs = [];
+        for (let i = 0; i < PQOPK_BATCH; i++) {
+            const kp = mlkemKeygen();
+            const id = pqopkBase + i;
+            pqopks.push({ key_id: id, public_key: kp.publicKeyHex });
+            pqopkPrivs.push({ id, sk: kp.secretKeyHex });
+        }
+        storePqopkPrivates(pqopkPrivs);
+        body.one_time_kyber_prekeys = pqopks;
+    } catch (e) {
+        console.debug('[prekeys] Kyber pre-key skipped (classical bundle):', e?.message);
+    }
+
     return body;
 }
 
@@ -265,6 +311,9 @@ export async function ensurePrekeysPublished() {
         // приватных SPK/OPK — форсируем один republish, чтобы уметь отвечать на v2.
         // Этот арм self-heal'ит устройство, потерявшее localStorage.
         || !hasPrekeyPrivates()
+        // Нет локального PQXDH Kyber pre-key — один republish на бэкфилл
+        // (receive-ready до включения отправки). Зеркало арма выше.
+        || !hasPqspkPrivate()
         // Опубликованный бандл ещё не заявляет v2-приём — republish,
         // чтобы отправители знали, что нам можно слать v2.
         || status.supports_v2 !== true;

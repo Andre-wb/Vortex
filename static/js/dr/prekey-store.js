@@ -57,6 +57,64 @@ export function hasPrekeyPrivates() {
     return _load(userId).spk != null;
 }
 
+/**
+ * Сохраняет приватный PQXDH Kyber pre-key (ML-KEM-768 secret, hex) — нужен, чтобы
+ * decaps'ить входящий PQXDH-конверт (P4). Перезаписывает (одна активная пара).
+ * @param {number} id — device_kyber_id
+ * @param {string} skHex — ML-KEM-768 secret key (2400 байт = 4800 hex)
+ */
+export function storePqspkPrivate(id, skHex) {
+    const userId = _currentUserId();
+    const data = _load(userId);
+    data.pqspk = { id, sk: skHex };
+    _save(userId, data);
+}
+
+/** @returns {boolean} есть ли локально приватный PQSPK (умеет отвечать на PQXDH). */
+export function hasPqspkPrivate() {
+    const userId = window.AppState?.user?.user_id;
+    if (!userId) return false;
+    return _load(userId).pqspk != null;
+}
+
+/** @returns {{id:number, sk:string}|null} приватный PQSPK по id (или текущий, если id совпал). */
+export function getPqspkPrivate(kyberId) {
+    const data = _load(_currentUserId());
+    if (!data.pqspk) return null;
+    if (kyberId != null && data.pqspk.id !== kyberId) return null;   // запрошен другой (ротированный)
+    return data.pqspk;
+}
+
+/**
+ * Сохраняет приватные one-time Kyber pre-keys (PQXDH P6). Добавляет к пулу.
+ * @param {Array<{id:number, sk:string}>} pqopks — ML-KEM-768 secret hex по id
+ */
+export function storePqopkPrivates(pqopks) {
+    const userId = _currentUserId();
+    const data = _load(userId);
+    if (!data.pqopks) data.pqopks = {};
+    for (const p of pqopks) data.pqopks[p.id] = p.sk;
+    _save(userId, data);
+}
+
+/** @returns {string|null} приватный PQOPK (ML-KEM secret hex) по id, либо null. */
+export function getPqopkPrivate(pqopkId) {
+    if (pqopkId == null) return null;
+    const data = _load(_currentUserId());
+    return data.pqopks?.[pqopkId] || null;
+}
+
+/** Удаляет использованный PQOPK-приватный (KEM-forward-secrecy). Идемпотентно. */
+export function deletePqopkPrivate(pqopkId) {
+    if (pqopkId == null) return;
+    const userId = _currentUserId();
+    const data = _load(userId);
+    if (data.pqopks && data.pqopks[pqopkId] !== undefined) {
+        delete data.pqopks[pqopkId];
+        _save(userId, data);
+    }
+}
+
 /** @returns {{id:number, jwk:string}|null} приватный SPK по id (или текущий, если id совпал). */
 export function getSpkPrivate(spkId) {
     const data = _load(_currentUserId());

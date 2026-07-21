@@ -444,9 +444,13 @@ class TestMultiAccountEdgeCases:
             'answers': ['a1', 'a2', 'a3'],
         }, headers=h1)
 
-        # u2 не имеет вопросов
+        # u2 не настраивал вопросы — эндпоинт отдаёт 3 вопроса-приманки,
+        # чтобы нельзя было отличить аккаунт без вопросов; главное —
+        # вопросы u1 не должны утекать
         r2 = client.post('/api/authentication/security-questions/load', json={
             'username': u2['username'],
         })
         assert r2.status_code == 200
-        assert len(r2.json().get('questions', [])) == 0
+        qs = r2.json().get('questions', [])
+        assert len(qs) == 3
+        assert qs != ['Q1?', 'Q2?', 'Q3?']

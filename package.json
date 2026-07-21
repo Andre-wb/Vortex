@@ -18,12 +18,13 @@
     "test:e2e:chromium": "cd e2e && node_modules/.bin/playwright test --project=chromium"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
-    "@jest/globals": "^29.7.0",
-    "babel-jest": "^29.7.0",
     "@babel/core": "^7.24.0",
     "@babel/preset-env": "^7.24.0",
-    "@playwright/test": "^1.42.0"
+    "@jest/globals": "^29.7.0",
+    "@noble/post-quantum": "^0.6.1",
+    "@playwright/test": "^1.42.0",
+    "babel-jest": "^29.7.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
   }
 }

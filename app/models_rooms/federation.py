@@ -106,3 +106,6 @@ class StoryKeyEnvelope(Base):
                            nullable=False, index=True)
     ephemeral_pub = Column(String(128), nullable=False)   # hex X25519 ephemeral pub
     ciphertext    = Column(String(256), nullable=False)   # hex nonce+AES-GCM(story_key)
+    # Post-quantum гибрид (X25519 + ML-KEM-768): наличие kyber_ciphertext ⟹ конверт
+    # гибридный (клиент разворачивает decryptRoomKeyEnvelope); NULL ⟹ классика.
+    kyber_ciphertext = Column(Text,     nullable=True)     # ML-KEM-768 ciphertext hex

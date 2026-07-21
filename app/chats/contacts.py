@@ -155,8 +155,10 @@ async def list_contacts(
             "presence":      contact_user.presence or "online",
             "dm_room_id":   dm_map.get(c.contact_id),
             "created_at":   c.created_at.isoformat(),
-            "x25519_public_key":    contact_user.x25519_public_key,
-            "fingerprint_verified": bool(c.fingerprint_verified),
+            "x25519_public_key":     contact_user.x25519_public_key,
+            "kyber_public_key":      contact_user.kyber_public_key,
+            "kyber_public_key_sig":  contact_user.kyber_public_key_sig,
+            "fingerprint_verified":  bool(c.fingerprint_verified),
         })
 
     return {"contacts": result}

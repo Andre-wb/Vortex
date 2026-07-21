@@ -734,8 +734,10 @@ async def get_blind_key_encrypted(
         raise HTTPException(400, "User has no public key")
 
     blind_key = _get_blind_key()
-    from app.security.key_exchange import ecies_encrypt
-    result = ecies_encrypt(blind_key, u.x25519_public_key)
+    # CLIENT-диалект (salt=None) — браузер расшифровывает через decryptRoomKeyEnvelope
+    # (zk-crypto.js). ecies_encrypt (node, salt=sorted) давал InvalidTag → фича мертва.
+    from app.security.key_exchange import ecies_encrypt_for_client
+    result = ecies_encrypt_for_client(blind_key, u.x25519_public_key)
 
     return {
         "ok": True,

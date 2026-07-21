@@ -42,7 +42,7 @@ class TestCryptoPythonFallbacks:
     def test_py_decrypt_short_data(self):
         from app.security.crypto import _py_decrypt, _py_generate_key
         key = _py_generate_key()
-        with pytest.raises(ValueError, match="короткие"):
+        with pytest.raises(ValueError, match="too short"):
             _py_decrypt(b"short", key)
 
     def test_py_encrypt_empty(self):

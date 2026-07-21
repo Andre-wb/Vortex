@@ -3,7 +3,8 @@
 import { $, api, esc, openModal, closeModal, showAlert } from '../utils.js';
 import { showWelcome } from '../ui.js';
 import { loadDraft } from '../chat/chat.js';
-import { eciesEncrypt, setRoomKey } from '../crypto.js';
+import { hybridEciesEncrypt, getRoomKey, setRoomKey } from '../crypto.js';
+import { myKyberPub, resolvePeerKyberPub } from '../dr/pq-capability.js';
 import { getUnreadCount, hasMention } from '../notifications.js';
 import {
     FOLDER_COLORS, MAX_FOLDERS,
@@ -14,6 +15,37 @@ import {
     _getArchivedRoomIds, _setArchivedRoomIds,
     _getHiddenHash, _hashPassword,
 } from './state.js';
+
+
+/**
+ * Directed pre-provision (ADR-005 O2a): член заранее оборачивает room key для
+ * юзера X и провижнит через O1-эндпоинт, чтобы X забрал ключ ОФФЛАЙН (когда
+ * никто из членов не онлайн ответить на key_request). PQ-гибрид, если X capable
+ * (resolvePeerKyberPub — проверенный Kyber-pub; fetch-and-pin для незнакомца по
+ * той же TOFU-модели), иначе классика. За флагом (дефолт ВЫКЛ).
+ * @param {number} roomId
+ * @param {number} targetUserId
+ * @param {{x25519_public_key:string, kyber_public_key?:string, kyber_public_key_sig?:string}} targetPubkeys
+ * @returns {Promise<object>} {ok, hybrid} или {skipped}
+ */
+function _offlineInviteEnabled() {
+    try { return localStorage.getItem('vortex_offline_invite_enabled') === '1'; } catch { return false; }
+}
+
+export async function provisionRoomKeyForUser(roomId, targetUserId, targetPubkeys) {
+    if (!_offlineInviteEnabled()) return { skipped: 'flag_off' };
+    const roomKey = getRoomKey(roomId);
+    if (!roomKey) return { skipped: 'no_room_key' };          // сам провижнить не можем
+    const x25519 = targetPubkeys?.x25519_public_key;
+    if (!x25519) return { skipped: 'no_target_pubkey' };
+    const kyber = await resolvePeerKyberPub(
+        targetUserId, targetPubkeys.kyber_public_key, targetPubkeys.kyber_public_key_sig);
+    const enc = await hybridEciesEncrypt(roomKey, x25519, kyber);   // kyber=null → классика
+    await api('POST', `/api/rooms/${roomId}/provision-key`, { for_user_id: targetUserId, ...enc });
+    return { ok: true, hybrid: !!enc.hybrid };
+}
+
+if (typeof window !== 'undefined') window.provisionRoomKeyForUser = provisionRoomKeyForUser;
 
 
 let _activeFolder    = null;   // null = "Все", or folder id
@@ -1246,46 +1278,6 @@ async function _ensureUserPubkey() {
 
 // Sealed Prekey Packages — zero-metadata key distribution
 
-const PREKEY_BATCH = 10;
-
-/**
- * Generate and upload sealed prekey packages for a room.
- * Each package encrypts the room key for a fresh one-time X25519 keypair.
- * New members can claim a package without any online member present.
- */
-export async function _uploadSealedPrekeys(roomId, roomKeyBytes) {
-    const packages = [];
-    for (let i = 0; i < PREKEY_BATCH; i++) {
-        // Generate one-time X25519 keypair for this prekey slot
-        const oneTimeKey = await crypto.subtle.generateKey(
-            { name: 'X25519' }, true, ['deriveBits']
-        );
-        const pubRaw = await crypto.subtle.exportKey('raw', oneTimeKey.publicKey);
-        const recipientPub = Array.from(new Uint8Array(pubRaw)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-        // ECIES encrypt room key for this one-time pubkey
-        const enc = await eciesEncrypt(roomKeyBytes, recipientPub);
-        packages.push({
-            ephemeral_pub: enc.ephemeral_pub,
-            ciphertext: enc.ciphertext,
-            recipient_pub: recipientPub,
-        });
-    }
-
-    await api('POST', `/api/rooms/${roomId}/sealed-prekeys`, { packages });
-    console.info(`[SealedKeys] ${packages.length} prekeys uploaded for room ${roomId}`);
-}
-
-// Handle prekeys_low event — replenish prekeys when running low
-window.addEventListener('message', (e) => {
-    if (e.data?.type === 'prekeys_low' && e.data.room_id) {
-        const roomKey = getRoomKey(e.data.room_id);
-        if (roomKey) {
-            _uploadSealedPrekeys(e.data.room_id, roomKey).catch(() => {});
-        }
-    }
-});
-
 // CRUD комнат
 
 export async function createRoom() {
@@ -1297,7 +1289,7 @@ export async function createRoom() {
         }
 
         const roomKeyBytes = crypto.getRandomValues(new Uint8Array(32));
-        const encryptedKey = await eciesEncrypt(roomKeyBytes, myPubkey);
+        const encryptedKey = await hybridEciesEncrypt(roomKeyBytes, myPubkey, myKyberPub());
 
         const data = await api('POST', '/api/rooms', {
             name:               $('cr-name').value.trim(),
@@ -1308,11 +1300,6 @@ export async function createRoom() {
 
         setRoomKey(data.id, roomKeyBytes);
         if (window.registerRoomSecret) window.registerRoomSecret(data.id);
-
-        // Generate sealed prekey packages for offline key distribution
-        _uploadSealedPrekeys(data.id, roomKeyBytes).catch(e =>
-            console.warn('[SealedKeys] Prekey upload failed:', e.message)
-        );
 
         window.AppState.rooms.unshift(data);
         renderRoomsList();
@@ -1790,6 +1777,32 @@ window._showPermissionsModal = function(roomId, targetId, currentRole, customPer
     };
 };
 
+// ADR-008 F1: бейдж верификации участника (клик → модалка отпечатка Ed, F2).
+function _verifyBadge(userId, status) {
+    if (!status || status === 'self') return '';
+    // Сервер недоверен: user_id жёстко приводим к целому — иначе строка-инъекция в
+    // inline onclick = XSS. NaN → бейдж не рисуем.
+    const uid = Number(userId);
+    if (!Number.isInteger(uid)) return '';
+    const map = {
+        verified:   { icon: '🛡️', color: 'var(--green,#30a46c)', key: 'verify.verified' },
+        changed:    { icon: '⚠️',        color: 'var(--red,#e5484d)',   key: 'verify.changed' },
+    };
+    const d = map[status] || { icon: '🛡️', color: 'var(--text3,#888)', key: 'verify.unverified' };
+    // title/status — мой enum + i18n (контролируемо); icon/color из фикс-карты.
+    const title = (window.t?.(d.key)) || (status === 'changed' ? 'Key changed' : status === 'verified' ? 'Verified' : 'Not verified');
+    return `<span class="member-verify-badge" title="${title}" style="cursor:pointer;color:${d.color};margin-left:4px;"
+                  onclick="window.openMemberIdentityFp(${uid})">${d.icon}</span>`;
+}
+
+// F2: открыть модалку отпечатка над account-Ed парой (reuse fingerprint.js identity-режим).
+window.openMemberIdentityFp = async (userId) => {
+    const d = window._memberVerify?.[userId];
+    if (!d?.ed) { window.vxAlert?.((window.t?.('verify.noIdentity')) || 'No account identity key for this member'); return; }
+    const { openFingerprintModal } = await import('../fingerprint.js');
+    openFingerprintModal({ userId, username: d.username, displayName: d.displayName, identityKeyEd: d.ed });
+};
+
 export async function showMembersModal() {
     const S = window.AppState;
     if (!S.currentRoom) return;
@@ -1807,6 +1820,13 @@ export async function showMembersModal() {
         const roomId = S.currentRoom.id;
         const isPrivileged = (myRole === 'owner' || myRole === 'admin');
 
+        // ADR-008 F1/F3/F4: статусы верификации участников (member-keys + verifyMemberIdentity).
+        let vstat = { statuses: {}, entries: {}, verified: 0, total: 0, changed: 0 };
+        try {
+            const { getMemberStatuses } = await import('../dr/member-verify.js');
+            vstat = await getMemberStatuses(roomId);
+        } catch (e) { console.debug('[verify] member statuses skipped:', e?.message); }
+
         // Sort: owners first, then admins, then members; banned last
         const sorted = data.members.slice().sort((a, b) => {
             if (a.is_banned !== b.is_banned) return a.is_banned ? 1 : -1;
@@ -1816,7 +1836,24 @@ export async function showMembersModal() {
             return (a.display_name || '').localeCompare(b.display_name || '');
         });
 
-        $('members-list').innerHTML = sorted.map(m => {
+        // Данные для модалки отпечатка (F2): userId -> {username, displayName, ed}.
+        window._memberVerify = {};
+        for (const m of sorted) {
+            window._memberVerify[m.user_id] = {
+                username: m.username, displayName: m.display_name,
+                ed: vstat.entries[m.user_id]?.identity_key_ed || null,
+            };
+        }
+
+        // F3/F4: сводный индикатор «N из M верифицировано» + предупреждение о смене ключа.
+        const summary = vstat.total > 0
+            ? `<div class="members-verify-summary" style="padding:8px 12px;font-size:12px;color:var(--text2);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                 <span>🛡️ ${vstat.verified}/${vstat.total} ${(window.t?.('verify.summary'))||'verified'}</span>
+                 ${vstat.changed > 0 ? `<span style="color:var(--red,#e5484d)">⚠️ ${(window.t?.('verify.changedWarn'))||'a member key changed — re-verify'}</span>` : ''}
+               </div>`
+            : '';
+
+        $('members-list').innerHTML = summary + sorted.map(m => {
             const isSelf = m.user_id === S.user?.id;
             const mutedCls = m.is_muted ? ' member-item--muted' : '';
             const bannedCls = m.is_banned ? ' member-item--banned' : '';
@@ -1833,7 +1870,7 @@ export async function showMembersModal() {
                 ${_roleBadge(m.role)}
                 ${m.is_muted ? `<span class="member-status-icon" title="${t('rooms.muted')}">&#128263;</span>` : ''}
                 ${m.is_banned ? `<span class="member-status-icon" title="${t('rooms.banned')}">&#128683;</span>` : ''}
-                ${isSelf ? `<span class="member-you-badge">${t('rooms.you')}</span>` : ''}
+                ${isSelf ? `<span class="member-you-badge">${t('rooms.you')}</span>` : _verifyBadge(m.user_id, vstat.statuses[m.user_id])}
               </div>
               <div class="member-item-username">@${esc(m.username)}</div>
             </div>
@@ -1873,7 +1910,7 @@ export async function createChannel() {
         }
 
         const roomKeyBytes = crypto.getRandomValues(new Uint8Array(32));
-        const encryptedKey = await eciesEncrypt(roomKeyBytes, myPubkey);
+        const encryptedKey = await hybridEciesEncrypt(roomKeyBytes, myPubkey, myKyberPub());
 
         const data = await api('POST', '/api/channels', {
             name:               $('ch-name').value.trim(),

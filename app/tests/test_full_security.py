@@ -534,7 +534,7 @@ class TestValidatePassword:
     def test_sequences(self):
         ok, msg = validate_password("Qwerty99!!xx")
         assert ok is False
-        assert "последовательность" in msg.lower() or "последовательность" in msg
+        assert "sequence" in msg.lower()
 
     def test_keyboard_sequences(self):
         ok, msg = validate_password("Asdfgh99!!xx")
@@ -547,7 +547,7 @@ class TestValidatePasswordWithContext:
             "johndoe_Secure1!", username="johndoe", phone="+79001234567"
         )
         assert ok is False
-        assert "никнейм" in msg.lower() or "никнейм" in msg
+        assert "username" in msg.lower()
 
     def test_short_username_not_checked(self):
         ok, msg = validate_password_with_context(

@@ -4,7 +4,9 @@ import secrets
 
 import pytest
 
-from conftest import SyncASGIClient, make_user, login_user, random_str
+from conftest import SyncASGIClient, make_user, login_user, random_str, fed_proof_headers
+
+from app.federation.trusted_nodes import make_federation_proof
 
 
 def _csrf_headers(client: SyncASGIClient) -> dict:
@@ -67,13 +69,16 @@ class TestFederationNodes:
         url = f'https://dup-test-{tag}.example.com:8443'
 
         # Create node via handshake (doesn't probe, just registers)
-        local_hash = client.get('/api/federation/code-hash').json()['code_hash']
+        local_hash = client.get('/api/federation/code-hash',
+                                headers=fed_proof_headers()).json()['code_hash']
+        nid = secrets.token_hex(16)
         client.post('/api/federation/handshake', json={
-            'node_id': secrets.token_hex(16),
+            'node_id': nid,
             'url': url,
             'code_hash': local_hash,
             'version': '1.0.0',
-        }, headers=logged_user['headers'])
+        }, headers={**logged_user['headers'],
+                    'X-Federation-Proof': make_federation_proof(nid)})
 
         # Now try to add the same URL via /nodes/add — should be 409 (duplicate)
         r = client.post('/api/federation/nodes/add', json={
@@ -110,7 +115,7 @@ class TestFederationNodes:
 
     def test_code_hash_returns_hash(self, client: SyncASGIClient):
         """GET code-hash → 200, has code_hash string field."""
-        r = client.get('/api/federation/code-hash')
+        r = client.get('/api/federation/code-hash', headers=fed_proof_headers())
         assert r.status_code == 200
         body = r.json()
         assert 'code_hash' in body
@@ -119,7 +124,8 @@ class TestFederationNodes:
 
     def test_code_manifest_returns_hash(self, client: SyncASGIClient, logged_user: dict):
         """POST code-manifest → 200, has code_hash and file_count."""
-        r = client.post('/api/federation/code-manifest', headers=logged_user['headers'])
+        r = client.post('/api/federation/code-manifest',
+                        headers={**logged_user['headers'], **fed_proof_headers()})
         assert r.status_code == 200
         body = r.json()
         assert 'code_hash' in body
@@ -130,8 +136,8 @@ class TestFederationNodes:
 
     def test_code_hash_deterministic(self, client: SyncASGIClient):
         """Calling code-hash twice gives the same result."""
-        r1 = client.get('/api/federation/code-hash')
-        r2 = client.get('/api/federation/code-hash')
+        r1 = client.get('/api/federation/code-hash', headers=fed_proof_headers())
+        r2 = client.get('/api/federation/code-hash', headers=fed_proof_headers())
         assert r1.status_code == 200
         assert r2.status_code == 200
         assert r1.json()['code_hash'] == r2.json()['code_hash']
@@ -145,14 +151,17 @@ class TestFederationNodes:
     def test_handshake_with_valid_data(self, client: SyncASGIClient, logged_user: dict):
         """POST handshake with valid-looking data → 200 (accepted or rejected based on hash)."""
         tag = random_str()
-        local_hash = client.get('/api/federation/code-hash').json()['code_hash']
+        local_hash = client.get('/api/federation/code-hash',
+                                headers=fed_proof_headers()).json()['code_hash']
 
+        nid = secrets.token_hex(16)
         r = client.post('/api/federation/handshake', json={
-            'node_id': secrets.token_hex(16),
+            'node_id': nid,
             'url': f'https://handshake-test-{tag}.example.com:8443',
             'code_hash': local_hash,
             'version': '1.0.0',
-        }, headers=logged_user['headers'])
+        }, headers={**logged_user['headers'],
+                    'X-Federation-Proof': make_federation_proof(nid)})
         assert r.status_code == 200
         body = r.json()
         assert 'accepted' in body
@@ -161,12 +170,14 @@ class TestFederationNodes:
     def test_handshake_wrong_hash_rejected(self, client: SyncASGIClient, logged_user: dict):
         """POST handshake with wrong code_hash → 200 but accepted=false."""
         tag = random_str()
+        nid = secrets.token_hex(16)
         r = client.post('/api/federation/handshake', json={
-            'node_id': secrets.token_hex(16),
+            'node_id': nid,
             'url': f'https://badhash-{tag}.example.com:8443',
             'code_hash': 'a' * 64,  # wrong hash
             'version': '1.0.0',
-        }, headers=logged_user['headers'])
+        }, headers={**logged_user['headers'],
+                    'X-Federation-Proof': make_federation_proof(nid)})
         assert r.status_code == 200
         body = r.json()
         assert body['accepted'] is False
@@ -176,7 +187,8 @@ class TestFederationNodes:
     def test_gossip_node_joined(self, client: SyncASGIClient, logged_user: dict):
         """POST gossip/node-joined with valid data → 200."""
         tag = random_str()
-        local_hash = client.get('/api/federation/code-hash').json()['code_hash']
+        local_hash = client.get('/api/federation/code-hash',
+                                headers=fed_proof_headers()).json()['code_hash']
 
         r = client.post('/api/federation/gossip/node-joined', json={
             'node_id': secrets.token_hex(16),
@@ -204,7 +216,8 @@ class TestFederationNodes:
         r = client.post('/api/federation/validate-token', json={
             'node_id': 'nonexistent-node-id',
             'token': 'definitely-not-a-real-token',
-        }, headers=logged_user['headers'])
+        }, headers={**logged_user['headers'],
+                    'X-Federation-Proof': make_federation_proof('nonexistent-node-id')})
         assert r.status_code == 200
         body = r.json()
         assert body['valid'] is False

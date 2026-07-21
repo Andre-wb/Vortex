@@ -5,7 +5,8 @@
 
 import { $, api, esc } from './utils.js';
 import { renderRoomsList } from './rooms.js';
-import { eciesEncrypt, setRoomKey } from './crypto.js';
+import { hybridEciesEncrypt, setRoomKey } from './crypto.js';
+import { myKyberPub } from './dr/pq-capability.js';
 import { t } from './i18n.js';
 
 
@@ -699,7 +700,7 @@ export async function createVoiceChannel() {
 
         // Generate and encrypt room key (required by /api/rooms endpoint)
         const roomKeyBytes = crypto.getRandomValues(new Uint8Array(32));
-        const encryptedKey = await eciesEncrypt(roomKeyBytes, myPubkey);
+        const encryptedKey = await hybridEciesEncrypt(roomKeyBytes, myPubkey, myKyberPub());
 
         const data = await api('POST', '/api/rooms', {
             name: name,

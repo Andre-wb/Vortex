@@ -729,6 +729,9 @@ app.include_router(tipping_router)
 from app.security.panic import router as panic_router
 app.include_router(panic_router)
 
+from app.security.verify_mirror import router as verify_mirror_router
+app.include_router(verify_mirror_router)
+
 from app.transport.blind_mailbox import router as bmp_router
 app.include_router(bmp_router)
 

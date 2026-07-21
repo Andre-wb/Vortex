@@ -48,6 +48,9 @@ _HKDF_INFO_RATCHET = b"vortex-double-ratchet"
 # Информационная строка для HKDF при X3DH.
 _HKDF_INFO_X3DH = b"vortex-x3dh"
 
+# Информационная строка для HKDF при PQXDH (post-quantum X3DH).
+_HKDF_INFO_PQXDH = b"vortex-pqxdh"
+
 # Байт-префикс 0xFF * 32 — «F» (filler) согласно спецификации X3DH,
 # добавляется перед DH-выходами для доменного разделения.
 _X3DH_F = b"\xff" * 32
@@ -211,6 +214,90 @@ def x3dh_respond(
     ).derive(km)
 
     logger.debug("X3DH responded (with OPK: %s)", opk_private is not None)
+    return shared_secret
+
+
+def x3dh_initiate_pq(
+    ik_private: X25519PrivateKey,
+    ik_peer_public: X25519PublicKey,
+    spk_peer_public: X25519PublicKey,
+    opk_peer_public: Optional[X25519PublicKey],
+    pqpk_peer_public: bytes,
+    kem_ciphertext: bytes,
+    kem_shared: bytes,
+) -> Tuple[bytes, X25519PrivateKey]:
+    """PQXDH initiate (сторона Alice) — классический X3DH km + привязка KEM.
+
+    KEM (ML-KEM-768, FIPS 203) выполняется на клиенте (JS): liboqs Kyber768
+    несовместим с FIPS ML-KEM, поэтому encaps здесь НЕ считается —
+    pqpk_peer_public / kem_ciphertext / kem_shared приходят готовыми байтами.
+    Референс — оракул byte-parity KDF-конкатенации, не рантайм KEM.
+
+      km_pq  = 0xFF*32 ‖ DH1‖DH2‖DH3[‖DH4] ‖ PQPK_B ‖ CT ‖ SS
+      shared = HKDF-SHA256(km_pq, salt=0*32, info="vortex-pqxdh", 32)
+
+    Args:
+        pqpk_peer_public: Kyber pre-key pub адресата (1184 байта ML-KEM-768).
+        kem_ciphertext:   KEM ciphertext (1088 байт), шлётся адресату.
+        kem_shared:       KEM shared secret (32 байта) из инкапсуляции.
+
+    Returns:
+        (shared_secret: 32 bytes, ephemeral_key: X25519PrivateKey).
+    """
+    ek = _generate_x25519_pair()
+
+    dh1 = _dh(ik_private, spk_peer_public)
+    dh2 = _dh(ek, ik_peer_public)
+    dh3 = _dh(ek, spk_peer_public)
+
+    km = _X3DH_F + dh1 + dh2 + dh3
+    if opk_peer_public is not None:
+        km += _dh(ek, opk_peer_public)
+
+    km_pq = km + pqpk_peer_public + kem_ciphertext + kem_shared
+    shared_secret = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"\x00" * 32,
+        info=_HKDF_INFO_PQXDH,
+    ).derive(km_pq)
+    return shared_secret, ek
+
+
+def x3dh_respond_pq(
+    ik_private: X25519PrivateKey,
+    spk_private: X25519PrivateKey,
+    opk_private: Optional[X25519PrivateKey],
+    ik_peer_public: X25519PublicKey,
+    ek_peer_public: X25519PublicKey,
+    pqpk_own_public: bytes,
+    kem_ciphertext: bytes,
+    kem_shared: bytes,
+) -> bytes:
+    """PQXDH respond (сторона Bob) — зеркало initiate_pq.
+
+    decaps KEM-ciphertext своим Kyber pre-key приватным — на клиенте (JS);
+    здесь kem_shared / pqpk_own_public приходят готовыми байтами. pqpk_own_public
+    — собственный Kyber pre-key pub Bob (тот же, к которому Alice инкапсулировала).
+
+    Returns:
+        shared_secret: 32 bytes — тот же, что у Alice.
+    """
+    dh1 = _dh(spk_private, ik_peer_public)
+    dh2 = _dh(ik_private, ek_peer_public)
+    dh3 = _dh(spk_private, ek_peer_public)
+
+    km = _X3DH_F + dh1 + dh2 + dh3
+    if opk_private is not None:
+        km += _dh(opk_private, ek_peer_public)
+
+    km_pq = km + pqpk_own_public + kem_ciphertext + kem_shared
+    shared_secret = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"\x00" * 32,
+        info=_HKDF_INFO_PQXDH,
+    ).derive(km_pq)
     return shared_secret
 
 

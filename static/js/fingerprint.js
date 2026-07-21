@@ -3,6 +3,48 @@
 
 import { api } from './utils.js';
 import QR from './vendor/qrcode.js';
+import { loadEd25519Identity, loadAccountLinkMaterial } from './dr/prekeys.js';
+import { markIdentityVerified, unmarkIdentityVerified, isIdentityVerified } from './dr/member-verify.js';
+import { pinnedPeerAccountEd } from './dr/identity-pin.js';
+
+// ADR-008 §4.6: единая identity-верификация (account-Ed) для DM, как в группах.
+// Дормантно за vortex_dm_ed_verify_enabled (дефолт ВЫКЛ). ВКЛ: DM-shield/профиль
+// читают статус из isIdentityVerified(peer, pinnedEd) и открывают модалку в
+// identity-режиме. Старую X25519-верификацию НЕ переносим автоматически: сервер
+// может подсунуть свой E', который тоже подписывает публичный X25519 → OOB-сверка
+// X25519 НЕ аутентифицирует Ed-корень. Пользователь пере-сверяет над Ed.
+export function dmEdVerifyEnabled() {
+    try { return localStorage.getItem('vortex_dm_ed_verify_enabled') === '1'; } catch { return false; }
+}
+
+/**
+ * Статус DM-верификации с учётом миграции на Ed.
+ * @param {number} userId
+ * @param {boolean} legacyVerified — старый per-contact fingerprint_verified (X25519)
+ * @returns {{edMode:boolean, verified:boolean, needsReverify:boolean, peerEd:string|null}}
+ *   edMode=false → legacy X25519 (флаг ВЫКЛ или нет пиннутого Ed).
+ *   needsReverify → был X25519-сверен, но ещё не Ed-сверен (пере-подтвердить над Ed).
+ */
+export function dmVerifiedState(userId, legacyVerified) {
+    const peerEd = dmEdVerifyEnabled() ? pinnedPeerAccountEd(userId) : null;
+    if (!peerEd) return { edMode: false, verified: !!legacyVerified, needsReverify: false, peerEd: null };
+    const verified = isIdentityVerified(userId, peerEd);
+    return { edMode: true, verified, needsReverify: !!legacyVerified && !verified, peerEd };
+}
+
+/**
+ * Открывает модалку отпечатка для DM-пира в правильном режиме (Ed при активной
+ * миграции и наличии пина, иначе legacy X25519). Единая точка — оба входа
+ * (shield, профиль) зовут её, чтобы верификация писала ОДНУ запись.
+ */
+export function openDmFingerprint({ userId, username, displayName, contactId, x25519, legacyVerified }) {
+    const st = dmVerifiedState(userId, legacyVerified);
+    if (st.edMode) {
+        openFingerprintModal({ userId, username, displayName, identityKeyEd: st.peerEd });
+    } else {
+        openFingerprintModal({ userId, username, displayName, contactId, pubkey: x25519, verified: !!legacyVerified });
+    }
+}
 
 // 6 emojis from 64 = 36 bits entropy → 1 in ~69 billion collision chance
 
@@ -56,6 +98,32 @@ export async function computeEmojiFingerprint(pubkeyA, pubkeyB) {
         emojis.push(_VERIFY_EMOJI[bytes[i] % 64]);
     }
     return emojis;
+}
+
+/**
+ * Room safety number (ADR-008 G5, Фаза 2): агрегированный код группы для быстрой
+ * сверки всеми участниками. Все с ОДИНАКОВЫМ набором account-Ed видят одинаковый код;
+ * расхождение = у кого-то подменён ключ / разъехался состав.
+ *
+ * Сериализация ЗАФИКСИРОВАНА (cross-impl, §4.7 — sort LOWERCASE hex-строк, НЕ raw-байты):
+ *   input = "vortex-room-sn:v1:" + room_id + ":" + sort(eds_lowercase_hex).join(":")
+ *   hashHex = hex(SHA-256(utf8(input)))          — канон, пиннится Python↔JS
+ *   blocks  = UPPERCASE hex группами по 4        — как computeFingerprint
+ *   emojis  = 6 emoji (байты хэша mod 64)        — как computeEmojiFingerprint
+ *
+ * @param {number|string} roomId
+ * @param {string[]} edsHex — account Ed25519 pub (hex) всех участников
+ * @returns {Promise<{hashHex:string, blocks:string, emojis:string[]}>}
+ */
+export async function computeRoomSafetyNumber(roomId, edsHex) {
+    const sorted = (edsHex || []).filter(Boolean).map(e => e.toLowerCase()).sort();
+    const input = `vortex-room-sn:v1:${roomId}:${sorted.join(':')}`;
+    const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input)));
+    const hashHex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    const blocks = hashHex.toUpperCase().match(/.{1,4}/g).join(' ');
+    const emojis = [];
+    for (let i = 0; i < 6; i++) emojis.push(_VERIFY_EMOJI[bytes[i] % 64]);
+    return { hashHex, blocks, emojis };
 }
 
 /**
@@ -117,13 +185,27 @@ export async function openFingerprintModal(opts) {
     if (!overlay) return;
 
     const S = window.AppState;
-    const myPubkey = S?.user?.x25519_public_key;
+    // ADR-008 F2: identity-режим — отпечаток над account-Ed25519 ПАРОЙ (корень, что
+    // подписывает X25519/Kyber), верификация = локальная identity-запись (не contact).
+    let myPubkey, verified = opts.verified;
+    if (opts.identityKeyEd) {
+        // Отпечаток считается над ПУБЛИЧНЫМИ ключами — приватный account-Ed не нужен.
+        // На линкованном устройстве его нет (loadEd25519Identity=null), берём account-Ed
+        // pub из link-материала, иначе identity-модалка молча не откроется (и в hard-mode
+        // юзер на вторичном устройстве заблокирован без выхода).
+        myPubkey = loadEd25519Identity()?.pubHex
+            || loadAccountLinkMaterial(window.AppState?.user?.user_id)?.accountEdPub;
+        opts = { ...opts, pubkey: opts.identityKeyEd };
+        verified = isIdentityVerified(opts.userId, opts.identityKeyEd);
+    } else {
+        myPubkey = S?.user?.x25519_public_key;
+    }
     if (!myPubkey || !opts.pubkey) {
         console.warn('[fingerprint] Missing pubkey(s)');
         return;
     }
 
-    _currentFpData = { ...opts, myPubkey };
+    _currentFpData = { ...opts, myPubkey, verified, identityMode: !!opts.identityKeyEd };
 
     // Compute fingerprint + emojis
     const fp = await computeFingerprint(myPubkey, opts.pubkey);
@@ -175,7 +257,7 @@ export async function openFingerprintModal(opts) {
     const verifiedBadge = document.getElementById('fp-verified-badge');
     const unverifyBtn = document.getElementById('fp-unverify-btn');
 
-    if (opts.verified) {
+    if (verified) {
         if (verifyBtn) verifyBtn.style.display = 'none';
         if (verifiedBadge) verifiedBadge.style.display = 'flex';
         if (unverifyBtn) unverifyBtn.style.display = '';
@@ -204,6 +286,23 @@ export function closeFingerprintModal() {
 }
 
 export async function verifyCurrentFingerprint() {
+    // ADR-008 F2: identity-режим — локальная запись (сервер недоверен), не contact-эндпоинт.
+    if (_currentFpData?.identityMode) {
+        if (!_currentFpData.userId || !_currentFpData.pubkey) return;
+        markIdentityVerified(_currentFpData.userId, _currentFpData.pubkey);
+        _currentFpData.verified = true;
+        // Мирор на другие устройства (дормантно за флагом; подпись device-ключом).
+        import('./dr/verify-mirror.js')
+            .then(m => m.publishAttestation(_currentFpData.userId, _currentFpData.pubkey, 'verified'))
+            .catch(() => {});
+        const vb = document.getElementById('fp-verify-btn');
+        const bd = document.getElementById('fp-verified-badge');
+        const ub = document.getElementById('fp-unverify-btn');
+        if (vb) vb.style.display = 'none';
+        if (bd) bd.style.display = 'flex';
+        if (ub) ub.style.display = '';
+        return;
+    }
     if (!_currentFpData?.contactId || !_currentFpData?.pubkeyHash) return;
     try {
         await api('POST', `/api/contacts/${_currentFpData.contactId}/verify-fingerprint`, {
@@ -226,6 +325,23 @@ export async function verifyCurrentFingerprint() {
 }
 
 export async function unverifyCurrentFingerprint() {
+    if (_currentFpData?.identityMode) {
+        if (_currentFpData.userId) {
+            unmarkIdentityVerified(_currentFpData.userId);
+            // Отзыв верификации — мирор на другие устройства (дормантно за флагом).
+            if (_currentFpData.pubkey) import('./dr/verify-mirror.js')
+                .then(m => m.publishAttestation(_currentFpData.userId, _currentFpData.pubkey, 'revoked'))
+                .catch(() => {});
+        }
+        _currentFpData.verified = false;
+        const vb = document.getElementById('fp-verify-btn');
+        const bd = document.getElementById('fp-verified-badge');
+        const ub = document.getElementById('fp-unverify-btn');
+        if (vb) vb.style.display = '';
+        if (bd) bd.style.display = 'none';
+        if (ub) ub.style.display = 'none';
+        return;
+    }
     if (!_currentFpData?.contactId) return;
     try {
         await api('DELETE', `/api/contacts/${_currentFpData.contactId}/verify-fingerprint`);
@@ -298,7 +414,10 @@ export async function updateShieldForRoom(room, otherUser) {
     const S = window.AppState;
     const contacts = S?.contacts || [];
     const contact = contacts.find(c => c.user_id === otherUser.id);
-    const verified = contact?.fingerprint_verified || false;
+    const legacyVerified = contact?.fingerprint_verified || false;
+    // Миграция на Ed (§4.6, дормантно): статус из identity-записи при активном флаге.
+    const st = dmVerifiedState(otherUser.id, legacyVerified);
+    const verified = st.verified;
 
     _updateChatShield(verified);
 
@@ -307,6 +426,10 @@ export async function updateShieldForRoom(room, otherUser) {
     if (keyStatus === 'changed') {
         shield.classList.add('fp-shield-warning');
         shield.title = t('fingerprint.keyChanged');
+    } else if (st.needsReverify) {
+        // Был X25519-сверен, но identity-модель теперь на Ed — попросить пере-сверить.
+        shield.classList.add('fp-shield-warning');
+        shield.title = t('fingerprint.reverifyIdentity');
     } else {
         shield.classList.remove('fp-shield-warning');
     }
@@ -326,16 +449,41 @@ export async function updateShieldForRoom(room, otherUser) {
 export function onShieldClick() {
     const shield = document.getElementById('chat-fp-shield');
     if (!shield) return;
-    openFingerprintModal({
-        userId:      parseInt(shield.dataset.userId),
-        username:    shield.dataset.username,
-        displayName: shield.dataset.displayName,
-        contactId:   parseInt(shield.dataset.contactId) || null,
-        pubkey:      shield.dataset.pubkey,
-        verified:    shield.dataset.verified === '1',
+    openDmFingerprint({
+        userId:         parseInt(shield.dataset.userId),
+        username:       shield.dataset.username,
+        displayName:    shield.dataset.displayName,
+        contactId:      parseInt(shield.dataset.contactId) || null,
+        x25519:         shield.dataset.pubkey,
+        legacyVerified: shield.dataset.verified === '1',
     });
 }
 
+
+const _QR_PREFIX = 'VORTEX-FP:';
+
+/**
+ * Кодирует отпечаток в полезную нагрузку QR: "VORTEX-FP:<hex-без-пробелов>".
+ * Формат общий для отпечатка контакта и отпечатка account-Ed участника группы —
+ * отпечаток симметричен (sort пары), значит QR одного участника == локальный
+ * отпечаток другого, и скан подтверждает сверку.
+ * @param {string} fingerprint
+ * @returns {string}
+ */
+export function fingerprintQRPayload(fingerprint) {
+    return _QR_PREFIX + String(fingerprint || '').replace(/\s/g, '');
+}
+
+/**
+ * Разбирает отсканированный QR: возвращает hex отпечатка или null, если это не
+ * VORTEX-FP. Сравнение с локальным hex даёт match/mismatch.
+ * @param {string} rawValue
+ * @returns {string|null}
+ */
+export function parseFingerprintQR(rawValue) {
+    if (typeof rawValue !== 'string' || !rawValue.startsWith(_QR_PREFIX)) return null;
+    return rawValue.slice(_QR_PREFIX.length);
+}
 
 /**
  * Show the QR code panel in the fingerprint modal.
@@ -347,7 +495,7 @@ export function showFingerprintQR() {
     const panel = document.getElementById('fp-qr-panel');
     if (!container || !panel) return;
 
-    const payload = 'VORTEX-FP:' + _currentFpData.fingerprint.replace(/\s/g, '');
+    const payload = fingerprintQRPayload(_currentFpData.fingerprint);
     try {
         const matrix = QR.encode(payload);
         const canvas = QR.toCanvas(matrix, 5, 3);
@@ -397,8 +545,8 @@ export async function startQRScan() {
             try {
                 const codes = await detector.detect(video);
                 for (const code of codes) {
-                    if (code.rawValue && code.rawValue.startsWith('VORTEX-FP:')) {
-                        const scannedHex = code.rawValue.slice(10);
+                    const scannedHex = parseFingerprintQR(code.rawValue);
+                    if (scannedHex !== null) {
                         const localHex = _currentFpData?.fingerprint?.replace(/\s/g, '') || '';
                         stopQRScan();
                         if (scannedHex === localHex) {

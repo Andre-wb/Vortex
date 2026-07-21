@@ -69,6 +69,25 @@ class TestUserSearch:
             assert "is_contact" in u
             assert "is_self" in u
 
+    def test_search_result_carries_kyber_pub_sig(self, client):
+        """user-search отдаёт kyber_public_key + sig — зависимость directed-invite
+        pre-wrap не-контакта (ADR-005 O2a)."""
+        target = make_user(client)
+        t_h = login_user(client, target["username"], target["password"])
+        pub, sig = secrets.token_hex(1184), secrets.token_hex(64)
+        r0 = client.post("/api/keys/kyber",
+                         json={"kyber_public_key": pub, "kyber_public_key_sig": sig}, headers=t_h)
+        assert r0.status_code == 200, r0.text
+
+        searcher = make_user(client)
+        h = _headers(client, searcher)
+        r = client.get("/api/users/search", params={"q": target["username"]}, headers=h)
+        assert r.status_code == 200
+        row = next((u for u in r.json()["users"] if u["username"] == target["username"]), None)
+        assert row is not None
+        assert row["kyber_public_key"] == pub
+        assert row["kyber_public_key_sig"] == sig
+
     def test_search_result_max_20(self, client):
         """Verify the endpoint never returns more than 20 results."""
         searcher = make_user(client)

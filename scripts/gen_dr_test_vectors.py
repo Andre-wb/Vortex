@@ -50,6 +50,15 @@ def _det_priv(label: str) -> X25519PrivateKey:
     return X25519PrivateKey.from_private_bytes(_det_bytes(label))
 
 
+def _det_bytes_xof(label: str, n: int) -> bytes:
+    """Детерминированные псевдослучайные байты произвольной длины (SHAKE-256).
+
+    _det_bytes ограничен 32 байтами (SHA-256); KEM-поля PQXDH больше
+    (pqpk 1184, ct 1088) — для них нужен XOF.
+    """
+    return hashlib.shake_256(f"vortex-dr-vectors:{label}".encode()).digest(n)
+
+
 class _DetSource:
     """Детерминированная замена источников случайности референса.
 
@@ -181,6 +190,56 @@ def gen_x3dh_vectors(det: _DetSource) -> dict:
     return result
 
 
+def gen_x3dh_pq_vectors(det: _DetSource) -> dict:
+    """PQXDH-вектор: классический X3DH-handshake + фиксированные KEM-части.
+
+    pqpk/ct/ss — НЕ реальный ML-KEM (liboqs Kyber768 ≠ FIPS ML-KEM-768; KEM
+    считает клиент на JS). Референс пиннит только byte-parity KDF-конкатенации
+    km ‖ pqpk ‖ ct ‖ ss под info="vortex-pqxdh". Собственные метки ключей —
+    независимы от классического x3dh-вектора.
+    """
+    alice_ik = _det_priv("pqxdh-alice-ik")
+    bob_ik = _det_priv("pqxdh-bob-ik")
+    bob_spk = _det_priv("pqxdh-bob-spk")
+    bob_opk = _det_priv("pqxdh-bob-opk")
+
+    pqpk_pub = _det_bytes_xof("pqxdh-bob-pqpk-pub", 1184)   # ML-KEM-768 pub
+    kem_ct = _det_bytes_xof("pqxdh-kem-ciphertext", 1088)   # ML-KEM-768 ciphertext
+    kem_ss = _det_bytes_xof("pqxdh-kem-shared", 32)         # KEM shared secret
+
+    result = {
+        "pqpk_pub": pqpk_pub.hex(),
+        "kem_ciphertext": kem_ct.hex(),
+        "kem_shared": kem_ss.hex(),
+        "alice": {"ik_priv": dr._priv_to_bytes(alice_ik).hex(), "ik_pub": _pub_hex(alice_ik)},
+        "bob": {
+            "ik_priv": dr._priv_to_bytes(bob_ik).hex(), "ik_pub": _pub_hex(bob_ik),
+            "spk_priv": dr._priv_to_bytes(bob_spk).hex(), "spk_pub": _pub_hex(bob_spk),
+            "opk_priv": dr._priv_to_bytes(bob_opk).hex(), "opk_pub": _pub_hex(bob_opk),
+        },
+    }
+
+    for name, opk_pub, opk_priv in [
+        ("with_opk", bob_opk.public_key(), bob_opk),
+        ("without_opk", None, None),
+    ]:
+        shared, ek = dr.x3dh_initiate_pq(
+            alice_ik, bob_ik.public_key(), bob_spk.public_key(), opk_pub,
+            pqpk_pub, kem_ct, kem_ss,
+        )
+        shared_bob = dr.x3dh_respond_pq(
+            bob_ik, bob_spk, opk_priv, alice_ik.public_key(), ek.public_key(),
+            pqpk_pub, kem_ct, kem_ss,
+        )
+        assert shared == shared_bob, f"PQXDH mismatch ({name})"
+        result[name] = {
+            "ek_priv": dr._priv_to_bytes(ek).hex(),
+            "ek_pub": _pub_hex(ek),
+            "shared_secret": shared.hex(),
+        }
+    return result
+
+
 def gen_transcript(det: _DetSource, x3dh: dict) -> dict:
     """Полный двусторонний транскрипт с out-of-order доставкой и DH-шагами.
 
@@ -294,6 +353,10 @@ def main() -> None:
 
     kdf = gen_kdf_vectors()
     x3dh = gen_x3dh_vectors(det)
+    # transcript ДО pqxdh — pqxdh потребляет det-ключи после, чтобы не сдвигать
+    # ratchet-ключи транскрипта (нулевой churn существующих векторов).
+    transcript = gen_transcript(det, x3dh)
+    x3dh_pq = gen_x3dh_pq_vectors(det)
     vectors = {
         "meta": {
             "description": (
@@ -305,6 +368,7 @@ def main() -> None:
             "generator": "scripts/gen_dr_test_vectors.py",
             "hkdf_info_ratchet": dr._HKDF_INFO_RATCHET.decode(),
             "hkdf_info_x3dh": dr._HKDF_INFO_X3DH.decode(),
+            "hkdf_info_pqxdh": dr._HKDF_INFO_PQXDH.decode(),
             "max_skip": dr.MAX_SKIP,
         },
         "kdf_ck": kdf["kdf_ck"],
@@ -313,7 +377,8 @@ def main() -> None:
         "spk_signature": gen_spk_vector(),
         "device_cert": gen_device_cert_vector(),
         "x3dh": x3dh,
-        "transcript": gen_transcript(det, x3dh),
+        "x3dh_pq": x3dh_pq,
+        "transcript": transcript,
     }
 
     os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)

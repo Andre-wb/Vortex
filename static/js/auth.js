@@ -8,6 +8,24 @@ import { validatePasswords, getFullPhone } from './phone_password.js';
 const toHex = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
 
 /**
+ * Публикует аккаунтный Kyber-pub (ML-KEM-768), подписанный аккаунтным Ed25519
+ * (ADR-004 K2). Идемпотентно; неблокирующе. Требует локальный Kyber-приватный
+ * (создан при регистрации / восстановлен из `_enc`) и аккаунтный Ed25519.
+ */
+async function _publishKyber(uid) {
+    if (!uid) return;
+    try {
+        const { loadKyberIdentity, signKyberPub } = await import('./dr/kyber-identity.js');
+        const { loadEd25519Identity } = await import('./dr/prekeys.js');
+        const kyber = loadKyberIdentity(uid);
+        const ed = loadEd25519Identity();
+        if (!kyber || !ed) return;   // нет Kyber или подписывающего — публиковать нечего
+        const sig = await signKyberPub(kyber.pubHex, ed.privJwk);
+        await api('POST', '/api/keys/kyber', { kyber_public_key: kyber.pubHex, kyber_public_key_sig: sig });
+    } catch (e) { console.debug('[kyber] publish skipped:', e?.message); }
+}
+
+/**
  * Генерирует X25519 ключевую пару.
  * ВАЖНО: Web Crypto API не позволяет экспортировать X25519 private key как 'raw'
  * — только 'jwk'. Поэтому храним приватный ключ как JWK JSON-строку.
@@ -170,6 +188,42 @@ function _recoverPubkeyFromJwk(jwkString) {
     return null;
 }
 
+/**
+ * HMAC-proof для беспарольного X25519-входа (/login-key). ЗЕРКАЛИТ серверный
+ * derive_x25519_session_key (app/authentication/key_login.py): сырой X25519 DH →
+ * HKDF-SHA256(salt=sorted(client_pub, server_pub), info="vortex-session") →
+ * HMAC(derived, challenge). Раньше клиент HMAC'ил СЫРОЙ DH (без HKDF-шага) → proof
+ * не сходился с сервером → /login-key был тихо мёртв. salt=sorted тут КОРРЕКТЕН:
+ * это mutual-handshake (обе стороны знают оба pub'а) — тот диалект, для которого
+ * sorted-соль и создана (в отличие от асимметричного ECIES с salt=пусто).
+ * @param {string} privJwkStr — X25519 приватный клиента (JWK-строка)
+ * @param {string} serverPubHex — X25519 pub сервера (challenge.server_pubkey)
+ * @param {string} challengeHex — challenge (challenge.challenge)
+ * @returns {Promise<string>} proof hex
+ */
+export async function _computeKeyLoginProof(privJwkStr, serverPubHex, challengeHex) {
+    const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
+    const privKey = await crypto.subtle.importKey('jwk', JSON.parse(privJwkStr), { name: 'X25519' }, false, ['deriveBits']);
+    const serverPub = await crypto.subtle.importKey('raw', fromHex(serverPubHex), { name: 'X25519' }, false, []);
+    const sharedBits = await crypto.subtle.deriveBits({ name: 'X25519', public: serverPub }, privKey, 256);
+
+    // salt = отсортированная конкатенация обоих pub'ов (как серверный
+    // derive_x25519_session_key / handshake.rs). sorted симметричен → сервер
+    // sorted(server_pub, client_pub) == клиентский sorted(client_pub, server_pub).
+    const clientPubB = fromHex(_recoverPubkeyFromJwk(privJwkStr));
+    const serverPubB = fromHex(serverPubHex);
+    const cmp = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
+    const [lo, hi] = cmp(clientPubB, serverPubB) <= 0 ? [clientPubB, serverPubB] : [serverPubB, clientPubB];
+    const salt = new Uint8Array(64); salt.set(lo, 0); salt.set(hi, 32);
+
+    const hkdfKey = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveBits']);
+    const derived = await crypto.subtle.deriveBits(
+        { name: 'HKDF', hash: 'SHA-256', salt, info: new TextEncoder().encode('vortex-session') }, hkdfKey, 256);
+
+    const hmacKey = await crypto.subtle.importKey('raw', derived, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    return toHex(await crypto.subtle.sign('HMAC', hmacKey, fromHex(challengeHex)));
+}
+
 // Вспомогательная: загрузка ключа + восстановление публичного ключа
 
 async function _tryLoadKey(password) {
@@ -191,12 +245,18 @@ async function _tryLoadKey(password) {
     const uid = window.AppState.user?.user_id;
     if (uid) {
         try {
-            const { restoreEd25519Enc, saveEd25519Enc } = await import('./dr/identity-persist.js');
+            const { restoreEd25519Enc, saveEd25519Enc, restoreKyberEnc, saveKyberEnc } = await import('./dr/identity-persist.js');
             await restoreEd25519Enc(uid, password);
             if (password && !localStorage.getItem(`vortex_ed25519_identity_${uid}_enc`)) {
                 await saveEd25519Enc(uid, password);
             }
-        } catch (e) { console.debug('Ed25519 identity restore skipped:', e?.message); }
+            // Аккаунтный Kyber (ML-KEM-768) — та же `_enc`-дисциплина (ADR-004 K2).
+            await restoreKyberEnc(uid, password);
+            if (password && !localStorage.getItem(`vortex_kyber_priv_${uid}_enc`)) {
+                await saveKyberEnc(uid, password);
+            }
+            await _publishKyber(uid);   // републиш pub (миграция могла обнулить серверный)
+        } catch (e) { console.debug('Account identity restore skipped:', e?.message); }
     }
 }
 
@@ -347,23 +407,9 @@ export async function switchAccount(userId) {
         // Шаг 1: получаем challenge
         const ch = await api('GET', `/api/authentication/challenge?identifier=${encodeURIComponent(target.username)}`);
 
-        // Шаг 2: вычисляем proof через Web Crypto
-        const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
-
-        const privKeyObj = await crypto.subtle.importKey(
-            'jwk', JSON.parse(targetPrivKey), { name: 'X25519' }, false, ['deriveBits']
-        );
-        const serverPubKey = await crypto.subtle.importKey(
-            'raw', fromHex(ch.server_pubkey), { name: 'X25519' }, false, []
-        );
-        const sharedBits = await crypto.subtle.deriveBits(
-            { name: 'X25519', public: serverPubKey }, privKeyObj, 256
-        );
-        const hmacKey = await crypto.subtle.importKey(
-            'raw', sharedBits, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-        );
-        const proofBytes = await crypto.subtle.sign('HMAC', hmacKey, fromHex(ch.challenge));
-        const proofHex = toHex(proofBytes);
+        // Шаг 2: вычисляем proof (HKDF salt=sorted — зеркалит серверный
+        // derive_x25519_session_key; сырой DH без HKDF сервер не примет).
+        const proofHex = await _computeKeyLoginProof(targetPrivKey, ch.server_pubkey, ch.challenge);
         const pubHex = _recoverPubkeyFromJwk(targetPrivKey);
 
         // Шаг 3: login-key
@@ -500,6 +546,8 @@ export async function removeAccount(userId) {
     // Удаляем приватные ключи и backup room keys удаляемого аккаунта
     localStorage.removeItem(`vortex_x25519_priv_${userId}`);
     localStorage.removeItem(`vortex_ed25519_identity_${userId}`);
+    localStorage.removeItem(`vortex_kyber_priv_${userId}`);
+    localStorage.removeItem(`vortex_kyber_priv_${userId}_enc`);   // ML-KEM identity (полное удаление аккаунта)
     localStorage.removeItem(`vortex_dr_prekeys_${userId}`);
     localStorage.removeItem(`vortex_dr_opk_next_${userId}`);
     // Удаление history-ключа делает кэш v2-истории аккаунта нечитаемым (=wipe).
@@ -898,9 +946,17 @@ export async function doRegister() {
             try {
                 const { loadOrCreateEd25519Identity } = await import('./dr/prekeys.js');
                 await loadOrCreateEd25519Identity();
-                const { saveEd25519Enc } = await import('./dr/identity-persist.js');
+                const { saveEd25519Enc, saveKyberEnc } = await import('./dr/identity-persist.js');
                 if (uid) await saveEd25519Enc(uid, password);
-            } catch (e) { console.warn('Ed25519 identity setup failed:', e?.message); }
+                // Аккаунтный Kyber (ML-KEM-768, ADR-004 K2): генерим КЛИЕНТОМ (E2E),
+                // `_enc`-бэкапим, подписываем аккаунтным Ed25519 и публикуем pub.
+                const { loadOrCreateKyberIdentity } = await import('./dr/kyber-identity.js');
+                if (uid) {
+                    loadOrCreateKyberIdentity(uid);
+                    await saveKyberEnc(uid, password);
+                    await _publishKyber(uid);
+                }
+            } catch (e) { console.warn('Account identity setup failed:', e?.message); }
         } catch (e) {
             console.warn('Не удалось сохранить приватный ключ:', e);
         }
@@ -1037,6 +1093,7 @@ export async function doLogout() {
             const k = localStorage.key(i);
             if (k && (k.startsWith('vortex_x25519_priv_') || k.startsWith('vortex_rk_')
                       || k.startsWith('vortex_ed25519_identity_')
+                      || k.startsWith('vortex_kyber_priv_')
                       || k.startsWith('vortex_dr_'))
                   && !k.endsWith('_enc')) {   // сохраняем зашифрованные recovery-копии
                 localStorage.removeItem(k);

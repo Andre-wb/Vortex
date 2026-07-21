@@ -190,22 +190,11 @@ async def register(body: RegisterRequest, request: Request,
     except Exception:
         pass  # non-critical
 
-    kyber_secret_key_hex = None
-    try:
-        from app.security.post_quantum import Kyber768, pq_available
-        if pq_available():
-            k_pub, k_sk = Kyber768.keygen()
-            user.kyber_public_key = k_pub.hex()
-            kyber_secret_key_hex = k_sk.hex()
-            db.commit()
-            db.refresh(user)
-            logger.info("Registered: %s pubkey=%s... kyber=yes",
-                        user.username, user.x25519_public_key[:16])
-        else:
-            logger.warning("Registered: %s pubkey=%s... kyber=UNAVAILABLE (no PQ library)",
-                           user.username, user.x25519_public_key[:16])
-    except Exception as e:
-        logger.warning("Kyber keygen failed for %s: %s", user.username, e)
+    # ADR-004 K2: Kyber (ML-KEM-768) keypair генерится КЛИЕНТОМ (E2E — сервер не
+    # видит приватный) и публикуется через POST /api/keys/kyber (подписанный
+    # аккаунтным Ed25519). Серверная keygen убрана: она видела приватный и всё
+    # равно выбрасывала его (kyber_public_key оставался с потерянным приватным).
+    logger.info("Registered: %s pubkey=%s...", user.username, user.x25519_public_key[:16])
 
     data = {
         "ok": True,

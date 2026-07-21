@@ -38,7 +38,9 @@ class User(Base):
     x25519_public_key = Column(String(64), nullable=True, index=True)  # hex(32 bytes)
 
     # Kyber-768 (ML-KEM) public key — for hybrid post-quantum key exchange.
+    # ADR-004 K2: генерится клиентом (E2E), подписан аккаунтным Ed25519.
     kyber_public_key = Column(Text, nullable=True)
+    kyber_public_key_sig = Column(Text, nullable=True)   # Ed25519-подпись аккаунта над kyber_public_key
 
     # Rich status: custom text + emoji + presence
     custom_status = Column(String(100), nullable=True)
@@ -271,6 +273,33 @@ class KeyTransparencyEntry(Base):
     device_id     = Column(Integer,     nullable=True)             # which device registered key
     seq           = Column(Integer,     nullable=False, default=0) # monotonic per user
     created_at    = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+
+
+class VerificationAttestation(Base):
+    """Кросс-девайсный мирор OOB-верификаций участников.
+
+    Владелец подписывает «я сверил пира P = account-Ed E» СВОИМ device-ключом
+    (account-Ed приватного на линкованном устройстве нет — blast-radius), приложив
+    device-cert (account-Ed подписал device-триплет). Сервер — НЕподделываемое
+    хранилище: не имеет ни device-, ни account-приватного, подделать запись не может.
+    Другое устройство владельца верифицирует device-cert→свой-account-Ed + attest-sig
+    и применяет latest-per-peer. Заворачивание room-key всё равно независимо ре-чекает
+    ЖИВОЙ ed против сохранённого — мирор лишь синхронизирует локальный hint.
+    """
+    __tablename__ = "verification_attestations"
+
+    id               = Column(Integer,     primary_key=True, autoincrement=True)
+    owner_user_id    = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    peer_user_id     = Column(Integer,     nullable=False)
+    verified_ed      = Column(String(64),  nullable=False)   # account-Ed пира (hex), что владелец сверил
+    state            = Column(String(10),  nullable=False)   # verified | revoked
+    signed_at        = Column(Integer,     nullable=False)   # unix, клиентский — latest выигрывает
+    client_device_id = Column(String(32),  nullable=False)   # подписант: device-триплет + cert
+    device_x3dh_pub  = Column(String(64),  nullable=False)
+    device_sign_pub  = Column(String(64),  nullable=False)
+    device_cert_sig  = Column(String(128), nullable=False)   # account-Ed подписал триплет
+    attest_sig       = Column(String(128), nullable=False)   # device_sign_pub подписал payload
+    created_at       = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
 
 
 class UserStatus(Base):

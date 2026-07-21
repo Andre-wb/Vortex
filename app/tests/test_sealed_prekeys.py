@@ -47,45 +47,22 @@ def _create_bot(client, headers):
 
 
 class TestSealedPrekeys:
-    def test_prekey_count(self, client):
+    """Sealed-prekey эндпоинты УДАЛЕНЫ: механизм был сломан (room key оборачивался
+    на one-time pubkey, чей приватный отбрасывался → пакет недекриптуем; авто-claim
+    создавал сломанный EncryptedRoomKey с has_key=True, глуша рабочий key_request).
+    Раздача ключей — через key_request/store-key/provide-key. Фиксируем, что
+    маршруты upload/claim/count больше не зарегистрированы (404)."""
+
+    def test_sealed_prekey_endpoints_removed(self, client):
         _, h = _auth(client)
         rid = _create_room(client, h)
         if not rid:
             return
-        r = client.get(f"/api/rooms/{rid}/prekey-count", headers=h)
-        assert r.status_code in (200, 404)
-
-    def test_upload_prekeys(self, client):
-        _, h = _auth(client)
-        rid = _create_room(client, h)
-        if not rid:
-            return
-        packages = [
-            {"ephemeral_pub": "aa" * 32, "ciphertext": "bb" * 60, "recipient_pub": "cc" * 32}
-        ]
-        r = client.post(f"/api/rooms/{rid}/sealed-prekeys", json={
-            "packages": packages,
-        }, headers=h)
-        assert r.status_code in (200, 201, 403, 404)
-
-    def test_claim_prekey(self, client):
-        _, h = _auth(client)
-        rid = _create_room(client, h)
-        if not rid:
-            return
-        r = client.post(f"/api/rooms/{rid}/claim-prekey", json={
-            "pubkey": "dd" * 32,
-        }, headers=h)
-        assert r.status_code in (200, 404)
-
-    def test_prekey_count_non_member(self, client):
-        _, h1 = _auth(client)
-        _, h2 = _auth(client)
-        rid = _create_room(client, h1)
-        if not rid:
-            return
-        r = client.get(f"/api/rooms/{rid}/prekey-count", headers=h2)
-        assert r.status_code in (200, 403, 404)
+        assert client.get(f"/api/rooms/{rid}/prekey-count", headers=h).status_code == 404
+        assert client.post(f"/api/rooms/{rid}/sealed-prekeys",
+                           json={"packages": []}, headers=h).status_code == 404
+        assert client.post(f"/api/rooms/{rid}/claim-prekey",
+                           json={"pubkey": "dd" * 32}, headers=h).status_code == 404
 
 
 # 6. BOT MESSAGING

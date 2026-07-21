@@ -41,8 +41,11 @@ class EncryptedRoomKey(Base):
                            nullable=False, index=True)
 
     # ECIES поля — то что нужно клиенту для расшифровки
-    ephemeral_pub = Column(String(64),  nullable=False)    # hex(32 bytes)
-    ciphertext    = Column(String(120), nullable=False)    # hex(60 bytes)
+    ephemeral_pub = Column(String(64),  nullable=False)    # hex(32 bytes) — X25519 эфемерный pub
+    ciphertext    = Column(String(120), nullable=False)    # hex(60 bytes) — тот же размер и в гибриде
+    # Post-quantum гибрид (X25519 + ML-KEM-768): наличие kyber_ciphertext ⟹ конверт
+    # гибридный (клиент разворачивает hybridEciesDecrypt); NULL ⟹ классический ECIES.
+    kyber_ciphertext = Column(Text,     nullable=True)     # ML-KEM-768 ciphertext hex (1088 байт)
 
     # Для верификации: ключ зашифрован именно для этого pubkey
     recipient_pub = Column(String(64),  nullable=True)
@@ -59,10 +62,78 @@ class EncryptedRoomKey(Base):
 
     def to_client_dict(self) -> dict:
         """Формат для отправки клиенту через WebSocket."""
+        if self.kyber_ciphertext:
+            return {
+                "hybrid":               True,
+                "x25519_ephemeral_pub": self.ephemeral_pub,
+                "kyber_ciphertext":     self.kyber_ciphertext,
+                "ciphertext":           self.ciphertext,
+            }
         return {
             "ephemeral_pub": self.ephemeral_pub,
             "ciphertext":    self.ciphertext,
         }
+
+
+class RoomInvite(Base):
+    """Личность invite-ссылки для offline-join (ADR-005 O5a — split из O4).
+
+    ПЕРСИСТИТ через ротацию room key (в отличие от обёртки-escrow, которую ротация
+    удаляет). Хранит публичные invite-ключи (X25519[+ML-KEM]) — чтобы ЛЮБОЙ онлайн-
+    член после ротации мог re-wrap room key для этих pub (не только создатель).
+    Приватные invite-ключи — только во фрагменте ссылки (сервер не видит).
+    """
+    __tablename__ = "room_invites"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    room_id          = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"),
+                              nullable=False, index=True)
+    invite_pub       = Column(String(64),  nullable=False)   # X25519 invite pub — идентификатор
+    invite_kyber_pub = Column(Text,        nullable=True)    # ML-KEM invite pub (PQ — персистит, иначе ротация роняет PQ)
+    created_at       = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+    # TTL (ADR-005 O7): истёкший инвайт read-time трактуется как отсутствующий
+    # (fetch → has_escrow=false; list исключает → re-wrap не ре-армит). NULL = без TTL.
+    expires_at       = Column(DateTime,    nullable=True, index=True)
+
+    __table_args__ = (
+        UniqueConstraint("room_id", "invite_pub"),
+        Index("ix_ri_room_invite", "room_id", "invite_pub"),
+    )
+
+
+class RoomInviteEscrow(Base):
+    """Room key, обёрнутый на invite-pub (ADR-005 O4/O5a). Идентичность инвайта —
+    в `RoomInvite` (персистит); ЗДЕСЬ только обёртка, которую ротация УДАЛЯЕТ (escrow
+    на старый ключ → мёртв). После ротации онлайн-член re-wrap'ает по persisted
+    `RoomInvite.invite_pub`. **Double-gate:** FETCH гейтится членством
+    (_require_member), фрагмент-priv гейтит DECRYPT.
+    """
+    __tablename__ = "room_invite_escrows"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    room_id          = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"),
+                              nullable=False, index=True)
+    invite_pub       = Column(String(64),  nullable=False)   # ссылается на RoomInvite.invite_pub
+    ephemeral_pub    = Column(String(64),  nullable=False)
+    ciphertext       = Column(String(120), nullable=False)
+    kyber_ciphertext = Column(Text,        nullable=True)
+    created_at       = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("room_id", "invite_pub"),
+        Index("ix_rie_room_invite", "room_id", "invite_pub"),
+    )
+
+    def to_client_dict(self) -> dict:
+        """Форма конверта для клиента (гибрид/классика по наличию kyber_ciphertext)."""
+        if self.kyber_ciphertext:
+            return {
+                "hybrid":               True,
+                "x25519_ephemeral_pub": self.ephemeral_pub,
+                "kyber_ciphertext":     self.kyber_ciphertext,
+                "ciphertext":           self.ciphertext,
+            }
+        return {"ephemeral_pub": self.ephemeral_pub, "ciphertext": self.ciphertext}
 
 
 class PendingKeyRequest(Base):
@@ -106,7 +177,12 @@ class PendingKeyRequest(Base):
 
     @property
     def is_expired(self) -> bool:
-        return datetime.now(timezone.utc) > self.expires_at
+        # SQLite отдаёт DateTime без tzinfo — считаем такие значения UTC, иначе
+        # сравнение aware-now с naive-expires_at падает (offset-naive vs aware).
+        exp = self.expires_at
+        if exp is not None and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) > exp
 
 
 class SealedKeyPackage(Base):

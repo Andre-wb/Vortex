@@ -8,6 +8,9 @@ class TestECIESFullCycle:
     """End-to-end ECIES encryption/decryption cycle."""
 
     def test_ecies_encrypt_decrypt_roundtrip(self):
+        # NODE-диалект: ecies_encrypt = HKDF(salt=sorted(pubs)); ручной decrypt ниже
+        # это зеркалит. CLIENT-диалект (salt=None, browser-facing) пинит отдельный
+        # test_ecies_for_client_matches_browser_dialect.
         from app.security.key_exchange import ecies_encrypt
         from app.security.crypto import generate_x25519_keypair, derive_x25519_session_key
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
@@ -43,10 +46,13 @@ class TestECIESFullCycle:
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
         eph_pub_key = X25519PublicKey.from_public_bytes(eph_pub_bytes)
         shared = priv_key.exchange(eph_pub_key)
+        # соль = конкатенация отсортированных публичных ключей (как в
+        # _py_derive_session_key / rust handshake)
+        pair = sorted([eph_pub_bytes, pub_bytes])
         derived_key = HKDF(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=None,
+            salt=pair[0] + pair[1],
             info=b"vortex-session",
         ).derive(shared)
 
@@ -55,6 +61,40 @@ class TestECIESFullCycle:
         aesgcm = AESGCM(derived_key)
         decrypted = aesgcm.decrypt(nonce, encrypted, None)
         assert decrypted == plaintext
+
+    def test_ecies_for_client_matches_browser_dialect(self):
+        """CLIENT-диалект: ecies_encrypt_for_client расшифровывается как БРАУЗЕР
+        (salt=None==пусто, info="vortex-session") — путь /api/zk/blind-key. Плюс
+        регрессия: node-диалект (ecies_encrypt, salt=sorted) даёт ДРУГОЙ ключ."""
+        from app.security.key_exchange import ecies_encrypt_for_client, ecies_encrypt
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        priv_key = X25519PrivateKey.generate()
+        pub_bytes = priv_key.public_key().public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+        pub_hex = pub_bytes.hex()
+
+        plaintext = b"blind-index-key-payload-32-bytes"
+        result = ecies_encrypt_for_client(plaintext, pub_hex)
+
+        # Ручной decrypt РОВНО как браузер (static/js/crypto.js): salt=пусто == None.
+        eph_pub = bytes.fromhex(result["ephemeral_pub"])
+        ct = bytes.fromhex(result["ciphertext"])
+        shared = priv_key.exchange(X25519PublicKey.from_public_bytes(eph_pub))
+        browser_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                           info=b"vortex-session").derive(shared)
+        assert AESGCM(browser_key).decrypt(ct[:12], ct[12:], None) == plaintext
+
+        # Регрессия: node-диалект дал бы ДРУГОЙ ключ → браузер бы не расшифровал.
+        node_key = HKDF(algorithm=hashes.SHA256(), length=32,
+                        salt=b"".join(sorted([eph_pub, pub_bytes])),
+                        info=b"vortex-session").derive(shared)
+        assert node_key != browser_key                       # два несовместимых диалекта
+        with pytest.raises(Exception):
+            AESGCM(node_key).decrypt(ct[:12], ct[12:], None)  # node-ключ не расшифрует client-конверт
 
     def test_ecies_different_plaintexts(self):
         from app.security.key_exchange import ecies_encrypt

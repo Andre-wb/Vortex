@@ -116,6 +116,15 @@ class Config:
     # BMP Delivery — route message delivery through Blind Mailbox Protocol
     BMP_DELIVERY_ENABLED = os.getenv("BMP_DELIVERY", "true").lower() in ("true", "1", "yes")
 
+    # Энфорс per-room join_approval (сейчас декоративен). Дефолт OFF: существующие
+    # join_approval=True комнаты сохраняют текущее поведение до осознанного флипа
+    # (иначе энфорс мгновенно загейтил бы их на деплое). ADR-005 O3.
+    JOIN_APPROVAL_ENFORCED = os.getenv("JOIN_APPROVAL_ENFORCED", "false").lower() == "true"
+
+    # TTL invite-escrow ссылки (ADR-005 O7): bound leak-window утёкшей ссылки —
+    # персистентный RoomInvite ре-армится на ротации, TTL ограничивает срок жизни.
+    INVITE_ESCROW_TTL_HOURS = int(os.getenv("INVITE_ESCROW_TTL_HOURS", "168"))  # 7 дней
+
     # verify Signed Pre-Key / identity-key Ed25519 signatures on
     # publish. "false" (default) = warn-only: log invalid/missing signatures but
     # still store the bundle (safe rollout). "true" = enforce: reject bundles with

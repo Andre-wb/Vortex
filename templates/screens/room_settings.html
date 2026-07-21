@@ -39,6 +39,14 @@
             </button>
         </div>
 
+        <!-- Код безопасности комнаты: агрегированный отпечаток ключей всех участников -->
+        <div class="room-info-section" id="rss-safety-section" style="display:none;">
+            <div class="room-info-label" data-i18n="verify.roomSafetyNumber">КОД БЕЗОПАСНОСТИ КОМНАТЫ</div>
+            <div id="room-info-safety-code" style="font-family:var(--mono);font-size:15px;letter-spacing:1px;line-height:1.7;color:var(--accent2);word-break:break-all;"></div>
+            <div id="room-info-safety-emoji" style="font-size:20px;letter-spacing:4px;margin-top:6px;"></div>
+            <div class="room-info-hint" data-i18n="verify.roomSafetyHint">Совпадает у всех участников с одинаковым составом. Сравните код вслух — расхождение означает, что ключ участника сменился или подменён.</div>
+        </div>
+
         <div id="rss-discussion-section" style="display:none;">
             <button class="rss-discussion-btn" onclick="window._openChannelDiscussion()">
                 <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>

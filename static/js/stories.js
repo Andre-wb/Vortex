@@ -4,8 +4,9 @@ import {
     generateStoryKey, storyEncrypt, storyDecryptText,
     storyEncryptBlob, storyDecryptBlob,
     wrapStoryKeyForContacts, unwrapStoryKey,
-    eciesEncrypt,
+    hybridEciesEncrypt,
 } from './crypto.js';
+import { resolvePeerKyberPub, myKyberPub } from './dr/pq-capability.js';
 
 let _groups = [];          // story groups from API
 let _gi = 0;               // current group index
@@ -201,7 +202,13 @@ async function _renderCurrent() {
 
     if (story.encrypted && story.key_envelope) {
         try {
-            const privJwk = localStorage.getItem('vortex_x25519');
+            // Канонический слот приватного X25519 — vortex_x25519_priv (auth.js,
+            // key_backup restore). Легаси vortex_x25519 (до переименования) —
+            // fallback; плюс in-memory ключ AppState.
+            const privJwk = window.AppState?.x25519PrivateKey
+                || localStorage.getItem('vortex_x25519_priv')
+                || sessionStorage.getItem('vortex_x25519_priv')
+                || localStorage.getItem('vortex_x25519');
             if (privJwk) {
                 storyKey = await unwrapStoryKey(story.key_envelope, privJwk);
             }
@@ -756,17 +763,24 @@ window._scPublish = async function() {
         const dur = document.getElementById('sc-duration-input')?.value || '5';
         fd.append('duration', dur);
 
-        // 6. Wrap story_key for each contact via ECIES
+        // 6. Wrap story_key for each contact. Гибрид, если контакт PQ-capable и
+        //    подпись Kyber-pub сошлась с припиненным Ed (иначе классика).
         const contacts = await _getContactPubKeys();
+        for (const c of contacts) {
+            c.kyber_pub = await resolvePeerKyberPub(
+                c.user_id, c.kyber_public_key, c.kyber_public_key_sig);
+        }
         const envelopes = await wrapStoryKeyForContacts(storyKey, contacts);
 
-        // Also wrap for self (so we can view our own stories)
+        // Also wrap for self (гибрид со своим аккаунтным Kyber-pub за флагом)
         const S = window.AppState;
         const myPub = localStorage.getItem('vortex_x25519_pub');
         if (myPub) {
             try {
-                const selfEnv = await eciesEncrypt(storyKey, myPub);
-                envelopes.push({ user_id: S.user?.id, ...selfEnv });
+                const selfEnv = await hybridEciesEncrypt(storyKey, myPub, myKyberPub());
+                // AppState.user из /me несёт user_id (не id) — иначе конверт хранится
+                // с user_id: undefined и сервер его отбрасывает.
+                envelopes.push({ user_id: S.user?.user_id ?? S.user?.id, ...selfEnv });
             } catch {}
         }
 
@@ -819,9 +833,16 @@ async function _getContactPubKeys() {
         const contacts = data.contacts || data || [];
         const result = [];
         for (const c of contacts) {
-            const uid = c.contact_id || c.id;
+            // user_id — реальный id пользователя-пира (для конверта и пина Ed при
+            // resolvePeerKyberPub); в ответе contact_id — это id строки-контакта,
+            // а read-сторона матчит StoryKeyEnvelope.user_id == реальный user id.
+            const uid = c.user_id || c.contact_id || c.id;
             const pub = c.x25519_public_key || c.x25519_pub || c.pub_key;
-            if (uid && pub) result.push({ user_id: uid, pub_key: pub });
+            if (uid && pub) result.push({
+                user_id: uid, pub_key: pub,
+                kyber_public_key:     c.kyber_public_key,
+                kyber_public_key_sig: c.kyber_public_key_sig,
+            });
         }
         return result;
     } catch {

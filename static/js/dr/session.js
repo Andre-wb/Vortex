@@ -14,12 +14,12 @@
 // вставленное сервером) отвергается. Корень доверия — припиненный аккаунтный
 // Ed25519 (TOFU по нему; внеполосная safety-number — ортогональный трек).
 
-import { x3dhInitiate, x3dhRespond } from './x3dh.js';
+import { x3dhInitiate, x3dhInitiatePq, x3dhRespond, x3dhRespondPq } from './x3dh.js';
 import {
     ratchetInitAlice, ratchetInitBob, ratchetEncrypt, ratchetDecrypt,
 } from './ratchet.js';
 import { encodeV2, decodeV2 } from './v2-envelope.js';
-import { getSpkPrivate, getOpkPrivate, deleteOpkPrivate } from './prekey-store.js';
+import { getSpkPrivate, getOpkPrivate, deleteOpkPrivate, getPqspkPrivate, getPqopkPrivate, deletePqopkPrivate } from './prekey-store.js';
 import { verifyDeviceCert } from './device-identity.js';
 
 /** Ошибка установления/использования сессии — caller деградирует в плейсхолдер. */
@@ -49,10 +49,26 @@ function _pubHexFromX25519Jwk(jwkString) {
 
 async function _establishInitiator(ctx, peerBundle, plaintextBytes) {
     const opkPub = peerBundle.one_time_prekey || null;
-    // X3DH против DEVICE-ключей пира (device_x3dh_pub = IK_B), IK_A = свой device x3dh.
-    const { sharedSecret, ekPubHex } = await x3dhInitiate(
-        ctx.myDeviceX3dhPriv, peerBundle.device_x3dh_pub, peerBundle.signed_prekey, opkPub,
-    );
+    // PQXDH-путь, если бандл несёт (проверенный, за флагом — гейтит message-cipher)
+    // per-device Kyber pre-key; иначе классический X3DH. X3DH против DEVICE-ключей
+    // пира (device_x3dh_pub = IK_B), IK_A = свой device x3dh.
+    const usePq = peerBundle.device_kyber_pub != null && peerBundle.device_kyber_id != null;
+    // PQOPK (one-time, KEM-FS) предпочтительнее last-resort PQSPK, если claim его дал.
+    // id — ЕДИНЫЙ источник истины (адресат ключует decaps по нему): инкапсулируем к
+    // PQOPK-pub только когда есть и id, иначе к PQSPK — чтобы pub и wire-id не разошлись.
+    const pqopkId = usePq ? (peerBundle.one_time_kyber_prekey_id ?? null) : null;
+    const pqTargetPub = pqopkId != null ? peerBundle.one_time_kyber_prekey : peerBundle.device_kyber_pub;
+    let sharedSecret, ekPubHex, ctHex = null;
+    if (usePq) {
+        ({ sharedSecret, ekPubHex, ctHex } = await x3dhInitiatePq(
+            ctx.myDeviceX3dhPriv, peerBundle.device_x3dh_pub, peerBundle.signed_prekey,
+            opkPub, pqTargetPub,
+        ));
+    } else {
+        ({ sharedSecret, ekPubHex } = await x3dhInitiate(
+            ctx.myDeviceX3dhPriv, peerBundle.device_x3dh_pub, peerBundle.signed_prekey, opkPub,
+        ));
+    }
     const state = await ratchetInitAlice(sharedSecret, peerBundle.signed_prekey);
     const { header, ciphertext } = await ratchetEncrypt(state, plaintextBytes);
     const prelude = {
@@ -65,6 +81,13 @@ async function _establishInitiator(ctx, peerBundle, plaintextBytes) {
         deviceSignPub: ctx.myCert.deviceSignPub,
         deviceCertSig: ctx.myCert.deviceCertSig,
     };
+    if (usePq) {
+        // 0x03-конверт: kyber_ciphertext + pqspk_id в прелюде (encodeV2 роутит по kyberCtHex).
+        // pqopk_id задан ⟹ инкапсуляция была к one-time PQOPK (адресат возьмёт его priv).
+        prelude.pqspkId = peerBundle.device_kyber_id;
+        prelude.pqopkId = pqopkId;
+        prelude.kyberCtHex = ctHex;
+    }
     return { state, hex: encodeV2({ prelude, header, aead: ciphertext }) };
 }
 
@@ -155,11 +178,38 @@ export async function decryptV2(store, sessionId, ctx, envelopeHex) {
         }
 
         // X3DH respond своим DEVICE x3dh priv (IK_B) + своим SPK priv.
+        // PQXDH-конверт (0x03) несёт kyber_ciphertext → PQ-путь; иначе классика.
         let shared;
-        try {
-            shared = await x3dhRespond(ctx.myDeviceX3dhPriv, spkPriv, opkPriv, env.prelude.ikPubHex, env.prelude.ekPubHex);
-        } catch (e) {
-            throw new SessionError('x3dh_failed', e.message);
+        if (env.prelude.kyberCtHex != null) {
+            // Нужен локальный Kyber-priv: one-time PQOPK по pqopk_id (если задан),
+            // иначе last-resort PQSPK по pqspk_id. Отсутствие — единственный
+            // fail-closed сигнал: mlkemDecaps НЕ бросает (ML-KEM implicit rejection —
+            // чужой/битый ct даёт ДРУГОЙ ss, не ошибку). Поэтому проверяем null ДО
+            // decaps → SessionError → плейсхолдер (как no_prekey_privates). После
+            // decaps расхождение ss всплывёт как ratchetDecrypt InvalidTag.
+            const usePqopk = env.prelude.pqopkId != null;
+            const pqSk = usePqopk
+                ? getPqopkPrivate(env.prelude.pqopkId)
+                : (getPqspkPrivate(env.prelude.pqspkId)?.sk ?? null);
+            if (!pqSk) throw new SessionError(usePqopk ? 'no_pqopk_privates' : 'no_pqspk_privates');
+            try {
+                const { mlkemDecaps, mlkemGetPublic } = await import('./mlkem.js');
+                const ss = mlkemDecaps(env.prelude.kyberCtHex, pqSk);
+                // Собственный PQPK-pub — из своего sk (то, к чему Alice инкапсулировала).
+                const pqpkOwnPubHex = mlkemGetPublic(pqSk);
+                shared = await x3dhRespondPq(
+                    ctx.myDeviceX3dhPriv, spkPriv, opkPriv,
+                    env.prelude.ikPubHex, env.prelude.ekPubHex,
+                    pqpkOwnPubHex, env.prelude.kyberCtHex, ss);
+            } catch (e) {
+                throw new SessionError('x3dh_failed', e.message);
+            }
+        } else {
+            try {
+                shared = await x3dhRespond(ctx.myDeviceX3dhPriv, spkPriv, opkPriv, env.prelude.ikPubHex, env.prelude.ekPubHex);
+            } catch (e) {
+                throw new SessionError('x3dh_failed', e.message);
+            }
         }
 
         const newState = ratchetInitBob(shared, spkPriv, spkPubHex);
@@ -172,6 +222,8 @@ export async function decryptV2(store, sessionId, ctx, envelopeHex) {
 
         // Использованный OPK удаляем — forward secrecy (не сохраняем на будущее).
         if (env.prelude.opkId != null) deleteOpkPrivate(env.prelude.opkId);
+        // Использованный one-time PQOPK удаляем — KEM-forward-secrecy (P6).
+        if (env.prelude.pqopkId != null) deletePqopkPrivate(env.prelude.pqopkId);
 
         return { state: newState, result: new TextDecoder().decode(pt) };
     });
