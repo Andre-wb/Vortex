@@ -1,4 +1,3 @@
- * CHAT SIDEBAR (Telegram-style chat list)
 .chat-sidebar, #sidebar {
     width: 350px; min-width: 280px; max-width: 400px;
     background: var(--bg2);
@@ -304,7 +303,6 @@ body[data-theme="light"] .status-dot { border-color: #fff; }
 .user-name { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-phone { font-size: 11px; color: var(--text2); font-family: var(--mono); }
 
- * Навигация в сайдбаре (пункты: Welcome, Профиль, Пиры и т.д.)
 .nav-section { padding: 12px 8px 4px; }
 .nav-label {
     font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
@@ -330,7 +328,6 @@ body[data-theme="light"] .status-dot { border-color: #fff; }
     padding: 1px 5px; border-radius: 20px; min-width: 18px; text-align: center;
 }
 
- * Список комнат в сайдбаре
 /* Archive reveal on overscroll */
 .cs-archive-reveal {
     max-height: 0;
@@ -463,7 +460,6 @@ body[data-theme="light"] .status-dot { border-color: #fff; }
     box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
 }
 
- * Подвал сайдбара (кнопки действий)
 .sidebar-footer {
     padding: 12px 8px;
     border-top: 1px solid var(--border);

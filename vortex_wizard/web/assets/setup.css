@@ -1,5 +1,3 @@
- * Setup screen — first-run configuration
- * Shares admin.css design tokens; adds only the setup-specific layout.
 
 body.setup-body {
     /* Flex-center the setup container vertically + horizontally.
@@ -763,9 +761,6 @@ select.form-input {
     .setup-container { margin: 32px auto 48px; }
     .setup-card { padding: 20px; }
 }
-
- * Identity block — shown BEFORE the numbered wizard. 24-word seed
- * generation / restore flow.
 
 .identity-block { display: block; }
 

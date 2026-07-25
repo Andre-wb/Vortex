@@ -1,4 +1,3 @@
- * TRANSLATE BAR (под шапкой чата)
 .chat-translate-bar {
     display: flex;
     align-items: center;
@@ -39,7 +38,6 @@ body[data-theme="light"] .msg-translation {
     background: rgba(124,58,237,0.05);
 }
 
- * ОБЛАСТЬ СООБЩЕНИЙ
 #messages-container {
     flex: 1; overflow-y: auto; padding: 16px 20px;
     display: flex; flex-direction: column; gap: 2px;
@@ -321,7 +319,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     color: var(--text3);
 }
 
- * ИНДИКАТОР ПЕЧАТИ / ОТПРАВКИ ФАЙЛОВ
 .typing-indicator {
     display: none; align-items: center; gap: 8px;
     padding: 6px 16px; color: var(--text2); font-size: 12px;
@@ -341,7 +338,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     40%            { opacity: 1;   transform: scale(1.1); }
 }
 
- * ОБЛАСТЬ ВВОДА СООБЩЕНИЯ
 /* Slash command autocomplete menu */
 .slash-cmd-menu {
     position: absolute;
@@ -546,7 +542,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     max-width: 280px;
 }
 
- * ПРИВЕТСТВЕННЫЙ ЭКРАН (когда нет выбранной комнаты)
 #welcome-screen {
     align-items: center; justify-content: center;
     flex-direction: column; gap: 16px; text-align: center;
@@ -563,7 +558,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .welcome-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
 .welcome-sub { color: var(--text2); font-size: 14px; font-family: var(--mono); max-width: 320px; }
 
- * МОДАЛЬНЫЕ ОКНА
 .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
@@ -632,7 +626,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .status-win-viewer-list::-webkit-scrollbar { width: 4px; }
 .status-win-viewer-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
- * МУЛЬТИАККАУНТ — список аккаунтов в профильной модалке
 .ma-accounts-list {
     margin-bottom: 14px;
 }
@@ -779,7 +772,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 }
 .set-ma-add:hover { background: rgba(255,255,255,0.04); color: var(--text); }
 
- * ПАНЕЛЬ НАСТРОЕК КОМНАТЫ (room-info-modal)
 .room-info-avatar-wrap {
     display: flex; justify-content: center; margin-bottom: 16px;
 }
@@ -930,7 +922,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
 }
 
- * ПАНЕЛЬ ПИРОВ (LAN-устройства)
 #peers-panel {
     width: 220px; border-left: 1px solid var(--border);
     background: var(--bg2); display: none; flex-direction: column;
@@ -961,9 +952,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .peer-name { font-weight: 700; flex: 1; }
 .peer-ip { font-family: var(--mono); font-size: 11px; color: var(--text2); }
 
- * ОВЕРЛЕЙ ЗВОНКА (WebRTC)
-   CALL OVERLAY — FaceTime-style elegant design
-   ══════════════════════════════════════════════════════════════════════════ */
 #call-overlay {
     position: fixed; inset: 0; z-index: 200;
     background: linear-gradient(165deg, #0a0a14 0%, #12101f 40%, #1a0e2e 100%);
@@ -1179,7 +1167,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     .call-avatar-main svg { width: 44px; height: 44px; }
 }
 
- * РАЗДЕЛИТЕЛЬ ДАТЫ (в ленте сообщений)
 .date-divider {
     text-align: center; color: var(--text3);
     font-size: 11px; font-family: var(--mono);
@@ -1191,7 +1178,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     content: ''; flex: 1; height: 1px; background: var(--border);
 }
 
- * ВЫБОР ЭМОДЗИ (при регистрации)
 .emoji-grid {
     display: grid; grid-template-columns: repeat(8, 1fr);
     gap: 4px; max-height: 180px; overflow-y: auto;
@@ -1204,7 +1190,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .emoji-btn:hover { background: var(--bg3); }
 .emoji-selected { border: 2px solid var(--accent) !important; }
 
- * СТАТУС СЕТИ (в сайдбаре)
 .net-status {
     display: flex; align-items: center; gap: 6px;
     font-size: 11px; font-family: var(--mono); color: var(--text2);
@@ -1214,11 +1199,9 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .net-dot.online  { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .net-dot.offline { background: var(--red);   box-shadow: 0 0 5px var(--red); }
 
- * АНИМАЦИИ
 .fade-in { animation: fadeIn 0.2s ease; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
- * АДАПТИВ ПОД МОБИЛЬНЫЕ УСТРОЙСТВА
 @media (max-width: 640px) {
     #sidebar { flex-direction: column !important; }
     .auth-card { width: calc(100vw - 32px); padding: 24px; margin: auto; }
@@ -1274,7 +1257,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     .sidebar-footer button { font-size: 11px; padding: 4px 8px; }
 }
 
- * СПЕЦИФИЧЕСКИЕ СТИЛИ ДЛЯ ИЗОБРАЖЕНИЙ В ЧАТЕ
 /* Media bubble — transparent, no glass background */
 .msg-bubble-media {
     position: relative;
@@ -1368,7 +1350,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     align-items: center;
     gap: 10px;
 }
- * ОВЕРЛЕЙ ПРЕДПРОСМОТРА ФАЙЛА (перед отправкой)
 #file-preview-overlay {
     position: fixed; inset: 0; z-index: 300;
     background: var(--bg);
@@ -1574,7 +1555,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
- * ПРОСМОТРЩИК ИЗОБРАЖЕНИЙ (полноэкранный)
 #image-viewer-overlay {
     position: fixed; inset: 0; z-index: 400;
     background: rgba(0,0,0,0.96);
@@ -1629,7 +1609,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 }
 .iv-download:hover { color: var(--accent2); }
 
- * ЭЛЕМЕНТЫ ДЛЯ ВРЕМЕННЫХ СООБЩЕНИЙ ПРИ ЗАГРУЗКЕ (pending upload)
 .pending-upload-wrap {
     margin-bottom: 4px;
     animation: fadeIn 0.18s ease;
@@ -1834,7 +1813,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .size-6 { width: 24px; height: 24px; display: block; }
 .file-icon svg { width: 24px; height: 24px; display: block; }
 
- * ПАНЕЛЬ ОТВЕТА / РЕДАКТИРОВАНИЯ
 #reply-bar {
     display: none;
     align-items: center;
@@ -1933,7 +1911,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     100% { background: transparent; outline: none; }
 }
 
- * ГОЛОСОВЫЕ СООБЩЕНИЯ
 .voice-msg {
     display: flex; align-items: center; gap: 10px;
     min-width: 200px; max-width: 280px;
@@ -2010,7 +1987,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 #voice-record-btn:hover    { color: var(--accent2); background: var(--bg3); }
 #voice-record-btn.recording { color: #ef4444; animation: recBlink 1s infinite; }
 
- * РЕДАКТОР ФОТО
 .pe-root {
     position: fixed; inset: 0; z-index: 10000;
     background: var(--bg, #0a0a12);
@@ -2580,8 +2556,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
 .contacts-empty-state span { font-size: 14px; font-family: var(--sans); }
 .contacts-empty-state .btn { margin-top: 4px; }
 
- * RECENT CALLS
-
 .calls-header {
     padding: 16px 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -2810,7 +2784,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     backdrop-filter: blur(12px);
 }
 
- * NETWORK MODE TOGGLE (регистрация)
 .mode-toggle {
     display: flex;
     gap: 8px;
@@ -2857,7 +2830,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     color: var(--text3);
 }
 
- * FEATURE: Read receipts (галочки доставки/прочтения)
 .msg-status {
     font-size: 11px;
     color: var(--text3);
@@ -2869,7 +2841,6 @@ body[data-theme="light"] .tag-picker-input { background: #f4f4f5; border-color: 
     color: var(--accent);
 }
 
- * FEATURE: Emoji reactions
 .msg-reactions {
     display: flex;
     flex-wrap: wrap;
@@ -3095,7 +3066,6 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     .rp-emoji { font-size: 26px; }
 }
 
- * FEATURE: Forward indicator
 .msg-forwarded {
     font-size: 11px;
     color: var(--accent2);
@@ -3107,7 +3077,6 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     z-index: 4;
 }
 
- * FEATURE: Pinned message bar
 .pinned-bar {
     display: flex;
     align-items: center;
@@ -3147,7 +3116,6 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     color: var(--text);
 }
 
- * FEATURE: Self-destructing message timer
 .msg-timer {
     font-size: 10px;
     color: var(--red);
@@ -3164,10 +3132,8 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     background: rgba(239, 68, 68, 0.1);
 }
 
- * FEATURE: Message highlight — duplicate removed, see above
 }
 
- * FEATURE: Muted room indicator in sidebar
 .room-muted-icon {
     font-size: 14px;
     color: var(--text3);
@@ -3178,7 +3144,6 @@ body[data-theme="light"] .ctx-react-plus { background: #f0f0f0; border-color: #d
     align-items: center;
 }
 
- * FEATURE: Search bar in chat (enhanced)
 #chat-search-bar {
     flex-shrink: 0;
     padding: 8px 16px;
@@ -3243,7 +3208,6 @@ mark.search-highlight.current {
     box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.4);
 }
 
- * FEATURE: Drag & Drop file overlay
 #chat-screen {
     position: relative;
 }
@@ -3287,7 +3251,6 @@ mark.search-highlight.current {
     50%      { transform: scale(1.03); }
 }
 
- * Settings tabs & sections
 .settings-tab {
     padding: 6px 12px;
     background: none;
@@ -3362,7 +3325,6 @@ mark.search-highlight.current {
 .search-result-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; transition: background 0.1s; }
 .search-result-item:hover { background: var(--border); }
 
- * FEATURE 1: Polls (Telegram-style)
 .poll-card {
     min-width: 260px;
     max-width: 380px;
@@ -3811,7 +3773,6 @@ mark.search-highlight.current {
     margin-top: 4px;
 }
 
- * FEATURES 2-4: Input button active state & indicators
 .input-btn.active {
     background: var(--accent);
     border-color: var(--accent);
@@ -3820,7 +3781,6 @@ mark.search-highlight.current {
 .header-btn {
     position: relative;
 }
- * FEATURE 2: Theme & accent picker styles
 .theme-option, .accent-option {
     width: 40px;
     height: 40px;
@@ -3989,8 +3949,6 @@ mark.search-highlight.current {
     line-height: 1;
 }
 
- * FEATURE: Stickers & Video Notes
-
 /* Sticker grid items */
 #sticker-grid > div:hover {
     background: var(--bg3);
@@ -4132,8 +4090,6 @@ mark.search-highlight.current {
     color: #fff !important;
 }
 
- * SWIPE-TO-REPLY GESTURE (mobile)
-
 .swipe-reply-arrow {
     position: absolute;
     left: 4px;
@@ -4161,8 +4117,6 @@ mark.search-highlight.current {
 .swipe-reply-arrow svg {
     transform: scaleX(-1); /* mirror arrow to point right */
 }
-
- * ТРЕДЫ (thread panel + badge)
 
 .thread-badge {
     display: inline-flex;

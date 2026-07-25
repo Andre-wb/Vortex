@@ -1162,6 +1162,35 @@ def _kt_sign_entry(user_id: int, key_type: str, pub_key_hash: str, prev_hash: st
     return _hmac.new(_get_kt_secret(), data, "sha256").hexdigest()
 
 
+# ADR-009 Фаза 1: асимметричная нода-подпись KT-записи. HMAC выше клиент проверить НЕ
+# может (нет секрета) → против злонамеренной ноды это театр. Ed25519-подпись реальным
+# NodeSigningKey третьесторонне-проверяема (клиент верифицирует раздаваемым node_pubkey).
+# КРУКС (ADR-009 §4): это non-repudiation-СУБСТРАТ, НЕ детекция — доказывает лишь «нода
+# это сказала», не «ключ честный». Детекцию (fork vs reset) даёт только Фаза 3 (STH+gossip).
+_KT_NODE_KEY = None
+
+
+def _kt_node_key():
+    global _KT_NODE_KEY
+    if _KT_NODE_KEY is None:
+        from app.peer.controller_client import NodeSigningKey
+        from app.config import Config
+        _KT_NODE_KEY = NodeSigningKey.load_or_create(Config.KEYS_DIR)
+    return _KT_NODE_KEY
+
+
+def _kt_node_pubkey() -> str:
+    try:
+        return _kt_node_key().pubkey_hex()
+    except Exception:
+        return ""
+
+
+def _kt_entry_message(user_id: int, key_type: str, pub_key_hash: str, prev_hash: str | None, seq: int) -> bytes:
+    """Каноническая нагрузка нода-подписи (cross-impl ЗАФИКСИРОВАНА — фикс-строка, не JSON)."""
+    return f"vortex-kt-entry:v1:{user_id}:{key_type}:{pub_key_hash}:{prev_hash or ''}:{seq}".encode()
+
+
 def _kt_auto_log(user_id: int, key_type: str, pub_key_hex: str, device_id: int | None, db: Session):
     """Auto-log a key change to the transparency log."""
     import hashlib as _hl
@@ -1180,6 +1209,11 @@ def _kt_auto_log(user_id: int, key_type: str, pub_key_hex: str, device_id: int |
         next_seq = prev.seq + 1
 
     signature = _kt_sign_entry(user_id, key_type, pub_key_hash, prev_hash, next_seq)
+    node_sig = None
+    try:
+        node_sig = _kt_node_key().sign_bytes(_kt_entry_message(user_id, key_type, pub_key_hash, prev_hash, next_seq))
+    except Exception:
+        pass  # нода-ключ недоступен → запись остаётся с legacy-HMAC, клиент увидит «не подписано»
 
     entry = KeyTransparencyEntry(
         user_id=user_id,
@@ -1187,12 +1221,29 @@ def _kt_auto_log(user_id: int, key_type: str, pub_key_hex: str, device_id: int |
         pub_key_hash=pub_key_hash,
         prev_hash=prev_hash,
         signature=signature,
+        node_sig=node_sig,
         device_id=device_id,
         seq=next_seq,
     )
     db.add(entry)
     db.commit()
     return entry
+
+
+def _kt_log_account_ed(user_id: int, account_ed_hex: str, db: Session):
+    """Логирует account-Ed (корень доверия ADR-008) в KT, если изменился с последней
+    записи этого типа (без дублей на каждый publish). Не был покрыт — только x25519/device."""
+    if not account_ed_hex:
+        return None
+    import hashlib as _hl
+    h = _hl.sha256(account_ed_hex.encode()).hexdigest()
+    latest = db.query(KeyTransparencyEntry).filter(
+        KeyTransparencyEntry.user_id == user_id,
+        KeyTransparencyEntry.key_type == "account_ed",
+    ).order_by(KeyTransparencyEntry.seq.desc()).first()
+    if latest and latest.pub_key_hash == h:
+        return None
+    return _kt_auto_log(user_id, "account_ed", account_ed_hex, None, db)
 
 
 @router.post("/transparency/log")
@@ -1222,6 +1273,9 @@ async def kt_get_log(
         KeyTransparencyEntry.user_id == user_id,
     ).order_by(KeyTransparencyEntry.seq.asc()).all()
     return {
+        # Раздаваемый node_pubkey — ключ, которым клиент проверяет node_sig. Для Фазы 1
+        # это «нода под ключом K заявила»; пиннинг/gossip ключа — Фаза 2/3.
+        "node_pubkey": _kt_node_pubkey(),
         "entries": [
             {
                 "seq": e.seq,
@@ -1229,6 +1283,7 @@ async def kt_get_log(
                 "pub_key_hash": e.pub_key_hash,
                 "prev_hash": e.prev_hash,
                 "signature": e.signature,
+                "node_sig": e.node_sig,
                 "device_id": e.device_id,
                 "created_at": e.created_at.isoformat() if e.created_at else None,
             }

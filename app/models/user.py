@@ -269,7 +269,8 @@ class KeyTransparencyEntry(Base):
     key_type      = Column(String(30),  nullable=False)            # x25519, kyber, device
     pub_key_hash  = Column(String(64),  nullable=False)            # SHA-256(pubkey_hex)
     prev_hash     = Column(String(64),  nullable=True)             # SHA-256(prev entry) — chain
-    signature     = Column(Text,        nullable=False)            # HMAC-SHA256(server_key, entry_data)
+    signature     = Column(Text,        nullable=False)            # legacy HMAC (не проверяемо клиентом — не security)
+    node_sig      = Column(String(128), nullable=True)             # ADR-009 P1: Ed25519 node-подпись записи (третьесторонне-проверяема)
     device_id     = Column(Integer,     nullable=True)             # which device registered key
     seq           = Column(Integer,     nullable=False, default=0) # monotonic per user
     created_at    = Column(DateTime,    default=lambda: datetime.now(timezone.utc))

@@ -1,4 +1,3 @@
- * BOTTOM TAB BAR (Telegram-style mobile navigation)
 
 .bottom-tabs {
     display: flex;
@@ -78,8 +77,6 @@ body[data-theme="light"] .bottom-tabs {
 }
 
 
- * INPUT ATTACHMENT PANEL (скрепка → выдвижная панель вместо кучи иконок)
-
 .attach-panel {
     display: none;
     position: absolute;
@@ -147,8 +144,6 @@ body[data-theme="light"] .bottom-tabs {
 .attach-icon.location{ background: #06b6d4; color: #fff; }
 .attach-icon.payment { background: #10b981; color: #fff; }
 
-
- * ROOM INFO PANEL (shown when clicking room name in header)
 
 .room-info-panel {
     position: fixed;
@@ -256,8 +251,6 @@ body[data-theme="light"] .bottom-tabs {
     }
 }
 
-
- * BOT STORE GRID
 
 .bot-grid {
     display: grid;
@@ -434,11 +427,6 @@ body[data-theme="light"] .bot-badge.commands { background: rgba(34,197,94,.1); }
 body[data-theme="light"] .bot-badge.miniapp { background: rgba(249,115,22,.1); }
 body[data-theme="light"] .bots-create-form { background: rgba(124,58,237,.04); }
 
-
- * SETTINGS FULLSCREEN VIEW
-
-   Settings — Premium Design
-   ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Main header */
 .set-main-header {
@@ -628,8 +616,6 @@ body[data-theme="light"] .bots-create-form { background: rgba(124,58,237,.04); }
     background: var(--accent);
 }
 
-   Sessions Page
-   ═══════════════════════════════════════════════════════════════════════════ */
 .sessions-section-header {
     display: flex; align-items: center; gap: 8px;
     font-size: 14px; font-weight: 700; color: var(--text);
@@ -774,8 +760,6 @@ body[data-theme="light"] .bots-create-form { background: rgba(124,58,237,.04); }
     color: var(--text2); font-size: 14px; cursor: pointer;
 }
 
-   Storage & Data Page
-   ═══════════════════════════════════════════════════════════════════════════ */
 .storage-header {
     display: flex; align-items: center; gap: 14px;
     padding-bottom: 16px; margin-bottom: 16px;

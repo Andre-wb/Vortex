@@ -31,6 +31,11 @@
             <span data-i18n="fingerprint.keyChanged">Ключ безопасности этого контакта изменился</span>
         </div>
 
+        <!-- ADR-009 Фаза 2: экспорт улики эквивокации (появляется только при смене Ed-личности) -->
+        <button class="fp-btn fp-btn-secondary" id="fp-kt-evidence-btn" style="display:none;" onclick="window._fpExportKtEvidence()">
+            <span data-i18n="fingerprint.exportEvidence">Скопировать улику для проверки</span>
+        </button>
+
         <!-- Body -->
         <div class="fp-body">
             <div class="fp-username" id="fp-contact-username">@...</div>

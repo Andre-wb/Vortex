@@ -369,10 +369,12 @@ body {
     word-break: break-all;
 }
 
-   Without these, browsers fall back to native widgets which look
-   totally out of place on our dark theme. Every field shows up
-   consistently styled regardless of whether it was there originally
-   or added by one of the new W1-W10 modules. */
+/*
+ * Without these, browsers fall back to native widgets which look
+ * totally out of place on our dark theme. Every field shows up
+ * consistently styled regardless of whether it was there originally
+ * or added by one of the new W1-W10 modules.
+ */
 input[type="text"],
 input[type="password"],
 input[type="email"],
@@ -628,10 +630,12 @@ button:disabled, .btn:disabled, .btn-primary:disabled,
     letter-spacing: 0.3px;
 }
 
-   Any button can embed <span class="vx-spin"></span> for a 12px inline
-   spinner. Cards that are actively doing work get .vx-verifying which
-   pulses the border + casts a soft glow so the user knows a long
-   operation is in progress. */
+/*
+ * Any button can embed <span class="vx-spin"></span> for a 12px inline
+ * spinner. Cards that are actively doing work get .vx-verifying which
+ * pulses the border + casts a soft glow so the user knows a long
+ * operation is in progress.
+ */
 .vx-spin {
     display: inline-block;
     width: 12px; height: 12px;

@@ -34,6 +34,10 @@ export function pinPeerAccountEd(peerUserId, edPubHex) {
     try { existing = localStorage.getItem(slot); } catch { /* storage недоступен */ }
     if (!existing) {
         try { localStorage.setItem(slot, edPubHex); } catch { /* ignore */ }
+        // ADR-009 Фаза 2: удержать нода-подписанную атестацию на ПЕРВЫЙ пин (TOFU) —
+        // чтобы при будущей смене ключа была локальная «старая» половина пары даже
+        // для пиров, которых человек не сверял вручную (дормантно за флагом).
+        import('./kt-evidence.js').then(m => m.retainAttestation(peerUserId, edPubHex)).catch(() => {});
         return { trusted: edPubHex };
     }
     if (existing !== edPubHex) return { changed: true, pinned: existing };

@@ -1,4 +1,3 @@
- * PIN Lock Screen
 #pin-lock-screen {
     display: none;
     position: fixed;
@@ -130,7 +129,6 @@
     height: 22px;
 }
 
- * ИЗБРАННОЕ (Saved Messages)
 .saved-item {
     background: var(--bg3);
     border: 1px solid var(--border);
@@ -199,7 +197,6 @@
     font-size: 13px;
 }
 
- * @MENTION HIGHLIGHTS
 .mention {
     color: var(--accent2);
     font-weight: 600;
@@ -218,7 +215,6 @@
     font-weight: 700;
 }
 
- * @MENTION AUTOCOMPLETE DROPDOWN
 .mention-autocomplete {
     display: none;
     position: absolute;
@@ -263,7 +259,6 @@
     margin-left: auto;
 }
 
- * ЗАДАЧИ (Collaborative Task List)
 .task-input-row {
     display: flex;
     gap: 8px;
@@ -395,7 +390,6 @@
     font-size: 13px;
 }
 
- * Bot Detail Overlay
 .bot-detail-card {
     position: fixed; inset: 0; z-index: 10000;
     background: var(--bg, #0e0e18);

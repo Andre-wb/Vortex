@@ -89,6 +89,17 @@ class NodeSigningKey:
     def sign(self, payload) -> str:
         return self._priv.sign(_canonical(payload)).hex()
 
+    def sign_bytes(self, message: bytes) -> str:
+        """Подпись СЫРЫХ байт (для cross-impl фикс-сериализации, а не canonical JSON —
+        JSON-сериализация Python↔JS кусала на ECIES/key-login). Ed25519, hex.
+
+        ДОМЕННАЯ РАЗДЕЛЁННОСТЬ (обязательна): этот ключ подписывает и `sign()` (canonical
+        JSON — handoff-токены, federation-конверты), поэтому `message` ОБЯЗАН начинаться
+        с доменного префикса (напр. `vortex-kt-entry:v1:`), не пересекающегося с
+        JSON (`{`/`[`/`"`). Иначе подпись из одного контекста верифицируется в другом
+        (cross-protocol replay). Никогда не передавать сюда произвольный blob."""
+        return self._priv.sign(message).hex()
+
 
 
 def verify_controller_signature(

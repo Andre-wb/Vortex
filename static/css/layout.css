@@ -1,4 +1,3 @@
- * ШАПКА ЧАТА (БАЗОВЫЕ СТИЛИ)
 #chat-header {
     height: 56px;
     border-bottom: 1px solid var(--border);
@@ -45,7 +44,6 @@
     border-color: var(--accent);
 }
 
- * ДЕСКТОП (>=800px)
 @media (min-width: 800px) {
     #chat-header {
         padding: 0 20px;
@@ -74,7 +72,6 @@
     }
 }
 
- * МОБИЛЬНАЯ КАРУСЕЛЬ (<800px)
 @media (max-width: 799px) {
     #chat-header {
         display: flex;

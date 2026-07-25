@@ -5632,9 +5632,11 @@ function _buildSpecularCSS() {
     transition: opacity .26s ease;
 
     background:
-           ellipse 4.7% 3.2% ← αT/αB из BASE_ROUGHNESS=0.04, ANISOTROPY=0.35
-           Cursor-driven через --lg-mx/my + рандомные §10-смещения (--lg-sa/sb)
-           Warm-white: соответствует L0.colour = (1.00, 0.97, 0.92) §15.K     */
+        /*
+         * ellipse 4.7% 3.2% ← αT/αB из BASE_ROUGHNESS=0.04, ANISOTROPY=0.35
+         * Cursor-driven через --lg-mx/my + рандомные §10-смещения (--lg-sa/sb)
+         * Warm-white: соответствует L0.colour = (1.00, 0.97, 0.92) §15.K
+         */
         radial-gradient(
             ellipse 4.7% 3.2%
             at calc(var(--lg-mx) + var(--lg-sa, -1%))
@@ -5644,9 +5646,11 @@ function _buildSpecularCSS() {
             transparent               68%
         ),
 
-           Шире: 7%×5% — аппроксимирует NDF shoulder (интеграл от NdotH<1)
-           Перпендикулярная ось: var(--lg-sc/sd) ротируют лоб ≈90° от A
-           Cool-blue: L1.colour = (0.88, 0.93, 1.00) @ intensity 0.55 §15.K   */
+        /*
+         * Шире: 7%×5% — аппроксимирует NDF shoulder (интеграл от NdotH<1)
+         * Перпендикулярная ось: var(--lg-sc/sd) ротируют лоб ≈90° от A
+         * Cool-blue: L1.colour = (0.88, 0.93, 1.00) @ intensity 0.55 §15.K
+         */
         radial-gradient(
             ellipse 7% 5%
             at calc(var(--lg-mx) + var(--lg-sc, 2%))
@@ -5655,9 +5659,11 @@ function _buildSpecularCSS() {
             transparent               62%
         ),
 
-           linear-gradient 142deg = направление зеркального L0 (pos2=1-pos0)
-           Violet tint: L2.colour = (0.76, 0.70, 1.00) @ intensity 0.30 §15.K
-           Постоянный (не cursor-driven) — L2 статичен в §15.K buildLights()   */
+        /*
+         * linear-gradient 142deg = направление зеркального L0 (pos2=1-pos0)
+         * Violet tint: L2.colour = (0.76, 0.70, 1.00) @ intensity 0.30 §15.K
+         * Постоянный (не cursor-driven) — L2 статичен в §15.K buildLights()
+         */
         linear-gradient(
             142deg,
             rgba(193, 179, 255, 0.04)  0%,

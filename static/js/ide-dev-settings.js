@@ -1,5 +1,3 @@
-   IDE Dev Settings — themes, editor features, unique extras
-   ============================================================ */
 'use strict';
 
 const IDE_THEMES = [

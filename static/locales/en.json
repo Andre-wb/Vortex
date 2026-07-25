@@ -1504,6 +1504,9 @@
     "keyVerification": "Key verification",
     "hideKey": "Hide key",
     "reverifyIdentity": "Verification model updated — please re-confirm identity",
+    "exportEvidence": "Copy evidence for review",
+    "evidenceCopied": "Evidence copied (self-verifiable)",
+    "noEvidence": "No evidence to export",
     "notVerified": "Not verified"
   },
   "settings_profile": {
@@ -1594,6 +1597,10 @@
     "notAuthorized": "Not authorized",
     "chainVerified": "Chain verified ({entries} entries)",
     "chainBroken": "Chain broken! {errors} errors",
+    "ktSignedCount": "Key history: {total} entries, {signed} node-signed",
+    "ktBadSig": "Node signature failed to verify: {count}",
+    "ktNodeChanged": "Node key changed since last time",
+    "ktDisclaimer": "A node signature proves who authored the record, not that the key is honest",
     "noEntries": "No entries",
     "loadError": "Loading error"
   },

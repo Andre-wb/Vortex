@@ -1423,24 +1423,37 @@ export async function _loadKeyTransparencyLog() {
     const userId = window.AppState?.user?.id;
     if (!userId) { el.textContent = t('keyBackup.notAuthorized'); return; }
     try {
-        const resp = await api('GET', `/api/keys/transparency/${userId}`);
-        const audit = await api('GET', `/api/keys/transparency/${userId}/audit`);
+        // §7: НЕ рисуем зелёный «verified» из серверного audit.valid (против злонамеренной
+        // ноды это ничего не значит — театр). Вместо этого клиент сам проверяет нода-подписи
+        // и показывает ФАКТ (кто подписал, сошлось ли), а НЕ affirmation «ключи безопасны».
+        const { verifyKtLog } = await import('./dr/kt-verify.js');
+        const kt = await verifyKtLog(userId);
         el.textContent = '';
 
-        // Status badge
         const badge = document.createElement('div');
-        badge.style.cssText = 'margin-bottom:8px;font-size:12px;font-weight:600;';
-        if (audit.valid) {
-            badge.style.color = 'var(--green)';
-            badge.textContent = `\u{2705} ${t('keyBackup.chainVerified', {entries: audit.entries})}`;
-        } else {
+        badge.style.cssText = 'margin-bottom:4px;font-size:12px;font-weight:600;';
+        if (kt.badSig > 0) {
+            // Реальная аномалия: собственная подпись ноды не сходится.
             badge.style.color = 'var(--red)';
-            badge.textContent = `\u{26A0} ${t('keyBackup.chainBroken', {errors: audit.errors.length})}`;
+            badge.textContent = `\u{26A0} ${t('keyBackup.ktBadSig', {count: kt.badSig})}`;
+        } else if (kt.nodeKeyChanged) {
+            badge.style.color = 'var(--yellow, #f59e0b)';
+            badge.textContent = `\u{26A0} ${t('keyBackup.ktNodeChanged')}`;
+        } else {
+            // Нейтрально-фактически: N записей, M нода-подписаны. НЕ зелёный «безопасно».
+            badge.style.color = 'var(--text2)';
+            badge.textContent = `\u{1F511} ${t('keyBackup.ktSignedCount', {signed: kt.signed, total: kt.total})}`;
         }
         el.appendChild(badge);
 
+        // Анти-театр: явно сказать, что это НЕ гарантия честности ключа.
+        const disclaimer = document.createElement('div');
+        disclaimer.style.cssText = 'margin-bottom:8px;font-size:10px;color:var(--text3);';
+        disclaimer.textContent = t('keyBackup.ktDisclaimer');
+        el.appendChild(disclaimer);
+
         // Entry list (last 10)
-        const entries = (resp.entries || []).slice(-10).reverse();
+        const entries = (kt.entries || []).slice(-10).reverse();
         for (const e of entries) {
             const row = document.createElement('div');
             row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;border-bottom:1px solid var(--border);';

@@ -1,4 +1,3 @@
- * BOT MARKETPLACE
 
 #marketplace-modal .modal {
     width: 560px;
@@ -452,7 +451,6 @@ body[data-theme="light"] .marketplace-card-avatar { background: #f4f4f5; }
 body[data-theme="light"] .marketplace-review-form { background: #fafafa; }
 body[data-theme="light"] .marketplace-review-form textarea { background: #fff; }
 
- * MINI APP PANEL — fullscreen overlay for bot mini apps (like Telegram Mini Apps)
 #miniapp-panel {
     position: fixed;
     inset: 0;

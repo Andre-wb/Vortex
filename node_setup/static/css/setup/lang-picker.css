@@ -1,5 +1,3 @@
- * WIZARD LANGUAGE PICKER (Step 0)
- * Purple theme, typewriter cursor, Syne font.
 
 .card:has(#step-0.active) {
     background: transparent;

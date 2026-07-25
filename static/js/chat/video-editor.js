@@ -16,9 +16,6 @@
  * NOTE: innerHTML usage is safe — only static SVG/HTML literals, never user input.
  */
 
-   CONSTANTS
-   ═══════════════════════════════════════════════════════════════ */
-
 const LUTS = [
     { n: 'None', f: '' },
     { n: 'Cinema', f: 'contrast(1.1) saturate(1.3) sepia(.1) brightness(.9)' },
@@ -62,9 +59,6 @@ export function openVideoEditor(file, onDone, onCancel) {
     _editor = new VideoEditor(file, onDone, onCancel);
 }
 export function closeVideoEditor() { if (_editor) { _editor.destroy(); _editor = null; } }
-
-   VIDEO EDITOR CLASS
-   ═══════════════════════════════════════════════════════════════ */
 
 class VideoEditor {
 constructor(file, onDone, onCancel) {
@@ -319,9 +313,6 @@ _buildSubtools(tab, tools) {
     w.appendChild(tc);
     this.content.appendChild(w);
 }
-
-   EDIT TAB TOOLS
-   ═══════════════════════════════════════════════════════════════ */
 
 _t_trim(c) {
     const tl = this._el('div', 'ved-timeline');
@@ -680,9 +671,6 @@ _t_timecodes(c) {
     c.appendChild(this._note('Scrub the video to find the right moment, then add a chapter.'));
 }
 
-   ADJUST TAB TOOLS
-   ═══════════════════════════════════════════════════════════════ */
-
 _t_crop(c) {
     const aspects = ['free', '16:9', '9:16', '4:3', '3:4', '1:1'];
     const g = this._el('div', 'ved-speed-grid');
@@ -832,9 +820,6 @@ _t_presets(c) {
         }); c.appendChild(list);
     } else c.appendChild(this._note((window.t?.('videoEditor.noPresets')||'No saved presets yet.')));
 }
-
-   TEXT TAB TOOLS
-   ═══════════════════════════════════════════════════════════════ */
 
 _t_textlayers(c) {
     const addBtn = this._btn('ved-ctrl', '+ Add text layer', () => {
@@ -993,9 +978,6 @@ _t_watermark(c) {
     }
 }
 
-   OVERLAY TAB TOOLS
-   ═══════════════════════════════════════════════════════════════ */
-
 _t_stickers(c) {
     const cats = Object.keys(STICKERS);
     const tabs = this._el('div', 'ved-sticker-tabs');
@@ -1098,9 +1080,6 @@ _t_shapes(c) {
         }); c.appendChild(list);
     }
 }
-
-   AUDIO TAB TOOLS
-   ═══════════════════════════════════════════════════════════════ */
 
 _t_volume(c) {
     c.appendChild(this._slider('Volume', 0, 200, Math.round(this.volume * 100), '%', v => {
@@ -1234,9 +1213,6 @@ _t_mix(c) {
     c.appendChild(this._note('Controls the balance between original and added audio.'));
 }
 
-   EXPORT TAB TOOLS
-   ═══════════════════════════════════════════════════════════════ */
-
 _t_resolution(c) {
     const opts = ['original', '1080p', '720p', '480p', '360p'];
     const g = this._el('div', 'ved-speed-grid');
@@ -1313,9 +1289,6 @@ _t_compare(c) {
     c.appendChild(toggle);
     c.appendChild(this._note('Drag the divider to compare original vs edited.'));
 }
-
-   COVER TAB (Thumbnail)
-   ═══════════════════════════════════════════════════════════════ */
 
 _buildCover() {
     // Cleanup previous thumbnail video
@@ -1413,9 +1386,6 @@ _buildCover() {
         tv.currentTime = parseFloat(slider.value);
     });
 }
-
-   SYSTEMS
-   ═══════════════════════════════════════════════════════════════ */
 
 
 _getSnap() {
@@ -1896,9 +1866,6 @@ _applyAdjustState(s) {
     });
     this._applyFilters(); this._applyTransform(); this._applyCrop();
 }
-
-   HELPERS
-   ═══════════════════════════════════════════════════════════════ */
 
 _el(tag, cls) { const e = document.createElement(tag); if (cls) e.className = cls; return e; }
 

@@ -1,5 +1,3 @@
-   Gravitix Language Reference — full-screen documentation
-   ============================================================ */
 'use strict';
 
 /* Helper: get translated string or fallback to English */

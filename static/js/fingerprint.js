@@ -273,6 +273,18 @@ export async function openFingerprintModal(opts) {
         warningEl.style.display = keyStatus === 'changed' ? '' : 'none';
     }
 
+    // ADR-009 Фаза 2: кнопка экспорта улики — только identity-режим и только если есть
+    // удержанная нода-подписанная пара «старый+новый» (дормантно за флагом).
+    const evBtn = document.getElementById('fp-kt-evidence-btn');
+    if (evBtn) {
+        evBtn.style.display = 'none';
+        if (opts.identityKeyEd && opts.userId) {
+            import('./dr/kt-evidence.js')
+                .then(async m => { if (await m.detectEquivocation(opts.userId, opts.identityKeyEd)) evBtn.style.display = ''; })
+                .catch(() => {});
+        }
+    }
+
     // Show modal
     overlay.style.display = 'flex';
     requestAnimationFrame(() => overlay.classList.add('fp-visible'));
@@ -285,6 +297,29 @@ export function closeFingerprintModal() {
     setTimeout(() => { overlay.style.display = 'none'; }, 240);
 }
 
+// ADR-009 Фаза 2: экспорт самопроверяемой улики эквивокации (дормантно). Копирует пару
+// нода-подписанных утверждений в буфер; распространение/on-chain — Фаза 3/4. Улика
+// reset-НЕОДНОЗНАЧНА → эскалация человеку, не автодействие.
+export async function exportPeerKtEvidence(peerId, edHex) {
+    const m = await import('./dr/kt-evidence.js');
+    const ev = await m.detectEquivocation(peerId, edHex);
+    if (!ev) return null;
+    const blob = m.exportEvidence(ev);
+    try { await navigator.clipboard.writeText(blob); } catch { /* clipboard недоступен */ }
+    return blob;
+}
+
+window._fpExportKtEvidence = async function() {
+    if (!_currentFpData?.identityMode || !_currentFpData.userId || !_currentFpData.pubkey) return;
+    const blob = await exportPeerKtEvidence(_currentFpData.userId, _currentFpData.pubkey);
+    if (window.showToast) {
+        window.showToast(
+            blob ? (window.t?.('fingerprint.evidenceCopied') || 'Evidence copied')
+                 : (window.t?.('fingerprint.noEvidence') || 'No evidence to export'),
+            blob ? 'success' : 'info');
+    }
+};
+
 export async function verifyCurrentFingerprint() {
     // ADR-008 F2: identity-режим — локальная запись (сервер недоверен), не contact-эндпоинт.
     if (_currentFpData?.identityMode) {
@@ -294,6 +329,11 @@ export async function verifyCurrentFingerprint() {
         // Мирор на другие устройства (дормантно за флагом; подпись device-ключом).
         import('./dr/verify-mirror.js')
             .then(m => m.publishAttestation(_currentFpData.userId, _currentFpData.pubkey, 'verified'))
+            .catch(() => {});
+        // Удержать нода-подписанную атестацию этой личности (дормантно; для детекции
+        // эквивокации на будущей смене ключа — ADR-009 Фаза 2).
+        import('./dr/kt-evidence.js')
+            .then(m => m.retainAttestation(_currentFpData.userId, _currentFpData.pubkey))
             .catch(() => {});
         const vb = document.getElementById('fp-verify-btn');
         const bd = document.getElementById('fp-verified-badge');

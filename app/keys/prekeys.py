@@ -500,6 +500,15 @@ async def publish_prekeys(
 
     db.commit()
 
+    # ADR-009 Фаза 1: логируем account-Ed (корень доверия) в прозрачный лог с
+    # нода-подписью. Best-effort — сбой не мешает публикации ключей.
+    if ik_ed_bytes is not None:
+        try:
+            from app.security.key_backup import _kt_log_account_ed
+            _kt_log_account_ed(user.id, ik_ed_bytes.hex(), db)
+        except Exception as _e:
+            logger.debug("KT account_ed log skipped: %s", _e)
+
     # Count this device's available OPKs
     available = (
         db.query(OneTimePreKey)
