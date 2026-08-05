@@ -1,11 +1,11 @@
+use crate::udp_broadcast::{AppState, PeerInfo, BROADCAST_INTERVAL, BROADCAST_PORT, GLOBAL_STATE};
+use pyo3::prelude::*;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::thread;
-use pyo3::prelude::*;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 use tokio::time::{self, Duration};
-use crate::udp_broadcast::{AppState, PeerInfo, BROADCAST_PORT, BROADCAST_INTERVAL, GLOBAL_STATE};
 
 /// Сигналы соседнему узлу
 #[pyfunction]
@@ -14,14 +14,14 @@ pub fn start_discovery(name: String, signaling_port: u16) -> PyResult<()> {
         let runtime = match tokio::runtime::Runtime::new() {
             Ok(rt) => rt,
             Err(e) => {
-                eprintln!("Ошибка при создании Tokio потока: {}", e);
+                log::error!("udp discovery: не удалось создать Tokio-рантайм: {}", e);
                 return;
             }
         };
 
         runtime.block_on(async move {
             if let Err(e) = run_discovery(name, signaling_port).await {
-                eprintln!("Ошибка при обнаружении пира: {}", e);
+                log::warn!("udp discovery: обнаружение пира прервано: {}", e);
             }
         });
     });
@@ -33,7 +33,6 @@ async fn run_discovery(
     name: String,
     signaling_port: u16,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-
     let our_info = PeerInfo {
         name,
         signaling_port,
@@ -68,9 +67,7 @@ async fn run_sender(
     socket: UdpSocket,
     state: Arc<Mutex<AppState>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-
-    let broadcast_addr: SocketAddr =
-        format!("255.255.255.255:{}", BROADCAST_PORT).parse()?;
+    let broadcast_addr: SocketAddr = format!("255.255.255.255:{}", BROADCAST_PORT).parse()?;
 
     let mut interval = time::interval(BROADCAST_INTERVAL);
 
@@ -91,7 +88,6 @@ async fn run_receiver(
     socket: UdpSocket,
     state: Arc<Mutex<AppState>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-
     let mut buf = vec![0u8; 1024];
 
     loop {
@@ -111,7 +107,7 @@ pub fn get_peers() -> PyResult<Vec<(String, u16)>> {
         .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("Некорректный Mutex"))?;
 
     if let Some(state_arc) = &*global {
-        let state = state_arc.blocking_lock(); 
+        let state = state_arc.blocking_lock();
         let peers = state.active_peers();
 
         Ok(peers

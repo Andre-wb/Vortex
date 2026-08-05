@@ -1,15 +1,18 @@
 use pyo3::{pyclass, pymethods};
 
-pub mod hash;
 pub mod crypt;
+pub mod hash;
 
-
-
-/// Messages Tracking
 #[pyclass]
 pub struct ChatStats {
     message_count: u64,
     bytes_processed: u64,
+}
+
+impl Default for ChatStats {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[pymethods]
@@ -28,8 +31,10 @@ impl ChatStats {
     }
 
     pub fn get_stats(&self) -> String {
-        format!("Сообщений: {}, обработано: {} KB",
-                self.message_count,
-                self.bytes_processed / 1024)
+        format!(
+            "Сообщений: {}, обработано: {} KB",
+            self.message_count,
+            self.bytes_processed / 1024
+        )
     }
 }

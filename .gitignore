@@ -145,3 +145,6 @@ ios/**/DerivedData/
 *.xcuserstate
 *.xcuserdatad/
 Package.resolved
+
+# Приватные планы/заметки — не коммитить
+docs_future/

@@ -1,7 +1,7 @@
 # VORTEX Chat — CI/CD Pipeline
 #
 # Triggers: push to main, pull requests to main
-# Jobs: lint → test → security → docker-build
+# Jobs: lint + waf (Rust) → test → security → docker-build
 
 name: CI
 
@@ -51,11 +51,59 @@ jobs:
       - name: Ruff format check
         run: ruff format --check app/
 
+  rust:
+    name: Rust Workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Build Python extensions
+        run: |
+          pip install maturin
+          maturin build --release -m vortex_waf/Cargo.toml --out dist-rust
+          maturin build --release -m rust_utils/Cargo.toml --out dist-rust
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: vortex-rust-wheels
+          path: dist-rust/*.whl
+          retention-days: 7
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: lint
+    timeout-minutes: 20
+    needs: [lint, rust]
     strategy:
       fail-fast: false
       matrix:
@@ -68,12 +116,25 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
           restore-keys: pip-${{ matrix.python-version }}-
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-
 
       - name: Install system deps
         run: |
@@ -85,6 +146,12 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest-cov pytest-timeout
+
+      - name: Build and install the Rust extensions
+        run: |
+          pip install maturin
+          maturin develop --release -m vortex_waf/Cargo.toml
+          maturin develop --release -m rust_utils/Cargo.toml
 
       - name: Run tests with coverage
         run: |

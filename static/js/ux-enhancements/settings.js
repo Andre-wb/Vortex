@@ -1324,8 +1324,8 @@ function _loadBMPSetting() {
     el.checked = localStorage.getItem('vortex_bmp_enabled') === '1';
 }
 
-// Hard-mode верификации участников (ADR-008 §4.4): refuse-unverified при обёртке
-// room-key. Единый источник флага — member-verify.setHardMode/isHardModeEnabled.
+// Hard-mode верификации участников: refuse-unverified при обёртке room-key.
+// Единый источник флага — member-verify.setHardMode/isHardModeEnabled.
 async function _toggleVerifyHardMode(enabled) {
     const { setHardMode } = await import('../dr/member-verify.js');
     setHardMode(enabled);
@@ -1335,6 +1335,10 @@ async function _toggleVerifyHardMode(enabled) {
 async function _loadHardModeSetting() {
     const el = document.getElementById('set-privacy-hard-mode');
     if (!el) return;
+    if (!el.dataset.hardModeBound) {
+        el.dataset.hardModeBound = '1';
+        el.addEventListener('change', () => _toggleVerifyHardMode(el.checked));
+    }
     const { isHardModeEnabled } = await import('../dr/member-verify.js');
     el.checked = isHardModeEnabled();
 }

@@ -41,11 +41,12 @@ except ImportError:
 
 
 def _canonical(data) -> bytes:
-    """Deterministic JSON for signing. Rust path ≈ 25× faster; Python
-    fallback kept for builds without the compiled extension."""
+    """Deterministic JSON for signing; `ensure_ascii=False` matches Rust and JS."""
     if _HAS_RUST_CJSON:
         return _vc_rust.canonical_json(data)
-    return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        data, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
 
 
 

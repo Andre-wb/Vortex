@@ -12,7 +12,9 @@ pub struct RoomSecretStore {
 
 impl RoomSecretStore {
     pub fn new() -> Self {
-        Self { secrets: DashMap::new() }
+        Self {
+            secrets: DashMap::new(),
+        }
     }
 
     /// Store a BMP secret for a room.

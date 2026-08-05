@@ -13,7 +13,9 @@ pub struct RateLimiter {
 
 impl RateLimiter {
     pub fn new() -> Self {
-        Self { counters: DashMap::new() }
+        Self {
+            counters: DashMap::new(),
+        }
     }
 
     /// Check if request is within rate limit. Returns true if allowed.

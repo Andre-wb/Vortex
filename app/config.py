@@ -9,6 +9,12 @@ logger = logging.getLogger(__name__)
 
 _ENV = Path(".env")
 
+# Переменные, заданные оператором снаружи (окружение процесса, Docker, systemd).
+# Снимок делается до чтения .env, поэтому отличим их от того, что сгенерировали
+# и записали в .env мы сами. Внешние значения считаются управляемыми оператором:
+# автогенерация и ротация их не трогают.
+_EXTERNAL_ENV_KEYS = frozenset(os.environ)
+
 
 def _read_env() -> None:
     if _ENV.exists():
@@ -22,19 +28,72 @@ def _read_env() -> None:
 _read_env()
 
 
-def _auto_secret(key: str) -> str:
-    val = os.getenv(key)
-    if not val:
-        val = secrets.token_hex(32)
-        with open(_ENV, "a") as f:
-            f.write(f"\n{key}={val}\n")
-        os.environ[key] = val
-        # Ограничиваем права .env файла
+def is_externally_set(key: str) -> bool:
+    """True, если значение пришло из окружения процесса, а не из .env."""
+    return key in _EXTERNAL_ENV_KEYS
+
+
+def env_upsert(key: str, value: str) -> None:
+    """
+    Записывает key=value в .env и в os.environ.
+
+    Существующая строка с этим ключом заменяется, иначе значение дописывается
+    в конец. Запись атомарная (temp + os.replace), права файла — 0600.
+    """
+    lines = _ENV.read_text().splitlines() if _ENV.exists() else []
+    replaced = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        k, _, _v = stripped.partition("=")
+        if k.strip() == key:
+            lines[i] = f"{key}={value}"
+            replaced = True
+            break
+    if not replaced:
+        lines.append(f"{key}={value}")
+
+    tmp = _ENV.with_name(f".env.tmp.{os.getpid()}")
+    try:
+        tmp.write_text("\n".join(lines) + "\n")
         try:
-            os.chmod(_ENV, 0o600)
+            os.chmod(tmp, 0o600)
         except OSError as _e:
             logger.warning("Could not restrict .env permissions to 0o600: %s", _e)
+        os.replace(tmp, _ENV)
+    except OSError as _e:
+        logger.warning("Could not write %s to .env: %s", key, _e)
+        tmp.unlink(missing_ok=True)
+        return
+    os.environ[key] = value
+
+
+def _auto_value(key: str, factory) -> str:
+    """Возвращает значение переменной, генерируя и сохраняя его при отсутствии."""
+    val = os.getenv(key)
+    if not val:
+        val = factory()
+        env_upsert(key, val)
     return val
+
+
+def _auto_secret(key: str) -> str:
+    return _auto_value(key, lambda: secrets.token_hex(32))
+
+
+# Домены для probe_resistance в Caddyfile NaïveProxy. Один выбирается случайно
+# при первом запуске, чтобы у всех инсталляций не было общего значения.
+NAIVE_PROBE_DOMAINS = (
+    "www.bing.com",
+    "duckduckgo.com",
+    "www.wikipedia.org",
+    "unsplash.com",
+    "www.pexels.com",
+    "www.gutenberg.org",
+    "archive.org",
+    "openweathermap.org",
+)
 
 
 class Config:
@@ -167,6 +226,57 @@ class Config:
     CDN_RELAY_URL = os.getenv("CDN_RELAY_URL", "")
     CDN_RELAY_URLS = os.getenv("CDN_RELAY_URLS", os.getenv("CDN_RELAY_URL", ""))
     CDN_RELAY_SECRET = os.getenv("CDN_RELAY_SECRET", "") or _secrets.token_urlsafe(48)
+
+    # Секреты боевых протоколов и релеев (stealth level 4). Значений по умолчанию
+    # нет: репозиторий открыт, любой статичный литерал позволил бы цензору
+    # вычислить валидный маркер и подтвердить Vortex активной пробой. При первом
+    # запуске каждая инсталляция получает собственный случайный секрет в .env.
+    SHADOWTLS_PASSWORD = _auto_secret("SHADOWTLS_PASSWORD")
+    TROJAN_PASSWORD = _auto_secret("TROJAN_PASSWORD")
+    CDN_WORKER_KV_SECRET = _auto_secret("CDN_WORKER_KV_SECRET")
+    AWS_RELAY_SECRET = _auto_secret("AWS_RELAY_SECRET")
+    AZURE_RELAY_SECRET = _auto_secret("AZURE_RELAY_SECRET")
+    NAIVE_USERNAME = _auto_value("NAIVE_USERNAME", lambda: secrets.token_hex(8))
+    NAIVE_PROBE_DOMAIN = _auto_value(
+        "NAIVE_PROBE_DOMAIN", lambda: secrets.choice(NAIVE_PROBE_DOMAINS))
+
+    # Имя Azure Storage account задаёт оператор своего развёртывания.
+    AZURE_STORAGE_ACCOUNT = os.getenv("AZURE_STORAGE_ACCOUNT", "")
+
+    # Ротация секретов выше. 0 или отрицательное значение отключает ротацию.
+    SECRET_ROTATION_HOURS = int(os.getenv("SECRET_ROTATION_HOURS", "168"))
+
+    # Передеплой релеев после ротации. Каждая цель включается только когда
+    # заданы все её переменные; иначе она молча пропускается.
+    CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
+    CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
+    CDN_WORKER_SCRIPT_NAME = os.getenv("CDN_WORKER_SCRIPT_NAME", "vortex-relay").strip()
+    CDN_WORKER_KV_NAMESPACE_ID = os.getenv("CDN_WORKER_KV_NAMESPACE_ID", "").strip()
+    CDN_WORKER_BACKEND_URL = os.getenv("CDN_WORKER_BACKEND_URL", "").strip()
+
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "").strip()
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "").strip()
+    AWS_LAMBDA_FUNCTION_NAME = os.getenv("AWS_LAMBDA_FUNCTION_NAME", "").strip()
+    AWS_CLOUDFRONT_DISTRIBUTION_ID = os.getenv(
+        "AWS_CLOUDFRONT_DISTRIBUTION_ID", "").strip()
+
+    AZURE_FUNCTION_APP = os.getenv("AZURE_FUNCTION_APP", "").strip()
+    AZURE_PUBLISH_USER = os.getenv("AZURE_PUBLISH_USER", "").strip()
+    AZURE_PUBLISH_PASSWORD = os.getenv("AZURE_PUBLISH_PASSWORD", "").strip()
+
+    NAIVE_CADDYFILE_PATH = os.getenv("NAIVE_CADDYFILE_PATH", "").strip()
+    CADDY_ADMIN_URL = os.getenv("CADDY_ADMIN_URL", "http://127.0.0.1:2019").strip()
+
+    # Верхняя граница паузы между попытками передеплоя.
+    RELAY_DEPLOY_MAX_BACKOFF = int(os.getenv("RELAY_DEPLOY_MAX_BACKOFF", "3600"))
+
+    # Токен, по которому клиент забирает актуальные протокольные пароли после
+    # ротации. Автогенерации нет намеренно: пока оператор не задал токен и не
+    # раздал его своим клиентам, ручка выдачи отвечает 404.
+    TRANSPORT_ACCESS_TOKEN = os.getenv("TRANSPORT_ACCESS_TOKEN", "").strip()
+    _secrets_rate_default = "999999" if os.getenv("TESTING", "").lower() == "true" else "10"
+    TRANSPORT_SECRETS_RATE_LIMIT = int(
+        os.getenv("TRANSPORT_SECRETS_RATE_LIMIT", _secrets_rate_default))
 
     TRANSLATE_URL = os.getenv("TRANSLATE_URL", "http://localhost:5000")
     TRANSLATE_ENABLED = os.getenv("TRANSLATE_ENABLED", "false").lower() == "true"

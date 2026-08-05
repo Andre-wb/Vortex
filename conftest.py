@@ -8,15 +8,49 @@ import os
 import secrets
 import string
 import sys
+import tempfile
 
 # Добавляем корень проекта в sys.path чтобы импорт app.* работал
 ROOT = os.path.dirname(__file__)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+
+# Помечает DB_PATH, который conftest сгенерировал сам. Воркеры pytest-xdist
+# наследуют окружение мастера, поэтому без метки они подхватили бы его путь
+# и снова оказались бы в одной базе.
+_DB_PATH_AUTO = 'VORTEX_TEST_DB_AUTO'
+
+
+def _isolated_db_path() -> str:
+    """Отдельный файл БД для каждого процесса pytest.
+
+    SQLAlchemy разбирает 'file::memory:?cache=shared' как обычный путь и
+    создаёт файл 'file::memory:' на диске. Все воркеры писали в него разом:
+    телефоны и логины пересекались (409 «identifier unavailable»), параллельные
+    записи упирались в блокировки SQLite, а create_all натыкался на
+    «table users already exists». К тому же файл переживал прогон и накапливал
+    старых пользователей.
+    """
+    worker = os.environ.get('PYTEST_XDIST_WORKER') or 'main'
+    db_dir = os.path.join(tempfile.gettempdir(), 'vortex-pytest')
+    os.makedirs(db_dir, exist_ok=True)
+    path = os.path.join(db_dir, f'{worker}-{os.getpid()}.db')
+    # WAL и SHM удаляем вместе с базой — иначе остатки прошлого прогона
+    # подмешиваются к пустой БД.
+    for suffix in ('', '-wal', '-shm'):
+        try:
+            os.unlink(path + suffix)
+        except FileNotFoundError:
+            pass
+    return path
+
+
 # Устанавливаем переменные окружения ДО импорта приложения
 os.environ.setdefault('TESTING',                 'true')
-os.environ.setdefault('DB_PATH', 'file::memory:?cache=shared')
+if not os.environ.get('DB_PATH') or os.environ.get(_DB_PATH_AUTO):
+    os.environ['DB_PATH'] = _isolated_db_path()
+    os.environ[_DB_PATH_AUTO] = '1'
 os.environ.setdefault('JWT_SECRET',              'test_secret_key_minimum_32_chars_long_1234')
 os.environ.setdefault('CSRF_SECRET',             'test_csrf_secret_minimum_32_chars_1234567')
 os.environ.setdefault('NODE_INITIALIZED',        'true')
@@ -36,6 +70,9 @@ os.environ.setdefault('VORTEX_PQ_REQUIRED',       'false')   # allow tests witho
 os.environ.setdefault('VORTEX_PQ_SIMULATE',        '1')      # enable PQ simulation for tests
 os.environ.setdefault('FEDERATION_PSK',            'test-federation-psk-32-chars-long!')
 os.environ.setdefault('FEDERATION_GUEST_ENABLED',  '1')
+# Иначе /api/ai/* обращается к локальной Qwen/Ollama: результат зависит от того,
+# поднята ли модель на машине, а один запрос съедает десятки секунд.
+os.environ.setdefault('AI_ENABLED',                'false')
 
 import httpx
 import pytest
@@ -118,8 +155,20 @@ class SyncASGIClient:
 
 # SESSION-SCOPE: один клиент на всю сессию тестов
 
+@pytest.fixture(scope='session', autouse=True)
+def db_schema():
+    """Создаёт схему до первого теста.
+
+    Часть тестов работает с SessionLocal напрямую, не запрашивая client,
+    и раньше полагалась на таблицы, которые оставил в общем файле БД
+    другой воркер.
+    """
+    from app.database import init_db
+    init_db()
+
+
 @pytest.fixture(scope='session')
-def client() -> SyncASGIClient:
+def client(db_schema) -> SyncASGIClient:
     """
     Единственный SyncASGIClient на всю сессию.
 
@@ -133,10 +182,6 @@ def client() -> SyncASGIClient:
         loop.run_until_complete(app.router.startup())  # loop A — создаёт таблицы
         c = SyncASGIClient()  # loop B (новый!) — таблиц не видит
     """
-    # Ensure DB tables exist before anything else
-    from app.database import init_db
-    init_db()
-
     loop = asyncio.new_event_loop()
     c = SyncASGIClient(loop=loop)           # ← клиент использует loop
     loop.run_until_complete(app.router._startup())  # ← startup в том же loop

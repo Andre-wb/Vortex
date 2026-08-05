@@ -1,0 +1,498 @@
+{
+  "bmp_compute_mailbox_id": [
+    {
+      "args": {
+        "secret_hex": "abababababababababababababababababababababababababababababababab",
+        "timestamp": 1700000000.0
+      },
+      "expected": "836c45dad4a1cd0500a698270eda742b"
+    },
+    {
+      "args": {
+        "secret_hex": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "timestamp": 1700003600.5
+      },
+      "expected": "c6b4c44798637f785a8f636f72230efa"
+    },
+    {
+      "args": {
+        "secret_hex": "82e7ddafb57bdd2dffd0bcf449a69cd439cb73b3575911d5cec9ae8115edbc8f",
+        "timestamp": 1.0
+      },
+      "expected": "52d16175de50cc3d0f4f1b610d08b5e3"
+    }
+  ],
+  "bmp_compute_mailbox_ids": [
+    {
+      "args": {
+        "secret_hex": "abababababababababababababababababababababababababababababababab",
+        "timestamp": 1700000000.0
+      },
+      "expected": [
+        "ca5b2eca8b64920e03b5056d6fb0ce16",
+        "836c45dad4a1cd0500a698270eda742b",
+        "c254231dce60172b3ff620b43c6d76e3"
+      ]
+    },
+    {
+      "args": {
+        "secret_hex": "82e7ddafb57bdd2dffd0bcf449a69cd439cb73b3575911d5cec9ae8115edbc8f",
+        "timestamp": 1.0
+      },
+      "expected": [
+        "52d16175de50cc3d0f4f1b610d08b5e3",
+        "52d16175de50cc3d0f4f1b610d08b5e3",
+        "bb35709a08a870f6a4099e06d8d5df28"
+      ]
+    }
+  ],
+  "bmp_pair_jitter": [
+    {
+      "args": {
+        "secret_hex": "abababababababababababababababababababababababababababababababab"
+      },
+      "expected": 176
+    },
+    {
+      "args": {
+        "secret_hex": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+      },
+      "expected": 411
+    },
+    {
+      "args": {
+        "secret_hex": "82e7ddafb57bdd2dffd0bcf449a69cd439cb73b3575911d5cec9ae8115edbc8f"
+      },
+      "expected": 279
+    }
+  ],
+  "canonical_json": [
+    {
+      "args": {
+        "obj": {
+          "a": "x",
+          "b": 1
+        }
+      },
+      "expected": "7b2261223a2278222c2262223a317d"
+    },
+    {
+      "args": {
+        "obj": {
+          "a": "привет",
+          "b": [
+            1,
+            2,
+            {
+              "c": null
+            }
+          ]
+        }
+      },
+      "expected": "7b2261223a22d0bfd180d0b8d0b2d0b5d182222c2262223a5b312c322c7b2263223a6e756c6c7d5d7d"
+    },
+    {
+      "args": {
+        "obj": {
+          "x": null,
+          "y": false,
+          "z": true
+        }
+      },
+      "expected": "7b2278223a6e756c6c2c2279223a66616c73652c227a223a747275657d"
+    },
+    {
+      "args": {
+        "obj": {
+          "ai_capable": false,
+          "mode": "global",
+          "name": "Мой узел"
+        }
+      },
+      "expected": "7b2261695f63617061626c65223a66616c73652c226d6f6465223a22676c6f62616c222c226e616d65223a22d09cd0bed0b920d183d0b7d0b5d0bb227d"
+    },
+    {
+      "args": {
+        "obj": {
+          "s": "line\nbreak\ttab\"quote\\back"
+        }
+      },
+      "expected": "7b2273223a226c696e655c6e627265616b5c747461625c2271756f74655c5c6261636b227d"
+    },
+    {
+      "args": {
+        "obj": {
+          "s": "\u0001\u001f"
+        }
+      },
+      "expected": "7b2273223a225c75303030315c7530303166227d"
+    },
+    {
+      "args": {
+        "obj": {
+          "emoji": "🔒"
+        }
+      },
+      "expected": "7b22656d6f6a69223a22f09f9492227d"
+    },
+    {
+      "args": {
+        "obj": {
+          "f": 0.5
+        }
+      },
+      "expected": "7b2266223a302e357d"
+    },
+    {
+      "args": {
+        "obj": {
+          "f": 123456789.125
+        }
+      },
+      "expected": "7b2266223a3132333435363738392e3132357d"
+    },
+    {
+      "args": {
+        "obj": {
+          "i": 4611686018427387904
+        }
+      },
+      "expected": "7b2269223a343631313638363031383432373338373930347d"
+    },
+    {
+      "args": {
+        "obj": []
+      },
+      "expected": "5b5d"
+    },
+    {
+      "args": {
+        "obj": {}
+      },
+      "expected": "7b7d"
+    },
+    {
+      "args": {
+        "obj": "plain"
+      },
+      "expected": "22706c61696e22"
+    },
+    {
+      "args": {
+        "obj": 123
+      },
+      "expected": "313233"
+    }
+  ],
+  "compute_sender_pseudo": [
+    {
+      "args": {
+        "room_id": 0,
+        "secret_hex": "3ceead2434393755544938598c12cbbe10f222ff045d9816a1c102e7d195f1f5",
+        "user_id": 0
+      },
+      "expected": "e518ea9f4a72358052e858feca0dc0a510b15f80f60abb4ce81f57ebcb4480bd"
+    },
+    {
+      "args": {
+        "room_id": 1,
+        "secret_hex": "3ceead2434393755544938598c12cbbe10f222ff045d9816a1c102e7d195f1f5",
+        "user_id": 2
+      },
+      "expected": "b18d78273b2996010795c582ea32e21abf6f40c58b150a9936f8a6fc3c4684a3"
+    },
+    {
+      "args": {
+        "room_id": -5,
+        "secret_hex": "3ceead2434393755544938598c12cbbe10f222ff045d9816a1c102e7d195f1f5",
+        "user_id": 9223372036854775807
+      },
+      "expected": "9dbf489e00759775f0833324e4031ce7a1815f7e5ba2895246516a9f30fda1ef"
+    },
+    {
+      "args": {
+        "room_id": -9223372036854775808,
+        "secret_hex": "3ceead2434393755544938598c12cbbe10f222ff045d9816a1c102e7d195f1f5",
+        "user_id": -1
+      },
+      "expected": "ce99a43fbb83d8a384c3fe06b660e015c3eb3874b4528bafc015647b4cbb40ba"
+    }
+  ],
+  "ed25519_verify": [
+    {
+      "args": {
+        "message_hex": "7061726974792d6d657373616765",
+        "seed_hex": "0a743a591925aef85d465bd70ca5710a3e7eced49ffa15e0a97a03ba89790943",
+        "tampered": false
+      },
+      "expected": true
+    },
+    {
+      "args": {
+        "message_hex": "7061726974792d6d657373616765",
+        "seed_hex": "0a743a591925aef85d465bd70ca5710a3e7eced49ffa15e0a97a03ba89790943",
+        "tampered": true
+      },
+      "expected": false
+    },
+    {
+      "args": {
+        "message_hex": "",
+        "seed_hex": "29ccc3a233eeb019df32af8a75ffbf0dce0e84bb5442bc35b68b78f00066548f",
+        "tampered": false
+      },
+      "expected": true
+    }
+  ],
+  "hash_message": [
+    {
+      "args": {
+        "data_hex": ""
+      },
+      "expected": "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+    },
+    {
+      "args": {
+        "data_hex": "00"
+      },
+      "expected": "2d3adedff11b61f14c886e35afa036736dcd87a74d27b5c1510225d0f592e213"
+    },
+    {
+      "args": {
+        "data_hex": "c02527eceabd97bbaaa1b3cd0f2a26744d9bad3cdac4b73a4aeb31bf97bbab9e"
+      },
+      "expected": "55410839ffa94489110d8189d84f4b89051a8050cca52d8e7cd8d587ec0dab6f"
+    },
+    {
+      "args": {
+        "data_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+      },
+      "expected": "4a495ba42461748eca8fdad618f976aa726cc2903de9fcb40735a786ac1c196b"
+    }
+  ],
+  "hash_token": [
+    {
+      "args": {
+        "token": ""
+      },
+      "expected": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "args": {
+        "token": "vortex-session-token"
+      },
+      "expected": "3e57b345b9b3f08fbbd02388387fb59ddd298b7942a215714c328c5f71d6c3cf"
+    },
+    {
+      "args": {
+        "token": "токен-с-юникодом-🔒"
+      },
+      "expected": "2a56b273dc8016971fcdad2dd6af6807db7a8296b2bc27b4c950533da8d128a9"
+    }
+  ],
+  "pad_bucket_for": [
+    {
+      "args": {
+        "length": 0
+      },
+      "expected": 64
+    },
+    {
+      "args": {
+        "length": 1
+      },
+      "expected": 64
+    },
+    {
+      "args": {
+        "length": 62
+      },
+      "expected": 64
+    },
+    {
+      "args": {
+        "length": 63
+      },
+      "expected": 128
+    },
+    {
+      "args": {
+        "length": 100
+      },
+      "expected": 128
+    },
+    {
+      "args": {
+        "length": 1000
+      },
+      "expected": 1024
+    },
+    {
+      "args": {
+        "length": 4094
+      },
+      "expected": 4096
+    },
+    {
+      "args": {
+        "length": 65533
+      },
+      "expected": 65536
+    }
+  ],
+  "ratchet_advance_chain": [
+    {
+      "args": {
+        "ck_hex": "35a70cd8a943bad46e5385ae2b0bb5ee6f1ae27f1d030f65279aa70479aa38aa"
+      },
+      "expected": "d535c71577857c22f5e19293769c83945fe16cae6a27fde272f8fc7179014aa3"
+    },
+    {
+      "args": {
+        "ck_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "expected": "f21767e18ea6050576c7222650864a19ed941c938265abd255ac79beefa04546"
+    }
+  ],
+  "ratchet_kdf_ck": [
+    {
+      "args": {
+        "ck_hex": "35a70cd8a943bad46e5385ae2b0bb5ee6f1ae27f1d030f65279aa70479aa38aa"
+      },
+      "expected": [
+        "d535c71577857c22f5e19293769c83945fe16cae6a27fde272f8fc7179014aa3",
+        "d0ac6d5352d3989360a7994695632aa057f39bc99c8195644c4a7c872765e5d4"
+      ]
+    },
+    {
+      "args": {
+        "ck_hex": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected": [
+        "4ee7be0c7872360ca67414608081e9bd60fd580a7bbd209701d2a5a0b4316d0d",
+        "3d7afb663124ecbf2c953f863d4fc8796eeb2d372b64aad58697ec5264649cdb"
+      ]
+    }
+  ],
+  "ratchet_kdf_rk": [
+    {
+      "args": {
+        "dh_hex": "dd46eb32897c2a33078c2c64c5054d7050b25f14d6b66c0240b70581cbac3a97",
+        "rk_hex": "0b3b2c10c226e2f3d3bd371046adae82ddd213c58ddde1836b9d083af973fe08"
+      },
+      "expected": [
+        "559eb7a02c749250596cf6118faf0125539a82e2484ed17b7d75d6ab866887e2",
+        "4e19fa151e775c985128595613ee3fb458436100ad3c92527a35fee3a7429c5f"
+      ]
+    },
+    {
+      "args": {
+        "dh_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "rk_hex": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected": [
+        "ce282e63b879f4da59bfbb023e73178986885075e3d0137d3db37c0c5371e95d",
+        "85b95c6e12b71ea0b0543e39edd485ef21352bb6cf3537e79e14465b8aed0740"
+      ]
+    }
+  ],
+  "ratchet_message_key": [
+    {
+      "args": {
+        "ck_hex": "35a70cd8a943bad46e5385ae2b0bb5ee6f1ae27f1d030f65279aa70479aa38aa"
+      },
+      "expected": "d0ac6d5352d3989360a7994695632aa057f39bc99c8195644c4a7c872765e5d4"
+    },
+    {
+      "args": {
+        "ck_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "expected": "85d3b07ddafe78925cb78c64e84fae54c2842034d0b88cc6d69fb8d106e3ffc8"
+    }
+  ],
+  "ratchet_root_kdf": [
+    {
+      "args": {
+        "info_hex": "766f727465782d696e666f",
+        "shared_secret_hex": "b7b19dc687f483434c7c23e062b32d187b3484284dbda926944fb2a7ae8fdef9"
+      },
+      "expected": "0986d0f0eaff39e9e815779d1968fc39c6e2bf8ab2d413a4a20b17fbbcbb1933"
+    },
+    {
+      "args": {
+        "info_hex": "",
+        "shared_secret_hex": "d596ab97d81f1bcb81a67066266d348681269d24439863a7105912c3cad8e849"
+      },
+      "expected": "96809ea15c1351d715bc5b7b39be6df04646978ee0ac30a33ef86f68bf14df04"
+    }
+  ],
+  "sha256_combine_hex": [
+    {
+      "args": {
+        "hex_list": [
+          "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a",
+          "dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986",
+          "084fed08b978af4d7d196a7446a86b58009e636b611db16211b65a9aadff29c5"
+        ]
+      },
+      "expected": "110d3cd0685ddb820a3db533176be47e4582b28485089d0ef8b6c8069393f5af"
+    },
+    {
+      "args": {
+        "hex_list": []
+      },
+      "expected": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "sha256_concat_hex": [
+    {
+      "args": {
+        "chunks_hex": [
+          "",
+          "61",
+          "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+        ]
+      },
+      "expected": [
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+        "fdeab9acf3710362bd2658cdc9a29e8f9c757fcf9811603a8c447cd1d9151108"
+      ]
+    }
+  ],
+  "sha256_hex": [
+    {
+      "args": {
+        "data_hex": ""
+      },
+      "expected": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "args": {
+        "data_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+      },
+      "expected": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880"
+    }
+  ],
+  "sha256_stream": [
+    {
+      "args": {
+        "data_hex": ""
+      },
+      "expected": [
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        0
+      ]
+    },
+    {
+      "args": {
+        "data_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+      },
+      "expected": [
+        "471fb943aa23c511f6f72f8d1652d9c880cfa392ad80503120547703e56a2be5",
+        128
+      ]
+    }
+  ]
+}

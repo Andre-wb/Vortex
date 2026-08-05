@@ -16,6 +16,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
+# Rust extensions. The application imports `vortex_waf` and `vortex_chat` at
+# startup, so both wheels are built here and installed into the same prefix as
+# the Python deps. Both crates are workspace members — the root manifest and
+# lockfile must be copied along with them.
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+       | sh -s -- -y --profile minimal --default-toolchain stable \
+    && rm -rf /var/lib/apt/lists/*
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+COPY Cargo.toml Cargo.lock ./
+COPY vortex_waf/ ./vortex_waf/
+COPY rust_utils/ ./rust_utils/
+RUN pip install --no-cache-dir --prefix=/install maturin \
+    && PATH="/install/bin:${PATH}" PYTHONPATH="/install/lib/python3.12/site-packages" \
+       maturin build --release --manifest-path vortex_waf/Cargo.toml --out /wheels \
+    && PATH="/install/bin:${PATH}" PYTHONPATH="/install/lib/python3.12/site-packages" \
+       maturin build --release --manifest-path rust_utils/Cargo.toml --out /wheels \
+    && pip install --no-cache-dir --prefix=/install --no-index --find-links=/wheels \
+       vortex-waf vortex-chat-rs
+
 
 FROM python:3.12-slim AS production
 

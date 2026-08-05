@@ -4,11 +4,11 @@ app/transport/stealth_level4.py — Уровень 4: боевые проток�
 15 механизмов:
 
   A. Боевые протоколы (проверены в Китае/Иране/России):
-    1. V2Ray/VMess        — стандарт обхода GFW
-    2. ShadowTLS          — TLS handshake с google.com, данные к серверу
-    3. Reality (XTLS)     — проксирует реальный TLS сертификат разрешённого сайта
-    4. Trojan             — данные внутри HTTPS, fallback на nginx
-    5. NaïveProxy         — Chromium network stack fingerprint
+    1. Reality (XTLS)     — ФЛАГМАН: заимствует TLS чужого сайта, ECDH-аутентификация
+    2. Trojan             — данные внутри HTTPS, fallback на nginx
+    3. ShadowTLS          — TLS handshake с google.com, данные к серверу
+    4. NaïveProxy         — Chromium network stack fingerprint
+    5. VMess              — legacy, снят с основного пути (см. RUST-MIGRATION.md)
 
   B. Инфраструктурная устойчивость:
     6. Tor Hidden Service — .onion адрес для сервера
@@ -34,6 +34,7 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import os
 import random
 import secrets
@@ -41,28 +42,80 @@ import socket
 import ssl
 import struct
 import time
+import zlib
 from typing import Optional, Callable, Awaitable
 
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.asymmetric.x25519 import (
+    X25519PrivateKey,
+    X25519PublicKey,
+)
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from cryptography.hazmat.backends import default_backend
+
+from app.config import Config
+from app.security.secret_rotation import (
+    previous,
+    register_reload_hook,
+    rotation_status,
+)
 
 logger = logging.getLogger(__name__)
 
 
+_PROBE_JITTER_LOW = 0.5
+_PROBE_JITTER_HIGH = 1.8
+
+
+def _jittered_delay(base: float, *, low: float = 0.5, high: float = 2.0) -> float:
+    """
+    Возвращает паузу для периодической задачи так, чтобы интервалы были
+    memoryless, а не строго периодическими: наблюдатель не восстанавливает
+    частоту по гистограмме. Усечённая экспонента на [base*low, base*high],
+    сэмплированная через обратную функцию распределения — плотность непрерывна,
+    без атомов на границах (обычный clamp свалил бы туда всю хвостовую массу и
+    сам стал бы сигнатурой). Верхняя граница ограничивает худшую задержку
+    обнаружения, нижняя убирает слишком частые пробы. Источник — random, не
+    секрет: это расписание, а не криптоматериал.
+    """
+    s_lo = math.exp(-low)
+    s_hi = math.exp(-high)
+    return -base * math.log(s_lo - random.random() * (s_lo - s_hi))
+
+
 # 1. V2RAY / VMESS PROTOCOL
+
+_VMESS_KDF_SALT = b"VMess AEAD KDF"
+_VMESS_CMD_KEY_MAGIC = b"c48619fe-8f02-49e0-b9e9-edf763e17e21"
+
+
+def _vmess_kdf(key: bytes, *path: bytes) -> bytes:
+    def level(labels):
+        if not labels:
+            return lambda msg: hmac.new(_VMESS_KDF_SALT, msg, hashlib.sha256).digest()
+        inner = level(labels[:-1])
+        block = labels[-1].ljust(64, b"\x00")
+        ipad = bytes(b ^ 0x36 for b in block)
+        opad = bytes(b ^ 0x5c for b in block)
+        return lambda msg: inner(opad + inner(ipad + msg))
+    return level(path)(key)
+
 
 class VMessProtocol:
     """
-    VMess — протокол V2Ray для обхода DPI.
+    VMess (VMessAEAD) — протокол V2Ray для обхода DPI.
 
-    Формат:
-      [16B auth_info][encrypted_header][encrypted_payload]
+    Формат запроса:
+      [16B EAuID][2B+16B sealed length][8B nonce][headerLen+16B sealed header]
+      [2B len][AES-128-GCM payload]
 
-    auth_info = HMAC-MD5(UUID, timestamp) — время-зависимая авторизация.
-    Header: version, data_encryption, command, port, address_type, address.
-    Payload: AES-128-GCM / ChaCha20-Poly1305 шифрование.
+    EAuID = AES-128-ECB(KDF(cmd_key,"AES Auth ID Encryption"),
+                         time || random || CRC32) — метка времени внутри,
+    поэтому сервер читает её напрямую, без перебора окна и без HMAC-MD5.
+    Header и его длина запечатаны AES-128-GCM на ключах/нонсах из KDF.
 
     DPI видит: случайные байты без паттерна.
     """
@@ -90,22 +143,83 @@ class VMessProtocol:
         self._request_body_key = os.urandom(16)
         self._request_body_iv = os.urandom(16)
         self._response_header = os.urandom(1)[0]
+        self._cmd_key = hashlib.md5(self._uuid + _VMESS_CMD_KEY_MAGIC).digest()
 
     @property
     def uuid(self) -> str:
         return self._uuid.hex()
 
-    def generate_auth_info(self) -> bytes:
-        """
-        Генерирует 16B auth_info для подключения.
-        auth = HMAC-MD5(UUID, UTC_timestamp)
-        Сервер принимает ±120 секунд от текущего времени.
-        """
-        ts = int(time.time())
-        ts_bytes = struct.pack(">Q", ts)
+    AUTH_ID_WINDOW = 120
 
-        h = hmac.new(self._uuid, ts_bytes, hashlib.md5)
-        return h.digest()
+    def _create_auth_id(self, ts: int) -> bytes:
+        payload = struct.pack(">q", ts) + os.urandom(4)
+        payload += struct.pack(">I", zlib.crc32(payload) & 0xFFFFFFFF)
+        key = _vmess_kdf(self._cmd_key, b"AES Auth ID Encryption")[:16]
+        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())
+        encryptor = cipher.encryptor()
+        return encryptor.update(payload) + encryptor.finalize()
+
+    def _verify_auth_id(self, auth_id: bytes) -> bool:
+        key = _vmess_kdf(self._cmd_key, b"AES Auth ID Encryption")[:16]
+        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())
+        decryptor = cipher.decryptor()
+        decoded = decryptor.update(auth_id) + decryptor.finalize()
+        if zlib.crc32(decoded[:12]) & 0xFFFFFFFF != struct.unpack(">I", decoded[12:16])[0]:
+            return False
+        ts = struct.unpack(">q", decoded[:8])[0]
+        return abs(int(time.time()) - ts) <= self.AUTH_ID_WINDOW
+
+    def _seal_header(self, header: bytes) -> bytes:
+        auth_id = self._create_auth_id(int(time.time()))
+        conn_nonce = os.urandom(8)
+
+        length_key = _vmess_kdf(
+            self._cmd_key, b"VMess Header AEAD Key_Length", auth_id, conn_nonce)[:16]
+        length_nonce = _vmess_kdf(
+            self._cmd_key, b"VMess Header AEAD Nonce_Length", auth_id, conn_nonce)[:12]
+        sealed_length = AESGCM(length_key).encrypt(
+            length_nonce, struct.pack(">H", len(header)), auth_id)
+
+        header_key = _vmess_kdf(
+            self._cmd_key, b"VMess Header AEAD Key", auth_id, conn_nonce)[:16]
+        header_nonce = _vmess_kdf(
+            self._cmd_key, b"VMess Header AEAD Nonce", auth_id, conn_nonce)[:12]
+        sealed_header = AESGCM(header_key).encrypt(header_nonce, header, auth_id)
+
+        return auth_id + sealed_length + conn_nonce + sealed_header
+
+    def _open_header(self, packet: bytes) -> Optional[tuple[bytes, int]]:
+        if len(packet) < 16 + 18 + 8:
+            return None
+        auth_id = packet[:16]
+        if not self._verify_auth_id(auth_id):
+            return None
+
+        sealed_length = packet[16:34]
+        conn_nonce = packet[34:42]
+        length_key = _vmess_kdf(
+            self._cmd_key, b"VMess Header AEAD Key_Length", auth_id, conn_nonce)[:16]
+        length_nonce = _vmess_kdf(
+            self._cmd_key, b"VMess Header AEAD Nonce_Length", auth_id, conn_nonce)[:12]
+        try:
+            length_plain = AESGCM(length_key).decrypt(length_nonce, sealed_length, auth_id)
+        except Exception:
+            return None
+        header_len = struct.unpack(">H", length_plain)[0]
+
+        off = 42
+        sealed_header = packet[off:off + header_len + 16]
+        if len(sealed_header) != header_len + 16:
+            return None
+        header_key = _vmess_kdf(
+            self._cmd_key, b"VMess Header AEAD Key", auth_id, conn_nonce)[:16]
+        header_nonce = _vmess_kdf(
+            self._cmd_key, b"VMess Header AEAD Nonce", auth_id, conn_nonce)[:12]
+        try:
+            header_plain = AESGCM(header_key).decrypt(header_nonce, sealed_header, auth_id)
+        except Exception:
+            return None
+        return header_plain, off + header_len + 16
 
     def encode_header(self, target_addr: str, target_port: int,
                        encryption: int = 0x03) -> bytes:
@@ -169,98 +283,37 @@ class VMessProtocol:
 
     def encode_packet(self, data: bytes, target_addr: str = "127.0.0.1",
                        target_port: int = 443) -> bytes:
-        """
-        Полный VMess пакет: auth + encrypted_header + encrypted_payload.
-        """
-        auth = self.generate_auth_info()
+        """Полный VMess пакет: sealed header (VMessAEAD) + AES-128-GCM payload."""
         header = self.encode_header(target_addr, target_port)
+        sealed = self._seal_header(header)
 
-        # Encrypt header with AES-128-CFB (VMess standard)
-        # Key = MD5(UUID + "c48619fe-8f02-49e0-b9e9-edf763e17e21")
-        cmd_key = hashlib.md5(
-            self._uuid + b"c48619fe-8f02-49e0-b9e9-edf763e17e21"
-        ).digest()
-
-        # Encrypt header with AES-128-CFB
-        header_iv = hashlib.md5(
-            self._uuid + b"c48619fe-8f02-49e0-b9e9-edf763e17e21" + self._uuid
-        ).digest()
-        cipher = Cipher(algorithms.AES(cmd_key), modes.CFB(header_iv), backend=default_backend())
-        encryptor = cipher.encryptor()
-        encrypted_header = encryptor.update(header) + encryptor.finalize()
-
-        # Encrypt payload with AES-128-GCM using body_key/body_iv
-        nonce = self._request_body_iv[:12]  # GCM uses 12-byte nonce
-        cipher = Cipher(algorithms.AES(self._request_body_key), modes.GCM(nonce), backend=default_backend())
-        encryptor = cipher.encryptor()
-        ciphertext = encryptor.update(data) + encryptor.finalize()
-        tag = encryptor.tag  # 16-byte authentication tag
-        encrypted_payload = ciphertext + tag
-
-        # Length prefix for payload
+        nonce = self._request_body_iv[:12]
+        encrypted_payload = AESGCM(self._request_body_key).encrypt(nonce, data, None)
         payload_frame = struct.pack(">H", len(encrypted_payload)) + encrypted_payload
 
-        return auth + encrypted_header + payload_frame
+        return sealed + payload_frame
 
     def decode_packet(self, packet: bytes) -> Optional[bytes]:
         """Декодирует VMess пакет (серверная сторона)."""
-        if len(packet) < 16 + 40:  # auth + min header
+        opened = self._open_header(packet)
+        if opened is None:
             return None
+        header, offset = opened
 
-        # Verify auth
-        auth = packet[:16]
-        ts = int(time.time())
+        body_iv = header[1:17]
+        body_key = header[17:33]
 
-        valid = False
-        for delta in range(-120, 121):
-            ts_bytes = struct.pack(">Q", ts + delta)
-            expected = hmac.new(self._uuid, ts_bytes, hashlib.md5).digest()
-            if hmac.compare_digest(auth, expected):
-                valid = True
-                break
-
-        if not valid:
+        if offset + 2 > len(packet):
             return None
-
-        # Decrypt header
-        cmd_key = hashlib.md5(
-            self._uuid + b"c48619fe-8f02-49e0-b9e9-edf763e17e21"
-        ).digest()
-
-        # Decrypt header with AES-128-CFB
-        header_iv = hashlib.md5(
-            self._uuid + b"c48619fe-8f02-49e0-b9e9-edf763e17e21" + self._uuid
-        ).digest()
-
-        rest = packet[16:]
-        header_encrypted = rest[:64]
-        cipher = Cipher(algorithms.AES(cmd_key), modes.CFB(header_iv), backend=default_backend())
-        decryptor = cipher.decryptor()
-        decrypted_header = decryptor.update(header_encrypted) + decryptor.finalize()
-
-        # Extract body key/iv from header
-        body_iv = decrypted_header[1:17]
-        body_key = decrypted_header[17:33]
-
-        # Find payload (after header)
-        # Header size varies -- use FNV hash to find boundary
-        # Simplified: skip header, read length-prefixed payload
-        payload_start = 16 + 64  # Approximate
-        if payload_start + 2 > len(packet):
-            return None
-
-        payload_len = struct.unpack(">H", packet[payload_start:payload_start + 2])[0]
-        encrypted_payload = packet[payload_start + 2:payload_start + 2 + payload_len]
-
-        # Decrypt payload with AES-128-GCM
+        payload_len = struct.unpack(">H", packet[offset:offset + 2])[0]
+        encrypted_payload = packet[offset + 2:offset + 2 + payload_len]
         if len(encrypted_payload) < 16:
             return None
-        tag = encrypted_payload[-16:]
-        ciphertext = encrypted_payload[:-16]
-        nonce = body_iv[:12]  # GCM uses 12-byte nonce
-        cipher = Cipher(algorithms.AES(body_key), modes.GCM(nonce, tag), backend=default_backend())
-        decryptor = cipher.decryptor()
-        return decryptor.update(ciphertext) + decryptor.finalize()
+
+        try:
+            return AESGCM(body_key).decrypt(body_iv[:12], encrypted_payload, None)
+        except Exception:
+            return None
 
     @staticmethod
     def _fnv1a_32(data: bytes) -> int:
@@ -275,6 +328,7 @@ class VMessProtocol:
             "protocol": "vmess",
             "version": self.VERSION,
             "uuid": self.uuid[:8] + "...",
+            "auth": "aead",
             "encryption": "aes-128-gcm",
         }
 
@@ -307,11 +361,29 @@ class ShadowTLS:
         ("www.amazon.com", 443),
     ]
 
-    HMAC_MARKER_LEN = 8  # Первые 8 байт HMAC для маркировки
+    HMAC_MARKER_LEN = 8
+    HANDSHAKE_WINDOW = 0.5
 
     def __init__(self, password: str = ""):
-        self._password = (password or os.environ.get("SHADOWTLS_PASSWORD", "vortex-stls")).encode()
-        self._hmac_key = hashlib.sha256(b"shadowtls-hmac:" + self._password).digest()
+        self._explicit_password = password
+        self.reload_secrets()
+
+    def reload_secrets(self) -> None:
+        """Перечитывает пароль из конфигурации (вызывается после ротации)."""
+        if self._explicit_password:
+            self._password = self._explicit_password.encode()
+            self._prev_password = b""
+        else:
+            self._password = Config.SHADOWTLS_PASSWORD.encode()
+            self._prev_password = previous("SHADOWTLS_PASSWORD").encode()
+        self._hmac_key = self._derive_key(self._password)
+        self._prev_hmac_key = (
+            self._derive_key(self._prev_password) if self._prev_password else b""
+        )
+
+    @staticmethod
+    def _derive_key(password: bytes) -> bytes:
+        return hashlib.sha256(b"shadowtls-hmac:" + password).digest()
 
     def get_handshake_target(self) -> tuple[str, int]:
         """Выбирает случайный сервер для TLS handshake."""
@@ -326,101 +398,112 @@ class ShadowTLS:
         return h.digest()[:self.HMAC_MARKER_LEN]
 
     def verify_switch_marker(self, data: bytes, session_id: bytes) -> bool:
-        """Проверяет HMAC-маркер переключения."""
+        """
+        Проверяет HMAC-маркер переключения.
+        Принимается также маркер на предыдущем пароле — до следующей ротации,
+        пока клиенты не получили новый.
+        """
         if len(data) < self.HMAC_MARKER_LEN:
             return False
-        expected = self.generate_switch_marker(session_id)
-        return hmac.compare_digest(data[:self.HMAC_MARKER_LEN], expected)
+        marker = data[:self.HMAC_MARKER_LEN]
+        if hmac.compare_digest(marker, self.generate_switch_marker(session_id)):
+            return True
+        if not self._prev_hmac_key:
+            return False
+        prev = hmac.new(
+            self._prev_hmac_key, session_id, hashlib.sha256
+        ).digest()[:self.HMAC_MARKER_LEN]
+        return hmac.compare_digest(marker, prev)
 
     async def server_handshake_proxy(self, client_reader: asyncio.StreamReader,
                                        client_writer: asyncio.StreamWriter) -> Optional[bytes]:
         """
-        Серверная сторона: проксирует TLS handshake к реальному серверу.
-        После завершения handshake, ждёт HMAC-маркер от клиента.
-        Возвращает session_id или None если это не ShadowTLS клиент.
+        Серверная сторона: проксирует TLS handshake к whitelisted серверу.
+        После handshake клиент присылает switch-маркер session_id‖HMAC(session_id):
+        session_id берётся с провода, серверу не нужно его согласовывать.
+        Не наш клиент прозрачно допроксируется к реальному серверу.
+        Возвращает session_id или None, если это не ShadowTLS-клиент.
         """
         target_host, target_port = self.get_handshake_target()
+        remote_writer = None
+
+        async def pump(reader, writer):
+            try:
+                while True:
+                    data = await reader.read(8192)
+                    if not data:
+                        break
+                    writer.write(data)
+                    await writer.drain()
+            except (ConnectionError, asyncio.CancelledError):
+                pass
 
         try:
-            # Подключаемся к реальному серверу
             remote_reader, remote_writer = await asyncio.open_connection(
                 target_host, target_port
             )
 
-            session_id = os.urandom(16)
+            to_remote = asyncio.create_task(pump(client_reader, remote_writer))
+            to_client = asyncio.create_task(pump(remote_reader, client_writer))
 
-            # Проксируем TLS handshake (ClientHello → ServerHello → ...)
-            # Простая двунаправленная прокси до завершения handshake
-            async def proxy_to_remote():
-                while True:
-                    data = await client_reader.read(8192)
-                    if not data:
-                        break
-                    remote_writer.write(data)
-                    await remote_writer.drain()
+            await asyncio.sleep(self.HANDSHAKE_WINDOW)
+            to_remote.cancel()
+            await asyncio.gather(to_remote, return_exceptions=True)
 
-            async def proxy_to_client():
-                while True:
-                    data = await remote_reader.read(8192)
-                    if not data:
-                        break
-                    client_writer.write(data)
-                    await client_writer.drain()
+            marker_len = 16 + self.HMAC_MARKER_LEN
+            try:
+                marker = await asyncio.wait_for(
+                    client_reader.readexactly(marker_len), timeout=5.0)
+            except asyncio.IncompleteReadError as e:
+                marker = e.partial
+            except asyncio.TimeoutError:
+                marker = b""
 
-            # Запускаем прокси на короткое время (handshake ~200ms)
-            proxy_tasks = [
-                asyncio.create_task(proxy_to_remote()),
-                asyncio.create_task(proxy_to_client()),
-            ]
-
-            # Ждём завершения handshake (таймаут 5 сек)
-            await asyncio.sleep(0.5)
-
-            # Останавливаем прокси
-            for t in proxy_tasks:
-                t.cancel()
-
-            remote_writer.close()
-
-            # Теперь читаем данные от клиента — должен быть HMAC-маркер
-            marker_data = await asyncio.wait_for(client_reader.read(64), timeout=5.0)
-            if self.verify_switch_marker(marker_data, session_id):
+            session_id = marker[:16]
+            if (len(marker) == marker_len and hmac.compare_digest(
+                    marker[16:], self.generate_switch_marker(session_id))):
+                to_client.cancel()
+                await asyncio.gather(to_client, return_exceptions=True)
+                remote_writer.close()
                 logger.debug("ShadowTLS: handshake complete, switching to data mode")
                 return session_id
-            else:
-                # Не ShadowTLS клиент — продолжаем проксировать к реальному серверу
-                return None
+
+            if marker:
+                remote_writer.write(marker)
+                await remote_writer.drain()
+            resume = asyncio.create_task(pump(client_reader, remote_writer))
+            _, pending = await asyncio.wait(
+                {resume, to_client}, return_when=asyncio.FIRST_COMPLETED)
+            for t in pending:
+                t.cancel()
+            await asyncio.gather(resume, to_client, return_exceptions=True)
+            return None
 
         except Exception as e:
             logger.debug("ShadowTLS handshake error: %s", e)
             return None
+        finally:
+            if remote_writer is not None and not remote_writer.is_closing():
+                remote_writer.close()
 
-    def wrap_data(self, data: bytes, session_id: bytes) -> bytes:
+    def _session_key(self, session_id: bytes, label: bytes) -> bytes:
+        return HKDF(
+            algorithm=hashes.SHA256(), length=32, salt=session_id, info=label,
+        ).derive(self._hmac_key)
+
+    def new_session(self, session_id: bytes, *, server: bool) -> "ShadowTLSSession":
         """
-        Оборачивает данные для отправки после switch.
-        Формат: [2B length][HMAC(8B)][payload]
+        Создаёт защищённую сессию поверх switched-потока. Ключи направлений
+        разделены (c2s/s2c), поэтому детерминированный счётчик-nonce безопасен;
+        запись нумеруется монотонно и номер входит в AAD: подменить или
+        переставить запись нельзя, а пропуск записи рассинхронизирует счётчик
+        и роняет расшифровку последующих фреймов.
         """
-        payload_hmac = hmac.new(
-            self._hmac_key, session_id + data, hashlib.sha256
-        ).digest()[:4]
-        frame = struct.pack(">H", len(data) + 4) + payload_hmac + data
-        return frame
-
-    def unwrap_data(self, frame: bytes, session_id: bytes) -> Optional[bytes]:
-        """Извлекает данные из ShadowTLS фрейма."""
-        if len(frame) < 6:
-            return None
-        length = struct.unpack(">H", frame[:2])[0]
-        payload_hmac = frame[2:6]
-        data = frame[6:2 + length]
-
-        expected_hmac = hmac.new(
-            self._hmac_key, session_id + data, hashlib.sha256
-        ).digest()[:4]
-
-        if hmac.compare_digest(payload_hmac, expected_hmac):
-            return data
-        return None
+        c2s = self._session_key(session_id, b"shadowtls c2s")
+        s2c = self._session_key(session_id, b"shadowtls s2c")
+        if server:
+            return ShadowTLSSession(key_send=s2c, key_recv=c2s)
+        return ShadowTLSSession(key_send=c2s, key_recv=s2c)
 
     def get_status(self) -> dict:
         return {
@@ -428,6 +511,66 @@ class ShadowTLS:
             "handshake_targets": len(self.HANDSHAKE_TARGETS),
             "marker_len": self.HMAC_MARKER_LEN,
         }
+
+
+class ShadowTLSSession:
+    """
+    Защищённый поток данных ShadowTLS после switch: каждая запись — валидная
+    TLS 1.3 application_data (0x17 0x03 0x03) с AEAD-телом. Nonce — монотонный
+    счётчик записи (не передаётся, как implicit sequence в TLS 1.3), номер также
+    входит в AAD: подменить или переставить запись нельзя, а пропуск записи
+    рассинхронизирует счётчик и роняет расшифровку последующих фреймов.
+    """
+
+    TLS_RECORD_HEADER = b"\x17\x03\x03"
+    TLS_RECORD_MAX = 16384
+    _TAG_LEN = 16
+
+    def __init__(self, key_send: bytes, key_recv: bytes):
+        self._send = AESGCM(key_send)
+        self._recv = AESGCM(key_recv)
+        self._send_seq = 0
+        self._recv_seq = 0
+
+    @staticmethod
+    def _nonce(seq: int) -> bytes:
+        return seq.to_bytes(12, "big")
+
+    def wrap(self, data: bytes) -> bytes:
+        """Упаковывает данные в TLS-записи; крупнее 16 КБ — несколько записей."""
+        chunk = self.TLS_RECORD_MAX - self._TAG_LEN
+        out = bytearray()
+        for i in range(0, max(len(data), 1), chunk):
+            piece = data[i:i + chunk]
+            header = self.TLS_RECORD_HEADER + struct.pack(">H", len(piece) + self._TAG_LEN)
+            aad = header + struct.pack(">Q", self._send_seq)
+            out += header + self._send.encrypt(self._nonce(self._send_seq), piece, aad)
+            self._send_seq += 1
+        return bytes(out)
+
+    def unwrap(self, frame: bytes) -> Optional[bytes]:
+        """Извлекает данные, проверяя непрерывность счётчика записей."""
+        out = bytearray()
+        pos = 0
+        while pos + 5 <= len(frame):
+            header = frame[pos:pos + 5]
+            if header[:3] != self.TLS_RECORD_HEADER:
+                return None
+            body_len = struct.unpack(">H", header[3:5])[0]
+            pos += 5
+            if pos + body_len > len(frame) or body_len < self._TAG_LEN:
+                return None
+            aad = header + struct.pack(">Q", self._recv_seq)
+            try:
+                out += self._recv.decrypt(
+                    self._nonce(self._recv_seq), frame[pos:pos + body_len], aad)
+            except Exception:
+                return None
+            self._recv_seq += 1
+            pos += body_len
+        if pos != len(frame):
+            return None
+        return bytes(out)
 
 
 # 3. REALITY (XTLS) — проксирует реальный TLS сертификат
@@ -467,6 +610,7 @@ class RealityProtocol:
         """
         self._dest = dest
         self._short_ids: set[str] = set()
+        self._seen_auth: dict[bytes, int] = {}
         self._private_key = private_key or X25519PrivateKey.generate()
         self._public_key = self._private_key.public_key().public_bytes(
             Encoding.Raw, PublicFormat.Raw
@@ -482,92 +626,184 @@ class RealityProtocol:
         self._short_ids.add(sid)
         return sid
 
+    REALITY_AUTH_WINDOW = 120
+
+    @staticmethod
+    def _auth_key(shared: bytes) -> bytes:
+        return HKDF(algorithm=hashes.SHA256(), length=16, salt=None,
+                    info=b"vortex-reality").derive(shared)
+
+    def build_client_hello_auth(self, short_id: str,
+                                server_public_raw: bytes) -> tuple[bytes, bytes]:
+        ephemeral = X25519PrivateKey.generate()
+        ephemeral_pub = ephemeral.public_key().public_bytes(
+            Encoding.Raw, PublicFormat.Raw)
+        shared = ephemeral.exchange(
+            X25519PublicKey.from_public_bytes(server_public_raw))
+        key = self._auth_key(shared)
+        nonce = hashlib.sha256(ephemeral_pub).digest()[:12]
+        plaintext = struct.pack(">Bq", 1, int(time.time())) + bytes.fromhex(short_id)
+        session_id = AESGCM(key).encrypt(nonce, plaintext, ephemeral_pub)
+        return ephemeral_pub, session_id
+
+    def verify_client_hello_auth(self, ephemeral_pub: bytes,
+                                 session_id: bytes) -> tuple[bool, str]:
+        try:
+            shared = self._private_key.exchange(
+                X25519PublicKey.from_public_bytes(ephemeral_pub))
+            key = self._auth_key(shared)
+            nonce = hashlib.sha256(ephemeral_pub).digest()[:12]
+            plaintext = AESGCM(key).decrypt(nonce, session_id, ephemeral_pub)
+        except Exception:
+            return False, ""
+        if len(plaintext) < 9:
+            return False, ""
+        version, ts = struct.unpack(">Bq", plaintext[:9])
+        short_id = plaintext[9:].hex()
+        now = int(time.time())
+        if version != 1 or abs(now - ts) > self.REALITY_AUTH_WINDOW:
+            return False, ""
+        if short_id not in self._short_ids:
+            return False, ""
+        self._seen_auth = {sid: exp for sid, exp in self._seen_auth.items() if exp > now}
+        if session_id in self._seen_auth:
+            return False, ""
+        self._seen_auth[session_id] = ts + self.REALITY_AUTH_WINDOW
+        return True, short_id
+
+    @staticmethod
+    def _parse_client_hello(data: bytes) -> Optional[tuple[bytes, bytes]]:
+        try:
+            buf = data[5:] if data and data[0] == 0x16 else data
+            if len(buf) < 4 or buf[0] != 0x01:
+                return None
+            pos = 4 + 2 + 32
+            if pos + 1 > len(buf):
+                return None
+            sid_len = buf[pos]
+            pos += 1
+            session_id = buf[pos:pos + sid_len]
+            pos += sid_len
+            if pos + 2 > len(buf):
+                return None
+            pos += 2 + int.from_bytes(buf[pos:pos + 2], "big")
+            if pos + 1 > len(buf):
+                return None
+            pos += 1 + buf[pos]
+            if pos + 2 > len(buf):
+                return None
+            end = min(len(buf), pos + 2 + int.from_bytes(buf[pos:pos + 2], "big"))
+            pos += 2
+            key_share = b""
+            while pos + 4 <= end:
+                etype = int.from_bytes(buf[pos:pos + 2], "big")
+                elen = int.from_bytes(buf[pos + 2:pos + 4], "big")
+                body = buf[pos + 4:pos + 4 + elen]
+                pos += 4 + elen
+                if etype != 0x0033:
+                    continue
+                p = 2
+                while p + 4 <= len(body):
+                    group = int.from_bytes(body[p:p + 2], "big")
+                    klen = int.from_bytes(body[p + 2:p + 4], "big")
+                    kv = body[p + 4:p + 4 + klen]
+                    p += 4 + klen
+                    if group == 0x001d and len(kv) == 32:
+                        key_share = kv
+                        break
+            return session_id, key_share
+        except Exception:
+            return None
+
     def is_reality_client(self, client_hello: bytes) -> tuple[bool, str]:
         """
-        Определяет, является ли ClientHello от Reality-клиента.
+        Аутентифицирует ClientHello REALITY-клиента.
 
-        Reality клиент вставляет short_id в Session ID поле ClientHello.
-        Если short_id совпадает — это наш клиент.
-        Иначе — обычный браузер, проксируем к dest серверу.
+        Ephemeral X25519 клиента берётся из key_share, session_id — AEAD-конверт
+        (версия‖время‖short_id) на ключе ECDH(ephemeral, server_key). Подделать
+        без публичного ключа сервера и свежего ECDH нельзя — активный пробинг
+        получает только реальный dest-сайт.
         """
-        # TLS ClientHello parsing
-        if len(client_hello) < 43:
+        parsed = self._parse_client_hello(client_hello)
+        if not parsed:
             return False, ""
+        session_id, key_share = parsed
+        if not session_id or len(key_share) != 32:
+            return False, ""
+        return self.verify_client_hello_auth(key_share, session_id)
 
+    TLS_RECORD_MAX = 16384
+
+    async def _read_client_hello(self, reader: asyncio.StreamReader,
+                                 timeout: float = 10.0) -> bytes:
+        """Читает первую TLS-запись целиком по её длине — без рассинхронизации
+        на фрагментированном ClientHello."""
         try:
-            # Skip: type(1) + version(2) + length(2) + handshake_type(1)
-            # + length(3) + client_version(2) + random(32)
-            offset = 1 + 2 + 2 + 1 + 3 + 2 + 32
-
-            # Session ID length
-            session_id_len = client_hello[offset]
-            offset += 1
-
-            if session_id_len > 0:
-                session_id = client_hello[offset:offset + session_id_len]
-                # Short ID зашит в первые N байт Session ID
-                extracted_sid = session_id[:self.SHORT_ID_LEN // 2].hex()
-
-                if extracted_sid in self._short_ids:
-                    return True, extracted_sid
-
-        except (IndexError, ValueError):
-            pass
-
-        return False, ""
+            header = await asyncio.wait_for(reader.readexactly(5), timeout=timeout)
+        except (asyncio.IncompleteReadError, asyncio.TimeoutError, ConnectionError):
+            return b""
+        if header[0] != 0x16:
+            return header
+        rec_len = min(int.from_bytes(header[3:5], "big"), self.TLS_RECORD_MAX)
+        try:
+            body = await asyncio.wait_for(reader.readexactly(rec_len), timeout=timeout)
+        except asyncio.IncompleteReadError as e:
+            body = e.partial
+        except (asyncio.TimeoutError, ConnectionError):
+            body = b""
+        return header + body
 
     async def handle_connection(self, client_reader: asyncio.StreamReader,
                                   client_writer: asyncio.StreamWriter) -> Optional[str]:
         """
-        Обработка входящего соединения.
-        Если Reality клиент — возвращает short_id.
-        Если обычный — проксирует к dest серверу и возвращает None.
+        Обработка входящего соединения. Читает ClientHello целиком (по длине
+        TLS-записи), затем классифицирует. Наш клиент → short_id; чужой →
+        прозрачный TCP-релей к dest и None. Аутентификация — свежий ECDH к
+        ключу сервера, угадать short_id и получить зависшее соединение
+        активный пробинг не может: ему отдаётся реальный dest-сайт.
         """
+        client_hello = await self._read_client_hello(client_reader)
+        if not client_hello:
+            return None
+
+        is_ours, short_id = self.is_reality_client(client_hello)
+        if is_ours:
+            logger.debug("Reality: authenticated client (sid=%s)", short_id)
+            return short_id
+
+        logger.debug("Reality: proxying to %s (not our client)", self._dest)
+        remote_w = None
         try:
-            # Читаем ClientHello
-            data = await asyncio.wait_for(client_reader.read(4096), timeout=10.0)
-            if not data:
-                return None
+            remote_r, remote_w = await asyncio.open_connection(
+                self._dest, 443, ssl=False)
+            remote_w.write(client_hello)
+            await remote_w.drain()
 
-            is_ours, short_id = self.is_reality_client(data)
-
-            if is_ours:
-                logger.debug("Reality: authenticated client (sid=%s)", short_id)
-                return short_id
-            else:
-                # Проксируем к реальному dest серверу
-                logger.debug("Reality: proxying to %s (not our client)", self._dest)
+            async def _fwd(reader, writer):
                 try:
-                    remote_r, remote_w = await asyncio.open_connection(
-                        self._dest, 443, ssl=False
-                    )
-                    remote_w.write(data)
-                    await remote_w.drain()
-
-                    # Bidirectional proxy
-                    async def _fwd(reader, writer):
-                        try:
-                            while True:
-                                chunk = await reader.read(8192)
-                                if not chunk:
-                                    break
-                                writer.write(chunk)
-                                await writer.drain()
-                        except Exception:
-                            pass
-
-                    await asyncio.gather(
-                        _fwd(client_reader, remote_w),
-                        _fwd(remote_r, client_writer),
-                    )
-                    remote_w.close()
-                except Exception:
+                    while True:
+                        chunk = await reader.read(8192)
+                        if not chunk:
+                            break
+                        writer.write(chunk)
+                        await writer.drain()
+                except (ConnectionError, asyncio.CancelledError):
                     pass
-                return None
 
+            up = asyncio.create_task(_fwd(client_reader, remote_w))
+            down = asyncio.create_task(_fwd(remote_r, client_writer))
+            _, pending = await asyncio.wait(
+                {up, down}, return_when=asyncio.FIRST_COMPLETED)
+            for t in pending:
+                t.cancel()
         except Exception as e:
             logger.debug("Reality handle error: %s", e)
-            return None
+        finally:
+            if remote_w is not None and not remote_w.is_closing():
+                remote_w.close()
+            if not client_writer.is_closing():
+                client_writer.close()
+        return None
 
     def get_client_config(self) -> dict:
         """Конфигурация для клиента."""
@@ -583,6 +819,8 @@ class RealityProtocol:
     def get_status(self) -> dict:
         return {
             "protocol": "reality_xtls",
+            "flagship": True,
+            "auth": "x25519-ecdh-aead",
             "dest_server": self._dest,
             "authorized_clients": len(self._short_ids),
         }
@@ -605,13 +843,25 @@ class TrojanProtocol:
     CMD_UDP = 0x03
 
     def __init__(self, password: str = ""):
-        self._password = password or os.environ.get("TROJAN_PASSWORD", "vortex-trojan")
+        self._explicit_password = password
+        self._extra_hashes: set[str] = set()
+        self.reload_secrets()
+
+    def reload_secrets(self) -> None:
+        """Перечитывает пароль из конфигурации (вызывается после ротации)."""
+        self._password = self._explicit_password or Config.TROJAN_PASSWORD
         self._password_hash = hashlib.sha224(self._password.encode()).hexdigest()
-        self._authorized_hashes: set[str] = {self._password_hash}
+        self._authorized_hashes = {self._password_hash} | self._extra_hashes
+        # Предыдущий пароль принимается до следующей ротации.
+        prev = "" if self._explicit_password else previous("TROJAN_PASSWORD")
+        if prev:
+            self._authorized_hashes.add(
+                hashlib.sha224(prev.encode()).hexdigest())
 
     def add_password(self, password: str):
         """Добавляет дополнительный пароль."""
         h = hashlib.sha224(password.encode()).hexdigest()
+        self._extra_hashes.add(h)
         self._authorized_hashes.add(h)
 
     def encode_request(self, data: bytes, target_addr: str = "127.0.0.1",
@@ -742,36 +992,43 @@ class NaiveProxyConfig:
 """
 
     def __init__(self, port: int = 443, backend_url: str = "",
-                 server_host: str = "", username: str = "vortex",
+                 server_host: str = "", username: str = "",
                  password: str = ""):
         self.port = port
         self.backend_url = backend_url
         self._server_host = server_host
-        self._username = username
+        self._explicit_username = username
         self._password = password or secrets.token_urlsafe(24)
+        self.reload_secrets()
 
-    def generate_caddy_config(self, username: str = "vortex",
+    def reload_secrets(self) -> None:
+        """Перечитывает имя пользователя и probe-домен (вызывается после ротации)."""
+        self._username = self._explicit_username or Config.NAIVE_USERNAME
+        self._probe_domain = Config.NAIVE_PROBE_DOMAIN
+
+    def generate_caddy_config(self, username: str = "",
                                 password: str = "",
                                 email: str = "admin@example.com",
-                                probe_domain: str = "unsplash.com") -> str:
+                                probe_domain: str = "") -> str:
         """Генерирует Caddyfile для NaïveProxy."""
         pwd = password or self._password
         return self.CADDY_CONFIG_TEMPLATE.format(
             port=self.port,
             email=email,
-            username=username,
+            username=username or self._username,
             password=pwd,
-            probe_domain=probe_domain,
+            probe_domain=probe_domain or self._probe_domain,
             backend_url=self.backend_url or "http://127.0.0.1:8000",
         )
 
-    def generate_client_config(self, server_host: str, username: str = "vortex",
+    def generate_client_config(self, server_host: str, username: str = "",
                                  password: str = "") -> dict:
         """Генерирует конфигурацию для naiveproxy клиента."""
-        pwd = password or "generated-at-setup"
+        user = username or self._username
+        pwd = password or self._password
         return {
             "listen": "socks://127.0.0.1:1080",
-            "proxy": f"https://{username}:{pwd}@{server_host}:{self.port}",
+            "proxy": f"https://{user}:{pwd}@{server_host}:{self.port}",
             "log": "",
             "padding": True,
         }
@@ -1180,23 +1437,24 @@ class CensorshipAutoProbe:
     """
 
     PROBES = [
-        {"name": "direct_https", "priority": 1, "timeout": 5.0},
-        {"name": "websocket", "priority": 2, "timeout": 5.0},
-        {"name": "sse", "priority": 3, "timeout": 8.0},
-        {"name": "cdn_relay", "priority": 4, "timeout": 10.0},
-        {"name": "shadowtls", "priority": 5, "timeout": 10.0},
-        {"name": "vmess", "priority": 6, "timeout": 10.0},
-        {"name": "trojan", "priority": 7, "timeout": 10.0},
+        {"name": "reality", "priority": 1, "timeout": 8.0},
+        {"name": "direct_https", "priority": 2, "timeout": 5.0},
+        {"name": "websocket", "priority": 3, "timeout": 5.0},
+        {"name": "sse", "priority": 4, "timeout": 8.0},
+        {"name": "trojan", "priority": 5, "timeout": 10.0},
+        {"name": "shadowtls", "priority": 6, "timeout": 10.0},
+        {"name": "cdn_relay", "priority": 7, "timeout": 10.0},
         {"name": "meek_cdn", "priority": 8, "timeout": 15.0},
         {"name": "doh_tunnel", "priority": 9, "timeout": 15.0},
         {"name": "tor", "priority": 10, "timeout": 30.0},
     ]
 
     def __init__(self):
-        self._results: dict[str, dict] = {}  # probe_name → {ok, latency, error, ts}
+        self._results: dict[str, dict] = {}
         self._best_transport: Optional[str] = None
         self._last_probe_time: float = 0
-        self._probe_interval = 300  # 5 мин между полными проверками
+        self._probe_base = 300.0
+        self._probe_interval = _jittered_delay(self._probe_base)
 
     async def probe_all(self, server_url: str) -> dict[str, dict]:
         """
@@ -1218,8 +1476,8 @@ class CensorshipAutoProbe:
 
         self._results = results
         self._last_probe_time = time.time()
+        self._probe_interval = _jittered_delay(self._probe_base)
 
-        # Выбираем лучший
         self._best_transport = self._select_best(results)
         logger.info("Censorship probe: best transport = %s", self._best_transport)
 
@@ -1237,11 +1495,11 @@ class CensorshipAutoProbe:
                 return await self._probe_websocket(server_url, probe["timeout"])
             elif name == "sse":
                 return await self._probe_sse(server_url, probe["timeout"])
-            elif name in ("cdn_relay", "meek_cdn", "doh_tunnel", "tor",
-                          "shadowtls", "vmess", "trojan"):
-                # Для сложных протоколов — проверяем доступность endpoint
+            elif name in ("reality", "cdn_relay", "meek_cdn", "doh_tunnel", "tor",
+                          "shadowtls", "trojan"):
+                token = hashlib.sha256(name.encode()).hexdigest()[:12]
                 return await self._probe_endpoint(
-                    server_url, f"/api/transport/probe/{name}", probe["timeout"]
+                    server_url, f"/api/transport/probe/{token}", probe["timeout"]
                 )
             else:
                 return {"ok": False, "latency": -1, "error": "unknown_probe"}
@@ -1355,6 +1613,7 @@ class CDNWorkersProxy:
 // Привязать KV namespace: VORTEX_KV
 
 const AUTH_SECRET = "{secret}";
+const AUTH_SECRET_PREV = "{prev_secret}";
 const BACKEND = "{backend_url}";
 const MSG_TTL = 3600; // 1 час TTL для сообщений в KV
 
@@ -1362,16 +1621,15 @@ export default {{
   async fetch(request, env) {{
     const url = new URL(request.url);
 
-    // Проверка авторизации
-    const auth = request.headers.get("X-VX-Auth") || "";
-    const ts = request.headers.get("X-VX-Ts") || "";
-    const expected = await hmacSign(AUTH_SECRET, ts);
-    if (auth !== expected) {{
+    const sid = readCookie(request.headers.get("Cookie"), "sid");
+    const dot = sid.indexOf(".");
+    const ts = dot < 0 ? "" : sid.slice(0, dot);
+    const auth = dot < 0 ? "" : sid.slice(dot + 1);
+    if (!(await authorized(auth, ts))) {{
       return new Response("Not Found", {{ status: 404 }});
     }}
 
-    // POST /kv/send — сохранить сообщение в KV
-    if (url.pathname === "/kv/send" && request.method === "POST") {{
+    if (url.pathname === "/api/1/objects" && request.method === "POST") {{
       const body = await request.json();
       const key = `msg:${{body.to}}:${{Date.now()}}:${{crypto.randomUUID()}}`;
       await env.VORTEX_KV.put(key, JSON.stringify(body.data), {{
@@ -1382,8 +1640,7 @@ export default {{
       }});
     }}
 
-    // GET /kv/recv?user=xxx — получить сообщения из KV
-    if (url.pathname === "/kv/recv" && request.method === "GET") {{
+    if (url.pathname === "/api/1/objects" && request.method === "GET") {{
       const user = url.searchParams.get("user") || "";
       const prefix = `msg:${{user}}:`;
       const list = await env.VORTEX_KV.list({{ prefix }});
@@ -1400,7 +1657,6 @@ export default {{
       }});
     }}
 
-    // Всё остальное — проксируем к backend
     const backendUrl = new URL(url.pathname + url.search, BACKEND);
     const proxyReq = new Request(backendUrl, {{
       method: request.method,
@@ -1410,6 +1666,22 @@ export default {{
     return fetch(proxyReq);
   }},
 }};
+
+function readCookie(header, name) {{
+  for (const part of (header || "").split(";")) {{
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim();
+  }}
+  return "";
+}}
+
+async function authorized(auth, ts) {{
+  for (const secret of [AUTH_SECRET, AUTH_SECRET_PREV]) {{
+    if (secret && auth === await hmacSign(secret, ts)) return true;
+  }}
+  return false;
+}}
 
 async function hmacSign(secret, message) {{
   const enc = new TextEncoder();
@@ -1423,12 +1695,20 @@ async function hmacSign(secret, message) {{
 
     def __init__(self, worker_url: str = "", secret: str = ""):
         self.worker_url = worker_url or os.environ.get("CDN_WORKER_KV_URL", "")
-        self._secret = secret or os.environ.get("CDN_WORKER_KV_SECRET", "vortex-kv")
+        self._explicit_secret = secret
+        self.reload_secrets()
+
+    def reload_secrets(self) -> None:
+        """Перечитывает секрет из конфигурации (вызывается после ротации)."""
+        self._secret = self._explicit_secret or Config.CDN_WORKER_KV_SECRET
+        self._prev_secret = (
+            "" if self._explicit_secret else previous("CDN_WORKER_KV_SECRET"))
 
     def generate_worker_script(self, backend_url: str = "http://127.0.0.1:8000") -> str:
         """Генерирует Worker скрипт для деплоя."""
         return self.WORKER_TEMPLATE.format(
             secret=self._secret,
+            prev_secret=self._prev_secret,
             backend_url=backend_url,
         )
 
@@ -1438,7 +1718,7 @@ async function hmacSign(secret, message) {{
         sig = hmac.new(
             self._secret.encode(), ts.encode(), hashlib.sha256
         ).hexdigest()
-        return {"X-VX-Auth": sig, "X-VX-Ts": ts}
+        return {"Cookie": f"sid={ts}.{sig}"}
 
     async def send_message(self, to_user: str, data: dict) -> bool:
         """Отправляет сообщение через Workers KV."""
@@ -1450,7 +1730,7 @@ async function hmacSign(secret, message) {{
             headers["Content-Type"] = "application/json"
             async with httpx.AsyncClient(timeout=10.0) as c:
                 resp = await c.post(
-                    f"{self.worker_url}/kv/send",
+                    f"{self.worker_url}/api/1/objects",
                     json={"to": to_user, "data": data},
                     headers=headers,
                 )
@@ -1468,7 +1748,7 @@ async function hmacSign(secret, message) {{
             headers = self.get_auth_headers()
             async with httpx.AsyncClient(timeout=10.0) as c:
                 resp = await c.get(
-                    f"{self.worker_url}/kv/recv",
+                    f"{self.worker_url}/api/1/objects",
                     params={"user": user_id},
                     headers=headers,
                 )
@@ -1511,6 +1791,7 @@ const AWS = require('aws-sdk');
 const crypto = require('crypto');
 
 const AUTH_SECRET = "{secret}";
+const AUTH_SECRET_PREV = "{prev_secret}";
 const TABLE_NAME = "VortexMessages";
 const MSG_TTL_SECONDS = 3600;
 
@@ -1521,14 +1802,12 @@ exports.handler = async (event) => {{
     const uri = request.uri;
     const method = request.method;
 
-    // Verify signed URL
     const qs = request.querystring || "";
     if (!verifySignature(uri, qs)) {{
         return {{ status: "403", body: "Forbidden" }};
     }}
 
-    // POST /relay/send — store message in DynamoDB
-    if (uri === "/relay/send" && method === "POST") {{
+    if (uri === "/api/1/objects" && method === "POST") {{
         const body = JSON.parse(Buffer.from(request.body.data, "base64").toString());
         const item = {{
             recipient: body.to,
@@ -1544,8 +1823,7 @@ exports.handler = async (event) => {{
         }};
     }}
 
-    // GET /relay/recv?user=xxx — fetch and delete messages
-    if (uri === "/relay/recv" && method === "GET") {{
+    if (uri === "/api/1/objects" && method === "GET") {{
         const params = new URLSearchParams(qs);
         const user = params.get("user") || "";
         const result = await dynamo.query({{
@@ -1574,45 +1852,66 @@ exports.handler = async (event) => {{
 
 function verifySignature(uri, qs) {{
     const params = new URLSearchParams(qs);
-    const sig = params.get("X-VX-Sig") || "";
-    const ts = params.get("X-VX-Ts") || "";
-    const expected = crypto.createHmac("sha256", AUTH_SECRET)
-        .update(uri + ts).digest("hex");
-    return crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
+    const sig = params.get("Signature") || "";
+    const expires = params.get("Expires") || "";
+    if (!sig || !expires) return false;
+    if (Math.floor(Date.now() / 1000) > Number(expires)) return false;
+    return [AUTH_SECRET, AUTH_SECRET_PREV].some(
+        secret => secret && signatureMatches(sig, uri + expires, secret));
+}}
+
+function signatureMatches(sig, message, secret) {{
+    const expected = crypto.createHmac("sha256", secret)
+        .update(message).digest("hex");
+    const given = Buffer.from(sig, "hex");
+    const want = Buffer.from(expected, "hex");
+    if (given.length !== want.length) return false;
+    return crypto.timingSafeEqual(given, want);
 }}
 """
 
-    # Signed URL validity window (seconds)
     SIGNED_URL_TTL = 300
+    KEY_PAIR_ID = "APKAEIBAERJR2EXAMPLE"
 
     def __init__(self, cloudfront_domain: str = "", secret: str = "",
                  region: str = "us-east-1"):
         self.cloudfront_domain = cloudfront_domain or os.environ.get(
             "AWS_CLOUDFRONT_DOMAIN", "")
-        self._secret = secret or os.environ.get("AWS_RELAY_SECRET", "vortex-aws")
+        self._explicit_secret = secret
         self._region = region
+        self.reload_secrets()
+
+    def reload_secrets(self) -> None:
+        """Перечитывает секрет из конфигурации (вызывается после ротации)."""
+        self._secret = self._explicit_secret or Config.AWS_RELAY_SECRET
+        self._prev_secret = (
+            "" if self._explicit_secret else previous("AWS_RELAY_SECRET"))
 
     def generate_lambda_script(self) -> str:
         """Генерирует Lambda@Edge скрипт для деплоя."""
         return self.LAMBDA_TEMPLATE.format(
             secret=self._secret,
+            prev_secret=self._prev_secret,
             region=self._region,
         )
 
-    def _sign_url(self, path: str) -> str:
-        """Генерирует signed URL с HMAC подписью и таймстемпом."""
-        ts = str(int(time.time()))
+    def _sign_url(self, path: str, query: str = "") -> str:
+        """Генерирует signed URL в стиле CloudFront (Expires/Signature/Key-Pair-Id)."""
+        expires = str(int(time.time()) + self.SIGNED_URL_TTL)
         sig = hmac.new(
-            self._secret.encode(), (path + ts).encode(), hashlib.sha256
+            self._secret.encode(), (path + expires).encode(), hashlib.sha256
         ).hexdigest()
-        sep = "&" if "?" in path else "?"
-        return f"https://{self.cloudfront_domain}{path}{sep}X-VX-Sig={sig}&X-VX-Ts={ts}"
+        parts = [f"Expires={expires}", f"Signature={sig}",
+                 f"Key-Pair-Id={self.KEY_PAIR_ID}"]
+        if query:
+            parts.insert(0, query)
+        return f"https://{self.cloudfront_domain}{path}?{'&'.join(parts)}"
 
     async def send_message(self, to_user: str, data: dict) -> bool:
         """Отправляет сообщение через Lambda@Edge relay."""
         if not self.cloudfront_domain:
             return False
-        url = self._sign_url("/relay/send")
+        url = self._sign_url("/api/1/objects")
         try:
             import httpx
             async with httpx.AsyncClient(timeout=10.0) as c:
@@ -1626,7 +1925,7 @@ function verifySignature(uri, qs) {{
         """Получает сообщения из Lambda@Edge relay."""
         if not self.cloudfront_domain:
             return []
-        url = self._sign_url(f"/relay/recv?user={user_id}")
+        url = self._sign_url("/api/1/objects", f"user={user_id}")
         try:
             import httpx
             async with httpx.AsyncClient(timeout=10.0) as c:
@@ -1671,6 +1970,7 @@ const {{ TableClient, AzureNamedKeyCredential }} = require("@azure/data-tables")
 const crypto = require("crypto");
 
 const AUTH_SECRET = "{secret}";
+const AUTH_SECRET_PREV = "{prev_secret}";
 const TABLE_NAME = "VortexMessages";
 const MSG_TTL_SECONDS = 3600;
 
@@ -1682,19 +1982,16 @@ const tableClient = new TableClient(
 );
 
 module.exports = async function (context, req) {{
-    const path = req.params.route || "";
     const method = req.method;
 
-    // Verify SAS token
     const sasToken = req.query["sig"] || "";
     const sasExpiry = req.query["se"] || "";
-    if (!verifySAS(sasToken, sasExpiry, path)) {{
+    if (!verifySAS(sasToken, sasExpiry, "objects")) {{
         context.res = {{ status: 403, body: "Forbidden" }};
         return;
     }}
 
-    // POST /relay/send — store message
-    if (path === "send" && method === "POST") {{
+    if (method === "POST") {{
         const body = req.body;
         const entity = {{
             partitionKey: body.to,
@@ -1711,8 +2008,7 @@ module.exports = async function (context, req) {{
         return;
     }}
 
-    // GET /relay/recv?user=xxx — fetch and delete messages
-    if (path === "recv" && method === "GET") {{
+    if (method === "GET") {{
         const user = req.query["user"] || "";
         const entities = tableClient.listEntities({{
             queryOptions: {{ filter: `PartitionKey eq '${{user}}'` }},
@@ -1738,9 +2034,12 @@ function verifySAS(sig, expiry, resource) {{
     const now = new Date();
     if (now > new Date(expiry)) return false;
     const stringToSign = resource + "\\n" + expiry;
-    const expected = crypto.createHmac("sha256", AUTH_SECRET)
-        .update(stringToSign).digest("base64");
-    return sig === expected;
+    return [AUTH_SECRET, AUTH_SECRET_PREV].some(secret => {{
+        if (!secret) return false;
+        const expected = crypto.createHmac("sha256", secret)
+            .update(stringToSign).digest("base64");
+        return sig === expected;
+    }});
 }}
 """
 
@@ -1750,15 +2049,22 @@ function verifySAS(sig, expiry, resource) {{
     def __init__(self, cdn_endpoint: str = "", secret: str = "",
                  storage_account: str = "", storage_key: str = ""):
         self.cdn_endpoint = cdn_endpoint or os.environ.get("AZURE_CDN_ENDPOINT", "")
-        self._secret = secret or os.environ.get("AZURE_RELAY_SECRET", "vortex-azure")
-        self._storage_account = storage_account or os.environ.get(
-            "AZURE_STORAGE_ACCOUNT", "vortexstorage")
+        self._explicit_secret = secret
+        self._storage_account = storage_account or Config.AZURE_STORAGE_ACCOUNT
         self._storage_key = storage_key or os.environ.get("AZURE_STORAGE_KEY", "")
+        self.reload_secrets()
+
+    def reload_secrets(self) -> None:
+        """Перечитывает секрет из конфигурации (вызывается после ротации)."""
+        self._secret = self._explicit_secret or Config.AZURE_RELAY_SECRET
+        self._prev_secret = (
+            "" if self._explicit_secret else previous("AZURE_RELAY_SECRET"))
 
     def generate_function_script(self) -> str:
         """Генерирует Azure Function скрипт для деплоя."""
         return self.FUNCTION_TEMPLATE.format(
             secret=self._secret,
+            prev_secret=self._prev_secret,
             storage_account=self._storage_account,
             storage_key=self._storage_key,
         )
@@ -1780,20 +2086,20 @@ function verifySAS(sig, expiry, resource) {{
         ).decode()
         return {"sig": sig, "se": expiry}
 
-    def _build_url(self, path: str, extra_params: Optional[dict] = None) -> str:
+    def _build_url(self, extra_params: Optional[dict] = None) -> str:
         """Строит URL с SAS токеном для запроса к Azure CDN."""
-        sas = self._generate_sas_token(path)
+        sas = self._generate_sas_token("objects")
         params = {**sas}
         if extra_params:
             params.update(extra_params)
         qs = "&".join(f"{k}={v}" for k, v in params.items())
-        return f"https://{self.cdn_endpoint}/relay/{path}?{qs}"
+        return f"https://{self.cdn_endpoint}/api/1/objects?{qs}"
 
     async def send_message(self, to_user: str, data: dict) -> bool:
         """Отправляет сообщение через Azure CDN relay."""
         if not self.cdn_endpoint:
             return False
-        url = self._build_url("send")
+        url = self._build_url()
         try:
             import httpx
             async with httpx.AsyncClient(timeout=10.0) as c:
@@ -1807,7 +2113,7 @@ function verifySAS(sig, expiry, resource) {{
         """Получает сообщения из Azure CDN relay."""
         if not self.cdn_endpoint:
             return []
-        url = self._build_url("recv", extra_params={"user": user_id})
+        url = self._build_url(extra_params={"user": user_id})
         try:
             import httpx
             async with httpx.AsyncClient(timeout=10.0) as c:
@@ -1822,7 +2128,7 @@ function verifySAS(sig, expiry, resource) {{
         return {
             "enabled": bool(self.cdn_endpoint),
             "cdn_endpoint": self.cdn_endpoint or None,
-            "storage_account": self._storage_account,
+            "storage_account": self._storage_account or None,
         }
 
 
@@ -1844,7 +2150,15 @@ class ServiceWorkerConfig:
     def generate_sw_config(self, transports: list[str],
                              cdn_url: str = "",
                              meek_url: str = "") -> dict:
-        """Генерирует конфигурацию для Service Worker."""
+        """
+        Генерирует конфигурацию для Service Worker.
+
+        probe_interval — базовый интервал проб, probe_interval_min/max — границы,
+        в которых SW обязан выбирать задержку каждой пробы случайно (memoryless),
+        чтобы не выдавать строгую периодичность наблюдателю. Потребитель
+        (sw-proxy.js) должен планировать по этим границам, а не по фиксированному
+        probe_interval.
+        """
         return {
             "version": "4.0",
             "transports": transports,
@@ -1853,6 +2167,8 @@ class ServiceWorkerConfig:
             "meek_url": meek_url,
             "cache_ttl": 3600,
             "probe_interval": 60,
+            "probe_interval_min": round(60 * _PROBE_JITTER_LOW),
+            "probe_interval_max": round(60 * _PROBE_JITTER_HIGH),
             "padding": {
                 "enabled": True,
                 "min_size": 32,
@@ -2000,72 +2316,134 @@ class ObliviousHTTP:
     - Шифрование: HPKE (Hybrid Public Key Encryption)
     """
 
+    OHTTP_HEADER = struct.pack(">BHHH", 0x01, 0x0020, 0x0001, 0x0001)
+
     def __init__(self, gateway_public_key: bytes = b""):
-        self._gateway_pubkey = gateway_public_key or os.urandom(32)
+        if gateway_public_key:
+            self._gateway_private = None
+            self._gateway_pubkey = gateway_public_key
+        else:
+            self._gateway_private = X25519PrivateKey.generate()
+            self._gateway_pubkey = self._gateway_private.public_key().public_bytes(
+                Encoding.Raw, PublicFormat.Raw
+            )
         self._relay_urls: list[str] = []
+
+    @property
+    def gateway_public_key(self) -> bytes:
+        return self._gateway_pubkey
 
     def add_relay(self, url: str):
         """Добавляет relay endpoint."""
         self._relay_urls.append(url)
 
+    def _hpke_context(self, enc: bytes, shared: bytes) -> tuple[bytes, bytes]:
+        okm = HKDF(
+            algorithm=hashes.SHA256(), length=28, salt=self._gateway_pubkey,
+            info=self.OHTTP_HEADER + enc + b"ohttp request",
+        ).derive(shared)
+        return okm[:16], okm[16:28]
+
+    def _client_seal(self, request_data: bytes) -> tuple[bytes, bytes, bytes]:
+        ephemeral = X25519PrivateKey.generate()
+        enc = ephemeral.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        shared = ephemeral.exchange(
+            X25519PublicKey.from_public_bytes(self._gateway_pubkey))
+        key, nonce = self._hpke_context(enc, shared)
+        ciphertext = AESGCM(key).encrypt(nonce, request_data, self.OHTTP_HEADER)
+        return self.OHTTP_HEADER + enc + ciphertext, enc, shared
+
     def encapsulate_request(self, request_data: bytes) -> bytes:
         """
-        Инкапсулирует запрос для отправки через relay.
+        Инкапсулирует запрос для gateway.
 
-        Формат:
+        HPKE (X25519 → HKDF-SHA256 → AES-128-GCM). Заголовок открыт (gateway
+        выбирает по нему ключ), эфемерный публичный ключ передаётся открыто,
+        тело шифруется на общем ECDH-секрете. Формат:
         [1B key_id][2B kem_id][2B kdf_id][2B aead_id]
-        [32B ephemeral_pubkey][encrypted_request]
+        [32B enc (эфемерный публичный ключ)][AEAD ciphertext]
         """
-        # Упрощённое HPKE: X25519 + SHA-256 + AES-128-GCM
-        ephemeral_key = os.urandom(32)
-
-        # Shared secret (simplified: SHA-256(ephem + gateway_pubkey))
-        shared = hashlib.sha256(ephemeral_key + self._gateway_pubkey).digest()
-
-        # Encrypt request
-        encrypted = bytes(b ^ shared[i % 32] for i, b in enumerate(request_data))
-
-        header = struct.pack(">B HHH",
-                              0x01,    # key_id
-                              0x0020,  # KEM: X25519
-                              0x0001,  # KDF: HKDF-SHA256
-                              0x0001,  # AEAD: AES-128-GCM
-                              )
-        return header + ephemeral_key + encrypted
+        encapsulated, _enc, _shared = self._client_seal(request_data)
+        return encapsulated
 
     def decapsulate_request(self, encapsulated: bytes) -> Optional[bytes]:
-        """Декапсулирует запрос на gateway стороне."""
-        if len(encapsulated) < 39:  # 7 header + 32 key
+        """Декапсулирует запрос на gateway стороне (требуется приватный ключ)."""
+        if self._gateway_private is None or len(encapsulated) < 55:
+            return None
+        if encapsulated[:7] != self.OHTTP_HEADER:
+            return None
+        enc = encapsulated[7:39]
+        ciphertext = encapsulated[39:]
+        try:
+            shared = self._gateway_private.exchange(
+                X25519PublicKey.from_public_bytes(enc))
+            key, nonce = self._hpke_context(enc, shared)
+            return AESGCM(key).decrypt(nonce, ciphertext, self.OHTTP_HEADER)
+        except Exception:
             return None
 
-        ephemeral_key = encapsulated[7:39]
-        encrypted = encapsulated[39:]
+    @staticmethod
+    def _response_context(enc: bytes, shared: bytes,
+                          response_nonce: bytes) -> tuple[bytes, bytes]:
+        okm = HKDF(
+            algorithm=hashes.SHA256(), length=28, salt=enc + response_nonce,
+            info=b"ohttp response",
+        ).derive(shared)
+        return okm[:16], okm[16:28]
 
-        shared = hashlib.sha256(ephemeral_key + self._gateway_pubkey).digest()
-        return bytes(b ^ shared[i % 32] for i, b in enumerate(encrypted))
+    def seal_response(self, encapsulated: bytes,
+                      response_data: bytes) -> Optional[bytes]:
+        """
+        Шифрует ответ gateway для клиента (обратный путь OHTTP).
+
+        Ключ ответа выводится из того же ECDH-секрета плюс свежий response_nonce,
+        поэтому relay ответ прочитать не может. Формат: [16B response_nonce][ct].
+        """
+        if self._gateway_private is None or len(encapsulated) < 39:
+            return None
+        enc = encapsulated[7:39]
+        try:
+            shared = self._gateway_private.exchange(
+                X25519PublicKey.from_public_bytes(enc))
+        except Exception:
+            return None
+        response_nonce = os.urandom(16)
+        key, nonce = self._response_context(enc, shared, response_nonce)
+        ct = AESGCM(key).encrypt(nonce, response_data, b"ohttp response")
+        return response_nonce + ct
+
+    def open_response(self, enc: bytes, shared: bytes,
+                      enc_response: bytes) -> Optional[bytes]:
+        """Расшифровывает ответ gateway на стороне клиента."""
+        if len(enc_response) < 16 + 16:
+            return None
+        response_nonce = enc_response[:16]
+        ct = enc_response[16:]
+        key, nonce = self._response_context(enc, shared, response_nonce)
+        try:
+            return AESGCM(key).decrypt(nonce, ct, b"ohttp response")
+        except Exception:
+            return None
 
     async def send_via_relay(self, request_data: bytes,
-                               target_gateway: str) -> Optional[bytes]:
-        """Отправляет запрос через случайный relay."""
+                               target_gateway: str = "") -> Optional[bytes]:
+        """Отправляет запрос через случайный relay и расшифровывает ответ gateway."""
         if not self._relay_urls:
             return None
 
         relay_url = random.choice(self._relay_urls)
-        encapsulated = self.encapsulate_request(request_data)
+        encapsulated, enc, shared = self._client_seal(request_data)
 
         try:
             import httpx
             async with httpx.AsyncClient(timeout=15.0) as c:
                 resp = await c.post(
-                    f"{relay_url}/ohttp-relay",
+                    f"{relay_url}/api/1/edge",
                     content=encapsulated,
-                    headers={
-                        "Content-Type": "message/ohttp-req",
-                        "X-Target-Gateway": target_gateway,
-                    },
+                    headers={"Content-Type": "application/octet-stream"},
                 )
                 if resp.status_code == 200:
-                    return resp.content
+                    return self.open_response(enc, shared, resp.content)
         except Exception as e:
             logger.debug("OHTTP relay error: %s", e)
         return None
@@ -2145,8 +2523,8 @@ class CensorshipDashboard:
         """Рекомендованный транспорт для региона."""
         blocked = self._blocked_transports.get(region, set())
         all_transports = [
-            "direct_https", "websocket", "sse", "cdn_relay",
-            "shadowtls", "vmess", "trojan", "meek_cdn", "doh_tunnel", "tor",
+            "direct_https", "websocket", "sse", "reality",
+            "trojan", "shadowtls", "cdn_relay", "meek_cdn", "doh_tunnel", "tor",
         ]
         for t in all_transports:
             if t not in blocked:
@@ -2169,14 +2547,15 @@ class LatencyProbeSystem:
     Обнаруживает деградацию или блокировку ДО того,
     как пользователь заметит проблему.
 
-    Запускает probe каждые 60 сек через каждый транспорт.
+    Пробы идут с memoryless-джиттером вокруг probe_interval (по умолчанию
+    ~60 сек), а не строго периодически, чтобы наблюдатель не читал частоту.
     При обнаружении блокировки — автоматическое переключение.
     """
 
     def __init__(self, probe_interval: float = 60.0):
         self.probe_interval = probe_interval
-        self._latencies: dict[str, list[float]] = {}  # transport → [latency_ms]
-        self._max_history = 60  # 60 последних измерений
+        self._latencies: dict[str, list[float]] = {}
+        self._max_history = 60
         self._alerts: list[dict] = []
         self._running = False
         self._task: Optional[asyncio.Task] = None
@@ -2214,7 +2593,6 @@ class LatencyProbeSystem:
                     if len(self._latencies[transport]) > self._max_history:
                         self._latencies[transport] = self._latencies[transport][-self._max_history:]
 
-                    # Detect blocking: 3 consecutive failures
                     recent = self._latencies[transport][-3:]
                     if len(recent) >= 3 and all(l < 0 for l in recent):
                         alert = {
@@ -2232,7 +2610,6 @@ class LatencyProbeSystem:
                             except Exception:
                                 pass
 
-                    # Detect degradation: latency > 3x average
                     elif latency > 0 and len(self._latencies[transport]) > 5:
                         avg = sum(l for l in self._latencies[transport][:-1] if l > 0) / \
                               max(1, sum(1 for l in self._latencies[transport][:-1] if l > 0))
@@ -2250,8 +2627,8 @@ class LatencyProbeSystem:
                 except Exception as e:
                     logger.debug("Latency probe error (%s): %s", transport, e)
 
-            # Jitter в интервале
-            await asyncio.sleep(self.probe_interval + random.uniform(-5, 5))
+            await asyncio.sleep(_jittered_delay(
+                self.probe_interval, low=_PROBE_JITTER_LOW, high=_PROBE_JITTER_HIGH))
 
     def get_latency_stats(self) -> dict:
         """Статистика задержек по транспортам."""
@@ -2291,9 +2668,8 @@ class StealthLevel4Manager:
 
     def __init__(self):
         # A. Боевые протоколы
-        self.vmess = VMessProtocol()
-        self.shadowtls = ShadowTLS()
         self.reality = RealityProtocol()
+        self.shadowtls = ShadowTLS()
         self.trojan = TrojanProtocol()
         self.naiveproxy = NaiveProxyConfig()
 
@@ -2317,16 +2693,55 @@ class StealthLevel4Manager:
 
         self._running = False
 
+    def reload_secrets(self) -> None:
+        """Перечитывает секреты во всех механизмах после плановой ротации."""
+        for component in (self.shadowtls, self.trojan, self.naiveproxy,
+                          self.cdn_workers, self.aws_lambda_relay,
+                          self.azure_cdn_relay):
+            component.reload_secrets()
+
+    @staticmethod
+    def _deploy_status() -> dict:
+        from app.transport.relay_deploy import deploy_status
+        return deploy_status()
+
+    def get_client_secrets(self) -> dict:
+        """
+        Протокольные пароли для клиента: действующие и предыдущие (валидные до
+        следующей ротации) плюс её время, чтобы клиент успел обновиться сам.
+
+        Секреты релеев сюда не входят: к CDN Worker / Lambda / Azure Function
+        ходит сервер, клиенту их знать незачем.
+        """
+        return {
+            "shadowtls": {
+                "password": Config.SHADOWTLS_PASSWORD,
+                "previous_password": previous("SHADOWTLS_PASSWORD") or None,
+            },
+            "trojan": {
+                "password": Config.TROJAN_PASSWORD,
+                "previous_password": previous("TROJAN_PASSWORD") or None,
+            },
+            "naiveproxy": {
+                "username": self.naiveproxy._username,
+                "password": self.naiveproxy._password,
+                "probe_domain": self.naiveproxy._probe_domain,
+                "previous_username": previous("NAIVE_USERNAME") or None,
+                "previous_probe_domain": previous("NAIVE_PROBE_DOMAIN") or None,
+            },
+            "next_rotation": rotation_status().get("next_rotation"),
+        }
+
     async def start(self):
         """Запуск Level 4."""
         self._running = True
 
         logger.info(
-            "Stealth Level 4: started (15 mechanisms) — "
-            "vmess=%s, shadowtls=%s, reality=%s, trojan=%s, naiveproxy=%s, "
+            "Stealth Level 4: started — "
+            "reality=%s (flagship), shadowtls=%s, trojan=%s, naiveproxy=%s, "
             "tor=%s, ipfs=%s, ddns=%s, censor_probe=%s, cdn_kv=%s, "
             "sw=%s, wasm=%s, ohttp=%s, dashboard=%s, probes=%s",
-            "ON", "ON", "ON", "ON", "config_ready",
+            "ON", "ON", "ON", "config_ready",
             self.tor_hs.onion_address or "ready",
             "ON", "ON", "ON",
             "ON" if self.cdn_workers.worker_url else "config_needed",
@@ -2340,9 +2755,8 @@ class StealthLevel4Manager:
     def get_status(self) -> dict:
         return {
             # A. Protocols
-            "vmess": self.vmess.get_status(),
-            "shadowtls": self.shadowtls.get_status(),
             "reality": self.reality.get_status(),
+            "shadowtls": self.shadowtls.get_status(),
             "trojan": self.trojan.get_status(),
             "naiveproxy": self.naiveproxy.get_status(),
             # B. Infrastructure
@@ -2353,6 +2767,7 @@ class StealthLevel4Manager:
             "cdn_workers_kv": self.cdn_workers.get_status(),
             "aws_lambda_relay": self.aws_lambda_relay.get_status(),
             "azure_cdn_relay": self.azure_cdn_relay.get_status(),
+            "relay_deploy": self._deploy_status(),
             # C. Client
             "service_worker": True,
             "wasm_crypto": self.wasm_crypto.get_status(),
@@ -2365,3 +2780,4 @@ class StealthLevel4Manager:
 
 # Global instance
 stealth_l4 = StealthLevel4Manager()
+register_reload_hook(stealth_l4.reload_secrets)

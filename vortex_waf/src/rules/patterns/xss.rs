@@ -1,0 +1,23 @@
+//! Паттерны межсайтового скриптинга.
+
+pub const PATTERNS: &[(&str, &str)] = &[
+    (r"(<script.*?>.*?</script>)", "Script Tag XSS"),
+    (r"(javascript:)", "JavaScript Protocol XSS"),
+    (r"(on\w+\s*=)", "Event Handler XSS"),
+    (r"(alert\(.*\))", "Alert XSS"),
+    (
+        r"(document\.(cookie|location|domain|referrer))",
+        "Document Object XSS",
+    ),
+    (r"(window\.(location|open))", "Window Object XSS"),
+    (r"(eval\(.*\))", "Eval XSS"),
+    (r"(setTimeout|setInterval).*\(.*\)", "Timer XSS"),
+    (r"(<iframe.*?>.*?</iframe>)", "IFrame XSS"),
+    (r"(<img.*?src.*?=.*?javascript:)", "IMG Tag XSS"),
+    (r"(<svg.*?onload.*?=)", "SVG XSS"),
+    (r"(<body.*?onload.*?=)", "Body Tag XSS"),
+    (r"(<input.*?onfocus.*?=)", "Input Tag XSS"),
+    (r"(<marquee.*?onstart.*?=)", "Marquee Tag XSS"),
+    (r"(<details.*?ontoggle.*?=)", "Details Tag XSS"),
+    (r"(<select.*?onchange.*?=)", "Select Tag XSS"),
+];

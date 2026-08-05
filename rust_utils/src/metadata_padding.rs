@@ -8,8 +8,8 @@
 //!   padded = [plaintext_len_be_u16 (2 bytes)] || plaintext || random_padding
 //!   unpad returns plaintext[:prefix_u16]
 
-use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use rand::RngCore;
 
@@ -22,12 +22,18 @@ const BUCKETS: &[usize] = &[
 #[pyfunction]
 pub fn pad_to_bucket(py: Python<'_>, plaintext: &[u8]) -> PyResult<Py<PyBytes>> {
     if plaintext.len() > 65534 {
-        return Err(PyValueError::new_err("plaintext exceeds 64 KiB padding limit"));
+        return Err(PyValueError::new_err(
+            "plaintext exceeds 64 KiB padding limit",
+        ));
     }
     let pt = plaintext.to_vec();
     let out = py.allow_threads(move || {
         let needed = pt.len() + 2;
-        let bucket = BUCKETS.iter().copied().find(|&b| b >= needed).unwrap_or(65536);
+        let bucket = BUCKETS
+            .iter()
+            .copied()
+            .find(|&b| b >= needed)
+            .unwrap_or(65536);
         let mut out = Vec::with_capacity(bucket);
         // 2-byte big-endian length prefix
         out.push((pt.len() >> 8) as u8);
@@ -50,7 +56,9 @@ pub fn unpad_from_bucket(py: Python<'_>, padded: &[u8]) -> PyResult<Py<PyBytes>>
     let len = ((padded[0] as usize) << 8) | (padded[1] as usize);
     if 2 + len > padded.len() {
         return Err(PyValueError::new_err(format!(
-            "declared length {} exceeds padded buffer {}", len, padded.len() - 2
+            "declared length {} exceeds padded buffer {}",
+            len,
+            padded.len() - 2
         )));
     }
     let plaintext = padded[2..2 + len].to_vec();
@@ -62,5 +70,9 @@ pub fn unpad_from_bucket(py: Python<'_>, padded: &[u8]) -> PyResult<Py<PyBytes>>
 #[pyfunction]
 pub fn pad_bucket_for(plaintext_len: usize) -> PyResult<usize> {
     let needed = plaintext_len + 2;
-    Ok(BUCKETS.iter().copied().find(|&b| b >= needed).unwrap_or(65536))
+    Ok(BUCKETS
+        .iter()
+        .copied()
+        .find(|&b| b >= needed)
+        .unwrap_or(65536))
 }

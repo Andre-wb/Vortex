@@ -1,58 +1,62 @@
-# `app/security/waf/` — Web Application Firewall
+# `app/security/waf/` — WAF integration layer
 
-Built-in WAF that runs as FastAPI middleware. Not a replacement for a reverse-proxy WAF (ModSecurity, Cloudflare, …) — it's a last-line, application-layer filter tuned to Vortex's specific threat model.
+Thin Python layer that mounts the WAF into FastAPI. The engine itself — signatures, body parsing, rate limiting, blocking, captcha — lives in the Rust crate [`vortex_waf/`](../../../vortex_waf/README.md) and is loaded as a compiled extension module.
+
+Not a replacement for a reverse-proxy WAF (ModSecurity, Cloudflare, …) — it's a last-line, application-layer filter tuned to Vortex's specific threat model.
 
 ## Files
 
-| File            | Role                                                                                      |
-| --------------- | ----------------------------------------------------------------------------------------- |
-| `engine.py`     | Core rule engine. Loads signatures, evaluates per-request, stores counters, emits verdicts. |
-| `middleware.py` | ASGI middleware. Calls `engine.py` per request, short-circuits on block, forwards otherwise. |
-| `signatures.py` | Signature set — regex + semantic rules. SQLi, XSS patterns, command injection, path traversal, unusual `Content-Type`, suspicious auth-header shapes. |
-| `captcha.py`    | On-suspicion challenge. Hash-cash-style proof-of-work or visual captcha, depending on configured mode. |
-| `routes.py`     | Operator endpoints at `/api/waf/*` — live rule stats, temporarily toggle rules, clear a user's challenge state. |
+| File            | Role                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| `backend.py`    | Loads the `vortex_waf` extension. Re-exports `WAFEngine`, `resolve_client_ip`, `VERSION`, `RULE_COUNT`. Raises with build instructions if the module is missing. |
+| `middleware.py` | ASGI middleware. Buffers the body under a hard size cap, builds the request dict, calls the engine, short-circuits on a verdict, forwards otherwise. Runs engine maintenance every 300 s. |
+| `routes.py`     | Operator endpoints at `/waf/*` and the process-wide engine singleton (`init_waf_engine`, `get_waf_engine`, `setup_waf`). |
 
-## What WAF catches
+There is no Python rule engine any more: `engine.py`, `signatures.py` and `captcha.py` were replaced by the Rust implementation.
 
-- **Protocol abuse** — payloads that pretend to be our format but parse suspiciously (oversized JSON, nested arrays > 100, malformed multipart).
-- **Known attack shapes** — classic OWASP signatures; tuned to avoid false positives on legitimate E2E ciphertext (which looks "random" but has deterministic structure in our envelopes).
-- **Volumetric abuse** — per-IP + per-user token buckets hooked into `../limits.py`. Bursts trigger captcha; repeat offenders get auto-blocked for an escalating window.
-- **Federation garbage** — unsigned envelopes, wrong-seq, unknown `from_pubkey`.
-
-## What it explicitly does NOT do
-
-- It does not inspect E2E ciphertext payloads. They look like high-entropy noise to the WAF by design.
-- It does not terminate TLS (that's nginx or the load balancer).
-- It does not block based on country / ASN. We assume censorship-resistance users are connecting from exactly those places.
-
-## Rule flow
+## Where the boundary sits
 
 ```
-request → engine.evaluate()
-            │
-            ├── per-route signature set   (signatures.py)
-            ├── per-IP + per-user limits  (../limits.py)
-            ├── body shape checks          (json depth, multipart limits)
-            └── decision:
-                   ALLOW      → continue
-                   CHALLENGE  → captcha.issue()
-                   BLOCK      → 403 + audit log
-                   TARPIT     → hold connection, drip-slow response
+ASGI scope ─► middleware.py
+                 │  buffer body (413 above WAF_MAX_BODY_BYTES)
+                 │  skip excluded paths
+                 │  resolve client IP  ──► vortex_waf.resolve_client_ip
+                 │
+                 └─ engine.analyze_request(dict) ──► Rust
+                          │
+                          ├─ block → 403 with the top-3 violations
+                          ├─ captcha headers present → verify, 429 on failure
+                          └─ pass  → replay the buffered body downstream
 ```
+
+Everything above the arrow is Python because ASGI requires it; everything below is Rust.
+
+## Build requirement
+
+The extension must exist before the app starts:
+
+```bash
+make waf-build      # cd vortex_waf && maturin develop --release
+```
+
+`make install` depends on it, CI builds it for every interpreter in the test matrix, and the Docker builder stage compiles it into the image. If it is missing, importing `app.security.waf` fails with the build command in the error message rather than silently degrading.
+
+## Excluded paths
+
+Streaming-upload endpoints are skipped entirely — their bodies must not be buffered into RAM, and they carry their own rate limits:
+
+`/static/`, `/health`, `/favicon.ico`, `/robots.txt`, `/waf/stats`, `/waf/captcha`, `/waf/test`, `/api/files/upload-*`, `/api/authentication/qr-`, `/api/bmp/`, `/api/push-proxy/`, `/api/authentication/passkey/`.
+
+`/api/link-preview` is deliberately **not** excluded: it performs an outbound fetch and is an SSRF surface worth inspecting.
 
 ## Configuration
 
-| Env var                | Purpose                                                     |
-| ---------------------- | ----------------------------------------------------------- |
-| `WAF_ENABLED`          | Master switch (default `true`).                             |
-| `WAF_MODE`             | `monitor` (log only) / `enforce` (default).                 |
-| `WAF_CAPTCHA_KIND`     | `pow` (default) / `image`.                                  |
-| `WAF_BLOCK_TTL_SEC`    | Initial block duration for confirmed abuse (default 300).   |
-| `WAF_SIGNATURE_OVERRIDES` | JSON map for toggling individual rules in ops.           |
+See the [crate README](../../../vortex_waf/README.md#configuration) for the full table. The Python layer reads two variables of its own:
 
-## Logging
-
-Every verdict writes a row to the `moderation_audit` table — who, when, which rule, what action. Operator dashboard surfaces a live tail via `/api/waf/feed`.
+| Env var              | Purpose                                                                    |
+| -------------------- | -------------------------------------------------------------------------- |
+| `WAF_MAX_BODY_BYTES` | ASGI-level body cap; larger requests get 413 before buffering (default 25 MiB). |
+| `TRUSTED_PROXY_IPS`  | Comma-separated proxy IPs/CIDRs whose `X-Forwarded-For` is honoured. Empty by default, so forwarding headers cannot be used to spoof a source IP. |
 
 ---
 

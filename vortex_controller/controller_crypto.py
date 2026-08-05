@@ -37,12 +37,13 @@ def canonical_json(data: Any) -> bytes:
     """Deterministic JSON bytes for signing.
 
     Must match the node side byte-for-byte — otherwise signatures won't
-    verify. Rust path (~3 µs) preferred on controllers under load;
-    Python fallback preserved for deploys without the compiled wheel.
+    verify. `ensure_ascii=False` matches Rust and JS.
     """
     if _HAS_RUST_CJSON:
         return _vc_rust.canonical_json(data)
-    return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        data, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
 
 
 

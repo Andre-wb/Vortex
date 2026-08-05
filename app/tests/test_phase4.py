@@ -215,7 +215,9 @@ async def test_mirrors_endpoint_exposes_health_after_sweep():
         )
 
         with patch.object(httpx.AsyncClient, "head", fake_head):
-            async with LifespanManager(app):
+            # Дефолтные 5 с у asgi_lifespan иногда не выдерживают параллельного
+            # прогона: сам старт контроллера занимает ~0.06 с.
+            async with LifespanManager(app, startup_timeout=30.0, shutdown_timeout=30.0):
                 from httpx import AsyncClient, ASGITransport
                 async with AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://ctrl",

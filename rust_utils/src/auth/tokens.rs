@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
 /// Хэширование токена
@@ -13,7 +13,7 @@ pub fn hash_token(token: &str) -> PyResult<String> {
 
 /// Верификация токена
 /// Пример использования на Python:
-/// 
+///
 /// import vortex_chat
 /// hashed_token = vortex_chat.hash_token("token")
 /// vortex_chat.verify_token("token", hashed_token)

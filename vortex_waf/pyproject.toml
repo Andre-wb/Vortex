@@ -1,0 +1,25 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "vortex-waf"
+version = "0.1.0"
+description = "Web Application Firewall for Vortex — Rust engine with Python bindings"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Boris Maltsev" },
+    { name = "Andrey Karavaev" },
+]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Security",
+]
+
+[tool.maturin]
+module-name = "vortex_waf"
+features = ["extension-module"]
+strip = true

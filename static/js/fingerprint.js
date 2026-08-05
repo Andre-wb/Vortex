@@ -273,10 +273,14 @@ export async function openFingerprintModal(opts) {
         warningEl.style.display = keyStatus === 'changed' ? '' : 'none';
     }
 
-    // ADR-009 Фаза 2: кнопка экспорта улики — только identity-режим и только если есть
+    // Кнопка экспорта улики — только identity-режим и только если есть
     // удержанная нода-подписанная пара «старый+новый» (дормантно за флагом).
     const evBtn = document.getElementById('fp-kt-evidence-btn');
     if (evBtn) {
+        if (!evBtn.dataset.ktBound) {
+            evBtn.dataset.ktBound = '1';
+            evBtn.addEventListener('click', () => window._fpExportKtEvidence());
+        }
         evBtn.style.display = 'none';
         if (opts.identityKeyEd && opts.userId) {
             import('./dr/kt-evidence.js')

@@ -1,6 +1,8 @@
 # `rust_utils/` — Rust Crypto & Transport Helpers
 
-Rust crate that exposes performance-critical helpers to Python via PyO3. Sits alongside `vortex_chat` (the main crypto crate) and covers the **non-primitive** helpers — BMP, canonical JSON, UDP broadcast, ratchet KDF, sealed sender, steganography, metadata padding.
+Rust crate that exposes performance-critical helpers to Python via PyO3. Builds the `vortex_chat` extension module and covers crypto primitives plus the non-primitive helpers — BMP, canonical JSON, UDP broadcast, ratchet KDF, sealed sender, steganography, metadata padding.
+
+Member of the root Cargo workspace together with `vortex_waf/`; the authoritative list of exported functions is the `#[pymodule]` block in `src/lib.rs`.
 
 Everything here is deliberately **stateless**. State (keys, ratchets, counters) lives in Python; Rust just gets called with raw bytes in, raw bytes out.
 
@@ -34,39 +36,49 @@ rust_utils/
 
 ## Building
 
-Built via maturin so Python can `import rust_utils`:
+Built via maturin so Python can `import vortex_chat`:
 
 ```bash
-cd rust_utils
-maturin develop --release      # installs into the active venv
-# or for a standalone wheel:
-maturin build --release
+make rust-build                                        # both extensions into the active venv
+maturin develop --release -m rust_utils/Cargo.toml     # this crate only
+maturin build   --release -m rust_utils/Cargo.toml     # standalone wheel
 ```
 
-During the PyInstaller wizard build, the compiled extension is picked up automatically via `collect_all("rust_utils")` in `vortex-wizard.spec`.
+Workspace-wide checks run from the repository root:
+
+```bash
+make rust-check      # cargo test --workspace + clippy -D warnings + fmt --check
+```
+
+The `extension-module` feature is **not** on by default — without it `cargo test` cannot link. Maturin turns it on via `features = ["extension-module"]` in `pyproject.toml`.
+
+During the PyInstaller wizard build, the compiled extension is picked up automatically via `collect_all("vortex_chat")` in `vortex-wizard.spec`.
 
 ## Python surface (selected)
 
 ```python
-import rust_utils
+import vortex_chat
 
 # BMP
-mailbox_id = rust_utils.bmp_mailbox_id(shared_secret, epoch_seconds, period=3600)
-covers     = rust_utils.bmp_generate_covers(real_ids, count=50)
+mailbox_id  = vortex_chat.bmp_compute_mailbox_id(secret_hex, timestamp)
+mailbox_ids = vortex_chat.bmp_compute_mailbox_ids(secret_hex, timestamp)
 
 # Canonical JSON (for signing)
-canon = rust_utils.canonicalize_json(obj)             # bytes, stable ordering
-sig   = rust_utils.sign_canonical(priv, obj)
+canon = vortex_chat.canonical_json(obj)               # bytes, stable ordering
+sig   = vortex_chat.sign_canonical(priv_raw, obj)     # hex ed25519 signature
 
 # Ratchet
-mk, ck = rust_utils.ratchet_step(ck_prev, info=b"msg")
+new_ck, mk = vortex_chat.ratchet_kdf_ck(ck)
+root, chain = vortex_chat.ratchet_kdf_rk(rk, dh_out)
 
 # Integrity
-tree_hash = rust_utils.integrity_walk(path)           # recursive BLAKE3
+manifest = vortex_chat.sha256_manifest_walk(path)     # parallel SHA-256
 
 # Sealed sender
-env = rust_utils.seal_envelope(plaintext, recipient_pub, sender_identity)
+pseudo = vortex_chat.compute_sender_pseudo(secret, room_id, sender_id)
 ```
+
+Cross-language parity with the Python fallbacks is pinned by `app/tests/test_rust_parity.py` against the frozen vectors in `app/tests/vectors/rust_parity.json`.
 
 ## Test
 

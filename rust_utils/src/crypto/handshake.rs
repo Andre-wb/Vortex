@@ -1,11 +1,11 @@
-use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 
-use x25519_dalek::{StaticSecret, PublicKey};
-use rand_core::OsRng;
 use hkdf::Hkdf;
+use rand_core::OsRng;
 use sha2::Sha256;
 use std::convert::TryInto;
+use x25519_dalek::{PublicKey, StaticSecret};
 
 #[pyfunction]
 pub fn generate_keypair() -> PyResult<(Vec<u8>, Vec<u8>)> {
@@ -17,9 +17,10 @@ pub fn generate_keypair() -> PyResult<(Vec<u8>, Vec<u8>)> {
 
 #[pyfunction]
 pub fn derive_session_key(private: Vec<u8>, peer_public: Vec<u8>) -> PyResult<Vec<u8>> {
-
     if private.len() != 32 || peer_public.len() != 32 {
-        return Err(PyValueError::new_err("Некорректная длина ключа (должно быть 32)"));
+        return Err(PyValueError::new_err(
+            "Некорректная длина ключа (должно быть 32)",
+        ));
     }
 
     let private_bytes: [u8; 32] = private

@@ -1,24 +1,11 @@
-use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
 use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
-    Aes256Gcm,
-    Key,
-    Nonce,
+    Aes256Gcm, Key, Nonce,
 };
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use std::string::String;
 
-/// AES-256-GCM защита
-/// Пример использования на Python:
-///
-/// import vortex_chat
-/// key = vortex_chat.generate_key()
-///
-/// encrypted_message = vortex_chat.encrypt_message("message", key)
-/// decrypted_message = vortex_chat.decrypt_message(encrypted_message, key)
-
-
-/// AES-256-GCM зашифровка
 #[pyfunction]
 pub fn encrypt_message(message: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
     if key.len() != 32 {
@@ -40,7 +27,6 @@ pub fn encrypt_message(message: Vec<u8>, key: Vec<u8>) -> PyResult<Vec<u8>> {
     Ok(result)
 }
 
-/// AES-256-GCM расшифровка
 #[pyfunction]
 pub fn decrypt_message(encrypted: Vec<u8>, key: Vec<u8>) -> PyResult<String> {
     if key.len() != 32 {
@@ -56,15 +42,11 @@ pub fn decrypt_message(encrypted: Vec<u8>, key: Vec<u8>) -> PyResult<String> {
 
     let key = Key::<Aes256Gcm>::from_slice(&key);
     let cipher = Aes256Gcm::new(key);
-    
-    let plaintext = String::from_utf8(
-        cipher
-        .decrypt(nonce, ciphertext)
-        .map_err(|_| PyValueError::new_err(
-            "Ошибка при расшифровке или при проверке интеграции"
-        ))?
-    ).map_err(|e| PyValueError::new_err(format!("Некорректная UTF-8 последовательность: {}", e)));
 
+    let plaintext = String::from_utf8(cipher.decrypt(nonce, ciphertext).map_err(|_| {
+        PyValueError::new_err("Ошибка при расшифровке или при проверке интеграции")
+    })?)
+    .map_err(|e| PyValueError::new_err(format!("Некорректная UTF-8 последовательность: {}", e)));
 
     plaintext
 }

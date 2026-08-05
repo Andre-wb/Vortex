@@ -65,7 +65,9 @@ from app.security.middleware import (
     TokenRefreshMiddleware,
 )
 from app.transport.stealth import StealthMiddleware, is_stealth
-from app.security.waf import WAFMiddleware, init_waf_engine, waf_router
+from app.security.waf import (
+    WAFMiddleware, get_waf_engine, init_waf_engine, register_waf_metrics, waf_router,
+)
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -240,6 +242,9 @@ async def lifespan(app: FastAPI):
         logger.info("Rust crypto backend: vortex_chat %s", vortex_chat.VERSION)
     else:
         logger.warning("Python crypto fallback (compile Rust module for performance)")
+
+    from app.security.waf import RULE_COUNT as _WAF_RULES, VERSION as _WAF_VERSION
+    logger.info("Rust WAF backend: vortex_waf %s (%d rules)", _WAF_VERSION, _WAF_RULES)
 
     name = Config.DEVICE_NAME or socket.gethostname()
 
@@ -442,6 +447,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug("Stealth L4 init: %s", e)
 
+    # Плановая ротация секретов протоколов и релеев level 4.
+    try:
+        from app.security.secret_rotation import rotator as _secret_rotator
+        await _secret_rotator.start()
+    except Exception as e:
+        logger.debug("secret rotation start failed: %s", e)
+
     # Start the migration pusher (Phase 6): watches for sustained overload and
     # proactively nudges connected users toward verified alternative nodes.
     try:
@@ -514,6 +526,11 @@ async def lifespan(app: FastAPI):
     try:
         from app.transport.stealth_level4 import stealth_l4
         stealth_l4.stop()
+    except Exception:
+        pass
+    try:
+        from app.security.secret_rotation import rotator as _secret_rotator
+        _secret_rotator.stop()
     except Exception:
         pass
 
@@ -660,6 +677,8 @@ waf_config = {
     "max_content_length": 10 * 1024 * 1024,
 }
 waf_engine = init_waf_engine(waf_config)
+if _PROMETHEUS_AVAILABLE:
+    register_waf_metrics(get_waf_engine)
 
 app.add_middleware(WAFMiddleware, waf_engine=waf_engine)
 app.add_middleware(TokenRefreshMiddleware)

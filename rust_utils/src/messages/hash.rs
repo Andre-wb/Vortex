@@ -1,12 +1,9 @@
-use pyo3::prelude::*;
-use blake3;
 use aes_gcm::{
-    aead::{
-        KeyInit,
-        OsRng
-    },
+    aead::{KeyInit, OsRng},
     Aes256Gcm,
 };
+use blake3;
+use pyo3::prelude::*;
 
 /// Хэширование сообщений
 #[pyfunction]

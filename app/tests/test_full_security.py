@@ -866,20 +866,28 @@ class TestCorrelationID:
 
 # 7. waf.py (via HTTP)
 
-from app.security.waf import WAFRule, WAFEngine
+from app.security.waf import WAFEngine
 
 
 class TestWAFRuleUnit:
-    def test_pattern_compilation(self):
-        rule = WAFRule("TEST-001", r"(SELECT.*FROM)", severity="critical", description="SQL test")
-        assert rule.rule_id == "TEST-001"
-        assert rule.pattern.search("SELECT * FROM users")
-        assert rule.severity == "critical"
+    def test_catalog_is_loaded(self):
+        rules = WAFEngine().rules()
+        assert len(rules) > 0
+        assert all(r["id"] and r["description"] for r in rules)
 
-    def test_invalid_pattern_fallback(self):
-        rule = WAFRule("BAD-001", r"[invalid(", severity="low")
-        # Should not crash; pattern compiles to a never-matching regex
-        assert rule.pattern.search("anything") is None
+    def test_sql_signature_matches(self):
+        result = WAFEngine().analyze_request({
+            "client_ip": "203.0.113.200",
+            "method": "GET",
+            "url": "/api/x",
+            "path": "/api/x",
+            "headers": {},
+            "params": {"q": ["SELECT * FROM users"]},
+            "body": "",
+            "content_type": "",
+        })
+        assert result["block"] is True
+        assert any(f["rule_id"].startswith("SQLI") for f in result["findings"])
 
 
 class TestWAFSqlInjection:

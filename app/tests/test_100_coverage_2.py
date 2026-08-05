@@ -410,7 +410,10 @@ class TestSecureUploadInternals:
         from app.security.secure_upload import FileAnomalyDetector
         from PIL import Image
         import io
-        img = Image.new("RGB", (20000, 20000), color="red")
+        # Больше MAX_IMAGE_DIMENSION, но без гигабайтного буфера: 20000x20000
+        # это 1.2 ГБ в памяти, и PIL отсекает такую картинку как zip-бомбу
+        # ещё до проверки размеров в самом приложении.
+        img = Image.new("RGB", (10001, 100), color="red")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         ok, err = await FileAnomalyDetector.validate_image_content(buf.getvalue())

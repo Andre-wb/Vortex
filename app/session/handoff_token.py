@@ -32,7 +32,6 @@ Target-side verification:
 """
 from __future__ import annotations
 
-import json
 import secrets
 import time
 from typing import Optional
@@ -41,6 +40,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from app.peer.controller_client import NodeSigningKey
+from app.peer.controller_client import _canonical as _controller_canonical
 
 
 HANDOFF_TTL_SEC = 300          # 5 min window to consume the token
@@ -50,7 +50,8 @@ HANDOFF_SKEW_SEC = 60           # accept small clock drift
 
 
 def _canonical(obj) -> bytes:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    """Та же канонизация, что и при подписи через ``NodeSigningKey.sign``."""
+    return _controller_canonical(obj)
 
 
 

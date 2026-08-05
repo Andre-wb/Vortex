@@ -20,7 +20,11 @@ impl MailboxMessage {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs_f64();
-        Self { ciphertext, timestamp, size }
+        Self {
+            ciphertext,
+            timestamp,
+            size,
+        }
     }
 
     /// Check if this message has expired.

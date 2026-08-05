@@ -17,7 +17,6 @@ static STORE: Lazy<Arc<BlindMailboxStore>> = Lazy::new(|| Arc::new(BlindMailboxS
 static SECRETS: Lazy<Arc<RoomSecretStore>> = Lazy::new(|| Arc::new(RoomSecretStore::new()));
 static RATE_LIMITER: Lazy<Arc<RateLimiter>> = Lazy::new(|| Arc::new(RateLimiter::new()));
 
-
 #[pyfunction]
 pub fn bmp_deposit(mailbox_id: &str, ciphertext: &str) -> bool {
     STORE.deposit(mailbox_id, ciphertext)
@@ -53,7 +52,6 @@ pub fn bmp_stats() -> HashMap<String, u64> {
     m
 }
 
-
 #[pyfunction]
 #[pyo3(signature = (secret_hex, timestamp=None))]
 pub fn bmp_compute_mailbox_id(secret_hex: &str, timestamp: Option<f64>) -> String {
@@ -71,7 +69,6 @@ pub fn bmp_pair_jitter(secret_hex: &str) -> u16 {
     mailbox_id::pair_jitter(secret_hex)
 }
 
-
 #[pyfunction]
 pub fn bmp_set_room_secret(room_id: i64, secret_hex: &str) {
     SECRETS.set(room_id, secret_hex.to_string());
@@ -87,12 +84,10 @@ pub fn bmp_remove_room_secret(room_id: i64) {
     SECRETS.remove(room_id);
 }
 
-
 #[pyfunction]
 pub fn bmp_deposit_envelope(room_id: i64, envelope_data: &str) -> bool {
     STORE.deposit_envelope(room_id, envelope_data, &SECRETS)
 }
-
 
 #[pyfunction]
 pub fn bmp_check_rate(ip: &str) -> bool {
@@ -104,18 +99,15 @@ pub fn bmp_check_rate_fast(ip: &str) -> bool {
     RATE_LIMITER.check_fast(ip)
 }
 
-
 #[pyfunction]
 pub fn bmp_wake_category(mailbox_id: &str) -> u8 {
     BlindMailboxStore::wake_category(mailbox_id)
 }
 
-
 #[pyfunction]
 pub fn bmp_start_gc() {
     start_gc_thread(STORE.clone(), RATE_LIMITER.clone());
 }
-
 
 #[pyfunction]
 pub fn bmp_benchmark() -> HashMap<String, f64> {
@@ -148,10 +140,19 @@ pub fn bmp_benchmark() -> HashMap<String, f64> {
 
     let mut results = HashMap::new();
     results.insert("deposit_100k_ms".to_string(), deposit_ms);
-    results.insert("deposit_ops_per_sec".to_string(), n as f64 / deposit_ms * 1000.0);
+    results.insert(
+        "deposit_ops_per_sec".to_string(),
+        n as f64 / deposit_ms * 1000.0,
+    );
     results.insert("fetch_100k_ms".to_string(), fetch_ms);
-    results.insert("fetch_ops_per_sec".to_string(), n as f64 / fetch_ms * 1000.0);
+    results.insert(
+        "fetch_ops_per_sec".to_string(),
+        n as f64 / fetch_ms * 1000.0,
+    );
     results.insert("batch_10k_ms".to_string(), batch_ms);
-    results.insert("batch_ops_per_sec".to_string(), 10_000.0 / batch_ms * 1000.0);
+    results.insert(
+        "batch_ops_per_sec".to_string(),
+        10_000.0 / batch_ms * 1000.0,
+    );
     results
 }

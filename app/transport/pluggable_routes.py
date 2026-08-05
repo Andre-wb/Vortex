@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import secrets
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -12,16 +13,49 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from app.security.auth_jwt import get_current_user
+from app.security.ip_privacy import raw_ip_for_ratelimit
 from app.models import User
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/transport", tags=["transport"])
 
+_secrets_rate: dict[str, list[float]] = {}
+_SECRETS_RATE_WINDOW = 3600
+_SECRETS_RATE_MAX_KEYS = 10000
+
+
+def _check_secrets_rate(key: str, limit: int) -> bool:
+    """True, если запрос укладывается в лимит; False — если исчерпан."""
+    now = time.monotonic()
+    if len(_secrets_rate) > _SECRETS_RATE_MAX_KEYS:
+        for k, hits in list(_secrets_rate.items()):
+            if not hits or now - hits[-1] >= _SECRETS_RATE_WINDOW:
+                _secrets_rate.pop(k, None)
+    hits = [t for t in _secrets_rate.get(key, []) if now - t < _SECRETS_RATE_WINDOW]
+    if len(hits) >= limit:
+        _secrets_rate[key] = hits
+        return False
+    hits.append(now)
+    _secrets_rate[key] = hits
+    return True
+
+
+def _is_secure_request(request: Request) -> bool:
+    """Пароли уходят только по TLS; исключение — локальные вызовы и тесты."""
+    from app.config import Config
+    if Config.TESTING:
+        return True
+    proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    if (proto or request.url.scheme) == "https":
+        return True
+    host = request.client.host if request.client else ""
+    return host in ("127.0.0.1", "::1", "localhost")
+
 
 
 class BridgeAddRequest(BaseModel):
-    bridge_line: str  # "bridge 1.2.3.4:9000 abcdef1234567890"
+    bridge_line: str
 
 
 class BridgeRegisterRequest(BaseModel):
@@ -97,10 +131,10 @@ async def sw_config():
     )
 
 
-@router.get("/probe/{transport_name}")
-async def probe_transport(transport_name: str):
+@router.get("/probe/{token}")
+async def probe_transport(token: str):
     """Probe endpoint для проверки доступности транспорта."""
-    return {"ok": True, "transport": transport_name, "ts": int(time.time())}
+    return {"ok": True, "ts": int(time.time())}
 
 
 @router.get("/knock-hint")
@@ -262,6 +296,39 @@ async def shadowsocks_config(u: User = Depends(get_current_user)):
         server_port=Config.PORT,
     )
 
+
+
+@router.get("/level4/secrets")
+async def level4_secrets(request: Request, u: User = Depends(get_current_user)):
+    """
+    Действующие протокольные пароли для клиента.
+
+    Пароли ротируются на сервере, поэтому клиент забирает их сам, пока прежние
+    ещё принимаются. Ручка существует только если оператор задал
+    TRANSPORT_ACCESS_TOKEN и раздал его своим клиентам: иначе на открытой
+    регистрации пароль забрал бы любой, кто завёл аккаунт, — включая цензора,
+    которому этого хватит, чтобы подтвердить ноду активной пробой.
+    """
+    from app.config import Config
+
+    if not Config.TRANSPORT_ACCESS_TOKEN:
+        raise HTTPException(404, "Not Found")
+
+    ip = raw_ip_for_ratelimit(request)
+    limit = Config.TRANSPORT_SECRETS_RATE_LIMIT
+    if not _check_secrets_rate(f"ip:{ip}", limit) or \
+            not _check_secrets_rate(f"user:{u.id}", limit):
+        raise HTTPException(429, "Too many requests")
+
+    if not _is_secure_request(request):
+        raise HTTPException(403, "HTTPS required")
+
+    supplied = request.headers.get("X-Transport-Token", "").encode("utf-8")
+    if not secrets.compare_digest(supplied, Config.TRANSPORT_ACCESS_TOKEN.encode("utf-8")):
+        raise HTTPException(404, "Not Found")
+
+    from app.transport.stealth_level4 import stealth_l4
+    return stealth_l4.get_client_secrets()
 
 
 @router.get("/domain-fronting/config")

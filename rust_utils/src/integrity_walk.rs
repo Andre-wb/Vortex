@@ -57,7 +57,7 @@ pub fn sha256_manifest_walk(
                 }
                 match _hash_file(p) {
                     Ok(hex) => Some((rel_str, hex)),
-                    Err(_)  => None,
+                    Err(_) => None,
                 }
             })
             .collect()
@@ -77,7 +77,9 @@ fn _hash_file(p: &Path) -> std::io::Result<String> {
     let mut buf = [0u8; 64 * 1024];
     loop {
         let n = rdr.read(&mut buf)?;
-        if n == 0 { break; }
+        if n == 0 {
+            break;
+        }
         hasher.update(&buf[..n]);
     }
     Ok(hex::encode(hasher.finalize()))
@@ -112,8 +114,8 @@ pub fn verify_manifest(
     for (path, expected_hex) in &expected_map {
         match walked_map.get(path) {
             Some(actual) if actual == expected_hex => matched += 1,
-            Some(_)  => mismatched.push(path.clone()),
-            None     => missing.push(path.clone()),
+            Some(_) => mismatched.push(path.clone()),
+            None => missing.push(path.clone()),
         }
     }
     Ok((matched, mismatched, missing))

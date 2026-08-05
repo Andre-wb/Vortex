@@ -75,8 +75,8 @@ def _join_room(client, room: dict, headers: dict) -> None:
 
 class TestTopics:
 
-    def test_list_topics_unauthenticated(self, client):
-        r = client.get("/api/rooms/1/topics")
+    def test_list_topics_unauthenticated(self, anon_client):
+        r = anon_client.get("/api/rooms/1/topics")
         assert r.status_code in (401, 403)
 
     def test_list_topics_non_member_forbidden(self, client):
@@ -122,8 +122,8 @@ class TestTopics:
         }, headers=h_member)
         assert r.status_code == 201
 
-    def test_create_topic_unauthenticated(self, client):
-        r = client.post("/api/rooms/1/topics", json={"title": "Nope"})
+    def test_create_topic_unauthenticated(self, anon_client):
+        r = anon_client.post("/api/rooms/1/topics", json={"title": "Nope"})
         assert r.status_code in (401, 403)
 
     def test_create_topic_missing_title_rejected(self, client):
@@ -224,8 +224,8 @@ class TestTopics:
 
 class TestForumThreads:
 
-    def test_list_forum_unauthenticated(self, client):
-        r = client.get("/api/rooms/1/forum")
+    def test_list_forum_unauthenticated(self, anon_client):
+        r = anon_client.get("/api/rooms/1/forum")
         assert r.status_code in (401, 403)
 
     def test_list_forum_empty_for_new_room(self, client):
@@ -251,8 +251,8 @@ class TestForumThreads:
         assert "id" in body
         assert body["title"] == "How do I get started?"
 
-    def test_create_forum_thread_unauthenticated(self, client):
-        r = client.post("/api/rooms/1/forum", json={"title": "Nope", "body": ""})
+    def test_create_forum_thread_unauthenticated(self, anon_client):
+        r = anon_client.post("/api/rooms/1/forum", json={"title": "Nope", "body": ""})
         assert r.status_code in (401, 403)
 
     def test_create_forum_thread_missing_title_rejected(self, client):
@@ -420,8 +420,8 @@ class TestForumThreads:
 
 class TestPermissions:
 
-    def test_get_permissions_unauthenticated(self, client):
-        r = client.get("/api/rooms/1/permissions")
+    def test_get_permissions_unauthenticated(self, anon_client):
+        r = anon_client.get("/api/rooms/1/permissions")
         assert r.status_code in (401, 403)
 
     def test_get_permissions_non_member_forbidden(self, client):
@@ -514,8 +514,8 @@ class TestPermissions:
 
 class TestAutoMod:
 
-    def test_list_automod_unauthenticated(self, client):
-        r = client.get("/api/rooms/1/automod")
+    def test_list_automod_unauthenticated(self, anon_client):
+        r = anon_client.get("/api/rooms/1/automod")
         assert r.status_code in (401, 403)
 
     def test_list_automod_requires_admin(self, client):
@@ -715,8 +715,8 @@ class TestAutoMod:
 
 class TestSlowmode:
 
-    def test_list_slowmode_unauthenticated(self, client):
-        r = client.get("/api/rooms/1/slowmode/users")
+    def test_list_slowmode_unauthenticated(self, anon_client):
+        r = anon_client.get("/api/rooms/1/slowmode/users")
         assert r.status_code in (401, 403)
 
     def test_list_slowmode_requires_admin(self, client):

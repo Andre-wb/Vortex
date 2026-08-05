@@ -1,7 +1,7 @@
 {
   "payload": {
     "version": "0.1.0",
-    "built_at": 1784484490,
+    "built_at": 1785943585,
     "algorithm": "sha256",
     "root": "vortex_controller",
     "files": [
@@ -15,7 +15,7 @@
       },
       {
         "path": "controller_crypto.py",
-        "sha256": "ae66c10d3b6c4bf94e064de6f3f28377ac3e7d4850a1c0e0b4cb398284433745"
+        "sha256": "a7da5c12eacc49a3204a0f3f319839007e869352831fd2b982b93535ad3d5e0a"
       },
       {
         "path": "docs/DEPLOY.md",
@@ -83,7 +83,7 @@
       },
       {
         "path": "integrity/manifest.py",
-        "sha256": "9270f111a3871874616c5110e6678c4a01578b7383af8b479a3682f6bd4aa903"
+        "sha256": "715afbc0523b4693c2105ad9888854ff87bfa7463cad34f78248dbb1da83f074"
       },
       {
         "path": "integrity/sign_tool.py",
@@ -151,11 +151,11 @@
       },
       {
         "path": "web/assets/i18n.js",
-        "sha256": "c8aefa35d76655d826f10ff44194f04ea3c7b959443ab4347e78335eeab58f26"
+        "sha256": "a3843c3b4f7bb56533c6bee111a720c471f8e375738f4a318d84c97820f3a363"
       },
       {
         "path": "web/assets/main.css",
-        "sha256": "fde072350d045a01e55b2154f804676d9274670562f69adedf91b67e1f57f513"
+        "sha256": "f927b3d79b9c24a0900445aa54190826ede81146615170f232eaf72867532896"
       },
       {
         "path": "web/assets/mirrors.js",
@@ -715,6 +715,6 @@
       }
     ]
   },
-  "signature": "8fb3c69004567c10105a7760a8f9a6cbad29685e68bbf058468df778b7e0a3da02aa2d57d98041a441aa201c323415454fe222b2573c93bfc6188c773b24c706",
+  "signature": "58167c467d1d3adda2d944f1b820572a8eb7e7b71454b5d1188841e2da5f91375e1f4089919d0aba1c3e46f9f687f8bb8e7bc08f817c35c0093fd0cc0580df08",
   "signed_by": "f80c0fc173fac6ca7218a05245df8de97e1ed755853050da873bc1fdddce0198"
 }

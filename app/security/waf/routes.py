@@ -8,14 +8,14 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.security.waf.captcha import WAFCaptcha
-from app.security.waf.engine import WAFEngine
+from app.security.waf.backend import WAFEngine
 
 logger = logging.getLogger(__name__)
 
 
-
 class WAFManager:
+    """Операции администрирования поверх движка."""
+
     def __init__(self, waf_engine: WAFEngine):
         self.waf = waf_engine
 
@@ -24,39 +24,28 @@ class WAFManager:
         return {'success': success, 'ip': ip, 'reason': reason, 'duration': duration}
 
     def unblock_ip(self, ip: str) -> Dict:
-        if ip in self.waf.blocked_ips:
-            del self.waf.blocked_ips[ip]
+        if self.waf.unblock_ip(ip):
             return {'success': True, 'ip': ip, 'message': 'IP unblocked'}
         return {'success': False, 'ip': ip, 'message': 'IP not found'}
 
     def get_blocked_ips(self) -> List[Dict]:
-        return [
-            {
-                'ip': ip,
-                'blocked_at': info.get('blocked_at').isoformat() if info.get('blocked_at') else None,
-                'blocked_until': info.get('until').isoformat() if info.get('until') else None,
-                'reason': info.get('reason', 'unknown'),
-                'duration': info.get('duration', 0),
-            }
-            for ip, info in self.waf.blocked_ips.items()
-        ]
+        return self.waf.blocked_ips()
 
     def add_whitelist_ip(self, ip: str) -> Dict:
         try:
             ipaddress.ip_address(ip)
-            self.waf.ip_whitelist.add(ip)
-            return {'success': True, 'ip': ip, 'message': 'IP added to whitelist'}
         except ValueError:
             return {'success': False, 'ip': ip, 'message': 'Invalid IP format'}
+        self.waf.add_whitelist_ip(ip)
+        return {'success': True, 'ip': ip, 'message': 'IP added to whitelist'}
 
     def remove_whitelist_ip(self, ip: str) -> Dict:
-        if ip in self.waf.ip_whitelist:
-            self.waf.ip_whitelist.remove(ip)
+        if self.waf.remove_whitelist_ip(ip):
             return {'success': True, 'ip': ip, 'message': 'IP removed from whitelist'}
         return {'success': False, 'ip': ip, 'message': 'IP not found in whitelist'}
 
     def get_whitelist(self) -> List[str]:
-        return list(self.waf.ip_whitelist)
+        return self.waf.whitelist()
 
 
 
@@ -90,15 +79,7 @@ async def waf_stats(waf: WAFEngine = Depends(get_waf_engine)):
 
 @waf_router.get("/rules")
 async def waf_rules(waf: WAFEngine = Depends(get_waf_engine)):
-    rules = [
-        {
-            'id': r.rule_id, 'description': r.description,
-            'severity': r.severity, 'action': r.action,
-            'trigger_count': r.trigger_count,
-            'last_triggered': r.last_triggered.isoformat() if r.last_triggered else None,
-        }
-        for r in waf.rules
-    ]
+    rules = waf.rules()
     return JSONResponse({'rules': rules, 'total': len(rules)})
 
 
@@ -134,21 +115,22 @@ async def whitelist_remove(ip: str, manager: WAFManager = Depends(get_waf_manage
 
 
 @waf_router.post("/captcha/generate")
-async def generate_captcha(request: Request):
+async def generate_captcha(request: Request, waf: WAFEngine = Depends(get_waf_engine)):
     client_ip = request.client.host if request.client else 'unknown'
-    captcha = WAFCaptcha()
-    challenge = captcha.generate_challenge(client_ip)
-    return JSONResponse({'success': True, 'challenge': challenge})
+    return JSONResponse({'success': True, 'challenge': waf.generate_captcha(client_ip)})
 
 
 @waf_router.get("/test")
 async def test_waf(request: Request):
-    return JSONResponse({'status': 'ok', 'client_ip': request.client.host if request.client else 'unknown'})
+    return JSONResponse({
+        'status': 'ok',
+        'client_ip': request.client.host if request.client else 'unknown',
+    })
 
 
 
 def setup_waf(app, config: Optional[Dict] = None) -> WAFEngine:
-    waf_engine = WAFEngine(config)
+    waf_engine = init_waf_engine(config)
     from app.security.waf.middleware import WAFMiddleware
     app.add_middleware(WAFMiddleware, waf_engine=waf_engine)
     app.include_router(waf_router)

@@ -1,11 +1,9 @@
-use pyo3::{
-    prelude::*,
-};
-use vortex_chat::{hash_message, generate_key, encrypt_message, decrypt_message,  ChatStats};
+use pyo3::prelude::*;
+use vortex_chat::{decrypt_message, encrypt_message, generate_key, hash_message, ChatStats};
 #[cfg(test)]
 mod tests {
-    use tokio::time::Instant;
     use super::*;
+    use tokio::time::Instant;
 
     ///  Проверка лимита ключа
     #[test]
@@ -31,10 +29,17 @@ mod tests {
         let message = Vec::new();
         let key = generate_key()?;
         let encrypted = encrypt_message(message.clone(), key.clone())?;
-        assert!(encrypted.len() > message.len(), "Зашифрованные данные должны быть длиннее оригинала");
+        assert!(
+            encrypted.len() > message.len(),
+            "Зашифрованные данные должны быть длиннее оригинала"
+        );
 
         let decrypted = decrypt_message(encrypted, key)?;
-        assert_eq!(decrypted.as_bytes(), message, "Расшифрованные данные должны совпадать с оригиналом");
+        assert_eq!(
+            decrypted.as_bytes(),
+            message,
+            "Расшифрованные данные должны совпадать с оригиналом"
+        );
 
         Ok(())
     }
@@ -47,18 +52,23 @@ mod tests {
 
         let tampered = Vec::new();
         let result = decrypt_message(tampered, key);
-        assert!(result.is_err(), "Подделанные данные должны вызвать ошибку расшифровки");
+        assert!(
+            result.is_err(),
+            "Подделанные данные должны вызвать ошибку расшифровки"
+        );
 
         let wrong_key = generate_key()?;
         let result = decrypt_message(encrypted, wrong_key);
-        assert!(result.is_err(), "Неправильный ключ должен вызвать ошибку расшифровки");
+        assert!(
+            result.is_err(),
+            "Неправильный ключ должен вызвать ошибку расшифровки"
+        );
 
         Ok(())
     }
 
     #[test]
     fn test_determinism() -> PyResult<()> {
-
         let key = generate_key()?;
         let message = "message".as_bytes().to_vec();
 
@@ -66,7 +76,10 @@ mod tests {
         let encrypted1 = encrypt_message(message.clone(), key.clone())?;
         let encrypted2 = encrypt_message(message, key.clone())?;
 
-        assert_ne!(encrypted1, encrypted2, "Идентичные сообщения должны иметь разные шифры");
+        assert_ne!(
+            encrypted1, encrypted2,
+            "Идентичные сообщения должны иметь разные шифры"
+        );
 
         // Идентичные сообщения должны идентично расшифровываться
         let decrypted1 = decrypt_message(encrypted1, key.clone())?;
@@ -77,7 +90,6 @@ mod tests {
         assert_ne!(decrypted1.as_bytes(), b"wrong message");
 
         Ok(())
-
     }
 
     /// Статистика чата
@@ -92,7 +104,6 @@ mod tests {
         stats.add_message(2048);
         assert_eq!(stats.get_stats(), "Сообщений: 2, обработано: 3 KB");
     }
-
 
     /// Тест производительности
     #[test]
@@ -123,14 +134,20 @@ mod tests {
             }
             let decrypt_duration = start.elapsed();
 
-            let encrypt_throughput = (size * iterations) as f64 / encrypt_duration.as_secs_f64() / 1_000_000.0;
-            let decrypt_throughput = (size * iterations) as f64 / decrypt_duration.as_secs_f64() / 1_000_000.0;
+            let encrypt_throughput =
+                (size * iterations) as f64 / encrypt_duration.as_secs_f64() / 1_000_000.0;
+            let decrypt_throughput =
+                (size * iterations) as f64 / decrypt_duration.as_secs_f64() / 1_000_000.0;
 
             println!("Размер {} байт:", size);
-            println!("  Зашифровка: {:?} для {} ops ({:.2} MB/s)",
-                     encrypt_duration, iterations, encrypt_throughput);
-            println!("  Расшифровка: {:?} для {} ops ({:.2} MB/s)",
-                     decrypt_duration, iterations, decrypt_throughput);
+            println!(
+                "  Зашифровка: {:?} для {} ops ({:.2} MB/s)",
+                encrypt_duration, iterations, encrypt_throughput
+            );
+            println!(
+                "  Расшифровка: {:?} для {} ops ({:.2} MB/s)",
+                decrypt_duration, iterations, decrypt_throughput
+            );
         }
 
         Ok(())
@@ -143,20 +160,22 @@ mod tests {
 
         use std::thread;
 
-        let handles: Vec<_> = (0..4).map(|_| {
-            thread::spawn(move || {
-                let key = generate_key()?;
-                let message = Vec::new();
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                thread::spawn(move || {
+                    let key = generate_key()?;
+                    let message = Vec::new();
 
-                for _ in 0..10 {
-                    let encrypted = encrypt_message(message.clone(), key.clone())?;
-                    let decrypted = decrypt_message(encrypted.clone(), key.clone())?;
-                    assert_eq!(decrypted.as_bytes(), message);
-                }
+                    for _ in 0..10 {
+                        let encrypted = encrypt_message(message.clone(), key.clone())?;
+                        let decrypted = decrypt_message(encrypted.clone(), key.clone())?;
+                        assert_eq!(decrypted.as_bytes(), message);
+                    }
 
-                Ok::<(), PyErr>(())
+                    Ok::<(), PyErr>(())
+                })
             })
-        }).collect();
+            .collect();
 
         for handle in handles {
             let _ = handle.join().unwrap();
@@ -173,11 +192,7 @@ mod tests {
         let key = generate_key()?;
         let mut stats = ChatStats::new();
 
-        let messages = vec![
-            "Привет!",
-            "Как дела?",
-            "Что делаешь?"
-        ];
+        let messages = vec!["Привет!", "Как дела?", "Что делаешь?"];
 
         let mut encrypted_history = Vec::new();
 

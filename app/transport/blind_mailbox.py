@@ -366,10 +366,10 @@ def compute_mailbox_id(bmp_secret_hex: str, timestamp: float | None = None) -> s
     Compute mailbox ID with per-pair rotation jitter.
     Mirrors client-side deriveMailboxId().
     """
-    ts = timestamp or time.time()
+    ts = time.time() if timestamp is None else timestamp
     jitter = _pair_jitter(bmp_secret_hex)
     adjusted_ts = ts - jitter
-    epoch = int(adjusted_ts / BMP_ROTATION_PERIOD)
+    epoch = max(0, int(adjusted_ts / BMP_ROTATION_PERIOD))
     epoch_bytes = epoch.to_bytes(8, 'big')
     secret_bytes = bytes.fromhex(bmp_secret_hex)
     sig = hmac.new(secret_bytes, epoch_bytes, hashlib.sha256).digest()
@@ -381,7 +381,7 @@ def compute_mailbox_ids(bmp_secret_hex: str, timestamp: float | None = None) -> 
     Compute mailbox IDs for current + adjacent epochs (clock skew tolerance).
     Returns list of 3 IDs: [prev_epoch, current, next_epoch].
     """
-    ts = timestamp or time.time()
+    ts = time.time() if timestamp is None else timestamp
     jitter = _pair_jitter(bmp_secret_hex)
     adjusted_ts = ts - jitter
     epoch = int(adjusted_ts / BMP_ROTATION_PERIOD)

@@ -1,12 +1,13 @@
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use serde::{Deserialize, Serialize};
 use tokio::time;
-use once_cell::sync::Lazy;
-use std::sync::{Mutex, Arc};
 
-static GLOBAL_STATE: Lazy<Mutex<Option<Arc<tokio::sync::Mutex<AppState>>>>> = Lazy::new(|| Mutex::new(None));
+static GLOBAL_STATE: Lazy<Mutex<Option<Arc<tokio::sync::Mutex<AppState>>>>> =
+    Lazy::new(|| Mutex::new(None));
 
 pub mod discovery;
 
@@ -24,7 +25,10 @@ struct PeerInfo {
 impl PeerInfo {
     #[allow(unused)]
     fn new(name: String, signaling_port: u16) -> Self {
-        Self { name, signaling_port }
+        Self {
+            name,
+            signaling_port,
+        }
     }
 }
 
@@ -59,17 +63,21 @@ impl AppState {
             Peer {
                 info,
                 last_seen: time::Instant::now(),
-            }
+            },
         );
     }
     #[allow(unused)]
     fn remove_stale_peers(&mut self) {
         let now = time::Instant::now();
-        self.peers.retain(|_, peer| now.duration_since(peer.last_seen) < PEER_TIMEOUT);
+        self.peers
+            .retain(|_, peer| now.duration_since(peer.last_seen) < PEER_TIMEOUT);
     }
 
     fn active_peers(&self) -> Vec<(SocketAddr, PeerInfo)> {
-        self.peers.iter().map(|(addr, peer)| (*addr, peer.info.clone())).collect()
+        self.peers
+            .iter()
+            .map(|(addr, peer)| (*addr, peer.info.clone()))
+            .collect()
     }
 }
 
@@ -93,9 +101,15 @@ mod tests {
 
     // Функция для получения тестовых данных (вычисляется во время выполнения)
     fn get_test_data() -> Vec<(SocketAddr, PeerInfo)> {
-        TEST_PEERS.iter().map(|(ip, port, name, sig_port)| {
-            (test_addr(*ip, *port), PeerInfo::new(name.to_string(), *sig_port))
-        }).collect()
+        TEST_PEERS
+            .iter()
+            .map(|(ip, port, name, sig_port)| {
+                (
+                    test_addr(*ip, *port),
+                    PeerInfo::new(name.to_string(), *sig_port),
+                )
+            })
+            .collect()
     }
 
     #[test]
@@ -277,7 +291,10 @@ mod tests {
             peer.info = PeerInfo::new("Changed".to_string(), 9999);
         }
 
-        assert_eq!(active[0].1, peer_info, "active_peers должен возвращать копию");
+        assert_eq!(
+            active[0].1, peer_info,
+            "active_peers должен возвращать копию"
+        );
     }
 
     #[test]

@@ -1,19 +1,13 @@
-//! Blind Mailbox Store — the core in-memory message store.
-//! Thread-safe via parking_lot::RwLock for maximum throughput.
-
 use std::collections::HashMap;
 
 use parking_lot::RwLock;
 use sha2::{Digest, Sha256};
 
-use crate::bmp::constants::{MAX_MSG_SIZE, MAX_MSGS_PER_BOX, TIMESTAMP_BUCKET_SECS, TTL_SECONDS};
+use crate::bmp::constants::{MAX_MSGS_PER_BOX, MAX_MSG_SIZE, TIMESTAMP_BUCKET_SECS, TTL_SECONDS};
 use crate::bmp::mailbox_id::compute_mailbox_ids;
 use crate::bmp::room_secrets::RoomSecretStore;
 use crate::bmp::types::{BmpStats, MailboxMessage};
 
-/// In-memory blind mailbox store.
-/// Design: server stores ONLY mailbox_id → [messages].
-/// No user IDs, no room IDs — complete metadata privacy.
 pub struct BlindMailboxStore {
     boxes: RwLock<HashMap<String, Vec<MailboxMessage>>>,
     total_deposited: RwLock<u64>,
@@ -31,19 +25,17 @@ impl BlindMailboxStore {
         }
     }
 
-    /// Deposit an encrypted message into a mailbox. Returns true on success.
     pub fn deposit(&self, mailbox_id: &str, ciphertext: &str) -> bool {
         if ciphertext.len() > MAX_MSG_SIZE * 2 {
-            return false; // hex = 2x bytes
+            return false;
         }
 
         let msg = MailboxMessage::new(ciphertext.to_string());
         let mut boxes = self.boxes.write();
         let box_msgs = boxes.entry(mailbox_id.to_string()).or_default();
 
-        // Enforce per-box limit
         if box_msgs.len() >= MAX_MSGS_PER_BOX {
-            box_msgs.remove(0); // remove oldest
+            box_msgs.remove(0);
         }
 
         box_msgs.push(msg);
@@ -51,7 +43,6 @@ impl BlindMailboxStore {
         true
     }
 
-    /// Fetch messages from a single mailbox since a timestamp.
     pub fn fetch(&self, mailbox_id: &str, since_ts: f64) -> Vec<(String, f64)> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -68,8 +59,8 @@ impl BlindMailboxStore {
             .iter()
             .filter(|m| m.timestamp > since_ts && (now - m.timestamp) < TTL_SECONDS as f64)
             .map(|m| {
-                // Bucket timestamp to TIMESTAMP_BUCKET_SECS windows
-                let bucketed = (m.timestamp as u64 / TIMESTAMP_BUCKET_SECS * TIMESTAMP_BUCKET_SECS) as f64;
+                let bucketed =
+                    (m.timestamp as u64 / TIMESTAMP_BUCKET_SECS * TIMESTAMP_BUCKET_SECS) as f64;
                 (m.ciphertext.clone(), bucketed)
             })
             .collect();
@@ -78,9 +69,6 @@ impl BlindMailboxStore {
         result
     }
 
-    /// Fetch messages from multiple mailboxes in one call.
-    /// Returns HashMap<mailbox_id, Vec<(ciphertext, bucketed_timestamp)>>.
-    /// Only includes mailboxes that have messages (empty = omitted).
     pub fn fetch_batch(
         &self,
         mailbox_ids: &[String],
@@ -100,8 +88,8 @@ impl BlindMailboxStore {
                     .iter()
                     .filter(|m| m.timestamp > since_ts && (now - m.timestamp) < TTL_SECONDS as f64)
                     .map(|m| {
-                        let bucketed =
-                            (m.timestamp as u64 / TIMESTAMP_BUCKET_SECS * TIMESTAMP_BUCKET_SECS) as f64;
+                        let bucketed = (m.timestamp as u64 / TIMESTAMP_BUCKET_SECS
+                            * TIMESTAMP_BUCKET_SECS) as f64;
                         (m.ciphertext.clone(), bucketed)
                     })
                     .collect();
@@ -116,7 +104,6 @@ impl BlindMailboxStore {
         result
     }
 
-    /// Garbage collect expired messages. Returns count removed.
     pub fn gc(&self) -> u64 {
         let mut boxes = self.boxes.write();
         let mut removed: u64 = 0;
@@ -132,7 +119,6 @@ impl BlindMailboxStore {
         removed
     }
 
-    /// Get store statistics.
     pub fn stats(&self) -> BmpStats {
         let boxes = self.boxes.read();
         let total_messages: usize = boxes.values().map(|v| v.len()).sum();
@@ -145,8 +131,6 @@ impl BlindMailboxStore {
         }
     }
 
-    /// Deposit an envelope for a room (looks up secret, computes mailbox IDs).
-    /// Returns true if at least one deposit succeeded.
     pub fn deposit_envelope(
         &self,
         room_id: i64,
@@ -168,8 +152,6 @@ impl BlindMailboxStore {
         ok
     }
 
-    /// Compute push wake signal category for a mailbox ID.
-    /// SHA256(mailbox_id) mod 256.
     pub fn wake_category(mailbox_id: &str) -> u8 {
         let hash = Sha256::digest(mailbox_id.as_bytes());
         hash[0]
@@ -227,7 +209,7 @@ mod tests {
 
         let ids = vec!["a".to_string(), "b".to_string(), "c".to_string()];
         let result = store.fetch_batch(&ids, 0.0);
-        assert_eq!(result.len(), 2); // "c" is empty → omitted
+        assert_eq!(result.len(), 2);
         assert!(result.contains_key("a"));
         assert!(result.contains_key("b"));
     }
@@ -235,14 +217,16 @@ mod tests {
     #[test]
     fn test_gc() {
         let store = BlindMailboxStore::new();
-        // Insert with past timestamp (manually)
         {
             let mut boxes = store.boxes.write();
-            boxes.entry("old".to_string()).or_default().push(MailboxMessage {
-                ciphertext: "expired".to_string(),
-                timestamp: 0.0, // Unix epoch = definitely expired
-                size: 7,
-            });
+            boxes
+                .entry("old".to_string())
+                .or_default()
+                .push(MailboxMessage {
+                    ciphertext: "expired".to_string(),
+                    timestamp: 0.0,
+                    size: 7,
+                });
         }
         let removed = store.gc();
         assert_eq!(removed, 1);
@@ -264,6 +248,6 @@ mod tests {
     #[test]
     fn test_wake_category() {
         let cat = BlindMailboxStore::wake_category("test_mailbox_id");
-        assert!(cat <= 255); // u8 always true, but validates the function runs
+        assert_eq!(cat, BlindMailboxStore::wake_category("test_mailbox_id"));
     }
 }

@@ -7,9 +7,12 @@
 //! call (BLAKE2b init + finalize in the stdlib). Rust version is ~1 µs
 //! and releases the GIL via py.allow_threads in batch paths.
 
-use blake2::{Blake2bMac, digest::{KeyInit, Update, FixedOutput}};
-use pyo3::prelude::*;
+use blake2::{
+    digest::{FixedOutput, KeyInit, Update},
+    Blake2bMac,
+};
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 
 /// Compute per-room pseudonym for a sender. Bit-exact match for the
 /// Python implementation in app/security/sealed_sender.py:
@@ -20,13 +23,13 @@ use pyo3::exceptions::PyValueError;
 pub fn compute_sender_pseudo(secret: &[u8], room_id: i64, sender_id: i64) -> PyResult<String> {
     if secret.len() != 32 {
         return Err(PyValueError::new_err(format!(
-            "secret must be 32 bytes, got {}", secret.len()
+            "secret must be 32 bytes, got {}",
+            secret.len()
         )));
     }
     // 32-byte output (matches Python digest_size=32).
     type B = Blake2bMac<blake2::digest::consts::U32>;
-    let mut mac = B::new_from_slice(secret)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let mut mac = B::new_from_slice(secret).map_err(|e| PyValueError::new_err(e.to_string()))?;
     // Same layout as Python: big-endian i64 for both fields.
     let mut data = [0u8; 16];
     data[..8].copy_from_slice(&room_id.to_be_bytes());
@@ -47,7 +50,9 @@ pub fn verify_sender_pseudo(
     // constant-time compare
     let a = expected.as_bytes();
     let b = pseudo.as_bytes();
-    if a.len() != b.len() { return Ok(false); }
+    if a.len() != b.len() {
+        return Ok(false);
+    }
     use subtle::ConstantTimeEq;
     Ok(a.ct_eq(b).into())
 }

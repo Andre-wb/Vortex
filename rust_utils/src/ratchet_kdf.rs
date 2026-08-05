@@ -1,34 +1,17 @@
-//! Double Ratchet chain-key advance + AES-GCM wrap.
-//!
-//! State lives in Python (so the existing Python DR code keeps owning
-//! persistence). Each message invokes this hot loop:
-//!   - advance chain-key via HKDF-SHA256
-//!   - derive message key
-//!   - encrypt plaintext with AES-256-GCM using the derived key
-//!
-//! Python version does ~200 µs per message because of HMAC-SHA256
-//! reconstruction + AES-GCM via cryptography's PyOpenSSL binding.
-//! Here we do it in pure Rust with `hkdf` + `aes-gcm` → ~5 µs.
-//!
-//! KDF labels chosen to match app/security/double_ratchet.py constants.
-
-use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, KeyInit}};
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Key, Nonce,
+};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
-use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use sha2::Sha256;
 
-// Signal-standard single-byte labels, matching app/security/double_ratchet.py:
-//   new_chain_key = HMAC(ck, 0x02)
-//   message_key   = HMAC(ck, 0x01)
-const CHAIN_LABEL:   &[u8] = &[0x02];
+const CHAIN_LABEL: &[u8] = &[0x02];
 const MSG_KEY_LABEL: &[u8] = &[0x01];
 
-
-/// Advance the chain-key by one step. Input 32 bytes, output 32 bytes.
-/// `next_chain = HMAC-SHA256(chain, CHAIN_LABEL)`.
 #[pyfunction]
 pub fn ratchet_advance_chain(py: Python<'_>, chain_key: &[u8]) -> PyResult<Py<PyBytes>> {
     if chain_key.len() != 32 {
@@ -45,8 +28,6 @@ pub fn ratchet_advance_chain(py: Python<'_>, chain_key: &[u8]) -> PyResult<Py<Py
     Ok(PyBytes::new(py, &next).into())
 }
 
-/// Derive a 32-byte message key from the current chain-key.
-/// `msg_key = HMAC-SHA256(chain, MSG_KEY_LABEL)`.
 #[pyfunction]
 pub fn ratchet_message_key(py: Python<'_>, chain_key: &[u8]) -> PyResult<Py<PyBytes>> {
     if chain_key.len() != 32 {
@@ -63,10 +44,8 @@ pub fn ratchet_message_key(py: Python<'_>, chain_key: &[u8]) -> PyResult<Py<PyBy
     Ok(PyBytes::new(py, &mk).into())
 }
 
-/// Encrypt a message in one call: derives msg-key from chain, encrypts
-/// plaintext with AES-GCM using a fresh 12-byte nonce, returns
-/// (ciphertext || tag, nonce, next_chain_key).
 #[pyfunction]
+#[pyo3(signature = (chain_key, plaintext, associated_data=None))]
 pub fn ratchet_encrypt_step(
     py: Python<'_>,
     chain_key: &[u8],
@@ -80,30 +59,30 @@ pub fn ratchet_encrypt_step(
     let pt = plaintext.to_vec();
     let ad = associated_data.map(|x| x.to_vec()).unwrap_or_default();
 
-    let (ct, nonce_bytes, next_chain) = py.allow_threads(move || {
-        type HmacSha256 = Hmac<Sha256>;
+    let (ct, nonce_bytes, next_chain) = py
+        .allow_threads(move || {
+            type HmacSha256 = Hmac<Sha256>;
 
-        // Derive message key
-        let mut h = <HmacSha256 as Mac>::new_from_slice(&ck).unwrap();
-        h.update(MSG_KEY_LABEL);
-        let mk_arr = h.finalize().into_bytes();
+            let mut h = <HmacSha256 as Mac>::new_from_slice(&ck).unwrap();
+            h.update(MSG_KEY_LABEL);
+            let mk_arr = h.finalize().into_bytes();
 
-        // Advance chain
-        let mut h2 = <HmacSha256 as Mac>::new_from_slice(&ck).unwrap();
-        h2.update(CHAIN_LABEL);
-        let next = h2.finalize().into_bytes();
+            let mut h2 = <HmacSha256 as Mac>::new_from_slice(&ck).unwrap();
+            h2.update(CHAIN_LABEL);
+            let next = h2.finalize().into_bytes();
 
-        // AES-GCM encrypt
-        use rand::RngCore;
-        let mut nonce = [0u8; 12];
-        rand::thread_rng().fill_bytes(&mut nonce);
-        let key = Key::<Aes256Gcm>::from_slice(&mk_arr);
-        let cipher = Aes256Gcm::new(key);
-        let payload = aes_gcm::aead::Payload { msg: &pt, aad: &ad };
-        let ct_vec = cipher.encrypt(Nonce::from_slice(&nonce), payload)
-            .map_err(|_| "encrypt failed")?;
-        Ok::<_, &'static str>((ct_vec, nonce.to_vec(), next.to_vec()))
-    }).map_err(|e| PyValueError::new_err(e))?;
+            use rand::RngCore;
+            let mut nonce = [0u8; 12];
+            rand::thread_rng().fill_bytes(&mut nonce);
+            let key = Key::<Aes256Gcm>::from_slice(&mk_arr);
+            let cipher = Aes256Gcm::new(key);
+            let payload = aes_gcm::aead::Payload { msg: &pt, aad: &ad };
+            let ct_vec = cipher
+                .encrypt(Nonce::from_slice(&nonce), payload)
+                .map_err(|_| "encrypt failed")?;
+            Ok::<_, &'static str>((ct_vec, nonce.to_vec(), next.to_vec()))
+        })
+        .map_err(PyValueError::new_err)?;
 
     Ok((
         PyBytes::new(py, &ct).into(),
@@ -112,8 +91,8 @@ pub fn ratchet_encrypt_step(
     ))
 }
 
-/// Decrypt counterpart — same KDF, caller provides nonce + ciphertext.
 #[pyfunction]
+#[pyo3(signature = (chain_key, nonce, ciphertext, associated_data=None))]
 pub fn ratchet_decrypt_step(
     py: Python<'_>,
     chain_key: &[u8],
@@ -128,28 +107,31 @@ pub fn ratchet_decrypt_step(
         return Err(PyValueError::new_err("nonce must be 12 bytes"));
     }
     let ck = chain_key.to_vec();
-    let n  = nonce.to_vec();
+    let n = nonce.to_vec();
     let ct = ciphertext.to_vec();
     let ad = associated_data.map(|x| x.to_vec()).unwrap_or_default();
 
-    let (pt, next_chain) = py.allow_threads(move || {
-        type HmacSha256 = Hmac<Sha256>;
+    let (pt, next_chain) = py
+        .allow_threads(move || {
+            type HmacSha256 = Hmac<Sha256>;
 
-        let mut h = <HmacSha256 as Mac>::new_from_slice(&ck).unwrap();
-        h.update(MSG_KEY_LABEL);
-        let mk_arr = h.finalize().into_bytes();
+            let mut h = <HmacSha256 as Mac>::new_from_slice(&ck).unwrap();
+            h.update(MSG_KEY_LABEL);
+            let mk_arr = h.finalize().into_bytes();
 
-        let mut h2 = <HmacSha256 as Mac>::new_from_slice(&ck).unwrap();
-        h2.update(CHAIN_LABEL);
-        let next = h2.finalize().into_bytes();
+            let mut h2 = <HmacSha256 as Mac>::new_from_slice(&ck).unwrap();
+            h2.update(CHAIN_LABEL);
+            let next = h2.finalize().into_bytes();
 
-        let key = Key::<Aes256Gcm>::from_slice(&mk_arr);
-        let cipher = Aes256Gcm::new(key);
-        let payload = aes_gcm::aead::Payload { msg: &ct, aad: &ad };
-        let pt_vec = cipher.decrypt(Nonce::from_slice(&n), payload)
-            .map_err(|_| "decrypt/auth failed")?;
-        Ok::<_, &'static str>((pt_vec, next.to_vec()))
-    }).map_err(|e| PyValueError::new_err(e))?;
+            let key = Key::<Aes256Gcm>::from_slice(&mk_arr);
+            let cipher = Aes256Gcm::new(key);
+            let payload = aes_gcm::aead::Payload { msg: &ct, aad: &ad };
+            let pt_vec = cipher
+                .decrypt(Nonce::from_slice(&n), payload)
+                .map_err(|_| "decrypt/auth failed")?;
+            Ok::<_, &'static str>((pt_vec, next.to_vec()))
+        })
+        .map_err(PyValueError::new_err)?;
 
     Ok((
         PyBytes::new(py, &pt).into(),
@@ -157,9 +139,12 @@ pub fn ratchet_decrypt_step(
     ))
 }
 
-/// Fresh root-key derivation from a shared secret using HKDF-SHA256.
 #[pyfunction]
-pub fn ratchet_root_kdf(py: Python<'_>, shared_secret: &[u8], info: &[u8]) -> PyResult<Py<PyBytes>> {
+pub fn ratchet_root_kdf(
+    py: Python<'_>,
+    shared_secret: &[u8],
+    info: &[u8],
+) -> PyResult<Py<PyBytes>> {
     let ss = shared_secret.to_vec();
     let inf = info.to_vec();
     let out = py.allow_threads(move || {
@@ -171,9 +156,6 @@ pub fn ratchet_root_kdf(py: Python<'_>, shared_secret: &[u8], info: &[u8]) -> Py
     Ok(PyBytes::new(py, &out).into())
 }
 
-
-/// Bit-compatible Python `kdf_rk`: HKDF-SHA256 with salt=rk, IKM=dh_out,
-/// info=b"vortex-double-ratchet", length=64 → (new_root_key, new_chain_key).
 #[pyfunction]
 pub fn ratchet_kdf_rk(
     py: Python<'_>,
@@ -204,10 +186,6 @@ pub fn ratchet_kdf_rk(
     ))
 }
 
-
-/// Bit-compatible Python `kdf_ck`: returns (new_chain_key, message_key).
-///   new_ck = HMAC-SHA256(ck, 0x02)
-///   mk     = HMAC-SHA256(ck, 0x01)
 #[pyfunction]
 pub fn ratchet_kdf_ck(py: Python<'_>, ck: &[u8]) -> PyResult<(Py<PyBytes>, Py<PyBytes>)> {
     if ck.len() != 32 {

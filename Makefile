@@ -13,17 +13,23 @@
 .DEFAULT_GOAL := help
 .PHONY: help install install-dev dev test test-fast lint format security \
         docker-build docker-up docker-down migrate migrate-create \
-        clean ci check-deps db-backup db-restore
+        clean ci check-deps db-backup db-restore \
+        rust-build rust-test rust-lint rust-fmt rust-check rust-clean \
+        waf-build waf-test waf-lint waf-fmt waf-check waf-clean
 
-PYTHON      ?= python3
-PIP         ?= pip
-PYTEST      ?= pytest
-RUFF        ?= ruff
-DOCKER      ?= docker
-COMPOSE     ?= docker compose
-APP_NAME    := vortex-chat
-VERSION     := 5.0.0
-PORT        ?= 9000
+PYTHON ?= python3
+PIP ?= pip
+PYTEST ?= pytest
+RUFF ?= ruff
+DOCKER ?= docker
+COMPOSE ?= docker compose
+CARGO ?= cargo
+MATURIN ?= maturin
+WAF_CRATE := vortex_waf/Cargo.toml
+CORE_CRATE := rust_utils/Cargo.toml
+APP_NAME := vortex-chat
+VERSION := 5.0.0
+PORT ?= 9000
 
 # Colors
 CYAN  := \033[36m
@@ -38,7 +44,7 @@ help: ## Show this help message
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 
-install: ## Install production dependencies
+install: rust-build ## Install production dependencies (including the Rust extensions)
 	$(PIP) install -r requirements.txt
 
 install-dev: install ## Install all dependencies (including dev tools)
@@ -60,7 +66,6 @@ run: ## Run production server
 
 test: ## Run tests with coverage report
 	TESTING=true \
-	DB_PATH="file::memory:?cache=shared" \
 	JWT_SECRET="test_secret_key_minimum_32_chars_long_1234" \
 	CSRF_SECRET="test_csrf_secret_minimum_32_chars_1234567" \
 	NODE_INITIALIZED=true \
@@ -73,7 +78,6 @@ test: ## Run tests with coverage report
 
 test-fast: ## Run tests without coverage (faster)
 	TESTING=true \
-	DB_PATH="file::memory:?cache=shared" \
 	JWT_SECRET="test_secret_key_minimum_32_chars_long_1234" \
 	CSRF_SECRET="test_csrf_secret_minimum_32_chars_1234567" \
 	NODE_INITIALIZED=true \
@@ -86,6 +90,43 @@ test-fast: ## Run tests without coverage (faster)
 
 test-security: ## Run security-marked tests only
 	$(PYTEST) -m security -v
+
+rust-build: ## Build and install both Rust extensions into the active venv
+	$(MATURIN) develop --release -m $(WAF_CRATE)
+	$(MATURIN) develop --release -m $(CORE_CRATE)
+
+rust-test: ## Run the whole Rust workspace test suite
+	$(CARGO) test --workspace
+
+rust-lint: ## Lint the Rust workspace (clippy, warnings are errors)
+	$(CARGO) clippy --workspace --all-targets -- -D warnings
+
+rust-fmt: ## Format the Rust workspace
+	$(CARGO) fmt --all
+
+rust-check: rust-test rust-lint ## Rust workspace: tests + clippy + format check
+	$(CARGO) fmt --all --check
+
+rust-clean: ## Remove Rust build artifacts
+	$(CARGO) clean
+
+waf-build: ## Build and install only the WAF extension
+	$(MATURIN) develop --release -m $(WAF_CRATE)
+
+waf-test: ## Run the WAF crate test suite
+	$(CARGO) test -p vortex_waf
+
+waf-lint: ## Lint the WAF crate (clippy, warnings are errors)
+	$(CARGO) clippy -p vortex_waf --all-targets -- -D warnings
+
+waf-fmt: ## Format the WAF crate
+	$(CARGO) fmt -p vortex_waf
+
+waf-check: waf-test waf-lint ## WAF crate: tests + clippy + format check
+	$(CARGO) fmt -p vortex_waf --check
+
+waf-clean: ## Remove WAF build artifacts
+	$(CARGO) clean -p vortex_waf
 
 lint: ## Run linter (ruff check)
 	$(RUFF) check app/ --fix
@@ -149,7 +190,7 @@ docker-dev: ## Start dev mode with Docker Compose
 docker-monitoring: ## Start with monitoring (Prometheus)
 	$(COMPOSE) --profile monitoring up -d
 
-ci: lint test security ## Run full CI pipeline: lint + test + security
+ci: lint rust-check test security ## Run full CI pipeline: lint + Rust workspace + test + security
 
 check-deps: ## Check for dependency vulnerabilities
 	pip install safety && safety check

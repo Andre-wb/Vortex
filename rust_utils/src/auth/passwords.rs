@@ -1,5 +1,8 @@
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2, PasswordHash,
+};
 use pyo3::prelude::*;
-use argon2::{password_hash::{PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng}, Argon2, PasswordHash};
 
 /// Хэширование пароля
 #[pyfunction]
@@ -28,5 +31,7 @@ pub fn verify_password(password: &str, hash: &str) -> PyResult<bool> {
 
     let argon2 = Argon2::default();
 
-    Ok(argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok())
+    Ok(argon2
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok())
 }

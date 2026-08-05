@@ -36,6 +36,10 @@ import pytest
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("mobile_sim")
 
+# Старт контроллера занимает ~0.06 с, но дефолтные 5 с у asgi_lifespan иногда
+# не выдерживают параллельного прогона. Границу держит pytest-timeout.
+LIFESPAN_TIMEOUT = 30.0
+
 
 
 
@@ -246,7 +250,11 @@ async def test_full_mobile_migration():
         httpx.AsyncClient.__init__ = patched_init
 
         try:
-            async with LifespanManager(stack["ctrl_app"]):
+            async with LifespanManager(
+                stack["ctrl_app"],
+                startup_timeout=LIFESPAN_TIMEOUT,
+                shutdown_timeout=LIFESPAN_TIMEOUT,
+            ):
                 _point_each_node_at_controller(stack["ctrl_app"])
 
                 # Register both nodes with the controller
@@ -369,7 +377,11 @@ async def test_handoff_rejects_unknown_source():
         httpx.AsyncClient.__init__ = patched_init
 
         try:
-            async with LifespanManager(stack["ctrl_app"]):
+            async with LifespanManager(
+                stack["ctrl_app"],
+                startup_timeout=LIFESPAN_TIMEOUT,
+                shutdown_timeout=LIFESPAN_TIMEOUT,
+            ):
                 _point_each_node_at_controller(stack["ctrl_app"])
 
                 # Register only node B; node A is NOT registered, so its pubkey is unknown.

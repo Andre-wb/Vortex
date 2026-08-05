@@ -143,5 +143,10 @@ def verify_files(manifest: dict, root: Path) -> dict:
 
 
 def canonical_json(obj) -> bytes:
-    """Same canonicalization as controller_crypto — bytes that the signature covers."""
+    """Bytes that the manifest signature covers.
+
+    Not interchangeable with ``controller_crypto.canonical_json``: that one is
+    aligned with Rust/JS, this one keeps ``ensure_ascii`` so already-released
+    manifest signatures stay valid.
+    """
     return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")

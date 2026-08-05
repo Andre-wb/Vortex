@@ -560,18 +560,40 @@ class TestAuthProfile:
         assert resp.status_code in (200, 400, 500)
 
 
-# 3. app/security/waf.py — WAFEngine unit tests
+# 3. app/security/waf/ — движок на Rust (vortex_waf)
+
+
+def _waf_request(**overrides):
+    """Минимальный запрос для analyze_request с возможностью переопределить поля."""
+    request = {
+        "client_ip": "203.0.113.1",
+        "method": "GET",
+        "url": "/api/health",
+        "path": "/api/health",
+        "headers": {},
+        "params": {},
+        "body": "",
+        "content_type": "",
+    }
+    request.update(overrides)
+    return request
 
 
 class TestWAFEngine:
-    """Covers lines 215-310 (WAFEngine methods), 345-465."""
+    """Движок: конфигурация, списки адресов, анализ запроса."""
+
+    def test_backend_is_rust(self):
+        from app.security.waf import RULE_COUNT, VERSION
+        assert VERSION
+        assert RULE_COUNT == 74
 
     def test_init_default(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
         assert waf.rate_limit_requests == 100
         assert waf.rate_limit_window == 60
-        assert "127.0.0.1" in waf.ip_whitelist
+        assert waf.block_duration == 3600
+        assert "127.0.0.1" in waf.whitelist()
 
     def test_init_custom_config(self):
         from app.security.waf import WAFEngine
@@ -582,580 +604,513 @@ class TestWAFEngine:
             "whitelist_ips": ["10.0.0.1"],
         })
         assert waf.rate_limit_requests == 50
-        assert "10.0.0.1" in waf.ip_whitelist
+        assert waf.rate_limit_window == 30
+        assert waf.block_duration == 1800
+        assert "10.0.0.1" in waf.whitelist()
 
     def test_is_ip_blocked_whitelisted(self):
-        """Covers line 222-223 (whitelisted IP not blocked)."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
         assert waf.is_ip_blocked("127.0.0.1") is False
 
     def test_is_ip_blocked_blacklisted(self):
-        """Covers line 224-225 (blacklisted IP)."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        waf.ip_blacklist.add("6.6.6.6")
+        waf.add_blacklist_ip("6.6.6.6")
         assert waf.is_ip_blocked("6.6.6.6") is True
+        assert "6.6.6.6" in waf.blacklist()
 
     def test_is_ip_blocked_temporary(self):
-        """Covers lines 226-229 (temporarily blocked, not expired)."""
         from app.security.waf import WAFEngine
-        from datetime import datetime, timezone, timedelta
         waf = WAFEngine()
-        waf.blocked_ips["7.7.7.7"] = {
-            "until": datetime.now(timezone.utc) + timedelta(hours=1),
-        }
+        waf.block_ip("7.7.7.7", "test", 3600)
         assert waf.is_ip_blocked("7.7.7.7") is True
 
-    def test_is_ip_blocked_expired(self):
-        """Covers line 229 (expired block removed)."""
-        from app.security.waf import WAFEngine
-        from datetime import datetime, timezone, timedelta
-        waf = WAFEngine()
-        waf.blocked_ips["8.8.8.8"] = {
-            "until": datetime.now(timezone.utc) - timedelta(hours=1),
-        }
-        assert waf.is_ip_blocked("8.8.8.8") is False
-        assert "8.8.8.8" not in waf.blocked_ips
-
     def test_block_ip_normal(self):
-        """Covers lines 232-249 (block_ip success)."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf.block_ip("9.9.9.9", "test block")
-        assert result is True
-        assert "9.9.9.9" in waf.blocked_ips
-        assert waf.stats["ip_blocks"] >= 1
+        assert waf.block_ip("9.9.9.9", "test block") is True
+        assert any(entry["ip"] == "9.9.9.9" for entry in waf.blocked_ips())
+        assert waf.get_stats()["ip_blocks"] >= 1
 
     def test_block_ip_whitelisted(self):
-        """Covers lines 237-239 (can't block whitelisted IP)."""
+        """Адрес из белого списка заблокировать нельзя."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf.block_ip("127.0.0.1", "test")
-        assert result is False
+        assert waf.block_ip("127.0.0.1", "test") is False
+        assert waf.is_ip_blocked("127.0.0.1") is False
 
     def test_block_ip_custom_duration(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf.block_ip("11.11.11.11", "test", duration=600)
-        assert result is True
+        assert waf.block_ip("11.11.11.11", "test", 600) is True
+        entry = next(e for e in waf.blocked_ips() if e["ip"] == "11.11.11.11")
+        assert entry["duration"] == 600
+        assert entry["reason"] == "test"
 
-    def test_check_rate_limit_allowed(self):
-        """Covers lines 252-272 (rate limit allowed)."""
+    def test_unblock_ip(self):
         from app.security.waf import WAFEngine
-        waf = WAFEngine({"rate_limit_requests": 100})
-        ok, msg = waf.check_rate_limit("10.10.10.10")
-        assert ok is True
-        assert msg is None
+        waf = WAFEngine()
+        waf.block_ip("12.12.12.12", "test")
+        assert waf.unblock_ip("12.12.12.12") is True
+        assert waf.is_ip_blocked("12.12.12.12") is False
+        assert waf.unblock_ip("12.12.12.12") is False
 
-    def test_check_rate_limit_exceeded(self):
-        """Covers lines 262-267 (rate limit exceeded)."""
+    def test_rate_limit_allows_within_window(self):
         from app.security.waf import WAFEngine
-        from datetime import datetime, timezone
+        waf = WAFEngine({"rate_limit_requests": 5, "rate_limit_window": 60})
+        for _ in range(5):
+            result = waf.analyze_request(_waf_request(client_ip="10.10.10.10"))
+            assert result["block"] is False
+
+    def test_rate_limit_exceeded(self):
+        from app.security.waf import WAFEngine
         waf = WAFEngine({"rate_limit_requests": 2, "rate_limit_window": 60})
-        now = datetime.now(timezone.utc)
-        waf.request_history["5.5.5.5"] = [now, now]
-        ok, msg = waf.check_rate_limit("5.5.5.5")
-        assert ok is False
-        assert "Rate limit" in msg
+        for _ in range(2):
+            waf.analyze_request(_waf_request(client_ip="5.5.5.5"))
+        result = waf.analyze_request(_waf_request(client_ip="5.5.5.5"))
+        assert result["block"] is True
+        assert "Rate limit" in result["reason"]
+        assert any(f["rule_id"] == "RATE-LIMIT" for f in result["findings"])
 
-    def test_check_rate_limit_double_causes_block(self):
-        """Covers line 265-266 (double limit triggers IP block)."""
+    def test_rate_limit_skips_whitelist(self):
         from app.security.waf import WAFEngine
-        from datetime import datetime, timezone
-        waf = WAFEngine({"rate_limit_requests": 2, "rate_limit_window": 60})
-        now = datetime.now(timezone.utc)
-        # Fill with 4 entries (double the limit of 2)
-        waf.request_history["4.4.4.4"] = [now, now, now, now]
-        ok, msg = waf.check_rate_limit("4.4.4.4")
-        assert ok is False
-        assert "4.4.4.4" in waf.blocked_ips
-
-    def test_check_rate_limit_history_pruning(self):
-        """Covers lines 270-271 (prune old entries when history grows)."""
-        from app.security.waf import WAFEngine
-        from datetime import datetime, timezone
-        waf = WAFEngine({"rate_limit_requests": 2, "rate_limit_window": 60})
-        now = datetime.now(timezone.utc)
-        # Fill with 20+ entries (over 10x limit) to trigger pruning
-        waf.request_history["3.3.3.3"] = [now] * 25
-        ok, msg = waf.check_rate_limit("3.3.3.3")
-        # Will be rate limited since there are already 25 entries in window
-        assert ok is False
+        waf = WAFEngine({"rate_limit_requests": 1, "rate_limit_window": 60})
+        for _ in range(5):
+            result = waf.analyze_request(_waf_request(client_ip="127.0.0.1"))
+            assert result["block"] is False
 
     def test_analyze_request_clean(self):
-        """Covers lines 275-342 (clean request analysis)."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf.analyze_request({
-            "client_ip": "127.0.0.1",
-            "method": "GET",
-            "url": "/api/health",
-            "path": "/api/health",
-            "headers": {"user-agent": "Mozilla/5.0 Test Browser"},
-            "params": {},
-            "body": "",
-            "content_type": "",
-        })
+        result = waf.analyze_request(_waf_request(
+            headers={"user-agent": "Mozilla/5.0 Test Browser"},
+        ))
         assert result["block"] is False
+        assert result["client_ip"] == "203.0.113.1"
 
     def test_analyze_request_blocked_ip(self):
-        """Covers lines 286-287 (blocked IP returns immediately)."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        waf.ip_blacklist.add("66.66.66.66")
-        result = waf.analyze_request({
-            "client_ip": "66.66.66.66",
-            "method": "GET",
-            "url": "/",
-            "path": "/",
-            "headers": {},
-            "params": {},
-            "body": "",
-            "content_type": "",
-        })
+        waf.add_blacklist_ip("66.66.66.66")
+        result = waf.analyze_request(_waf_request(client_ip="66.66.66.66"))
         assert result["block"] is True
+        assert any(f["rule_id"] == "IP-BLOCKED" for f in result["findings"])
 
     def test_analyze_request_invalid_method(self):
-        """Covers lines 294-296 (invalid HTTP method)."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf.analyze_request({
-            "client_ip": "127.0.0.1",
-            "method": "PURGE",
-            "url": "/test",
-            "path": "/test",
-            "headers": {},
-            "params": {},
-            "body": "",
-            "content_type": "",
-        })
+        result = waf.analyze_request(_waf_request(method="PURGE", path="/test"))
         assert any(f["rule_id"] == "INVALID-METHOD" for f in result["findings"])
 
     def test_analyze_request_long_url(self):
-        """Covers lines 299-301 (URL too long)."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        long_url = "/test?" + "x" * 2100
-        result = waf.analyze_request({
-            "client_ip": "127.0.0.1",
-            "method": "GET",
-            "url": long_url,
-            "path": "/test",
-            "headers": {},
-            "params": {},
-            "body": "",
-            "content_type": "",
-        })
+        result = waf.analyze_request(_waf_request(url="/test?" + "x" * 2100, path="/test"))
         assert any(f["rule_id"] == "LONG-URL" for f in result["findings"])
 
     def test_analyze_request_suspicious_ua(self):
-        """Covers lines 305-307 (short/empty User-Agent)."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf.analyze_request({
-            "client_ip": "127.0.0.1",
-            "method": "GET",
-            "url": "/test",
-            "path": "/test",
-            "headers": {"user-agent": "ab"},
-            "params": {},
-            "body": "",
-            "content_type": "",
-        })
+        result = waf.analyze_request(_waf_request(headers={"user-agent": "ab"}))
         assert any(f["rule_id"] == "SUSPICIOUS-UA" for f in result["findings"])
 
     def test_analyze_request_xss_referer(self):
-        """Covers lines 308-309 (XSS in Referer)."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf.analyze_request({
-            "client_ip": "127.0.0.1",
-            "method": "GET",
-            "url": "/test",
-            "path": "/test",
-            "headers": {"referer": "javascript:alert(1)"},
-            "params": {},
-            "body": "",
-            "content_type": "",
-        })
+        result = waf.analyze_request(_waf_request(
+            headers={"referer": "javascript:alert(1)"},
+        ))
+        assert result["block"] is True
         assert any(f["rule_id"] == "XSS-REFERER" for f in result["findings"])
 
-    def test_analyze_request_large_body(self):
-        """Covers lines 321-322 (body too large)."""
-        from app.security.waf import WAFEngine
-        waf = WAFEngine({"max_content_length": 100})
-        result = waf.analyze_request({
-            "client_ip": "127.0.0.1",
-            "method": "POST",
-            "url": "/test",
-            "path": "/test",
-            "headers": {},
-            "params": {},
-            "body": "x" * 200,
-            "content_type": "text/plain",
-        })
-        assert any(f["rule_id"] == "LARGE-BODY" for f in result["findings"])
-
-    def test_analyze_request_body_with_content_type(self):
-        """Covers lines 318-324 (body inspection with content type)."""
+    def test_analyze_request_sql_injection_param(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf.analyze_request({
-            "client_ip": "127.0.0.1",
-            "method": "POST",
-            "url": "/test",
-            "path": "/test",
-            "headers": {},
-            "params": {},
-            "body": '{"key": "safe value"}',
-            "content_type": "application/json",
-        })
+        result = waf.analyze_request(_waf_request(
+            path="/api/search",
+            params={"q": ["1' OR 1=1 -- "]},
+        ))
+        assert result["block"] is True
+        assert any(f["rule_id"].startswith("SQLI") for f in result["findings"])
+
+    def test_analyze_request_xss_param(self):
+        from app.security.waf import WAFEngine
+        waf = WAFEngine()
+        result = waf.analyze_request(_waf_request(
+            path="/api/search",
+            params={"q": ["<script>alert(1)</script>"]},
+        ))
+        assert result["block"] is True
+
+    def test_analyze_request_safe_param_skipped(self):
+        """csrf_token не проверяется правилами."""
+        from app.security.waf import WAFEngine
+        waf = WAFEngine()
+        result = waf.analyze_request(_waf_request(
+            params={"csrf_token": ["SELECT something FROM dual"]},
+        ))
         assert result["block"] is False
 
-    def test_analyze_request_stats_update(self):
-        """Covers lines 336-340 (stats counters incremented)."""
+    def test_analyze_request_scalar_param_value(self):
+        """Значение параметра может прийти не списком."""
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        initial = waf.stats["total_requests"]
-        waf.analyze_request({
-            "client_ip": "127.0.0.1",
-            "method": "GET",
-            "url": "/",
-            "path": "/",
-            "headers": {},
-            "params": {},
-            "body": "",
-            "content_type": "",
-        })
-        assert waf.stats["total_requests"] == initial + 1
+        result = waf.analyze_request(_waf_request(params={"q": "1' OR 1=1 -- "}))
+        assert result["block"] is True
 
 
-class TestWAFEngineHelpers:
-    """Covers lines 345-441 (helper inspection methods)."""
+class TestWAFEngineBody:
+    """Разбор тела запроса разными разборщиками."""
 
-    def test_check_parameter_safe_param(self):
-        """Covers lines 347-348 (_check_parameter skips safe params)."""
+    def test_json_body_clean(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_parameter("csrf_token", "<script>")
-        assert result == []
+        result = waf.analyze_request(_waf_request(
+            method="POST", body='{"name": "safe value"}', content_type="application/json",
+        ))
+        assert result["block"] is False
 
-    def test_check_parameter_matches_rule(self):
-        """Covers lines 350-359 (_check_parameter finds matching rule)."""
+    def test_json_body_injection(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_parameter("input", "SELECT * FROM users WHERE id=1")
-        assert len(result) > 0
+        result = waf.analyze_request(_waf_request(
+            method="POST",
+            body='{"msg": {"parts": ["1 UNION ALL SELECT * FROM users"]}}',
+            content_type="application/json",
+        ))
+        assert result["block"] is True
 
-    def test_check_request_body_json(self):
-        """Covers lines 369-373 (JSON body parsing and inspection)."""
+    def test_invalid_json_body(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_request_body('{"name": "safe value"}', "application/json")
-        assert isinstance(result, list)
+        result = waf.analyze_request(_waf_request(
+            method="POST", body="{invalid json", content_type="application/json",
+        ))
+        assert any(f["rule_id"] == "INVALID-JSON" for f in result["findings"])
 
-    def test_check_request_body_invalid_json(self):
-        """Covers lines 374-375 (invalid JSON detection)."""
+    def test_form_urlencoded_body(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_request_body("{invalid json", "application/json")
-        assert any(f["rule_id"] == "INVALID-JSON" for f in result)
+        clean = waf.analyze_request(_waf_request(
+            method="POST", body="name=test&value=hello",
+            content_type="application/x-www-form-urlencoded",
+        ))
+        assert clean["block"] is False
 
-    def test_check_request_body_form_urlencoded(self):
-        """Covers lines 377-388 (URL-encoded form body)."""
+        dirty = waf.analyze_request(_waf_request(
+            method="POST", body="comment=%3Cscript%3Ealert(1)%3C%2Fscript%3E",
+            content_type="application/x-www-form-urlencoded",
+        ))
+        assert dirty["block"] is True
+
+    def test_multipart_webshell_upload(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_request_body("name=test&value=hello",
-                                         "application/x-www-form-urlencoded")
-        assert isinstance(result, list)
+        body = (
+            "------x\r\n"
+            'Content-Disposition: form-data; name="file"; filename="shell.php"\r\n\r\n'
+            "<?php system($_GET['c']); ?>\r\n"
+            "------x--\r\n"
+        )
+        result = waf.analyze_request(_waf_request(
+            method="POST", body=body,
+            content_type="multipart/form-data; boundary=----x",
+        ))
+        assert result["block"] is True
+        assert any(f["rule_id"] == "DANGEROUS-UPLOAD" for f in result["findings"])
 
-    def test_check_request_body_multipart(self):
-        """Covers lines 366-367 (multipart skipped)."""
+    def test_multipart_allows_source_files(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_request_body("some content", "multipart/form-data")
-        assert result == []
+        body = (
+            "------x\r\n"
+            'Content-Disposition: form-data; name="file"; filename="script.py"\r\n\r\n'
+            "print(1)\r\n"
+            "------x--\r\n"
+        )
+        result = waf.analyze_request(_waf_request(
+            method="POST", body=body,
+            content_type="multipart/form-data; boundary=----x",
+        ))
+        assert result["block"] is False
 
-    def test_check_request_body_plain_text_fallback(self):
-        """Covers lines 390-401 (fallback for unrecognized content type)."""
+    def test_plain_text_fallback(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_request_body("SELECT * FROM users", "text/plain")
-        assert len(result) > 0
+        result = waf.analyze_request(_waf_request(
+            method="POST", body="SELECT password FROM users", content_type="text/plain",
+        ))
+        assert len(result["findings"]) > 0
 
-    def test_check_json_structure_dict(self):
-        """Covers lines 403-413 (recursive JSON dict traversal)."""
+    def test_oversized_body(self):
+        from app.security.waf import WAFEngine
+        waf = WAFEngine({"max_content_length": 64})
+        result = waf.analyze_request(_waf_request(
+            method="POST", body="a" * 200, content_type="text/plain",
+        ))
+        assert result["block"] is True
+        assert any(f["rule_id"] == "LARGE-BODY" for f in result["findings"])
+
+
+class TestWAFEnginePath:
+    """Проверки пути запроса."""
+
+    def test_path_traversal(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_json_structure({"key": "safe", "nested": {"deep": "value"}})
-        assert isinstance(result, list)
+        result = waf.analyze_request(_waf_request(path="/../../../etc/passwd"))
+        assert any(f["rule_id"] == "PATH-TRAVERSAL" for f in result["findings"])
+        assert result["block"] is True
 
-    def test_check_json_structure_list(self):
-        """Covers lines 414-420 (recursive JSON list traversal)."""
+    def test_dangerous_extension(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_json_structure(["safe", {"inner": "value"}, ["nested"]])
-        assert isinstance(result, list)
+        result = waf.analyze_request(_waf_request(path="/admin/shell.php"))
+        assert any(f["rule_id"] == "DANGEROUS-EXTENSION" for f in result["findings"])
 
-    def test_check_path_traversal(self):
-        """Covers lines 426-427 (path traversal detection)."""
+    def test_long_path(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_path("/../../../etc/passwd")
-        assert any(f["rule_id"] == "PATH-TRAVERSAL" for f in result)
+        result = waf.analyze_request(_waf_request(path="/a" * 300))
+        assert any(f["rule_id"] == "LONG-PATH" for f in result["findings"])
 
-    def test_check_path_dangerous_extension(self):
-        """Covers lines 428-430 (dangerous file extension)."""
+    def test_signature_match_in_path(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        result = waf._check_path("/admin/shell.php")
-        assert any(f["rule_id"] == "DANGEROUS-EXTENSION" for f in result)
-
-    def test_check_path_long(self):
-        """Covers lines 431-432 (long path)."""
-        from app.security.waf import WAFEngine
-        waf = WAFEngine()
-        result = waf._check_path("/a" * 300)
-        assert any(f["rule_id"] == "LONG-PATH" for f in result)
-
-    def test_check_path_rule_match(self):
-        """Covers lines 433-441 (rule pattern matches in path)."""
-        from app.security.waf import WAFEngine
-        waf = WAFEngine()
-        result = waf._check_path("/api?cmd=cat /etc/passwd|whoami")
-        assert len(result) > 0
+        result = waf.analyze_request(_waf_request(path="/api/cat /etc/passwd|whoami"))
+        assert len(result["findings"]) > 0
 
 
 class TestWAFEngineStats:
-    """Covers lines 444-465 (get_stats, clear_old_blocks)."""
+    """Статистика и обслуживание."""
 
-    def test_get_stats(self):
-        """Covers lines 444-455 (get_stats returns valid dict)."""
+    def test_get_stats_empty(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
         stats = waf.get_stats()
-        assert "total_requests" in stats
-        assert "blocked_requests" in stats
-        assert "block_rate" in stats
-        assert "rules_triggered" in stats
-        assert "active_rules" in stats
+        for key in ("total_requests", "blocked_requests", "block_rate",
+                    "rules_triggered", "ip_blocks", "blocked_ips_count", "active_rules"):
+            assert key in stats
         assert stats["block_rate"] == 0
 
-    def test_get_stats_with_requests(self):
-        """Covers line 450 (block_rate calculation when total > 0)."""
+    def test_block_rate_calculation(self):
         from app.security.waf import WAFEngine
         waf = WAFEngine()
-        waf.stats["total_requests"] = 100
-        waf.stats["blocked_requests"] = 10
+        # Один вредоносный запрос из четырёх.
+        waf.analyze_request(_waf_request(
+            path="/api/search", params={"q": ["1' OR 1=1 -- "]},
+        ))
+        for index in range(3):
+            waf.analyze_request(_waf_request(
+                client_ip=f"203.0.113.{index + 10}",
+                headers={"user-agent": "Mozilla/5.0"},
+            ))
         stats = waf.get_stats()
-        assert stats["block_rate"] == 10.0
+        assert stats["total_requests"] == 4
+        assert stats["blocked_requests"] == 1
+        assert stats["block_rate"] == 25.0
+        assert stats["active_rules"] > 0
+        assert stats["rules_triggered"]
 
-    def test_clear_old_blocks(self):
-        """Covers lines 457-464 (clear_old_blocks removes expired)."""
+    def test_rules_listing(self):
         from app.security.waf import WAFEngine
-        from datetime import datetime, timezone, timedelta
         waf = WAFEngine()
-        waf.blocked_ips["expired_ip"] = {
-            "until": datetime.now(timezone.utc) - timedelta(hours=1),
-        }
-        waf.blocked_ips["active_ip"] = {
-            "until": datetime.now(timezone.utc) + timedelta(hours=1),
-        }
-        waf.clear_old_blocks()
-        assert "expired_ip" not in waf.blocked_ips
-        assert "active_ip" in waf.blocked_ips
+        rules = waf.rules()
+        assert len(rules) == 74
+        assert all({"id", "description", "severity", "action"} <= set(r) for r in rules)
+        assert all(r["trigger_count"] == 0 for r in rules)
+
+    def test_rule_trigger_counters(self):
+        from app.security.waf import WAFEngine
+        waf = WAFEngine()
+        waf.analyze_request(_waf_request(
+            path="/api/search", params={"q": ["1' OR 1=1 -- "]},
+        ))
+        triggered = [r for r in waf.rules() if r["trigger_count"] > 0]
+        assert triggered
+        assert all(r["last_triggered"] for r in triggered)
+
+    def test_run_maintenance(self):
+        from app.security.waf import WAFEngine
+        waf = WAFEngine()
+        waf.block_ip("13.13.13.13", "test", 3600)
+        # Блокировка ещё активна — удалять нечего.
+        assert waf.run_maintenance() == 0
+        assert waf.is_ip_blocked("13.13.13.13") is True
 
 
 class TestWAFCaptcha:
-    """Covers lines 470-521 (WAFCaptcha)."""
-
-    def test_generate_challenge(self):
-        """Covers lines 480-503."""
-        from app.security.waf import WAFCaptcha
-        captcha = WAFCaptcha()
-        ch = captcha.generate_challenge("1.1.1.1")
-        assert "challenge_id" in ch
-        assert "question" in ch
-        assert "expires_in" in ch
+    """Капча: выдача и проверка на одном экземпляре движка."""
 
     @staticmethod
-    def _solve_captcha_question(question: str) -> str:
-        """Parse 'What is A op B?' and compute the answer safely."""
+    def _solve(question: str) -> str:
+        """Разбирает 'What is A op B?' и вычисляет ответ."""
         import operator
         ops = {'+': operator.add, '-': operator.sub, '*': operator.mul}
-        expr = question.replace("What is ", "").rstrip("?").strip()
-        parts = expr.split()  # e.g. ['3', '+', '5']
+        parts = question.replace("What is ", "").rstrip("?").strip().split()
         return str(ops[parts[1]](int(parts[0]), int(parts[2])))
 
-    def test_verify_challenge_correct(self):
-        """Covers verify_challenge with correct answer (stateless HMAC path)."""
-        from app.security.waf import WAFCaptcha
-        captcha = WAFCaptcha()
-        ch = captcha.generate_challenge("1.1.1.1")
-        answer = self._solve_captcha_question(ch["question"])
-        assert captcha.verify_challenge(ch["challenge_id"], answer) is True
+    def test_generate_challenge(self):
+        from app.security.waf import WAFEngine
+        waf = WAFEngine()
+        challenge = waf.generate_captcha("1.1.1.1")
+        assert "challenge_id" in challenge
+        assert challenge["question"].startswith("What is ")
+        assert challenge["expires_in"] == 300
 
-    def test_verify_challenge_wrong_answer(self):
-        """Covers verify_challenge with wrong answer."""
-        from app.security.waf import WAFCaptcha
-        captcha = WAFCaptcha()
-        ch = captcha.generate_challenge("1.1.1.1")
-        # Always wrong: answer cannot be this long
-        assert captcha.verify_challenge(ch["challenge_id"], "999999") is False
+    def test_verify_correct_answer(self):
+        from app.security.waf import WAFEngine
+        waf = WAFEngine()
+        challenge = waf.generate_captcha("1.1.1.1")
+        assert waf.verify_captcha(challenge["challenge_id"],
+                                  self._solve(challenge["question"])) is True
 
-    def test_verify_challenge_expired(self):
-        """Covers verify_challenge with expired challenge."""
-        import time as _time
-        from app.security.waf import WAFCaptcha
-        captcha = WAFCaptcha()
-        captcha.ttl = 0  # Expire immediately
-        ch = captcha.generate_challenge("1.1.1.1")
-        _time.sleep(0.05)
-        answer = self._solve_captcha_question(ch["question"])
-        assert captcha.verify_challenge(ch["challenge_id"], answer) is False
+    def test_verify_wrong_answer(self):
+        from app.security.waf import WAFEngine
+        waf = WAFEngine()
+        challenge = waf.generate_captcha("1.1.1.1")
+        assert waf.verify_captcha(challenge["challenge_id"], "999999") is False
 
-    def test_verify_challenge_not_found(self):
-        """Covers verify_challenge with invalid/nonexistent challenge_id."""
-        from app.security.waf import WAFCaptcha
-        captcha = WAFCaptcha()
-        assert captcha.verify_challenge("nonexistent", "42") is False
+    def test_verify_unknown_challenge(self):
+        from app.security.waf import WAFEngine
+        waf = WAFEngine()
+        assert waf.verify_captcha("nonexistent", "42") is False
+        assert waf.verify_captcha("", "42") is False
 
-    def test_cleanup_expired(self):
-        """Covers cleanup_expired (no-op for stateless captcha)."""
-        from app.security.waf import WAFCaptcha
-        captcha = WAFCaptcha()
-        # Should not raise — stateless implementation is a no-op
-        captcha.cleanup_expired()
+    def test_challenge_from_another_engine_is_rejected(self):
+        """Ключ подписи свой у каждого экземпляра без общего секрета."""
+        from app.security.waf import WAFEngine
+        issuer = WAFEngine()
+        outsider = WAFEngine()
+        challenge = issuer.generate_captcha("1.1.1.1")
+        answer = self._solve(challenge["question"])
+        assert issuer.verify_captcha(challenge["challenge_id"], answer) is True
+        assert outsider.verify_captcha(challenge["challenge_id"], answer) is False
+
+    def test_shared_secret_allows_cross_verification(self):
+        """С общим секретом капчу проверит любой экземпляр."""
+        from app.security.waf import WAFEngine
+        config = {"captcha_secret": "shared-secret-for-all-instances"}
+        issuer = WAFEngine(config)
+        verifier = WAFEngine(config)
+        challenge = issuer.generate_captcha("1.1.1.1")
+        answer = self._solve(challenge["question"])
+        assert verifier.verify_captcha(challenge["challenge_id"], answer) is True
 
 
 class TestWAFManager:
-    """Covers lines 842-888 (WAFManager admin operations)."""
+    """Административные операции."""
 
     def test_block_ip(self):
-        """Covers lines 850-852."""
         from app.security.waf import WAFEngine, WAFManager
-        waf = WAFEngine()
-        mgr = WAFManager(waf)
+        mgr = WAFManager(WAFEngine())
         result = mgr.block_ip("1.2.3.4", "test", 600)
         assert result["success"] is True
         assert result["ip"] == "1.2.3.4"
+        assert result["duration"] == 600
 
     def test_unblock_ip_found(self):
-        """Covers lines 854-857."""
         from app.security.waf import WAFEngine, WAFManager
-        waf = WAFEngine()
-        mgr = WAFManager(waf)
+        mgr = WAFManager(WAFEngine())
         mgr.block_ip("2.3.4.5", "test")
-        result = mgr.unblock_ip("2.3.4.5")
-        assert result["success"] is True
+        assert mgr.unblock_ip("2.3.4.5")["success"] is True
 
     def test_unblock_ip_not_found(self):
-        """Covers line 858."""
         from app.security.waf import WAFEngine, WAFManager
-        waf = WAFEngine()
-        mgr = WAFManager(waf)
-        result = mgr.unblock_ip("99.99.99.99")
-        assert result["success"] is False
+        mgr = WAFManager(WAFEngine())
+        assert mgr.unblock_ip("99.99.99.99")["success"] is False
 
     def test_get_blocked_ips(self):
-        """Covers lines 860-870."""
         from app.security.waf import WAFEngine, WAFManager
-        waf = WAFEngine()
-        mgr = WAFManager(waf)
+        mgr = WAFManager(WAFEngine())
         mgr.block_ip("3.4.5.6", "test")
-        ips = mgr.get_blocked_ips()
-        assert len(ips) >= 1
-        assert any(entry["ip"] == "3.4.5.6" for entry in ips)
+        entries = mgr.get_blocked_ips()
+        assert len(entries) >= 1
+        entry = next(e for e in entries if e["ip"] == "3.4.5.6")
+        assert entry["blocked_at"] and entry["blocked_until"]
 
     def test_add_whitelist_valid(self):
-        """Covers lines 872-876."""
         from app.security.waf import WAFEngine, WAFManager
         waf = WAFEngine()
         mgr = WAFManager(waf)
-        result = mgr.add_whitelist_ip("192.168.1.1")
-        assert result["success"] is True
-        assert "192.168.1.1" in waf.ip_whitelist
+        assert mgr.add_whitelist_ip("192.168.1.1")["success"] is True
+        assert "192.168.1.1" in waf.whitelist()
 
     def test_add_whitelist_invalid(self):
-        """Covers lines 877-878."""
         from app.security.waf import WAFEngine, WAFManager
-        waf = WAFEngine()
-        mgr = WAFManager(waf)
-        result = mgr.add_whitelist_ip("not-an-ip")
-        assert result["success"] is False
+        mgr = WAFManager(WAFEngine())
+        assert mgr.add_whitelist_ip("not-an-ip")["success"] is False
 
     def test_remove_whitelist_found(self):
-        """Covers lines 880-883."""
         from app.security.waf import WAFEngine, WAFManager
         waf = WAFEngine()
         mgr = WAFManager(waf)
-        waf.ip_whitelist.add("10.0.0.1")
-        result = mgr.remove_whitelist_ip("10.0.0.1")
-        assert result["success"] is True
+        mgr.add_whitelist_ip("10.0.0.1")
+        assert mgr.remove_whitelist_ip("10.0.0.1")["success"] is True
+        assert "10.0.0.1" not in waf.whitelist()
 
     def test_remove_whitelist_not_found(self):
-        """Covers line 884."""
         from app.security.waf import WAFEngine, WAFManager
-        waf = WAFEngine()
-        mgr = WAFManager(waf)
-        result = mgr.remove_whitelist_ip("99.99.99.99")
-        assert result["success"] is False
+        mgr = WAFManager(WAFEngine())
+        assert mgr.remove_whitelist_ip("99.99.99.99")["success"] is False
 
     def test_get_whitelist(self):
-        """Covers lines 886-887."""
         from app.security.waf import WAFEngine, WAFManager
-        waf = WAFEngine()
-        mgr = WAFManager(waf)
-        wl = mgr.get_whitelist()
-        assert isinstance(wl, list)
-        assert "127.0.0.1" in wl
+        mgr = WAFManager(WAFEngine())
+        whitelist = mgr.get_whitelist()
+        assert isinstance(whitelist, list)
+        assert "127.0.0.1" in whitelist
 
 
 class TestWAFGlobalInit:
-    """Covers lines 895-909 (init_waf_engine, get_waf_engine)."""
+    """Глобальный экземпляр движка."""
 
     def test_init_waf_engine(self):
-        """Covers lines 895-901."""
         from app.security.waf import init_waf_engine, WAFEngine
-        engine = init_waf_engine()
-        assert isinstance(engine, WAFEngine)
+        assert isinstance(init_waf_engine(), WAFEngine)
 
     def test_get_waf_engine_after_init(self):
-        """Covers lines 903-909 after init."""
         from app.security.waf import init_waf_engine, get_waf_engine
         init_waf_engine()
-        engine = get_waf_engine()
-        assert engine is not None
+        assert get_waf_engine() is not None
+
+    def test_get_waf_manager(self):
+        from app.security.waf import init_waf_engine, get_waf_manager
+        init_waf_engine()
+        assert get_waf_manager().get_whitelist()
 
 
 class TestWAFEndpoints:
-    """Covers lines 670-810 (WAF API routes)."""
+    """HTTP-эндпоинты управления."""
 
     def test_waf_stats(self, client):
-        """Covers lines 755-757."""
         resp = client.get("/waf/stats")
         assert resp.status_code == 200
-        data = resp.json()
-        assert "total_requests" in data
+        assert "total_requests" in resp.json()
 
     def test_waf_rules(self, client):
-        """Covers lines 759-772."""
         resp = client.get("/waf/rules")
         assert resp.status_code == 200
         data = resp.json()
-        assert "rules" in data
-        assert "total" in data
+        assert data["total"] == len(data["rules"]) > 0
 
     def test_waf_test(self, client):
-        """Covers lines 806-808."""
         resp = client.get("/waf/test")
         assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "ok"
+        assert resp.json()["status"] == "ok"
+
+    def test_waf_blocked_ips(self, client):
+        resp = client.get("/waf/blocked-ips")
+        assert resp.status_code == 200
+        assert "blocked_ips" in resp.json()
+
+    def test_waf_whitelist(self, client):
+        resp = client.get("/waf/whitelist")
+        assert resp.status_code == 200
+        assert "127.0.0.1" in resp.json()["whitelist"]
 
     def test_waf_captcha_generate(self, client):
-        """Covers lines 799-804."""
         resp = client.post("/waf/captcha/generate")
         assert resp.status_code == 200
         data = resp.json()
@@ -1164,17 +1119,19 @@ class TestWAFEndpoints:
 
 
 class TestWAFMiddlewareHelpers:
-    """Covers WAFMiddleware internal methods (lines 630-720)."""
+    """Внутренние методы ASGI-middleware."""
 
-    def test_build_request_from_scope(self):
-        """Covers lines 630-664 (_build_request_from_scope)."""
+    @staticmethod
+    def _middleware():
         from app.security.waf import WAFMiddleware, WAFEngine
-        waf = WAFEngine()
 
         async def dummy_app(scope, receive, send):
             pass
 
-        mw = WAFMiddleware(dummy_app, waf_engine=waf)
+        return WAFMiddleware(dummy_app, waf_engine=WAFEngine())
+
+    def test_build_request_from_scope(self):
+        mw = self._middleware()
         scope = {
             "type": "http",
             "method": "POST",
@@ -1190,98 +1147,51 @@ class TestWAFMiddlewareHelpers:
         assert req["client_ip"] == "192.168.1.100"
         assert req["method"] == "POST"
         assert req["path"] == "/api/test"
+        assert req["url"] == "/api/test?page=1&limit=10"
         assert "page" in req["params"]
+        assert req["content_type"] == "application/json"
         assert req["body"] == '{"key":"value"}'
 
     def test_get_client_ip_from_scope(self):
-        """Covers lines 666-680 (_get_client_ip)."""
-        from app.security.waf import WAFMiddleware, WAFEngine
-        waf = WAFEngine()
+        mw = self._middleware()
+        assert mw._get_client_ip({"client": ("1.2.3.4", 80)}, {}) == "1.2.3.4"
 
-        async def dummy_app(scope, receive, send):
-            pass
+    def test_forwarded_header_ignored_by_default(self):
+        """Без списка доверенных прокси заголовкам пересылки не верим."""
+        mw = self._middleware()
+        headers = {"x-forwarded-for": "10.20.30.40"}
+        assert mw._get_client_ip({"client": ("8.8.8.8", 80)}, headers) == "8.8.8.8"
 
-        mw = WAFMiddleware(dummy_app, waf_engine=waf)
-        # From client tuple
-        assert mw._get_client_ip({"client": ("1.2.3.4", 80)}) == "1.2.3.4"
-
-    def test_get_client_ip_from_header(self, monkeypatch):
-        """Covers _get_client_ip: trusts X-Forwarded-For only from trusted proxy."""
-        import ipaddress
+    def test_get_client_ip_from_trusted_proxy(self, monkeypatch):
         import app.security.waf.middleware as mw_mod
-        from app.security.waf import WAFMiddleware, WAFEngine
-        # Список доверенных прокси читается из env при импорте — патчим глобал
-        monkeypatch.setattr(mw_mod, "_TRUSTED_PROXY_NETS",
-                            [ipaddress.ip_network("127.0.0.0/8")])
-        waf = WAFEngine()
-
-        async def dummy_app(scope, receive, send):
-            pass
-
-        mw = WAFMiddleware(dummy_app, waf_engine=waf)
-        # Forwarded headers trusted only when client is a trusted proxy (private IP)
-        scope = {
-            "client": ("127.0.0.1", 80),
-            "headers": [(b"x-forwarded-for", b"10.20.30.40, 1.1.1.1")],
-        }
-        assert mw._get_client_ip(scope) == "10.20.30.40"
-
-        # Untrusted client — forwarded headers ignored
-        scope_untrusted = {
-            "client": ("8.8.8.8", 80),
-            "headers": [(b"x-forwarded-for", b"10.20.30.40")],
-        }
-        assert mw._get_client_ip(scope_untrusted) == "8.8.8.8"
-
-    def test_get_client_ip_invalid_header(self):
-        """Covers lines 677-679 (invalid IP in header, falls through)."""
-        from app.security.waf import WAFMiddleware, WAFEngine
-        waf = WAFEngine()
-
-        async def dummy_app(scope, receive, send):
-            pass
-
-        mw = WAFMiddleware(dummy_app, waf_engine=waf)
-        scope = {
-            "client": None,
-            "headers": [(b"x-forwarded-for", b"not-valid-ip")],
-        }
-        assert mw._get_client_ip(scope) == "unknown"
+        # Список доверенных прокси читается из env при импорте — патчим глобал.
+        monkeypatch.setattr(mw_mod, "_TRUSTED_PROXIES", ["127.0.0.0/8"])
+        mw = self._middleware()
+        headers = {"x-forwarded-for": "10.20.30.40, 1.1.1.1"}
+        assert mw._get_client_ip({"client": ("127.0.0.1", 80)}, headers) == "10.20.30.40"
+        assert mw._get_client_ip({"client": ("8.8.8.8", 80)}, headers) == "8.8.8.8"
 
     def test_get_client_ip_unknown(self):
-        """Covers line 680 (no client info at all)."""
-        from app.security.waf import WAFMiddleware, WAFEngine
-        waf = WAFEngine()
-
-        async def dummy_app(scope, receive, send):
-            pass
-
-        mw = WAFMiddleware(dummy_app, waf_engine=waf)
-        assert mw._get_client_ip({"headers": []}) == "unknown"
+        mw = self._middleware()
+        assert mw._get_client_ip({"headers": []}, {}) == "unknown"
+        assert mw._get_client_ip({"client": None}, {"x-forwarded-for": "bad"}) == "unknown"
 
     def test_is_excluded(self):
-        """Covers lines 682-684 (_is_excluded)."""
-        from app.security.waf import WAFMiddleware, WAFEngine
-        waf = WAFEngine()
-
-        async def dummy_app(scope, receive, send):
-            pass
-
-        mw = WAFMiddleware(dummy_app, waf_engine=waf)
-        # Static paths and health are typically excluded
+        mw = self._middleware()
         assert mw._is_excluded("/static/js/app.js") is True
+        assert mw._is_excluded("/api/files/upload-chunk/42") is True
         assert mw._is_excluded("/api/something") is False
+        # Внешняя выборка по ссылке проверяется — это поверхность SSRF.
+        assert mw._is_excluded("/api/link-preview") is False
 
 
 class TestWAFSetupFunction:
-    """Covers lines 815-835 (setup_waf)."""
+    """Сборка middleware и роутера в приложение."""
 
     def test_setup_waf(self):
-        """Covers lines 815-835."""
         from fastapi import FastAPI
         from app.security.waf import setup_waf, WAFEngine
-        test_app = FastAPI()
-        engine = setup_waf(test_app)
+        engine = setup_waf(FastAPI())
         assert isinstance(engine, WAFEngine)
 
 
@@ -1486,24 +1396,29 @@ class TestDatabase:
             assert AsyncSessionLocal is not None
 
 
-class TestWAFRuleAndSignature:
-    """Covers WAFRule and WAFSignature lines."""
+class TestWAFRuleCatalog:
+    """Каталог сигнатур движка."""
 
-    def test_waf_rule_invalid_pattern(self):
-        """Covers lines 31-33 (invalid regex in WAFRule)."""
-        from app.security.waf import WAFRule
-        rule = WAFRule("TEST-001", "[invalid(", severity="low", description="Bad regex")
-        # Should not raise, fallback pattern is used
-        assert rule.pattern is not None
-        assert rule.pattern.search("anything") is None
+    def test_all_patterns_compile(self):
+        """Каталог собирается целиком — иначе конструктор поднял бы исключение."""
+        from app.security.waf import WAFEngine, RULE_COUNT
+        rules = WAFEngine().rules()
+        assert len(rules) == RULE_COUNT
 
-    def test_waf_signature_get_all_rules(self):
-        """Covers lines 156-183 (get_all_rules compiles all signatures)."""
-        from app.security.waf import WAFSignature
-        rules = WAFSignature.get_all_rules()
-        assert len(rules) > 0
-        assert all(hasattr(r, "rule_id") for r in rules)
-        assert all(hasattr(r, "pattern") for r in rules)
+    def test_rule_metadata_is_complete(self):
+        from app.security.waf import WAFEngine
+        severities = {"low", "medium", "high", "critical"}
+        actions = {"block", "alert", "log"}
+        for rule in WAFEngine().rules():
+            assert rule["id"]
+            assert rule["description"]
+            assert rule["severity"] in severities
+            assert rule["action"] in actions
+
+    def test_rule_ids_are_unique(self):
+        from app.security.waf import WAFEngine
+        ids = [rule["id"] for rule in WAFEngine().rules()]
+        assert len(ids) == len(set(ids))
 
 
 class TestMainMeEndpoint:
