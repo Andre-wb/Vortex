@@ -20,6 +20,8 @@ hex = "0.4"
 rand = "0.8"
 blake3 = "1.5"
 regex = "1"
+ml-kem = { version = "0.2", features = ["deterministic"] }
+hkdf = "0.12"
 
 [profile.release]
 opt-level = 3

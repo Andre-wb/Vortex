@@ -69,6 +69,10 @@ logger = logging.getLogger(__name__)
 _PROBE_JITTER_LOW = 0.5
 _PROBE_JITTER_HIGH = 1.8
 
+_PAD_BUCKETS = (128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536)
+_PAD_PROMOTE_PROBABILITY = 0.15
+_PAD_TILE_STEP = 8192
+
 
 def _jittered_delay(base: float, *, low: float = 0.5, high: float = 2.0) -> float:
     """
@@ -347,9 +351,14 @@ class ShadowTLS:
     4. Encrypted Application Data (неотличимо от Google)
 
     Механизм:
-    - Сервер Vortex проксирует TLS handshake к реальному google.com
-    - После handshake — данные идут к Vortex через согласованный ключ
-    - HMAC-маркер в Application Data отличает реальный трафик от переключения
+    - Сервер прозрачно проксирует поток к реальному google.com, разбирая его
+      по TLS-записям, и параллельно ищет switch-запись от клиента.
+    - Switch-запись — TLS Application Data (0x17) с payload
+      session_id‖HMAC(session_id): подделать без ключа нельзя, настоящий клиент
+      её не шлёт (тогда поток остаётся прозрачным проксёром — активное
+      зондирование получает настоящий google).
+    - Момент переключения не привязан к таймеру: совпадает с завершением
+      handshake и колеблется с RTT, без фиксированной отсечки-сигнатуры.
     """
 
     # Whitelisted серверы для TLS handshake
@@ -361,8 +370,10 @@ class ShadowTLS:
         ("www.amazon.com", 443),
     ]
 
+    SESSION_ID_LEN = 16
     HMAC_MARKER_LEN = 8
-    HANDSHAKE_WINDOW = 0.5
+    _TLS_CONTENT_TYPES = (0x14, 0x15, 0x16, 0x17)
+    _MAX_TLS_RECORD = 16640
 
     def __init__(self, password: str = ""):
         self._explicit_password = password
@@ -418,14 +429,30 @@ class ShadowTLS:
     async def server_handshake_proxy(self, client_reader: asyncio.StreamReader,
                                        client_writer: asyncio.StreamWriter) -> Optional[bytes]:
         """
-        Серверная сторона: проксирует TLS handshake к whitelisted серверу.
-        После handshake клиент присылает switch-маркер session_id‖HMAC(session_id):
-        session_id берётся с провода, серверу не нужно его согласовывать.
-        Не наш клиент прозрачно допроксируется к реальному серверу.
-        Возвращает session_id или None, если это не ShadowTLS-клиент.
+        Серверная сторона: прозрачно проксирует поток к whitelisted серверу,
+        разбирая его по TLS-записям, и ждёт switch-запись от клиента.
+
+        Обе стороны релеятся по целым TLS-записям, поэтому при переключении
+        отмена релея сервер→клиент приходит только на границе записи — клиент
+        никогда не получает обрезанную запись и его парсер кадров не рассинхронён.
+        Записи handshake форвардятся к реальному серверу как есть, поэтому DPI
+        видит полный настоящий handshake; switch-запись наружу не уходит.
+        Переключение не привязано к таймеру — момент совпадает с завершением
+        handshake и колеблется с RTT.
+
+        Клиентский контракт: switch-запись (session_id‖HMAC(session_id) в
+        Application Data) шлётся первой после завершения handshake, отдельной
+        записью; ответные NewSessionTicket до этого момента клиент игнорирует.
+        Клиент добивает switch-запись padding'ом до правдоподобного размера
+        Application Data — иначе одинокая 24-байтная запись сама станет приметой
+        в точке переключения.
+
+        Возвращает session_id, либо None, если клиент закрылся или это не наш
+        клиент — тогда поток так и остаётся прозрачным проксёром к серверу.
         """
         target_host, target_port = self.get_handshake_target()
         remote_writer = None
+        to_client = None
 
         async def pump(reader, writer):
             try:
@@ -442,49 +469,88 @@ class ShadowTLS:
             remote_reader, remote_writer = await asyncio.open_connection(
                 target_host, target_port
             )
+            to_client = asyncio.create_task(
+                self._pump_records(remote_reader, client_writer))
 
-            to_remote = asyncio.create_task(pump(client_reader, remote_writer))
-            to_client = asyncio.create_task(pump(remote_reader, client_writer))
+            while True:
+                try:
+                    header = await client_reader.readexactly(5)
+                except (asyncio.IncompleteReadError, ConnectionError):
+                    return None
 
-            await asyncio.sleep(self.HANDSHAKE_WINDOW)
-            to_remote.cancel()
-            await asyncio.gather(to_remote, return_exceptions=True)
+                length = int.from_bytes(header[3:5], "big")
+                if (header[0] not in self._TLS_CONTENT_TYPES or header[1] != 0x03
+                        or length > self._MAX_TLS_RECORD):
+                    remote_writer.write(header)
+                    await remote_writer.drain()
+                    await pump(client_reader, remote_writer)
+                    return None
 
-            marker_len = 16 + self.HMAC_MARKER_LEN
-            try:
-                marker = await asyncio.wait_for(
-                    client_reader.readexactly(marker_len), timeout=5.0)
-            except asyncio.IncompleteReadError as e:
-                marker = e.partial
-            except asyncio.TimeoutError:
-                marker = b""
+                try:
+                    payload = await client_reader.readexactly(length)
+                except (asyncio.IncompleteReadError, ConnectionError):
+                    return None
 
-            session_id = marker[:16]
-            if (len(marker) == marker_len and hmac.compare_digest(
-                    marker[16:], self.generate_switch_marker(session_id))):
-                to_client.cancel()
-                await asyncio.gather(to_client, return_exceptions=True)
-                remote_writer.close()
-                logger.debug("ShadowTLS: handshake complete, switching to data mode")
-                return session_id
+                session_id = self._match_switch_record(header[0], payload)
+                if session_id is not None:
+                    logger.debug("ShadowTLS: switch record received, entering data mode")
+                    return session_id
 
-            if marker:
-                remote_writer.write(marker)
+                remote_writer.write(header + payload)
                 await remote_writer.drain()
-            resume = asyncio.create_task(pump(client_reader, remote_writer))
-            _, pending = await asyncio.wait(
-                {resume, to_client}, return_when=asyncio.FIRST_COMPLETED)
-            for t in pending:
-                t.cancel()
-            await asyncio.gather(resume, to_client, return_exceptions=True)
-            return None
 
         except Exception as e:
             logger.debug("ShadowTLS handshake error: %s", e)
             return None
         finally:
+            if to_client is not None and not to_client.done():
+                to_client.cancel()
+                await asyncio.gather(to_client, return_exceptions=True)
             if remote_writer is not None and not remote_writer.is_closing():
                 remote_writer.close()
+
+    async def _pump_records(self, reader: asyncio.StreamReader,
+                            writer: asyncio.StreamWriter) -> None:
+        """
+        Релеит поток сервер→клиент целыми TLS-записями. Каждая запись пишется
+        одним write, поэтому отмена задачи (при switch) не оставляет клиенту
+        обрезанную запись — теряется максимум одна целая запись (например
+        NewSessionTicket), а не половина, что рассинхронило бы парсер кадров.
+        """
+        try:
+            while True:
+                try:
+                    header = await reader.readexactly(5)
+                except (asyncio.IncompleteReadError, ConnectionError):
+                    return
+                length = int.from_bytes(header[3:5], "big")
+                if (header[0] not in self._TLS_CONTENT_TYPES or header[1] != 0x03
+                        or length > self._MAX_TLS_RECORD):
+                    return
+                try:
+                    payload = await reader.readexactly(length)
+                except (asyncio.IncompleteReadError, ConnectionError):
+                    return
+                writer.write(header + payload)
+                await writer.drain()
+        except (ConnectionError, asyncio.CancelledError):
+            pass
+
+    def _match_switch_record(self, content_type: int, payload: bytes) -> Optional[bytes]:
+        """
+        Возвращает session_id, если запись — валидная switch-запись: Application
+        Data с аутентичным HMAC на первых SESSION_ID_LEN+HMAC_MARKER_LEN байтах.
+        Payload может быть длиннее (padding после маркера) — проверяется префикс.
+        """
+        if content_type != 0x17:
+            return None
+        head = self.SESSION_ID_LEN + self.HMAC_MARKER_LEN
+        if len(payload) < head:
+            return None
+        session_id = payload[:self.SESSION_ID_LEN]
+        if self.verify_switch_marker(payload[self.SESSION_ID_LEN:head], session_id):
+            return session_id
+        return None
 
     def _session_key(self, session_id: bytes, label: bytes) -> bytes:
         return HKDF(
@@ -998,12 +1064,13 @@ class NaiveProxyConfig:
         self.backend_url = backend_url
         self._server_host = server_host
         self._explicit_username = username
-        self._password = password or secrets.token_urlsafe(24)
+        self._explicit_password = password
         self.reload_secrets()
 
     def reload_secrets(self) -> None:
-        """Перечитывает имя пользователя и probe-домен (вызывается после ротации)."""
+        """Перечитывает имя, пароль и probe-домен (вызывается после ротации)."""
         self._username = self._explicit_username or Config.NAIVE_USERNAME
+        self._password = self._explicit_password or Config.NAIVE_PASSWORD
         self._probe_domain = Config.NAIVE_PROBE_DOMAIN
 
     def generate_caddy_config(self, username: str = "",
@@ -1270,33 +1337,27 @@ SocksPort 0
         }
 
 
-# 7. IPFS DISTRIBUTION
-
 class IPFSDistributor:
     """
     Раздача статики и обновлений через IPFS.
 
-    Преимущества:
-    - Децентрализовано — нет единой точки блокировки
-    - Контент адресуемый по хешу — невозможно подменить
-    - Gateway-доступ через ipfs.io, cloudflare-ipfs.com, dweb.link
-
-    Используется для:
-    - Раздача клиентского JS/CSS
-    - Распространение обновлений клиента
-    - Backup для DGA-доменов
+    CID вычисляется как настоящий CIDv1 (raw-кодек, sha2-256, multibase base32):
+    для одноблочного контента он совпадает с результатом
+    `ipfs add --cid-version=1 --raw-leaves`. Но валидный CID сам по себе не
+    раздаётся — пока блок не запинен на реальном узле, любой gateway отдаёт 404.
+    Поэтому публикация идёт на узел Kubo (IPFS_API_URL) и запоминает CID,
+    который вернул демон; без узла CID лишь вычисляется и помечается unpinned.
     """
 
     GATEWAYS = [
         "https://ipfs.io/ipfs/",
-        "https://cloudflare-ipfs.com/ipfs/",
         "https://dweb.link/ipfs/",
         "https://gateway.pinata.cloud/ipfs/",
         "https://w3s.link/ipfs/",
     ]
 
     def __init__(self):
-        self._published: dict[str, str] = {}  # name → CID
+        self._published: dict[str, dict] = {}
         self._gateway_idx = 0
 
     def _next_gateway(self) -> str:
@@ -1304,24 +1365,50 @@ class IPFSDistributor:
         self._gateway_idx += 1
         return gw
 
-    def generate_cid_from_content(self, content: bytes) -> str:
-        """
-        Генерирует CID v1 (content identifier) для данных.
-        Упрощённо: SHA-256 в base58. Реальный CID использует multihash.
-        """
-        h = hashlib.sha256(content).digest()
-        # Base58 encoding (simplified)
-        return "Qm" + base64.b32encode(h).decode().rstrip("=").lower()[:44]
+    def compute_cid(self, content: bytes) -> str:
+        """Настоящий CIDv1 (raw, sha2-256, base32) для одноблочного контента."""
+        digest = hashlib.sha256(content).digest()
+        cid_bytes = bytes([0x01, 0x55, 0x12, 0x20]) + digest
+        return "b" + base64.b32encode(cid_bytes).decode("ascii").rstrip("=").lower()
 
-    def publish(self, name: str, content: bytes) -> str:
+    async def publish(self, name: str, content: bytes) -> str:
         """
-        "Публикует" контент в IPFS (записывает CID).
-        Реальная публикация требует ipfs daemon.
+        Публикует контент в IPFS.
+
+        При заданном IPFS_API_URL блок добавляется на узел Kubo и запоминается
+        CID, который вернул демон, — он реально доступен через gateway. Без узла
+        CID только вычисляется и помечается unpinned: раздать его нельзя, пока
+        оператор не запинит блок на своём узле.
         """
-        cid = self.generate_cid_from_content(content)
-        self._published[name] = cid
-        logger.info("IPFS: published %s → %s", name, cid[:16])
+        if Config.IPFS_API_URL:
+            cid = await self._add_to_node(content)
+            if cid:
+                self._published[name] = {"cid": cid, "pinned": True}
+                logger.info("IPFS: pinned %s → %s", name, cid[:20])
+                return cid
+            logger.warning("IPFS: node add failed for %s, using offline CID", name)
+
+        cid = self.compute_cid(content)
+        self._published[name] = {"cid": cid, "pinned": False}
+        logger.info("IPFS: unpinned CID for %s → %s", name, cid[:20])
         return cid
+
+    async def _add_to_node(self, content: bytes) -> Optional[str]:
+        try:
+            import httpx
+            files = {"file": ("blob", content, "application/octet-stream")}
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    Config.IPFS_API_URL.rstrip("/") + "/api/v0/add",
+                    params={"cid-version": "1", "raw-leaves": "true", "pin": "true"},
+                    files=files,
+                )
+                if resp.status_code == 200:
+                    return resp.json().get("Hash")
+                logger.warning("IPFS node add returned %s", resp.status_code)
+        except Exception as e:
+            logger.debug("IPFS node add error: %s", e)
+        return None
 
     def get_gateway_url(self, cid: str) -> str:
         """Возвращает URL для доступа через gateway."""
@@ -1332,46 +1419,34 @@ class IPFSDistributor:
         return [gw + cid for gw in self.GATEWAYS]
 
     def get_status(self) -> dict:
+        pinned = {n: m["cid"][:20] + "..." for n, m in self._published.items()
+                  if m["pinned"]}
+        unpinned = [n for n, m in self._published.items() if not m["pinned"]]
         return {
-            "published_items": len(self._published),
+            "node_configured": bool(Config.IPFS_API_URL),
             "gateways": len(self.GATEWAYS),
-            "items": {k: v[:16] + "..." for k, v in self._published.items()},
+            "pinned_items": len(pinned),
+            "unpinned_items": len(unpinned),
+            "pinned": pinned,
+            "unpinned": unpinned,
         }
 
-
-# 8. DECENTRALIZED DNS (ENS / Handshake)
 
 class DecentralizedDNS:
     """
     Домены вне контроля ICANN / РКН.
 
-    ENS (Ethereum Name Service): .eth домены на блокчейне
-    Handshake (HNS): альтернативный корневой DNS
-    Unstoppable Domains: .crypto, .nft, .wallet
-
-    Регистратор не может отозвать домен по запросу РКН.
+    Handshake (.hns) резолвится в реальный IP через публичный DoH-резолвер
+    hnsdoh.com. ENS (.eth) A-записи не имеет — к содержимому обращаются через
+    gateway eth.limo (добавить суффикс .eth.limo). Локально заданные записи
+    имеют приоритет над сетью.
     """
 
-    RESOLVERS = {
-        "ens": {
-            "gateway": "https://eth.gateway.api/resolve/",
-            "suffix": ".eth",
-            "description": "Ethereum Name Service",
-        },
-        "hns": {
-            "gateway": "https://dns.hns.is/dns-query",
-            "suffix": ".hns",
-            "description": "Handshake Network",
-        },
-        "unstoppable": {
-            "gateway": "https://resolve.unstoppabledomains.com/domains/",
-            "suffix": ".crypto",
-            "description": "Unstoppable Domains",
-        },
-    }
+    HNS_DOH_RESOLVER = "https://hnsdoh.com/dns-query"
+    ENS_GATEWAY = "eth.limo"
 
     def __init__(self):
-        self._domains: dict[str, dict] = {}  # domain → {type, records}
+        self._domains: dict[str, dict] = {}
 
     def register_domain(self, domain: str, dns_type: str, records: dict):
         """
@@ -1380,42 +1455,87 @@ class DecentralizedDNS:
         """
         self._domains[domain] = {"type": dns_type, "records": records}
 
-    def get_resolve_url(self, domain: str) -> Optional[str]:
-        """Возвращает URL для резолва через gateway."""
-        for dns_type, config in self.RESOLVERS.items():
-            if domain.endswith(config["suffix"]):
-                return config["gateway"] + domain
+    def content_url(self, domain: str) -> Optional[str]:
+        """URL содержимого .eth-домена через gateway eth.limo."""
+        if domain.endswith(".eth"):
+            return f"https://{domain[:-4]}.{self.ENS_GATEWAY}"
         return None
 
     async def resolve(self, domain: str) -> Optional[str]:
         """
-        Резолвит децентрализованный домен через gateway.
-        Возвращает IP адрес или None.
+        Резолвит домен в IP-адрес: A-запись или None.
+        У .eth A-записи нет — для содержимого используйте content_url().
         """
-        # Сначала проверяем локальный кэш
         if domain in self._domains:
-            records = self._domains[domain].get("records", {})
-            return records.get("A")
+            return self._domains[domain].get("records", {}).get("A")
+        if domain.endswith(".hns"):
+            return await self._resolve_hns(domain)
+        return None
 
-        url = self.get_resolve_url(domain)
-        if not url:
-            return None
-
+    async def _resolve_hns(self, domain: str) -> Optional[str]:
+        query = self._build_dns_query(domain)
+        dns_param = base64.urlsafe_b64encode(query).rstrip(b"=").decode("ascii")
         try:
             import httpx
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(url)
+                resp = await client.get(
+                    self.HNS_DOH_RESOLVER,
+                    params={"dns": dns_param},
+                    headers={"accept": "application/dns-message"},
+                )
                 if resp.status_code == 200:
-                    data = resp.json()
-                    return data.get("records", {}).get("A")
+                    for ip in self._parse_a_records(resp.content):
+                        return ip
         except Exception as e:
-            logger.debug("Decentralized DNS resolve error: %s", e)
+            logger.debug("Handshake DoH resolve error: %s", e)
         return None
+
+    @staticmethod
+    def _build_dns_query(domain: str) -> bytes:
+        header = b"\x00\x00\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+        question = b""
+        for label in domain.rstrip(".").split("."):
+            encoded = label.encode("idna") if any(ord(c) > 127 for c in label) \
+                else label.encode("ascii")
+            question += bytes([len(encoded)]) + encoded
+        question += b"\x00\x00\x01\x00\x01"
+        return header + question
+
+    @staticmethod
+    def _skip_name(wire: bytes, off: int) -> int:
+        while off < len(wire):
+            length = wire[off]
+            if length == 0:
+                return off + 1
+            if length & 0xC0 == 0xC0:
+                return off + 2
+            off += 1 + length
+        return off
+
+    @classmethod
+    def _parse_a_records(cls, wire: bytes) -> list[str]:
+        if len(wire) < 12:
+            return []
+        ancount = int.from_bytes(wire[6:8], "big")
+        off = cls._skip_name(wire, 12) + 4
+        ips: list[str] = []
+        for _ in range(ancount):
+            off = cls._skip_name(wire, off)
+            if off + 10 > len(wire):
+                break
+            rtype = int.from_bytes(wire[off:off + 2], "big")
+            rdlength = int.from_bytes(wire[off + 8:off + 10], "big")
+            rdata = off + 10
+            if rtype == 1 and rdlength == 4 and rdata + 4 <= len(wire):
+                ips.append(".".join(str(b) for b in wire[rdata:rdata + 4]))
+            off = rdata + rdlength
+        return ips
 
     def get_status(self) -> dict:
         return {
             "registered_domains": len(self._domains),
-            "resolvers": list(self.RESOLVERS.keys()),
+            "hns_resolver": self.HNS_DOH_RESOLVER,
+            "ens_gateway": self.ENS_GATEWAY,
         }
 
 
@@ -2158,6 +2278,19 @@ class ServiceWorkerConfig:
         чтобы не выдавать строгую периодичность наблюдателю. Потребитель
         (sw-proxy.js) должен планировать по этим границам, а не по фиксированному
         probe_interval.
+
+        padding.buckets — лестница целевых длин, покрывающая реальный разброс
+        размеров веб-ответов. Потребитель обязан дополнять запрос до ближайшего
+        бакета, который не меньше его длины, а с вероятностью
+        padding.promote_probability — до следующего за ним, иначе длина чуть
+        ниже границы остаётся отличимой от длины на границе. Всё, что длиннее
+        верхнего бакета, дополняется до кратного padding.tile_step.
+
+        Добавлять к длине случайную величину запрещено: аддитивный шум с узкой
+        полосой не скрывает исходное распределение длин — наблюдатель разворачивает
+        свёртку по гистограмме, — а сама полоса добавки становится приметой.
+        Округление вверх до бакета, наоборот, склеивает целый диапазон длин в
+        одно наблюдаемое значение.
         """
         return {
             "version": "4.0",
@@ -2171,8 +2304,9 @@ class ServiceWorkerConfig:
             "probe_interval_max": round(60 * _PROBE_JITTER_HIGH),
             "padding": {
                 "enabled": True,
-                "min_size": 32,
-                "max_size": 512,
+                "buckets": list(_PAD_BUCKETS),
+                "promote_probability": _PAD_PROMOTE_PROBABILITY,
+                "tile_step": _PAD_TILE_STEP,
             },
             "retry": {
                 "max_attempts": 3,
@@ -2727,6 +2861,7 @@ class StealthLevel4Manager:
                 "password": self.naiveproxy._password,
                 "probe_domain": self.naiveproxy._probe_domain,
                 "previous_username": previous("NAIVE_USERNAME") or None,
+                "previous_password": previous("NAIVE_PASSWORD") or None,
                 "previous_probe_domain": previous("NAIVE_PROBE_DOMAIN") or None,
             },
             "next_rotation": rotation_status().get("next_rotation"),

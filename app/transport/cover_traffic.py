@@ -7,12 +7,13 @@ app/transport/cover_traffic.py — Генератор покрывающего �
      чтобы заполнить паузы и сделать трафик неотличимым от веб-серфинга
 
 Паттерн реального серфинга:
-  - Burst: загрузка страницы (10-50 запросов за 1-3 сек)
-  - Silence: чтение (5-60 сек тишины)
-  - Burst: клик, переход (снова 10-50 запросов)
+  - Burst: загрузка страницы (5-20 ресурсов за 1-3 сек)
+  - Silence: чтение (5-45 сек тишины)
+  - Burst: клик, переход (снова 5-20 ресурсов)
 
-Cover traffic имитирует этот паттерн, отправляя рандомные данные
-с размерами типичных веб-ресурсов (HTML ~15K, CSS ~8K, JS ~30K, img ~50K).
+Cover traffic имитирует этот паттерн, отправляя рандомные данные с размерами
+типичных веб-ресурсов из _WEB_RESOURCE_SIZES: HTML 8-25K, CSS 3-15K, JS 10-80K,
+img 5-200K, шрифты 20-50K, API-ответы 0.1-2K.
 """
 from __future__ import annotations
 
@@ -30,8 +31,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["cover"])
 
 
-
-# Several realistic pages that look like a real business website
 COVER_PAGES = {
     "/": """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -91,7 +90,6 @@ footer{background:#1a1a2e;color:#666;text-align:center;padding:24px;font-size:.8
 }
 
 
-
 def _generate_fake_js() -> str:
     """Генерирует ~25-35KB реалистичного минифицированного JavaScript."""
     parts = [
@@ -118,7 +116,6 @@ def _generate_fake_js() -> str:
         't.setAttribute(n,e.props[n])}if(e.props.children)t.appendChild(g(e.props.children));return t}',
     ]
     base = ''.join(parts)
-    # Генерируем реалистичные функции для достижения ~30KB
     funcs = []
     for idx in range(200):
         name = f"_{chr(97 + idx % 26)}{idx}"
@@ -146,7 +143,6 @@ def _generate_fake_css() -> str:
         n_props = random.randint(3, 8)
         props = ';'.join(random.sample(properties, min(n_props, len(properties))))
         rules.append(f'{sel}{{{props}}}')
-        # Hover-состояния и media queries
         rules.append(f'{sel}:hover{{opacity:.8;cursor:pointer}}')
     rules.append('@media(max-width:768px){.container{padding:8px}.sidebar{display:none}}')
     return '\n'.join(rules)
@@ -214,10 +210,8 @@ async def cover_page(path: str = "", request: Request = None):
         "Cache-Control": "public, max-age=3600",
     })
 
-    # Knock sequence tracking
     from app.transport.knock import record_page_visit, is_knock_required
     if is_knock_required() and request:
-        # Используем session cookie (не IP — через CDN IP меняется)
         import secrets as _s
         session_id = request.cookies.get("_ks") or _s.token_urlsafe(16)
         full_path = f"/cover/{path}" if path else "/cover"
@@ -230,15 +224,13 @@ async def cover_page(path: str = "", request: Request = None):
     return response
 
 
-
-# Типичные размеры веб-ресурсов (байты) для имитации серфинга
 _WEB_RESOURCE_SIZES = {
-    "html":  (8_000,  25_000),
-    "css":   (3_000,  15_000),
-    "js":    (10_000, 80_000),
-    "image": (5_000,  200_000),
-    "font":  (20_000, 50_000),
-    "api":   (100,    2_000),
+    "html": (8_000, 25_000),
+    "css": (3_000, 15_000),
+    "js": (10_000, 80_000),
+    "image": (5_000, 200_000),
+    "font": (20_000, 50_000),
+    "api": (100, 2_000),
 }
 
 
@@ -274,32 +266,36 @@ class CoverTrafficGenerator:
         self._tasks.clear()
 
     async def _traffic_loop(self, ws_send_fn):
-        """Основной цикл: чередование burst и pause."""
+        """
+        Основной цикл: burst из 5-20 «ресурсов» с паузами 20-200мс между ними,
+        затем пауза 5-45 секунд — «пользователь читает страницу».
+
+        Размер каждого ресурса берётся из всего диапазона _WEB_RESOURCE_SIZES,
+        без верхнего среза: срез сплющил бы html/js/image/font в узкую полосу у
+        границы, и распределение размеров перестало бы походить на веб-серфинг,
+        ради которого таблица и заведена. Цена — burst до сотен килобайт.
+
+        Все случайные величины берутся из secrets, а не random: наблюдатель не
+        должен предсказывать ни размеры, ни задержки по предыдущим значениям.
+        """
         _keys = list(_WEB_RESOURCE_SIZES.keys())
         while self._running:
             try:
-                # BURST: имитация загрузки страницы (5-20 «ресурсов» за 1-3 сек)
-                # secrets используется вместо random — трафик должен быть непредсказуем для анализа
-                num_resources = 5 + secrets.randbelow(16)          # [5, 20]
+                num_resources = 5 + secrets.randbelow(16)
                 for _ in range(num_resources):
                     resource_type = secrets.choice(_keys)
                     min_size, max_size = _WEB_RESOURCE_SIZES[resource_type]
-                    cap  = min(max_size, 4096)
-                    size = min_size + secrets.randbelow(cap - min_size + 1)
+                    size = min_size + secrets.randbelow(max_size - min_size + 1)
 
-                    cover_data = os.urandom(size)
-                    # Маркер cover-трафика (первый байт = 0x00)
-                    tagged = b"\x00" + cover_data
+                    tagged = b"\x00" + os.urandom(size)
 
                     try:
                         await ws_send_fn(tagged)
                     except Exception:
                         return
 
-                    # Задержка между ресурсами (20-200мс)
                     await asyncio.sleep(0.02 + secrets.randbelow(181) / 1000)
 
-                # PAUSE: имитация чтения страницы (5-45 секунд)
                 pause = 5.0 + secrets.randbelow(40_001) / 1000
                 await asyncio.sleep(pause)
 

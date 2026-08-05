@@ -43,6 +43,7 @@ ROTATABLE: dict[str, Callable[[], str]] = {
     "AWS_RELAY_SECRET": lambda: secrets.token_hex(32),
     "AZURE_RELAY_SECRET": lambda: secrets.token_hex(32),
     "NAIVE_USERNAME": lambda: secrets.token_hex(8),
+    "NAIVE_PASSWORD": lambda: secrets.token_urlsafe(24),
     "NAIVE_PROBE_DOMAIN": lambda: secrets.choice(NAIVE_PROBE_DOMAINS),
 }
 

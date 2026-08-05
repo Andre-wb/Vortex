@@ -237,6 +237,7 @@ class Config:
     AWS_RELAY_SECRET = _auto_secret("AWS_RELAY_SECRET")
     AZURE_RELAY_SECRET = _auto_secret("AZURE_RELAY_SECRET")
     NAIVE_USERNAME = _auto_value("NAIVE_USERNAME", lambda: secrets.token_hex(8))
+    NAIVE_PASSWORD = _auto_value("NAIVE_PASSWORD", lambda: secrets.token_urlsafe(24))
     NAIVE_PROBE_DOMAIN = _auto_value(
         "NAIVE_PROBE_DOMAIN", lambda: secrets.choice(NAIVE_PROBE_DOMAINS))
 
@@ -266,6 +267,8 @@ class Config:
 
     NAIVE_CADDYFILE_PATH = os.getenv("NAIVE_CADDYFILE_PATH", "").strip()
     CADDY_ADMIN_URL = os.getenv("CADDY_ADMIN_URL", "http://127.0.0.1:2019").strip()
+
+    IPFS_API_URL = os.getenv("IPFS_API_URL", "").strip()
 
     # Верхняя граница паузы между попытками передеплоя.
     RELAY_DEPLOY_MAX_BACKOFF = int(os.getenv("RELAY_DEPLOY_MAX_BACKOFF", "3600"))
