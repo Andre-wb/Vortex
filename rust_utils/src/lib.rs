@@ -47,6 +47,8 @@ mod batch_verify;
 use batch_verify::{batch_verify as ed_batch_verify, verify_signature as ed_verify};
 mod chunk_hash;
 use chunk_hash::{sha256_combine_hex, sha256_concat_hex, sha256_hex, sha256_stream};
+pub mod transport;
+use transport::reality_bridge::PyRealityAuth;
 
 #[pymodule]
 fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -126,6 +128,8 @@ fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mlkem768_keygen_derand, m)?)?;
     m.add_function(wrap_pyfunction!(mlkem768_encapsulate_derand, m)?)?;
     m.add_function(wrap_pyfunction!(pq_hybrid_combine, m)?)?;
+
+    m.add_class::<PyRealityAuth>()?;
 
     m.add("VERSION", env!("CARGO_PKG_VERSION"))?;
     m.add("KEY_SIZE", 32usize)?;

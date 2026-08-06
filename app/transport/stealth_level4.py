@@ -38,7 +38,6 @@ import logging
 import math
 import os
 import random
-import secrets
 import socket
 import struct
 import time
@@ -55,7 +54,12 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
+)
 
 from app.config import Config
 from app.security.secret_rotation import (
@@ -63,6 +67,7 @@ from app.security.secret_rotation import (
     register_reload_hook,
     rotation_status,
 )
+from app.transport.reality_backend import RealityAuth
 
 _sysrand = random.SystemRandom()
 
@@ -645,7 +650,6 @@ class RealityProtocol:
     используя ключи от реального сервера (через XTLS splice).
     """
 
-    # Серверы-доноры (чей сертификат показываем)
     DEST_SERVERS = [
         "www.google.com",
         "www.microsoft.com",
@@ -654,8 +658,9 @@ class RealityProtocol:
         "cdn.jsdelivr.net",
     ]
 
-    # Short ID для идентификации клиента (8 hex chars)
     SHORT_ID_LEN = 8
+
+    REALITY_AUTH_WINDOW = 120
 
     def __init__(self, private_key: Optional[X25519PrivateKey] = None, dest: str = "www.google.com"):
         """
@@ -663,103 +668,31 @@ class RealityProtocol:
         dest: сервер-донор сертификата.
         """
         self._dest = dest
-        self._short_ids: set[str] = set()
-        self._seen_auth: dict[bytes, int] = {}
-        self._private_key = private_key or X25519PrivateKey.generate()
-        self._public_key = self._private_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        raw_secret = None
+        if private_key is not None:
+            raw_secret = private_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+        self._auth = RealityAuth(raw_secret, self.REALITY_AUTH_WINDOW)
+        self._public_key = self._auth.public_key()
 
-    def add_short_id(self, short_id: str):
+    def add_short_id(self, short_id: str) -> bool:
         """Добавляет разрешённый short_id клиента."""
-        self._short_ids.add(short_id)
+        return self._auth.add_short_id(short_id)
+
+    def remove_short_id(self, short_id: str) -> bool:
+        """Отзывает short_id клиента."""
+        return self._auth.remove_short_id(short_id)
 
     def generate_short_id(self) -> str:
         """Генерирует новый short_id для клиента."""
-        sid = secrets.token_hex(self.SHORT_ID_LEN // 2)
-        self._short_ids.add(sid)
-        return sid
-
-    REALITY_AUTH_WINDOW = 120
-
-    @staticmethod
-    def _auth_key(shared: bytes) -> bytes:
-        return HKDF(algorithm=hashes.SHA256(), length=16, salt=None, info=b"vortex-reality").derive(shared)
+        return self._auth.generate_short_id()
 
     def build_client_hello_auth(self, short_id: str, server_public_raw: bytes) -> tuple[bytes, bytes]:
-        ephemeral = X25519PrivateKey.generate()
-        ephemeral_pub = ephemeral.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
-        shared = ephemeral.exchange(X25519PublicKey.from_public_bytes(server_public_raw))
-        key = self._auth_key(shared)
-        nonce = hashlib.sha256(ephemeral_pub).digest()[:12]
-        plaintext = struct.pack(">Bq", 1, int(time.time())) + bytes.fromhex(short_id)
-        session_id = AESGCM(key).encrypt(nonce, plaintext, ephemeral_pub)
-        return ephemeral_pub, session_id
+        """Собирает клиентский AEAD-конверт: (ephemeral_pub, session_id)."""
+        return self._auth.build_client_hello_auth(short_id, server_public_raw)
 
     def verify_client_hello_auth(self, ephemeral_pub: bytes, session_id: bytes) -> tuple[bool, str]:
-        try:
-            shared = self._private_key.exchange(X25519PublicKey.from_public_bytes(ephemeral_pub))
-            key = self._auth_key(shared)
-            nonce = hashlib.sha256(ephemeral_pub).digest()[:12]
-            plaintext = AESGCM(key).decrypt(nonce, session_id, ephemeral_pub)
-        except Exception:
-            return False, ""
-        if len(plaintext) < 9:
-            return False, ""
-        version, ts = struct.unpack(">Bq", plaintext[:9])
-        short_id = plaintext[9:].hex()
-        now = int(time.time())
-        if version != 1 or abs(now - ts) > self.REALITY_AUTH_WINDOW:
-            return False, ""
-        if short_id not in self._short_ids:
-            return False, ""
-        self._seen_auth = {sid: exp for sid, exp in self._seen_auth.items() if exp > now}
-        if session_id in self._seen_auth:
-            return False, ""
-        self._seen_auth[session_id] = ts + self.REALITY_AUTH_WINDOW
-        return True, short_id
-
-    @staticmethod
-    def _parse_client_hello(data: bytes) -> Optional[tuple[bytes, bytes]]:
-        try:
-            buf = data[5:] if data and data[0] == 0x16 else data
-            if len(buf) < 4 or buf[0] != 0x01:
-                return None
-            pos = 4 + 2 + 32
-            if pos + 1 > len(buf):
-                return None
-            sid_len = buf[pos]
-            pos += 1
-            session_id = buf[pos : pos + sid_len]
-            pos += sid_len
-            if pos + 2 > len(buf):
-                return None
-            pos += 2 + int.from_bytes(buf[pos : pos + 2], "big")
-            if pos + 1 > len(buf):
-                return None
-            pos += 1 + buf[pos]
-            if pos + 2 > len(buf):
-                return None
-            end = min(len(buf), pos + 2 + int.from_bytes(buf[pos : pos + 2], "big"))
-            pos += 2
-            key_share = b""
-            while pos + 4 <= end:
-                etype = int.from_bytes(buf[pos : pos + 2], "big")
-                elen = int.from_bytes(buf[pos + 2 : pos + 4], "big")
-                body = buf[pos + 4 : pos + 4 + elen]
-                pos += 4 + elen
-                if etype != 0x0033:
-                    continue
-                p = 2
-                while p + 4 <= len(body):
-                    group = int.from_bytes(body[p : p + 2], "big")
-                    klen = int.from_bytes(body[p + 2 : p + 4], "big")
-                    kv = body[p + 4 : p + 4 + klen]
-                    p += 4 + klen
-                    if group == 0x001D and len(kv) == 32:
-                        key_share = kv
-                        break
-            return session_id, key_share
-        except Exception:
-            return None
+        """Проверяет конверт: свежесть, известность short_id, отсутствие повтора."""
+        return self._auth.verify_client_hello_auth(ephemeral_pub, session_id)
 
     def is_reality_client(self, client_hello: bytes) -> tuple[bool, str]:
         """
@@ -770,13 +703,7 @@ class RealityProtocol:
         без публичного ключа сервера и свежего ECDH нельзя — активный пробинг
         получает только реальный dest-сайт.
         """
-        parsed = self._parse_client_hello(client_hello)
-        if not parsed:
-            return False, ""
-        session_id, key_share = parsed
-        if not session_id or len(key_share) != 32:
-            return False, ""
-        return self.verify_client_hello_auth(key_share, session_id)
+        return self._auth.is_reality_client(client_hello)
 
     TLS_RECORD_MAX = 16384
 
@@ -866,7 +793,7 @@ class RealityProtocol:
             "flagship": True,
             "auth": "x25519-ecdh-aead",
             "dest_server": self._dest,
-            "authorized_clients": len(self._short_ids),
+            "authorized_clients": self._auth.authorized_count(),
         }
 
 

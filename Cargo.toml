@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["rust_utils", "vortex_waf"]
+members = ["rust_utils", "vortex_waf", "vortex-transport"]
 exclude = ["src-tauri", "Gravitix", "solana_program"]
 
 [workspace.package]
@@ -21,6 +21,10 @@ rand = "0.8"
 blake3 = "1.5"
 regex = "1"
 ml-kem = { version = "0.2", features = ["deterministic"] }
+aes-gcm = "0.10"
+hkdf = "0.12"
+subtle = "2.6.1"
+x25519-dalek = { version = "2", features = ["static_secrets"] }
 
 [profile.release]
 opt-level = 3

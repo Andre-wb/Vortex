@@ -1189,6 +1189,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "vortex-transport"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "hex",
+ "hkdf",
+ "rand",
+ "sha2",
+ "subtle",
+ "x25519-dalek",
+]
+
+[[package]]
 name = "vortex_chat"
 version = "0.3.0"
 dependencies = [
@@ -1216,6 +1229,7 @@ dependencies = [
  "sha2",
  "subtle",
  "tokio",
+ "vortex-transport",
  "walkdir",
  "x25519-dalek",
 ]
