@@ -99,6 +99,8 @@ EXCLUDE_ANY = {
     "target",
     "dist",
     "build",
+    ".build",
+    "DerivedData",
     "out",
     ".pytest_cache",
     ".mypy_cache",

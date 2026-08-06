@@ -39,10 +39,10 @@ impl MemorySeenEnvelopes {
 
 impl SeenEnvelopes for MemorySeenEnvelopes {
     fn prune(&self, now: i64) {
-        self.lock().retain(|_, expires_at| *expires_at > now);
+        self.lock().retain(|_, valid_until| *valid_until >= now);
     }
 
-    fn remember(&self, envelope: &[u8], expires_at: i64) -> bool {
+    fn remember(&self, envelope: &[u8], valid_until: i64) -> bool {
         let mut entries = self.lock();
         if entries.contains_key(envelope) {
             return false;
@@ -50,7 +50,7 @@ impl SeenEnvelopes for MemorySeenEnvelopes {
         if entries.len() >= self.capacity {
             return false;
         }
-        entries.insert(envelope.to_vec(), expires_at);
+        entries.insert(envelope.to_vec(), valid_until);
         true
     }
 
@@ -72,7 +72,7 @@ mod tests {
     }
 
     #[test]
-    fn pruning_drops_only_expired_entries() {
+    fn pruning_drops_only_entries_that_can_no_longer_be_accepted() {
         let seen = MemorySeenEnvelopes::new();
         seen.remember(b"old", 50);
         seen.remember(b"fresh", 150);
@@ -83,10 +83,12 @@ mod tests {
     }
 
     #[test]
-    fn expiry_is_exclusive_at_the_boundary() {
+    fn an_entry_lives_through_its_last_acceptable_second() {
         let seen = MemorySeenEnvelopes::new();
         seen.remember(b"edge", 100);
         seen.prune(100);
+        assert_eq!(seen.len(), 1);
+        seen.prune(101);
         assert!(seen.is_empty());
     }
 

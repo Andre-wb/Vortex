@@ -5,12 +5,15 @@ use std::sync::Arc;
 use vortex_transport::ports::clock::Clock;
 use vortex_transport::ports::random_source::RandomSource;
 use vortex_transport::random::os_random::OsRandom;
-use vortex_transport::reality::auth::envelope::Envelope;
-use vortex_transport::reality::auth::sealed_auth::{SealedAuth, X25519_KEY_LEN};
+use vortex_transport::reality::auth::envelope::{Envelope, ENVELOPE_VERSION};
+use vortex_transport::reality::auth::salt::{Salt, SALT_LEN};
+use vortex_transport::reality::auth::sealed_auth::{SealedAuth, SESSION_ID_LEN, X25519_KEY_LEN};
 use vortex_transport::reality::auth::sealer;
 use vortex_transport::reality::authenticator::RealityAuthenticator;
 use vortex_transport::reality::builder::AuthenticatorBuilder;
-use vortex_transport::reality::config::{RealityConfig, DEFAULT_AUTH_WINDOW_SECS};
+use vortex_transport::reality::config::{
+    RealityConfig, DEFAULT_AUTH_WINDOW_FUTURE_SECS, DEFAULT_AUTH_WINDOW_PAST_SECS,
+};
 use vortex_transport::reality::handshake::client_hello;
 use vortex_transport::reality::short_id::generator;
 use vortex_transport::reality::short_id::value::{ShortId, SHORT_ID_HEX_LEN};
@@ -27,14 +30,26 @@ pub struct PyRealityAuth {
 #[pymethods]
 impl PyRealityAuth {
     #[new]
-    #[pyo3(signature = (private_key=None, auth_window=DEFAULT_AUTH_WINDOW_SECS))]
-    fn new(private_key: Option<&[u8]>, auth_window: i64) -> PyResult<Self> {
+    #[pyo3(signature = (
+        private_key=None,
+        auth_window_past=DEFAULT_AUTH_WINDOW_PAST_SECS,
+        auth_window_future=DEFAULT_AUTH_WINDOW_FUTURE_SECS,
+    ))]
+    fn new(
+        private_key: Option<&[u8]>,
+        auth_window_past: i64,
+        auth_window_future: i64,
+    ) -> PyResult<Self> {
         let random: Arc<dyn RandomSource> = Arc::new(OsRandom::new());
         let clock: Arc<dyn Clock> = Arc::new(SystemClock::new());
         let mut builder = AuthenticatorBuilder::new()
             .with_random(random.clone())
             .with_clock(clock.clone())
-            .with_config(RealityConfig::new().auth_window_secs(auth_window));
+            .with_config(
+                RealityConfig::new()
+                    .auth_window_past_secs(auth_window_past)
+                    .auth_window_future_secs(auth_window_future),
+            );
 
         if let Some(bytes) = private_key {
             builder = builder.with_secret(StaticSecret::from(to_key(bytes)?));
@@ -93,13 +108,14 @@ impl PyRealityAuth {
         server_public: &[u8],
         timestamp: Option<i64>,
     ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-        let envelope = self.envelope(short_id, timestamp)?;
+        let seconds = timestamp.unwrap_or_else(|| self.clock.unix_seconds());
+        let envelope = envelope(short_id, seconds)?;
         let sealed = sealer::seal(server_public, &envelope, self.random.as_ref())
             .map_err(|err| PyValueError::new_err(err.to_string()))?;
         Ok(sealed_to_py(py, sealed))
     }
 
-    #[pyo3(signature = (short_id, server_public, timestamp, ephemeral_secret))]
+    #[pyo3(signature = (short_id, server_public, timestamp, ephemeral_secret, salt))]
     fn build_client_hello_auth_derand<'py>(
         &self,
         py: Python<'py>,
@@ -107,11 +123,15 @@ impl PyRealityAuth {
         server_public: &[u8],
         timestamp: i64,
         ephemeral_secret: &[u8],
+        salt: &[u8],
     ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-        let envelope = Envelope::current(timestamp, parse_short_id(short_id)?);
-        let sealed =
-            sealer::seal_with_ephemeral(server_public, &envelope, to_key(ephemeral_secret)?)
-                .map_err(|err| PyValueError::new_err(err.to_string()))?;
+        let sealed = sealer::seal_with_ephemeral(
+            server_public,
+            &envelope(short_id, timestamp)?,
+            to_key(ephemeral_secret)?,
+            to_salt(salt)?,
+        )
+        .map_err(|err| PyValueError::new_err(err.to_string()))?;
         Ok(sealed_to_py(py, sealed))
     }
 
@@ -141,8 +161,28 @@ impl PyRealityAuth {
     }
 
     #[getter]
-    fn auth_window(&self) -> i64 {
-        self.authenticator.config().auth_window_secs
+    fn auth_window_past(&self) -> i64 {
+        self.authenticator.config().auth_window_past_secs
+    }
+
+    #[getter]
+    fn auth_window_future(&self) -> i64 {
+        self.authenticator.config().auth_window_future_secs
+    }
+
+    #[getter]
+    fn envelope_version(&self) -> u8 {
+        ENVELOPE_VERSION
+    }
+
+    #[getter]
+    fn session_id_len(&self) -> usize {
+        SESSION_ID_LEN
+    }
+
+    #[getter]
+    fn salt_len(&self) -> usize {
+        SALT_LEN
     }
 
     #[getter]
@@ -151,13 +191,15 @@ impl PyRealityAuth {
     }
 }
 
-impl PyRealityAuth {
-    fn envelope(&self, short_id: &str, timestamp: Option<i64>) -> PyResult<Envelope> {
-        Ok(Envelope::current(
-            timestamp.unwrap_or_else(|| self.clock.unix_seconds()),
-            parse_short_id(short_id)?,
+fn envelope(short_id: &str, timestamp: i64) -> PyResult<Envelope> {
+    let seconds = u32::try_from(timestamp).map_err(|_| {
+        PyValueError::new_err(format!(
+            "время конверта должно укладываться в 0..={}, получено {timestamp}",
+            u32::MAX
         ))
-    }
+    })?;
+    Envelope::current(seconds, parse_short_id(short_id)?)
+        .map_err(|err| PyValueError::new_err(err.to_string()))
 }
 
 fn sealed_to_py(py: Python<'_>, sealed: SealedAuth) -> (Bound<'_, PyBytes>, Bound<'_, PyBytes>) {
@@ -182,6 +224,15 @@ fn to_key(bytes: &[u8]) -> PyResult<[u8; X25519_KEY_LEN]> {
     bytes.try_into().map_err(|_| {
         PyValueError::new_err(format!(
             "ключ должен быть длиной {X25519_KEY_LEN} байт, получено {}",
+            bytes.len()
+        ))
+    })
+}
+
+fn to_salt(bytes: &[u8]) -> PyResult<Salt> {
+    bytes.try_into().map_err(|_| {
+        PyValueError::new_err(format!(
+            "соль должна быть длиной {SALT_LEN} байт, получено {}",
             bytes.len()
         ))
     })

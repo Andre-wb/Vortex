@@ -161,49 +161,66 @@
     {
       "args": {
         "ephemeral_secret": "1111111111111111111111111111111111111111111111111111111111111111",
+        "salt": "01010101010101",
         "server_public": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20",
         "short_id": "deadbeef",
         "timestamp": 1760000000
       },
       "expected": {
         "ephemeral_public": "7b4e909bbe7ffe44c465a220037d608ee35897d31ef972f07f74892cb0f73f13",
-        "session_id": "53edc7ab36248cdefcf967d9b00df37703807041dbd6bb93abec6bf2a3"
+        "session_id": "010101010101018ab4f01f9d88ed45736b783a995132ddbf42b4c9d0c5f760de"
       }
     },
     {
       "args": {
         "ephemeral_secret": "3333333333333333333333333333333333333333333333333333333333333333",
+        "salt": "00000000000000",
         "server_public": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20",
         "short_id": "00000000",
         "timestamp": 0
       },
       "expected": {
         "ephemeral_public": "7b0d47d93427f8311160781c7c733fd89f88970aef490d8aa0ee19a4cb8a1b14",
-        "session_id": "ec760b89b59291b13f5d2316753b4b6cd3f1bd5242df585b38fbd6b497"
+        "session_id": "00000000000000f08fe037b9e140039ab20f68d188fa1fc47bf5b564351e3cad"
       }
     },
     {
       "args": {
         "ephemeral_secret": "4444444444444444444444444444444444444444444444444444444444444444",
+        "salt": "ffffffffffffff",
         "server_public": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20",
         "short_id": "ffffffff",
-        "timestamp": 2147483647
+        "timestamp": 4294967295
       },
       "expected": {
         "ephemeral_public": "ff2ee45601ec1b67310c7790404585ae697331eee1c1f8cf2419731c1fff3e6b",
-        "session_id": "7998cb082dbca39f95d5b5a39df95ac0bb0101c9475f7865baa94aa9ab"
+        "session_id": "ffffffffffffff05645923b3bb7e179e010925de49b629dc79e4b29a7bf32ab5"
       }
     },
     {
       "args": {
         "ephemeral_secret": "5555555555555555555555555555555555555555555555555555555555555555",
+        "salt": "0a0b0c0d0e0f10",
         "server_public": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20",
         "short_id": "0a1b2c3d",
-        "timestamp": -1
+        "timestamp": 2147483647
       },
       "expected": {
         "ephemeral_public": "38ab664bd86f77d7e66bdd9ae0792913a94fd8b33a1260027e4b46c1f4884c67",
-        "session_id": "358f0c8c2f87b8147079ac3ac9cc3671460c250f070b32ee567a5d6d30"
+        "session_id": "0a0b0c0d0e0f1041fc8eafa6a85e19d15837718e9c40d42f260d5c88a0b778b9"
+      }
+    },
+    {
+      "args": {
+        "ephemeral_secret": "1111111111111111111111111111111111111111111111111111111111111111",
+        "salt": "02020202020202",
+        "server_public": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20",
+        "short_id": "deadbeef",
+        "timestamp": 1760000000
+      },
+      "expected": {
+        "ephemeral_public": "7b4e909bbe7ffe44c465a220037d608ee35897d31ef972f07f74892cb0f73f13",
+        "session_id": "020202020202025e26baca485b98cad2cce60a9380b91b00d302521380802e6c"
       }
     }
   ]

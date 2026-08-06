@@ -251,7 +251,7 @@
 //          §16.C  Specular canvas transitions + thin-film CSS fallback
 //
 //
-//   Apache 2.0 © 2026 Boris Maltsev
+//   AGPL-3.0-or-later © 2026 Boris Maltsev
 
 
 

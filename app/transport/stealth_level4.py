@@ -660,7 +660,8 @@ class RealityProtocol:
 
     SHORT_ID_LEN = 8
 
-    REALITY_AUTH_WINDOW = 120
+    REALITY_AUTH_WINDOW_PAST = 120
+    REALITY_AUTH_WINDOW_FUTURE = 30
 
     def __init__(self, private_key: Optional[X25519PrivateKey] = None, dest: str = "www.google.com"):
         """
@@ -671,7 +672,11 @@ class RealityProtocol:
         raw_secret = None
         if private_key is not None:
             raw_secret = private_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
-        self._auth = RealityAuth(raw_secret, self.REALITY_AUTH_WINDOW)
+        self._auth = RealityAuth(
+            raw_secret,
+            self.REALITY_AUTH_WINDOW_PAST,
+            self.REALITY_AUTH_WINDOW_FUTURE,
+        )
         self._public_key = self._auth.public_key()
 
     def add_short_id(self, short_id: str) -> bool:
@@ -792,6 +797,7 @@ class RealityProtocol:
             "protocol": "reality_xtls",
             "flagship": True,
             "auth": "x25519-ecdh-aead",
+            "envelope_version": self._auth.envelope_version,
             "dest_server": self._dest,
             "authorized_clients": self._auth.authorized_count(),
         }

@@ -3,7 +3,7 @@ name = "vortex_waf"
 version = "0.1.0"
 edition.workspace = true
 description = "Web Application Firewall для Vortex — гексагональная архитектура на трейтах"
-license = "Apache-2.0"
+license = "AGPL-3.0-or-later"
 repository.workspace = true
 
 [lib]

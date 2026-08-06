@@ -1,9 +1,17 @@
-"""Эталонные Python-реализации REALITY-аутентификации.
+"""Независимая Python-реализация REALITY-конверта v2.
 
-Замороженный снимок логики, которая до переноса в Rust жила в
-`app/transport/stealth_level4.py::RealityProtocol`. Существует только ради
-golden-векторов: `vortex-transport` обязан совпадать с этими функциями
-байт-в-байт. Продуктовый код их не импортирует.
+Не продуктовый код и не снимок прошлой реализации: это вторая, независимо
+написанная реализация формата, против которой сверяется `vortex-transport`.
+Формат v2 (`docs_future/RUST-MIGRATION.md`, секция «Транспорт»):
+
+    session_id (32 байта) = salt(7) ‖ AES-128-GCM(plaintext, tag)
+    plaintext (9 байт)    = версия(1) ‖ время u32 BE(4) ‖ short_id(4)
+    ключ                  = HKDF-SHA256(ECDH(ephemeral, server_static), "vortex-reality", 16)
+    nonce (12 байт)       = SHA-256(salt ‖ ephemeral_pub)[:12]
+    AAD                   = ephemeral_pub ‖ salt
+
+Соль в открытой части разрывает связь nonce с эфемерным ключом: повтор
+эфемерного ключа клиентом больше не повторяет пару (ключ, nonce).
 """
 
 from __future__ import annotations
@@ -20,10 +28,14 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-ENVELOPE_VERSION = 1
+ENVELOPE_VERSION = 2
+ENVELOPE_LEN = 9
 AUTH_INFO = b"vortex-reality"
 AUTH_KEY_LEN = 16
 NONCE_LEN = 12
+SALT_LEN = 7
+SESSION_ID_LEN = 32
+SHORT_ID_LEN = 4
 KEY_SHARE_EXTENSION = 0x0033
 GROUP_X25519 = 0x001D
 
@@ -32,12 +44,26 @@ def auth_key(shared: bytes) -> bytes:
     return HKDF(algorithm=hashes.SHA256(), length=AUTH_KEY_LEN, salt=None, info=AUTH_INFO).derive(shared)
 
 
-def nonce_for(ephemeral_pub: bytes) -> bytes:
-    return hashlib.sha256(ephemeral_pub).digest()[:NONCE_LEN]
+def nonce_for(salt: bytes, ephemeral_pub: bytes) -> bytes:
+    return hashlib.sha256(salt + ephemeral_pub).digest()[:NONCE_LEN]
+
+
+def aad_for(ephemeral_pub: bytes, salt: bytes) -> bytes:
+    return ephemeral_pub + salt
 
 
 def encode_envelope(timestamp: int, short_id_hex: str) -> bytes:
-    return struct.pack(">Bq", ENVELOPE_VERSION, timestamp) + bytes.fromhex(short_id_hex)
+    short_id = bytes.fromhex(short_id_hex)
+    if len(short_id) != SHORT_ID_LEN:
+        raise ValueError(f"short_id должен быть длиной {SHORT_ID_LEN} байт")
+    return struct.pack(">BI", ENVELOPE_VERSION, timestamp) + short_id
+
+
+def decode_envelope(plaintext: bytes) -> Optional[tuple[int, int, str]]:
+    if len(plaintext) != ENVELOPE_LEN:
+        return None
+    version, timestamp = struct.unpack(">BI", plaintext[:5])
+    return version, timestamp, plaintext[5:].hex()
 
 
 def public_key_of(secret_hex: str) -> bytes:
@@ -45,27 +71,38 @@ def public_key_of(secret_hex: str) -> bytes:
     return private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
 
 
-def seal(secret_hex: str, server_public_hex: str, timestamp: int, short_id_hex: str) -> tuple[bytes, bytes]:
+def seal(
+    secret_hex: str, server_public_hex: str, timestamp: int, short_id_hex: str, salt_hex: str
+) -> tuple[bytes, bytes]:
+    salt = bytes.fromhex(salt_hex)
+    if len(salt) != SALT_LEN:
+        raise ValueError(f"соль должна быть длиной {SALT_LEN} байт")
     ephemeral = X25519PrivateKey.from_private_bytes(bytes.fromhex(secret_hex))
     ephemeral_pub = ephemeral.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
     shared = ephemeral.exchange(X25519PublicKey.from_public_bytes(bytes.fromhex(server_public_hex)))
-    key = auth_key(shared)
-    plaintext = encode_envelope(timestamp, short_id_hex)
-    session_id = AESGCM(key).encrypt(nonce_for(ephemeral_pub), plaintext, ephemeral_pub)
-    return ephemeral_pub, session_id
+    ciphertext = AESGCM(auth_key(shared)).encrypt(
+        nonce_for(salt, ephemeral_pub),
+        encode_envelope(timestamp, short_id_hex),
+        aad_for(ephemeral_pub, salt),
+    )
+    return ephemeral_pub, salt + ciphertext
 
 
 def open_envelope(secret_hex: str, ephemeral_pub: bytes, session_id: bytes) -> Optional[tuple[int, int, str]]:
+    if len(session_id) != SESSION_ID_LEN:
+        return None
+    salt = session_id[:SALT_LEN]
     try:
         private = X25519PrivateKey.from_private_bytes(bytes.fromhex(secret_hex))
         shared = private.exchange(X25519PublicKey.from_public_bytes(ephemeral_pub))
-        plaintext = AESGCM(auth_key(shared)).decrypt(nonce_for(ephemeral_pub), session_id, ephemeral_pub)
+        plaintext = AESGCM(auth_key(shared)).decrypt(
+            nonce_for(salt, ephemeral_pub),
+            session_id[SALT_LEN:],
+            aad_for(ephemeral_pub, salt),
+        )
     except Exception:
         return None
-    if len(plaintext) < 9:
-        return None
-    version, timestamp = struct.unpack(">Bq", plaintext[:9])
-    return version, timestamp, plaintext[9:].hex()
+    return decode_envelope(plaintext)
 
 
 def parse_client_hello(data: bytes) -> Optional[tuple[bytes, bytes]]:
@@ -144,6 +181,7 @@ def _seal_case(args: dict) -> dict:
         args["server_public"],
         args["timestamp"],
         args["short_id"],
+        args["salt"],
     )
     return {"ephemeral_public": ephemeral_pub.hex(), "session_id": session_id.hex()}
 
@@ -205,24 +243,35 @@ FUNCTIONS = [
                 "server_public": SERVER_PUBLIC.hex(),
                 "timestamp": 1760000000,
                 "short_id": "deadbeef",
+                "salt": "01" * 7,
             },
             {
                 "ephemeral_secret": "33" * 32,
                 "server_public": SERVER_PUBLIC.hex(),
                 "timestamp": 0,
                 "short_id": "00000000",
+                "salt": "00" * 7,
             },
             {
                 "ephemeral_secret": "44" * 32,
                 "server_public": SERVER_PUBLIC.hex(),
-                "timestamp": 2147483647,
+                "timestamp": 4294967295,
                 "short_id": "ffffffff",
+                "salt": "ff" * 7,
             },
             {
                 "ephemeral_secret": "55" * 32,
                 "server_public": SERVER_PUBLIC.hex(),
-                "timestamp": -1,
+                "timestamp": 2147483647,
                 "short_id": "0a1b2c3d",
+                "salt": "0a0b0c0d0e0f10",
+            },
+            {
+                "ephemeral_secret": "11" * 32,
+                "server_public": SERVER_PUBLIC.hex(),
+                "timestamp": 1760000000,
+                "short_id": "deadbeef",
+                "salt": "02" * 7,
             },
         ],
     ),
@@ -238,7 +287,7 @@ FUNCTIONS = [
             {"client_hello": wrap_tls_record(_HELLO_EMPTY_SESSION_ID).hex()},
             {"client_hello": wrap_tls_record(_HELLO_P256_ONLY).hex()},
             {"client_hello": ""},
-            {"client_hello": "1603010004020000 00".replace(" ", "")},
+            {"client_hello": "160301000402000000"},
             {"client_hello": "02000000"},
             {"client_hello": wrap_tls_record(_HELLO_WITH_KEY_SHARE)[:40].hex()},
             {"client_hello": wrap_tls_record(_HELLO_WITH_KEY_SHARE)[:44].hex()},

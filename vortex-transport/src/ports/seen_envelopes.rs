@@ -1,7 +1,7 @@
 pub trait SeenEnvelopes: Send + Sync {
     fn prune(&self, now: i64);
 
-    fn remember(&self, envelope: &[u8], expires_at: i64) -> bool;
+    fn remember(&self, envelope: &[u8], valid_until: i64) -> bool;
 
     fn len(&self) -> usize;
 

@@ -9,7 +9,7 @@ description = "100% decentralized P2P messenger with E2E encryption"
 readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.10"
-authors = [{name = "Vortex Team"}]
+authors = [{name = "Boris Maltsev"}, {name = "Andrey Karavaev"}]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Framework :: FastAPI",
