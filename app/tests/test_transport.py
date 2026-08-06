@@ -13,6 +13,7 @@ Covers:
   - steganography.py  : embed_data / extract_data pure-Python helpers
   - stealth_http.py   : StealthClient / StealthResponse pure-Python helpers
 """
+
 from __future__ import annotations
 
 import base64
@@ -24,6 +25,7 @@ import pytest
 from conftest import login_user, make_user, random_str
 
 # Helpers
+
 
 def _login(client, u: dict) -> dict:
     return login_user(client, u["username"], u["password"])
@@ -38,6 +40,7 @@ def _make_and_login(client) -> dict:
 
 # /api/global/node-info  (public, no auth)
 
+
 def test_global_node_info_returns_200(client):
     r = client.get("/api/global/node-info")
     assert r.status_code == 200
@@ -51,6 +54,7 @@ def test_global_node_info_shape(client):
 
 
 # /api/global/gossip  (public, no auth)
+
 
 def test_gossip_accepts_valid_payload(client):
     payload = {
@@ -116,6 +120,7 @@ def test_gossip_with_valid_64char_pubkey(client):
 
 # /api/global/bootstrap  (public, no auth)
 
+
 def test_bootstrap_valid_request(client):
     payload = {
         "sender_ip": "192.168.1.50",
@@ -151,6 +156,7 @@ def test_bootstrap_invalid_pubkey_rejected(client):
 
 # /api/global/search-rooms  (public, no auth)
 
+
 def test_search_rooms_local_empty_query(client):
     r = client.get("/api/global/search-rooms")
     assert r.status_code == 200
@@ -169,6 +175,7 @@ def test_search_rooms_local_with_query(client):
 
 # /api/global/search-rooms-global  (requires auth)
 
+
 def test_search_rooms_global_unauthenticated(anon_client):
     r = anon_client.get("/api/global/search-rooms-global", params={"q": "test"})
     assert r.status_code == 401
@@ -176,8 +183,7 @@ def test_search_rooms_global_unauthenticated(anon_client):
 
 def test_search_rooms_global_authenticated(client):
     u = _make_and_login(client)
-    r = client.get("/api/global/search-rooms-global", params={"q": "test"},
-                   headers=u["headers"])
+    r = client.get("/api/global/search-rooms-global", params={"q": "test"}, headers=u["headers"])
     assert r.status_code == 200
     body = r.json()
     assert "rooms" in body
@@ -185,6 +191,7 @@ def test_search_rooms_global_authenticated(client):
 
 
 # /api/global/peers  (requires auth)
+
 
 def test_list_global_peers_unauthenticated(anon_client):
     r = anon_client.get("/api/global/peers")
@@ -203,6 +210,7 @@ def test_list_global_peers_authenticated(client):
 
 # /api/global/cdn-status  (requires auth)
 
+
 def test_cdn_status_unauthenticated(anon_client):
     r = anon_client.get("/api/global/cdn-status")
     assert r.status_code == 401
@@ -218,6 +226,7 @@ def test_cdn_status_authenticated(client):
 
 # /api/global/add-peer  (requires auth)
 
+
 def test_add_peer_unauthenticated(anon_client):
     r = anon_client.post("/api/global/add-peer", json={"ip": "1.2.3.4", "port": 9000})
     assert r.status_code == 401
@@ -225,9 +234,7 @@ def test_add_peer_unauthenticated(anon_client):
 
 def test_add_peer_authenticated(client):
     u = _make_and_login(client)
-    r = client.post("/api/global/add-peer",
-                    json={"ip": "1.2.3.4", "port": 9000},
-                    headers=u["headers"])
+    r = client.post("/api/global/add-peer", json={"ip": "1.2.3.4", "port": 9000}, headers=u["headers"])
     assert r.status_code == 200
     body = r.json()
     assert "ok" in body
@@ -236,6 +243,7 @@ def test_add_peer_authenticated(client):
 
 
 # /api/stream  (SSE transport — requires auth)
+
 
 def test_sse_stream_unauthenticated(anon_client):
     r = anon_client.get("/api/stream/999")
@@ -256,9 +264,7 @@ def test_sse_post_unauthenticated(anon_client):
 
 def test_sse_post_non_member_forbidden(client):
     u = _make_and_login(client)
-    r = client.post("/api/stream/999999",
-                    json={"action": "ping", "data": {}},
-                    headers=u["headers"])
+    r = client.post("/api/stream/999999", json={"action": "ping", "data": {}}, headers=u["headers"])
     assert r.status_code in (403, 404)
 
 
@@ -267,14 +273,18 @@ def test_sse_stream_member_gets_event_stream(client):
     """A member who joins a room should get a 200 with SSE content-type."""
     u = _make_and_login(client)
     # Create a room
-    room_r = client.post("/api/rooms", json={
-        "name": f"sse_test_{random_str(6)}",
-        "is_public": True,
-        "encrypted_room_key": {
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext": secrets.token_hex(60),
+    room_r = client.post(
+        "/api/rooms",
+        json={
+            "name": f"sse_test_{random_str(6)}",
+            "is_public": True,
+            "encrypted_room_key": {
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(60),
+            },
         },
-    }, headers=u["headers"])
+        headers=u["headers"],
+    )
     assert room_r.status_code in (200, 201), room_r.text
     room_id = room_r.json()["id"]
 
@@ -289,25 +299,30 @@ def test_sse_stream_member_gets_event_stream(client):
 def test_sse_post_member_can_send(client):
     """A room member should be able to POST to the SSE send endpoint."""
     u = _make_and_login(client)
-    room_r = client.post("/api/rooms", json={
-        "name": f"sse_send_{random_str(6)}",
-        "is_public": True,
-        "encrypted_room_key": {
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext": secrets.token_hex(60),
+    room_r = client.post(
+        "/api/rooms",
+        json={
+            "name": f"sse_send_{random_str(6)}",
+            "is_public": True,
+            "encrypted_room_key": {
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(60),
+            },
         },
-    }, headers=u["headers"])
+        headers=u["headers"],
+    )
     assert room_r.status_code in (200, 201)
     room_id = room_r.json()["id"]
 
-    r = client.post(f"/api/stream/{room_id}",
-                    json={"action": "message", "data": {"text": "hello"}},
-                    headers=u["headers"])
+    r = client.post(
+        f"/api/stream/{room_id}", json={"action": "message", "data": {"text": "hello"}}, headers=u["headers"]
+    )
     assert r.status_code == 200
     assert r.json().get("ok") is True
 
 
 # /api/transport/status  (requires auth)
+
 
 def test_transport_status_unauthenticated(anon_client):
     r = anon_client.get("/api/transport/status")
@@ -328,6 +343,7 @@ def test_transport_status_authenticated(client):
 
 # /api/transport/bridge/*  (requires auth)
 
+
 def test_list_bridges_unauthenticated(anon_client):
     r = anon_client.get("/api/transport/bridge/list")
     assert r.status_code == 401
@@ -344,11 +360,15 @@ def test_list_bridges_authenticated(client):
 
 def test_register_bridge(client):
     u = _make_and_login(client)
-    r = client.post("/api/transport/bridge/register", json={
-        "ip": "203.0.113.10",
-        "port": 9100,
-        "pubkey_hex": secrets.token_hex(32),
-    }, headers=u["headers"])
+    r = client.post(
+        "/api/transport/bridge/register",
+        json={
+            "ip": "203.0.113.10",
+            "port": 9100,
+            "pubkey_hex": secrets.token_hex(32),
+        },
+        headers=u["headers"],
+    )
     assert r.status_code == 200
     body = r.json()
     assert body.get("ok") is True
@@ -359,9 +379,13 @@ def test_register_bridge(client):
 def test_add_bridge_valid_line(client):
     u = _make_and_login(client)
     pubkey = secrets.token_hex(16)
-    r = client.post("/api/transport/bridge/add", json={
-        "bridge_line": f"bridge 203.0.113.20:9200 {pubkey}",
-    }, headers=u["headers"])
+    r = client.post(
+        "/api/transport/bridge/add",
+        json={
+            "bridge_line": f"bridge 203.0.113.20:9200 {pubkey}",
+        },
+        headers=u["headers"],
+    )
     assert r.status_code == 200
     body = r.json()
     assert body.get("ok") is True
@@ -370,27 +394,34 @@ def test_add_bridge_valid_line(client):
 
 def test_add_bridge_invalid_line(client):
     u = _make_and_login(client)
-    r = client.post("/api/transport/bridge/add", json={
-        "bridge_line": "notabridge",
-    }, headers=u["headers"])
+    r = client.post(
+        "/api/transport/bridge/add",
+        json={
+            "bridge_line": "notabridge",
+        },
+        headers=u["headers"],
+    )
     assert r.status_code == 400
 
 
 def test_remove_bridge_not_found(client):
     u = _make_and_login(client)
-    r = client.delete("/api/transport/bridge/nonexistentid999",
-                      headers=u["headers"])
+    r = client.delete("/api/transport/bridge/nonexistentid999", headers=u["headers"])
     assert r.status_code == 404
 
 
 def test_register_and_remove_bridge(client):
     u = _make_and_login(client)
     # Register
-    reg = client.post("/api/transport/bridge/register", json={
-        "ip": "203.0.113.30",
-        "port": 9300,
-        "pubkey_hex": secrets.token_hex(32),
-    }, headers=u["headers"])
+    reg = client.post(
+        "/api/transport/bridge/register",
+        json={
+            "ip": "203.0.113.30",
+            "port": 9300,
+            "pubkey_hex": secrets.token_hex(32),
+        },
+        headers=u["headers"],
+    )
     assert reg.status_code == 200
     bid = reg.json()["bridge_id"]
 
@@ -409,6 +440,7 @@ def test_enable_bridge_mode(client):
 
 # /api/transport/tunnel/*  (requires auth)
 
+
 def test_create_tunnel_unauthenticated(anon_client):
     r = anon_client.post("/api/transport/tunnel/create")
     assert r.status_code == 401
@@ -425,10 +457,14 @@ def test_create_tunnel_authenticated(client):
 
 def test_tunnel_send_nonexistent_session(client):
     u = _make_and_login(client)
-    r = client.post("/api/transport/tunnel/send", json={
-        "session_id": "does_not_exist_abc123",
-        "data_b64": base64.b64encode(b"hello world").decode(),
-    }, headers=u["headers"])
+    r = client.post(
+        "/api/transport/tunnel/send",
+        json={
+            "session_id": "does_not_exist_abc123",
+            "data_b64": base64.b64encode(b"hello world").decode(),
+        },
+        headers=u["headers"],
+    )
     assert r.status_code == 404
 
 
@@ -441,10 +477,14 @@ def test_tunnel_create_and_send(client):
 
     # Send data into the session
     data_b64 = base64.b64encode(b"test payload").decode()
-    sr = client.post("/api/transport/tunnel/send", json={
-        "session_id": sid,
-        "data_b64": data_b64,
-    }, headers=u["headers"])
+    sr = client.post(
+        "/api/transport/tunnel/send",
+        json={
+            "session_id": sid,
+            "data_b64": data_b64,
+        },
+        headers=u["headers"],
+    )
     assert sr.status_code == 200
     assert sr.json().get("ok") is True
 
@@ -458,8 +498,7 @@ def test_tunnel_recv_empty_session(client):
     # Without prior send, recv should time out and return 204
     # (the endpoint uses 30s timeout, but we can't afford that in tests;
     # a nonexistent session_id also gives 204 per the implementation)
-    rr = client.get(f"/api/transport/tunnel/recv/nonexistent_{sid}",
-                    headers=u["headers"])
+    rr = client.get(f"/api/transport/tunnel/recv/nonexistent_{sid}", headers=u["headers"])
     assert rr.status_code == 204
 
 
@@ -474,6 +513,7 @@ def test_close_tunnel(client):
 
 
 # /api/transport/shadowsocks/config  (requires auth)
+
 
 def test_shadowsocks_config_not_configured(client):
     """Without CDN/SS config the endpoint returns 404."""
@@ -490,6 +530,7 @@ def test_shadowsocks_config_unauthenticated(anon_client):
 
 # /api/transport/domain-fronting/config  (requires auth)
 
+
 def test_domain_fronting_config_unauthenticated(anon_client):
     r = anon_client.get("/api/transport/domain-fronting/config")
     assert r.status_code == 401
@@ -504,13 +545,17 @@ def test_domain_fronting_config_not_configured(client):
 
 # /api/transport/stego/*  (requires auth)
 
+
 def test_stego_send_unauthenticated(anon_client):
-    r = anon_client.post("/api/transport/stego/send", json={
-        "room_id": 1,
-        "data_b64": base64.b64encode(b"secret").decode(),
-        "width": 64,
-        "height": 64,
-    })
+    r = anon_client.post(
+        "/api/transport/stego/send",
+        json={
+            "room_id": 1,
+            "data_b64": base64.b64encode(b"secret").decode(),
+            "width": 64,
+            "height": 64,
+        },
+    )
     assert r.status_code == 401
 
 
@@ -520,6 +565,7 @@ def test_stego_receive_unauthenticated(anon_client):
 
 
 # /cover/*  (cover traffic website — public)
+
 
 def test_cover_home_page(client):
     r = client.get("/cover")
@@ -582,6 +628,7 @@ def test_cover_nginx_server_header(client):
 
 # Pure-Python unit tests: TrafficObfuscator
 
+
 def test_obfuscator_pad_roundtrip():
     from app.transport.obfuscation import TrafficObfuscator
 
@@ -638,6 +685,7 @@ def test_obfuscator_get_cover_headers():
 
 # Pure-Python unit tests: TrafficNormalizer
 
+
 def test_normalizer_record_and_padding():
     from app.transport.obfuscation import TrafficNormalizer
 
@@ -649,6 +697,7 @@ def test_normalizer_record_and_padding():
 
 
 # Pure-Python unit tests: CDNRelayConfig
+
 
 def test_cdn_config_disabled_by_default():
     import os
@@ -731,15 +780,14 @@ def test_cdn_config_get_headers_with_secret():
         assert len(headers["X-Relay-Auth"]) == 32
         assert "X-Relay-Ts" in headers
         # Verify the signature is valid
-        assert CDNRelayConfig.verify_relay_auth(
-            "my-secret", headers["X-Relay-Auth"], headers["X-Relay-Ts"]
-        ) is True
+        assert CDNRelayConfig.verify_relay_auth("my-secret", headers["X-Relay-Auth"], headers["X-Relay-Ts"]) is True
     finally:
         del os.environ["CDN_RELAY_URLS"]
         del os.environ["CDN_RELAY_SECRET"]
 
 
 # Pure-Python unit tests: knock.py
+
 
 def test_knock_sequence_completion():
     from app.transport.knock import get_current_knock_sequence, record_page_visit, verify_knock
@@ -780,6 +828,7 @@ def test_knock_wrong_sequence_order():
 
 
 # Pure-Python unit tests: BridgeRegistry (pluggable.py)
+
 
 def test_bridge_registry_register_and_list():
     from app.transport.pluggable import BridgeRegistry
@@ -855,6 +904,7 @@ def test_bridge_registry_get_best_bridge_empty():
 
 # Pure-Python unit tests: Obfs4Transport (pluggable.py)
 
+
 def test_obfs4_wrap_unwrap():
     from app.transport.pluggable import Obfs4Transport
 
@@ -902,8 +952,10 @@ def test_obfs4_unwrap_tampered_mac():
 
 # Pure-Python unit tests: steganography.py
 
+
 def test_steganography_can_use():
     from app.transport.steganography import can_use_steganography
+
     # Just verify the function returns a bool without raising
     result = can_use_steganography()
     assert isinstance(result, bool)
@@ -961,6 +1013,7 @@ def test_steganography_data_too_large_raises():
 
 
 # Pure-Python unit tests: GlobalPeerInfo (global_transport.py)
+
 
 def test_global_peer_info_alive():
     from app.transport.global_transport import GlobalPeerInfo
@@ -1055,6 +1108,7 @@ def test_global_transport_merge_peer_filters_localhost():
 
 # Pure-Python unit tests: CoverTrafficGenerator (cover_traffic.py)
 
+
 def test_cover_traffic_is_cover_traffic():
     from app.transport.cover_traffic import CoverTrafficGenerator
 
@@ -1076,6 +1130,7 @@ def test_cover_traffic_empty_not_cover():
 
 
 # Pure-Python unit tests: StealthResponse (stealth_http.py)
+
 
 def test_stealth_response_json():
     import json

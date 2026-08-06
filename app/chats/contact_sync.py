@@ -9,6 +9,7 @@ Endpoints:
   - POST /api/contacts/sync          — send hashes, get matches
   - POST /api/contacts/sync/add-all  — add all found matches to contacts
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -42,28 +43,36 @@ def _hash_phone(phone: str) -> str:
 
 # Pydantic schemas
 
+
 class SyncRequest(BaseModel):
     """Client sends phone number hashes from the address book."""
+
     phone_hashes: list[str] = Field(
-        ..., min_length=1, max_length=5000,
+        ...,
+        min_length=1,
+        max_length=5000,
         description="SHA-256 hex hashes of normalized phone numbers",
     )
 
 
 class AddAllRequest(BaseModel):
     """Add all found users to contacts."""
+
     user_ids: list[int] = Field(
-        ..., min_length=1, max_length=5000,
+        ...,
+        min_length=1,
+        max_length=5000,
     )
 
 
 # Endpoints
 
+
 @router.post("")
 async def sync_contacts(
     body: SyncRequest,
-    u:    User    = Depends(get_current_user),
-    db:   Session = Depends(get_db),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Accepts SHA-256 phone hashes from the device's address book.
@@ -76,37 +85,36 @@ async def sync_contacts(
 
     # Get all users with phone numbers (except current user)
     users_with_phone = (
-        db.query(User)
-        .filter(User.phone.isnot(None), User.phone != "", User.is_active.is_(True), User.id != u.id)
-        .all()
+        db.query(User).filter(User.phone.isnot(None), User.phone != "", User.is_active.is_(True), User.id != u.id).all()
     )
 
     # Already added contacts — do not show again
-    existing_contact_ids = set(
-        r[0] for r in
-        db.query(Contact.contact_id).filter(Contact.owner_id == u.id).all()
-    )
+    existing_contact_ids = set(r[0] for r in db.query(Contact.contact_id).filter(Contact.owner_id == u.id).all())
 
     matches = []
     for user in users_with_phone:
         user_phone_hash = _hash_phone(user.phone)
         if user_phone_hash in incoming_hashes and user.id not in existing_contact_ids:
-            matches.append({
-                "user_id":      user.id,
-                "username":     user.username,
-                "display_name": user.display_name or user.username,
-                "avatar_emoji": user.avatar_emoji,
-                "avatar_url":   user.avatar_url,
-                "presence":     user.presence or "online",
-            })
+            matches.append(
+                {
+                    "user_id": user.id,
+                    "username": user.username,
+                    "display_name": user.display_name or user.username,
+                    "avatar_emoji": user.avatar_emoji,
+                    "avatar_url": user.avatar_url,
+                    "presence": user.presence or "online",
+                }
+            )
 
     logger.info(
         "contact_sync user=%s checked=%d matched=%d",
-        u.id, len(incoming_hashes), len(matches),
+        u.id,
+        len(incoming_hashes),
+        len(matches),
     )
 
     return {
-        "matches":       matches,
+        "matches": matches,
         "total_checked": len(incoming_hashes),
         "already_added": len(existing_contact_ids),
     }
@@ -115,14 +123,11 @@ async def sync_contacts(
 @router.post("/add-all", status_code=201)
 async def add_all_matched(
     body: AddAllRequest,
-    u:    User    = Depends(get_current_user),
-    db:   Session = Depends(get_db),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Bulk add found users to contacts."""
-    existing_contact_ids = set(
-        r[0] for r in
-        db.query(Contact.contact_id).filter(Contact.owner_id == u.id).all()
-    )
+    existing_contact_ids = set(r[0] for r in db.query(Contact.contact_id).filter(Contact.owner_id == u.id).all())
 
     added = 0
     for uid in body.user_ids:

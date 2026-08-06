@@ -2,6 +2,7 @@
 Advanced File Features — distributed storage, media preview, gallery,
 file search, auto-compression presets.
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,12 +25,14 @@ router = APIRouter(prefix="/api/files", tags=["files-advanced"])
 
 # 1. Distributed Storage (IPFS-style chunk distribution)
 
+
 class DistributedChunk(BaseModel):
     chunk_hash: str
     chunk_index: int
     size: int
     node_ip: str
     node_port: int
+
 
 class DistributedFileInfo(BaseModel):
     file_hash: str
@@ -38,14 +41,15 @@ class DistributedFileInfo(BaseModel):
     chunk_count: int
     chunks: list[DistributedChunk] = []
 
+
 # In-memory: file_hash -> {chunks: [{hash, index, size, nodes: [ip:port]}]}
 _distributed_index: dict[str, dict] = {}
 
 
 @router.post("/distributed/register")
-async def register_distributed_file(body: DistributedFileInfo,
-                                    u: User = Depends(get_current_user),
-                                    db: Session = Depends(get_db)):
+async def register_distributed_file(
+    body: DistributedFileInfo, u: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """Register a file distributed across multiple nodes (IPFS-style).
 
     Each chunk is stored on a different node. Client uploads chunks to
@@ -67,13 +71,15 @@ async def list_distributed_files(u: User = Depends(get_current_user)):
     """List all distributed files on this node."""
     files = []
     for fhash, info in _distributed_index.items():
-        files.append({
-            "file_hash": fhash,
-            "filename": info["filename"],
-            "total_size": info["total_size"],
-            "chunk_count": info["chunk_count"],
-            "created_at": info["created_at"],
-        })
+        files.append(
+            {
+                "file_hash": fhash,
+                "filename": info["filename"],
+                "total_size": info["total_size"],
+                "chunk_count": info["chunk_count"],
+                "created_at": info["created_at"],
+            }
+        )
     return {"files": files}
 
 
@@ -88,9 +94,9 @@ async def get_distributed_file(file_hash: str, u: User = Depends(get_current_use
 
 # 2. Media Preview (in-browser preview without download)
 
+
 @router.get("/preview/{room_id}/{file_id}")
-async def media_preview(room_id: int, file_id: int,
-                        u: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def media_preview(room_id: int, file_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get preview metadata for a file (supports video, audio, documents).
 
     Returns information needed to render an in-browser preview:
@@ -99,19 +105,28 @@ async def media_preview(room_id: int, file_id: int,
     - Image: thumbnail URL, dimensions
     - Document: page count, preview pages
     """
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
     # scope the file lookup to the path room_id — without this a member
     # of any room could read preview metadata of a file belonging to another room.
-    ft = db.query(FileTransfer).filter(
-        FileTransfer.id == file_id,
-        FileTransfer.room_id == room_id,
-    ).first()
+    ft = (
+        db.query(FileTransfer)
+        .filter(
+            FileTransfer.id == file_id,
+            FileTransfer.room_id == room_id,
+        )
+        .first()
+    )
     if not ft:
         raise HTTPException(404, "File not found")
 
@@ -150,19 +165,29 @@ async def media_preview(room_id: int, file_id: int,
 
 # 3. Image Gallery (grouped photos, albums)
 
+
 @router.get("/gallery/{room_id}")
-async def room_gallery(room_id: int, page: int = Query(default=1, ge=1),
-                       per_page: int = Query(default=50, le=200),
-                       media_type: str = Query(default="all"),
-                       u: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def room_gallery(
+    room_id: int,
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=50, le=200),
+    media_type: str = Query(default="all"),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Get media gallery for a room — images, videos, files grouped.
 
     Args:
         media_type: "all", "images", "videos", "audio", "documents"
     """
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
@@ -182,9 +207,7 @@ async def room_gallery(room_id: int, page: int = Query(default=1, ge=1),
         )
 
     total = query.count()
-    files = query.order_by(FileTransfer.created_at.desc()).offset(
-        (page - 1) * per_page
-    ).limit(per_page).all()
+    files = query.order_by(FileTransfer.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
 
     return {
         "media": [
@@ -208,12 +231,16 @@ async def room_gallery(room_id: int, page: int = Query(default=1, ge=1),
 
 # 4. File Search
 
+
 @router.get("/search/{room_id}")
-async def search_files(room_id: int,
-                       q: str = Query(default="", max_length=100),
-                       file_type: str = Query(default=""),
-                       sender_id: int = Query(default=0),
-                       u: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def search_files(
+    room_id: int,
+    q: str = Query(default="", max_length=100),
+    file_type: str = Query(default=""),
+    sender_id: int = Query(default=0),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Search files in a room by name, type, or sender.
 
     Args:
@@ -221,9 +248,14 @@ async def search_files(room_id: int,
         file_type: Filter by MIME type prefix ("image", "video", "audio", "application/pdf")
         sender_id: Filter by uploader
     """
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
@@ -257,6 +289,7 @@ async def search_files(room_id: int,
 
 
 # 5. Auto-Compression Presets
+
 
 @router.get("/compression-presets")
 async def compression_presets():
@@ -317,48 +350,52 @@ async def compression_presets():
 
 # 6. File Stats
 
+
 @router.get("/stats/{room_id}")
-async def file_stats(room_id: int, u: User = Depends(get_current_user),
-                     db: Session = Depends(get_db)):
+async def file_stats(room_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get file storage statistics for a room."""
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
-    total_files = db.query(func.count(FileTransfer.id)).filter(
-        FileTransfer.room_id == room_id
-    ).scalar() or 0
+    total_files = db.query(func.count(FileTransfer.id)).filter(FileTransfer.room_id == room_id).scalar() or 0
 
-    total_size = db.query(func.sum(FileTransfer.size_bytes)).filter(
-        FileTransfer.room_id == room_id
-    ).scalar() or 0
+    total_size = db.query(func.sum(FileTransfer.size_bytes)).filter(FileTransfer.room_id == room_id).scalar() or 0
 
     # Extract media type prefix (e.g., "image" from "image/jpeg")
     # Use split_part for PostgreSQL, substr+instr for SQLite
     from app.database import engine as _engine
-    _is_pg = 'postgresql' in str(_engine.url)
+
+    _is_pg = "postgresql" in str(_engine.url)
     if _is_pg:
-        type_expr = func.split_part(FileTransfer.mime_type, '/', 1)
+        type_expr = func.split_part(FileTransfer.mime_type, "/", 1)
     else:
         type_expr = func.substr(FileTransfer.mime_type, 1, func.instr(FileTransfer.mime_type, "/") - 1)
 
-    by_type = db.query(
-        type_expr,
-        func.count(FileTransfer.id),
-        func.sum(FileTransfer.size_bytes),
-    ).filter(FileTransfer.room_id == room_id).group_by(
-        type_expr
-    ).all()
+    by_type = (
+        db.query(
+            type_expr,
+            func.count(FileTransfer.id),
+            func.sum(FileTransfer.size_bytes),
+        )
+        .filter(FileTransfer.room_id == room_id)
+        .group_by(type_expr)
+        .all()
+    )
 
     return {
         "total_files": total_files,
         "total_size_bytes": total_size,
         "total_size_human": _human_size(total_size),
         "by_type": {
-            (t or "other"): {"count": c, "size_bytes": s or 0, "size_human": _human_size(s or 0)}
-            for t, c, s in by_type
+            (t or "other"): {"count": c, "size_bytes": s or 0, "size_human": _human_size(s or 0)} for t, c, s in by_type
         },
     }
 

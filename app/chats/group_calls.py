@@ -5,6 +5,7 @@ Unlike voice channels (persistent, join-anytime), group calls are initiated
 by a user, ring for all room members, and end when everyone leaves or the
 initiator ends the call.  State is in-memory (like voice.py).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,7 +38,7 @@ class GroupCallParticipant:
     display_name: str
     avatar_emoji: str
     avatar_url: Optional[str]
-    state: str = "invited"          # invited | ringing | connecting | connected | left | declined
+    state: str = "invited"  # invited | ringing | connecting | connected | left | declined
     joined_at: Optional[datetime] = None
     is_muted: bool = False
     is_video: bool = False
@@ -63,9 +64,9 @@ class GroupCall:
     call_id: str
     room_id: int
     initiator_id: int
-    call_type: str                  # group_audio | group_video
-    state: str = "ringing"          # ringing | active | ended
-    topology: str = "mesh"          # mesh | sfu
+    call_type: str  # group_audio | group_video
+    state: str = "ringing"  # ringing | active | ended
+    topology: str = "mesh"  # mesh | sfu
     participants: dict[int, GroupCallParticipant] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = None
@@ -106,8 +107,8 @@ def _end_call(call: GroupCall) -> None:
     _active_group_calls.pop(call.call_id, None)
 
 
-
 RING_TIMEOUT = 30  # seconds
+
 
 async def _ring_timeout(call_id: str) -> None:
     await asyncio.sleep(RING_TIMEOUT)
@@ -125,7 +126,6 @@ async def _broadcast_call_event(call: GroupCall, event_type: str, extra: dict | 
     await manager.broadcast_to_room(call.room_id, payload)
 
 
-
 class StartCallRequest(BaseModel):
     call_type: str = "group_audio"
 
@@ -133,7 +133,6 @@ class StartCallRequest(BaseModel):
 class MuteRequest(BaseModel):
     is_muted: bool = False
     is_video: bool = False
-
 
 
 @router.post("/{room_id}/start")
@@ -148,9 +147,7 @@ async def start_group_call(
     if not room:
         raise HTTPException(404, "Room not found")
 
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id
-    ).first()
+    member = db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == u.id).first()
     if not member:
         raise HTTPException(403, "You are not a room member")
 
@@ -166,6 +163,7 @@ async def start_group_call(
     member_count = len(members)
 
     from app.chats.sfu import SFU_MAX_PARTICIPANTS, SFU_THRESHOLD, is_sfu_available
+
     use_sfu = is_sfu_available() and member_count > SFU_THRESHOLD
     topology = "sfu" if use_sfu else "mesh"
     max_p = SFU_MAX_PARTICIPANTS if use_sfu else 10
@@ -197,15 +195,19 @@ async def start_group_call(
     _room_active_call[room_id] = call_id
 
     # Broadcast invite to room
-    await _broadcast_call_event(call, "group_call_invite", {
-        "initiator": {
-            "user_id": u.id,
-            "username": u.username,
-            "display_name": u.display_name or u.username,
-            "avatar_emoji": u.avatar_emoji or "\U0001f464",
+    await _broadcast_call_event(
+        call,
+        "group_call_invite",
+        {
+            "initiator": {
+                "user_id": u.id,
+                "username": u.username,
+                "display_name": u.display_name or u.username,
+                "avatar_emoji": u.avatar_emoji or "\U0001f464",
+            },
+            "call_type": body.call_type,
         },
-        "call_type": body.call_type,
-    })
+    )
 
     # Start ringing timeout
     spawn(_ring_timeout(call_id))
@@ -236,12 +238,16 @@ async def join_group_call(
         call.state = "active"
         call.started_at = datetime.now(timezone.utc)
 
-    await _broadcast_call_event(call, "group_call_participant_joined", {
-        "user_id": u.id,
-        "username": u.username,
-        "display_name": u.display_name or u.username,
-        "avatar_emoji": u.avatar_emoji or "\U0001f464",
-    })
+    await _broadcast_call_event(
+        call,
+        "group_call_participant_joined",
+        {
+            "user_id": u.id,
+            "username": u.username,
+            "display_name": u.display_name or u.username,
+            "avatar_emoji": u.avatar_emoji or "\U0001f464",
+        },
+    )
 
     return {"ok": True, "call": call.to_dict()}
 
@@ -270,9 +276,13 @@ async def leave_group_call(
     if p:
         p.state = "left"
 
-    await _broadcast_call_event(call, "group_call_participant_left", {
-        "user_id": u.id,
-    })
+    await _broadcast_call_event(
+        call,
+        "group_call_participant_left",
+        {
+            "user_id": u.id,
+        },
+    )
 
     # If no one connected, end the call (guard against double-end race)
     if call.connected_count() == 0 and call.state != "ended":
@@ -313,30 +323,40 @@ async def add_participant(
 
     # BMP mode: group call invite goes through BMP room deposit
     from app.config import Config
+
     if Config.BMP_DELIVERY_ENABLED:
         with contextlib.suppress(Exception):
             import json
 
             from app.transport.blind_mailbox import deposit_envelope
-            await deposit_envelope(call.room_id, json.dumps({
-                "type": "group_call_invite",
-                "call_id": call.call_id,
-                "room_id": call.room_id,
-                "call_type": call.call_type,
-            }))
+
+            await deposit_envelope(
+                call.room_id,
+                json.dumps(
+                    {
+                        "type": "group_call_invite",
+                        "call_id": call.call_id,
+                        "room_id": call.room_id,
+                        "call_type": call.call_type,
+                    }
+                ),
+            )
     else:
         with contextlib.suppress(Exception):
-            await manager.notify_user(user_id, {
-                "type": "group_call_invite",
-                "call_id": call.call_id,
-                "room_id": call.room_id,
-                "call_type": call.call_type,
-                "initiator": {
-                    "user_id": u.id,
-                    "username": u.username,
-                    "display_name": u.display_name or u.username,
+            await manager.notify_user(
+                user_id,
+                {
+                    "type": "group_call_invite",
+                    "call_id": call.call_id,
+                    "room_id": call.room_id,
+                    "call_type": call.call_type,
+                    "initiator": {
+                        "user_id": u.id,
+                        "username": u.username,
+                        "display_name": u.display_name or u.username,
+                    },
                 },
-            })
+            )
 
     return {"ok": True}
 

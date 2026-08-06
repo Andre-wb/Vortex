@@ -21,10 +21,14 @@ def check_cert_expiry(cert_path: Path) -> dict:
     """
     try:
         from cryptography import x509
+
         cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
         now = datetime.datetime.now(datetime.timezone.utc)
-        exp = cert.not_valid_after_utc if hasattr(cert, "not_valid_after_utc") else \
-            cert.not_valid_after.replace(tzinfo=datetime.timezone.utc)
+        exp = (
+            cert.not_valid_after_utc
+            if hasattr(cert, "not_valid_after_utc")
+            else cert.not_valid_after.replace(tzinfo=datetime.timezone.utc)
+        )
         delta = exp - now
         return {
             "valid": delta.days > 0,
@@ -45,7 +49,7 @@ def detect_available_methods() -> dict[str, bool]:
         "self_signed": True,  # всегда доступен (чистый Python)
         "mkcert": bool(shutil.which("mkcert")),
         "letsencrypt": bool(shutil.which("certbot") or shutil.which("certbot3")),
-        "manual": True,       # всегда доступен (загрузка своих файлов)
+        "manual": True,  # всегда доступен (загрузка своих файлов)
     }
 
 

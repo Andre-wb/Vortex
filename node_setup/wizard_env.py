@@ -12,7 +12,7 @@ from .models import NodeConfig, SSOConfig
 # Defaults for the "global" network mode — official vortexx.sol controller.
 # Leave as empty strings until release; wizard users can't reach a real instance
 # during development.
-_OFFICIAL_CONTROLLER_URL    = ""
+_OFFICIAL_CONTROLLER_URL = ""
 _OFFICIAL_CONTROLLER_PUBKEY = ""
 
 
@@ -56,7 +56,7 @@ def _write_env(cfg: NodeConfig) -> None:
     """
     existing = _read_env_dict()
 
-    jwt_secret  = existing.get("JWT_SECRET")  or secrets.token_hex(32)
+    jwt_secret = existing.get("JWT_SECRET") or secrets.token_hex(32)
     csrf_secret = existing.get("CSRF_SECRET") or secrets.token_hex(32)
     sealed_secret = existing.get("SEALED_SENDER_SECRET") or secrets.token_hex(32)
 

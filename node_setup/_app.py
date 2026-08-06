@@ -41,6 +41,7 @@ def _load_html() -> str:
     Поддерживает <!-- include: partials/name.html --> для вставки частичных шаблонов.
     """
     import re
+
     html_path = Path(__file__).parent / "templates" / "setup.html"
     if not html_path.exists():
         return "<h1>setup.html не найден</h1>"
@@ -53,4 +54,4 @@ def _load_html() -> str:
             return f"<!-- include not found: {partial.name} -->"
 
     content = html_path.read_text(encoding="utf-8")
-    return re.sub(r'<!--\s*include:\s*(.+?)\s*-->', _resolve, content)
+    return re.sub(r"<!--\s*include:\s*(.+?)\s*-->", _resolve, content)

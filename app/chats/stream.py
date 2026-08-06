@@ -88,9 +88,18 @@ class StreamParticipant:
 class StreamState:
     """In-memory state of an active stream."""
 
-    def __init__(self, room_id: int, host: User, title: str, description: str,
-                 allow_reactions: bool, allow_donations: bool, donation_card: str,
-                 donation_message: str, auto_accept_speakers: bool):
+    def __init__(
+        self,
+        room_id: int,
+        host: User,
+        title: str,
+        description: str,
+        allow_reactions: bool,
+        allow_donations: bool,
+        donation_card: str,
+        donation_message: str,
+        auto_accept_speakers: bool,
+    ):
         self.room_id = room_id
         self.host_id = host.id
         self.title = title
@@ -145,6 +154,7 @@ async def _check_scheduled_streams():
     """Фоновая задача: проверяет запланированные стримы каждые 5 сек.
     Когда время пришло — отправляет stream_auto_start хосту через global WS."""
     import asyncio
+
     while True:
         try:
             now = datetime.now(timezone.utc)
@@ -168,12 +178,16 @@ async def _check_scheduled_streams():
                     continue
                 # Notify host via global WS to auto-start
                 from app.config import Config
+
                 if not Config.BMP_DELIVERY_ENABLED:
-                    await manager.notify_user(host_id, {
-                        "type": "stream_auto_start",
-                        "room_id": room_id,
-                        "title": sched.get("title", "Live"),
-                    })
+                    await manager.notify_user(
+                        host_id,
+                        {
+                            "type": "stream_auto_start",
+                            "room_id": room_id,
+                            "title": sched.get("title", "Live"),
+                        },
+                    )
                 logger.debug("Stream auto-start scheduled (sanitized)")
                 # Remove schedule — host will call /start
                 _scheduled_streams.pop(room_id, None)
@@ -186,6 +200,7 @@ def start_schedule_checker():
     """Запуск фоновой задачи проверки расписания. Вызывается из main.py startup."""
     global _schedule_checker_task
     import asyncio
+
     if _schedule_checker_task is None or _schedule_checker_task.done():
         _schedule_checker_task = asyncio.create_task(_check_scheduled_streams())
 
@@ -239,22 +254,30 @@ def _require_channel(room_id: int, db: Session) -> Room:
 
 
 def _require_admin(room_id: int, user_id: int, db: Session) -> RoomMember:
-    m = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user_id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    m = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user_id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not m or m.role not in (RoomRole.OWNER, RoomRole.ADMIN):
         raise HTTPException(403, "Only channel owner or admin can manage streams")
     return m
 
 
 def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
-    m = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user_id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    m = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user_id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not m:
         raise HTTPException(403, "You are not a member of this channel")
     return m
@@ -290,13 +313,16 @@ async def _notify_room_stream_state(room_id: int, action: str, stream: StreamSta
 
     # Global notification
     for uid in list(manager._global_ws.keys()):
-        await manager.notify_user(uid, {
-            "type": "stream_state",
-            "room_id": room_id,
-            "action": action,
-            "is_live": action != "ended",
-            "viewer_count": stream.viewer_count() if stream else 0,
-        })
+        await manager.notify_user(
+            uid,
+            {
+                "type": "stream_state",
+                "room_id": room_id,
+                "action": action,
+                "is_live": action != "ended",
+                "viewer_count": stream.viewer_count() if stream else 0,
+            },
+        )
 
 
 @router.post("/{room_id}/schedule")
@@ -331,9 +357,14 @@ async def schedule_stream(
     await manager.broadcast_to_room(room_id, payload)
 
     # Also notify via global WS so users not in the room see browser notifications
-    members = db.query(RoomMember.user_id).filter(
-        RoomMember.room_id == room_id, RoomMember.is_banned.is_(False),
-    ).all()
+    members = (
+        db.query(RoomMember.user_id)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.is_banned.is_(False),
+        )
+        .all()
+    )
     for (uid,) in members:
         if uid != u.id:
             await manager.notify_user(uid, payload)
@@ -420,9 +451,14 @@ async def join_stream(
         return {"joined": True, "already_in": True, "stream": stream.to_dict()}
 
     # Determine role
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     role = StreamRole.CO_HOST if member and member.role in (RoomRole.OWNER, RoomRole.ADMIN) else StreamRole.VIEWER
 
     p = StreamParticipant(u, role)
@@ -433,11 +469,15 @@ async def join_stream(
     if count > stream.viewer_peak:
         stream.viewer_peak = count
 
-    await _broadcast_stream(room_id, {
-        "type": "stream_viewer_joined",
-        "participant": p.to_dict(),
-        "viewer_count": count,
-    }, exclude=u.id)
+    await _broadcast_stream(
+        room_id,
+        {
+            "type": "stream_viewer_joined",
+            "participant": p.to_dict(),
+            "viewer_count": count,
+        },
+        exclude=u.id,
+    )
 
     logger.info("Stream join: %s -> room %s (role=%s)", u.username, room_id, role.value)
     return {"joined": True, "already_in": False, "stream": stream.to_dict()}
@@ -470,12 +510,15 @@ async def leave_stream(
         _stream_ws.pop(room_id, None)
         return {"left": True, "stream_ended": True}
 
-    await _broadcast_stream(room_id, {
-        "type": "stream_viewer_left",
-        "user_id": u.id,
-        "username": u.username,
-        "viewer_count": stream.viewer_count(),
-    })
+    await _broadcast_stream(
+        room_id,
+        {
+            "type": "stream_viewer_left",
+            "user_id": u.id,
+            "username": u.username,
+            "viewer_count": stream.viewer_count(),
+        },
+    )
 
     # Cleanup WS
     ws_room = _stream_ws.get(room_id, {})
@@ -529,20 +572,26 @@ async def raise_hand(
         p.role = StreamRole.SPEAKER
         p.hand_raised = False
         stream.hand_queue = [uid for uid in stream.hand_queue if uid != u.id]
-        await _broadcast_stream(room_id, {
-            "type": "stream_permission_granted",
-            "participant": p.to_dict(),
-        })
+        await _broadcast_stream(
+            room_id,
+            {
+                "type": "stream_permission_granted",
+                "participant": p.to_dict(),
+            },
+        )
         return {"hand_raised": False, "auto_accepted": True, "role": p.role.value}
 
-    await _broadcast_stream(room_id, {
-        "type": "stream_hand_raised",
-        "user_id": u.id,
-        "username": u.username,
-        "display_name": p.display_name,
-        "avatar_emoji": p.avatar_emoji,
-        "avatar_url": p.avatar_url,
-    })
+    await _broadcast_stream(
+        room_id,
+        {
+            "type": "stream_hand_raised",
+            "user_id": u.id,
+            "username": u.username,
+            "display_name": p.display_name,
+            "avatar_emoji": p.avatar_emoji,
+            "avatar_url": p.avatar_url,
+        },
+    )
 
     return {"hand_raised": True}
 
@@ -565,10 +614,13 @@ async def lower_hand(
     p.hand_raised = False
     stream.hand_queue = [uid for uid in stream.hand_queue if uid != u.id]
 
-    await _broadcast_stream(room_id, {
-        "type": "stream_hand_lowered",
-        "user_id": u.id,
-    })
+    await _broadcast_stream(
+        room_id,
+        {
+            "type": "stream_hand_lowered",
+            "user_id": u.id,
+        },
+    )
 
     return {"hand_raised": False}
 
@@ -633,11 +685,14 @@ async def grant_permission(
         target.hand_raised = False
         stream.hand_queue = [uid for uid in stream.hand_queue if uid != body.user_id]
 
-    await _broadcast_stream(room_id, {
-        "type": "stream_permission_granted",
-        "participant": target.to_dict(),
-        "granted_by": u.username,
-    })
+    await _broadcast_stream(
+        room_id,
+        {
+            "type": "stream_permission_granted",
+            "participant": target.to_dict(),
+            "granted_by": u.username,
+        },
+    )
 
     return {"ok": True, "participant": target.to_dict()}
 
@@ -674,12 +729,15 @@ async def kick_from_stream(
         with contextlib.suppress(Exception):
             await kicked_ws.send_text(_json.dumps({"type": "stream_kicked", "by": u.username}))
 
-    await _broadcast_stream(room_id, {
-        "type": "stream_viewer_left",
-        "user_id": target_id,
-        "kicked": True,
-        "viewer_count": stream.viewer_count(),
-    })
+    await _broadcast_stream(
+        room_id,
+        {
+            "type": "stream_viewer_left",
+            "user_id": target_id,
+            "kicked": True,
+            "viewer_count": stream.viewer_count(),
+        },
+    )
 
     return {"ok": True}
 
@@ -706,12 +764,15 @@ async def send_reaction(
     emoji = emoji[:10]
     stream.reaction_counts[emoji] = stream.reaction_counts.get(emoji, 0) + 1
 
-    await _broadcast_stream(room_id, {
-        "type": "stream_reaction",
-        "emoji": emoji,
-        "user_id": u.id,
-        "username": u.username,
-    })
+    await _broadcast_stream(
+        room_id,
+        {
+            "type": "stream_reaction",
+            "emoji": emoji,
+            "user_id": u.id,
+            "username": u.username,
+        },
+    )
 
     return {"ok": True}
 
@@ -746,10 +807,13 @@ async def send_donation(
     }
     stream.donations.append(donation)
 
-    await _broadcast_stream(room_id, {
-        "type": "stream_donation",
-        **donation,
-    })
+    await _broadcast_stream(
+        room_id,
+        {
+            "type": "stream_donation",
+            **donation,
+        },
+    )
 
     return {"ok": True}
 
@@ -785,10 +849,13 @@ async def update_stream_settings(
     if body.auto_accept_speakers is not None:
         stream.auto_accept_speakers = body.auto_accept_speakers
 
-    await _broadcast_stream(room_id, {
-        "type": "stream_settings_updated",
-        "stream": stream.to_dict(),
-    })
+    await _broadcast_stream(
+        room_id,
+        {
+            "type": "stream_settings_updated",
+            "stream": stream.to_dict(),
+        },
+    )
 
     return stream.to_dict()
 
@@ -846,6 +913,7 @@ async def ws_stream(
         return
 
     from app.transport.knock import is_knock_required, verify_knock
+
     if is_knock_required():
         has_auth = bool(websocket.cookies.get("access_token"))
         if not has_auth:
@@ -887,18 +955,24 @@ async def ws_stream(
     try:
         # Send current participants list
         peers = [p.to_dict() for uid, p in stream.participants.items() if uid != user.id]
-        await websocket.send_text(_json.dumps({
-            "type": "stream_peers",
-            "peers": peers,
-            "my_role": stream.participants[user.id].role.value,
-            "stream": stream.to_dict(),
-        }))
+        await websocket.send_text(
+            _json.dumps(
+                {
+                    "type": "stream_peers",
+                    "peers": peers,
+                    "my_role": stream.participants[user.id].role.value,
+                    "stream": stream.to_dict(),
+                }
+            )
+        )
 
         # Notify others
-        notify_msg = _json.dumps({
-            "type": "stream_peer_joined",
-            **stream.participants[user.id].to_dict(),
-        })
+        notify_msg = _json.dumps(
+            {
+                "type": "stream_peer_joined",
+                **stream.participants[user.id].to_dict(),
+            }
+        )
         for uid, ws in list(_stream_ws.get(room_id, {}).items()):
             if uid != user.id:
                 try:
@@ -943,48 +1017,69 @@ async def ws_stream(
                     participant.is_muted = msg.get("is_muted", participant.is_muted)
                 if participant.can_video:
                     participant.is_video_on = msg.get("is_video_on", participant.is_video_on)
-                await _broadcast_stream(room_id, {
-                    "type": "stream_mute",
-                    "user_id": user.id,
-                    "is_muted": participant.is_muted,
-                    "is_video_on": participant.is_video_on,
-                }, exclude=user.id)
+                await _broadcast_stream(
+                    room_id,
+                    {
+                        "type": "stream_mute",
+                        "user_id": user.id,
+                        "is_muted": participant.is_muted,
+                        "is_video_on": participant.is_video_on,
+                    },
+                    exclude=user.id,
+                )
 
             elif msg_type == "stream_screen_share":
                 if not participant.can_screen_share:
-                    await websocket.send_text(_json.dumps({
-                        "type": "stream_error", "message": "Screen sharing permission denied",
-                    }))
+                    await websocket.send_text(
+                        _json.dumps(
+                            {
+                                "type": "stream_error",
+                                "message": "Screen sharing permission denied",
+                            }
+                        )
+                    )
                     continue
                 participant.is_screen_sharing = msg.get("sharing", False)
-                await _broadcast_stream(room_id, {
-                    "type": "stream_screen_share",
-                    "user_id": user.id,
-                    "sharing": participant.is_screen_sharing,
-                }, exclude=user.id)
+                await _broadcast_stream(
+                    room_id,
+                    {
+                        "type": "stream_screen_share",
+                        "user_id": user.id,
+                        "sharing": participant.is_screen_sharing,
+                    },
+                    exclude=user.id,
+                )
 
             elif msg_type == "stream_reaction":
                 if stream.allow_reactions:
                     emoji = str(msg.get("emoji", "❤️"))[:10]
                     stream.reaction_counts[emoji] = stream.reaction_counts.get(emoji, 0) + 1
-                    await _broadcast_stream(room_id, {
-                        "type": "stream_reaction",
-                        "emoji": emoji,
-                        "user_id": user.id,
-                        "username": user.username,
-                    }, exclude=user.id)
+                    await _broadcast_stream(
+                        room_id,
+                        {
+                            "type": "stream_reaction",
+                            "emoji": emoji,
+                            "user_id": user.id,
+                            "username": user.username,
+                        },
+                        exclude=user.id,
+                    )
 
             elif msg_type == "stream_chat":
                 text = str(msg.get("text", ""))[:500]
                 if text:
-                    await _broadcast_stream(room_id, {
-                        "type": "stream_chat",
-                        "user_id": user.id,
-                        "username": user.username,
-                        "display_name": participant.display_name,
-                        "avatar_emoji": participant.avatar_emoji,
-                        "text": text,
-                    }, exclude=user.id)
+                    await _broadcast_stream(
+                        room_id,
+                        {
+                            "type": "stream_chat",
+                            "user_id": user.id,
+                            "username": user.username,
+                            "display_name": participant.display_name,
+                            "avatar_emoji": participant.avatar_emoji,
+                            "text": text,
+                        },
+                        exclude=user.id,
+                    )
 
     except WebSocketDisconnect:
         logger.debug("Stream WS disconnect user=%s room=%s", user.username, room_id)
@@ -1011,9 +1106,12 @@ async def ws_stream(
                 _active_streams.pop(room_id, None)
                 _stream_ws.pop(room_id, None)
             elif removed:
-                await _broadcast_stream(room_id, {
-                    "type": "stream_peer_left",
-                    "user_id": user.id,
-                    "username": user.username,
-                    "viewer_count": stream.viewer_count(),
-                })
+                await _broadcast_stream(
+                    room_id,
+                    {
+                        "type": "stream_peer_left",
+                        "user_id": user.id,
+                        "username": user.username,
+                        "viewer_count": stream.viewer_count(),
+                    },
+                )

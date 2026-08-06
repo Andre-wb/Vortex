@@ -15,6 +15,7 @@ Safety rules (prevent false bans):
   6. Reports older than 30 days expire
   7. Progressive escalation: each strike requires NEW reports after previous punishment
 """
+
 from __future__ import annotations
 
 import logging
@@ -39,21 +40,21 @@ _VALID_REASONS = frozenset({"spam", "harassment", "nsfw", "other"})
 
 # Punishment ladder: strike_number -> (punishment_code, timedelta or None for permanent)
 _PUNISHMENTS: dict[int, tuple[str, timedelta | None]] = {
-    1: ("mute_3d",        timedelta(days=3)),
-    2: ("mute_7d",        timedelta(days=7)),
-    3: ("mute_30d",       timedelta(days=30)),
-    4: ("ban_3y",         timedelta(days=365 * 3)),
-    5: ("ban_permanent",  None),
+    1: ("mute_3d", timedelta(days=3)),
+    2: ("mute_7d", timedelta(days=7)),
+    3: ("mute_30d", timedelta(days=30)),
+    4: ("ban_3y", timedelta(days=365 * 3)),
+    5: ("ban_permanent", None),
 }
 
 # Threshold: how many UNIQUE reporters needed for each next strike
 # Key = current strike_count (BEFORE the new strike)
 _THRESHOLDS: dict[int, int] = {
-    0: 3,   # 1st strike: 3 unique reporters
-    1: 3,   # 2nd strike: 3 unique reporters (new, after strike 1)
-    2: 3,   # 3rd strike: 3 unique reporters (new, after strike 2)
-    3: 5,   # 4th strike: 5 unique reporters (higher threshold)
-    4: 1,   # 5th strike: any new report -> permanent ban
+    0: 3,  # 1st strike: 3 unique reporters
+    1: 3,  # 2nd strike: 3 unique reporters (new, after strike 1)
+    2: 3,  # 3rd strike: 3 unique reporters (new, after strike 2)
+    3: 5,  # 4th strike: 5 unique reporters (higher threshold)
+    4: 1,  # 5th strike: any new report -> permanent ban
 }
 
 _REPORT_EXPIRY_DAYS = 30
@@ -62,13 +63,15 @@ _REPORTER_COOLDOWN_HOURS = 24
 
 # Pydantic schemas
 
+
 class ReportRequest(BaseModel):
-    reason:      str       = Field(..., min_length=1, max_length=50)
-    description: str       = Field("", max_length=500)
-    message_id:  int | None = None
+    reason: str = Field(..., min_length=1, max_length=50)
+    description: str = Field("", max_length=500)
+    message_id: int | None = None
 
 
 # Core punishment logic
+
 
 def _format_remaining(td: timedelta) -> str:
     """Format timedelta as human-readable string."""
@@ -133,9 +136,7 @@ async def _check_and_apply_punishment(user_id: int, db: Session) -> dict | None:
     return _apply_strike(user, current_strike + 1, uncounted, db)
 
 
-def _apply_strike(
-    user: User, strike_num: int, reports: list[UserReport], db: Session
-) -> dict:
+def _apply_strike(user: User, strike_num: int, reports: list[UserReport], db: Session) -> dict:
     """Apply a strike and its corresponding punishment."""
     punishment_code, duration = _PUNISHMENTS[strike_num]
     now = datetime.now(timezone.utc)
@@ -162,12 +163,12 @@ def _apply_strike(
     # Create strike record
     reasons_summary = ", ".join(sorted({r.reason for r in reports}))
     strike = UserStrike(
-        user_id       = user.id,
-        strike_number = strike_num,
-        punishment    = punishment_code,
-        reason        = f"Auto: {len(reports)} reports ({reasons_summary})",
-        report_count  = len(reports),
-        expires_at    = expires_at,
+        user_id=user.id,
+        strike_number=strike_num,
+        punishment=punishment_code,
+        reason=f"Auto: {len(reports)} reports ({reasons_summary})",
+        report_count=len(reports),
+        expires_at=expires_at,
     )
     db.add(strike)
     db.flush()  # get strike.id
@@ -179,10 +180,10 @@ def _apply_strike(
     db.commit()
 
     punishment_desc = {
-        "mute_3d":       "Global mute for 3 days",
-        "mute_7d":       "Global mute for 7 days",
-        "mute_30d":      "Global mute for 30 days",
-        "ban_3y":        "Platform ban for 3 years",
+        "mute_3d": "Global mute for 3 days",
+        "mute_7d": "Global mute for 7 days",
+        "mute_30d": "Global mute for 30 days",
+        "ban_3y": "Platform ban for 3 years",
         "ban_permanent": "Permanent platform ban",
     }
 
@@ -193,20 +194,21 @@ def _apply_strike(
 
     return {
         "strike_number": strike_num,
-        "punishment":    punishment_code,
-        "description":   punishment_desc.get(punishment_code, punishment_code),
-        "expires_at":    expires_at.isoformat() if expires_at else None,
+        "punishment": punishment_code,
+        "description": punishment_desc.get(punishment_code, punishment_code),
+        "expires_at": expires_at.isoformat() if expires_at else None,
     }
 
 
 # Endpoints
 
+
 @router.post("/api/users/report/{user_id}", status_code=201)
 async def report_user(
     user_id: int,
-    body:    ReportRequest,
-    u:       User    = Depends(get_current_user),
-    db:      Session = Depends(get_db),
+    body: ReportRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Submit a report against a user.
@@ -258,10 +260,7 @@ async def report_user(
     shared_rooms = (
         db.query(RoomMember.room_id)
         .filter(RoomMember.user_id == u.id)
-        .intersect(
-            db.query(RoomMember.room_id)
-            .filter(RoomMember.user_id == user_id)
-        )
+        .intersect(db.query(RoomMember.room_id).filter(RoomMember.user_id == user_id))
         .all()
     )
     if shared_rooms:
@@ -280,21 +279,20 @@ async def report_user(
 
     # 7. Save report
     report = UserReport(
-        reporter_id     = u.id,
-        reported_id     = user_id,
-        room_id         = shared_rooms[0][0] if shared_rooms else None,
-        reason          = reason,
-        description     = body.description.strip()[:500],
-        message_id      = body.message_id,
-        is_admin_report = is_admin,
+        reporter_id=u.id,
+        reported_id=user_id,
+        room_id=shared_rooms[0][0] if shared_rooms else None,
+        reason=reason,
+        description=body.description.strip()[:500],
+        message_id=body.message_id,
+        is_admin_report=is_admin,
     )
     db.add(report)
     db.commit()
     db.refresh(report)
 
     logger.info(
-        f"Report: {u.username}(id={u.id}) reported {target.username}(id={target.id}), "
-        f"reason={reason}, admin={is_admin}"
+        f"Report: {u.username}(id={u.id}) reported {target.username}(id={target.id}), reason={reason}, admin={is_admin}"
     )
 
     # 8. Check if threshold triggers next strike
@@ -302,17 +300,20 @@ async def report_user(
 
     # 9. Notify the reported user (via global WS)
     if strike_info:
-        await manager.notify_user(user_id, {
-            "type":          "moderation",
-            "action":        "strike",
-            "strike_number": strike_info["strike_number"],
-            "punishment":    strike_info["punishment"],
-            "description":   strike_info["description"],
-            "expires_at":    strike_info["expires_at"],
-        })
+        await manager.notify_user(
+            user_id,
+            {
+                "type": "moderation",
+                "action": "strike",
+                "strike_number": strike_info["strike_number"],
+                "punishment": strike_info["punishment"],
+                "description": strike_info["description"],
+                "expires_at": strike_info["expires_at"],
+            },
+        )
 
     result = {
-        "ok":      True,
+        "ok": True,
         "message": "Report submitted. Thank you for helping with moderation.",
     }
     if strike_info:
@@ -322,16 +323,11 @@ async def report_user(
 
 @router.get("/api/moderation/strikes")
 async def my_strikes(
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """View own strikes and current moderation status."""
-    strikes = (
-        db.query(UserStrike)
-        .filter(UserStrike.user_id == u.id)
-        .order_by(UserStrike.strike_number)
-        .all()
-    )
+    strikes = db.query(UserStrike).filter(UserStrike.user_id == u.id).order_by(UserStrike.strike_number).all()
 
     muted = False
     muted_remaining = None
@@ -341,15 +337,15 @@ async def my_strikes(
 
     return {
         "strike_count": u.strike_count or 0,
-        "max_strikes":  5,
-        "is_muted":     muted,
-        "muted_until":  u.global_muted_until.isoformat() if u.global_muted_until else None,
+        "max_strikes": 5,
+        "is_muted": muted,
+        "muted_until": u.global_muted_until.isoformat() if u.global_muted_until else None,
         "muted_remaining": muted_remaining,
         "strikes": [
             {
-                "number":     s.strike_number,
+                "number": s.strike_number,
                 "punishment": s.punishment,
-                "reason":     s.reason,
+                "reason": s.reason,
                 "report_count": s.report_count,
                 "created_at": s.created_at.isoformat(),
                 "expires_at": s.expires_at.isoformat() if s.expires_at else None,
@@ -362,8 +358,8 @@ async def my_strikes(
 @router.get("/api/users/{user_id}/reports")
 async def user_reports(
     user_id: int,
-    u:       User    = Depends(get_current_user),
-    db:      Session = Depends(get_db),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     View reports for a user.
@@ -383,11 +379,11 @@ async def user_reports(
     return {
         "reports": [
             {
-                "id":          r.id,
-                "reason":      r.reason,
+                "id": r.id,
+                "reason": r.reason,
                 "description": r.description,
-                "created_at":  r.created_at.isoformat(),
-                "counted":     r.strike_id is not None,
+                "created_at": r.created_at.isoformat(),
+                "counted": r.strike_id is not None,
             }
             for r in reports
         ],
@@ -395,6 +391,7 @@ async def user_reports(
 
 
 # Background task: auto-unmute / auto-unban expired punishments
+
 
 async def cleanup_expired_punishments(db: Session) -> None:
     """

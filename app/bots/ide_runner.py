@@ -7,6 +7,7 @@ Manages compilation and lifecycle of Gravitix bots:
   stop(project_id) → terminate bot process
   status(project_id) → running | stopped | error
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,24 +20,28 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_BASE     = Path(__file__).resolve().parent.parent.parent   # project root
+_BASE = Path(__file__).resolve().parent.parent.parent  # project root
 _BOTS_DIR = _BASE / "bots_workspace"
-_GX_BIN   = _BASE / "Gravitix" / "target" / "release" / "gravitix"
+_GX_BIN = _BASE / "Gravitix" / "target" / "release" / "gravitix"
 
-_SAFE_PROJECT_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
+_SAFE_PROJECT_ID = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+
 
 class _BotProcess:
     def __init__(self, pid: int, proc: subprocess.Popen, project_id: str):
-        self.pid        = pid
-        self.proc       = proc
+        self.pid = pid
+        self.proc = proc
         self.project_id = project_id
         self.started_at = time.time()
         self.logs: list[str] = []
 
-_procs: dict[str, _BotProcess] = {}   # project_id → _BotProcess
+
+_procs: dict[str, _BotProcess] = {}  # project_id → _BotProcess
+
 
 def _gx_available() -> bool:
     return _GX_BIN.exists() and os.access(_GX_BIN, os.X_OK)
+
 
 def _parse_gx_errors(stderr: str) -> list[dict]:
     """Parse Gravitix compiler error output into structured dicts."""
@@ -48,6 +53,7 @@ def _parse_gx_errors(stderr: str) -> list[dict]:
         # Basic parse: "error[E01] at line 5: ..."
         errors.append({"msg": line, "line": None, "col": None})
     return errors
+
 
 def _script_path(project_id: str) -> Path:
     if not _SAFE_PROJECT_ID.match(project_id):
@@ -67,10 +73,12 @@ async def compile_code(code: str, project_id: str) -> dict:
     if not _gx_available():
         return {
             "ok": False,
-            "errors": [{"msg": (
-                "Gravitix binary not found. "
-                "Build it with: cd Gravitix && cargo build --release"
-            ), "line": None}],
+            "errors": [
+                {
+                    "msg": ("Gravitix binary not found. Build it with: cd Gravitix && cargo build --release"),
+                    "line": None,
+                }
+            ],
             "warnings": [],
         }
 
@@ -79,7 +87,9 @@ async def compile_code(code: str, project_id: str) -> dict:
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            str(_GX_BIN), "check", str(path),
+            str(_GX_BIN),
+            "check",
+            str(path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -153,7 +163,7 @@ def _collect_logs(project_id: str):
             if len(bp.logs) > 500:
                 bp.logs = bp.logs[-400:]
     except Exception as e:
-        logger.debug("Bot log reader closed for project %s: %s", bp.project_id if hasattr(bp, 'project_id') else '?', e)
+        logger.debug("Bot log reader closed for project %s: %s", bp.project_id if hasattr(bp, "project_id") else "?", e)
 
 
 async def stop_bot(project_id: str) -> dict:

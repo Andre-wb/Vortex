@@ -5,6 +5,7 @@ Saved GIFs API — пользователь сохраняет GIF на серв
 При открытии GIF-панели — скачивает свои сохранённые GIF.
 Файлы хранятся в uploads/saved_gifs/{user_id}/.
 """
+
 from __future__ import annotations
 
 import logging
@@ -27,24 +28,18 @@ _MAX_GIF_SIZE = 10 * 1024 * 1024  # 10 MB
 
 @router.get("/saved")
 async def list_saved_gifs(
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Список сохранённых GIF пользователя."""
-    gifs = (
-        db.query(SavedGif)
-        .filter(SavedGif.user_id == u.id)
-        .order_by(SavedGif.created_at.desc())
-        .limit(50)
-        .all()
-    )
+    gifs = db.query(SavedGif).filter(SavedGif.user_id == u.id).order_by(SavedGif.created_at.desc()).limit(50).all()
     return [{"id": g.id, "url": g.file_url} for g in gifs]
 
 
 @router.post("/saved")
 async def save_gif(
     file: UploadFile = File(...),
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Сохранить GIF (клиент загружает уже расшифрованный файл)."""
@@ -76,7 +71,7 @@ async def save_gif(
 @router.delete("/saved/{gif_id}")
 async def delete_saved_gif(
     gif_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Удалить сохранённый GIF."""

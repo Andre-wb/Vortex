@@ -13,6 +13,7 @@ app/security/key_backup.py — Зашифрованный бэкап ключе�
   3. Старое устройство: POST /link/{code}/approve → шифрует ключи ECIES для нового устройства
   4. Новое устройство: GET /link/poll/{request_id} → получает зашифрованные ключи
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -81,11 +82,11 @@ def _is_peer_ip(ip: str) -> bool:
 # plus an owner-bound proof on retrieval, plus per-owner caps and a global
 # store rate limit.
 
-_SHARD_PROOF_HEADER = "X-Federation-Proof"     # "<ts>:<hmac_hex>"
-_SHARD_PROOF_WINDOW = 300                       # ±5 min clock skew
-_MAX_SHARDS_PER_OWNER = 64                      # cap stored shards per owner
-_MAX_SHARD_BYTES = 64 * 1024                    # reject oversized encrypted shard
-_STORE_RATE_PER_MIN = 120                       # global store rate (per source IP)
+_SHARD_PROOF_HEADER = "X-Federation-Proof"  # "<ts>:<hmac_hex>"
+_SHARD_PROOF_WINDOW = 300  # ±5 min clock skew
+_MAX_SHARDS_PER_OWNER = 64  # cap stored shards per owner
+_MAX_SHARD_BYTES = 64 * 1024  # reject oversized encrypted shard
+_STORE_RATE_PER_MIN = 120  # global store rate (per source IP)
 
 # In-memory sliding window for the global store rate limit: ip -> deque[ts]
 _store_hits: dict[str, _deque] = _defaultdict(_deque)
@@ -93,6 +94,7 @@ _store_hits: dict[str, _deque] = _defaultdict(_deque)
 
 def _shard_psk() -> bytes:
     from app.config import Config
+
     raw = (
         _os.getenv("FEDERATION_PSK", "")
         or getattr(Config, "FEDERATION_PSK", "")
@@ -104,6 +106,7 @@ def _shard_psk() -> bytes:
 
 def _shard_psk_configured() -> bool:
     from app.config import Config
+
     return bool(_os.getenv("FEDERATION_PSK", "") or getattr(Config, "FEDERATION_PSK", ""))
 
 
@@ -124,9 +127,7 @@ def _verify_shard_proof(challenge: str, proof: str | None) -> bool:
         return False
     if abs(int(_time.time()) - ts) > _SHARD_PROOF_WINDOW:
         return False
-    expected = _hmac.new(
-        _shard_psk(), f"{challenge}:{ts}".encode(), _hashlib.sha256
-    ).hexdigest()
+    expected = _hmac.new(_shard_psk(), f"{challenge}:{ts}".encode(), _hashlib.sha256).hexdigest()
     return _hmac.compare_digest(mac, expected)
 
 
@@ -134,9 +135,7 @@ def make_shard_proof(challenge: str, ts: int | None = None) -> str:
     """Build an ``X-Federation-Proof`` value for an outbound shard request."""
     if ts is None:
         ts = int(_time.time())
-    mac = _hmac.new(
-        _shard_psk(), f"{challenge}:{ts}".encode(), _hashlib.sha256
-    ).hexdigest()
+    mac = _hmac.new(_shard_psk(), f"{challenge}:{ts}".encode(), _hashlib.sha256).hexdigest()
     return f"{ts}:{mac}"
 
 
@@ -153,6 +152,7 @@ def _store_rate_ok(ip: str) -> bool:
 
 
 # Pydantic schemas
+
 
 class BackupUploadRequest(BaseModel):
     vault_data: str = Field(..., min_length=24, description="hex: nonce(12) + AES-256-GCM ciphertext")
@@ -180,6 +180,7 @@ class LinkApproveRequest(BaseModel):
 
 
 # Key Backup CRUD
+
 
 @router.post("/backup", status_code=200)
 async def upload_backup(
@@ -246,6 +247,7 @@ async def delete_backup(
 
 # Device Linking
 
+
 @router.post("/link/request")
 async def create_link_request(
     body: LinkRequestCreate,
@@ -307,11 +309,15 @@ async def get_link_request(
     """
     now = datetime.now(timezone.utc)
     # Find matching pending request for this user
-    pending = db.query(DeviceLinkRequest).filter(
-        DeviceLinkRequest.user_id == user.id,
-        DeviceLinkRequest.status == "pending",
-        DeviceLinkRequest.expires_at > now,
-    ).all()
+    pending = (
+        db.query(DeviceLinkRequest)
+        .filter(
+            DeviceLinkRequest.user_id == user.id,
+            DeviceLinkRequest.status == "pending",
+            DeviceLinkRequest.expires_at > now,
+        )
+        .all()
+    )
 
     for req in pending:
         if verify_token_hash(code, req.link_code_hash):
@@ -345,11 +351,15 @@ async def approve_link_request(
         raise HTTPException(400, "encrypted_keys must be valid hex") from None
 
     now = datetime.now(timezone.utc)
-    pending = db.query(DeviceLinkRequest).filter(
-        DeviceLinkRequest.user_id == user.id,
-        DeviceLinkRequest.status == "pending",
-        DeviceLinkRequest.expires_at > now,
-    ).all()
+    pending = (
+        db.query(DeviceLinkRequest)
+        .filter(
+            DeviceLinkRequest.user_id == user.id,
+            DeviceLinkRequest.status == "pending",
+            DeviceLinkRequest.expires_at > now,
+        )
+        .all()
+    )
 
     for req in pending:
         if verify_token_hash(code, req.link_code_hash):
@@ -377,16 +387,24 @@ async def poll_link_request(
     Новое устройство проверяет статус запроса.
     Когда status=approved, encrypted_keys содержит зашифрованный ключевой бандл.
     """
-    req = db.query(DeviceLinkRequest).filter(
-        DeviceLinkRequest.id == request_id,
-        DeviceLinkRequest.user_id == user.id,
-    ).first()
+    req = (
+        db.query(DeviceLinkRequest)
+        .filter(
+            DeviceLinkRequest.id == request_id,
+            DeviceLinkRequest.user_id == user.id,
+        )
+        .first()
+    )
 
     if not req:
         raise HTTPException(404, "Link request not found")
 
     now = datetime.now(timezone.utc)
-    expires = req.expires_at.replace(tzinfo=timezone.utc) if req.expires_at and req.expires_at.tzinfo is None else req.expires_at
+    expires = (
+        req.expires_at.replace(tzinfo=timezone.utc)
+        if req.expires_at and req.expires_at.tzinfo is None
+        else req.expires_at
+    )
     if expires and expires < now and req.status == "pending":
         req.status = "expired"
         db.commit()
@@ -490,9 +508,14 @@ async def sync_push(
         raise HTTPException(400, "payload must be valid hex") from None
 
     # Monotonic sequence number per user
-    max_seq = db.query(SyncEvent.seq).filter(
-        SyncEvent.user_id == user.id,
-    ).order_by(SyncEvent.seq.desc()).first()
+    max_seq = (
+        db.query(SyncEvent.seq)
+        .filter(
+            SyncEvent.user_id == user.id,
+        )
+        .order_by(SyncEvent.seq.desc())
+        .first()
+    )
     next_seq = (max_seq[0] + 1) if max_seq else 1
 
     evt = SyncEvent(
@@ -507,9 +530,15 @@ async def sync_push(
     # FIFO: keep only latest N events per user
     count = db.query(SyncEvent).filter(SyncEvent.user_id == user.id).count()
     if count > _MAX_SYNC_EVENTS:
-        oldest = db.query(SyncEvent).filter(
-            SyncEvent.user_id == user.id,
-        ).order_by(SyncEvent.seq.asc()).limit(count - _MAX_SYNC_EVENTS).all()
+        oldest = (
+            db.query(SyncEvent)
+            .filter(
+                SyncEvent.user_id == user.id,
+            )
+            .order_by(SyncEvent.seq.asc())
+            .limit(count - _MAX_SYNC_EVENTS)
+            .all()
+        )
         for o in oldest:
             db.delete(o)
 
@@ -564,10 +593,14 @@ async def sync_history_export(
     """
     from app.models_rooms import Message, RoomMember
 
-    membership = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user.id,
-    ).first()
+    membership = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user.id,
+        )
+        .first()
+    )
     if not membership:
         raise HTTPException(403, "Not a member of this room")
 
@@ -645,6 +678,7 @@ async def sync_rooms_summary(
 # key derived from the user's master secret. The server stores only the
 # signature and pub hashes — it cannot forge signatures without the master key.
 
+
 @router.post("/cross-sign")
 async def cross_sign(
     body: CrossSignRequest,
@@ -660,11 +694,15 @@ async def cross_sign(
         raise HTTPException(400, "Fields must be valid hex") from None
 
     # Prevent duplicate
-    existing = db.query(DeviceCrossSign).filter(
-        DeviceCrossSign.user_id == user.id,
-        DeviceCrossSign.signer_device == body.signer_device,
-        DeviceCrossSign.signed_device == body.signed_device,
-    ).first()
+    existing = (
+        db.query(DeviceCrossSign)
+        .filter(
+            DeviceCrossSign.user_id == user.id,
+            DeviceCrossSign.signer_device == body.signer_device,
+            DeviceCrossSign.signed_device == body.signed_device,
+        )
+        .first()
+    )
     if existing:
         existing.signature = body.signature
         existing.signer_pub_hash = body.signer_pub_hash
@@ -690,9 +728,13 @@ async def get_cross_signs(
     db: Session = Depends(get_db),
 ):
     """Get all cross-signing records for this user's devices."""
-    signs = db.query(DeviceCrossSign).filter(
-        DeviceCrossSign.user_id == user.id,
-    ).all()
+    signs = (
+        db.query(DeviceCrossSign)
+        .filter(
+            DeviceCrossSign.user_id == user.id,
+        )
+        .all()
+    )
     return {
         "signs": [
             {
@@ -712,6 +754,7 @@ async def get_cross_signs(
 # Preferences are stored as an encrypted blob — server cannot read them.
 # This allows restoring preferences on new devices.
 
+
 @router.post("/sync/settings")
 async def save_sync_settings(
     body: BackupUploadRequest,
@@ -726,10 +769,14 @@ async def save_sync_settings(
         raise HTTPException(400, "Fields must be valid hex") from None
 
     # Store as a special SyncEvent with seq=0 (settings marker)
-    existing = db.query(SyncEvent).filter(
-        SyncEvent.user_id == user.id,
-        SyncEvent.event_type == "settings",
-    ).first()
+    existing = (
+        db.query(SyncEvent)
+        .filter(
+            SyncEvent.user_id == user.id,
+            SyncEvent.event_type == "settings",
+        )
+        .first()
+    )
     if existing:
         existing.payload = body.vault_data
         existing.created_at = datetime.now(timezone.utc)
@@ -752,10 +799,14 @@ async def get_sync_settings(
     db: Session = Depends(get_db),
 ):
     """Get encrypted sync preferences."""
-    evt = db.query(SyncEvent).filter(
-        SyncEvent.user_id == user.id,
-        SyncEvent.event_type == "settings",
-    ).first()
+    evt = (
+        db.query(SyncEvent)
+        .filter(
+            SyncEvent.user_id == user.id,
+            SyncEvent.event_type == "settings",
+        )
+        .first()
+    )
     if not evt:
         raise HTTPException(404, "No sync settings found")
     return {"payload": evt.payload}
@@ -765,6 +816,7 @@ async def get_sync_settings(
 # Client performs all Shamir GF(256) math. Each share is encrypted (ECIES)
 # for its designated recipient. Server stores only encrypted blobs.
 # To recover: M recipients decrypt their shares → client recombines.
+
 
 @router.post("/ssss/create")
 async def ssss_create(
@@ -811,10 +863,15 @@ async def ssss_list_own(
     db: Session = Depends(get_db),
 ):
     """List my active shares (as key owner)."""
-    shares = db.query(SecretShare).filter(
-        SecretShare.owner_id == user.id,
-        SecretShare.status == "active",
-    ).order_by(SecretShare.share_index).all()
+    shares = (
+        db.query(SecretShare)
+        .filter(
+            SecretShare.owner_id == user.id,
+            SecretShare.status == "active",
+        )
+        .order_by(SecretShare.share_index)
+        .all()
+    )
     if not shares:
         return {"shares": [], "threshold": 0, "total_shares": 0}
     return {
@@ -840,10 +897,14 @@ async def ssss_list_held(
     db: Session = Depends(get_db),
 ):
     """List shares I hold for others (as recipient)."""
-    shares = db.query(SecretShare).filter(
-        SecretShare.recipient_id == user.id,
-        SecretShare.status == "active",
-    ).all()
+    shares = (
+        db.query(SecretShare)
+        .filter(
+            SecretShare.recipient_id == user.id,
+            SecretShare.status == "active",
+        )
+        .all()
+    )
     return {
         "shares": [
             {
@@ -867,10 +928,14 @@ async def ssss_revoke(
     db: Session = Depends(get_db),
 ):
     """Revoke all active shares for this user."""
-    count = db.query(SecretShare).filter(
-        SecretShare.owner_id == user.id,
-        SecretShare.status == "active",
-    ).update({"status": "revoked"})
+    count = (
+        db.query(SecretShare)
+        .filter(
+            SecretShare.owner_id == user.id,
+            SecretShare.status == "active",
+        )
+        .update({"status": "revoked"})
+    )
     db.commit()
     if not count:
         raise HTTPException(404, "No active shares found")
@@ -878,6 +943,7 @@ async def ssss_revoke(
 
 
 # Per-device public key (for fingerprint verification)
+
 
 @router.post("/device-pub-key")
 async def set_device_pub_key(
@@ -888,6 +954,7 @@ async def set_device_pub_key(
 ):
     """Set X25519 public key for current device (per-device fingerprint)."""
     from app.models import UserDevice
+
     try:
         pub_bytes = bytes.fromhex(body.device_pub_key)
         if len(pub_bytes) != 32:
@@ -899,10 +966,14 @@ async def set_device_pub_key(
     if not raw_refresh:
         raise HTTPException(400, "No refresh token")
     current_hash = hash_token(raw_refresh)
-    device = db.query(UserDevice).filter(
-        UserDevice.user_id == user.id,
-        UserDevice.refresh_token_hash == current_hash,
-    ).first()
+    device = (
+        db.query(UserDevice)
+        .filter(
+            UserDevice.user_id == user.id,
+            UserDevice.refresh_token_hash == current_hash,
+        )
+        .first()
+    )
     if not device:
         raise HTTPException(404, "Current device not found")
     device.device_pub_key = body.device_pub_key
@@ -919,12 +990,13 @@ async def set_device_pub_key(
 # node X25519 pubkey, and uploads metadata. Shards are forwarded to peers via
 # HTTP POST. For recovery: pull shards from peers.
 
+
 async def _push_shard_to_peer(owner_user_id: int, shard) -> bool:
     """Best-effort push of a single shard to a federation peer."""
     try:
-        scheme = "https" if getattr(
-            __import__("app.config", fromlist=["Config"]).Config, "SSL_ENABLED", False
-        ) else "http"
+        scheme = (
+            "https" if getattr(__import__("app.config", fromlist=["Config"]).Config, "SSL_ENABLED", False) else "http"
+        )
         url = f"{scheme}://{shard.peer_ip}:{shard.peer_port}/api/keys/federated-backup/store-shard"
         async with httpx.AsyncClient(verify=_peer_ssl_ctx, timeout=10.0) as client:
             # FIX F2: prove peer identity via the shared federation secret. The
@@ -942,8 +1014,7 @@ async def _push_shard_to_peer(owner_user_id: int, shard) -> bool:
             )
             return resp.status_code == 200
     except Exception as e:
-        logger.warning("Failed to push shard %d to %s:%d: %s",
-                       shard.shard_index, shard.peer_ip, shard.peer_port, e)
+        logger.warning("Failed to push shard %d to %s:%d: %s", shard.shard_index, shard.peer_ip, shard.peer_port, e)
         return False
 
 
@@ -1001,9 +1072,14 @@ async def federated_backup_status(
     db: Session = Depends(get_db),
 ):
     """Get status of federated backup shards."""
-    shards = db.query(FederatedBackupShard).filter(
-        FederatedBackupShard.user_id == user.id,
-    ).order_by(FederatedBackupShard.shard_index).all()
+    shards = (
+        db.query(FederatedBackupShard)
+        .filter(
+            FederatedBackupShard.user_id == user.id,
+        )
+        .order_by(FederatedBackupShard.shard_index)
+        .all()
+    )
     if not shards:
         return {"distributed": False, "shards": []}
     return {
@@ -1111,10 +1187,14 @@ async def federated_backup_retrieve_shard(
     if not _verify_shard_proof(challenge, request.headers.get(_SHARD_PROOF_HEADER)):
         raise HTTPException(403, "Forbidden: shard retrieval requires a valid owner proof")
 
-    shards = db.query(FederatedBackupShard).filter(
-        FederatedBackupShard.user_id == owner_user_id,
-        FederatedBackupShard.status == "held",
-    ).all()
+    shards = (
+        db.query(FederatedBackupShard)
+        .filter(
+            FederatedBackupShard.user_id == owner_user_id,
+            FederatedBackupShard.status == "held",
+        )
+        .all()
+    )
     if not shards:
         raise HTTPException(404, "No shards held for this user")
     return {
@@ -1135,9 +1215,13 @@ async def federated_backup_delete(
     db: Session = Depends(get_db),
 ):
     """Delete all federated backup shards."""
-    count = db.query(FederatedBackupShard).filter(
-        FederatedBackupShard.user_id == user.id,
-    ).delete()
+    count = (
+        db.query(FederatedBackupShard)
+        .filter(
+            FederatedBackupShard.user_id == user.id,
+        )
+        .delete()
+    )
     db.commit()
     if not count:
         raise HTTPException(404, "No federated backup found")
@@ -1151,6 +1235,7 @@ async def federated_backup_delete(
 
 _KT_SECRET_KEY = None
 
+
 def _get_kt_secret():
     """Derive a stable key transparency signing key from the server secret."""
     global _KT_SECRET_KEY
@@ -1158,6 +1243,7 @@ def _get_kt_secret():
         import hmac
 
         from app.config import Config
+
         seed = (Config.JWT_SECRET or "vortex-default-key").encode()
         _KT_SECRET_KEY = hmac.new(seed, b"vortex-key-transparency", "sha256").digest()
     return _KT_SECRET_KEY
@@ -1166,6 +1252,7 @@ def _get_kt_secret():
 def _kt_sign_entry(user_id: int, key_type: str, pub_key_hash: str, prev_hash: str | None, seq: int) -> str:
     """HMAC-SHA256 signature of a KT entry."""
     import hmac as _hmac
+
     data = f"{user_id}|{key_type}|{pub_key_hash}|{prev_hash or ''}|{seq}".encode()
     return _hmac.new(_get_kt_secret(), data, "sha256").hexdigest()
 
@@ -1183,6 +1270,7 @@ def _kt_node_key():
     if _KT_NODE_KEY is None:
         from app.config import Config
         from app.peer.controller_client import NodeSigningKey
+
         _KT_NODE_KEY = NodeSigningKey.load_or_create(Config.KEYS_DIR)
     return _KT_NODE_KEY
 
@@ -1202,12 +1290,18 @@ def _kt_entry_message(user_id: int, key_type: str, pub_key_hash: str, prev_hash:
 def _kt_auto_log(user_id: int, key_type: str, pub_key_hex: str, device_id: int | None, db: Session):
     """Auto-log a key change to the transparency log."""
     import hashlib as _hl
+
     pub_key_hash = _hl.sha256(pub_key_hex.encode()).hexdigest()
 
     # Get previous entry
-    prev = db.query(KeyTransparencyEntry).filter(
-        KeyTransparencyEntry.user_id == user_id,
-    ).order_by(KeyTransparencyEntry.seq.desc()).first()
+    prev = (
+        db.query(KeyTransparencyEntry)
+        .filter(
+            KeyTransparencyEntry.user_id == user_id,
+        )
+        .order_by(KeyTransparencyEntry.seq.desc())
+        .first()
+    )
 
     prev_hash = None
     next_seq = 1
@@ -1242,11 +1336,17 @@ def _kt_log_account_ed(user_id: int, account_ed_hex: str, db: Session):
     if not account_ed_hex:
         return None
     import hashlib as _hl
+
     h = _hl.sha256(account_ed_hex.encode()).hexdigest()
-    latest = db.query(KeyTransparencyEntry).filter(
-        KeyTransparencyEntry.user_id == user_id,
-        KeyTransparencyEntry.key_type == "account_ed",
-    ).order_by(KeyTransparencyEntry.seq.desc()).first()
+    latest = (
+        db.query(KeyTransparencyEntry)
+        .filter(
+            KeyTransparencyEntry.user_id == user_id,
+            KeyTransparencyEntry.key_type == "account_ed",
+        )
+        .order_by(KeyTransparencyEntry.seq.desc())
+        .first()
+    )
     if latest and latest.pub_key_hash == h:
         return None
     return _kt_auto_log(user_id, "account_ed", account_ed_hex, None, db)
@@ -1275,9 +1375,14 @@ async def kt_get_log(
     db: Session = Depends(get_db),
 ):
     """Get full key transparency log for a user."""
-    entries = db.query(KeyTransparencyEntry).filter(
-        KeyTransparencyEntry.user_id == user_id,
-    ).order_by(KeyTransparencyEntry.seq.asc()).all()
+    entries = (
+        db.query(KeyTransparencyEntry)
+        .filter(
+            KeyTransparencyEntry.user_id == user_id,
+        )
+        .order_by(KeyTransparencyEntry.seq.asc())
+        .all()
+    )
     return {
         # Раздаваемый node_pubkey — ключ, которым клиент проверяет node_sig. Для Фазы 1
         # это «нода под ключом K заявила»; пиннинг/gossip ключа — Фаза 2/3.
@@ -1305,9 +1410,14 @@ async def kt_get_latest(
     db: Session = Depends(get_db),
 ):
     """Get latest key transparency entry for a user."""
-    entry = db.query(KeyTransparencyEntry).filter(
-        KeyTransparencyEntry.user_id == user_id,
-    ).order_by(KeyTransparencyEntry.seq.desc()).first()
+    entry = (
+        db.query(KeyTransparencyEntry)
+        .filter(
+            KeyTransparencyEntry.user_id == user_id,
+        )
+        .order_by(KeyTransparencyEntry.seq.desc())
+        .first()
+    )
     if not entry:
         raise HTTPException(404, "No key transparency entries found")
     return {
@@ -1329,9 +1439,15 @@ async def kt_audit(
 ):
     """Verify the integrity of a user's key transparency chain."""
     import hashlib as _hl
-    entries = db.query(KeyTransparencyEntry).filter(
-        KeyTransparencyEntry.user_id == user_id,
-    ).order_by(KeyTransparencyEntry.seq.asc()).all()
+
+    entries = (
+        db.query(KeyTransparencyEntry)
+        .filter(
+            KeyTransparencyEntry.user_id == user_id,
+        )
+        .order_by(KeyTransparencyEntry.seq.asc())
+        .all()
+    )
 
     if not entries:
         return {"valid": True, "entries": 0, "errors": []}

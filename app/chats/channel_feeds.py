@@ -10,6 +10,7 @@ Endpoints:
 Background:
   poll_rss_feeds(db) — fetch all active RSS feeds, post new items as channel messages.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -41,14 +42,11 @@ class AddFeedRequest(BaseModel):
     url: str = Field(default="", max_length=2048)
 
 
-
 def _require_admin(room_id: int, user: User, db: Session) -> None:
     channel = db.query(Room).filter(Room.id == room_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404, "Channel not found")
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == user.id
-    ).first()
+    member = db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user.id).first()
     if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
         raise HTTPException(403, "Owner/admin only")
 
@@ -104,24 +102,29 @@ async def _post_channel_message(room_id: int, text: str, db: Session) -> None:
 
     # Broadcast over WebSocket
     try:
-        await manager.broadcast_to_room(room_id, {
-            "type": "message",
-            "msg_id": msg.id,
-            "room_id": room_id,
-            "sender_id": None,
-            "msg_type": MessageType.TEXT.value,
-            "ciphertext": payload.hex(),
-            "created_at": msg.created_at.isoformat() if msg.created_at else "",
-        })
+        await manager.broadcast_to_room(
+            room_id,
+            {
+                "type": "message",
+                "msg_id": msg.id,
+                "room_id": room_id,
+                "sender_id": None,
+                "msg_type": MessageType.TEXT.value,
+                "ciphertext": payload.hex(),
+                "created_at": msg.created_at.isoformat() if msg.created_at else "",
+            },
+        )
     except Exception as e:
         logger.warning("WS broadcast failed for channel %s feed message: %s", room_id, e)
 
 
 # REST endpoints
 
+
 @router.post("/{room_id}/feeds", status_code=201)
-async def add_feed(room_id: int, body: AddFeedRequest,
-                   u: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def add_feed(
+    room_id: int, body: AddFeedRequest, u: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """Add an RSS feed or create a webhook endpoint for a channel."""
     _require_admin(room_id, u, db)
 
@@ -135,11 +138,15 @@ async def add_feed(room_id: int, body: AddFeedRequest,
         if not _is_ssrf_safe(body.url):
             raise HTTPException(400, "URL points to an internal/private address")
         # Check for duplicate
-        existing = db.query(ChannelFeed).filter(
-            ChannelFeed.room_id == room_id,
-            ChannelFeed.feed_type == "rss",
-            ChannelFeed.url == body.url,
-        ).first()
+        existing = (
+            db.query(ChannelFeed)
+            .filter(
+                ChannelFeed.room_id == room_id,
+                ChannelFeed.feed_type == "rss",
+                ChannelFeed.url == body.url,
+            )
+            .first()
+        )
         if existing:
             raise HTTPException(409, "This RSS feed is already added")
         feed = ChannelFeed(room_id=room_id, feed_type="rss", url=body.url, is_active=True)
@@ -151,8 +158,7 @@ async def add_feed(room_id: int, body: AddFeedRequest,
 
 
 @router.get("/{room_id}/feeds")
-async def list_feeds(room_id: int, u: User = Depends(get_current_user),
-                     db: Session = Depends(get_db)):
+async def list_feeds(room_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """List all feeds for a channel (owner/admin only)."""
     _require_admin(room_id, u, db)
     feeds = db.query(ChannelFeed).filter(ChannelFeed.room_id == room_id).all()
@@ -160,13 +166,10 @@ async def list_feeds(room_id: int, u: User = Depends(get_current_user),
 
 
 @router.delete("/{room_id}/feeds/{feed_id}", status_code=204)
-async def delete_feed(room_id: int, feed_id: int, u: User = Depends(get_current_user),
-                      db: Session = Depends(get_db)):
+async def delete_feed(room_id: int, feed_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Remove a feed."""
     _require_admin(room_id, u, db)
-    feed = db.query(ChannelFeed).filter(
-        ChannelFeed.id == feed_id, ChannelFeed.room_id == room_id
-    ).first()
+    feed = db.query(ChannelFeed).filter(ChannelFeed.id == feed_id, ChannelFeed.room_id == room_id).first()
     if not feed:
         raise HTTPException(404, "Feed not found")
     db.delete(feed)
@@ -186,12 +189,16 @@ async def receive_webhook(room_id: int, request: Request, db: Session = Depends(
     if not secret:
         raise HTTPException(400, "Missing secret query parameter")
 
-    feed = db.query(ChannelFeed).filter(
-        ChannelFeed.room_id == room_id,
-        ChannelFeed.feed_type == "webhook",
-        ChannelFeed.url == secret,
-        ChannelFeed.is_active.is_(True),
-    ).first()
+    feed = (
+        db.query(ChannelFeed)
+        .filter(
+            ChannelFeed.room_id == room_id,
+            ChannelFeed.feed_type == "webhook",
+            ChannelFeed.url == secret,
+            ChannelFeed.is_active.is_(True),
+        )
+        .first()
+    )
     if not feed:
         raise HTTPException(403, "Invalid webhook secret")
 
@@ -203,6 +210,7 @@ async def receive_webhook(room_id: int, request: Request, db: Session = Depends(
     text = body.get("text") or body.get("message") or body.get("content") or ""
     if not text:
         import json
+
         text = json.dumps(body, ensure_ascii=False)
 
     # Truncate to a sane limit
@@ -242,13 +250,12 @@ def _parse_rss(xml_bytes: bytes) -> list[dict]:
             title = (entry.findtext(f"{{{ns}}}title") or "").strip()
             link_el = entry.find(f"{{{ns}}}link")
             link = (link_el.get("href", "") if link_el is not None else "").strip()
-            summary = (entry.findtext(f"{{{ns}}}summary") or
-                       entry.findtext(f"{{{ns}}}content") or "").strip()
+            summary = (entry.findtext(f"{{{ns}}}summary") or entry.findtext(f"{{{ns}}}content") or "").strip()
             items.append({"guid": guid or link, "title": title, "link": link, "summary": summary})
         return items
 
     channel_el = root.find("channel")
-    entries = (channel_el.findall("item") if channel_el is not None else root.findall(".//item"))
+    entries = channel_el.findall("item") if channel_el is not None else root.findall(".//item")
     for item in entries:
         guid = (item.findtext("guid") or item.findtext("link") or "").strip()
         title = (item.findtext("title") or "").strip()
@@ -256,6 +263,7 @@ def _parse_rss(xml_bytes: bytes) -> list[dict]:
         summary = (item.findtext("description") or "").strip()
         # Strip basic HTML from summary (< ... >)
         import re
+
         summary = re.sub(r"<[^>]+>", "", summary).strip()
         items.append({"guid": guid, "title": title, "link": link, "summary": summary})
 
@@ -267,10 +275,14 @@ async def poll_rss_feeds(db: Session) -> None:
     Fetch all active RSS feeds and post new items as channel messages.
     Should be called periodically (e.g. every 5 minutes) from the background loop.
     """
-    feeds = db.query(ChannelFeed).filter(
-        ChannelFeed.feed_type == "rss",
-        ChannelFeed.is_active.is_(True),
-    ).all()
+    feeds = (
+        db.query(ChannelFeed)
+        .filter(
+            ChannelFeed.feed_type == "rss",
+            ChannelFeed.is_active.is_(True),
+        )
+        .all()
+    )
 
     if not feeds:
         return
@@ -282,7 +294,9 @@ async def poll_rss_feeds(db: Session) -> None:
                 logger.warning("RSS feed %s (%s) skipped — URL points to private/internal address", feed.id, feed.url)
                 continue
             try:
-                resp = await client.get(feed.url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+                resp = await client.get(
+                    feed.url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                )
                 resp.raise_for_status()
             except Exception as e:
                 logger.warning("RSS fetch failed for feed %s (%s): %s", feed.id, feed.url, e)

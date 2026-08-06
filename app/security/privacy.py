@@ -7,6 +7,7 @@ Four layers of privacy protection:
   3. Ephemeral usernames — unlinkable identity per room
   4. Zero-knowledge room membership — server can't tell who is in which room
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 # 1. Tor SOCKS5 Integration
+
 
 class TorProxy:
     """
@@ -48,6 +50,7 @@ class TorProxy:
             return self._available
         try:
             import socket
+
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(3)
             s.connect((self.socks_host, self.socks_port))
@@ -62,11 +65,13 @@ class TorProxy:
     def get_httpx_transport(self):
         """Get httpx transport configured to route through Tor."""
         import httpx
+
         return httpx.AsyncHTTPTransport(proxy=self.socks_url)
 
     def get_httpx_client(self, **kwargs):
         """Get httpx.AsyncClient that routes through Tor."""
         import httpx
+
         return httpx.AsyncClient(
             transport=self.get_httpx_transport(),
             timeout=30.0,
@@ -105,6 +110,7 @@ tor_proxy = TorProxy(
 
 # 2. Metadata Padding — all messages same size
 
+
 class MetadataPadding:
     """
     Pad ALL messages to fixed sizes so DPI cannot determine message type
@@ -142,10 +148,10 @@ class MetadataPadding:
         """Remove padding, extract original data."""
         if len(padded) < cls.HEADER_SIZE:
             return None
-        real_len = struct.unpack(">I", padded[:cls.HEADER_SIZE])[0]
+        real_len = struct.unpack(">I", padded[: cls.HEADER_SIZE])[0]
         if real_len > len(padded) - cls.HEADER_SIZE:
             return None
-        return padded[cls.HEADER_SIZE:cls.HEADER_SIZE + real_len]
+        return padded[cls.HEADER_SIZE : cls.HEADER_SIZE + real_len]
 
     @classmethod
     def pad_to_fixed(cls, data: bytes, target_size: int = 1024) -> bytes:
@@ -168,6 +174,7 @@ class MetadataPadding:
 
 
 # 3. Ephemeral Usernames — per-room pseudonyms
+
 
 class EphemeralIdentity:
     """
@@ -230,14 +237,48 @@ class EphemeralIdentity:
         """
         mac = hmac.new(user_secret, str(room_id).encode(), hashlib.sha256).digest()
         adjectives = [
-            "Silent", "Swift", "Bright", "Dark", "Calm", "Bold", "Wise",
-            "Free", "True", "Brave", "Deep", "Pure", "Wild", "Cold",
-            "Warm", "Lost", "Keen", "Fair", "Rare", "Vast",
+            "Silent",
+            "Swift",
+            "Bright",
+            "Dark",
+            "Calm",
+            "Bold",
+            "Wise",
+            "Free",
+            "True",
+            "Brave",
+            "Deep",
+            "Pure",
+            "Wild",
+            "Cold",
+            "Warm",
+            "Lost",
+            "Keen",
+            "Fair",
+            "Rare",
+            "Vast",
         ]
         nouns = [
-            "Wolf", "Hawk", "Bear", "Fox", "Owl", "Lion", "Star",
-            "Moon", "Wave", "Wind", "Fire", "Snow", "Rain", "Sky",
-            "Lake", "Peak", "Leaf", "Rose", "Dawn", "Dusk",
+            "Wolf",
+            "Hawk",
+            "Bear",
+            "Fox",
+            "Owl",
+            "Lion",
+            "Star",
+            "Moon",
+            "Wave",
+            "Wind",
+            "Fire",
+            "Snow",
+            "Rain",
+            "Sky",
+            "Lake",
+            "Peak",
+            "Leaf",
+            "Rose",
+            "Dawn",
+            "Dusk",
         ]
         adj_idx = mac[0] % len(adjectives)
         noun_idx = mac[1] % len(nouns)
@@ -246,6 +287,7 @@ class EphemeralIdentity:
 
 
 # 4. Zero-Knowledge Room Membership (ZK-SNARK PoC)
+
 
 class ZKMembership:
     """
@@ -307,8 +349,7 @@ class ZKMembership:
         }
 
     @classmethod
-    def verify_proof(cls, room_secret: bytes, known_user_ids: list[int],
-                     challenge: bytes, proof: dict) -> bool:
+    def verify_proof(cls, room_secret: bytes, known_user_ids: list[int], challenge: bytes, proof: dict) -> bool:
         """Verify a zero-knowledge membership proof.
 
         The server checks if the proof corresponds to ANY valid member,

@@ -11,6 +11,7 @@ row MUST be deleted and clients MUST rotate to a new key.
 Private rooms keep the existing ECIES-per-member flow via
 ``EncryptedRoomKey`` — that code path is untouched.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -32,7 +33,7 @@ class PublicRoomKey(Base):
     # One row per public room. The PK-on-FK guarantees uniqueness without a
     # separate index, and ON DELETE CASCADE means dropping a room wipes the
     # key automatically (no dangling rows).
-    room_id      = Column(
+    room_id = Column(
         Integer,
         ForeignKey("rooms.id", ondelete="CASCADE"),
         primary_key=True,
@@ -40,10 +41,10 @@ class PublicRoomKey(Base):
     # 32-byte AES-256 key, hex-encoded = 64 chars. Stored plaintext because
     # the room is public by definition; confidentiality was already given up
     # when the room was marked is_private=False.
-    key_hex      = Column(String(64),  nullable=False)
-    algorithm    = Column(String(32),  nullable=False, default="aes-256-gcm")
-    created_at   = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+    key_hex = Column(String(64), nullable=False)
+    algorithm = Column(String(32), nullable=False, default="aes-256-gcm")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     # Set when the key has been rotated in place (room owner re-uploads a
     # fresh key; old one remains usable for history decryption on clients
     # but all new messages use the new key).
-    rotated_at   = Column(DateTime,    nullable=True)
+    rotated_at = Column(DateTime, nullable=True)

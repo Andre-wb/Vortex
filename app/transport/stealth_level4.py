@@ -26,6 +26,7 @@ app/transport/stealth_level4.py — Уровень 4: боевые проток�
     14. Censorship Dashboard — панель блокировок по регионам
     15. Latency Probes       — пинги через все транспорты
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -105,8 +106,9 @@ def _vmess_kdf(key: bytes, *path: bytes) -> bytes:
         inner = level(labels[:-1])
         block = labels[-1].ljust(64, b"\x00")
         ipad = bytes(b ^ 0x36 for b in block)
-        opad = bytes(b ^ 0x5c for b in block)
+        opad = bytes(b ^ 0x5C for b in block)
         return lambda msg: inner(opad + inner(ipad + msg))
+
     return level(path)(key)
 
 
@@ -179,17 +181,12 @@ class VMessProtocol:
         auth_id = self._create_auth_id(int(time.time()))
         conn_nonce = os.urandom(8)
 
-        length_key = _vmess_kdf(
-            self._cmd_key, b"VMess Header AEAD Key_Length", auth_id, conn_nonce)[:16]
-        length_nonce = _vmess_kdf(
-            self._cmd_key, b"VMess Header AEAD Nonce_Length", auth_id, conn_nonce)[:12]
-        sealed_length = AESGCM(length_key).encrypt(
-            length_nonce, struct.pack(">H", len(header)), auth_id)
+        length_key = _vmess_kdf(self._cmd_key, b"VMess Header AEAD Key_Length", auth_id, conn_nonce)[:16]
+        length_nonce = _vmess_kdf(self._cmd_key, b"VMess Header AEAD Nonce_Length", auth_id, conn_nonce)[:12]
+        sealed_length = AESGCM(length_key).encrypt(length_nonce, struct.pack(">H", len(header)), auth_id)
 
-        header_key = _vmess_kdf(
-            self._cmd_key, b"VMess Header AEAD Key", auth_id, conn_nonce)[:16]
-        header_nonce = _vmess_kdf(
-            self._cmd_key, b"VMess Header AEAD Nonce", auth_id, conn_nonce)[:12]
+        header_key = _vmess_kdf(self._cmd_key, b"VMess Header AEAD Key", auth_id, conn_nonce)[:16]
+        header_nonce = _vmess_kdf(self._cmd_key, b"VMess Header AEAD Nonce", auth_id, conn_nonce)[:12]
         sealed_header = AESGCM(header_key).encrypt(header_nonce, header, auth_id)
 
         return auth_id + sealed_length + conn_nonce + sealed_header
@@ -203,10 +200,8 @@ class VMessProtocol:
 
         sealed_length = packet[16:34]
         conn_nonce = packet[34:42]
-        length_key = _vmess_kdf(
-            self._cmd_key, b"VMess Header AEAD Key_Length", auth_id, conn_nonce)[:16]
-        length_nonce = _vmess_kdf(
-            self._cmd_key, b"VMess Header AEAD Nonce_Length", auth_id, conn_nonce)[:12]
+        length_key = _vmess_kdf(self._cmd_key, b"VMess Header AEAD Key_Length", auth_id, conn_nonce)[:16]
+        length_nonce = _vmess_kdf(self._cmd_key, b"VMess Header AEAD Nonce_Length", auth_id, conn_nonce)[:12]
         try:
             length_plain = AESGCM(length_key).decrypt(length_nonce, sealed_length, auth_id)
         except Exception:
@@ -214,21 +209,18 @@ class VMessProtocol:
         header_len = struct.unpack(">H", length_plain)[0]
 
         off = 42
-        sealed_header = packet[off:off + header_len + 16]
+        sealed_header = packet[off : off + header_len + 16]
         if len(sealed_header) != header_len + 16:
             return None
-        header_key = _vmess_kdf(
-            self._cmd_key, b"VMess Header AEAD Key", auth_id, conn_nonce)[:16]
-        header_nonce = _vmess_kdf(
-            self._cmd_key, b"VMess Header AEAD Nonce", auth_id, conn_nonce)[:12]
+        header_key = _vmess_kdf(self._cmd_key, b"VMess Header AEAD Key", auth_id, conn_nonce)[:16]
+        header_nonce = _vmess_kdf(self._cmd_key, b"VMess Header AEAD Nonce", auth_id, conn_nonce)[:12]
         try:
             header_plain = AESGCM(header_key).decrypt(header_nonce, sealed_header, auth_id)
         except Exception:
             return None
         return header_plain, off + header_len + 16
 
-    def encode_header(self, target_addr: str, target_port: int,
-                       encryption: int = 0x03) -> bytes:
+    def encode_header(self, target_addr: str, target_port: int, encryption: int = 0x03) -> bytes:
         """
         Кодирует VMess request header.
         """
@@ -287,8 +279,7 @@ class VMessProtocol:
 
         return header
 
-    def encode_packet(self, data: bytes, target_addr: str = "127.0.0.1",
-                       target_port: int = 443) -> bytes:
+    def encode_packet(self, data: bytes, target_addr: str = "127.0.0.1", target_port: int = 443) -> bytes:
         """Полный VMess пакет: sealed header (VMessAEAD) + AES-128-GCM payload."""
         header = self.encode_header(target_addr, target_port)
         sealed = self._seal_header(header)
@@ -311,8 +302,8 @@ class VMessProtocol:
 
         if offset + 2 > len(packet):
             return None
-        payload_len = struct.unpack(">H", packet[offset:offset + 2])[0]
-        encrypted_payload = packet[offset + 2:offset + 2 + payload_len]
+        payload_len = struct.unpack(">H", packet[offset : offset + 2])[0]
+        encrypted_payload = packet[offset + 2 : offset + 2 + payload_len]
         if len(encrypted_payload) < 16:
             return None
 
@@ -323,7 +314,7 @@ class VMessProtocol:
 
     @staticmethod
     def _fnv1a_32(data: bytes) -> int:
-        h = 0x811c9dc5
+        h = 0x811C9DC5
         for b in data:
             h ^= b
             h = (h * 0x01000193) & 0xFFFFFFFF
@@ -340,6 +331,7 @@ class VMessProtocol:
 
 
 # 2. SHADOWTLS — TLS handshake с разрешённым сервером
+
 
 class ShadowTLS:
     """
@@ -390,9 +382,7 @@ class ShadowTLS:
             self._password = Config.SHADOWTLS_PASSWORD.encode()
             self._prev_password = previous("SHADOWTLS_PASSWORD").encode()
         self._hmac_key = self._derive_key(self._password)
-        self._prev_hmac_key = (
-            self._derive_key(self._prev_password) if self._prev_password else b""
-        )
+        self._prev_hmac_key = self._derive_key(self._prev_password) if self._prev_password else b""
 
     @staticmethod
     def _derive_key(password: bytes) -> bytes:
@@ -408,7 +398,7 @@ class ShadowTLS:
         Этот маркер вставляется в начало Application Data после handshake.
         """
         h = hmac.new(self._hmac_key, session_id, hashlib.sha256)
-        return h.digest()[:self.HMAC_MARKER_LEN]
+        return h.digest()[: self.HMAC_MARKER_LEN]
 
     def verify_switch_marker(self, data: bytes, session_id: bytes) -> bool:
         """
@@ -418,18 +408,17 @@ class ShadowTLS:
         """
         if len(data) < self.HMAC_MARKER_LEN:
             return False
-        marker = data[:self.HMAC_MARKER_LEN]
+        marker = data[: self.HMAC_MARKER_LEN]
         if hmac.compare_digest(marker, self.generate_switch_marker(session_id)):
             return True
         if not self._prev_hmac_key:
             return False
-        prev = hmac.new(
-            self._prev_hmac_key, session_id, hashlib.sha256
-        ).digest()[:self.HMAC_MARKER_LEN]
+        prev = hmac.new(self._prev_hmac_key, session_id, hashlib.sha256).digest()[: self.HMAC_MARKER_LEN]
         return hmac.compare_digest(marker, prev)
 
-    async def server_handshake_proxy(self, client_reader: asyncio.StreamReader,
-                                       client_writer: asyncio.StreamWriter) -> Optional[bytes]:
+    async def server_handshake_proxy(
+        self, client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter
+    ) -> Optional[bytes]:
         """
         Серверная сторона: прозрачно проксирует поток к whitelisted серверу,
         разбирая его по TLS-записям, и ждёт switch-запись от клиента.
@@ -468,11 +457,8 @@ class ShadowTLS:
                 pass
 
         try:
-            remote_reader, remote_writer = await asyncio.open_connection(
-                target_host, target_port
-            )
-            to_client = asyncio.create_task(
-                self._pump_records(remote_reader, client_writer))
+            remote_reader, remote_writer = await asyncio.open_connection(target_host, target_port)
+            to_client = asyncio.create_task(self._pump_records(remote_reader, client_writer))
 
             while True:
                 try:
@@ -481,8 +467,7 @@ class ShadowTLS:
                     return None
 
                 length = int.from_bytes(header[3:5], "big")
-                if (header[0] not in self._TLS_CONTENT_TYPES or header[1] != 0x03
-                        or length > self._MAX_TLS_RECORD):
+                if header[0] not in self._TLS_CONTENT_TYPES or header[1] != 0x03 or length > self._MAX_TLS_RECORD:
                     remote_writer.write(header)
                     await remote_writer.drain()
                     await pump(client_reader, remote_writer)
@@ -511,8 +496,7 @@ class ShadowTLS:
             if remote_writer is not None and not remote_writer.is_closing():
                 remote_writer.close()
 
-    async def _pump_records(self, reader: asyncio.StreamReader,
-                            writer: asyncio.StreamWriter) -> None:
+    async def _pump_records(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """
         Релеит поток сервер→клиент целыми TLS-записями. Каждая запись пишется
         одним write, поэтому отмена задачи (при switch) не оставляет клиенту
@@ -526,8 +510,7 @@ class ShadowTLS:
                 except (asyncio.IncompleteReadError, ConnectionError):
                     return
                 length = int.from_bytes(header[3:5], "big")
-                if (header[0] not in self._TLS_CONTENT_TYPES or header[1] != 0x03
-                        or length > self._MAX_TLS_RECORD):
+                if header[0] not in self._TLS_CONTENT_TYPES or header[1] != 0x03 or length > self._MAX_TLS_RECORD:
                     return
                 try:
                     payload = await reader.readexactly(length)
@@ -549,14 +532,17 @@ class ShadowTLS:
         head = self.SESSION_ID_LEN + self.HMAC_MARKER_LEN
         if len(payload) < head:
             return None
-        session_id = payload[:self.SESSION_ID_LEN]
-        if self.verify_switch_marker(payload[self.SESSION_ID_LEN:head], session_id):
+        session_id = payload[: self.SESSION_ID_LEN]
+        if self.verify_switch_marker(payload[self.SESSION_ID_LEN : head], session_id):
             return session_id
         return None
 
     def _session_key(self, session_id: bytes, label: bytes) -> bytes:
         return HKDF(
-            algorithm=hashes.SHA256(), length=32, salt=session_id, info=label,
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=session_id,
+            info=label,
         ).derive(self._hmac_key)
 
     def new_session(self, session_id: bytes, *, server: bool) -> ShadowTLSSession:
@@ -609,7 +595,7 @@ class ShadowTLSSession:
         chunk = self.TLS_RECORD_MAX - self._TAG_LEN
         out = bytearray()
         for i in range(0, max(len(data), 1), chunk):
-            piece = data[i:i + chunk]
+            piece = data[i : i + chunk]
             header = self.TLS_RECORD_HEADER + struct.pack(">H", len(piece) + self._TAG_LEN)
             aad = header + struct.pack(">Q", self._send_seq)
             out += header + self._send.encrypt(self._nonce(self._send_seq), piece, aad)
@@ -621,7 +607,7 @@ class ShadowTLSSession:
         out = bytearray()
         pos = 0
         while pos + 5 <= len(frame):
-            header = frame[pos:pos + 5]
+            header = frame[pos : pos + 5]
             if header[:3] != self.TLS_RECORD_HEADER:
                 return None
             body_len = struct.unpack(">H", header[3:5])[0]
@@ -630,8 +616,7 @@ class ShadowTLSSession:
                 return None
             aad = header + struct.pack(">Q", self._recv_seq)
             try:
-                out += self._recv.decrypt(
-                    self._nonce(self._recv_seq), frame[pos:pos + body_len], aad)
+                out += self._recv.decrypt(self._nonce(self._recv_seq), frame[pos : pos + body_len], aad)
             except Exception:
                 return None
             self._recv_seq += 1
@@ -642,6 +627,7 @@ class ShadowTLSSession:
 
 
 # 3. REALITY (XTLS) — проксирует реальный TLS сертификат
+
 
 class RealityProtocol:
     """
@@ -680,9 +666,7 @@ class RealityProtocol:
         self._short_ids: set[str] = set()
         self._seen_auth: dict[bytes, int] = {}
         self._private_key = private_key or X25519PrivateKey.generate()
-        self._public_key = self._private_key.public_key().public_bytes(
-            Encoding.Raw, PublicFormat.Raw
-        )
+        self._public_key = self._private_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
 
     def add_short_id(self, short_id: str):
         """Добавляет разрешённый short_id клиента."""
@@ -698,27 +682,21 @@ class RealityProtocol:
 
     @staticmethod
     def _auth_key(shared: bytes) -> bytes:
-        return HKDF(algorithm=hashes.SHA256(), length=16, salt=None,
-                    info=b"vortex-reality").derive(shared)
+        return HKDF(algorithm=hashes.SHA256(), length=16, salt=None, info=b"vortex-reality").derive(shared)
 
-    def build_client_hello_auth(self, short_id: str,
-                                server_public_raw: bytes) -> tuple[bytes, bytes]:
+    def build_client_hello_auth(self, short_id: str, server_public_raw: bytes) -> tuple[bytes, bytes]:
         ephemeral = X25519PrivateKey.generate()
-        ephemeral_pub = ephemeral.public_key().public_bytes(
-            Encoding.Raw, PublicFormat.Raw)
-        shared = ephemeral.exchange(
-            X25519PublicKey.from_public_bytes(server_public_raw))
+        ephemeral_pub = ephemeral.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        shared = ephemeral.exchange(X25519PublicKey.from_public_bytes(server_public_raw))
         key = self._auth_key(shared)
         nonce = hashlib.sha256(ephemeral_pub).digest()[:12]
         plaintext = struct.pack(">Bq", 1, int(time.time())) + bytes.fromhex(short_id)
         session_id = AESGCM(key).encrypt(nonce, plaintext, ephemeral_pub)
         return ephemeral_pub, session_id
 
-    def verify_client_hello_auth(self, ephemeral_pub: bytes,
-                                 session_id: bytes) -> tuple[bool, str]:
+    def verify_client_hello_auth(self, ephemeral_pub: bytes, session_id: bytes) -> tuple[bool, str]:
         try:
-            shared = self._private_key.exchange(
-                X25519PublicKey.from_public_bytes(ephemeral_pub))
+            shared = self._private_key.exchange(X25519PublicKey.from_public_bytes(ephemeral_pub))
             key = self._auth_key(shared)
             nonce = hashlib.sha256(ephemeral_pub).digest()[:12]
             plaintext = AESGCM(key).decrypt(nonce, session_id, ephemeral_pub)
@@ -750,33 +728,33 @@ class RealityProtocol:
                 return None
             sid_len = buf[pos]
             pos += 1
-            session_id = buf[pos:pos + sid_len]
+            session_id = buf[pos : pos + sid_len]
             pos += sid_len
             if pos + 2 > len(buf):
                 return None
-            pos += 2 + int.from_bytes(buf[pos:pos + 2], "big")
+            pos += 2 + int.from_bytes(buf[pos : pos + 2], "big")
             if pos + 1 > len(buf):
                 return None
             pos += 1 + buf[pos]
             if pos + 2 > len(buf):
                 return None
-            end = min(len(buf), pos + 2 + int.from_bytes(buf[pos:pos + 2], "big"))
+            end = min(len(buf), pos + 2 + int.from_bytes(buf[pos : pos + 2], "big"))
             pos += 2
             key_share = b""
             while pos + 4 <= end:
-                etype = int.from_bytes(buf[pos:pos + 2], "big")
-                elen = int.from_bytes(buf[pos + 2:pos + 4], "big")
-                body = buf[pos + 4:pos + 4 + elen]
+                etype = int.from_bytes(buf[pos : pos + 2], "big")
+                elen = int.from_bytes(buf[pos + 2 : pos + 4], "big")
+                body = buf[pos + 4 : pos + 4 + elen]
                 pos += 4 + elen
                 if etype != 0x0033:
                     continue
                 p = 2
                 while p + 4 <= len(body):
-                    group = int.from_bytes(body[p:p + 2], "big")
-                    klen = int.from_bytes(body[p + 2:p + 4], "big")
-                    kv = body[p + 4:p + 4 + klen]
+                    group = int.from_bytes(body[p : p + 2], "big")
+                    klen = int.from_bytes(body[p + 2 : p + 4], "big")
+                    kv = body[p + 4 : p + 4 + klen]
                     p += 4 + klen
-                    if group == 0x001d and len(kv) == 32:
+                    if group == 0x001D and len(kv) == 32:
                         key_share = kv
                         break
             return session_id, key_share
@@ -802,8 +780,7 @@ class RealityProtocol:
 
     TLS_RECORD_MAX = 16384
 
-    async def _read_client_hello(self, reader: asyncio.StreamReader,
-                                 timeout: float = 10.0) -> bytes:
+    async def _read_client_hello(self, reader: asyncio.StreamReader, timeout: float = 10.0) -> bytes:
         """Читает первую TLS-запись целиком по её длине — без рассинхронизации
         на фрагментированном ClientHello."""
         try:
@@ -821,8 +798,9 @@ class RealityProtocol:
             body = b""
         return header + body
 
-    async def handle_connection(self, client_reader: asyncio.StreamReader,
-                                  client_writer: asyncio.StreamWriter) -> Optional[str]:
+    async def handle_connection(
+        self, client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter
+    ) -> Optional[str]:
         """
         Обработка входящего соединения. Читает ClientHello целиком (по длине
         TLS-записи), затем классифицирует. Наш клиент → short_id; чужой →
@@ -842,8 +820,7 @@ class RealityProtocol:
         logger.debug("Reality: proxying to %s (not our client)", self._dest)
         remote_w = None
         try:
-            remote_r, remote_w = await asyncio.open_connection(
-                self._dest, 443, ssl=False)
+            remote_r, remote_w = await asyncio.open_connection(self._dest, 443, ssl=False)
             remote_w.write(client_hello)
             await remote_w.drain()
 
@@ -860,8 +837,7 @@ class RealityProtocol:
 
             up = asyncio.create_task(_fwd(client_reader, remote_w))
             down = asyncio.create_task(_fwd(remote_r, client_writer))
-            _, pending = await asyncio.wait(
-                {up, down}, return_when=asyncio.FIRST_COMPLETED)
+            _, pending = await asyncio.wait({up, down}, return_when=asyncio.FIRST_COMPLETED)
             for t in pending:
                 t.cancel()
         except Exception as e:
@@ -896,6 +872,7 @@ class RealityProtocol:
 
 # 4. TROJAN PROTOCOL
 
+
 class TrojanProtocol:
     """
     Trojan: данные внутри обычного HTTPS.
@@ -923,8 +900,7 @@ class TrojanProtocol:
         # Предыдущий пароль принимается до следующей ротации.
         prev = "" if self._explicit_password else previous("TROJAN_PASSWORD")
         if prev:
-            self._authorized_hashes.add(
-                hashlib.sha224(prev.encode()).hexdigest())
+            self._authorized_hashes.add(hashlib.sha224(prev.encode()).hexdigest())
 
     def add_password(self, password: str):
         """Добавляет дополнительный пароль."""
@@ -932,8 +908,7 @@ class TrojanProtocol:
         self._extra_hashes.add(h)
         self._authorized_hashes.add(h)
 
-    def encode_request(self, data: bytes, target_addr: str = "127.0.0.1",
-                        target_port: int = 443) -> bytes:
+    def encode_request(self, data: bytes, target_addr: str = "127.0.0.1", target_port: int = 443) -> bytes:
         """
         Кодирует Trojan-запрос.
         """
@@ -987,7 +962,7 @@ class TrojanProtocol:
         if second_crlf < 0:
             return pwd_hash, b""
 
-        payload = rest[second_crlf + 2:]
+        payload = rest[second_crlf + 2 :]
         return pwd_hash, payload
 
     def is_trojan_request(self, first_bytes: bytes) -> bool:
@@ -1013,6 +988,7 @@ class TrojanProtocol:
 
 
 # 5. NAIVEPROXY — Chromium network stack fingerprint
+
 
 class NaiveProxyConfig:
     """
@@ -1059,9 +1035,9 @@ class NaiveProxyConfig:
 }}
 """
 
-    def __init__(self, port: int = 443, backend_url: str = "",
-                 server_host: str = "", username: str = "",
-                 password: str = ""):
+    def __init__(
+        self, port: int = 443, backend_url: str = "", server_host: str = "", username: str = "", password: str = ""
+    ):
         self.port = port
         self.backend_url = backend_url
         self._server_host = server_host
@@ -1075,10 +1051,9 @@ class NaiveProxyConfig:
         self._password = self._explicit_password or Config.NAIVE_PASSWORD
         self._probe_domain = Config.NAIVE_PROBE_DOMAIN
 
-    def generate_caddy_config(self, username: str = "",
-                                password: str = "",
-                                email: str = "admin@example.com",
-                                probe_domain: str = "") -> str:
+    def generate_caddy_config(
+        self, username: str = "", password: str = "", email: str = "admin@example.com", probe_domain: str = ""
+    ) -> str:
         """Генерирует Caddyfile для NaïveProxy."""
         pwd = password or self._password
         return self.CADDY_CONFIG_TEMPLATE.format(
@@ -1090,8 +1065,7 @@ class NaiveProxyConfig:
             backend_url=self.backend_url or "http://127.0.0.1:8000",
         )
 
-    def generate_client_config(self, server_host: str, username: str = "",
-                                 password: str = "") -> dict:
+    def generate_client_config(self, server_host: str, username: str = "", password: str = "") -> dict:
         """Генерирует конфигурацию для naiveproxy клиента."""
         user = username or self._username
         pwd = password or self._password
@@ -1113,6 +1087,7 @@ class NaiveProxyConfig:
             return False
         try:
             import httpx
+
             # Caddy с forward_proxy при probe_resistance возвращает фейковую страницу
             # для неавторизованных запросов. Авторизованный CONNECT вернёт 200.
             proxy_url = f"https://{self._username}:{self._password}@{host}:{self.port}"
@@ -1126,9 +1101,9 @@ class NaiveProxyConfig:
             logger.debug("NaiveProxy availability check failed: %s", e)
             return False
 
-    async def forward_via_proxy(self, target_url: str, data: bytes,
-                                  method: str = "POST",
-                                  server_host: str = "") -> Optional[bytes]:
+    async def forward_via_proxy(
+        self, target_url: str, data: bytes, method: str = "POST", server_host: str = ""
+    ) -> Optional[bytes]:
         """
         Пересылает запрос через NaiveProxy (HTTP CONNECT proxy).
         Использует Caddy forward_proxy как HTTPS прокси.
@@ -1141,6 +1116,7 @@ class NaiveProxyConfig:
         proxy_url = f"https://{self._username}:{self._password}@{host}:{self.port}"
         try:
             import httpx
+
             async with httpx.AsyncClient(
                 proxy=proxy_url,
                 timeout=15.0,
@@ -1167,6 +1143,7 @@ class NaiveProxyConfig:
 
 
 # 6. TOR HIDDEN SERVICE
+
 
 class TorHiddenService:
     """
@@ -1198,10 +1175,14 @@ SocksPort 0
     HS_READY_TIMEOUT = 120
     HS_POLL_INTERVAL = 2.0
 
-    def __init__(self, http_port: int = 8000, https_port: int = 8443,
-                 hidden_service_dir: str = "/var/lib/tor/vortex",
-                 tor_binary: str = "tor",
-                 torrc_path: str = "/etc/tor/vortex-torrc"):
+    def __init__(
+        self,
+        http_port: int = 8000,
+        https_port: int = 8443,
+        hidden_service_dir: str = "/var/lib/tor/vortex",
+        tor_binary: str = "tor",
+        torrc_path: str = "/etc/tor/vortex-torrc",
+    ):
         self.http_port = http_port
         self.https_port = https_port
         self.hidden_service_dir = hidden_service_dir
@@ -1241,7 +1222,9 @@ SocksPort 0
 
         try:
             self._process = await asyncio.create_subprocess_exec(
-                self._tor_binary, "-f", torrc_path,
+                self._tor_binary,
+                "-f",
+                torrc_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -1257,8 +1240,7 @@ SocksPort 0
         if onion:
             logger.info("Tor: hidden service ready at %s", onion)
         else:
-            logger.error("Tor: hidden service did not become ready within %ds",
-                         self.HS_READY_TIMEOUT)
+            logger.error("Tor: hidden service did not become ready within %ds", self.HS_READY_TIMEOUT)
         return onion
 
     async def _wait_for_hostname(self) -> Optional[str]:
@@ -1269,9 +1251,11 @@ SocksPort 0
                 stderr_data = b""
                 if self._process.stderr:
                     stderr_data = await self._process.stderr.read()
-                logger.error("Tor: process exited with code %d: %s",
-                             self._process.returncode,
-                             stderr_data.decode(errors="replace")[:500])
+                logger.error(
+                    "Tor: process exited with code %d: %s",
+                    self._process.returncode,
+                    stderr_data.decode(errors="replace")[:500],
+                )
                 return None
 
             addr = self.read_onion_address()
@@ -1396,6 +1380,7 @@ class IPFSDistributor:
     async def _add_to_node(self, content: bytes) -> Optional[str]:
         try:
             import httpx
+
             files = {"file": ("blob", content, "application/octet-stream")}
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(
@@ -1419,8 +1404,7 @@ class IPFSDistributor:
         return [gw + cid for gw in self.GATEWAYS]
 
     def get_status(self) -> dict:
-        pinned = {n: m["cid"][:20] + "..." for n, m in self._published.items()
-                  if m["pinned"]}
+        pinned = {n: m["cid"][:20] + "..." for n, m in self._published.items() if m["pinned"]}
         unpinned = [n for n, m in self._published.items() if not m["pinned"]]
         return {
             "node_configured": bool(Config.IPFS_API_URL),
@@ -1477,6 +1461,7 @@ class DecentralizedDNS:
         dns_param = base64.urlsafe_b64encode(query).rstrip(b"=").decode("ascii")
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(
                     self.HNS_DOH_RESOLVER,
@@ -1495,8 +1480,7 @@ class DecentralizedDNS:
         header = b"\x00\x00\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
         question = b""
         for label in domain.rstrip(".").split("."):
-            encoded = label.encode("idna") if any(ord(c) > 127 for c in label) \
-                else label.encode("ascii")
+            encoded = label.encode("idna") if any(ord(c) > 127 for c in label) else label.encode("ascii")
             question += bytes([len(encoded)]) + encoded
         question += b"\x00\x00\x01\x00\x01"
         return header + question
@@ -1523,11 +1507,11 @@ class DecentralizedDNS:
             off = cls._skip_name(wire, off)
             if off + 10 > len(wire):
                 break
-            rtype = int.from_bytes(wire[off:off + 2], "big")
-            rdlength = int.from_bytes(wire[off + 8:off + 10], "big")
+            rtype = int.from_bytes(wire[off : off + 2], "big")
+            rdlength = int.from_bytes(wire[off + 8 : off + 10], "big")
             rdata = off + 10
             if rtype == 1 and rdlength == 4 and rdata + 4 <= len(wire):
-                ips.append(".".join(str(b) for b in wire[rdata:rdata + 4]))
+                ips.append(".".join(str(b) for b in wire[rdata : rdata + 4]))
             off = rdata + rdlength
         return ips
 
@@ -1540,6 +1524,7 @@ class DecentralizedDNS:
 
 
 # 9. CENSORSHIP AUTO-PROBE
+
 
 class CensorshipAutoProbe:
     """
@@ -1583,9 +1568,7 @@ class CensorshipAutoProbe:
         """
         tasks = {}
         for probe in self.PROBES:
-            tasks[probe["name"]] = asyncio.create_task(
-                self._run_probe(probe, server_url)
-            )
+            tasks[probe["name"]] = asyncio.create_task(self._run_probe(probe, server_url))
 
         results = {}
         for name, task in tasks.items():
@@ -1615,12 +1598,9 @@ class CensorshipAutoProbe:
                 return await self._probe_websocket(server_url, probe["timeout"])
             elif name == "sse":
                 return await self._probe_sse(server_url, probe["timeout"])
-            elif name in ("reality", "cdn_relay", "meek_cdn", "doh_tunnel", "tor",
-                          "shadowtls", "trojan"):
+            elif name in ("reality", "cdn_relay", "meek_cdn", "doh_tunnel", "tor", "shadowtls", "trojan"):
                 token = hashlib.sha256(name.encode()).hexdigest()[:12]
-                return await self._probe_endpoint(
-                    server_url, f"/api/transport/probe/{token}", probe["timeout"]
-                )
+                return await self._probe_endpoint(server_url, f"/api/transport/probe/{token}", probe["timeout"])
             else:
                 return {"ok": False, "latency": -1, "error": "unknown_probe"}
         except Exception as e:
@@ -1631,6 +1611,7 @@ class CensorshipAutoProbe:
         start = time.monotonic()
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=timeout, verify=False) as c:  # noqa: S501
                 resp = await c.get(f"{url}/api/health")
                 elapsed = time.monotonic() - start
@@ -1647,6 +1628,7 @@ class CensorshipAutoProbe:
         url.replace("https://", "wss://").replace("http://", "ws://")
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=timeout, verify=False) as c:  # noqa: S501
                 # Проверяем что WS endpoint отвечает (даже 401 = доступен)
                 resp = await c.get(f"{url}/ws/chat/0")
@@ -1663,9 +1645,9 @@ class CensorshipAutoProbe:
         start = time.monotonic()
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=3.0, verify=False) as c:  # noqa: S501
-                resp = await c.get(f"{url}/api/transport/sse/stream",
-                                    headers={"Accept": "text/event-stream"})
+                resp = await c.get(f"{url}/api/transport/sse/stream", headers={"Accept": "text/event-stream"})
                 elapsed = time.monotonic() - start
                 return {
                     "ok": resp.status_code in (200, 401, 403),
@@ -1678,6 +1660,7 @@ class CensorshipAutoProbe:
         start = time.monotonic()
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=timeout, verify=False) as c:  # noqa: S501
                 resp = await c.get(f"{url}{path}")
                 elapsed = time.monotonic() - start
@@ -1713,6 +1696,7 @@ class CensorshipAutoProbe:
 
 
 # 10. CDN WORKERS PROXY (Store-and-Forward)
+
 
 class CDNWorkersProxy:
     """
@@ -1821,8 +1805,7 @@ async function hmacSign(secret, message) {{
     def reload_secrets(self) -> None:
         """Перечитывает секрет из конфигурации (вызывается после ротации)."""
         self._secret = self._explicit_secret or Config.CDN_WORKER_KV_SECRET
-        self._prev_secret = (
-            "" if self._explicit_secret else previous("CDN_WORKER_KV_SECRET"))
+        self._prev_secret = "" if self._explicit_secret else previous("CDN_WORKER_KV_SECRET")
 
     def generate_worker_script(self, backend_url: str = "http://127.0.0.1:8000") -> str:
         """Генерирует Worker скрипт для деплоя."""
@@ -1835,9 +1818,7 @@ async function hmacSign(secret, message) {{
     def get_auth_headers(self) -> dict:
         """Генерирует заголовки авторизации для запроса к Worker."""
         ts = str(int(time.time()))
-        sig = hmac.new(
-            self._secret.encode(), ts.encode(), hashlib.sha256
-        ).hexdigest()
+        sig = hmac.new(self._secret.encode(), ts.encode(), hashlib.sha256).hexdigest()
         return {"Cookie": f"sid={ts}.{sig}"}
 
     async def send_message(self, to_user: str, data: dict) -> bool:
@@ -1846,6 +1827,7 @@ async function hmacSign(secret, message) {{
             return False
         try:
             import httpx
+
             headers = self.get_auth_headers()
             headers["Content-Type"] = "application/json"
             async with httpx.AsyncClient(timeout=10.0) as c:
@@ -1865,6 +1847,7 @@ async function hmacSign(secret, message) {{
             return []
         try:
             import httpx
+
             headers = self.get_auth_headers()
             async with httpx.AsyncClient(timeout=10.0) as c:
                 resp = await c.get(
@@ -1886,6 +1869,7 @@ async function hmacSign(secret, message) {{
 
 
 # 10b. AWS LAMBDA@EDGE RELAY (Store-and-Forward via CloudFront)
+
 
 class AWSLambdaRelay:
     """
@@ -1993,10 +1977,8 @@ function signatureMatches(sig, message, secret) {{
     SIGNED_URL_TTL = 300
     KEY_PAIR_ID = "APKAEIBAERJR2EXAMPLE"
 
-    def __init__(self, cloudfront_domain: str = "", secret: str = "",
-                 region: str = "us-east-1"):
-        self.cloudfront_domain = cloudfront_domain or os.environ.get(
-            "AWS_CLOUDFRONT_DOMAIN", "")
+    def __init__(self, cloudfront_domain: str = "", secret: str = "", region: str = "us-east-1"):
+        self.cloudfront_domain = cloudfront_domain or os.environ.get("AWS_CLOUDFRONT_DOMAIN", "")
         self._explicit_secret = secret
         self._region = region
         self.reload_secrets()
@@ -2004,8 +1986,7 @@ function signatureMatches(sig, message, secret) {{
     def reload_secrets(self) -> None:
         """Перечитывает секрет из конфигурации (вызывается после ротации)."""
         self._secret = self._explicit_secret or Config.AWS_RELAY_SECRET
-        self._prev_secret = (
-            "" if self._explicit_secret else previous("AWS_RELAY_SECRET"))
+        self._prev_secret = "" if self._explicit_secret else previous("AWS_RELAY_SECRET")
 
     def generate_lambda_script(self) -> str:
         """Генерирует Lambda@Edge скрипт для деплоя."""
@@ -2018,11 +1999,8 @@ function signatureMatches(sig, message, secret) {{
     def _sign_url(self, path: str, query: str = "") -> str:
         """Генерирует signed URL в стиле CloudFront (Expires/Signature/Key-Pair-Id)."""
         expires = str(int(time.time()) + self.SIGNED_URL_TTL)
-        sig = hmac.new(
-            self._secret.encode(), (path + expires).encode(), hashlib.sha256
-        ).hexdigest()
-        parts = [f"Expires={expires}", f"Signature={sig}",
-                 f"Key-Pair-Id={self.KEY_PAIR_ID}"]
+        sig = hmac.new(self._secret.encode(), (path + expires).encode(), hashlib.sha256).hexdigest()
+        parts = [f"Expires={expires}", f"Signature={sig}", f"Key-Pair-Id={self.KEY_PAIR_ID}"]
         if query:
             parts.insert(0, query)
         return f"https://{self.cloudfront_domain}{path}?{'&'.join(parts)}"
@@ -2034,6 +2012,7 @@ function signatureMatches(sig, message, secret) {{
         url = self._sign_url("/api/1/objects")
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=10.0) as c:
                 resp = await c.post(url, json={"to": to_user, "data": data})
                 return resp.status_code == 200
@@ -2048,6 +2027,7 @@ function signatureMatches(sig, message, secret) {{
         url = self._sign_url("/api/1/objects", f"user={user_id}")
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=10.0) as c:
                 resp = await c.get(url)
                 if resp.status_code == 200:
@@ -2065,6 +2045,7 @@ function signatureMatches(sig, message, secret) {{
 
 
 # 10c. AZURE CDN RELAY (Azure Functions + Azure CDN + SAS tokens)
+
 
 class AzureCDNRelay:
     """
@@ -2166,8 +2147,7 @@ function verifySAS(sig, expiry, resource) {{
     # SAS token validity (seconds)
     SAS_TOKEN_TTL = 300
 
-    def __init__(self, cdn_endpoint: str = "", secret: str = "",
-                 storage_account: str = "", storage_key: str = ""):
+    def __init__(self, cdn_endpoint: str = "", secret: str = "", storage_account: str = "", storage_key: str = ""):
         self.cdn_endpoint = cdn_endpoint or os.environ.get("AZURE_CDN_ENDPOINT", "")
         self._explicit_secret = secret
         self._storage_account = storage_account or Config.AZURE_STORAGE_ACCOUNT
@@ -2177,8 +2157,7 @@ function verifySAS(sig, expiry, resource) {{
     def reload_secrets(self) -> None:
         """Перечитывает секрет из конфигурации (вызывается после ротации)."""
         self._secret = self._explicit_secret or Config.AZURE_RELAY_SECRET
-        self._prev_secret = (
-            "" if self._explicit_secret else previous("AZURE_RELAY_SECRET"))
+        self._prev_secret = "" if self._explicit_secret else previous("AZURE_RELAY_SECRET")
 
     def generate_function_script(self) -> str:
         """Генерирует Azure Function скрипт для деплоя."""
@@ -2200,9 +2179,7 @@ function verifySAS(sig, expiry, resource) {{
         )
         string_to_sign = resource + "\n" + expiry
         sig = base64.b64encode(
-            hmac.new(
-                self._secret.encode(), string_to_sign.encode(), hashlib.sha256
-            ).digest()
+            hmac.new(self._secret.encode(), string_to_sign.encode(), hashlib.sha256).digest()
         ).decode()
         return {"sig": sig, "se": expiry}
 
@@ -2222,6 +2199,7 @@ function verifySAS(sig, expiry, resource) {{
         url = self._build_url()
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=10.0) as c:
                 resp = await c.post(url, json={"to": to_user, "data": data})
                 return resp.status_code == 200
@@ -2236,6 +2214,7 @@ function verifySAS(sig, expiry, resource) {{
         url = self._build_url(extra_params={"user": user_id})
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=10.0) as c:
                 resp = await c.get(url)
                 if resp.status_code == 200:
@@ -2254,6 +2233,7 @@ function verifySAS(sig, expiry, resource) {{
 
 # 11. SERVICE WORKER PROXY (config/metadata)
 
+
 class ServiceWorkerConfig:
     """
     Конфигурация для клиентского Service Worker proxy.
@@ -2267,9 +2247,7 @@ class ServiceWorkerConfig:
     Сам SW код → static/js/sw-proxy.js (генерируется ниже).
     """
 
-    def generate_sw_config(self, transports: list[str],
-                             cdn_url: str = "",
-                             meek_url: str = "") -> dict:
+    def generate_sw_config(self, transports: list[str], cdn_url: str = "", meek_url: str = "") -> dict:
         """
         Генерирует конфигурацию для Service Worker.
 
@@ -2339,6 +2317,7 @@ if ('serviceWorker' in navigator) {
 
 
 # 12. WASM CRYPTO MODULE
+
 
 class WASMCryptoConfig:
     """
@@ -2432,6 +2411,7 @@ function getWasmModule() { return _wasmModule; }
 
 # 13. OBLIVIOUS HTTP (OHTTP)
 
+
 class ObliviousHTTP:
     """
     OHTTP (RFC 9458): relay скрывает IP клиента от сервера.
@@ -2458,9 +2438,7 @@ class ObliviousHTTP:
             self._gateway_pubkey = gateway_public_key
         else:
             self._gateway_private = X25519PrivateKey.generate()
-            self._gateway_pubkey = self._gateway_private.public_key().public_bytes(
-                Encoding.Raw, PublicFormat.Raw
-            )
+            self._gateway_pubkey = self._gateway_private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         self._relay_urls: list[str] = []
 
     @property
@@ -2473,7 +2451,9 @@ class ObliviousHTTP:
 
     def _hpke_context(self, enc: bytes, shared: bytes) -> tuple[bytes, bytes]:
         okm = HKDF(
-            algorithm=hashes.SHA256(), length=28, salt=self._gateway_pubkey,
+            algorithm=hashes.SHA256(),
+            length=28,
+            salt=self._gateway_pubkey,
             info=self.OHTTP_HEADER + enc + b"ohttp request",
         ).derive(shared)
         return okm[:16], okm[16:28]
@@ -2481,8 +2461,7 @@ class ObliviousHTTP:
     def _client_seal(self, request_data: bytes) -> tuple[bytes, bytes, bytes]:
         ephemeral = X25519PrivateKey.generate()
         enc = ephemeral.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
-        shared = ephemeral.exchange(
-            X25519PublicKey.from_public_bytes(self._gateway_pubkey))
+        shared = ephemeral.exchange(X25519PublicKey.from_public_bytes(self._gateway_pubkey))
         key, nonce = self._hpke_context(enc, shared)
         ciphertext = AESGCM(key).encrypt(nonce, request_data, self.OHTTP_HEADER)
         return self.OHTTP_HEADER + enc + ciphertext, enc, shared
@@ -2509,24 +2488,23 @@ class ObliviousHTTP:
         enc = encapsulated[7:39]
         ciphertext = encapsulated[39:]
         try:
-            shared = self._gateway_private.exchange(
-                X25519PublicKey.from_public_bytes(enc))
+            shared = self._gateway_private.exchange(X25519PublicKey.from_public_bytes(enc))
             key, nonce = self._hpke_context(enc, shared)
             return AESGCM(key).decrypt(nonce, ciphertext, self.OHTTP_HEADER)
         except Exception:
             return None
 
     @staticmethod
-    def _response_context(enc: bytes, shared: bytes,
-                          response_nonce: bytes) -> tuple[bytes, bytes]:
+    def _response_context(enc: bytes, shared: bytes, response_nonce: bytes) -> tuple[bytes, bytes]:
         okm = HKDF(
-            algorithm=hashes.SHA256(), length=28, salt=enc + response_nonce,
+            algorithm=hashes.SHA256(),
+            length=28,
+            salt=enc + response_nonce,
             info=b"ohttp response",
         ).derive(shared)
         return okm[:16], okm[16:28]
 
-    def seal_response(self, encapsulated: bytes,
-                      response_data: bytes) -> Optional[bytes]:
+    def seal_response(self, encapsulated: bytes, response_data: bytes) -> Optional[bytes]:
         """
         Шифрует ответ gateway для клиента (обратный путь OHTTP).
 
@@ -2537,8 +2515,7 @@ class ObliviousHTTP:
             return None
         enc = encapsulated[7:39]
         try:
-            shared = self._gateway_private.exchange(
-                X25519PublicKey.from_public_bytes(enc))
+            shared = self._gateway_private.exchange(X25519PublicKey.from_public_bytes(enc))
         except Exception:
             return None
         response_nonce = os.urandom(16)
@@ -2546,8 +2523,7 @@ class ObliviousHTTP:
         ct = AESGCM(key).encrypt(nonce, response_data, b"ohttp response")
         return response_nonce + ct
 
-    def open_response(self, enc: bytes, shared: bytes,
-                      enc_response: bytes) -> Optional[bytes]:
+    def open_response(self, enc: bytes, shared: bytes, enc_response: bytes) -> Optional[bytes]:
         """Расшифровывает ответ gateway на стороне клиента."""
         if len(enc_response) < 16 + 16:
             return None
@@ -2559,8 +2535,7 @@ class ObliviousHTTP:
         except Exception:
             return None
 
-    async def send_via_relay(self, request_data: bytes,
-                               target_gateway: str = "") -> Optional[bytes]:
+    async def send_via_relay(self, request_data: bytes, target_gateway: str = "") -> Optional[bytes]:
         """Отправляет запрос через случайный relay и расшифровывает ответ gateway."""
         if not self._relay_urls:
             return None
@@ -2570,6 +2545,7 @@ class ObliviousHTTP:
 
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=15.0) as c:
                 resp = await c.post(
                     f"{relay_url}/api/1/edge",
@@ -2590,6 +2566,7 @@ class ObliviousHTTP:
 
 
 # 14. CENSORSHIP DASHBOARD
+
 
 class CensorshipDashboard:
     """
@@ -2617,14 +2594,16 @@ class CensorshipDashboard:
             self._reports[region] = []
             self._blocked_transports[region] = set()
 
-        self._reports[region].append({
-            **report,
-            "received_at": time.time(),
-        })
+        self._reports[region].append(
+            {
+                **report,
+                "received_at": time.time(),
+            }
+        )
 
         # Trim old reports
         if len(self._reports[region]) > self._max_reports_per_region:
-            self._reports[region] = self._reports[region][-self._max_reports_per_region:]
+            self._reports[region] = self._reports[region][-self._max_reports_per_region :]
 
         # Update blocked transports
         transports = report.get("transports", {})
@@ -2657,8 +2636,16 @@ class CensorshipDashboard:
         """Рекомендованный транспорт для региона."""
         blocked = self._blocked_transports.get(region, set())
         all_transports = [
-            "direct_https", "websocket", "sse", "reality",
-            "trojan", "shadowtls", "cdn_relay", "meek_cdn", "doh_tunnel", "tor",
+            "direct_https",
+            "websocket",
+            "sse",
+            "reality",
+            "trojan",
+            "shadowtls",
+            "cdn_relay",
+            "meek_cdn",
+            "doh_tunnel",
+            "tor",
         ]
         for t in all_transports:
             if t not in blocked:
@@ -2673,6 +2660,7 @@ class CensorshipDashboard:
 
 
 # 15. LATENCY PROBES
+
 
 class LatencyProbeSystem:
     """
@@ -2695,9 +2683,12 @@ class LatencyProbeSystem:
         self._task: Optional[asyncio.Task] = None
         self._callback: Optional[Callable] = None
 
-    async def start(self, probe_fn: Callable[[str], Awaitable[float]],
-                     transports: list[str],
-                     on_block: Optional[Callable[[str], Awaitable[None]]] = None):
+    async def start(
+        self,
+        probe_fn: Callable[[str], Awaitable[float]],
+        transports: list[str],
+        on_block: Optional[Callable[[str], Awaitable[None]]] = None,
+    ):
         """
         Запуск системы мониторинга.
         probe_fn: async (transport_name) → latency_ms (-1 = failed)
@@ -2705,9 +2696,7 @@ class LatencyProbeSystem:
         """
         self._running = True
         self._callback = on_block
-        self._task = asyncio.create_task(
-            self._probe_loop(probe_fn, transports)
-        )
+        self._task = asyncio.create_task(self._probe_loop(probe_fn, transports))
 
     def stop(self):
         self._running = False
@@ -2725,7 +2714,7 @@ class LatencyProbeSystem:
 
                     self._latencies[transport].append(latency)
                     if len(self._latencies[transport]) > self._max_history:
-                        self._latencies[transport] = self._latencies[transport][-self._max_history:]
+                        self._latencies[transport] = self._latencies[transport][-self._max_history :]
 
                     recent = self._latencies[transport][-3:]
                     if len(recent) >= 3 and all(lat < 0 for lat in recent):
@@ -2735,32 +2724,33 @@ class LatencyProbeSystem:
                             "timestamp": time.time(),
                         }
                         self._alerts.append(alert)
-                        logger.warning("Transport %s appears BLOCKED (3 consecutive failures)",
-                                       transport)
+                        logger.warning("Transport %s appears BLOCKED (3 consecutive failures)", transport)
 
                         if self._callback:
                             with contextlib.suppress(Exception):
                                 await self._callback(transport)
 
                     elif latency > 0 and len(self._latencies[transport]) > 5:
-                        avg = sum(lat for lat in self._latencies[transport][:-1] if lat > 0) / \
-                              max(1, sum(1 for lat in self._latencies[transport][:-1] if lat > 0))
+                        avg = sum(lat for lat in self._latencies[transport][:-1] if lat > 0) / max(
+                            1, sum(1 for lat in self._latencies[transport][:-1] if lat > 0)
+                        )
                         if avg > 0 and latency > avg * 3:
-                            self._alerts.append({
-                                "transport": transport,
-                                "type": "degraded",
-                                "latency": latency,
-                                "average": round(avg),
-                                "timestamp": time.time(),
-                            })
+                            self._alerts.append(
+                                {
+                                    "transport": transport,
+                                    "type": "degraded",
+                                    "latency": latency,
+                                    "average": round(avg),
+                                    "timestamp": time.time(),
+                                }
+                            )
 
                 except asyncio.CancelledError:
                     return
                 except Exception as e:
                     logger.debug("Latency probe error (%s): %s", transport, e)
 
-            await asyncio.sleep(_jittered_delay(
-                self.probe_interval, low=_PROBE_JITTER_LOW, high=_PROBE_JITTER_HIGH))
+            await asyncio.sleep(_jittered_delay(self.probe_interval, low=_PROBE_JITTER_LOW, high=_PROBE_JITTER_HIGH))
 
     def get_latency_stats(self) -> dict:
         """Статистика задержек по транспортам."""
@@ -2791,6 +2781,7 @@ class LatencyProbeSystem:
 
 
 # MANAGER — Level 4
+
 
 class StealthLevel4Manager:
     """
@@ -2827,14 +2818,20 @@ class StealthLevel4Manager:
 
     def reload_secrets(self) -> None:
         """Перечитывает секреты во всех механизмах после плановой ротации."""
-        for component in (self.shadowtls, self.trojan, self.naiveproxy,
-                          self.cdn_workers, self.aws_lambda_relay,
-                          self.azure_cdn_relay):
+        for component in (
+            self.shadowtls,
+            self.trojan,
+            self.naiveproxy,
+            self.cdn_workers,
+            self.aws_lambda_relay,
+            self.azure_cdn_relay,
+        ):
             component.reload_secrets()
 
     @staticmethod
     def _deploy_status() -> dict:
         from app.transport.relay_deploy import deploy_status
+
         return deploy_status()
 
     def get_client_secrets(self) -> dict:
@@ -2874,11 +2871,20 @@ class StealthLevel4Manager:
             "reality=%s (flagship), shadowtls=%s, trojan=%s, naiveproxy=%s, "
             "tor=%s, ipfs=%s, ddns=%s, censor_probe=%s, cdn_kv=%s, "
             "sw=%s, wasm=%s, ohttp=%s, dashboard=%s, probes=%s",
-            "ON", "ON", "ON", "config_ready",
+            "ON",
+            "ON",
+            "ON",
+            "config_ready",
             self.tor_hs.onion_address or "ready",
-            "ON", "ON", "ON",
+            "ON",
+            "ON",
+            "ON",
             "ON" if self.cdn_workers.worker_url else "config_needed",
-            "ON", "ready", "ON", "ON", "ON",
+            "ON",
+            "ready",
+            "ON",
+            "ON",
+            "ON",
         )
 
     def stop(self):

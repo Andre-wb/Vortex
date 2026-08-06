@@ -1,4 +1,5 @@
 """Tests for Translation endpoints (/api/translate/*)."""
+
 from __future__ import annotations
 
 from conftest import SyncASGIClient, make_user
@@ -12,17 +13,25 @@ def _auth(client: SyncASGIClient):
 class TestTranslate:
     def test_translate_text(self, client):
         _, h = _auth(client)
-        r = client.post("/api/translate", json={
-            "text": "Hello world",
-            "target_lang": "ru",
-        }, headers=h)
+        r = client.post(
+            "/api/translate",
+            json={
+                "text": "Hello world",
+                "target_lang": "ru",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 400, 503)
 
     def test_translate_missing_text(self, client):
         _, h = _auth(client)
-        r = client.post("/api/translate", json={
-            "target_lang": "ru",
-        }, headers=h)
+        r = client.post(
+            "/api/translate",
+            json={
+                "target_lang": "ru",
+            },
+            headers=h,
+        )
         assert r.status_code in (400, 422)
 
     def test_list_languages(self, client):

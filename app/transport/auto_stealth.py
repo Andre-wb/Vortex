@@ -9,6 +9,7 @@ app/transport/auto_stealth.py — Автоматическая активаци�
   5. Обфускация WebSocket signaling (JSON → padded binary)
   6. Периодическая проверка доступности и выбор лучшего транспорта
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 # 1. WebSocket Frame Obfuscator — padding + jitter для КАЖДОГО WS-фрейма
+
 
 class WSFrameObfuscator:
     """
@@ -67,6 +69,7 @@ class WSFrameObfuscator:
 
 
 # 2. Transport Health Monitor — проверяет доступность транспортов
+
 
 class TransportHealthMonitor:
     """
@@ -127,6 +130,7 @@ class TransportHealthMonitor:
 
 # 3. HTTP Response Padding — все ответы рандомного размера
 
+
 def add_response_padding(headers: dict) -> dict:
     """
     Добавляет фейковые заголовки к HTTP-ответу для маскировки.
@@ -155,6 +159,7 @@ def add_response_padding(headers: dict) -> dict:
 
 # 4. Knock Hint API — клиент получает текущую knock-последовательность
 
+
 def get_knock_hint() -> dict:
     """
     Возвращает текущую knock-последовательность для клиента.
@@ -171,6 +176,7 @@ def get_knock_hint() -> dict:
     for i, path in enumerate(seq):
         # Название фичи = base64(path), чтобы DPI не видел plaintext пути
         import base64
+
         key = base64.b64encode(f"step_{i}".encode()).decode().rstrip("=")
         features[key] = path
 
@@ -201,9 +207,9 @@ async def start_auto_stealth():
     # Запускаем мониторинг здоровья транспортов
     _health_task = asyncio.create_task(_health_monitor.health_check_loop())
     logger.info(
-        "Auto-stealth: запущено (padding=%s, transport_monitor=%s, "
-        "knock_dynamic=%s)",
-        "ON", "ON",
+        "Auto-stealth: запущено (padding=%s, transport_monitor=%s, knock_dynamic=%s)",
+        "ON",
+        "ON",
         "ON" if Config.NETWORK_MODE == "global" else "OFF",
     )
 

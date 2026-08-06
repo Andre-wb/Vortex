@@ -4,7 +4,6 @@ Tests for saved messages.
 
 
 class TestSavedMessages:
-
     def test_list_saved_empty(self, client, logged_user):
         resp = client.get("/api/saved", headers=logged_user["headers"])
         assert resp.status_code == 200
@@ -15,6 +14,7 @@ class TestSavedMessages:
 
     def test_saved_unauthenticated(self, client):
         from conftest import SyncASGIClient
+
         bare = SyncASGIClient()
         resp = bare.get("/api/saved")
         assert resp.status_code in (401, 403)

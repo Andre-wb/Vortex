@@ -1,4 +1,5 @@
 """Passkey / WebAuthn — регистрация и аутентификация через биометрию / ключ."""
+
 from __future__ import annotations
 
 import base64
@@ -50,7 +51,6 @@ def _get_origin(request: Request) -> str:
     scheme = request.headers.get("x-forwarded-proto", "https")
     host = request.headers.get("host", "localhost:8000")
     return f"{scheme}://{host}"
-
 
 
 @router.post("/passkey/register-options")
@@ -157,7 +157,6 @@ async def passkey_register_verify(
     return {"ok": True, "credential_id": u.passkey_credential_id}
 
 
-
 @router.post("/passkey/login-options")
 async def passkey_login_options(request: Request):
     """Шаг 1 входа: PublicKeyCredentialRequestOptions."""
@@ -220,10 +219,14 @@ async def passkey_login_verify(
         raise HTTPException(400, f"Invalid credential: {e}") from None
 
     cred_id_b64 = _b64url_encode(credential.raw_id)
-    user = db.query(User).filter(
-        User.passkey_credential_id == cred_id_b64,
-        User.is_active.is_(True),
-    ).first()
+    user = (
+        db.query(User)
+        .filter(
+            User.passkey_credential_id == cred_id_b64,
+            User.is_active.is_(True),
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(401, "Verification error")
 

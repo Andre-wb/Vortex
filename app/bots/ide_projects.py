@@ -9,6 +9,7 @@ POST /api/ide/stop/{pid}   stop running bot
 POST /api/ide/test         run a bot script against a test message
 POST /api/ide/ai/proxy     proxy AI requests to Ollama/OpenAI
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,7 +33,6 @@ from app.security.auth_jwt import get_current_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ide", tags=["ide"])
-
 
 
 @router.post("/compile")
@@ -87,7 +87,6 @@ async def ide_stop(
     return await stop_bot(pid)
 
 
-
 @router.post("/test")
 async def test_bot(
     request: Request,
@@ -120,32 +119,31 @@ async def test_bot(
     try:
         # Run syntax check first
         proc = await asyncio.create_subprocess_exec(
-            str(_GX_BIN), "check", tmp_path,
+            str(_GX_BIN),
+            "check",
+            tmp_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         _stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
 
         if proc.returncode != 0:
-            return JSONResponse({
-                "ok": False,
-                "error": "Syntax error",
-                "details": stderr.decode().strip()
-            })
+            return JSONResponse({"ok": False, "error": "Syntax error", "details": stderr.decode().strip()})
 
         # Return success - full sandbox execution would require a real test room
-        return JSONResponse({
-            "ok": True,
-            "syntax_valid": True,
-            "message": "Code compiled successfully. Deploy with 'Publish' to test with real messages.",
-            "test_input": test_message,
-            "update_type": update_type,
-        })
+        return JSONResponse(
+            {
+                "ok": True,
+                "syntax_valid": True,
+                "message": "Code compiled successfully. Deploy with 'Publish' to test with real messages.",
+                "test_input": test_message,
+                "update_type": update_type,
+            }
+        )
     except asyncio.TimeoutError:
         return JSONResponse({"ok": False, "error": "Test timed out"}, status_code=408)
     finally:
         os.unlink(tmp_path)
-
 
 
 @router.post("/ai/proxy")
@@ -155,6 +153,7 @@ async def ai_proxy(
 ):
     """Proxy AI requests from Gravitix bots to Ollama/OpenAI-compatible endpoint."""
     import httpx
+
     ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
     model = body.get("model", os.environ.get("AI_MODEL", "llama3"))
     prompt = body.get("prompt", "")

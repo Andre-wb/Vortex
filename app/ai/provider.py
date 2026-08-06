@@ -15,6 +15,7 @@ Usage:
     async for token in provider.generate_stream("Hello"):
         print(token, end="")
 """
+
 from __future__ import annotations
 
 import abc
@@ -39,6 +40,7 @@ AI_MODEL: str = os.getenv("AI_MODEL", "")
 
 
 # Abstract interface
+
 
 class AIProvider(abc.ABC):
     """Abstract AI text-generation provider."""
@@ -94,6 +96,7 @@ class AIProvider(abc.ABC):
 
 # Ollama
 
+
 class OllamaProvider(AIProvider):
     """Local Ollama backend (http://localhost:11434 by default)."""
 
@@ -113,8 +116,11 @@ class OllamaProvider(AIProvider):
 
     async def generate(self, prompt, *, system="", temperature=0.7, max_tokens=1024) -> str:
         payload = {
-            "model": self.model, "prompt": prompt, "system": system,
-            "stream": False, "options": {"temperature": temperature, "num_predict": max_tokens},
+            "model": self.model,
+            "prompt": prompt,
+            "system": system,
+            "stream": False,
+            "options": {"temperature": temperature, "num_predict": max_tokens},
         }
         async with httpx.AsyncClient(timeout=60.0) as c:
             r = await c.post(f"{self.url}/api/generate", json=payload)
@@ -123,10 +129,16 @@ class OllamaProvider(AIProvider):
 
     async def generate_stream(self, prompt, *, system="", temperature=0.7, max_tokens=1024):
         payload = {
-            "model": self.model, "prompt": prompt, "system": system,
-            "stream": True, "options": {"temperature": temperature, "num_predict": max_tokens},
+            "model": self.model,
+            "prompt": prompt,
+            "system": system,
+            "stream": True,
+            "options": {"temperature": temperature, "num_predict": max_tokens},
         }
-        async with httpx.AsyncClient(timeout=60.0) as c, c.stream("POST", f"{self.url}/api/generate", json=payload) as r:
+        async with (
+            httpx.AsyncClient(timeout=60.0) as c,
+            c.stream("POST", f"{self.url}/api/generate", json=payload) as r,
+        ):
             r.raise_for_status()
             async for line in r.aiter_lines():
                 if line:
@@ -139,7 +151,9 @@ class OllamaProvider(AIProvider):
 
     async def chat(self, messages, *, temperature=0.7, max_tokens=1024) -> str:
         payload = {
-            "model": self.model, "messages": messages, "stream": False,
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
             "options": {"temperature": temperature, "num_predict": max_tokens},
         }
         async with httpx.AsyncClient(timeout=60.0) as c:
@@ -149,7 +163,9 @@ class OllamaProvider(AIProvider):
 
     async def chat_stream(self, messages, *, temperature=0.7, max_tokens=1024):
         payload = {
-            "model": self.model, "messages": messages, "stream": True,
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
             "options": {"temperature": temperature, "num_predict": max_tokens},
         }
         async with httpx.AsyncClient(timeout=60.0) as c, c.stream("POST", f"{self.url}/api/chat", json=payload) as r:
@@ -165,6 +181,7 @@ class OllamaProvider(AIProvider):
 
 
 # OpenAI-compatible API
+
 
 class OpenAIProvider(AIProvider):
     """OpenAI API or any compatible endpoint (vLLM, LiteLLM, Together, etc.)."""
@@ -207,13 +224,15 @@ class OpenAIProvider(AIProvider):
     async def generate(self, prompt, *, system="", temperature=0.7, max_tokens=1024) -> str:
         return await self.chat(
             self._build_messages(prompt, system),
-            temperature=temperature, max_tokens=max_tokens,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
 
     async def generate_stream(self, prompt, *, system="", temperature=0.7, max_tokens=1024):
         async for tok in self.chat_stream(
             self._build_messages(prompt, system),
-            temperature=temperature, max_tokens=max_tokens,
+            temperature=temperature,
+            max_tokens=max_tokens,
         ):
             yield tok
 
@@ -243,12 +262,15 @@ class OpenAIProvider(AIProvider):
             "max_tokens": max_tokens,
             "stream": True,
         }
-        async with httpx.AsyncClient(timeout=60.0) as c, c.stream(
-            "POST",
-            f"{self.api_url}/chat/completions",
-            json=payload,
-            headers=self._headers(),
-        ) as r:
+        async with (
+            httpx.AsyncClient(timeout=60.0) as c,
+            c.stream(
+                "POST",
+                f"{self.api_url}/chat/completions",
+                json=payload,
+                headers=self._headers(),
+            ) as r,
+        ):
             r.raise_for_status()
             async for line in r.aiter_lines():
                 if not line or not line.startswith("data: "):
@@ -267,6 +289,7 @@ class OpenAIProvider(AIProvider):
 
 
 # Anthropic API
+
 
 class AnthropicProvider(AIProvider):
     """Anthropic Messages API (https://api.anthropic.com/v1/messages)."""
@@ -336,12 +359,15 @@ class AnthropicProvider(AIProvider):
         }
         if _system:
             payload["system"] = _system
-        async with httpx.AsyncClient(timeout=60.0) as c, c.stream(
-            "POST",
-            f"{self.api_url}/v1/messages",
-            json=payload,
-            headers=self._headers(),
-        ) as r:
+        async with (
+            httpx.AsyncClient(timeout=60.0) as c,
+            c.stream(
+                "POST",
+                f"{self.api_url}/v1/messages",
+                json=payload,
+                headers=self._headers(),
+            ) as r,
+        ):
             r.raise_for_status()
             async for line in r.aiter_lines():
                 if not line or not line.startswith("data: "):

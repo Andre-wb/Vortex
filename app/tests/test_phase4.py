@@ -1,4 +1,5 @@
 """Tests for Phase 4 components — IPFS publish, SNS resolver, mirror health."""
+
 from __future__ import annotations
 
 import json
@@ -32,9 +33,9 @@ def test_ipfs_publish_sends_files_and_parses_root_cid(tmp_path: Path):
     # Simulated kubo /api/v0/add NDJSON response
     fake_response_lines = [
         {"Name": "index.html", "Hash": "bafy-index", "Size": "30"},
-        {"Name": "style.css",  "Hash": "bafy-style", "Size": "4"},
-        {"Name": "sub/app.js", "Hash": "bafy-app",   "Size": "14"},
-        {"Name": "",           "Hash": "bafy-root",  "Size": "48"},
+        {"Name": "style.css", "Hash": "bafy-style", "Size": "4"},
+        {"Name": "sub/app.js", "Hash": "bafy-app", "Size": "14"},
+        {"Name": "", "Hash": "bafy-root", "Size": "48"},
     ]
     fake_body = "\n".join(json.dumps(x) for x in fake_response_lines)
 
@@ -84,9 +85,9 @@ async def test_sns_resolve_returns_url_and_txt_metadata():
         if "/URL" in surl:
             return _mock_response("GET", surl, json={"result": {"content": "vortexx.example"}})
         if "/TXT" in surl:
-            return _mock_response("GET", surl, json={
-                "result": {"content": "pubkey=ff11;mirrors=ipfs://bafy,http://x.onion"}
-            })
+            return _mock_response(
+                "GET", surl, json={"result": {"content": "pubkey=ff11;mirrors=ipfs://bafy,http://x.onion"}}
+            )
         return _mock_response("GET", surl, status=404)
 
     with patch.object(httpx.AsyncClient, "get", side_effect=fake_get):
@@ -131,7 +132,7 @@ async def test_mirror_health_probes_each_url_and_records_status():
         "https://ok.example",
         "https://dead.example",
         "ipfs://bafygoodcid",
-        "http://abc.onion",            # skipped without tor proxy
+        "http://abc.onion",  # skipped without tor proxy
     ]
 
     async def fake_head(self, url, **kwargs):
@@ -220,8 +221,10 @@ async def test_mirrors_endpoint_exposes_health_after_sweep():
             # прогона: сам старт контроллера занимает ~0.06 с.
             async with LifespanManager(app, startup_timeout=30.0, shutdown_timeout=30.0):
                 from httpx import ASGITransport, AsyncClient
+
                 async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://ctrl",
+                    transport=ASGITransport(app=app),
+                    base_url="http://ctrl",
                 ) as http:
                     r = await http.get("/v1/health")
                     ctrl_pub = r.json()["pubkey"]
@@ -240,7 +243,8 @@ async def test_mirrors_endpoint_exposes_health_after_sweep():
 
                 # Unsigned health shortcut also works
                 async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://ctrl",
+                    transport=ASGITransport(app=app),
+                    base_url="http://ctrl",
                 ) as http:
                     r = await http.get("/v1/mirrors/health")
                     snap = r.json()

@@ -16,6 +16,7 @@ its fields). This guard keeps it that way.
 If you intentionally add/remove a reviewed sink, update the matching baseline
 below in the SAME commit.
 """
+
 from __future__ import annotations
 
 import re
@@ -30,8 +31,8 @@ _TEMPLATES = _ROOT / "templates"
 # one requires review + html.escape(quote=True) on every interpolated value
 # (or rendering via the autoescaped Jinja templates), then add it here.
 _HTML_RESPONSE_BASELINE = {
-    "chats/tipping.py",            # donate page — interpolated fields html.escape()'d
-    "main.py",                     # cover/decoy page (static html string)
+    "chats/tipping.py",  # donate page — interpolated fields html.escape()'d
+    "main.py",  # cover/decoy page (static html string)
     "transport/cover_traffic.py",  # cover-traffic decoy page
 }
 _HTML_RESPONSE_RE = re.compile(r"""HTMLResponse\(|media_type\s*=\s*['"]text/html['"]""")
@@ -41,7 +42,42 @@ _HTML_RESPONSE_RE = re.compile(r"""HTMLResponse\(|media_type\s*=\s*['"]text/html
 # that surface. This freezes the count so additions are caught; migrating a
 # handler to addEventListener (in an external/nonce'd script) lets you lower it.
 _INLINE_HANDLER_BASELINE = 819
-_EVENTS = ["abort", "blur", "change", "click", "contextmenu", "copy", "cut", "dblclick", "drag", "drop", "error", "focus", "input", "keydown", "keypress", "keyup", "load", "mousedown", "mouseenter", "mouseleave", "mousemove", "mouseout", "mouseover", "mouseup", "paste", "scroll", "submit", "toggle", "touchend", "touchmove", "touchstart", "wheel", "animationend", "transitionend"]
+_EVENTS = [
+    "abort",
+    "blur",
+    "change",
+    "click",
+    "contextmenu",
+    "copy",
+    "cut",
+    "dblclick",
+    "drag",
+    "drop",
+    "error",
+    "focus",
+    "input",
+    "keydown",
+    "keypress",
+    "keyup",
+    "load",
+    "mousedown",
+    "mouseenter",
+    "mouseleave",
+    "mousemove",
+    "mouseout",
+    "mouseover",
+    "mouseup",
+    "paste",
+    "scroll",
+    "submit",
+    "toggle",
+    "touchend",
+    "touchmove",
+    "touchstart",
+    "wheel",
+    "animationend",
+    "transitionend",
+]
 _ON_ATTR_RE = re.compile(r"\son(?:" + "|".join(_EVENTS) + r")\s*=", re.IGNORECASE)
 
 
@@ -75,7 +111,8 @@ def test_no_new_html_response_sinks():
     removed = _HTML_RESPONSE_BASELINE - found
     assert not removed, (
         "Baselined HTML sink(s) no longer present (moved/removed?): "
-        + ", ".join(sorted(removed)) + ". Update _HTML_RESPONSE_BASELINE."
+        + ", ".join(sorted(removed))
+        + ". Update _HTML_RESPONSE_BASELINE."
     )
 
 

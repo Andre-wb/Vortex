@@ -4,7 +4,6 @@ Tests for health check and metrics endpoints.
 
 
 class TestHealthEndpoints:
-
     def test_health_returns_ok(self, client):
         resp = client.get("/health")
         assert resp.status_code == 200
@@ -44,7 +43,6 @@ class TestHealthEndpoints:
 
 
 class TestStaticEndpoints:
-
     def test_root_returns_html(self, client):
         resp = client.get("/")
         assert resp.status_code == 200
@@ -64,7 +62,6 @@ class TestStaticEndpoints:
 
 
 class TestExceptionHandlers:
-
     def test_404_returns_structured_error(self, client):
         resp = client.get("/api/nonexistent-endpoint-xyz")
         assert resp.status_code in (404, 405)

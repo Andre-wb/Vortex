@@ -7,6 +7,7 @@
     гибридных полей;
   - Pydantic-валидатор отвергает битые формы.
 """
+
 import secrets
 
 import pytest
@@ -37,9 +38,7 @@ def test_dm_other_user_carries_kyber_pub_sig(client):
     t_headers = login_user(client, target["username"], target["password"])
     pub = secrets.token_hex(1184)
     sig = secrets.token_hex(64)
-    r = client.post("/api/keys/kyber",
-                    json={"kyber_public_key": pub, "kyber_public_key_sig": sig},
-                    headers=t_headers)
+    r = client.post("/api/keys/kyber", json={"kyber_public_key": pub, "kyber_public_key_sig": sig}, headers=t_headers)
     assert r.status_code == 200, r.text
 
     sender = make_user(client, suffix=f"s{random_str(6)}")
@@ -53,24 +52,22 @@ def test_dm_other_user_carries_kyber_pub_sig(client):
 
 def _hybrid_key() -> dict:
     return {
-        "hybrid":               True,
-        "x25519_ephemeral_pub": secrets.token_hex(32),   # 64 hex
-        "kyber_ciphertext":     secrets.token_hex(1088),  # ML-KEM-768 ct = 2176 hex
-        "ciphertext":           secrets.token_hex(60),    # 120 hex
+        "hybrid": True,
+        "x25519_ephemeral_pub": secrets.token_hex(32),  # 64 hex
+        "kyber_ciphertext": secrets.token_hex(1088),  # ML-KEM-768 ct = 2176 hex
+        "ciphertext": secrets.token_hex(60),  # 120 hex
     }
 
 
 def _classical_key() -> dict:
     return {
         "ephemeral_pub": secrets.token_hex(32),
-        "ciphertext":    secrets.token_hex(60),
+        "ciphertext": secrets.token_hex(60),
     }
 
 
 def _create_dm(client, sender, target_id, own_key):
-    r = client.post(f"/api/dm/{target_id}",
-                    json={"encrypted_room_key": own_key},
-                    headers=sender["headers"])
+    r = client.post(f"/api/dm/{target_id}", json={"encrypted_room_key": own_key}, headers=sender["headers"])
     assert r.status_code == 200, r.text
     return r.json()["room"]["id"]
 
@@ -92,7 +89,7 @@ def test_hybrid_key_survives_store_fetch(client):
     assert got["kyber_ciphertext"] == key["kyber_ciphertext"]
     assert got["x25519_ephemeral_pub"] == key["x25519_ephemeral_pub"]
     assert got["ciphertext"] == key["ciphertext"]
-    assert "ephemeral_pub" not in got   # гибрид отдаёт X25519-эфемерный под своим именем
+    assert "ephemeral_pub" not in got  # гибрид отдаёт X25519-эфемерный под своим именем
 
 
 def test_hybrid_key_for_recipient_survives(client):
@@ -100,9 +97,7 @@ def test_hybrid_key_for_recipient_survives(client):
     (ветка encrypted_key_for_target), получатель забирает свой key-bundle."""
     sender, target = _make_pair(client)
     key = _hybrid_key()
-    r = client.post(f"/api/dm/{_target_id(target)}",
-                    json={"encrypted_key_for_target": key},
-                    headers=sender["headers"])
+    r = client.post(f"/api/dm/{_target_id(target)}", json={"encrypted_key_for_target": key}, headers=sender["headers"])
     assert r.status_code == 200, r.text
     room_id = r.json()["room"]["id"]
 
@@ -131,9 +126,6 @@ def test_classical_key_still_works(client):
 
 def test_schema_rejects_hybrid_without_kyber_ciphertext(client):
     sender, target = _make_pair(client)
-    bad = {"hybrid": True, "x25519_ephemeral_pub": secrets.token_hex(32),
-           "ciphertext": secrets.token_hex(60)}
-    r = client.post(f"/api/dm/{_target_id(target)}",
-                    json={"encrypted_room_key": bad},
-                    headers=sender["headers"])
+    bad = {"hybrid": True, "x25519_ephemeral_pub": secrets.token_hex(32), "ciphertext": secrets.token_hex(60)}
+    r = client.post(f"/api/dm/{_target_id(target)}", json={"encrypted_room_key": bad}, headers=sender["headers"])
     assert r.status_code == 422, r.text

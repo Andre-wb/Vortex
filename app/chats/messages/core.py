@@ -14,6 +14,7 @@ Sub-modules (extracted for maintainability):
   chat_actions.py     — mark_read, reactions, forward, pin_message handlers
   chat_history.py     — Message history delivery on WS connect
 """
+
 from __future__ import annotations
 
 import json
@@ -21,15 +22,19 @@ import logging
 from typing import Optional
 
 from fastapi import (
-    Depends, HTTPException,
-    WebSocket, WebSocketDisconnect,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
 )
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
 from app.models_rooms import (
-    Message, Room, RoomMember,
+    Message,
+    Room,
+    RoomMember,
 )
 
 from app.peer.connection_manager import manager
@@ -58,6 +63,7 @@ def ws_origin_ok(websocket: WebSocket) -> bool:
         return True
 
     from urllib.parse import urlsplit
+
     try:
         origin_host = (urlsplit(origin).netloc or "").lower()
     except Exception:
@@ -76,6 +82,7 @@ def ws_origin_ok(websocket: WebSocket) -> bool:
 
     # Optional explicit allowlist (comma-separated origins or hosts).
     import os
+
     allow_raw = os.getenv("ALLOWED_WS_ORIGINS", "")
     if allow_raw:
         for entry in allow_raw.split(","):
@@ -83,6 +90,7 @@ def ws_origin_ok(websocket: WebSocket) -> bool:
             if not entry:
                 continue
             from urllib.parse import urlsplit as _us
+
             entry_host = (_us(entry).netloc or entry) if "://" in entry else entry
             if origin_host == entry_host or origin_host.split(":")[0] == entry_host.split(":")[0]:
                 return True
@@ -92,26 +100,34 @@ def ws_origin_ok(websocket: WebSocket) -> bool:
 
 async def _bmp(room_id, payload):
     from app.config import Config
+
     if not Config.BMP_DELIVERY_ENABLED:
         return
     with contextlib.suppress(Exception):
         await deposit_envelope(room_id, json.dumps(payload))
+
+
 from app.security.auth_jwt import get_current_user, get_user_ws
 
 from app.chats.messages._router import router, utc_iso, parse_client_ts, check_double_extension, DANGEROUS_EXTS  # noqa: F401
 
-import app.chats.messages.push        # noqa: F401  – /api/push/subscribe
+import app.chats.messages.push  # noqa: F401  – /api/push/subscribe
 import app.chats.messages.moderation  # noqa: F401  – auto-delete, slow-mode, mute, pin, export
-import app.chats.messages.files       # noqa: F401  – /api/files/upload|download|room
-import app.chats.messages.ws_signal   # noqa: F401  – /ws/signal, /ws/notifications
+import app.chats.messages.files  # noqa: F401  – /api/files/upload|download|room
+import app.chats.messages.ws_signal  # noqa: F401  – /ws/signal, /ws/notifications
 
 from app.chats.messages.polls import (
-    handle_create_poll, handle_vote_poll,
-    handle_retract_vote, handle_close_poll, handle_suggest_option,
+    handle_create_poll,
+    handle_vote_poll,
+    handle_retract_vote,
+    handle_close_poll,
+    handle_suggest_option,
 )
 from app.chats.messages.schedule import (
-    handle_timed_message, handle_schedule_message,
-    deliver_scheduled_messages, cleanup_expired_messages,
+    handle_timed_message,
+    handle_schedule_message,
+    deliver_scheduled_messages,
+    cleanup_expired_messages,
 )
 
 from app.chats.messages.keys import (
@@ -135,12 +151,12 @@ from app.chats.messages.history import send_history as _send_history
 import contextlib
 
 # Aliases used in ws_chat dispatch and legacy callers
-_handle_create_poll      = handle_create_poll
-_handle_vote_poll        = handle_vote_poll
-_handle_retract_vote     = handle_retract_vote
-_handle_close_poll       = handle_close_poll
-_handle_suggest_option   = handle_suggest_option
-_handle_timed_message    = handle_timed_message
+_handle_create_poll = handle_create_poll
+_handle_vote_poll = handle_vote_poll
+_handle_retract_vote = handle_retract_vote
+_handle_close_poll = handle_close_poll
+_handle_suggest_option = handle_suggest_option
+_handle_timed_message = handle_timed_message
 _handle_schedule_message = handle_schedule_message
 
 logger = logging.getLogger(__name__)
@@ -154,26 +170,26 @@ _DANGEROUS_EXTS = DANGEROUS_EXTS
 
 # REST: пометить комнату как прочитанную
 
+
 @router.post("/api/rooms/{room_id}/read")
 async def mark_room_read(
     room_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Отмечает все сообщения в комнате как прочитанные."""
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
-    last_msg = (
-        db.query(Message.id)
-        .filter(Message.room_id == room_id)
-        .order_by(Message.id.desc())
-        .first()
-    )
+    last_msg = db.query(Message.id).filter(Message.room_id == room_id).order_by(Message.id.desc()).first()
     if last_msg:
         member.last_read_message_id = last_msg[0]
         db.commit()
@@ -183,25 +199,35 @@ async def mark_room_read(
 
 # REST: получить сообщения треда
 
+
 @router.get("/api/rooms/{room_id}/thread/{msg_id}")
 async def get_thread_messages(
     room_id: int,
-    msg_id:  int,
-    u:  User    = Depends(get_current_user),
+    msg_id: int,
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Возвращает все сообщения треда (где thread_id == msg_id), включая корневое."""
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
     # Корневое сообщение
-    root = db.query(Message).filter(
-        Message.id == msg_id, Message.room_id == room_id,
-    ).first()
+    root = (
+        db.query(Message)
+        .filter(
+            Message.id == msg_id,
+            Message.room_id == room_id,
+        )
+        .first()
+    )
     if not root:
         raise HTTPException(404, "Message not found")
 
@@ -216,14 +242,14 @@ async def get_thread_messages(
 
     def _msg_to_dict(m: Message) -> dict:
         d = m.to_relay_dict()
-        d["sender"]       = m.sender.username      if m.sender else "\u2014"
+        d["sender"] = m.sender.username if m.sender else "\u2014"
         d["display_name"] = (m.sender.display_name or m.sender.username) if m.sender else "\u2014"
-        d["avatar_emoji"] = m.sender.avatar_emoji   if m.sender else "\U0001F464"
-        d["avatar_url"]   = m.sender.avatar_url     if m.sender else None
+        d["avatar_emoji"] = m.sender.avatar_emoji if m.sender else "\U0001f464"
+        d["avatar_url"] = m.sender.avatar_url if m.sender else None
         return d
 
     return {
-        "root":    _msg_to_dict(root),
+        "root": _msg_to_dict(root),
         "replies": [_msg_to_dict(r) for r in replies],
     }
 
@@ -231,23 +257,32 @@ async def get_thread_messages(
 @router.get("/api/rooms/{room_id}/messages/{msg_id}/history")
 async def get_message_edit_history(
     room_id: int,
-    msg_id:  int,
-    u:  User    = Depends(get_current_user),
+    msg_id: int,
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Возвращает историю редактирований сообщения (предыдущие версии)."""
     from app.models_rooms import MessageEditHistory
 
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
-    msg = db.query(Message).filter(
-        Message.id == msg_id, Message.room_id == room_id,
-    ).first()
+    msg = (
+        db.query(Message)
+        .filter(
+            Message.id == msg_id,
+            Message.room_id == room_id,
+        )
+        .first()
+    )
     if not msg:
         raise HTTPException(404, "Message not found")
 
@@ -261,7 +296,9 @@ async def get_message_edit_history(
     return {
         "msg_id": msg_id,
         "current": {
-            "ciphertext_hex": msg.content_encrypted.hex() if isinstance(msg.content_encrypted, (bytes, bytearray)) else str(msg.content_encrypted or ""),
+            "ciphertext_hex": msg.content_encrypted.hex()
+            if isinstance(msg.content_encrypted, (bytes, bytearray))
+            else str(msg.content_encrypted or ""),
             "enc_v": msg.enc_version,
             "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
         },
@@ -276,12 +313,13 @@ async def get_message_edit_history(
 
 # E2E WebSocket чат
 
+
 @router.websocket("/ws/{room_id:int}")
 async def ws_chat(
-        websocket: WebSocket,
-        room_id:   int,
-        token:     Optional[str] = None,
-        db:        Session       = Depends(get_db),
+    websocket: WebSocket,
+    room_id: int,
+    token: Optional[str] = None,
+    db: Session = Depends(get_db),
 ):
     # reject cross-site WS origins (CSWSH) before any processing.
     if not ws_origin_ok(websocket):
@@ -291,6 +329,7 @@ async def ws_chat(
 
     # Anti-probing: knock sequence в global mode
     from app.transport.knock import verify_knock, is_knock_required
+
     if is_knock_required():
         # Users with valid auth cookie bypass knock (DPI probes don't have cookies)
         has_auth = bool(websocket.cookies.get("access_token"))
@@ -314,29 +353,40 @@ async def ws_chat(
         await websocket.close(code=4401)
         return
 
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user.id,
-        RoomMember.is_banned.is_(False),
-        ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user.id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         await websocket.accept()
         await websocket.close(code=4403)
         return
 
     await manager.connect(
-        room_id, user.id, user.username,
+        room_id,
+        user.id,
+        user.username,
         user.display_name or user.username,
-        user.avatar_emoji, websocket,
-        )
+        user.avatar_emoji,
+        websocket,
+    )
 
     try:
         await _deliver_or_request_room_key(room_id, user, db)
         await _send_history(room_id, user.id, db)
-        await manager.send_to_user(room_id, user.id, {
-            "type":  "online",
-            "users": manager.get_online_users(room_id),
-        })
+        await manager.send_to_user(
+            room_id,
+            user.id,
+            {
+                "type": "online",
+                "users": manager.get_online_users(room_id),
+            },
+        )
         await _notify_pending_key_requests(room_id, user.id, db)
 
         while True:
@@ -344,7 +394,7 @@ async def ws_chat(
             if len(raw) > 65536:  # 64 KB max message
                 await websocket.send_json({"error": "Message too large"})
                 continue
-            data   = json.loads(raw)
+            data = json.loads(raw)
             action = data.get("action", "")
 
             try:
@@ -365,7 +415,12 @@ async def ws_chat(
                     pass
 
                 elif action == "file_sending":
-                    _fs = {"type": "file_sending", "sender": user.username, "display_name": user.display_name or user.username, "filename": data.get("filename", "")}
+                    _fs = {
+                        "type": "file_sending",
+                        "sender": user.username,
+                        "display_name": user.display_name or user.username,
+                        "filename": data.get("filename", ""),
+                    }
                     await _bmp(room_id, _fs)
 
                 elif action == "stop_file_sending":
@@ -415,7 +470,11 @@ async def ws_chat(
                     await _handle_thread_reply(room_id, user, data, db)
 
                 elif action == "screenshot":
-                    _ss = {"type": "screenshot_taken", "user_id": user.id, "username": user.display_name or user.username}
+                    _ss = {
+                        "type": "screenshot_taken",
+                        "user_id": user.id,
+                        "username": user.display_name or user.username,
+                    }
                     await _bmp(room_id, _ss)
 
             except Exception as _action_err:
@@ -423,9 +482,14 @@ async def ws_chat(
                 with contextlib.suppress(Exception):
                     db.rollback()
                 with contextlib.suppress(Exception):
-                    await manager.send_to_user(room_id, user.id, {
-                        "type": "error", "message": "Action processing error",
-                    })
+                    await manager.send_to_user(
+                        room_id,
+                        user.id,
+                        {
+                            "type": "error",
+                            "message": "Action processing error",
+                        },
+                    )
 
     except WebSocketDisconnect:
         logger.debug("WS disconnect user=%s room=%s", user.username, room_id)
@@ -437,10 +501,11 @@ async def ws_chat(
 
 # WebRTC сигнализация
 
+
 async def _handle_signal(room_id: int, user: User, data: dict, db: Session = None) -> None:
     payload = {k: v for k, v in data.items() if k != "action"}
-    payload["type"]     = "signal"
-    payload["from"]     = user.id
+    payload["type"] = "signal"
+    payload["from"] = user.id
     payload["username"] = user.username
 
     # BMP-only signal delivery (zero metadata leakage)
@@ -452,6 +517,7 @@ async def _handle_signal(room_id: int, user: User, data: dict, db: Session = Non
 
     try:
         from app.federation.federation import relay
+
         if relay.get_room(room_id) is not None:
             await relay.send_to_remote(room_id, payload)
     except Exception as e:

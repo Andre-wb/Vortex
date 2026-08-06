@@ -11,6 +11,7 @@ Architecture
 6. Viewer fetches story, receives their wrapped key, unwraps locally.
 7. Server never sees plaintext content or the story_key.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -63,15 +64,15 @@ def _story_dict(s: Story, u: User, envelope: StoryKeyEnvelope | None = None) -> 
         if envelope:
             if envelope.kyber_ciphertext:
                 d["key_envelope"] = {
-                    "hybrid":               True,
+                    "hybrid": True,
                     "x25519_ephemeral_pub": envelope.ephemeral_pub,
-                    "kyber_ciphertext":     envelope.kyber_ciphertext,
-                    "ciphertext":           envelope.ciphertext,
+                    "kyber_ciphertext": envelope.kyber_ciphertext,
+                    "ciphertext": envelope.ciphertext,
                 }
             else:
                 d["key_envelope"] = {
                     "ephemeral_pub": envelope.ephemeral_pub,
-                    "ciphertext":    envelope.ciphertext,
+                    "ciphertext": envelope.ciphertext,
                 }
     else:
         # Legacy plaintext (backward compat)
@@ -93,10 +94,7 @@ async def get_stories(u: User = Depends(get_current_user), db: Session = Depends
     now_aware = datetime.now(timezone.utc)
     now_naive = now_aware.replace(tzinfo=None)
 
-    contact_ids = [
-        c.contact_id
-        for c in db.query(Contact).filter(Contact.owner_id == u.id).all()
-    ]
+    contact_ids = [c.contact_id for c in db.query(Contact).filter(Contact.owner_id == u.id).all()]
     user_ids = list({u.id} | set(contact_ids))
 
     try:
@@ -210,13 +208,15 @@ async def create_story(
         eph = env.get("x25519_ephemeral_pub") if env.get("hybrid") else env.get("ephemeral_pub", "")
         ct = env.get("ciphertext", "")
         if uid and eph and ct:
-            db.add(StoryKeyEnvelope(
-                story_id=story.id,
-                user_id=uid,
-                ephemeral_pub=eph,
-                ciphertext=ct,
-                kyber_ciphertext=kyber_ct,
-            ))
+            db.add(
+                StoryKeyEnvelope(
+                    story_id=story.id,
+                    user_id=uid,
+                    ephemeral_pub=eph,
+                    ciphertext=ct,
+                    kyber_ciphertext=kyber_ct,
+                )
+            )
 
     # Also store envelope for self (author needs to view own stories)
     for env in envs:
@@ -230,19 +230,20 @@ async def create_story(
     # Notify contacts about new story via WebSocket
     from app.models.contact import Contact
     from app.peer.connection_manager import manager
-    contact_ids = [
-        c.contact_id
-        for c in db.query(Contact).filter(Contact.owner_id == u.id).all()
-    ]
+
+    contact_ids = [c.contact_id for c in db.query(Contact).filter(Contact.owner_id == u.id).all()]
     for cid in contact_ids:
-        await manager.notify_user(cid, {
-            "type": "new_story",
-            "user_id": u.id,
-            "username": u.username,
-            "display_name": u.display_name or u.username,
-            "avatar_emoji": u.avatar_emoji,
-            "story_id": story.id,
-        })
+        await manager.notify_user(
+            cid,
+            {
+                "type": "new_story",
+                "user_id": u.id,
+                "username": u.username,
+                "display_name": u.display_name or u.username,
+                "avatar_emoji": u.avatar_emoji,
+                "story_id": story.id,
+            },
+        )
 
     return _story_dict(story, u)
 
@@ -260,14 +261,19 @@ async def get_story_media(
 
     # Check access: author or has key envelope
     if story.user_id != u.id:
-        has_key = db.query(StoryKeyEnvelope).filter(
-            StoryKeyEnvelope.story_id == story_id,
-            StoryKeyEnvelope.user_id == u.id,
-        ).first()
+        has_key = (
+            db.query(StoryKeyEnvelope)
+            .filter(
+                StoryKeyEnvelope.story_id == story_id,
+                StoryKeyEnvelope.user_id == u.id,
+            )
+            .first()
+        )
         if not has_key:
             raise HTTPException(403, "No access")
 
     from fastapi.responses import Response
+
     return Response(
         content=story.media_blob,
         media_type="application/octet-stream",
@@ -287,14 +293,19 @@ async def get_story_music(
         raise HTTPException(404, "Not found")
 
     if story.user_id != u.id:
-        has_key = db.query(StoryKeyEnvelope).filter(
-            StoryKeyEnvelope.story_id == story_id,
-            StoryKeyEnvelope.user_id == u.id,
-        ).first()
+        has_key = (
+            db.query(StoryKeyEnvelope)
+            .filter(
+                StoryKeyEnvelope.story_id == story_id,
+                StoryKeyEnvelope.user_id == u.id,
+            )
+            .first()
+        )
         if not has_key:
             raise HTTPException(403, "No access")
 
     from fastapi.responses import Response
+
     return Response(
         content=story.music_blob,
         media_type="application/octet-stream",
@@ -334,10 +345,9 @@ async def view_story(
     db: Session = Depends(get_db),
 ):
     from sqlalchemy import update as sa_update
+
     db.execute(
-        sa_update(Story)
-        .where(Story.id == story_id, Story.user_id != u.id)
-        .values(views_count=Story.views_count + 1)
+        sa_update(Story).where(Story.id == story_id, Story.user_id != u.id).values(views_count=Story.views_count + 1)
     )
     db.commit()
     return {"ok": True}
@@ -359,23 +369,31 @@ async def react_to_story(
     # ранее проверялось лишь существование стори и что она не своя —
     # любой пользователь мог реагировать на чужую приватную стори. Требуем,
     # чтобы у вызывающего был StoryKeyEnvelope (как в get_story_media/_music).
-    has_key = db.query(StoryKeyEnvelope).filter(
-        StoryKeyEnvelope.story_id == story_id,
-        StoryKeyEnvelope.user_id == u.id,
-    ).first()
+    has_key = (
+        db.query(StoryKeyEnvelope)
+        .filter(
+            StoryKeyEnvelope.story_id == story_id,
+            StoryKeyEnvelope.user_id == u.id,
+        )
+        .first()
+    )
     if not has_key:
         raise HTTPException(403, "No access")
 
     from app.peer.connection_manager import manager
-    await manager.notify_user(story.user_id, {
-        "type": "story_reaction",
-        "story_id": story_id,
-        "emoji": emoji[:10],
-        "from_user_id": u.id,
-        "from_username": u.username,
-        "from_display_name": u.display_name or u.username,
-        "from_avatar": u.avatar_emoji,
-    })
+
+    await manager.notify_user(
+        story.user_id,
+        {
+            "type": "story_reaction",
+            "story_id": story_id,
+            "emoji": emoji[:10],
+            "from_user_id": u.id,
+            "from_username": u.username,
+            "from_display_name": u.display_name or u.username,
+            "from_avatar": u.avatar_emoji,
+        },
+    )
     return {"ok": True}
 
 
@@ -395,21 +413,29 @@ async def reply_to_story(
     # требуем наличие StoryKeyEnvelope у вызывающего (зеркалит проверку
     # доступа в get_story_media/get_story_music) — иначе посторонний мог слать
     # ответы на чужую приватную стори.
-    has_key = db.query(StoryKeyEnvelope).filter(
-        StoryKeyEnvelope.story_id == story_id,
-        StoryKeyEnvelope.user_id == u.id,
-    ).first()
+    has_key = (
+        db.query(StoryKeyEnvelope)
+        .filter(
+            StoryKeyEnvelope.story_id == story_id,
+            StoryKeyEnvelope.user_id == u.id,
+        )
+        .first()
+    )
     if not has_key:
         raise HTTPException(403, "No access")
 
     from app.peer.connection_manager import manager
-    await manager.notify_user(story.user_id, {
-        "type": "story_reply",
-        "story_id": story_id,
-        "text": text[:1000],
-        "from_user_id": u.id,
-        "from_username": u.username,
-        "from_display_name": u.display_name or u.username,
-        "from_avatar": u.avatar_emoji,
-    })
+
+    await manager.notify_user(
+        story.user_id,
+        {
+            "type": "story_reply",
+            "story_id": story_id,
+            "text": text[:1000],
+            "from_user_id": u.id,
+            "from_username": u.username,
+            "from_display_name": u.display_name or u.username,
+            "from_avatar": u.avatar_emoji,
+        },
+    )
     return {"ok": True}

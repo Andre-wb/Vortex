@@ -6,6 +6,7 @@ as the application, enabling autogenerate to detect model changes.
 
 Supports both SQLite and PostgreSQL backends.
 """
+
 from __future__ import annotations
 
 import os

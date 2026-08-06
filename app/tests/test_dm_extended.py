@@ -1,4 +1,5 @@
 """Extended DM and contact tests."""
+
 import secrets
 
 import pytest
@@ -37,10 +38,14 @@ class TestDMCreation:
         assert r.status_code in (200, 401, 403)
 
     def test_dm_store_key(self, client, logged_user):
-        r = client.post("/api/dm/store-key/1", json={
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext": secrets.token_hex(60),
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/dm/store-key/1",
+            json={
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(60),
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 400, 404, 422)
 
 
@@ -52,9 +57,13 @@ class TestContactsExtended:
         target_id = u2.get("data", {}).get("user_id") or u2.get("data", {}).get("id")
         if not target_id:
             pytest.skip("No target ID")
-        r = client.post("/api/contacts", json={
-            "user_id": target_id,
-        }, headers=u1["headers"])
+        r = client.post(
+            "/api/contacts",
+            json={
+                "user_id": target_id,
+            },
+            headers=u1["headers"],
+        )
         assert r.status_code in (200, 201, 400, 409, 422)
 
     def test_add_contact_with_nickname(self, client, two_users):
@@ -62,9 +71,13 @@ class TestContactsExtended:
         target_id = u2.get("data", {}).get("user_id") or u2.get("data", {}).get("id")
         if not target_id:
             pytest.skip("No target ID")
-        r = client.post("/api/contacts", json={
-            "user_id": target_id,
-        }, headers=u1["headers"])
+        r = client.post(
+            "/api/contacts",
+            json={
+                "user_id": target_id,
+            },
+            headers=u1["headers"],
+        )
         assert r.status_code in (200, 201, 400, 409, 422)
 
     def test_list_contacts(self, client, logged_user):

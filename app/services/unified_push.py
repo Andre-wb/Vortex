@@ -15,6 +15,7 @@ Flow:
 
 No FCM/APNs required — works on de-Googled phones (GrapheneOS, CalyxOS, LineageOS).
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,12 +37,13 @@ _up_pool = httpx.AsyncClient(
 @dataclass
 class UPSubscription:
     """UnifiedPush subscription for a user."""
-    user_id:    int
-    endpoint:   str           # UP distributor endpoint URL
-    app_id:     str = "org.vortex.messenger"
+
+    user_id: int
+    endpoint: str  # UP distributor endpoint URL
+    app_id: str = "org.vortex.messenger"
     created_at: float = field(default_factory=time.time)
-    failures:   int   = 0
-    active:     bool  = True
+    failures: int = 0
+    active: bool = True
 
 
 class UnifiedPushManager:
@@ -130,8 +132,8 @@ class UnifiedPushManager:
         return [
             {
                 "endpoint": s.endpoint[:60] + "..." if len(s.endpoint) > 60 else s.endpoint,
-                "app_id":   s.app_id,
-                "active":   s.active,
+                "app_id": s.app_id,
+                "active": s.active,
                 "failures": s.failures,
             }
             for s in self._subs.get(user_id, [])

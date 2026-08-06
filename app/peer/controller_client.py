@@ -10,6 +10,7 @@ Responsibilities:
 Signatures use canonical JSON (sort_keys=True, separators=(",",":")) — must
 match the controller's ``canonical_json`` exactly.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -33,9 +34,9 @@ from app.config import Config
 logger = logging.getLogger(__name__)
 
 
-
 try:
     import vortex_chat as _vc_rust
+
     _HAS_RUST_CJSON = hasattr(_vc_rust, "canonical_json")
 except ImportError:
     _HAS_RUST_CJSON = False
@@ -45,10 +46,7 @@ def _canonical(data) -> bytes:
     """Deterministic JSON for signing; `ensure_ascii=False` matches Rust and JS."""
     if _HAS_RUST_CJSON:
         return _vc_rust.canonical_json(data)
-    return json.dumps(
-        data, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
-
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 class NodeSigningKey:
@@ -101,17 +99,13 @@ class NodeSigningKey:
         return self._priv.sign(message).hex()
 
 
-
-def verify_controller_signature(
-    payload, signature_hex: str, controller_pubkey_hex: str
-) -> bool:
+def verify_controller_signature(payload, signature_hex: str, controller_pubkey_hex: str) -> bool:
     try:
         pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(controller_pubkey_hex))
         pub.verify(bytes.fromhex(signature_hex), _canonical(payload))
         return True
     except (ValueError, InvalidSignature):
         return False
-
 
 
 class ControllerClient:
@@ -161,12 +155,9 @@ class ControllerClient:
         self._hb_task: Optional[asyncio.Task] = None
         self._registered = False
 
-
     async def start(self) -> None:
         if not self.announce_endpoints:
-            logger.warning(
-                "ControllerClient: no announce endpoints — skipping registration"
-            )
+            logger.warning("ControllerClient: no announce endpoints — skipping registration")
             return
         try:
             # First thing: pick a verified controller URL. If nothing verifies
@@ -206,8 +197,7 @@ class ControllerClient:
                 self.url = candidate
                 return candidate
         raise IntegrityRefusalError(
-            f"none of {len(ordered)} controller URL(s) reported status=verified "
-            f"with expected release key"
+            f"none of {len(ordered)} controller URL(s) reported status=verified with expected release key"
         )
 
     async def _probe_integrity(self, url: str) -> bool:
@@ -228,7 +218,9 @@ class ControllerClient:
         if data.get("status") != "verified":
             logger.info(
                 "skipping %s: integrity status=%s — %s",
-                url, data.get("status"), data.get("message", ""),
+                url,
+                data.get("status"),
+                data.get("message", ""),
             )
             return False
 
@@ -256,9 +248,7 @@ class ControllerClient:
         env = await self._request("GET", f"/v1/nodes/random?count={count}")
         if env is None:
             return []
-        if not verify_controller_signature(
-            env["payload"], env["signature"], self.controller_pubkey
-        ):
+        if not verify_controller_signature(env["payload"], env["signature"], self.controller_pubkey):
             logger.warning("ControllerClient: signature mismatch on /nodes/random — rejecting")
             return []
         return env["payload"].get("nodes", [])
@@ -268,13 +258,10 @@ class ControllerClient:
         env = await self._request("GET", "/v1/entries")
         if env is None:
             return []
-        if not verify_controller_signature(
-            env["payload"], env["signature"], self.controller_pubkey
-        ):
+        if not verify_controller_signature(env["payload"], env["signature"], self.controller_pubkey):
             logger.warning("ControllerClient: signature mismatch on /entries — rejecting")
             return []
         return env["payload"].get("entries", [])
-
 
     async def _register(self) -> None:
         payload = {
@@ -284,13 +271,15 @@ class ControllerClient:
             "timestamp": int(time.time()),
         }
         data = await self._request(
-            "POST", "/v1/register",
+            "POST",
+            "/v1/register",
             body={"payload": payload, "signature": self.signing_key.sign(payload)},
             raise_on_fail=True,
         )
         self._registered = bool(data.get("ok"))
         logger.info(
-            "ControllerClient: registered (approved=%s)", data.get("approved"),
+            "ControllerClient: registered (approved=%s)",
+            data.get("approved"),
         )
 
     async def _heartbeat_once(self) -> None:
@@ -305,6 +294,13 @@ class ControllerClient:
             logger.info("ControllerClient: 404 from heartbeat, re-registering")
             await self._register()
 
+    async def _heartbeat_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self.heartbeat_sec)
+            try:
+                await self._heartbeat_once()
+            except Exception as e:
+                logger.debug("ControllerClient: heartbeat failed: %s", e)
 
     async def _request(
         self,
@@ -344,9 +340,7 @@ class ControllerClient:
                         await self.ensure_verified_url()
                     except IntegrityRefusalError as e:
                         if raise_on_fail:
-                            raise RuntimeError(
-                                "all configured controllers are unverified"
-                            ) from e
+                            raise RuntimeError("all configured controllers are unverified") from e
                         return None
                     # Retry once on the freshly-verified URL
                     retry_full = f"{self.url}{path}"
@@ -398,6 +392,7 @@ class ControllerClient:
 
 class _NotFoundError(Exception):
     """Internal sentinel for controller 404 — triggers re-registration."""
+
     pass
 
 
@@ -407,16 +402,8 @@ class IntegrityRefusalError(RuntimeError):
     Intentional dead-stop: never auto-connect to an unverified controller,
     even under pressure. Callers should surface this to the operator.
     """
+
     pass
-
-    async def _heartbeat_loop(self) -> None:
-        while True:
-            await asyncio.sleep(self.heartbeat_sec)
-            try:
-                await self._heartbeat_once()
-            except Exception as e:
-                logger.debug("ControllerClient: heartbeat failed: %s", e)
-
 
 
 def client_from_config() -> Optional[ControllerClient]:
@@ -430,28 +417,18 @@ def client_from_config() -> Optional[ControllerClient]:
         )
         return None
 
-    endpoints = [
-        e.strip()
-        for e in Config.NODE_ANNOUNCE_ENDPOINTS.split(",")
-        if e.strip()
-    ]
+    endpoints = [e.strip() for e in Config.NODE_ANNOUNCE_ENDPOINTS.split(",") if e.strip()]
     if not endpoints:
         logger.warning("NODE_ANNOUNCE_ENDPOINTS is empty — nothing to register")
         return None
 
     # BOOTSTRAP_PEERS doubles as the proxy-fallback list: known Vortex nodes
     # that expose /api/peers/controller-proxy. Format: comma-separated URLs.
-    proxy_urls = [
-        p.strip() for p in Config.BOOTSTRAP_PEERS.split(",") if p.strip()
-    ]
+    proxy_urls = [p.strip() for p in Config.BOOTSTRAP_PEERS.split(",") if p.strip()]
 
     # Optional: a comma-separated list of alternative controller URLs we're
     # allowed to fail over to if the primary is tampered or overloaded.
-    fallback_urls = [
-        u.strip()
-        for u in getattr(Config, "CONTROLLER_FALLBACK_URLS", "").split(",")
-        if u.strip()
-    ]
+    fallback_urls = [u.strip() for u in getattr(Config, "CONTROLLER_FALLBACK_URLS", "").split(",") if u.strip()]
     # Optional: pinned release pubkey. If unset we accept any signed_by that
     # reports status=="verified" — OK for custom / dev builds, NOT OK for prod.
     expected_release_pubkey = getattr(Config, "CONTROLLER_RELEASE_PUBKEY", "") or None
@@ -469,7 +446,7 @@ def client_from_config() -> Optional[ControllerClient]:
             # when picking random peers for /v1/nodes/random. A node that
             # can answer AI requests locally gives users a better UX, so
             # the controller biases discovery toward such nodes.
-            "ai_capable":  _ai_capable(),
+            "ai_capable": _ai_capable(),
         },
         heartbeat_sec=Config.CONTROLLER_HEARTBEAT_SEC,
         proxy_urls=proxy_urls,

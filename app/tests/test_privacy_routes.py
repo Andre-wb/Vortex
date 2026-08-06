@@ -6,6 +6,7 @@ Comprehensive tests for:
 
 Pattern: def test_xxx(client) — uses the session-scope SyncASGIClient from conftest.
 """
+
 import base64
 import os
 import secrets
@@ -13,6 +14,7 @@ import secrets
 from conftest import login_user, make_user
 
 # Helpers
+
 
 def _auth(client) -> dict:
     """Register + login a fresh user, return auth headers."""
@@ -26,6 +28,7 @@ def _b64(data: bytes) -> str:
 
 
 # Privacy Status endpoint
+
 
 def test_privacy_status_requires_auth(anon_client):
     r = anon_client.get("/api/privacy/status")
@@ -73,6 +76,7 @@ def test_privacy_status_zk_details(client):
 
 # Tor status endpoint
 
+
 def test_tor_status_requires_auth(anon_client):
     r = anon_client.get("/api/privacy/tor/status")
     assert r.status_code in (401, 403)
@@ -95,6 +99,7 @@ def test_tor_status_socks_url_format(client):
 
 
 # Ephemeral identity endpoints
+
 
 def test_new_ephemeral_secret_requires_auth(anon_client):
     r = anon_client.get("/api/privacy/ephemeral/new-secret")
@@ -121,10 +126,14 @@ def test_new_ephemeral_secret_is_random(client):
 def test_ephemeral_generate_success(client):
     h = _auth(client)
     secret_hex = client.get("/api/privacy/ephemeral/new-secret", headers=h).json()["secret_hex"]
-    r = client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 42,
-        "user_secret_hex": secret_hex,
-    }, headers=h)
+    r = client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 42,
+            "user_secret_hex": secret_hex,
+        },
+        headers=h,
+    )
     assert r.status_code == 200
     data = r.json()
     assert "ephemeral_username" in data
@@ -135,10 +144,14 @@ def test_ephemeral_generate_success(client):
 def test_ephemeral_generate_username_format(client):
     h = _auth(client)
     secret_hex = client.get("/api/privacy/ephemeral/new-secret", headers=h).json()["secret_hex"]
-    data = client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 1,
-        "user_secret_hex": secret_hex,
-    }, headers=h).json()
+    data = client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 1,
+            "user_secret_hex": secret_hex,
+        },
+        headers=h,
+    ).json()
     username = data["ephemeral_username"]
     assert username.startswith("anon_"), f"Expected 'anon_' prefix, got: {username}"
 
@@ -146,10 +159,14 @@ def test_ephemeral_generate_username_format(client):
 def test_ephemeral_generate_display_name_has_space(client):
     h = _auth(client)
     secret_hex = client.get("/api/privacy/ephemeral/new-secret", headers=h).json()["secret_hex"]
-    data = client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 1,
-        "user_secret_hex": secret_hex,
-    }, headers=h).json()
+    data = client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 1,
+            "user_secret_hex": secret_hex,
+        },
+        headers=h,
+    ).json()
     # Display name is "Adjective Noun Number"
     assert " " in data["ephemeral_display_name"]
 
@@ -157,12 +174,22 @@ def test_ephemeral_generate_display_name_has_space(client):
 def test_ephemeral_generate_same_secret_same_room_deterministic(client):
     h = _auth(client)
     secret_hex = client.get("/api/privacy/ephemeral/new-secret", headers=h).json()["secret_hex"]
-    d1 = client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 7, "user_secret_hex": secret_hex,
-    }, headers=h).json()
-    d2 = client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 7, "user_secret_hex": secret_hex,
-    }, headers=h).json()
+    d1 = client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 7,
+            "user_secret_hex": secret_hex,
+        },
+        headers=h,
+    ).json()
+    d2 = client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 7,
+            "user_secret_hex": secret_hex,
+        },
+        headers=h,
+    ).json()
     assert d1["ephemeral_username"] == d2["ephemeral_username"]
     assert d1["ephemeral_display_name"] == d2["ephemeral_display_name"]
 
@@ -170,22 +197,37 @@ def test_ephemeral_generate_same_secret_same_room_deterministic(client):
 def test_ephemeral_generate_different_rooms_different_names(client):
     h = _auth(client)
     secret_hex = client.get("/api/privacy/ephemeral/new-secret", headers=h).json()["secret_hex"]
-    d1 = client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 1, "user_secret_hex": secret_hex,
-    }, headers=h).json()
-    d2 = client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 2, "user_secret_hex": secret_hex,
-    }, headers=h).json()
-    assert d1["ephemeral_username"] != d2["ephemeral_username"], \
+    d1 = client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 1,
+            "user_secret_hex": secret_hex,
+        },
+        headers=h,
+    ).json()
+    d2 = client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 2,
+            "user_secret_hex": secret_hex,
+        },
+        headers=h,
+    ).json()
+    assert d1["ephemeral_username"] != d2["ephemeral_username"], (
         "Different rooms must produce different ephemeral names"
+    )
 
 
 def test_ephemeral_generate_invalid_hex(client):
     h = _auth(client)
-    r = client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 1,
-        "user_secret_hex": "not_valid_hex!",
-    }, headers=h)
+    r = client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 1,
+            "user_secret_hex": "not_valid_hex!",
+        },
+        headers=h,
+    )
     assert r.status_code == 400
 
 
@@ -193,21 +235,30 @@ def test_ephemeral_generate_wrong_length_hex(client):
     """Secret must be exactly 32 bytes (64 hex chars). 31 bytes → 62 hex chars → error."""
     h = _auth(client)
     short_hex = secrets.token_hex(31)  # 62 chars, 31 bytes
-    r = client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 1,
-        "user_secret_hex": short_hex,
-    }, headers=h)
+    r = client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 1,
+            "user_secret_hex": short_hex,
+        },
+        headers=h,
+    )
     assert r.status_code == 400
 
 
 def test_ephemeral_generate_requires_auth(anon_client):
-    r = anon_client.post("/api/privacy/ephemeral/generate", json={
-        "room_id": 1, "user_secret_hex": secrets.token_hex(32),
-    })
+    r = anon_client.post(
+        "/api/privacy/ephemeral/generate",
+        json={
+            "room_id": 1,
+            "user_secret_hex": secrets.token_hex(32),
+        },
+    )
     assert r.status_code in (401, 403)
 
 
 # Metadata Padding endpoints
+
 
 def test_pad_requires_auth(anon_client):
     r = anon_client.post("/api/privacy/pad", json={"data_b64": _b64(b"x")})
@@ -230,21 +281,27 @@ def test_pad_basic(client):
 def test_pad_to_standard_sizes(client):
     """Padded result must land on one of the standard sizes: 256, 512, 1024 ..."""
     from app.security.privacy import MetadataPadding
+
     h = _auth(client)
     for size in [1, 50, 200, 500, 1000]:
         r = client.post("/api/privacy/pad", json={"data_b64": _b64(b"a" * size)}, headers=h)
         assert r.status_code == 200
         padded_size = r.json()["padded_size"]
-        assert padded_size in MetadataPadding.STANDARD_SIZES, \
+        assert padded_size in MetadataPadding.STANDARD_SIZES, (
             f"padded_size={padded_size} not in STANDARD_SIZES for input len={size}"
+        )
 
 
 def test_pad_to_fixed_target_size(client):
     h = _auth(client)
-    r = client.post("/api/privacy/pad", json={
-        "data_b64": _b64(b"small"),
-        "target_size": 512,
-    }, headers=h)
+    r = client.post(
+        "/api/privacy/pad",
+        json={
+            "data_b64": _b64(b"small"),
+            "target_size": 512,
+        },
+        headers=h,
+    )
     assert r.status_code == 200
     assert r.json()["padded_size"] == 512
 
@@ -276,6 +333,7 @@ def test_unpad_requires_auth(anon_client):
 
 
 # ZK Membership endpoints
+
 
 def test_zk_info_requires_auth(anon_client):
     r = anon_client.get("/api/privacy/zk/info")
@@ -321,19 +379,25 @@ def test_zk_verify_empty_room_404(client):
     """Verify against a room that has no members → 404."""
     h = _auth(client)
     commitment = secrets.token_hex(32)
-    r = client.post("/api/privacy/zk/verify", json={
-        "room_id": 999999,
-        "commitment": commitment,
-        "response": secrets.token_hex(32),
-        "blinding": secrets.token_hex(32),
-    }, headers=h)
+    r = client.post(
+        "/api/privacy/zk/verify",
+        json={
+            "room_id": 999999,
+            "commitment": commitment,
+            "response": secrets.token_hex(32),
+            "blinding": secrets.token_hex(32),
+        },
+        headers=h,
+    )
     assert r.status_code == 404
 
 
 # Unit tests — MetadataPadding
 
+
 def test_unit_metadata_padding_small(client):
     from app.security.privacy import MetadataPadding
+
     data = b"hi"
     padded = MetadataPadding.pad(data)
     assert len(padded) in MetadataPadding.STANDARD_SIZES
@@ -342,6 +406,7 @@ def test_unit_metadata_padding_small(client):
 
 def test_unit_metadata_padding_empty(client):
     from app.security.privacy import MetadataPadding
+
     data = b""
     padded = MetadataPadding.pad(data)
     assert len(padded) in MetadataPadding.STANDARD_SIZES
@@ -350,6 +415,7 @@ def test_unit_metadata_padding_empty(client):
 
 def test_unit_metadata_padding_all_standard_sizes(client):
     from app.security.privacy import MetadataPadding
+
     for size in MetadataPadding.STANDARD_SIZES:
         data = os.urandom(size // 2)
         padded = MetadataPadding.pad(data)
@@ -359,6 +425,7 @@ def test_unit_metadata_padding_all_standard_sizes(client):
 
 def test_unit_metadata_padding_large_data_uses_last_bucket(client):
     from app.security.privacy import MetadataPadding
+
     # Data larger than the largest standard size minus header still works
     large = os.urandom(MetadataPadding.STANDARD_SIZES[-1])
     padded = MetadataPadding.pad(large)
@@ -368,12 +435,14 @@ def test_unit_metadata_padding_large_data_uses_last_bucket(client):
 
 def test_unit_metadata_padding_unpad_too_short_returns_none(client):
     from app.security.privacy import MetadataPadding
+
     result = MetadataPadding.unpad(b"\x00\x01")  # only 2 bytes
     assert result is None
 
 
 def test_unit_metadata_padding_unpad_corrupted_length_returns_none(client):
     from app.security.privacy import MetadataPadding
+
     # Header claims 9999 bytes but padded is only 256 bytes
     header = (9999).to_bytes(4, "big")
     padded = header + b"\x00" * 252
@@ -383,6 +452,7 @@ def test_unit_metadata_padding_unpad_corrupted_length_returns_none(client):
 
 def test_unit_metadata_padding_pad_to_fixed(client):
     from app.security.privacy import MetadataPadding
+
     data = b"fixed size test"
     padded = MetadataPadding.pad_to_fixed(data, 512)
     assert len(padded) == 512
@@ -391,6 +461,7 @@ def test_unit_metadata_padding_pad_to_fixed(client):
 
 def test_unit_metadata_padding_get_padded_size(client):
     from app.security.privacy import MetadataPadding
+
     for data_len in [0, 10, 100, 250, 510, 1020]:
         size = MetadataPadding.get_padded_size(data_len)
         assert size in MetadataPadding.STANDARD_SIZES
@@ -399,14 +470,17 @@ def test_unit_metadata_padding_get_padded_size(client):
 
 # Unit tests — EphemeralIdentity
 
+
 def test_unit_ephemeral_generate_secret_length(client):
     from app.security.privacy import EphemeralIdentity
+
     secret = EphemeralIdentity.generate_secret()
     assert len(secret) == 32
 
 
 def test_unit_ephemeral_generate_deterministic(client):
     from app.security.privacy import EphemeralIdentity
+
     secret = EphemeralIdentity.generate_secret()
     name1 = EphemeralIdentity.generate(secret, 1)
     name2 = EphemeralIdentity.generate(secret, 1)
@@ -415,6 +489,7 @@ def test_unit_ephemeral_generate_deterministic(client):
 
 def test_unit_ephemeral_generate_different_rooms(client):
     from app.security.privacy import EphemeralIdentity
+
     secret = EphemeralIdentity.generate_secret()
     names = {EphemeralIdentity.generate(secret, rid) for rid in range(1, 11)}
     assert len(names) == 10, "Every room must produce a unique ephemeral name"
@@ -422,6 +497,7 @@ def test_unit_ephemeral_generate_different_rooms(client):
 
 def test_unit_ephemeral_generate_different_secrets(client):
     from app.security.privacy import EphemeralIdentity
+
     s1 = EphemeralIdentity.generate_secret()
     s2 = EphemeralIdentity.generate_secret()
     assert EphemeralIdentity.generate(s1, 1) != EphemeralIdentity.generate(s2, 1)
@@ -429,6 +505,7 @@ def test_unit_ephemeral_generate_different_secrets(client):
 
 def test_unit_ephemeral_verify_correct(client):
     from app.security.privacy import EphemeralIdentity
+
     secret = EphemeralIdentity.generate_secret()
     name = EphemeralIdentity.generate(secret, 42)
     assert EphemeralIdentity.verify(secret, 42, name) is True
@@ -436,6 +513,7 @@ def test_unit_ephemeral_verify_correct(client):
 
 def test_unit_ephemeral_verify_wrong_room(client):
     from app.security.privacy import EphemeralIdentity
+
     secret = EphemeralIdentity.generate_secret()
     name = EphemeralIdentity.generate(secret, 1)
     assert EphemeralIdentity.verify(secret, 2, name) is False
@@ -443,6 +521,7 @@ def test_unit_ephemeral_verify_wrong_room(client):
 
 def test_unit_ephemeral_verify_wrong_secret(client):
     from app.security.privacy import EphemeralIdentity
+
     s1 = EphemeralIdentity.generate_secret()
     s2 = EphemeralIdentity.generate_secret()
     name = EphemeralIdentity.generate(s1, 1)
@@ -451,6 +530,7 @@ def test_unit_ephemeral_verify_wrong_secret(client):
 
 def test_unit_ephemeral_display_name_structure(client):
     from app.security.privacy import EphemeralIdentity
+
     secret = EphemeralIdentity.generate_secret()
     display = EphemeralIdentity.generate_display_name(secret, 5)
     parts = display.split(" ")
@@ -460,6 +540,7 @@ def test_unit_ephemeral_display_name_structure(client):
 
 def test_unit_ephemeral_display_name_range(client):
     from app.security.privacy import EphemeralIdentity
+
     secret = EphemeralIdentity.generate_secret()
     for room_id in range(20):
         display = EphemeralIdentity.generate_display_name(secret, room_id)
@@ -469,14 +550,17 @@ def test_unit_ephemeral_display_name_range(client):
 
 # Unit tests — ZKMembership
 
+
 def test_unit_zk_room_secret_length(client):
     from app.security.privacy import ZKMembership
+
     secret = ZKMembership.generate_room_secret()
     assert len(secret) == 32
 
 
 def test_unit_zk_create_membership_token_length(client):
     from app.security.privacy import ZKMembership
+
     room_secret = ZKMembership.generate_room_secret()
     token = ZKMembership.create_membership_token(room_secret, 42)
     assert len(token) == 32
@@ -484,6 +568,7 @@ def test_unit_zk_create_membership_token_length(client):
 
 def test_unit_zk_token_is_deterministic(client):
     from app.security.privacy import ZKMembership
+
     room_secret = ZKMembership.generate_room_secret()
     t1 = ZKMembership.create_membership_token(room_secret, 7)
     t2 = ZKMembership.create_membership_token(room_secret, 7)
@@ -492,6 +577,7 @@ def test_unit_zk_token_is_deterministic(client):
 
 def test_unit_zk_proof_valid_member(client):
     from app.security.privacy import ZKMembership
+
     room_secret = ZKMembership.generate_room_secret()
     token = ZKMembership.create_membership_token(room_secret, 42)
     challenge = ZKMembership.generate_challenge()
@@ -501,6 +587,7 @@ def test_unit_zk_proof_valid_member(client):
 
 def test_unit_zk_proof_invalid_non_member(client):
     from app.security.privacy import ZKMembership
+
     room_secret = ZKMembership.generate_room_secret()
     # User 99 is NOT in [1, 2, 3]
     token = ZKMembership.create_membership_token(room_secret, 99)
@@ -512,6 +599,7 @@ def test_unit_zk_proof_invalid_non_member(client):
 
 def test_unit_zk_proof_wrong_challenge_fails(client):
     from app.security.privacy import ZKMembership
+
     room_secret = ZKMembership.generate_room_secret()
     token = ZKMembership.create_membership_token(room_secret, 5)
     challenge1 = ZKMembership.generate_challenge()
@@ -524,6 +612,7 @@ def test_unit_zk_proof_wrong_challenge_fails(client):
 
 def test_unit_zk_proof_wrong_room_secret_fails(client):
     from app.security.privacy import ZKMembership
+
     rs1 = ZKMembership.generate_room_secret()
     rs2 = ZKMembership.generate_room_secret()
     token = ZKMembership.create_membership_token(rs1, 5)
@@ -536,6 +625,7 @@ def test_unit_zk_proof_wrong_room_secret_fails(client):
 
 def test_unit_zk_challenge_is_random(client):
     from app.security.privacy import ZKMembership
+
     c1 = ZKMembership.generate_challenge()
     c2 = ZKMembership.generate_challenge()
     assert c1 != c2
@@ -543,6 +633,7 @@ def test_unit_zk_challenge_is_random(client):
 
 def test_unit_zk_get_info_fields(client):
     from app.security.privacy import ZKMembership
+
     info = ZKMembership.get_info()
     assert info["type"] == "schnorr-like-zk"
     assert "properties" in info
@@ -551,8 +642,10 @@ def test_unit_zk_get_info_fields(client):
 
 # Unit tests — TorProxy
 
+
 def test_unit_tor_proxy_status_shape(client):
     from app.security.privacy import TorProxy
+
     proxy = TorProxy()
     status = proxy.get_status()
     assert "available" in status
@@ -563,6 +656,7 @@ def test_unit_tor_proxy_status_shape(client):
 def test_unit_tor_proxy_unavailable_in_test_env(client):
     """In CI/test environment Tor is not running."""
     from app.security.privacy import TorProxy
+
     proxy = TorProxy(socks_host="127.0.0.1", socks_port=9050)
     # We don't assert True/False since Tor might or might not be running;
     # we just assert it returns a bool without crashing.
@@ -571,6 +665,7 @@ def test_unit_tor_proxy_unavailable_in_test_env(client):
 
 def test_unit_tor_proxy_custom_port(client):
     from app.security.privacy import TorProxy
+
     proxy = TorProxy(socks_host="10.0.0.1", socks_port=1234)
     assert "10.0.0.1" in proxy.socks_url
     assert "1234" in proxy.socks_url

@@ -34,6 +34,7 @@ app/transport/stealth_level3.py — Уровень 3 маскировки тра
   7.  HTTP Header Order Randomization
   8.  Fragmented ClientHello
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,6 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 # 1. DNS-over-HTTPS TUNNELING
+
 
 class DoHTunnel:
     """
@@ -105,7 +107,7 @@ class DoHTunnel:
         chunks = []
         offset = 0
         while offset < len(data):
-            chunks.append(data[offset:offset + chunk_payload])
+            chunks.append(data[offset : offset + chunk_payload])
             offset += chunk_payload
 
         fqdns = []
@@ -114,8 +116,7 @@ class DoHTunnel:
             raw = header + chunk
             # base32 encode, split into labels
             encoded = base64.b32encode(raw).decode().rstrip("=").lower()
-            labels = [encoded[i:i + self.MAX_LABEL_LEN]
-                      for i in range(0, len(encoded), self.MAX_LABEL_LEN)]
+            labels = [encoded[i : i + self.MAX_LABEL_LEN] for i in range(0, len(encoded), self.MAX_LABEL_LEN)]
             fqdn = ".".join(labels) + "." + self.domain_suffix
             fqdns.append(fqdn)
         return fqdns
@@ -181,6 +182,7 @@ class DoHTunnel:
 
 # 2. ECH (Encrypted Client Hello) — шифрование SNI
 
+
 class ECHConfigurator:
     """
     Encrypted Client Hello (ECH) — скрывает SNI от DPI.
@@ -207,14 +209,14 @@ class ECHConfigurator:
     def _check_ech_support(self):
         """Проверяет поддержку ECH в ssl модуле."""
         import ssl
+
         # ECH требует OpenSSL 3.2+
         version = getattr(ssl, "OPENSSL_VERSION_INFO", (0, 0, 0))
         self._ech_available = version >= (3, 2, 0)
         if self._ech_available:
             logger.info("ECH: OpenSSL %s supports ECH", ssl.OPENSSL_VERSION)
         else:
-            logger.info("ECH: OpenSSL %s — no native ECH, using domain fronting fallback",
-                        ssl.OPENSSL_VERSION)
+            logger.info("ECH: OpenSSL %s — no native ECH, using domain fronting fallback", ssl.OPENSSL_VERSION)
 
     def configure_ssl_context(self, ctx, target_host: str, front_domain: str = "cloudflare.com"):
         """
@@ -234,12 +236,10 @@ class ECHConfigurator:
         # Fallback: domain fronting через SNI
         # При connect: ssl.wrap_socket с server_hostname = front_domain
         # HTTP Host header = target_host (реальный)
-        logger.debug("ECH fallback: domain fronting SNI=%s, Host=%s",
-                      front_domain, target_host)
+        logger.debug("ECH fallback: domain fronting SNI=%s, Host=%s", front_domain, target_host)
         return False
 
-    def get_fronting_headers(self, target_host: str,
-                             front_domain: str = "cloudflare.com") -> dict:
+    def get_fronting_headers(self, target_host: str, front_domain: str = "cloudflare.com") -> dict:
         """
         Возвращает заголовки для domain fronting (ECH fallback).
         SSL SNI = front_domain, Host = target_host.
@@ -264,6 +264,7 @@ class ECHConfigurator:
 
 # 3. HTTP/2 MULTIPLEXING — реальные данные среди фейковых потоков
 
+
 class H2Multiplexer:
     """
     Мультиплексирование HTTP/2: смешивает реальные данные с фейковыми
@@ -274,22 +275,14 @@ class H2Multiplexer:
 
     # Фейковые ресурсы для параллельных потоков
     FAKE_RESOURCES = [
-        {"path": "/static/js/app.bundle.js", "content_type": "application/javascript",
-         "size_range": (15000, 80000)},
-        {"path": "/static/css/main.css", "content_type": "text/css",
-         "size_range": (5000, 25000)},
-        {"path": "/static/img/hero.webp", "content_type": "image/webp",
-         "size_range": (20000, 150000)},
-        {"path": "/static/fonts/inter.woff2", "content_type": "font/woff2",
-         "size_range": (10000, 40000)},
-        {"path": "/api/v2/config", "content_type": "application/json",
-         "size_range": (200, 2000)},
-        {"path": "/static/img/avatar-placeholder.svg", "content_type": "image/svg+xml",
-         "size_range": (500, 3000)},
-        {"path": "/manifest.json", "content_type": "application/json",
-         "size_range": (200, 800)},
-        {"path": "/sw.js", "content_type": "application/javascript",
-         "size_range": (2000, 10000)},
+        {"path": "/static/js/app.bundle.js", "content_type": "application/javascript", "size_range": (15000, 80000)},
+        {"path": "/static/css/main.css", "content_type": "text/css", "size_range": (5000, 25000)},
+        {"path": "/static/img/hero.webp", "content_type": "image/webp", "size_range": (20000, 150000)},
+        {"path": "/static/fonts/inter.woff2", "content_type": "font/woff2", "size_range": (10000, 40000)},
+        {"path": "/api/v2/config", "content_type": "application/json", "size_range": (200, 2000)},
+        {"path": "/static/img/avatar-placeholder.svg", "content_type": "image/svg+xml", "size_range": (500, 3000)},
+        {"path": "/manifest.json", "content_type": "application/json", "size_range": (200, 800)},
+        {"path": "/sw.js", "content_type": "application/javascript", "size_range": (2000, 10000)},
     ]
 
     def __init__(self, min_streams: int = 3, max_streams: int = 8):
@@ -308,18 +301,20 @@ class H2Multiplexer:
         result = []
         for res in streams:
             size = _sysrand.randint(*res["size_range"])
-            result.append({
-                "path": res["path"],
-                "content_type": res["content_type"],
-                "data": os.urandom(size),
-                "headers": {
-                    ":method": "GET",
-                    ":path": res["path"],
-                    ":scheme": "https",
-                    "accept": res["content_type"],
-                    "accept-encoding": "gzip, deflate, br",
-                },
-            })
+            result.append(
+                {
+                    "path": res["path"],
+                    "content_type": res["content_type"],
+                    "data": os.urandom(size),
+                    "headers": {
+                        ":method": "GET",
+                        ":path": res["path"],
+                        ":scheme": "https",
+                        "accept": res["content_type"],
+                        "accept-encoding": "gzip, deflate, br",
+                    },
+                }
+            )
         self._active_streams = len(result)
         return result
 
@@ -350,6 +345,7 @@ class H2Multiplexer:
 
 # 4. ACTIVE PROBE DETECTION — обнаружение зондирования DPI
 
+
 class ActiveProbeDetector:
     """
     Обнаруживает active probing от DPI/ТСПУ.
@@ -368,15 +364,19 @@ class ActiveProbeDetector:
 
     # Известные диапазоны ТСПУ (РКН/AS)
     PROBE_ASN_PREFIXES = [
-        "109.124.",   # РКН тестовая инфраструктура
-        "149.154.",   # Типичный range для проверок
-        "185.228.",   # DPI probe range
+        "109.124.",  # РКН тестовая инфраструктура
+        "149.154.",  # Типичный range для проверок
+        "185.228.",  # DPI probe range
     ]
 
     # Обязательные браузерные заголовки
     BROWSER_HEADERS = {
-        "accept", "accept-language", "accept-encoding",
-        "sec-fetch-mode", "sec-fetch-site", "sec-fetch-dest",
+        "accept",
+        "accept-language",
+        "accept-encoding",
+        "sec-fetch-mode",
+        "sec-fetch-site",
+        "sec-fetch-dest",
     }
 
     def __init__(self):
@@ -412,9 +412,23 @@ class ActiveProbeDetector:
         if ip.startswith("::ffff:127."):
             return False, ""
         # Same-subnet private addresses (LAN peers)
-        if ip.startswith(("10.", "192.168.", "172.16.", "172.17.", "172.18.",
-                          "172.19.", "172.2", "172.30.", "172.31.", "169.254.",
-                          "fe80:", "fc00:", "fd00:")):
+        if ip.startswith(
+            (
+                "10.",
+                "192.168.",
+                "172.16.",
+                "172.17.",
+                "172.18.",
+                "172.19.",
+                "172.2",
+                "172.30.",
+                "172.31.",
+                "169.254.",
+                "fe80:",
+                "fc00:",
+                "fd00:",
+            )
+        ):
             return False, ""
 
         headers = {k.lower(): v for k, v in request_info.get("headers", {}).items()}
@@ -441,9 +455,10 @@ class ActiveProbeDetector:
             reasons.append("no_user_agent")
         elif len(ua) < 20:
             reasons.append("short_ua")
-        elif any(bot in ua.lower() for bot in
-                 ["curl", "wget", "python", "go-http", "java/", "scanner",
-                  "nikto", "sqlmap", "nmap", "masscan"]):
+        elif any(
+            bot in ua.lower()
+            for bot in ["curl", "wget", "python", "go-http", "java/", "scanner", "nikto", "sqlmap", "nmap", "masscan"]
+        ):
             reasons.append(f"bot_ua:{ua[:30]}")
 
         # 4. Replay detection — точный fingerprint запроса повторяется
@@ -498,6 +513,7 @@ class ActiveProbeDetector:
 
 # 5. TLS SESSION TICKET RANDOMIZATION
 
+
 class TLSSessionRandomizer:
     """
     Рандомизация TLS session resumption.
@@ -548,6 +564,7 @@ class TLSSessionRandomizer:
 
 
 # 6. PACKET LOSS SIMULATION
+
 
 class PacketLossSimulator:
     """
@@ -603,6 +620,7 @@ class PacketLossSimulator:
 
 # 7. HTTP HEADER ORDER RANDOMIZATION
 
+
 class HeaderOrderRandomizer:
     """
     Порядок HTTP заголовков как у Chrome.
@@ -620,7 +638,10 @@ class HeaderOrderRandomizer:
     """
 
     CHROME_ORDER = [
-        ":method", ":authority", ":scheme", ":path",
+        ":method",
+        ":authority",
+        ":scheme",
+        ":path",
         "host",
         "sec-ch-ua",
         "sec-ch-ua-mobile",
@@ -660,8 +681,7 @@ class HeaderOrderRandomizer:
         return ordered
 
     @classmethod
-    def get_chrome_headers(cls, host: str, path: str = "/",
-                            referer: str = "", cookies: str = "") -> dict:
+    def get_chrome_headers(cls, host: str, path: str = "/", referer: str = "", cookies: str = "") -> dict:
         """Полный набор заголовков Chrome 120 в правильном порядке."""
         headers = {}
         headers["Host"] = host
@@ -694,6 +714,7 @@ class HeaderOrderRandomizer:
 
 # 8. FRAGMENTED CLIENT HELLO
 
+
 class FragmentedClientHello:
     """
     Фрагментация TLS ClientHello на несколько TCP сегментов.
@@ -706,10 +727,10 @@ class FragmentedClientHello:
     """
 
     FRAGMENT_SIZES = [
-        1,    # 1 байт — максимальная фрагментация
-        2,    # 2 байта
-        5,    # TLS record header
-        64,   # Один TCP сегмент
+        1,  # 1 байт — максимальная фрагментация
+        2,  # 2 байта
+        5,  # TLS record header
+        64,  # Один TCP сегмент
         128,  # Два сегмента
     ]
 
@@ -742,8 +763,7 @@ class FragmentedClientHello:
         return fragments
 
     @classmethod
-    async def send_fragmented(cls, sock: socket.socket, data: bytes,
-                               fragment_size: int = 5):
+    async def send_fragmented(cls, sock: socket.socket, data: bytes, fragment_size: int = 5):
         """
         Отправляет данные фрагментами с микро-задержками.
         Каждый фрагмент = отдельный TCP сегмент.
@@ -759,6 +779,7 @@ class FragmentedClientHello:
 
 # 9. HTTP/2 SETTINGS FINGERPRINT
 
+
 class H2SettingsFingerprint:
     """
     HTTP/2 SETTINGS фреймы как Chrome 120.
@@ -773,12 +794,12 @@ class H2SettingsFingerprint:
     """
 
     CHROME_120_SETTINGS = {
-        0x1: 65536,     # HEADER_TABLE_SIZE
-        0x2: 0,         # ENABLE_PUSH
-        0x3: 1000,      # MAX_CONCURRENT_STREAMS
-        0x4: 6291456,   # INITIAL_WINDOW_SIZE
-        0x5: 16384,     # MAX_FRAME_SIZE (default)
-        0x6: 262144,    # MAX_HEADER_LIST_SIZE
+        0x1: 65536,  # HEADER_TABLE_SIZE
+        0x2: 0,  # ENABLE_PUSH
+        0x3: 1000,  # MAX_CONCURRENT_STREAMS
+        0x4: 6291456,  # INITIAL_WINDOW_SIZE
+        0x5: 16384,  # MAX_FRAME_SIZE (default)
+        0x6: 262144,  # MAX_HEADER_LIST_SIZE
     }
 
     # WINDOW_UPDATE после SETTINGS (Chrome отправляет для connection-level)
@@ -810,6 +831,7 @@ class H2SettingsFingerprint:
 
 
 # 10. HTTP/2 PRIORITY / HPACK FINGERPRINT
+
 
 class H2PriorityFingerprint:
     """
@@ -849,6 +871,7 @@ class H2PriorityFingerprint:
 
 # 11. WEBSOCKET PERMESSAGE-DEFLATE
 
+
 class WSDeflateConfig:
     """
     WebSocket permessage-deflate конфигурация как в Chrome.
@@ -869,6 +892,7 @@ class WSDeflateConfig:
     def compress_frame(data: bytes) -> bytes:
         """Сжимает WS фрейм с deflate (RFC 7692)."""
         import zlib
+
         # Deflate compress, strip zlib header (2B) and checksum (4B)
         compressor = zlib.compressobj(zlib.Z_DEFAULT_COMPRESSION, zlib.DEFLATED, -15)
         compressed = compressor.compress(data) + compressor.flush(zlib.Z_SYNC_FLUSH)
@@ -881,11 +905,13 @@ class WSDeflateConfig:
     def decompress_frame(data: bytes) -> bytes:
         """Декомпрессия WS фрейма."""
         import zlib
+
         decompressor = zlib.decompressobj(-15)
         return decompressor.decompress(data + b"\x00\x00\xff\xff")
 
 
 # 12. DOMAIN GENERATION ALGORITHM (DGA)
+
 
 class DomainGenerator:
     """
@@ -942,14 +968,14 @@ class DomainGenerator:
         """Домены на сегодня и завтра (для grace period)."""
         today = time.strftime("%Y-%m-%d")
         # Завтра
-        tomorrow = time.strftime("%Y-%m-%d",
-                                  time.localtime(time.time() + 86400))
+        tomorrow = time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400))
         domains = self.generate(today, count)
         domains += self.generate(tomorrow, count)
         return domains
 
 
 # 13. SNOWFLAKE-STYLE WEBRTC PROXY
+
 
 class SnowflakeProxy:
     """
@@ -968,7 +994,7 @@ class SnowflakeProxy:
 
     def __init__(self):
         self._volunteers: dict[str, dict] = {}  # user_id → {ip, capacity, load}
-        self._bridges: dict[str, str] = {}       # client_id → volunteer_id
+        self._bridges: dict[str, str] = {}  # client_id → volunteer_id
         self._max_bridges_per_volunteer = 5
 
     def register_volunteer(self, user_id: str, ip: str, capacity: int = 5):
@@ -1024,6 +1050,7 @@ class SnowflakeProxy:
 
 
 # 14. MEEK-LITE CDN TUNNEL
+
 
 class MeekLiteTunnel:
     """
@@ -1118,6 +1145,7 @@ class MeekLiteTunnel:
 
 # 15. TCP FAST OPEN (TFO)
 
+
 class TCPFastOpenConfig:
     """
     TCP Fast Open — данные в SYN пакете (0-RTT).
@@ -1133,6 +1161,7 @@ class TCPFastOpenConfig:
             # Linux: TCP_FASTOPEN = 23
             # macOS: TCP_FASTOPEN = 0x105
             import sys
+
             if sys.platform == "linux":
                 sock.setsockopt(socket.IPPROTO_TCP, 23, 5)  # queue length 5
                 return True
@@ -1151,6 +1180,7 @@ class TCPFastOpenConfig:
         try:
             # MSG_FASTOPEN = 0x20000000 (Linux)
             import sys
+
             if sys.platform == "linux" and data:
                 sock.sendto(data, 0x20000000, address)
                 return True
@@ -1164,6 +1194,7 @@ class TCPFastOpenConfig:
 
 
 # 16. COOKIE JAR SIMULATION
+
 
 class CookieJarSimulator:
     """
@@ -1207,6 +1238,7 @@ class CookieJarSimulator:
 
 # 17. ENTROPY NORMALIZATION
 
+
 class EntropyNormalizer:
     """
     Маскировка шифрованных данных под сжатые (gzip/brotli).
@@ -1218,14 +1250,20 @@ class EntropyNormalizer:
     """
 
     # Gzip header (RFC 1952): ID1, ID2, CM, FLG, MTIME(4), XFL, OS
-    GZIP_HEADER = bytes([
-        0x1f, 0x8b,  # Magic number
-        0x08,        # Compression method (deflate)
-        0x00,        # Flags
-        0x00, 0x00, 0x00, 0x00,  # Modification time
-        0x02,        # Extra flags (max compression)
-        0xff,        # OS (unknown)
-    ])
+    GZIP_HEADER = bytes(
+        [
+            0x1F,
+            0x8B,  # Magic number
+            0x08,  # Compression method (deflate)
+            0x00,  # Flags
+            0x00,
+            0x00,
+            0x00,
+            0x00,  # Modification time
+            0x02,  # Extra flags (max compression)
+            0xFF,  # OS (unknown)
+        ]
+    )
 
     @classmethod
     def wrap_as_gzip(cls, encrypted_data: bytes) -> bytes:
@@ -1250,12 +1288,9 @@ class EntropyNormalizer:
             deflate_block = b""
             offset = 0
             while offset < data_len:
-                chunk = encrypted_data[offset:offset + 65535]
-                is_final = (offset + 65535 >= data_len)
-                deflate_block += struct.pack("<BHH",
-                                             0x01 if is_final else 0x00,
-                                             len(chunk),
-                                             len(chunk) ^ 0xFFFF)
+                chunk = encrypted_data[offset : offset + 65535]
+                is_final = offset + 65535 >= data_len
+                deflate_block += struct.pack("<BHH", 0x01 if is_final else 0x00, len(chunk), len(chunk) ^ 0xFFFF)
                 deflate_block += chunk
                 offset += 65535
 
@@ -1288,6 +1323,7 @@ class EntropyNormalizer:
 
 # 18. BURST COALESCING — группировка в пачки как веб-страница
 
+
 class BurstCoalescer:
     """
     Группирует сообщения в пачки, имитирующие загрузку веб-страницы.
@@ -1299,8 +1335,9 @@ class BurstCoalescer:
     с паузами между ними.
     """
 
-    def __init__(self, burst_size: int = 8, burst_interval: float = 0.05,
-                 pause_min: float = 2.0, pause_max: float = 15.0):
+    def __init__(
+        self, burst_size: int = 8, burst_interval: float = 0.05, pause_min: float = 2.0, pause_max: float = 15.0
+    ):
         self.burst_size = burst_size
         self.burst_interval = burst_interval
         self.pause_min = pause_min
@@ -1337,8 +1374,7 @@ class BurstCoalescer:
                 deadline = time.monotonic() + 0.3
                 while len(batch) < self.burst_size and time.monotonic() < deadline:
                     try:
-                        item = await asyncio.wait_for(
-                            self._buffer.get(), timeout=0.05)
+                        item = await asyncio.wait_for(self._buffer.get(), timeout=0.05)
                         batch.append(item)
                     except asyncio.TimeoutError:
                         break
@@ -1347,8 +1383,7 @@ class BurstCoalescer:
                 for item in batch:
                     await send_fn(item)
                     if len(batch) > 1:
-                        await asyncio.sleep(
-                            _sysrand.uniform(0.01, self.burst_interval))
+                        await asyncio.sleep(_sysrand.uniform(0.01, self.burst_interval))
 
                 self._bursts_sent += 1
 
@@ -1374,6 +1409,7 @@ class BurstCoalescer:
 
 
 # 19. TLS 1.3 KEY UPDATE ROTATION
+
 
 class TLSKeyRotator:
     """
@@ -1436,6 +1472,7 @@ class TLSKeyRotator:
 
 # 20. REFERER CHAIN SIMULATION
 
+
 class RefererChainSimulator:
     """
     Имитация цепочки переходов как при реальном веб-сёрфинге.
@@ -1466,10 +1503,10 @@ class RefererChainSimulator:
         """Инициализирует реалистичную цепочку Referer."""
         source = _sysrand.choice(self.SEARCH_ENGINES + self.SOCIAL_REFERERS)
         self._chain = [
-            source,                           # Google/Yandex
-            self.site_url + "/",              # Главная
-            self.site_url + "/features",      # Подстраница
-            self.site_url + "/app",           # Приложение
+            source,  # Google/Yandex
+            self.site_url + "/",  # Главная
+            self.site_url + "/features",  # Подстраница
+            self.site_url + "/app",  # Приложение
         ]
 
     def get_referer(self, depth: int = -1) -> str:
@@ -1485,6 +1522,7 @@ class RefererChainSimulator:
 
 
 # 21. ACCEPT-LANGUAGE / ACCEPT-ENCODING FINGERPRINT
+
 
 class BrowserFingerprint:
     """
@@ -1502,8 +1540,7 @@ class BrowserFingerprint:
             "Sec-CH-UA-Mobile": "?0",
             "Sec-CH-UA-Platform": '"Windows"',
             "Sec-CH-UA-Full-Version-List": (
-                '"Not_A Brand";v="8.0.0.0", "Chromium";v="120.0.6099.130", '
-                '"Google Chrome";v="120.0.6099.130"'
+                '"Not_A Brand";v="8.0.0.0", "Chromium";v="120.0.6099.130", "Google Chrome";v="120.0.6099.130"'
             ),
             "Sec-CH-UA-Arch": '"x86"',
             "Sec-CH-UA-Bitness": '"64"',
@@ -1542,6 +1579,7 @@ class BrowserFingerprint:
 
 
 # 22. PROTOCOL POLYMORPHISM
+
 
 class ProtocolPolymorph:
     """
@@ -1634,10 +1672,12 @@ class ProtocolPolymorph:
             # gRPC: [1B compressed][4B length][payload]
             body = struct.pack(">BI", 0, len(data)) + data
         elif proto["name"] == "graphql":
-            body = json.dumps({
-                "query": "mutation { sync(data: $d) { ok } }",
-                "variables": {"d": base64.b64encode(data).decode()},
-            }).encode()
+            body = json.dumps(
+                {
+                    "query": "mutation { sync(data: $d) { ok } }",
+                    "variables": {"d": base64.b64encode(data).decode()},
+                }
+            ).encode()
         else:
             body = data
 
@@ -1662,6 +1702,7 @@ class ProtocolPolymorph:
 
 # 23. CONNECTION LIFECYCLE MIMICRY
 
+
 class ConnectionLifecycleMimicry:
     """
     Время жизни TCP соединений как у браузера.
@@ -1672,8 +1713,7 @@ class ConnectionLifecycleMimicry:
     Периодически закрывает и переоткрывает соединения.
     """
 
-    def __init__(self, min_lifetime: float = 30.0, max_lifetime: float = 300.0,
-                 max_parallel: int = 6):
+    def __init__(self, min_lifetime: float = 30.0, max_lifetime: float = 300.0, max_parallel: int = 6):
         self.min_lifetime = min_lifetime
         self.max_lifetime = max_lifetime
         self.max_parallel = max_parallel  # Chrome: max 6 per domain
@@ -1714,8 +1754,7 @@ class ConnectionLifecycleMimicry:
                     max_life = _sysrand.uniform(self.min_lifetime, self.max_lifetime)
                     if now - created > max_life:
                         self._reconnect_count += 1
-                        logger.debug("Connection lifecycle: reconnect %s (age=%.0fs)",
-                                     conn_id[:8], now - created)
+                        logger.debug("Connection lifecycle: reconnect %s (age=%.0fs)", conn_id[:8], now - created)
                         del self._connections[conn_id]
 
                         if callback:
@@ -1741,6 +1780,7 @@ class ConnectionLifecycleMimicry:
 
 
 # 24. STEGANOGRAPHIC DNS
+
 
 class StegoDNS:
     """
@@ -1772,7 +1812,7 @@ class StegoDNS:
         offset = 0
         idx = 0
         while offset < len(data):
-            chunk = data[offset:offset + self.RAW_PER_QUERY]
+            chunk = data[offset : offset + self.RAW_PER_QUERY]
             encoded = base64.b32encode(chunk).decode().rstrip("=").lower()
             # subdomain.idx.control_domain
             query = f"{encoded}.{idx}.{self.control_domain}"
@@ -1805,6 +1845,7 @@ class StegoDNS:
 
 # 25. FAKE CERTIFICATE CHAIN MIMICRY
 
+
 class CertChainMimicry:
     """
     Сертификат сервера стилизован под Let's Encrypt.
@@ -1826,9 +1867,9 @@ class CertChainMimicry:
 
     # Типичные параметры LE сертификата
     LETSENCRYPT_PARAMS = {
-        "validity_days": 90,          # LE выдаёт на 90 дней
-        "key_type": "ec",             # EC P-256 (LE default)
-        "serial_length": 16,          # 128-bit random serial
+        "validity_days": 90,  # LE выдаёт на 90 дней
+        "key_type": "ec",  # EC P-256 (LE default)
+        "serial_length": 16,  # 128-bit random serial
         "signature_algo": "sha256",
     }
 
@@ -1840,15 +1881,14 @@ class CertChainMimicry:
             "params": cls.LETSENCRYPT_PARAMS,
             "extensions": [
                 # Authority Information Access (AIA) как у LE
-                {"oid": "1.3.6.1.5.5.7.1.1",
-                 "value": "OCSP - URI:http://r3.o.lencr.org\n"
-                          "CA Issuers - URI:http://r3.i.lencr.org/"},
+                {
+                    "oid": "1.3.6.1.5.5.7.1.1",
+                    "value": "OCSP - URI:http://r3.o.lencr.org\nCA Issuers - URI:http://r3.i.lencr.org/",
+                },
                 # Certificate Policies
-                {"oid": "2.5.29.32",
-                 "value": "Policy: 2.23.140.1.2.1"},  # DV
+                {"oid": "2.5.29.32", "value": "Policy: 2.23.140.1.2.1"},  # DV
                 # SCT (Signed Certificate Timestamp)
-                {"oid": "1.3.6.1.4.1.11129.2.4.2",
-                 "value": "signed_certificate_timestamps"},
+                {"oid": "1.3.6.1.4.1.11129.2.4.2", "value": "signed_certificate_timestamps"},
             ],
         }
 
@@ -1882,6 +1922,7 @@ class CertChainMimicry:
 
 # 26. TRAFFIC SCHEDULING (HUMAN PATTERNS)
 
+
 class TrafficScheduler:
     """
     Интенсивность трафика следует человеческим паттернам.
@@ -1894,10 +1935,30 @@ class TrafficScheduler:
 
     # Коэффициенты активности по часам (0=полночь, нормализовано)
     HOURLY_ACTIVITY = [
-        0.15, 0.08, 0.05, 0.03, 0.03, 0.05,  # 00-05
-        0.10, 0.25, 0.50, 0.75, 0.85, 0.90,   # 06-11
-        0.85, 0.80, 0.75, 0.70, 0.75, 0.80,   # 12-17
-        0.90, 0.95, 1.00, 0.95, 0.80, 0.50,   # 18-23
+        0.15,
+        0.08,
+        0.05,
+        0.03,
+        0.03,
+        0.05,  # 00-05
+        0.10,
+        0.25,
+        0.50,
+        0.75,
+        0.85,
+        0.90,  # 06-11
+        0.85,
+        0.80,
+        0.75,
+        0.70,
+        0.75,
+        0.80,  # 12-17
+        0.90,
+        0.95,
+        1.00,
+        0.95,
+        0.80,
+        0.50,  # 18-23
     ]
 
     def __init__(self, timezone_offset: int = 3):
@@ -1911,6 +1972,7 @@ class TrafficScheduler:
         0.0-1.0, где 1.0 = максимальная активность.
         """
         import datetime
+
         utc_hour = datetime.datetime.now(datetime.timezone.utc).hour
         local_hour = (utc_hour + self.tz_offset) % 24
         base = self.HOURLY_ACTIVITY[local_hour]
@@ -1941,6 +2003,7 @@ class TrafficScheduler:
 
 # 27. IP GEOLOCATION COHERENCE
 
+
 class GeoCoherenceChecker:
     """
     Проверяет согласованность GeoIP, языка, timezone.
@@ -1951,8 +2014,7 @@ class GeoCoherenceChecker:
 
     GEO_PROFILES = {
         "RU": {
-            "languages": ["ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-                          "ru-RU,ru;q=0.9,en;q=0.8"],
+            "languages": ["ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7", "ru-RU,ru;q=0.9,en;q=0.8"],
             "timezone_offsets": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
             "platform": '"Windows"',
         },
@@ -1993,8 +2055,7 @@ class GeoCoherenceChecker:
         if profile:
             # Проверяем язык
             lang_prefix = lang.split(",")[0].split("-")[0] if lang else ""
-            expected_prefixes = [lang.split(",")[0].split("-")[0]
-                                 for lang in profile["languages"]]
+            expected_prefixes = [lang.split(",")[0].split("-")[0] for lang in profile["languages"]]
             if lang_prefix and lang_prefix not in expected_prefixes:
                 anomalies.append(f"language_mismatch:{lang_prefix}!=expected")
 
@@ -2002,6 +2063,7 @@ class GeoCoherenceChecker:
 
 
 # 28. MULTI-HOP RELAY CHAIN
+
 
 class MultiHopRelay:
     """
@@ -2024,8 +2086,7 @@ class MultiHopRelay:
         self._circuits: dict[str, list[str]] = {}  # circuit_id → [node_ids]
         self._active_circuits = 0
 
-    def build_circuit(self, available_nodes: list[str],
-                       exclude: Optional[set[str]] = None) -> Optional[str]:
+    def build_circuit(self, available_nodes: list[str], exclude: Optional[set[str]] = None) -> Optional[str]:
         """
         Строит цепочку из available_nodes.
         Возвращает circuit_id или None если недостаточно нод.
@@ -2042,8 +2103,7 @@ class MultiHopRelay:
         self._circuits[circuit_id] = chain
         self._active_circuits += 1
 
-        logger.debug("Multi-hop circuit %s: %s hops",
-                      circuit_id[:8], len(chain))
+        logger.debug("Multi-hop circuit %s: %s hops", circuit_id[:8], len(chain))
         return circuit_id
 
     def wrap_onion(self, circuit_id: str, data: bytes) -> Optional[bytes]:
@@ -2076,8 +2136,7 @@ class MultiHopRelay:
 
         return current
 
-    def unwrap_layer(self, encrypted_layer: bytes, hop_idx: int,
-                      circuit_id: str) -> tuple[Optional[str], bytes]:
+    def unwrap_layer(self, encrypted_layer: bytes, hop_idx: int, circuit_id: str) -> tuple[Optional[str], bytes]:
         """
         Снимает один слой шифрования (на промежуточной ноде).
         Возвращает (next_hop_id, inner_payload) или (None, data) если финальный хоп.
@@ -2092,17 +2151,17 @@ class MultiHopRelay:
 
         try:
             offset = 0
-            cid = decrypted[offset:offset + 16].hex()
+            cid = decrypted[offset : offset + 16].hex()
             offset += 16
             idx = decrypted[offset]
             offset += 1
-            hop_id_len = struct.unpack(">H", decrypted[offset:offset + 2])[0]
+            hop_id_len = struct.unpack(">H", decrypted[offset : offset + 2])[0]
             offset += 2
-            hop_id = decrypted[offset:offset + hop_id_len].decode()
+            hop_id = decrypted[offset : offset + hop_id_len].decode()
             offset += hop_id_len
-            payload_len = struct.unpack(">H", decrypted[offset:offset + 2])[0]
+            payload_len = struct.unpack(">H", decrypted[offset : offset + 2])[0]
             offset += 2
-            payload = decrypted[offset:offset + payload_len]
+            payload = decrypted[offset : offset + payload_len]
 
             chain = self._circuits.get(cid, [])
             if idx >= len(chain) - 1:
@@ -2126,6 +2185,7 @@ class MultiHopRelay:
 
 
 # MANAGER — объединяет все механизмы Level 3
+
 
 class StealthLevel3Manager:
     """
@@ -2186,9 +2246,13 @@ class StealthLevel3Manager:
             "DoH=%s, ECH=%s, probe_detect=%s, DGA=%s, snowflake=%s, "
             "polymorph=%s, multi_hop=%s, scheduler=%s",
             28,
-            "ON", "native" if self.ech.available else "fronting",
-            "ON", "ON", "READY",
-            "ON", f"{self.multi_hop.num_hops}-hop",
+            "ON",
+            "native" if self.ech.available else "fronting",
+            "ON",
+            "ON",
+            "READY",
+            "ON",
+            f"{self.multi_hop.num_hops}-hop",
             f"activity={self.traffic_scheduler.get_activity_factor():.0%}",
         )
 

@@ -22,6 +22,7 @@ This file doubles as:
     - Integration test (pytest-compatible)
     - Live spec for Swift/Kotlin teams to mirror
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -39,8 +40,6 @@ log = logging.getLogger("mobile_sim")
 # Старт контроллера занимает ~0.06 с, но дефолтные 5 с у asgi_lifespan иногда
 # не выдерживают параллельного прогона. Границу держит pytest-timeout.
 LIFESPAN_TIMEOUT = 30.0
-
-
 
 
 async def _build_stack(tmp: Path):
@@ -88,8 +87,9 @@ async def _build_stack(tmp: Path):
     node_a = _make_node("A", key_a)
     node_b = _make_node("B", key_b)
 
-    ctrl_app.state.controller_key.pubkey_hex() if hasattr(
-        ctrl_app, "state") and hasattr(ctrl_app.state, "controller_key") else None
+    ctrl_app.state.controller_key.pubkey_hex() if hasattr(ctrl_app, "state") and hasattr(
+        ctrl_app.state, "controller_key"
+    ) else None
 
     # Route requests based on hostname.
     class _SwitchTransport(ASGITransport):
@@ -128,12 +128,11 @@ async def _build_stack(tmp: Path):
 def _point_each_node_at_controller(ctrl_app):
     """Override per-node Config so controller_client uses our in-process controller."""
     import app.config as cfg
+
     cfg.Config.CONTROLLER_URL = "http://ctrl.test"
     cfg.Config.CONTROLLER_PUBKEY = ctrl_app.state.controller_key.pubkey_hex()
     cfg.Config.NETWORK_MODE = "custom"
     cfg.Config.NODE_ANNOUNCE_ENDPOINTS = "wss://node.test:9000"
-
-
 
 
 class MobileSim:
@@ -152,6 +151,7 @@ class MobileSim:
 
     async def _get(self, url: str, **params) -> Any:
         import httpx
+
         async with httpx.AsyncClient() as http:
             r = await http.get(url, params=params or None)
             r.raise_for_status()
@@ -159,22 +159,24 @@ class MobileSim:
 
     async def _post(self, url: str, body: dict) -> Any:
         import httpx
+
         async with httpx.AsyncClient() as http:
             r = await http.post(url, json=body)
             r.raise_for_status()
             return r.json()
 
-
     async def connect(self, node_url: str, rooms: list[int]) -> None:
         self.current_node_url = node_url
         self.rooms = sorted(rooms)
-        await self._post(f"{node_url}/api/session/cursor", {
-            "user_pubkey": self.user_pubkey,
-            "last_bmp_ts": self.last_bmp_ts,
-            "rooms": self.rooms,
-        })
+        await self._post(
+            f"{node_url}/api/session/cursor",
+            {
+                "user_pubkey": self.user_pubkey,
+                "last_bmp_ts": self.last_bmp_ts,
+                "rooms": self.rooms,
+            },
+        )
         log.info("[mobile] connected to %s with %d rooms", node_url, len(self.rooms))
-
 
     async def get_migration_hint(self) -> dict:
         assert self.current_node_url
@@ -183,21 +185,25 @@ class MobileSim:
             user_pubkey=self.user_pubkey,
         )
 
-
     async def request_handoff(self) -> dict:
         assert self.current_node_url
-        return await self._post(f"{self.current_node_url}/api/session/handoff/init", {
-            "user_pubkey": self.user_pubkey,
-            "username": self.username,
-            "rooms": self.rooms,
-            "last_bmp_ts": self.last_bmp_ts,
-        })
-
+        return await self._post(
+            f"{self.current_node_url}/api/session/handoff/init",
+            {
+                "user_pubkey": self.user_pubkey,
+                "username": self.username,
+                "rooms": self.rooms,
+                "last_bmp_ts": self.last_bmp_ts,
+            },
+        )
 
     async def finish_handoff(self, target_node_url: str, token: dict) -> dict:
-        resp = await self._post(f"{target_node_url}/api/session/handoff/accept", {
-            "token": token,
-        })
+        resp = await self._post(
+            f"{target_node_url}/api/session/handoff/accept",
+            {
+                "token": token,
+            },
+        )
         # After accept, the target node becomes our new "current"
         self.current_node_url = target_node_url
         cursor = resp.get("cursor", {})
@@ -206,13 +212,15 @@ class MobileSim:
         log.info("[mobile] handoff → %s (rooms=%d)", target_node_url, len(self.rooms))
         return resp
 
-
     async def sync_bmp(self, mailbox_ids: list[str]) -> dict:
         assert self.current_node_url
-        resp = await self._post(f"{self.current_node_url}/api/bmp/batch", {
-            "ids": mailbox_ids,
-            "since": self.last_bmp_ts,
-        })
+        resp = await self._post(
+            f"{self.current_node_url}/api/bmp/batch",
+            {
+                "ids": mailbox_ids,
+                "since": self.last_bmp_ts,
+            },
+        )
         mailboxes = resp.get("mailboxes", {})
         # Advance cursor to the newest message seen
         newest = self.last_bmp_ts
@@ -221,14 +229,15 @@ class MobileSim:
                 if m.get("ts", 0) > newest:
                     newest = m["ts"]
         self.last_bmp_ts = newest
-        await self._post(f"{self.current_node_url}/api/session/cursor", {
-            "user_pubkey": self.user_pubkey,
-            "last_bmp_ts": self.last_bmp_ts,
-            "rooms": self.rooms,
-        })
+        await self._post(
+            f"{self.current_node_url}/api/session/cursor",
+            {
+                "user_pubkey": self.user_pubkey,
+                "last_bmp_ts": self.last_bmp_ts,
+                "rooms": self.rooms,
+            },
+        )
         return mailboxes
-
-
 
 
 @pytest.mark.asyncio
@@ -267,10 +276,13 @@ async def test_full_mobile_migration():
                         "timestamp": int(time.time()),
                     }
                     async with httpx.AsyncClient(base_url="http://ctrl.test") as http:
-                        r = await http.post("/v1/register", json={
-                            "payload": payload,
-                            "signature": key.sign(payload),
-                        })
+                        r = await http.post(
+                            "/v1/register",
+                            json={
+                                "payload": payload,
+                                "signature": key.sign(payload),
+                            },
+                        )
                         assert r.status_code == 200
 
                 # Build the mobile sim
@@ -390,9 +402,13 @@ async def test_handoff_rejects_unknown_source():
                     "timestamp": int(time.time()),
                 }
                 async with httpx.AsyncClient(base_url="http://ctrl.test") as http:
-                    r = await http.post("/v1/register", json={
-                        "payload": payload, "signature": stack["key_b"].sign(payload),
-                    })
+                    r = await http.post(
+                        "/v1/register",
+                        json={
+                            "payload": payload,
+                            "signature": stack["key_b"].sign(payload),
+                        },
+                    )
                     assert r.status_code == 200
 
                 # Token signed by UNREGISTERED node A — should be rejected

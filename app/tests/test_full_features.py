@@ -6,6 +6,7 @@ spaces, stickers, voice, link_preview, keys, main endpoints, config,
 database, models, utils, antispam_bot, connection_manager, peer_registry,
 federation.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -17,6 +18,7 @@ from conftest import login_user, make_user, random_str
 from pydantic import ValidationError
 
 # Helpers
+
 
 def _user_id(u: dict) -> int:
     """Extract user id from make_user() dict."""
@@ -44,10 +46,14 @@ def _create_room(client, headers: dict, *, name: str | None = None, is_public: b
 
 def _create_voice_room(client, headers: dict) -> dict:
     """Create a voice room by creating a space and getting the auto-created voice room."""
-    space_r = client.post("/api/spaces", json={
-        "name": f"vs_{random_str(6)}",
-        "is_public": True,
-    }, headers=headers)
+    space_r = client.post(
+        "/api/spaces",
+        json={
+            "name": f"vs_{random_str(6)}",
+            "is_public": True,
+        },
+        headers=headers,
+    )
     assert space_r.status_code in (200, 201), f"create space: {space_r.text}"
     space = space_r.json()
     # The space auto-creates a voice room; find it
@@ -56,16 +62,21 @@ def _create_voice_room(client, headers: dict) -> dict:
     if voice:
         return {"room_id": voice["id"], "space_id": space["id"], "space": space}
     # fallback: create manually via /api/spaces/{id}/rooms
-    room_r = client.post(f"/api/spaces/{space['id']}/rooms", json={
-        "name": f"voice_{random_str(4)}",
-        "is_voice": True,
-    }, headers=headers)
+    room_r = client.post(
+        f"/api/spaces/{space['id']}/rooms",
+        json={
+            "name": f"voice_{random_str(4)}",
+            "is_voice": True,
+        },
+        headers=headers,
+    )
     assert room_r.status_code in (200, 201), f"create voice room: {room_r.text}"
     rd = room_r.json()
     return {"room_id": rd["id"], "space_id": space["id"], "space": space}
 
 
 # DM (app/chats/dm.py)
+
 
 class TestDM:
     """POST /api/dm/{target}, POST /api/dm/store-key/{room_id}, GET /api/dm/list"""
@@ -123,22 +134,30 @@ class TestDM:
         if not room_id:
             pytest.skip("DM room not created")
 
-        r = client.post(f"/api/dm/store-key/{room_id}", json={
-            "user_id": uid2,
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext": secrets.token_hex(60),
-        }, headers=h1)
+        r = client.post(
+            f"/api/dm/store-key/{room_id}",
+            json={
+                "user_id": uid2,
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(60),
+            },
+            headers=h1,
+        )
         assert r.status_code in (200, 201, 401, 403)
 
     def test_store_key_invalid_room(self, client):
         u = make_user(client)
         h = _login_and_get_headers(client, u)
 
-        r = client.post("/api/dm/store-key/999999", json={
-            "user_id": 1,
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext": secrets.token_hex(60),
-        }, headers=h)
+        r = client.post(
+            "/api/dm/store-key/999999",
+            json={
+                "user_id": 1,
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(60),
+            },
+            headers=h,
+        )
         assert r.status_code in (404, 401, 403)
 
     def test_list_dms(self, client):
@@ -152,6 +171,7 @@ class TestDM:
 
 
 # Contacts (app/chats/contacts.py)
+
 
 class TestContacts:
     """GET/POST/PUT/DELETE /api/contacts, POST /api/users/block/{user_id}"""
@@ -265,6 +285,7 @@ class TestContacts:
 
 # Channels (app/chats/channels.py)
 
+
 class TestChannels:
     """POST /api/channels, GET /api/channels/my, POST /api/channels/join, GET /api/channels/popular"""
 
@@ -272,10 +293,14 @@ class TestChannels:
         u = make_user(client)
         h = _login_and_get_headers(client, u)
 
-        r = client.post("/api/channels", json={
-            "name": f"ch_{random_str(6)}",
-            "description": "test channel",
-        }, headers=h)
+        r = client.post(
+            "/api/channels",
+            json={
+                "name": f"ch_{random_str(6)}",
+                "description": "test channel",
+            },
+            headers=h,
+        )
         assert r.status_code in (201, 200, 401, 403)
         if r.status_code == 201:
             body = r.json()
@@ -328,6 +353,7 @@ class TestChannels:
 
 # Search (app/chats/search.py)
 
+
 class TestSearch:
     """GET /api/users/search, GET /api/users/global-search"""
 
@@ -374,6 +400,7 @@ class TestSearch:
 
 # Saved Messages (app/chats/saved.py)
 
+
 class TestSaved:
     """POST/GET/DELETE /api/saved, GET /api/saved/check"""
 
@@ -419,9 +446,13 @@ class TestSaved:
             pytest.skip("No room id")
 
         # Send a message (encrypted content as hex)
-        msg_r = client.post(f"/api/rooms/{room_id}/messages", json={
-            "ciphertext": secrets.token_hex(32),
-        }, headers=h)
+        msg_r = client.post(
+            f"/api/rooms/{room_id}/messages",
+            json={
+                "ciphertext": secrets.token_hex(32),
+            },
+            headers=h,
+        )
         if msg_r.status_code not in (200, 201):
             pytest.skip(f"Cannot send message: {msg_r.status_code}")
         msg_id = msg_r.json().get("msg_id") or msg_r.json().get("id")
@@ -442,6 +473,7 @@ class TestSaved:
 
 
 # Statuses (app/chats/statuses.py)
+
 
 class TestStatuses:
     """POST/GET /api/statuses, cleanup_expired_statuses"""
@@ -480,6 +512,7 @@ class TestStatuses:
 
 # Tasks (app/chats/tasks.py)
 
+
 class TestTasks:
     """GET/POST/PUT/DELETE /api/rooms/{room_id}/tasks"""
 
@@ -504,9 +537,13 @@ class TestTasks:
         if not room_id:
             pytest.skip("No room id")
 
-        r = client.post(f"/api/rooms/{room_id}/tasks", json={
-            "text": "Test task",
-        }, headers=h)
+        r = client.post(
+            f"/api/rooms/{room_id}/tasks",
+            json={
+                "text": "Test task",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 201, 401, 403)
         if r.status_code == 200:
             body = r.json()
@@ -565,8 +602,7 @@ class TestTasks:
             pytest.skip("Cannot create task")
         task_id = cr.json().get("id")
 
-        r = client.put(f"/api/rooms/{room_id}/tasks/{task_id}",
-                        json={"assignee_id": uid}, headers=h)
+        r = client.put(f"/api/rooms/{room_id}/tasks/{task_id}", json={"assignee_id": uid}, headers=h)
         assert r.status_code in (200, 401, 403)
 
     def test_delete_task(self, client):
@@ -590,6 +626,7 @@ class TestTasks:
 
 # Reports (app/chats/reports.py)
 
+
 class TestReports:
     """POST /api/users/report, GET /api/moderation/strikes, GET /api/users/{id}/reports"""
 
@@ -599,10 +636,14 @@ class TestReports:
         h1 = _login_and_get_headers(client, u1)
         uid2 = _user_id(u2)
 
-        r = client.post(f"/api/users/report/{uid2}", json={
-            "reason": "spam",
-            "description": "test report",
-        }, headers=h1)
+        r = client.post(
+            f"/api/users/report/{uid2}",
+            json={
+                "reason": "spam",
+                "description": "test report",
+            },
+            headers=h1,
+        )
         assert r.status_code in (201, 200, 401, 403)
 
     def test_report_self_fails(self, client):
@@ -610,18 +651,26 @@ class TestReports:
         h = _login_and_get_headers(client, u)
         uid = _user_id(u)
 
-        r = client.post(f"/api/users/report/{uid}", json={
-            "reason": "spam",
-        }, headers=h)
+        r = client.post(
+            f"/api/users/report/{uid}",
+            json={
+                "reason": "spam",
+            },
+            headers=h,
+        )
         assert r.status_code == 400
 
     def test_report_nonexistent(self, client):
         u = make_user(client)
         h = _login_and_get_headers(client, u)
 
-        r = client.post("/api/users/report/999999", json={
-            "reason": "spam",
-        }, headers=h)
+        r = client.post(
+            "/api/users/report/999999",
+            json={
+                "reason": "spam",
+            },
+            headers=h,
+        )
         assert r.status_code in (404, 401, 403)
 
     def test_report_missing_reason(self, client):
@@ -657,6 +706,7 @@ class TestReports:
 
 # Spaces (app/chats/spaces.py)
 
+
 class TestSpaces:
     """Full CRUD for /api/spaces/*"""
 
@@ -664,11 +714,15 @@ class TestSpaces:
         u = make_user(client)
         h = _login_and_get_headers(client, u)
 
-        r = client.post("/api/spaces", json={
-            "name": f"space_{random_str(6)}",
-            "description": "test",
-            "is_public": True,
-        }, headers=h)
+        r = client.post(
+            "/api/spaces",
+            json={
+                "name": f"space_{random_str(6)}",
+                "description": "test",
+                "is_public": True,
+            },
+            headers=h,
+        )
         assert r.status_code in (201, 200, 401, 403)
         if r.status_code == 201:
             body = r.json()
@@ -694,10 +748,14 @@ class TestSpaces:
     def test_get_details(self, client):
         u = make_user(client)
         h = _login_and_get_headers(client, u)
-        cr = client.post("/api/spaces", json={
-            "name": f"det_{random_str(4)}",
-            "is_public": True,
-        }, headers=h)
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"det_{random_str(4)}",
+                "is_public": True,
+            },
+            headers=h,
+        )
         if cr.status_code not in (200, 201):
             pytest.skip("Cannot create space")
         sid = cr.json().get("id")
@@ -713,10 +771,14 @@ class TestSpaces:
             pytest.skip("Cannot create space")
         sid = cr.json().get("id")
 
-        r = client.put(f"/api/spaces/{sid}", json={
-            "name": "Updated Name",
-            "description": "Updated desc",
-        }, headers=h)
+        r = client.put(
+            f"/api/spaces/{sid}",
+            json={
+                "name": "Updated Name",
+                "description": "Updated desc",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 401, 403)
 
     def test_delete_space(self, client):
@@ -734,10 +796,14 @@ class TestSpaces:
         u1 = make_user(client)
         u2 = make_user(client)
         h1 = _login_and_get_headers(client, u1)
-        cr = client.post("/api/spaces", json={
-            "name": f"jinv_{random_str(4)}",
-            "is_public": True,
-        }, headers=h1)
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"jinv_{random_str(4)}",
+                "is_public": True,
+            },
+            headers=h1,
+        )
         if cr.status_code not in (200, 201):
             pytest.skip("Cannot create space")
         invite = cr.json().get("invite_code")
@@ -750,10 +816,14 @@ class TestSpaces:
         u1 = make_user(client)
         u2 = make_user(client)
         h1 = _login_and_get_headers(client, u1)
-        cr = client.post("/api/spaces", json={
-            "name": f"lv_{random_str(4)}",
-            "is_public": True,
-        }, headers=h1)
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"lv_{random_str(4)}",
+                "is_public": True,
+            },
+            headers=h1,
+        )
         if cr.status_code not in (200, 201):
             pytest.skip("Cannot create space")
         sid = cr.json().get("id")
@@ -782,10 +852,14 @@ class TestSpaces:
         u1 = make_user(client)
         u2 = make_user(client)
         h1 = _login_and_get_headers(client, u1)
-        cr = client.post("/api/spaces", json={
-            "name": f"role_{random_str(4)}",
-            "is_public": True,
-        }, headers=h1)
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"role_{random_str(4)}",
+                "is_public": True,
+            },
+            headers=h1,
+        )
         if cr.status_code not in (200, 201):
             pytest.skip("Cannot create space")
         sid = cr.json().get("id")
@@ -797,18 +871,21 @@ class TestSpaces:
 
         # Must re-login as owner (u1) to change role
         h1 = _login_and_get_headers(client, u1)
-        r = client.put(f"/api/spaces/{sid}/members/{uid2}/role",
-                        json={"role": "admin"}, headers=h1)
+        r = client.put(f"/api/spaces/{sid}/members/{uid2}/role", json={"role": "admin"}, headers=h1)
         assert r.status_code in (200, 401, 403)
 
     def test_kick_member(self, client):
         u1 = make_user(client)
         u2 = make_user(client)
         h1 = _login_and_get_headers(client, u1)
-        cr = client.post("/api/spaces", json={
-            "name": f"kick_{random_str(4)}",
-            "is_public": True,
-        }, headers=h1)
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"kick_{random_str(4)}",
+                "is_public": True,
+            },
+            headers=h1,
+        )
         if cr.status_code not in (200, 201):
             pytest.skip("Cannot create space")
         sid = cr.json().get("id")
@@ -830,8 +907,7 @@ class TestSpaces:
             pytest.skip("Cannot create space")
         sid = cr.json().get("id")
 
-        r = client.post(f"/api/spaces/{sid}/categories",
-                         json={"name": "News"}, headers=h)
+        r = client.post(f"/api/spaces/{sid}/categories", json={"name": "News"}, headers=h)
         assert r.status_code in (201, 200, 401, 403)
 
     def test_update_category(self, client):
@@ -842,14 +918,12 @@ class TestSpaces:
             pytest.skip("Cannot create space")
         sid = cr.json().get("id")
 
-        cat_r = client.post(f"/api/spaces/{sid}/categories",
-                             json={"name": "Old"}, headers=h)
+        cat_r = client.post(f"/api/spaces/{sid}/categories", json={"name": "Old"}, headers=h)
         if cat_r.status_code not in (200, 201):
             pytest.skip("Cannot create category")
         cat_id = cat_r.json().get("id")
 
-        r = client.put(f"/api/spaces/{sid}/categories/{cat_id}",
-                        json={"name": "Renamed"}, headers=h)
+        r = client.put(f"/api/spaces/{sid}/categories/{cat_id}", json={"name": "Renamed"}, headers=h)
         assert r.status_code in (200, 401, 403)
 
     def test_delete_category(self, client):
@@ -878,9 +952,13 @@ class TestSpaces:
             pytest.skip("Cannot create space")
         sid = cr.json().get("id")
 
-        r = client.post(f"/api/spaces/{sid}/rooms", json={
-            "name": f"sproom_{random_str(4)}",
-        }, headers=h)
+        r = client.post(
+            f"/api/spaces/{sid}/rooms",
+            json={
+                "name": f"sproom_{random_str(4)}",
+            },
+            headers=h,
+        )
         assert r.status_code in (201, 200, 401, 403)
 
     def test_upload_avatar(self, client):
@@ -894,6 +972,7 @@ class TestSpaces:
         # Create a tiny valid PNG
         import struct
         import zlib
+
         width, height = 2, 2
         raw = b""
         for _ in range(height):
@@ -904,10 +983,12 @@ class TestSpaces:
             c = ctype + data
             return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
 
-        png = (b"\x89PNG\r\n\x1a\n"
-               + _chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-               + _chunk(b"IDAT", def_data)
-               + _chunk(b"IEND", b""))
+        png = (
+            b"\x89PNG\r\n\x1a\n"
+            + _chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+            + _chunk(b"IDAT", def_data)
+            + _chunk(b"IEND", b"")
+        )
 
         r = client.post(
             f"/api/spaces/{sid}/avatar",
@@ -920,15 +1001,20 @@ class TestSpaces:
 
 # Stickers (app/chats/stickers.py)
 
+
 class TestStickers:
     """Full CRUD for /api/stickers/packs/*"""
 
     def _create_pack(self, client, headers):
-        r = client.post("/api/stickers/packs", json={
-            "name": f"pack_{random_str(6)}",
-            "description": "test",
-            "is_public": True,
-        }, headers=headers)
+        r = client.post(
+            "/api/stickers/packs",
+            json={
+                "name": f"pack_{random_str(6)}",
+                "description": "test",
+                "is_public": True,
+            },
+            headers=headers,
+        )
         assert r.status_code in (200, 201, 401, 403)
         return r.json().get("pack", {}) if r.status_code in (200, 201) else {}
 
@@ -980,9 +1066,13 @@ class TestStickers:
         if not pack_id:
             pytest.skip("No pack_id")
 
-        r = client.put(f"/api/stickers/packs/{pack_id}", json={
-            "name": "Renamed Pack",
-        }, headers=h)
+        r = client.put(
+            f"/api/stickers/packs/{pack_id}",
+            json={
+                "name": "Renamed Pack",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 401, 403)
 
     def test_delete_pack(self, client):
@@ -1007,6 +1097,7 @@ class TestStickers:
         # Tiny valid PNG
         import struct
         import zlib
+
         w, ht = 2, 2
         raw = b""
         for _ in range(ht):
@@ -1017,10 +1108,12 @@ class TestStickers:
             c = ct + data
             return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
 
-        png = (b"\x89PNG\r\n\x1a\n"
-               + _chunk(b"IHDR", struct.pack(">IIBBBBB", w, ht, 8, 6, 0, 0, 0))
-               + _chunk(b"IDAT", d)
-               + _chunk(b"IEND", b""))
+        png = (
+            b"\x89PNG\r\n\x1a\n"
+            + _chunk(b"IHDR", struct.pack(">IIBBBBB", w, ht, 8, 6, 0, 0, 0))
+            + _chunk(b"IDAT", d)
+            + _chunk(b"IEND", b"")
+        )
 
         r = client.post(
             f"/api/stickers/packs/{pack_id}/stickers",
@@ -1069,6 +1162,7 @@ class TestStickers:
 
 # Voice (app/chats/voice.py)
 
+
 class TestVoice:
     """POST /api/voice/{room_id}/join|leave|mute, GET participants"""
 
@@ -1109,9 +1203,13 @@ class TestVoice:
         room_id = vr["room_id"]
 
         client.post(f"/api/voice/{room_id}/join", headers=h)
-        r = client.post(f"/api/voice/{room_id}/mute", json={
-            "is_muted": True,
-        }, headers=h)
+        r = client.post(
+            f"/api/voice/{room_id}/mute",
+            json={
+                "is_muted": True,
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 400, 401, 403)
 
     def test_toggle_video(self, client):
@@ -1121,13 +1219,18 @@ class TestVoice:
         room_id = vr["room_id"]
 
         client.post(f"/api/voice/{room_id}/join", headers=h)
-        r = client.post(f"/api/voice/{room_id}/mute", json={
-            "is_video": True,
-        }, headers=h)
+        r = client.post(
+            f"/api/voice/{room_id}/mute",
+            json={
+                "is_video": True,
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 400, 401, 403)
 
 
 # Link Preview (app/chats/link_preview.py)
+
 
 class TestLinkPreview:
     """GET /api/link-preview"""
@@ -1172,6 +1275,7 @@ class TestLinkPreview:
 
 # Keys (app/keys/keys.py)
 
+
 class TestKeys:
     """GET /api/keys/pubkey, /vapid-public, /ice-servers"""
 
@@ -1202,6 +1306,7 @@ class TestKeys:
 
 
 # Main endpoints (app/main.py)
+
 
 class TestMainEndpoints:
     """GET /, /favicon.ico, /manifest.json, /service-worker.js, /health, /health/ready, /metrics"""
@@ -1245,11 +1350,13 @@ class TestMainEndpoints:
 
 # Config (app/config.py)
 
+
 class TestConfig:
     """Config attributes, ensure_dirs, validate"""
 
     def test_config_attributes_exist(self):
         from app.config import Config
+
         assert hasattr(Config, "JWT_SECRET")
         assert hasattr(Config, "CSRF_SECRET")
         assert hasattr(Config, "DATABASE_URL") or hasattr(Config, "DB_PATH")
@@ -1264,6 +1371,7 @@ class TestConfig:
 
     def test_ensure_dirs(self, tmp_path):
         from app.config import Config
+
         original_upload = Config.UPLOAD_DIR
         original_keys = Config.KEYS_DIR
         try:
@@ -1278,17 +1386,20 @@ class TestConfig:
 
     def test_validate_no_crash(self):
         from app.config import Config
+
         # Should not raise, only logs warnings
         Config.validate()
 
 
 # Database (app/database.py)
 
+
 class TestDatabase:
     """get_engine_info, init_db, SessionLocal, get_db"""
 
     def test_get_engine_info(self):
         from app.database import get_engine_info
+
         info = get_engine_info()
         assert "backend" in info
         assert info["backend"] in ("sqlite", "postgresql")
@@ -1296,17 +1407,20 @@ class TestDatabase:
 
     def test_init_db_idempotent(self):
         from app.database import init_db
+
         # Should not raise even if called repeatedly
         init_db()
         init_db()
 
     def test_session_local(self):
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             assert db is not None
             # Basic query
             from sqlalchemy import text
+
             result = db.execute(text("SELECT 1"))
             assert result is not None
         finally:
@@ -1314,6 +1428,7 @@ class TestDatabase:
 
     def test_get_db(self):
         from app.database import get_db
+
         gen = get_db()
         db = next(gen)
         assert db is not None
@@ -1323,11 +1438,13 @@ class TestDatabase:
 
 # Models validation (app/models.py)
 
+
 class TestModelsValidation:
     """RegisterRequest, LoginRequest, KeyLoginRequest Pydantic validation"""
 
     def test_register_valid(self):
         from app.models import RegisterRequest
+
         req = RegisterRequest(
             phone="+79001234567",
             username="test_user1",
@@ -1338,6 +1455,7 @@ class TestModelsValidation:
 
     def test_register_invalid_phone(self):
         from app.models import RegisterRequest
+
         with pytest.raises(ValidationError):
             RegisterRequest(
                 phone="bad",
@@ -1348,6 +1466,7 @@ class TestModelsValidation:
 
     def test_register_invalid_username(self):
         from app.models import RegisterRequest
+
         with pytest.raises(ValidationError):
             RegisterRequest(
                 phone="+79001234567",
@@ -1358,6 +1477,7 @@ class TestModelsValidation:
 
     def test_register_invalid_pubkey(self):
         from app.models import RegisterRequest
+
         with pytest.raises(ValidationError):
             RegisterRequest(
                 phone="+79001234567",
@@ -1368,6 +1488,7 @@ class TestModelsValidation:
 
     def test_login_valid(self):
         from app.models import LoginRequest
+
         req = LoginRequest(
             phone_or_username="test_user",
             password="pass1234",
@@ -1376,6 +1497,7 @@ class TestModelsValidation:
 
     def test_login_empty_password(self):
         from app.models import LoginRequest
+
         with pytest.raises(ValidationError):
             LoginRequest(
                 phone_or_username="test_user",
@@ -1384,6 +1506,7 @@ class TestModelsValidation:
 
     def test_key_login_valid(self):
         from app.models import KeyLoginRequest
+
         req = KeyLoginRequest(
             challenge_id=secrets.token_hex(16),
             pubkey=secrets.token_hex(32),
@@ -1393,6 +1516,7 @@ class TestModelsValidation:
 
     def test_key_login_invalid_hex(self):
         from app.models import KeyLoginRequest
+
         with pytest.raises(ValidationError):
             KeyLoginRequest(
                 challenge_id=secrets.token_hex(16),
@@ -1403,17 +1527,20 @@ class TestModelsValidation:
 
 # Utils (app/utilites/utils.py)
 
+
 class TestUtils:
     """generative_invite_code, sanitize"""
 
     def test_invite_code_length(self):
         from app.utilites.utils import generative_invite_code
+
         for length in (4, 8, 12):
             code = generative_invite_code(length)
             assert len(code) == length
 
     def test_invite_code_no_ambiguous(self):
         from app.utilites.utils import generative_invite_code
+
         ambiguous = set("O0I1")
         for _ in range(50):
             code = generative_invite_code(8)
@@ -1421,6 +1548,7 @@ class TestUtils:
 
     def test_sanitize_strips_control(self):
         from app.utilites.utils import sanitize
+
         result = sanitize("hello\x00world\x07test")
         assert "\x00" not in result
         assert "\x07" not in result
@@ -1428,22 +1556,26 @@ class TestUtils:
 
     def test_sanitize_truncates(self):
         from app.utilites.utils import sanitize
+
         long_str = "a" * 10000
         result = sanitize(long_str, max_len=100)
         assert len(result) <= 100
 
     def test_sanitize_empty(self):
         from app.utilites.utils import sanitize
+
         assert sanitize("") == ""
         assert sanitize(None) == ""  # type: ignore
 
     def test_sanitize_preserves_normal(self):
         from app.utilites.utils import sanitize
+
         normal = "Hello, World! 123"
         assert sanitize(normal) == normal
 
 
 # Antispam Bot (app/bots/antispam_bot.py)
+
 
 class TestAntispamBot:
     """ensure_antispam_bot, add_antispam_bot_to_room, check_*_spam"""
@@ -1523,9 +1655,7 @@ class TestAntispamBot:
             if not user:
                 pytest.skip("No user")
 
-            result = await check_link_spam(
-                99998, user, "check https://example.com link", RoomRole.MEMBER, db
-            )
+            result = await check_link_spam(99998, user, "check https://example.com link", RoomRole.MEMBER, db)
             assert isinstance(result, bool)
         finally:
             db.close()
@@ -1557,16 +1687,19 @@ class TestAntispamBot:
 
 # Connection Manager (app/peer/connection_manager.py)
 
+
 class TestConnectionManager:
     """TokenBucket, MessageDeduplicator, ConnectionManager"""
 
     def test_token_bucket_consume_success(self):
         from app.peer.connection_manager import TokenBucket
+
         bucket = TokenBucket(capacity=10, rate=5)
         assert bucket.consume(1.0) is True
 
     def test_token_bucket_exhaust(self):
         from app.peer.connection_manager import TokenBucket
+
         bucket = TokenBucket(capacity=3, rate=0.0)  # no refill
         assert bucket.consume(1.0) is True
         assert bucket.consume(1.0) is True
@@ -1575,6 +1708,7 @@ class TestConnectionManager:
 
     def test_token_bucket_refill(self):
         from app.peer.connection_manager import TokenBucket
+
         bucket = TokenBucket(capacity=2, rate=100.0)  # fast refill
         bucket.consume(2.0)  # exhaust
         time.sleep(0.05)  # refill: 100 * 0.05 = 5 tokens (capped at 2)
@@ -1583,6 +1717,7 @@ class TestConnectionManager:
     @pytest.mark.asyncio
     async def test_deduplicator_is_duplicate(self):
         from app.peer.connection_manager import MessageDeduplicator
+
         dd = MessageDeduplicator(max_size=100, ttl_sec=60)
         assert await dd.is_duplicate("msg_1") is False
         assert await dd.is_duplicate("msg_1") is True
@@ -1591,6 +1726,7 @@ class TestConnectionManager:
     @pytest.mark.asyncio
     async def test_deduplicator_max_size_eviction(self):
         from app.peer.connection_manager import MessageDeduplicator
+
         dd = MessageDeduplicator(max_size=5, ttl_sec=60)
         for i in range(10):
             await dd.is_duplicate(f"evict_{i}")
@@ -1598,11 +1734,13 @@ class TestConnectionManager:
 
     def test_connection_manager_total_connections(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         assert mgr.total_connections() == 0
 
     def test_connection_manager_dedup_stats(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         stats = mgr.dedup_stats()
         assert "seen_msg_ids" in stats
@@ -1612,32 +1750,35 @@ class TestConnectionManager:
 
 # Peer Registry (app/peer/peer_registry.py)
 
+
 class TestPeerRegistry:
     """PeerInfo, PeerRegistry, REST endpoints"""
 
     def test_peer_info_alive(self):
         from app.peer.peer_registry import PeerInfo
+
         p = PeerInfo(name="test", ip="10.0.0.1", port=9000)
         assert p.alive() is True
 
     def test_peer_info_alive_expired(self):
         from app.peer.peer_registry import PeerInfo
+
         p = PeerInfo(name="test", ip="10.0.0.1", port=9000)
         p.last_seen = time.monotonic() - 9999  # expired
         assert p.alive() is False
 
     def test_peer_info_has_encryption(self):
         from app.peer.peer_registry import PeerInfo
-        p_enc = PeerInfo(name="t", ip="10.0.0.1", port=9000,
-                         node_pubkey_hex=secrets.token_hex(32))
+
+        p_enc = PeerInfo(name="t", ip="10.0.0.1", port=9000, node_pubkey_hex=secrets.token_hex(32))
         p_no = PeerInfo(name="t", ip="10.0.0.2", port=9000)
         assert p_enc.has_encryption() is True
         assert p_no.has_encryption() is False
 
     def test_peer_info_to_dict(self):
         from app.peer.peer_registry import PeerInfo
-        p = PeerInfo(name="n", ip="10.0.0.1", port=9000,
-                     node_pubkey_hex=secrets.token_hex(32))
+
+        p = PeerInfo(name="n", ip="10.0.0.1", port=9000, node_pubkey_hex=secrets.token_hex(32))
         d = p.to_dict()
         assert d["name"] == "n"
         assert d["ip"] == "10.0.0.1"
@@ -1647,6 +1788,7 @@ class TestPeerRegistry:
 
     def test_peer_info_base_url(self):
         from app.peer.peer_registry import PeerInfo
+
         p = PeerInfo(name="n", ip="10.0.0.1", port=9000)
         url = p.base_url
         assert "10.0.0.1" in url
@@ -1654,6 +1796,7 @@ class TestPeerRegistry:
 
     def test_registry_update(self):
         from app.peer.peer_registry import PeerRegistry
+
         reg = PeerRegistry()
         is_new = reg.update("10.0.0.1", "peer1", 8000)
         assert is_new is True
@@ -1662,6 +1805,7 @@ class TestPeerRegistry:
 
     def test_registry_active(self):
         from app.peer.peer_registry import PeerRegistry
+
         reg = PeerRegistry()
         reg.update("10.0.0.1", "a", 8000)
         active = reg.active()
@@ -1669,6 +1813,7 @@ class TestPeerRegistry:
 
     def test_registry_get(self):
         from app.peer.peer_registry import PeerRegistry
+
         reg = PeerRegistry()
         reg.update("10.0.0.2", "b", 8001)
         p = reg.get("10.0.0.2")
@@ -1678,6 +1823,7 @@ class TestPeerRegistry:
 
     def test_registry_cleanup(self):
         from app.peer.peer_registry import PeerRegistry
+
         reg = PeerRegistry()
         reg.update("10.0.0.3", "c", 8002)
         # Force expire
@@ -1715,6 +1861,7 @@ class TestPeerRegistry:
 
 # Federation (app/federation/federation.py)
 
+
 class TestFederation:
     """GET /api/federation/status, POST guest-login, GET my-rooms"""
 
@@ -1729,13 +1876,16 @@ class TestFederation:
 
     def test_guest_login(self, client):
         # guest-login requires request from private IP; test client is 127.0.0.1 or testserver
-        r = client.post("/api/federation/guest-login", json={
-            "username": f"guest_{random_str(4)}",
-            "display_name": "Guest User",
-            "avatar_emoji": "T",
-            "x25519_pubkey": secrets.token_hex(32),
-            "peer_port": 8000,
-        })
+        r = client.post(
+            "/api/federation/guest-login",
+            json={
+                "username": f"guest_{random_str(4)}",
+                "display_name": "Guest User",
+                "avatar_emoji": "T",
+                "x25519_pubkey": secrets.token_hex(32),
+                "peer_port": 8000,
+            },
+        )
         # May succeed (200), be rejected (403), or require auth (401)
         assert r.status_code in (200, 401, 403, 500)
 

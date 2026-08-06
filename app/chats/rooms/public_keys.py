@@ -20,6 +20,7 @@ Explicitly NOT a privacy feature: anything stored via this endpoint is
 considered public. Don't use it for DMs or private groups — the /join
 + /provide-key flow in keys.py is the right path there.
 """
+
 from __future__ import annotations
 
 import logging
@@ -44,8 +45,7 @@ _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class PublicKeyUpload(BaseModel):
-    key_hex: str = Field(..., min_length=64, max_length=64,
-                         description="AES-256 key, hex-encoded (32 bytes).")
+    key_hex: str = Field(..., min_length=64, max_length=64, description="AES-256 key, hex-encoded (32 bytes).")
     algorithm: str = Field("aes-256-gcm", max_length=32)
 
 
@@ -55,8 +55,12 @@ def invalidate_server_key(room_id: int, db: Session) -> bool:
     Called when the room flips public→private OR when an admin forces
     rotation. Returns True if a row was deleted.
     """
-    n = db.query(PublicRoomKey).filter(PublicRoomKey.room_id == room_id).delete(
-        synchronize_session=False,
+    n = (
+        db.query(PublicRoomKey)
+        .filter(PublicRoomKey.room_id == room_id)
+        .delete(
+            synchronize_session=False,
+        )
     )
     if n:
         db.flush()
@@ -109,11 +113,14 @@ async def store_public_key_and_propagate(
 
     # Broadcast to local WS members so they switch immediately.
     try:
-        await manager.broadcast_to_room(room_id, {
-            "type": "public_room_key_updated",
-            "room_id": room_id,
-            "rotated": rotated,
-        })
+        await manager.broadcast_to_room(
+            room_id,
+            {
+                "type": "public_room_key_updated",
+                "room_id": room_id,
+                "rotated": rotated,
+            },
+        )
     except Exception as e:
         logger.debug("local broadcast public_room_key_updated failed: %s", e)
 
@@ -121,6 +128,7 @@ async def store_public_key_and_propagate(
     # (app.peer.peer_public_keys depends on app.chats.rooms indirectly).
     try:
         from app.peer.peer_public_keys import propagate_public_key
+
         await propagate_public_key(
             room_id=room_id,
             key_hex=row.key_hex,
@@ -135,14 +143,18 @@ async def invalidate_and_propagate(room_id: int, db: Session) -> bool:
     """Delete locally then tell every peer to drop its copy too."""
     wiped = invalidate_server_key(room_id, db)
     try:
-        await manager.broadcast_to_room(room_id, {
-            "type": "public_room_key_deleted",
-            "room_id": room_id,
-        })
+        await manager.broadcast_to_room(
+            room_id,
+            {
+                "type": "public_room_key_deleted",
+                "room_id": room_id,
+            },
+        )
     except Exception as e:
         logger.debug("local broadcast public_room_key_deleted failed: %s", e)
     try:
         from app.peer.peer_public_keys import propagate_public_key
+
         await propagate_public_key(
             room_id=room_id,
             key_hex="",
@@ -205,16 +217,18 @@ async def set_public_key(
     # it up on their next GET; no queuing needed because the DB row IS
     # the delivery mechanism.
     try:
-        await manager.broadcast_to_room(room_id, {
-            "type": "public_room_key_updated",
-            "room_id": room_id,
-            "rotated": rotated,
-        })
+        await manager.broadcast_to_room(
+            room_id,
+            {
+                "type": "public_room_key_updated",
+                "room_id": room_id,
+                "rotated": rotated,
+            },
+        )
     except Exception as e:  # broadcast is best-effort
         logger.debug("broadcast public_room_key_updated failed: %s", e)
 
-    return {"ok": True, "rotated": rotated,
-            "created_at": (row.created_at or datetime.now(timezone.utc)).isoformat()}
+    return {"ok": True, "rotated": rotated, "created_at": (row.created_at or datetime.now(timezone.utc)).isoformat()}
 
 
 @router.get("/{room_id}/public-key")
@@ -242,9 +256,9 @@ async def get_public_key(
         raise HTTPException(404, "No public key set for this room yet")
 
     return {
-        "room_id":    room_id,
-        "key_hex":    row.key_hex,
-        "algorithm":  row.algorithm,
+        "room_id": room_id,
+        "key_hex": row.key_hex,
+        "algorithm": row.algorithm,
         "created_at": (row.created_at or datetime.now(timezone.utc)).isoformat(),
         "rotated_at": row.rotated_at.isoformat() if row.rotated_at else None,
     }

@@ -17,6 +17,7 @@ POST /api/bot/form_submit                       handle form submission
 POST /api/bot/federated_send                    federated bot message delivery
 POST|GET /api/bot/webhook/{pid}/{path}          webhook forwarding
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -59,6 +60,7 @@ async def bot_call_function(
     # Sanitise username
     if not _ID_RE.match(username):
         from fastapi import HTTPException
+
         raise HTTPException(400, "Invalid username")
 
     # Find running bot whose project_id contains or equals the username
@@ -69,40 +71,40 @@ async def bot_call_function(
             break
 
     if matched_pid is None:
-        return JSONResponse({
-            "ok": False,
-            "error": "Bot is not running or not found. Start the bot first.",
-            "username": username,
-            "fn_name": body.fn_name,
-        })
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Bot is not running or not found. Start the bot first.",
+                "username": username,
+                "fn_name": body.fn_name,
+            }
+        )
 
     bp = _procs.get(matched_pid)
     if bp is None or bp.proc.poll() is not None:
-        return JSONResponse({
-            "ok": False,
-            "error": "Bot process has exited.",
-            "username": username,
-        })
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Bot process has exited.",
+                "username": username,
+            }
+        )
 
     # --- Stub IPC: log the call and return a placeholder result ---
     # Full IPC would write a JSON call frame to stdin and read __RESULT__ from stdout.
-    logger.info(
-        "inter-bot call: bot=%s fn=%s args=%s (stub)", username, body.fn_name, body.args
-    )
+    logger.info("inter-bot call: bot=%s fn=%s args=%s (stub)", username, body.fn_name, body.args)
 
     return {
         "ok": True,
         "result": None,
         "note": (
-            "Inter-bot call routed to running bot. "
-            "Full IPC requires Gravitix runtime support for __CALL__ frames."
+            "Inter-bot call routed to running bot. Full IPC requires Gravitix runtime support for __CALL__ frames."
         ),
         "username": username,
         "fn_name": body.fn_name,
         "args": body.args,
         "pid": bp.pid,
     }
-
 
 
 @bot_call_router.get("/api/bot/history/{room_id}/{user_id}")
@@ -152,7 +154,6 @@ async def get_message_history(
         return {"ok": False, "history": [], "error": str(e)}
     finally:
         db.close()
-
 
 
 @bot_call_router.post("/api/bot/typing")
@@ -221,10 +222,12 @@ async def bot_mute_user(
         return {"ok": False, "error": "room_id and user_id required"}
     logger.info(
         "bot mute: room=%s target=%s duration=%dms user=%s",
-        room_id, user_id, duration_ms, current_user.id,
+        room_id,
+        user_id,
+        duration_ms,
+        current_user.id,
     )
     return {"ok": True, "muted": True}
-
 
 
 @bot_call_router.get("/api/bot/user_lang/{user_id}")
@@ -237,7 +240,6 @@ async def get_user_lang(
     For now returns default 'en'; can be extended to read from user profile.
     """
     return {"ok": True, "lang": "en"}
-
 
 
 @bot_call_router.post("/api/bot/embed")
@@ -260,13 +262,16 @@ async def bot_embed(
     embed_id = f"embed_{int(time.time())}"
     logger.info(
         "Bot embed: room=%s title=%s height=%d user=%s embed_id=%s",
-        room_id, title, height, current_user.id, embed_id,
+        room_id,
+        title,
+        height,
+        current_user.id,
+        embed_id,
     )
 
     # Store embed data — frontend will render it in an iframe
     # For now, broadcast as a special message type
     return {"ok": True, "embed_id": embed_id}
-
 
 
 @bot_call_router.post("/api/bot/notify")
@@ -362,11 +367,7 @@ async def bot_notify_room(
         members = db.query(RoomMember).filter(RoomMember.room_id == room_id).all()
         member_ids = [m.user_id for m in members]
 
-        subs = (
-            db.query(PushSubscription)
-            .filter(PushSubscription.user_id.in_(member_ids))
-            .all()
-        ) if member_ids else []
+        subs = (db.query(PushSubscription).filter(PushSubscription.user_id.in_(member_ids)).all()) if member_ids else []
 
         for sub in subs:
             try:
@@ -390,7 +391,6 @@ async def bot_notify_room(
     return {"ok": True, "sent": sent}
 
 
-
 @bot_call_router.post("/api/bot/fire_event")
 async def bot_fire_event(body: dict, user=Depends(get_current_user)):
     """Fire a custom event to a running bot."""
@@ -399,14 +399,11 @@ async def bot_fire_event(body: dict, user=Depends(get_current_user)):
     event_data = body.get("data", {})
 
     event_file = _BASE / "bots_workspace" / f"{project_id}_event.json"
-    event_file.write_text(json.dumps({
-        "type": "event",
-        "event": event_name,
-        "data": event_data,
-        "timestamp": time.time()
-    }), encoding="utf-8")
+    event_file.write_text(
+        json.dumps({"type": "event", "event": event_name, "data": event_data, "timestamp": time.time()}),
+        encoding="utf-8",
+    )
     return {"ok": True}
-
 
 
 @bot_call_router.post("/api/bot/form")
@@ -416,13 +413,7 @@ async def bot_form(body: dict, user=Depends(get_current_user)):
     submit_label = body.get("submit", "Submit")
     bot_id = body.get("bot_id", "")
 
-    return {
-        "ok": True,
-        "type": "form",
-        "fields": fields,
-        "submit": submit_label,
-        "bot_id": bot_id
-    }
+    return {"ok": True, "type": "form", "fields": fields, "submit": submit_label, "bot_id": bot_id}
 
 
 @bot_call_router.post("/api/bot/form_submit")
@@ -437,16 +428,15 @@ async def bot_form_submit(body: dict, user=Depends(get_current_user)):
     bot_id = _require_project(bot_id, user)
 
     event_file = _BASE / "bots_workspace" / f"{bot_id}_event.json"
-    event_file.write_text(json.dumps({
-        "type": "form_submit",
-        "data": form_data,
-        "user_id": user.id,
-        "timestamp": time.time()
-    }), encoding="utf-8")
+    event_file.write_text(
+        json.dumps({"type": "form_submit", "data": form_data, "user_id": user.id, "timestamp": time.time()}),
+        encoding="utf-8",
+    )
     return {"ok": True}
 
 
 # Federated router endpoints
+
 
 @federated_router.post("/api/bot/federated_send")
 async def federated_send(
@@ -460,7 +450,9 @@ async def federated_send(
 
     logger.info(
         "Federated send from %s: room=%s, text=%s",
-        source_node, room_name, text[:50],
+        source_node,
+        room_name,
+        text[:50],
     )
 
     from app.database import SessionLocal
@@ -486,6 +478,7 @@ async def federated_send(
 
 
 # Webhook router endpoints
+
 
 @webhook_router.post("/api/bot/webhook/{project_id}/{path:path}")
 @webhook_router.get("/api/bot/webhook/{project_id}/{path:path}")

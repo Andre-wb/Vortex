@@ -9,6 +9,7 @@ VECTORS_PATH = Path(__file__).parent / "vectors" / "mlkem768_kat.json"
 
 try:
     import vortex_chat as _rust
+
     _HAS_RUST = hasattr(_rust, "mlkem768_keygen")
 except ImportError:
     _rust = None
@@ -18,6 +19,7 @@ requires_rust = pytest.mark.skipif(not _HAS_RUST, reason="vortex_chat ML-KEM Ð½Ð
 
 try:
     import oqs as _oqs
+
     _oqs.KeyEncapsulation("ML-KEM-768")
     _HAS_LIBOQS = True
 except BaseException:

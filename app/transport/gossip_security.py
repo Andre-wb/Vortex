@@ -9,6 +9,7 @@ Components:
   - VectorClock: simple vector clock for peer-list version tracking
   - GossipValidator: validates peer addresses, room data, deduplicates peer IDs
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -24,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 # Constants
 
-MAX_GOSSIP_PEERS = 50       # max peers per gossip exchange
-MAX_GOSSIP_ROOMS = 100      # max rooms per gossip exchange
+MAX_GOSSIP_PEERS = 50  # max peers per gossip exchange
+MAX_GOSSIP_ROOMS = 100  # max rooms per gossip exchange
 GOSSIP_COOLDOWN_SEC = 30.0  # min seconds between gossip exchanges per peer
 PEER_MAX_AGE_SEC = 7 * 24 * 3600  # 7 days — remove peers not seen since
 
@@ -44,6 +45,7 @@ MAX_PEER_NAME_LENGTH = 64
 
 
 # GossipRateLimiter — sliding window, 1 exchange per peer per 30 seconds
+
 
 class GossipRateLimiter:
     """Sliding-window rate limiter for gossip exchanges.
@@ -80,6 +82,7 @@ class GossipRateLimiter:
 
 # PeerReputation — simple scoring system for Sybil protection
 
+
 @dataclass
 class PeerReputation:
     """Reputation record for a single peer.
@@ -91,6 +94,7 @@ class PeerReputation:
         first_seen: when the peer was first observed
         last_seen: when the peer was last observed
     """
+
     score: float = 1.0
     successful_exchanges: int = 0
     failed_exchanges: int = 0
@@ -124,16 +128,18 @@ class PeerReputation:
         if self.score < REPUTATION_PERM_BAN_THRESHOLD:
             self._permanently_banned = True
             logger.warning(
-                "Peer permanently banned: score=%.2f, "
-                "success=%d, fail=%d",
-                self.score, self.successful_exchanges, self.failed_exchanges,
+                "Peer permanently banned: score=%.2f, success=%d, fail=%d",
+                self.score,
+                self.successful_exchanges,
+                self.failed_exchanges,
             )
         elif self.score < REPUTATION_TEMP_BAN_THRESHOLD:
             self._temp_ban_until = time.monotonic() + TEMP_BAN_DURATION_SEC
             logger.warning(
-                "Peer temporarily banned (1h): score=%.2f, "
-                "success=%d, fail=%d",
-                self.score, self.successful_exchanges, self.failed_exchanges,
+                "Peer temporarily banned (1h): score=%.2f, success=%d, fail=%d",
+                self.score,
+                self.successful_exchanges,
+                self.failed_exchanges,
             )
 
     def is_banned(self) -> bool:
@@ -211,6 +217,7 @@ class ReputationManager:
 
 # Proof-of-Work — hashcash-style challenge for new peers
 
+
 class ProofOfWork:
     """Hashcash-style proof-of-work for new peers.
 
@@ -241,8 +248,7 @@ class ProofOfWork:
         }
 
     @classmethod
-    def verify_solution(cls, peer_addr: str, challenge: str, nonce: str,
-                        timestamp: str) -> bool:
+    def verify_solution(cls, peer_addr: str, challenge: str, nonce: str, timestamp: str) -> bool:
         """Verify a PoW solution.
 
         Args:
@@ -343,22 +349,17 @@ class ProofOfWork:
     def cleanup(cls) -> None:
         """Remove expired challenges and old verifications."""
         now = time.monotonic()
-        expired_challenges = [
-            k for k, (_, t) in cls._challenges.items()
-            if now - t > cls.CHALLENGE_TTL
-        ]
+        expired_challenges = [k for k, (_, t) in cls._challenges.items() if now - t > cls.CHALLENGE_TTL]
         for k in expired_challenges:
             del cls._challenges[k]
 
-        expired_verified = [
-            k for k, t in cls._verified.items()
-            if now - t > 86400
-        ]
+        expired_verified = [k for k, t in cls._verified.items() if now - t > 86400]
         for k in expired_verified:
             del cls._verified[k]
 
 
 # VectorClock — basic version tracking for gossip consistency
+
 
 class VectorClock:
     """Simple vector clock for tracking peer list versions.
@@ -384,10 +385,13 @@ class VectorClock:
         """Return a copy of the vector clock."""
         return dict(self._clock)
 
-    def merge(self, remote_clock: dict[str, int],
-              reputation_mgr: Optional[ReputationManager] = None,
-              local_peers: Optional[dict] = None,
-              remote_peers: Optional[dict] = None) -> list[str]:
+    def merge(
+        self,
+        remote_clock: dict[str, int],
+        reputation_mgr: Optional[ReputationManager] = None,
+        local_peers: Optional[dict] = None,
+        remote_peers: Optional[dict] = None,
+    ) -> list[str]:
         """Merge a remote vector clock with ours.
 
         For each node in the clocks:
@@ -558,7 +562,8 @@ class GossipValidator:
         if len(peers) > MAX_GOSSIP_PEERS:
             logger.warning(
                 "Gossip exchange has %d peers, capping to %d",
-                len(peers), MAX_GOSSIP_PEERS,
+                len(peers),
+                MAX_GOSSIP_PEERS,
             )
             peers = peers[:MAX_GOSSIP_PEERS]
 
@@ -591,7 +596,8 @@ class GossipValidator:
         if len(rooms) > MAX_GOSSIP_ROOMS:
             logger.warning(
                 "Gossip exchange has %d rooms, capping to %d",
-                len(rooms), MAX_GOSSIP_ROOMS,
+                len(rooms),
+                MAX_GOSSIP_ROOMS,
             )
             rooms = rooms[:MAX_GOSSIP_ROOMS]
 
@@ -606,6 +612,7 @@ class GossipValidator:
 
 
 # GossipSecurity — unified facade
+
 
 class GossipSecurity:
     """Unified security facade for the gossip protocol.
@@ -662,7 +669,8 @@ class GossipSecurity:
         if not self.rate_limiter.is_allowed(peer_addr):
             logger.warning(
                 "Gossip rate-limited: peer %s (1 exchange per %ds)",
-                peer_addr, int(GOSSIP_COOLDOWN_SEC),
+                peer_addr,
+                int(GOSSIP_COOLDOWN_SEC),
             )
             return False, "rate limited"
 

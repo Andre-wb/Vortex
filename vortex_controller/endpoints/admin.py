@@ -12,6 +12,7 @@ Numbers are mock/derived today because the payout smart contract is
 not yet live. Schema is stable so frontend code doesn't have to change
 when we wire to real on-chain reads.
 """
+
 from __future__ import annotations
 
 import time
@@ -94,29 +95,29 @@ async def revenue(request: Request) -> dict:
         daily_inflow_30d.append(round(0.3 + x * 0.18, 2))
 
     return {
-        "treasury_pubkey":            getattr(request.app.state, "treasury_pubkey", ""),
-        "treasury_balance_sol":       round(sum(daily_inflow_30d), 3),
+        "treasury_pubkey": getattr(request.app.state, "treasury_pubkey", ""),
+        "treasury_balance_sol": round(sum(daily_inflow_30d), 3),
         "register_fees_30d": {
             "count": register_fees_30d_count,
-            "sol":   register_fees_30d_sol,
+            "sol": register_fees_30d_sol,
         },
-        "premium_subs_active":        premium_subs_active,
-        "mrr_usd":                    mrr_usd,
+        "premium_subs_active": premium_subs_active,
+        "mrr_usd": mrr_usd,
         "rewards_distributed_30d_sol": rewards_distributed_30d_sol,
         "rewards_distributed_30d_usd": rewards_distributed_30d_usd,
         "network": {
             "registered": registered_total,
-            "approved":   approved_total,
-            "online":     online_total,
+            "approved": approved_total,
+            "online": online_total,
         },
-        "daily_inflow_30d":           daily_inflow_30d,
+        "daily_inflow_30d": daily_inflow_30d,
         "fee_schedule": {
-            "register_fee_sol":     register_fee_sol,
+            "register_fee_sol": register_fee_sol,
             "premium_protocol_pct": 20,
-            "premium_rewards_pct":  70,
-            "premium_burn_pct":     10,
-            "price_per_month_usd":  price_per_month_usd,
+            "premium_rewards_pct": 70,
+            "premium_burn_pct": 10,
+            "price_per_month_usd": price_per_month_usd,
         },
         "issued_at": int(time.time()),
-        "note":      "mock figures — replaces with on-chain reads once payout contract is live",
+        "note": "mock figures — replaces with on-chain reads once payout contract is live",
     }

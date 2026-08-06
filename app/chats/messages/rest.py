@@ -8,6 +8,7 @@ Endpoints:
   DELETE /api/rooms/{room_id}/messages/{msg_id} — delete message
   POST   /api/rooms/{room_id}/messages/{msg_id}/react — add reaction
 """
+
 from __future__ import annotations
 
 import logging
@@ -32,25 +33,29 @@ from app.security.sealed_sender import compute_sender_pseudo
 logger = logging.getLogger(__name__)
 
 
-
 class SendMessageBody(BaseModel):
     ciphertext: str
     reply_to: Optional[int] = None
 
+
 class EditMessageBody(BaseModel):
     ciphertext: str
+
 
 class ReactBody(BaseModel):
     emoji: str
 
 
-
 def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user_id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user_id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a room member")
     return member
@@ -58,29 +63,32 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
 
 def _msg_dict(m: Message) -> dict:
     return {
-        "id":          m.id,
-        "msg_id":      m.id,
-        "room_id":     m.room_id,
+        "id": m.id,
+        "msg_id": m.id,
+        "room_id": m.room_id,
         "sender_pseudo": m.sender_pseudo,
-        "sender":      m.sender.username if m.sender else None,
+        "sender": m.sender.username if m.sender else None,
         "display_name": (m.sender.display_name or m.sender.username) if m.sender else None,
         "avatar_emoji": m.sender.avatar_emoji if m.sender else None,
-        "avatar_url":   m.sender.avatar_url if m.sender else None,
-        "ciphertext":  m.content_encrypted.hex() if isinstance(m.content_encrypted, (bytes, bytearray)) else str(m.content_encrypted or ""),
+        "avatar_url": m.sender.avatar_url if m.sender else None,
+        "ciphertext": m.content_encrypted.hex()
+        if isinstance(m.content_encrypted, (bytes, bytearray))
+        else str(m.content_encrypted or ""),
         "reply_to_id": m.reply_to_id,
-        "thread_id":   m.thread_id,
-        "is_edited":   m.is_edited,
-        "created_at":  utc_iso(m.created_at),
+        "thread_id": m.thread_id,
+        "is_edited": m.is_edited,
+        "created_at": utc_iso(m.created_at),
     }
 
 
 # POST /api/rooms/{room_id}/messages — send message
 
+
 @router.post("/api/rooms/{room_id}/messages", status_code=201)
 async def send_message(
     room_id: int,
     body: SendMessageBody,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     room = db.query(Room).filter(Room.id == room_id).first()
@@ -93,15 +101,23 @@ async def send_message(
     # отправителя. (WS send-path в messages.py принадлежит другому агенту —
     # см. residual.)
     if room.is_dm:
-        recipient = db.query(RoomMember.user_id).filter(
-            RoomMember.room_id == room_id,
-            RoomMember.user_id != u.id,
-        ).first()
+        recipient = (
+            db.query(RoomMember.user_id)
+            .filter(
+                RoomMember.room_id == room_id,
+                RoomMember.user_id != u.id,
+            )
+            .first()
+        )
         if recipient:
-            blocked = db.query(BlockedUser).filter(
-                BlockedUser.blocker_id == recipient[0],
-                BlockedUser.blocked_id == u.id,
-            ).first()
+            blocked = (
+                db.query(BlockedUser)
+                .filter(
+                    BlockedUser.blocker_id == recipient[0],
+                    BlockedUser.blocked_id == u.id,
+                )
+                .first()
+            )
             if blocked:
                 raise HTTPException(403, "You have been blocked by this user")
 
@@ -121,19 +137,24 @@ async def send_message(
 
     reply_to_id = body.reply_to
     if reply_to_id:
-        exists = db.query(Message.id).filter(
-            Message.id == reply_to_id, Message.room_id == room_id,
-        ).first()
+        exists = (
+            db.query(Message.id)
+            .filter(
+                Message.id == reply_to_id,
+                Message.room_id == room_id,
+            )
+            .first()
+        )
         if not exists:
             reply_to_id = None
 
     msg = Message(
-        room_id           = room_id,
-        sender_pseudo     = compute_sender_pseudo(room_id, u.id),
-        msg_type          = MessageType.TEXT,
-        content_encrypted = ciphertext_bytes,
-        content_hash      = content_hash,
-        reply_to_id       = reply_to_id,
+        room_id=room_id,
+        sender_pseudo=compute_sender_pseudo(room_id, u.id),
+        msg_type=MessageType.TEXT,
+        content_encrypted=ciphertext_bytes,
+        content_hash=content_hash,
+        reply_to_id=reply_to_id,
     )
     db.add(msg)
     db.commit()
@@ -141,18 +162,18 @@ async def send_message(
 
     # Broadcast to WS participants
     payload = {
-        "type":          "message",
-        "msg_id":        msg.id,
-        "sender_id":     u.id,
+        "type": "message",
+        "msg_id": msg.id,
+        "sender_id": u.id,
         "sender_pseudo": msg.sender_pseudo,
-        "sender":        u.username,
-        "display_name":  u.display_name or u.username,
-        "avatar_emoji":  u.avatar_emoji,
-        "avatar_url":    u.avatar_url,
-        "ciphertext":    ciphertext_str,
-        "reply_to_id":   reply_to_id,
-        "status":        "sent",
-        "created_at":    utc_iso(msg.created_at),
+        "sender": u.username,
+        "display_name": u.display_name or u.username,
+        "avatar_emoji": u.avatar_emoji,
+        "avatar_url": u.avatar_url,
+        "ciphertext": ciphertext_str,
+        "reply_to_id": reply_to_id,
+        "status": "sent",
+        "created_at": utc_iso(msg.created_at),
     }
     await manager.broadcast_to_room(room_id, payload)
 
@@ -161,14 +182,15 @@ async def send_message(
 
 # GET /api/rooms/{room_id}/messages — list messages (paginated)
 
+
 @router.get("/api/rooms/{room_id}/messages")
 async def list_messages(
-    room_id:   int,
+    room_id: int,
     before_id: Optional[int] = None,
-    after_id:  Optional[int] = None,
+    after_id: Optional[int] = None,
     around_id: Optional[int] = None,
-    limit:     int = 50,
-    u:  User    = Depends(get_current_user),
+    limit: int = 50,
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     room = db.query(Room).filter(Room.id == room_id).first()
@@ -183,20 +205,28 @@ async def list_messages(
     if around_id:
         half = limit // 2
         before = (
-            db.query(Message).filter(
+            db.query(Message)
+            .filter(
                 Message.room_id == room_id,
                 Message.thread_id.is_(None),
                 Message.is_scheduled.is_(False),
                 Message.id <= around_id,
-            ).order_by(Message.created_at.desc()).limit(half + 1).all()
+            )
+            .order_by(Message.created_at.desc())
+            .limit(half + 1)
+            .all()
         )
         after = (
-            db.query(Message).filter(
+            db.query(Message)
+            .filter(
                 Message.room_id == room_id,
                 Message.thread_id.is_(None),
                 Message.is_scheduled.is_(False),
                 Message.id > around_id,
-            ).order_by(Message.created_at.asc()).limit(half).all()
+            )
+            .order_by(Message.created_at.asc())
+            .limit(half)
+            .all()
         )
         messages = list(reversed(before)) + after
         return {"messages": [_msg_dict(m) for m in messages]}
@@ -220,19 +250,25 @@ async def list_messages(
 
 # PUT /api/rooms/{room_id}/messages/{msg_id} — edit message
 
+
 @router.put("/api/rooms/{room_id}/messages/{msg_id}")
 async def edit_message(
     room_id: int,
-    msg_id:  int,
+    msg_id: int,
     body: EditMessageBody,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     _require_member(room_id, u.id, db)
 
-    msg = db.query(Message).filter(
-        Message.id == msg_id, Message.room_id == room_id,
-    ).first()
+    msg = (
+        db.query(Message)
+        .filter(
+            Message.id == msg_id,
+            Message.room_id == room_id,
+        )
+        .first()
+    )
     if not msg:
         raise HTTPException(404, "Message not found")
 
@@ -241,12 +277,18 @@ async def edit_message(
         raise HTTPException(403, "Only the author can edit")
 
     # Save edit history
-    old_ciphertext = msg.content_encrypted.hex() if isinstance(msg.content_encrypted, (bytes, bytearray)) else str(msg.content_encrypted or "")
-    db.add(MessageEditHistory(
-        message_id    = msg.id,
-        ciphertext_hex = old_ciphertext,
-        edited_at     = datetime.now(timezone.utc),
-    ))
+    old_ciphertext = (
+        msg.content_encrypted.hex()
+        if isinstance(msg.content_encrypted, (bytes, bytearray))
+        else str(msg.content_encrypted or "")
+    )
+    db.add(
+        MessageEditHistory(
+            message_id=msg.id,
+            ciphertext_hex=old_ciphertext,
+            edited_at=datetime.now(timezone.utc),
+        )
+    )
 
     try:
         new_bytes = bytes.fromhex(body.ciphertext.strip())
@@ -258,35 +300,45 @@ async def edit_message(
     msg.edited_at = datetime.now(timezone.utc)
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type":       "edit",
-        "msg_id":     msg.id,
-        "ciphertext": body.ciphertext.strip(),
-        "edited_at":  utc_iso(msg.edited_at),
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "edit",
+            "msg_id": msg.id,
+            "ciphertext": body.ciphertext.strip(),
+            "edited_at": utc_iso(msg.edited_at),
+        },
+    )
 
     return {"ok": True, "id": msg.id, "edited_at": utc_iso(msg.edited_at)}
 
 
 # DELETE /api/rooms/{room_id}/messages/{msg_id} — delete message
 
+
 @router.delete("/api/rooms/{room_id}/messages/{msg_id}")
 async def delete_message(
     room_id: int,
-    msg_id:  int,
-    u:  User    = Depends(get_current_user),
+    msg_id: int,
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     member = _require_member(room_id, u.id, db)
 
-    msg = db.query(Message).filter(
-        Message.id == msg_id, Message.room_id == room_id,
-    ).first()
+    msg = (
+        db.query(Message)
+        .filter(
+            Message.id == msg_id,
+            Message.room_id == room_id,
+        )
+        .first()
+    )
     if not msg:
         raise HTTPException(404, "Message not found")
 
     sender_pseudo = compute_sender_pseudo(room_id, u.id)
     from app.models_rooms import RoomRole
+
     is_owner = msg.sender_pseudo == sender_pseudo
     is_admin = member.role in (RoomRole.OWNER, RoomRole.ADMIN)
 
@@ -296,29 +348,38 @@ async def delete_message(
     db.delete(msg)
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type":   "delete",
-        "msg_id": msg_id,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "delete",
+            "msg_id": msg_id,
+        },
+    )
 
     return {"ok": True}
 
 
 # POST /api/rooms/{room_id}/messages/{msg_id}/react — add reaction
 
+
 @router.post("/api/rooms/{room_id}/messages/{msg_id}/react")
 async def react_to_message(
     room_id: int,
-    msg_id:  int,
+    msg_id: int,
     body: ReactBody,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     _require_member(room_id, u.id, db)
 
-    msg = db.query(Message).filter(
-        Message.id == msg_id, Message.room_id == room_id,
-    ).first()
+    msg = (
+        db.query(Message)
+        .filter(
+            Message.id == msg_id,
+            Message.room_id == room_id,
+        )
+        .first()
+    )
     if not msg:
         raise HTTPException(404, "Message not found")
 
@@ -328,11 +389,15 @@ async def react_to_message(
     if not is_valid_reaction_emoji(emoji):
         raise HTTPException(422, "Invalid emoji")
 
-    existing = db.query(MessageReaction).filter(
-        MessageReaction.message_id == msg_id,
-        MessageReaction.user_id == u.id,
-        MessageReaction.emoji == emoji,
-    ).first()
+    existing = (
+        db.query(MessageReaction)
+        .filter(
+            MessageReaction.message_id == msg_id,
+            MessageReaction.user_id == u.id,
+            MessageReaction.emoji == emoji,
+        )
+        .first()
+    )
 
     if existing:
         db.delete(existing)
@@ -343,13 +408,16 @@ async def react_to_message(
         db.commit()
         action = "add"
 
-    await manager.broadcast_to_room(room_id, {
-        "type":     "reaction",
-        "msg_id":   msg_id,
-        "emoji":    emoji,
-        "user_id":  u.id,
-        "username": u.username,
-        "action":   action,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "reaction",
+            "msg_id": msg_id,
+            "emoji": emoji,
+            "user_id": u.id,
+            "username": u.username,
+            "action": action,
+        },
+    )
 
     return {"ok": True, "action": action}

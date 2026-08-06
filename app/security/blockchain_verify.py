@@ -22,6 +22,7 @@ Usage:
     if not result.ok:
         raise HTTPException(402, result.error)
 """
+
 from __future__ import annotations
 
 import logging
@@ -35,15 +36,15 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _CONFIRMATIONS = {
-    "trc20": 19,   # TRON: ~19 blocks ≈ 1 min
-    "erc20": 12,   # Ethereum: ~12 blocks ≈ 2.5 min
-    "bep20": 15,   # BSC: ~15 blocks ≈ 45 sec
-    "ton":   1,    # TON: 1 masterchain block is final
-    "btc":   3,    # Bitcoin: 3 blocks ≈ 30 min
+    "trc20": 19,  # TRON: ~19 blocks ≈ 1 min
+    "erc20": 12,  # Ethereum: ~12 blocks ≈ 2.5 min
+    "bep20": 15,  # BSC: ~15 blocks ≈ 45 sec
+    "ton": 1,  # TON: 1 masterchain block is final
+    "btc": 3,  # Bitcoin: 3 blocks ≈ 30 min
 }
 
 _ETHERSCAN_KEY = os.environ.get("ETHERSCAN_API_KEY", "")
-_BSCSCAN_KEY   = os.environ.get("BSCSCAN_API_KEY", "")
+_BSCSCAN_KEY = os.environ.get("BSCSCAN_API_KEY", "")
 
 _TIMEOUT = 10.0  # seconds
 
@@ -59,12 +60,13 @@ class VerificationResult:
 
 # Public entry point
 
+
 async def verify_transaction(
     tx_hash: str,
     wallet_address: str,
-    expected_amount: str,   # e.g. "5 USDT" or "0.001 BTC"
-    currency: str,          # "USDT" | "TON" | "BTC" | "ETH"
-    network: str,           # "trc20" | "erc20" | "bep20" | "ton" | "btc"
+    expected_amount: str,  # e.g. "5 USDT" or "0.001 BTC"
+    currency: str,  # "USDT" | "TON" | "BTC" | "ETH"
+    network: str,  # "trc20" | "erc20" | "bep20" | "ton" | "btc"
 ) -> VerificationResult:
     """Verify a blockchain transaction.
 
@@ -75,9 +77,9 @@ async def verify_transaction(
 
     Returns VerificationResult with ok=True on success or ok=False + error message.
     """
-    tx_hash    = tx_hash.strip()
-    network    = network.lower().strip()
-    currency   = currency.upper().strip()
+    tx_hash = tx_hash.strip()
+    network = network.lower().strip()
+    currency = currency.upper().strip()
     wallet_address = wallet_address.strip()
 
     if not tx_hash:
@@ -115,6 +117,7 @@ async def verify_transaction(
 
 # TRON / TRC20
 
+
 async def _verify_tron(tx_hash: str, wallet_address: str, min_amount: float) -> VerificationResult:
     """Verify USDT TRC20 transaction via TronGrid API (no API key needed)."""
     url = f"https://api.trongrid.io/v1/transactions/{tx_hash}"
@@ -136,7 +139,9 @@ async def _verify_tron(tx_hash: str, wallet_address: str, min_amount: float) -> 
     ret = tx.get("ret", [{}])
     contract_ret = ret[0].get("contractRet", "") if ret else ""
     if contract_ret != "SUCCESS":
-        return VerificationResult(ok=False, error=f"Transaction failed on TRON (status: {contract_ret})", network="trc20")
+        return VerificationResult(
+            ok=False, error=f"Transaction failed on TRON (status: {contract_ret})", network="trc20"
+        )
 
     # Check confirmations
     confirmations = tx.get("confirmations", 0)
@@ -162,15 +167,15 @@ async def _verify_tron(tx_hash: str, wallet_address: str, min_amount: float) -> 
     if contract_type == "TriggerSmartContract":
         param = contract.get("parameter", {}).get("value", {})
         to_address = param.get("to_address") or ""
-        data_hex   = param.get("data", "")
+        data_hex = param.get("data", "")
 
         # Decode transfer(address, uint256) — first 4 bytes = function selector
         # Next 32 bytes = address (padded), next 32 bytes = amount
         if len(data_hex) >= 136 and data_hex.startswith("a9059cbb"):
             recipient_hex = data_hex[32:72].lstrip("0")  # strip padding
-            amount_hex    = data_hex[72:136]
-            amount_sun    = int(amount_hex, 16) if amount_hex else 0
-            amount_usdt   = amount_sun / 1_000_000  # USDT has 6 decimals on TRON
+            amount_hex = data_hex[72:136]
+            amount_sun = int(amount_hex, 16) if amount_hex else 0
+            amount_usdt = amount_sun / 1_000_000  # USDT has 6 decimals on TRON
 
             # Convert TRON hex address to base58 for comparison
             # TronGrid returns to_address already in base58 format in some endpoints
@@ -190,8 +195,10 @@ async def _verify_tron(tx_hash: str, wallet_address: str, min_amount: float) -> 
                     network="trc20",
                 )
             return VerificationResult(
-                ok=True, confirmations=confirmations,
-                amount_received=f"{amount_usdt:.6f} USDT", network="trc20",
+                ok=True,
+                confirmations=confirmations,
+                amount_received=f"{amount_usdt:.6f} USDT",
+                network="trc20",
             )
 
     # Native TRX transfer
@@ -211,8 +218,10 @@ async def _verify_tron(tx_hash: str, wallet_address: str, min_amount: float) -> 
                 network="trc20",
             )
         return VerificationResult(
-            ok=True, confirmations=confirmations,
-            amount_received=f"{amount_trx:.6f} TRX", network="trc20",
+            ok=True,
+            confirmations=confirmations,
+            amount_received=f"{amount_trx:.6f} TRX",
+            network="trc20",
         )
 
     return VerificationResult(ok=False, error="Unrecognized transaction type on TRON", network="trc20")
@@ -232,28 +241,27 @@ def _tron_hex_to_base58(hex_address: str) -> str:
 
 # Ethereum / BSC (EVM-compatible via Etherscan-style API)
 
-async def _verify_evm(
-    tx_hash: str, wallet_address: str, min_amount: float, chain: str
-) -> VerificationResult:
+
+async def _verify_evm(tx_hash: str, wallet_address: str, min_amount: float, chain: str) -> VerificationResult:
     """Verify ERC20/BEP20 transaction via Etherscan-compatible API."""
     if chain == "eth":
         base_url = "https://api.etherscan.io/api"
-        api_key  = _ETHERSCAN_KEY   # set ETHERSCAN_API_KEY; empty = anonymous tier (5 req/s)
+        api_key = _ETHERSCAN_KEY  # set ETHERSCAN_API_KEY; empty = anonymous tier (5 req/s)
         net_name = "erc20"
         if not api_key:
             logger.debug("ETHERSCAN_API_KEY not set — using anonymous tier (rate-limited)")
     else:  # bsc
         base_url = "https://api.bscscan.com/api"
-        api_key  = _BSCSCAN_KEY     # set BSCSCAN_API_KEY; empty = anonymous tier
+        api_key = _BSCSCAN_KEY  # set BSCSCAN_API_KEY; empty = anonymous tier
         net_name = "bep20"
         if not api_key:
             logger.debug("BSCSCAN_API_KEY not set — using anonymous tier (rate-limited)")
 
     params = {
-        "module":  "proxy",
-        "action":  "eth_getTransactionByHash",
-        "txhash":  tx_hash,
-        "apikey":  api_key,
+        "module": "proxy",
+        "action": "eth_getTransactionByHash",
+        "txhash": tx_hash,
+        "apikey": api_key,
     }
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(base_url, params=params)
@@ -262,7 +270,9 @@ async def _verify_evm(
 
     tx = data.get("result")
     if not tx or tx == "0x0":
-        return VerificationResult(ok=False, error=f"Transaction not found on {'Ethereum' if chain == 'eth' else 'BSC'}", network=net_name)
+        return VerificationResult(
+            ok=False, error=f"Transaction not found on {'Ethereum' if chain == 'eth' else 'BSC'}", network=net_name
+        )
 
     # Check recipient
     to_addr = (tx.get("to") or "").lower()
@@ -299,10 +309,10 @@ async def _verify_evm(
     resp2.raise_for_status()
     current_block_hex = resp2.json().get("result", "0x0")
 
-    tx_block      = int(block_number_hex, 16)
+    tx_block = int(block_number_hex, 16)
     current_block = int(current_block_hex, 16)
     confirmations = max(0, current_block - tx_block + 1)
-    required      = _CONFIRMATIONS[net_name]
+    required = _CONFIRMATIONS[net_name]
 
     if confirmations < required:
         return VerificationResult(
@@ -321,19 +331,22 @@ async def _verify_evm(
         )
 
     return VerificationResult(
-        ok=True, confirmations=confirmations,
-        amount_received=str(amount), network=net_name,
+        ok=True,
+        confirmations=confirmations,
+        amount_received=str(amount),
+        network=net_name,
     )
 
 
 # TON
+
 
 async def _verify_ton(tx_hash: str, wallet_address: str, min_amount: float) -> VerificationResult:
     """Verify TON transaction via TON Center public API (no key required)."""
     url = "https://toncenter.com/api/v2/getTransactions"
     params = {
         "address": wallet_address,
-        "limit":   20,
+        "limit": 20,
         "archival": "false",
     }
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
@@ -352,6 +365,7 @@ async def _verify_ton(tx_hash: str, wallet_address: str, min_amount: float) -> V
 
         # Accept both base64 and hex representations
         import base64
+
         try:
             tx_hash_hex_from_b64 = base64.b64decode(tx_hash_b64).hex()
         except Exception:
@@ -374,14 +388,17 @@ async def _verify_ton(tx_hash: str, wallet_address: str, min_amount: float) -> V
             )
 
         return VerificationResult(
-            ok=True, confirmations=1,
-            amount_received=f"{amount_ton:.9f} TON", network="ton",
+            ok=True,
+            confirmations=1,
+            amount_received=f"{amount_ton:.9f} TON",
+            network="ton",
         )
 
     return VerificationResult(ok=False, error="Transaction not found for this wallet on TON", network="ton")
 
 
 # Bitcoin
+
 
 async def _verify_btc(tx_hash: str, wallet_address: str, min_amount: float) -> VerificationResult:
     """Verify BTC transaction via Blockstream.info API (no API key needed)."""
@@ -407,8 +424,8 @@ async def _verify_btc(tx_hash: str, wallet_address: str, min_amount: float) -> V
     current_height = int(resp_h.text.strip())
 
     tx_block_height = status.get("block_height", current_height)
-    confirmations   = max(0, current_height - tx_block_height + 1)
-    required        = _CONFIRMATIONS["btc"]
+    confirmations = max(0, current_height - tx_block_height + 1)
+    required = _CONFIRMATIONS["btc"]
 
     if confirmations < required:
         return VerificationResult(
@@ -439,12 +456,15 @@ async def _verify_btc(tx_hash: str, wallet_address: str, min_amount: float) -> V
         )
 
     return VerificationResult(
-        ok=True, confirmations=confirmations,
-        amount_received=f"{amount_btc:.8f} BTC", network="btc",
+        ok=True,
+        confirmations=confirmations,
+        amount_received=f"{amount_btc:.8f} BTC",
+        network="btc",
     )
 
 
 # Helpers
+
 
 def _parse_amount(amount_str: str) -> float:
     """Parse amount from strings like '5 USDT', '0.001 BTC', '100', ''.

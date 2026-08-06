@@ -9,6 +9,7 @@ Endpoints:
   GET  /api/transport/wifi-direct/peers — list of Wi-Fi Direct peers
   POST /api/transport/wifi-direct/connect — connect to a P2P peer
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,25 +31,28 @@ router = APIRouter(prefix="/api/transport", tags=["transport"])
 
 # Pydantic schemas
 
+
 class SignalRequest(BaseModel):
     """Incoming ICE candidates from a peer (for NAT hole punch signaling)."""
+
     session_id: str
-    role:       str        # "initiator" | "responder"
+    role: str  # "initiator" | "responder"
     candidates: list[dict]
 
 
 class HolePunchRequest(BaseModel):
-    peer_ip:   str
+    peer_ip: str
     peer_port: int = Field(default=8000, ge=1, le=65535)
 
 
 class WifiDirectConnectRequest(BaseModel):
     peer_mac: str
-    method:   str = "pbc"   # "pbc" | "pin"
-    pin:      Optional[str] = None
+    method: str = "pbc"  # "pbc" | "pin"
+    pin: Optional[str] = None
 
 
 # Endpoints
+
 
 @router.get("/status")
 async def transport_status(u: User = Depends(get_current_user)):
@@ -69,7 +73,7 @@ async def transport_status_public():
     """
     status = transport_manager.full_status()
     return {
-        "external_ip":   status.get("external_ip"),
+        "external_ip": status.get("external_ip"),
         "external_port": status.get("external_port"),
         "ble_available": status.get("ble", {}).get("available", False),
         "wifi_direct_available": status.get("wifi_direct", {}).get("available", False),
@@ -87,18 +91,18 @@ async def receive_signal(body: SignalRequest):
       Both run punch() simultaneously
     """
     transport_manager.accept_signal(
-        session_id = body.session_id,
-        role       = body.role,
-        candidates = body.candidates,
+        session_id=body.session_id,
+        role=body.role,
+        candidates=body.candidates,
     )
     return {"ok": True, "session_id": body.session_id}
 
 
 @router.post("/punch")
 async def initiate_hole_punch(
-        body: HolePunchRequest,
-        background_tasks: BackgroundTasks,
-        u: User = Depends(get_current_user),
+    body: HolePunchRequest,
+    background_tasks: BackgroundTasks,
+    u: User = Depends(get_current_user),
 ):
     """
     Initiates NAT hole punch to the specified peer.
@@ -108,36 +112,37 @@ async def initiate_hole_punch(
     """
     background_tasks.add_task(
         transport_manager.initiate_hole_punch,
-        peer_ip   = body.peer_ip,
-        peer_port = body.peer_port,
+        peer_ip=body.peer_ip,
+        peer_port=body.peer_port,
     )
     return {
-        "ok":      True,
+        "ok": True,
         "message": f"Hole punch to {body.peer_ip}:{body.peer_port} started",
     }
 
 
 @router.post("/punch/sync")
 async def initiate_hole_punch_sync(
-        body: HolePunchRequest,
-        u: User = Depends(get_current_user),
+    body: HolePunchRequest,
+    u: User = Depends(get_current_user),
 ):
     """
     Synchronous hole punch — waits for the result (up to 15 seconds).
     Convenient for UI: can show success/failure immediately.
     """
     success = await transport_manager.initiate_hole_punch(
-        peer_ip   = body.peer_ip,
-        peer_port = body.peer_port,
+        peer_ip=body.peer_ip,
+        peer_port=body.peer_port,
     )
     return {
-        "success":   success,
-        "peer_ip":   body.peer_ip,
+        "success": success,
+        "peer_ip": body.peer_ip,
         "transport": "udp_hole_punch" if success else "relay_fallback",
     }
 
 
 # BLE Endpoints
+
 
 @router.get("/ble/peers")
 async def ble_peers(u: User = Depends(get_current_user)):
@@ -145,8 +150,8 @@ async def ble_peers(u: User = Depends(get_current_user)):
     peers = ble_manager.get_peers()
     return {
         "available": ble_manager.available,
-        "count":     len(peers),
-        "peers":     [p.to_dict() for p in peers],
+        "count": len(peers),
+        "peers": [p.to_dict() for p in peers],
     }
 
 
@@ -162,9 +167,9 @@ async def ble_scan_now(u: User = Depends(get_current_user)):
 
 @router.post("/ble/send/{peer_address}")
 async def ble_send_message(
-        peer_address: str,
-        payload: dict,
-        u: User = Depends(get_current_user),
+    peer_address: str,
+    payload: dict,
+    u: User = Depends(get_current_user),
 ):
     """Send a message to a specific BLE peer (MAC address)."""
     if not ble_manager.available:
@@ -178,6 +183,7 @@ async def ble_send_message(
 
 # Wi-Fi Direct Endpoints
 
+
 @router.get("/wifi-direct/peers")
 async def wifi_direct_peers(u: User = Depends(get_current_user)):
     """List of discovered Wi-Fi Direct peers."""
@@ -186,8 +192,8 @@ async def wifi_direct_peers(u: User = Depends(get_current_user)):
 
 @router.post("/wifi-direct/connect")
 async def wifi_direct_connect(
-        body: WifiDirectConnectRequest,
-        u: User = Depends(get_current_user),
+    body: WifiDirectConnectRequest,
+    u: User = Depends(get_current_user),
 ):
     """
     Connect to a Wi-Fi Direct peer.
@@ -229,13 +235,14 @@ async def wifi_direct_create_group(u: User = Depends(get_current_user)):
 
     ip = await wifi_direct_manager._wpa.get_p2p_ip(iface)
     return {
-        "ok":        True,
+        "ok": True,
         "interface": iface,
-        "ip":        ip,
+        "ip": ip,
     }
 
 
 # STUN / NAT Info
+
 
 @router.get("/nat/info")
 async def nat_info(u: User = Depends(get_current_user)):
@@ -244,14 +251,14 @@ async def nat_info(u: User = Depends(get_current_user)):
     external = await StunClient.discover_external()
 
     return {
-        "external_ip":       external[0] if external else transport_manager._external_ip,
-        "external_port":     external[1] if external else transport_manager._external_port,
-        "own_local_ip":      transport_manager._own_ip,
-        "active_sessions":   len(hole_puncher._sessions),
+        "external_ip": external[0] if external else transport_manager._external_ip,
+        "external_port": external[1] if external else transport_manager._external_port,
+        "own_local_ip": transport_manager._own_ip,
+        "active_sessions": len(hole_puncher._sessions),
         "sessions": {
             sid: {
-                "connected":  sess.connected,
-                "remote":     sess.remote_addr,
+                "connected": sess.connected,
+                "remote": sess.remote_addr,
                 "candidates": len(sess.local_cands),
             }
             for sid, sess in hole_puncher._sessions.items()

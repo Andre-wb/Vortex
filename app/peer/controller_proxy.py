@@ -12,6 +12,7 @@ Safety:
     - A client can chain this through multiple nodes: node-A forwards to node-B,
       which forwards to the controller.
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Keep this tight — the proxy is not a general-purpose HTTP relay.
 _ALLOWED_PATHS = {
-    "GET":  {"/v1/health", "/v1/entries", "/v1/mirrors", "/v1/nodes/random", "/v1/nodes/lookup"},
+    "GET": {"/v1/health", "/v1/entries", "/v1/mirrors", "/v1/nodes/random", "/v1/nodes/lookup"},
     "POST": {"/v1/register", "/v1/heartbeat"},
 }
 

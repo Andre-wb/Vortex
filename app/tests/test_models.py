@@ -1,6 +1,7 @@
 """
 Tests for Pydantic validation schemas and SQLAlchemy models.
 """
+
 import secrets
 
 import pytest
@@ -8,7 +9,6 @@ from pydantic import ValidationError
 
 
 class TestRegisterRequestValidation:
-
     def test_valid_registration(self):
         from app.models import RegisterRequest
 
@@ -114,7 +114,6 @@ class TestRegisterRequestValidation:
 
 
 class TestLoginRequestValidation:
-
     def test_valid_login(self):
         from app.models import LoginRequest
 
@@ -135,7 +134,6 @@ class TestLoginRequestValidation:
 
 
 class TestKeyLoginRequestValidation:
-
     def test_valid_key_login(self):
         from app.models import KeyLoginRequest
 

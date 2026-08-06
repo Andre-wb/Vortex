@@ -2,6 +2,7 @@
 app/chats/chat_files.py — File upload, download, and room file listing.
 Extracted from chat.py to keep it focused on WebSocket message handling.
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,23 +37,28 @@ logger = logging.getLogger(__name__)
 async def upload_file(
     room_id: int,
     request: Request,
-    file:    UploadFile          = File(...),
-    caption_ct: str | None       = Form(None),
-    u:       User                = Depends(get_current_user),
-    db:      Session             = Depends(get_db),
+    file: UploadFile = File(...),
+    caption_ct: str | None = Form(None),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Upload a file to a room. Validates MIME type, extensions, and content."""
     if room_id < 0:
         from app.federation.federation import relay as _fed_relay
+
         _fed_info = _fed_relay.get_room(room_id)
         if not _fed_info or u.id not in _fed_info.local_user_ids:
             raise HTTPException(403, "No access to room")
     else:
-        member = db.query(RoomMember).filter(
-            RoomMember.room_id   == room_id,
-            RoomMember.user_id   == u.id,
-            RoomMember.is_banned.is_(False),
-        ).first()
+        member = (
+            db.query(RoomMember)
+            .filter(
+                RoomMember.room_id == room_id,
+                RoomMember.user_id == u.id,
+                RoomMember.is_banned.is_(False),
+            )
+            .first()
+        )
         if not member:
             raise HTTPException(403, "No access to room")
 
@@ -82,9 +88,12 @@ async def upload_file(
     is_image = mime_type and mime_type.startswith("image/")
     # E2E: encrypted content can't be validated as image — skip PIL check
     # if magic bytes indicate octet-stream but extension is image, it's encrypted
-    _is_encrypted = (len(content) > 12 and content[:4] not in (
-        b'\xff\xd8\xff', b'\x89PNG', b'GIF8', b'RIFF',  # JPEG, PNG, GIF, WEBP magic
-    ))
+    _is_encrypted = len(content) > 12 and content[:4] not in (
+        b"\xff\xd8\xff",
+        b"\x89PNG",
+        b"GIF8",
+        b"RIFF",  # JPEG, PNG, GIF, WEBP magic
+    )
     if is_image and not _is_encrypted:
         img_ok, img_err = await FileAnomalyDetector.validate_image_content(content)
         if not img_ok:
@@ -94,22 +103,22 @@ async def upload_file(
     content = strip_all_metadata(content, mime_type)
     size = len(content)
 
-    ext       = Path(filename).suffix.lower()
+    ext = Path(filename).suffix.lower()
     file_hash = calculate_file_hash(content)
 
     Config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    safe_name   = generate_secure_filename(ext)
+    safe_name = generate_secure_filename(ext)
     stored_path = Config.UPLOAD_DIR / safe_name
     stored_path.write_bytes(content)
 
     ft = FileTransfer(
-        room_id       = room_id,
-        uploader_id   = u.id,
-        original_name = filename,
-        stored_name   = safe_name,
-        mime_type     = mime_type,
-        size_bytes    = size,
-        file_hash     = file_hash,
+        room_id=room_id,
+        uploader_id=u.id,
+        original_name=filename,
+        stored_name=safe_name,
+        mime_type=mime_type,
+        size_bytes=size,
+        file_hash=file_hash,
     )
     db.add(ft)
     try:
@@ -127,60 +136,75 @@ async def upload_file(
 
     placeholder_encrypted = b"\x00" * 12 + b"\x00" * 16
     msg = Message(
-        room_id           = room_id,
-        sender_pseudo     = compute_sender_pseudo(room_id, u.id),
-        msg_type          = msg_type,
-        content_encrypted = placeholder_encrypted,
-        file_name         = filename,
-        file_size         = size,
+        room_id=room_id,
+        sender_pseudo=compute_sender_pseudo(room_id, u.id),
+        msg_type=msg_type,
+        content_encrypted=placeholder_encrypted,
+        file_name=filename,
+        file_size=size,
     )
     db.add(msg)
     db.commit()
     db.refresh(msg)
 
     broadcast_payload = {
-        "type":         "file",
-        "msg_id":       msg.id,
-        "sender_id":    u.id,
+        "type": "file",
+        "msg_id": msg.id,
+        "sender_id": u.id,
         "sender_pseudo": compute_sender_pseudo(room_id, u.id),
-        "sender":       u.username,
+        "sender": u.username,
         "display_name": u.display_name or u.username,
         "avatar_emoji": u.avatar_emoji,
-        "avatar_url":   u.avatar_url,
-        "file_name":    filename,
-        "file_size":    size,
-        "mime_type":    mime_type,
+        "avatar_url": u.avatar_url,
+        "file_name": filename,
+        "file_size": size,
+        "mime_type": mime_type,
         "download_url": download_url,
-        "msg_type":     msg_type.value,
-        "created_at":   utc_iso(ft.created_at),
-        "file_hash":    file_hash,
+        "msg_type": msg_type.value,
+        "created_at": utc_iso(ft.created_at),
+        "file_hash": file_hash,
     }
     if caption_ct:
         broadcast_payload["ciphertext"] = caption_ct
     await manager.broadcast_to_room(room_id, broadcast_payload)
 
-    logger.info("File uploaded: %s (%d bytes) room=%d user=%s caption=%s", filename, size, room_id, u.username, 'yes' if caption_ct else 'no')
+    logger.info(
+        "File uploaded: %s (%d bytes) room=%d user=%s caption=%s",
+        filename,
+        size,
+        room_id,
+        u.username,
+        "yes" if caption_ct else "no",
+    )
     return {"ok": True, "file_id": ft.id, "download_url": download_url, "file_hash": file_hash}
 
 
 @router.get("/api/files/download/{file_id}")
 async def download_file(
     file_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ft = db.query(FileTransfer).filter(
-        FileTransfer.id           == file_id,
-        FileTransfer.is_available.is_(True),
-    ).first()
+    ft = (
+        db.query(FileTransfer)
+        .filter(
+            FileTransfer.id == file_id,
+            FileTransfer.is_available.is_(True),
+        )
+        .first()
+    )
     if not ft:
         raise HTTPException(404, "File not found")
 
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id   == ft.room_id,
-        RoomMember.user_id   == u.id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == ft.room_id,
+            RoomMember.user_id == u.id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Access denied")
 
@@ -189,48 +213,58 @@ async def download_file(
         raise HTTPException(404, "File not found on disk")
 
     from sqlalchemy import update as sa_update
-    db.execute(
-        sa_update(type(ft)).where(type(ft).id == ft.id)
-        .values(download_count=type(ft).download_count + 1)
-    )
+
+    db.execute(sa_update(type(ft)).where(type(ft).id == ft.id).values(download_count=type(ft).download_count + 1))
     db.commit()
 
     return FileResponse(
-        path       = str(path),
-        filename   = ft.original_name,
-        media_type = ft.mime_type or "application/octet-stream",
+        path=str(path),
+        filename=ft.original_name,
+        media_type=ft.mime_type or "application/octet-stream",
     )
 
 
 @router.get("/api/files/room/{room_id}")
 async def list_room_files(
     room_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id   == room_id,
-        RoomMember.user_id   == u.id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Access denied")
 
-    files = db.query(FileTransfer).filter(
-        FileTransfer.room_id      == room_id,
-        FileTransfer.is_available.is_(True),
-    ).order_by(FileTransfer.created_at.desc()).limit(100).all()
+    files = (
+        db.query(FileTransfer)
+        .filter(
+            FileTransfer.room_id == room_id,
+            FileTransfer.is_available.is_(True),
+        )
+        .order_by(FileTransfer.created_at.desc())
+        .limit(100)
+        .all()
+    )
 
-    return {"files": [
-        {
-            "id":           f.id,
-            "file_name":    f.original_name,
-            "mime_type":    f.mime_type,
-            "size_bytes":   f.size_bytes,
-            "file_hash":    f.file_hash,
-            "uploader":     f.uploader.username if f.uploader else "—",
-            "download_url": f"/api/files/download/{f.id}",
-            "created_at":   utc_iso(f.created_at),
-        }
-        for f in files
-    ]}
+    return {
+        "files": [
+            {
+                "id": f.id,
+                "file_name": f.original_name,
+                "mime_type": f.mime_type,
+                "size_bytes": f.size_bytes,
+                "file_hash": f.file_hash,
+                "uploader": f.uploader.username if f.uploader else "—",
+                "download_url": f"/api/files/download/{f.id}",
+                "created_at": utc_iso(f.created_at),
+            }
+            for f in files
+        ]
+    }

@@ -14,6 +14,7 @@ app/transport/stealth_http.py — HTTP-клиент с имитацией бра
 
 JA3 fingerprint становится ИДЕНТИЧЕН настоящему Chrome 120.
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 # Пробуем curl_cffi (полная имитация Chrome TLS), fallback на httpx
 try:
     from curl_cffi.requests import AsyncSession
+
     _HAS_CURL_CFFI = True
     logger.info("curl_cffi загружен — TLS fingerprint = Chrome 120")
 except ImportError:
@@ -57,6 +59,7 @@ class StealthClient:
             )
         else:
             import httpx
+
             self._httpx_client = httpx.AsyncClient(
                 timeout=self.timeout,
                 verify=self.verify,
@@ -98,6 +101,7 @@ class StealthResponse:
 
     def json(self):
         import json as _json
+
         return _json.loads(self.content)
 
     @property

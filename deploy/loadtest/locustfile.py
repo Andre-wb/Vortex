@@ -14,11 +14,11 @@ from locust import HttpUser, between, task
 
 
 def _random_str(n=10):
-    return ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(n))
+    return "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(n))
 
 
 def _random_digits(n=7):
-    return ''.join(secrets.choice(string.digits) for _ in range(n))
+    return "".join(secrets.choice(string.digits) for _ in range(n))
 
 
 class VortexUser(HttpUser):

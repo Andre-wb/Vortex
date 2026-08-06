@@ -31,6 +31,7 @@ app/transport/steganography.py — Стеганографический тран
   4. Получатель скачивает «фото»
   5. Извлекает скрытое сообщение, зная shared key
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -45,14 +46,15 @@ logger = logging.getLogger(__name__)
 
 try:
     from PIL import Image
+
     _PIL_AVAILABLE = True
 except ImportError:
     _PIL_AVAILABLE = False
 
 try:
     import vortex_chat as _vc_rust
-    _HAS_RUST_STEG = (hasattr(_vc_rust, "steg_embed_png")
-                      and hasattr(_vc_rust, "steg_extract_png"))
+
+    _HAS_RUST_STEG = hasattr(_vc_rust, "steg_embed_png") and hasattr(_vc_rust, "steg_extract_png")
 except ImportError:
     _HAS_RUST_STEG = False
 
@@ -89,7 +91,9 @@ def _save_lossless(img: Image.Image, fmt: str = "PNG") -> bytes:
 
 
 def generate_cover_image(
-    width: int = 640, height: int = 480, fmt: str = "PNG",
+    width: int = 640,
+    height: int = 480,
+    fmt: str = "PNG",
 ) -> bytes:
     """
     Генерирует реалистичное изображение-контейнер.
@@ -101,6 +105,7 @@ def generate_cover_image(
         raise RuntimeError("PIL is not available for steganography")
 
     import random
+
     img = Image.new("RGB", (width, height))
     pixels = img.load()
 
@@ -127,6 +132,7 @@ def generate_cover_image(
 
 # Spread-spectrum helpers
 
+
 def _derive_stream(key: bytes, nonce: bytes, length: int) -> bytes:
     """
     Derive a deterministic pseudo-random byte stream via HMAC-SHA256 counter mode.
@@ -152,7 +158,7 @@ def _permuted_indices(key: bytes, nonce: bytes, total: int, count: int) -> list[
 
     # Partial Fisher-Yates (only first `count` elements)
     for i in range(min(count, total - 1)):
-        j_bytes = stream[i * 4:(i + 1) * 4]
+        j_bytes = stream[i * 4 : (i + 1) * 4]
         j = i + (int.from_bytes(j_bytes, "big") % (total - i))
         indices[i], indices[j] = indices[j], indices[i]
 
@@ -161,9 +167,12 @@ def _permuted_indices(key: bytes, nonce: bytes, total: int, count: int) -> list[
 
 # Embed
 
+
 def embed_data(
-    image_bytes: bytes, data: bytes,
-    key: bytes | None = None, output_format: str = "PNG",
+    image_bytes: bytes,
+    data: bytes,
+    key: bytes | None = None,
+    output_format: str = "PNG",
 ) -> bytes:
     """
     Прячет данные в изображении — spread-spectrum LSB.
@@ -222,7 +231,7 @@ def embed_data(
                 bits.append((byte >> i) & 1)
         return bits
 
-    nonce_bits = to_bits(nonce)        # 128 bits
+    nonce_bits = to_bits(nonce)  # 128 bits
     phase2_bits = to_bits(phase2_masked)  # (20 + data_len) * 8 bits
 
     flat = []
@@ -262,6 +271,7 @@ def embed_data(
 
 
 # Extract
+
 
 def extract_data(image_bytes: bytes, key: bytes | None = None) -> Optional[bytes]:
     """
@@ -353,7 +363,7 @@ def extract_data(image_bytes: bytes, key: bytes | None = None) -> Optional[bytes
         full_xor = _derive_stream(key, nonce + b"xor", len(full_masked))
         full_raw = bytes(a ^ b for a, b in zip(full_masked, full_xor, strict=False))
 
-        return full_raw[20:20 + data_len]
+        return full_raw[20 : 20 + data_len]
 
     except Exception as e:
         logger.debug(f"Steg extract error: {e}")
@@ -371,11 +381,12 @@ def _extract_legacy(all_lsb: list[int]) -> Optional[bytes]:
     needed = (8 + data_len) * 8
     if needed > len(all_lsb):
         return None
-    all_bytes = _bits_to_bytes(all_lsb[:needed + 8])
-    return all_bytes[8:8 + data_len]
+    all_bytes = _bits_to_bytes(all_lsb[: needed + 8])
+    return all_bytes[8 : 8 + data_len]
 
 
 # Helpers
+
 
 def _bits_to_bytes(bits: list[int]) -> bytes:
     """Конвертирует список бит в байты."""

@@ -6,12 +6,13 @@
 #   make dev           Run development server
 #   make test          Run tests with coverage
 #   make lint          Run linter
+#   make pylint        Run pylint (score gate)
 #   make docker-build  Build Docker image
 #   make ci            Run full CI pipeline locally
 #
 
 .DEFAULT_GOAL := help
-.PHONY: help install install-dev dev test test-fast lint format security \
+.PHONY: help install install-dev dev test test-fast lint pylint pylint-report format security \
         docker-build docker-up docker-down migrate migrate-create \
         clean ci check-deps db-backup db-restore \
         rust-build rust-test rust-lint rust-fmt rust-check rust-clean \
@@ -21,6 +22,7 @@ PYTHON ?= python3
 PIP ?= pip
 PYTEST ?= pytest
 RUFF ?= ruff
+PYLINT ?= pylint
 DOCKER ?= docker
 COMPOSE ?= docker compose
 CARGO ?= cargo
@@ -28,6 +30,7 @@ MATURIN ?= maturin
 WAF_CRATE := vortex_waf/Cargo.toml
 CORE_CRATE := rust_utils/Cargo.toml
 APP_NAME := vortex-chat
+PYLINT_TARGETS := app vortex_wizard vortex_controller
 VERSION := 5.0.0
 PORT ?= 9000
 
@@ -131,10 +134,16 @@ waf-clean: ## Remove WAF build artifacts
 lint: ## Run linter (ruff check)
 	$(RUFF) check app/ --fix
 
+pylint: ## Run pylint (score gate from pyproject.toml)
+	$(PYLINT) $(PYLINT_TARGETS)
+
+pylint-report: ## Run pylint and write a JSON report
+	$(PYLINT) $(PYLINT_TARGETS) --output-format=json2:pylint-report.json,text
+
 format: ## Format code (ruff format)
 	$(RUFF) format app/
 
-check: lint format ## Run linter + formatter
+check: lint format pylint ## Run linter + formatter + pylint
 
 security: ## Run security scan (bandit)
 	bandit -r app/ -x app/tests,app/benchmarks -s B101,B104 -ll
@@ -190,7 +199,7 @@ docker-dev: ## Start dev mode with Docker Compose
 docker-monitoring: ## Start with monitoring (Prometheus)
 	$(COMPOSE) --profile monitoring up -d
 
-ci: lint rust-check test security ## Run full CI pipeline: lint + Rust workspace + test + security
+ci: lint pylint rust-check test security ## Run full CI pipeline: lint + pylint + Rust workspace + test + security
 
 check-deps: ## Check for dependency vulnerabilities
 	pip install safety && safety check
@@ -202,6 +211,6 @@ clean: ## Remove build artifacts, caches, logs
 	find . -type d -name .mypy_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name htmlcov -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete 2>/dev/null || true
-	rm -f .coverage coverage.xml
+	rm -f .coverage coverage.xml pylint-report.json
 	rm -rf logs/*.log
 	@echo "$(GREEN)Cleaned!$(RESET)"

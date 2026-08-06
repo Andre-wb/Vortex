@@ -9,6 +9,7 @@ Middleware стек.
 
 WAF подключается отдельно как ASGI middleware.
 """
+
 from __future__ import annotations
 
 import json
@@ -48,17 +49,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if request.url.path.startswith("/static/"):
             return response
 
-        response.headers["X-Frame-Options"]              = "DENY"
-        response.headers["X-Content-Type-Options"]       = "nosniff"
-        response.headers["X-XSS-Protection"]             = "1; mode=block"
-        response.headers["Referrer-Policy"]              = "strict-origin-when-cross-origin"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
-        response.headers["Cross-Origin-Opener-Policy"]   = "same-origin"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
 
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains; preload"
-        )
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
 
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
@@ -82,10 +81,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "form-action 'self';"
         )
 
-        response.headers["Permissions-Policy"] = (
-            "geolocation=(), payment=(), usb=(), "
-            "microphone=(self), camera=(self)"
-        )
+        response.headers["Permissions-Policy"] = "geolocation=(), payment=(), usb=(), microphone=(self), camera=(self)"
 
         return response
 
@@ -94,11 +90,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     """Логирует все HTTP запросы с временем обработки."""
 
     async def dispatch(self, request: Request, call_next):
-        if (request.url.path.startswith("/static/")
-                or request.headers.get("upgrade", "").lower() == "websocket"):
+        if request.url.path.startswith("/static/") or request.headers.get("upgrade", "").lower() == "websocket":
             return await call_next(request)
 
         from app.security.ip_privacy import raw_ip_for_ratelimit
+
         start = time.perf_counter()
         ip = raw_ip_for_ratelimit(request)
 
@@ -115,48 +111,51 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             _path = "/api/bmp/***"
         elif _path.startswith("/ws/") and not _path.startswith("/ws/notifications"):
             _path = "/ws/***"
-        logger.info(
-            f"{request.method:6s} {_path:<40s} "
-            f"{response.status_code} {elapsed:6.1f}ms  {ip}"
-        )
+        logger.info(f"{request.method:6s} {_path:<40s} {response.status_code} {elapsed:6.1f}ms  {ip}")
         return response
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
-
-    _SAFE_METHODS  = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
-    _SKIP_PATHS    = frozenset({
-        "/api/files/upload-chunk/",
-        "/api/files/upload-init",
-        "/api/files/upload-complete/",
-        "/health", "/favicon.ico", "/robots.txt",
-        "/api/authentication/login", "/api/authentication/register",
-        "/api/authentication/refresh",
-        "/api/authentication/security-questions/load",
-        "/api/authentication/security-questions/recover",
-        "/api/authentication/security-questions/setup",
-        # neither /api/authentication/profile nor /avatar is CSRF-exempt
-        # anymore. profile is called via the api() fetch wrapper (sends
-        # X-CSRF-Token on PUT); the three avatar-upload call sites now also send
-        # X-CSRF-Token: window.AppState.csrfToken, so enforcing CSRF on both does
-        # not break the client.
-        # /api/authentication/verify-password and /change-password are
-        # CSRF-defended differently. verify-password is a pure read (no state
-        # change → no CSRF impact); change-password now mandates current-password
-        # re-authentication (a CSRF attacker cannot supply the victim's current
-        # password), which is the definitive anti-CSRF control. Both client calls
-        # use raw fetch() without the X-CSRF-Token header, so they remain exempt
-        # to avoid breaking the change-password / password-reminder flows.
-        "/api/authentication/verify-password",
-        "/api/authentication/change-password",
-        "/api/peers/receive",
-        "/api/peers/status",
-        "/api/peers/federated-join",
-        "/api/federation/guest-login",
-        "/api/docs",
-    })
+    _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+    _SKIP_PATHS = frozenset(
+        {
+            "/api/files/upload-chunk/",
+            "/api/files/upload-init",
+            "/api/files/upload-complete/",
+            "/health",
+            "/favicon.ico",
+            "/robots.txt",
+            "/api/authentication/login",
+            "/api/authentication/register",
+            "/api/authentication/refresh",
+            "/api/authentication/security-questions/load",
+            "/api/authentication/security-questions/recover",
+            "/api/authentication/security-questions/setup",
+            # neither /api/authentication/profile nor /avatar is CSRF-exempt
+            # anymore. profile is called via the api() fetch wrapper (sends
+            # X-CSRF-Token on PUT); the three avatar-upload call sites now also send
+            # X-CSRF-Token: window.AppState.csrfToken, so enforcing CSRF on both does
+            # not break the client.
+            # /api/authentication/verify-password and /change-password are
+            # CSRF-defended differently. verify-password is a pure read (no state
+            # change → no CSRF impact); change-password now mandates current-password
+            # re-authentication (a CSRF attacker cannot supply the victim's current
+            # password), which is the definitive anti-CSRF control. Both client calls
+            # use raw fetch() without the X-CSRF-Token header, so they remain exempt
+            # to avoid breaking the change-password / password-reminder flows.
+            "/api/authentication/verify-password",
+            "/api/authentication/change-password",
+            "/api/peers/receive",
+            "/api/peers/status",
+            "/api/peers/federated-join",
+            "/api/federation/guest-login",
+            "/api/docs",
+        }
+    )
     _SKIP_PREFIXES = (
-        "/static/", "/waf/", "/api/rooms/join/",
+        "/static/",
+        "/waf/",
+        "/api/rooms/join/",
         "/api/push/",
         "/api/authentication/qr-",
         "/api/authentication/passkey/",
@@ -171,19 +170,19 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         "/api/dm/store-key/",
         "/api/saved/",
         "/api/stickers/",
-        "/api/bot/",   # Bot API endpoints use token auth, not CSRF
+        "/api/bot/",  # Bot API endpoints use token auth, not CSRF
         "/api/bots/",  # Bot management endpoints
         "/api/marketplace/",  # Marketplace endpoints (JWT auth)
-        "/api/spaces/",       # Spaces endpoints (JWT auth)
-        "/api/global/",       # P2P inter-node endpoints (no user session)
-        "/api/transport/",    # Transport layer endpoints (JWT auth)
-        "/api/ai/",           # AI assistant endpoints (JWT auth)
-        "/api/privacy/",      # Privacy settings (JWT auth)
+        "/api/spaces/",  # Spaces endpoints (JWT auth)
+        "/api/global/",  # P2P inter-node endpoints (no user session)
+        "/api/transport/",  # Transport layer endpoints (JWT auth)
+        "/api/ai/",  # AI assistant endpoints (JWT auth)
+        "/api/privacy/",  # Privacy settings (JWT auth)
         "/api/authentication/account-ttl",  # Account TTL setting
-        "/api/authentication/session-limit", # Session limit setting
-        "/api/translate",     # Translation endpoint
-        "/api/bmp/",          # Blind Mailbox Protocol (anonymous by design)
-        "/cover/",            # Cover traffic pages (public)
+        "/api/authentication/session-limit",  # Session limit setting
+        "/api/translate",  # Translation endpoint
+        "/api/bmp/",  # Blind Mailbox Protocol (anonymous by design)
+        "/cover/",  # Cover traffic pages (public)
     )
 
     async def dispatch(self, request: Request, call_next):
@@ -191,15 +190,17 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
-        if (path in self._SKIP_PATHS
-                or any(path.startswith(p) for p in self._SKIP_PREFIXES)
-                or (path.startswith("/api/rooms/") and path.endswith("/read"))
-                or (path.startswith("/api/rooms/") and path.endswith("/mute"))
-                or (path.startswith("/api/rooms/") and path.endswith("/pin"))
-                or (path.startswith("/api/rooms/") and path.endswith("/auto-delete"))
-                or (path.startswith("/api/rooms/") and path.endswith("/slow-mode"))
-                or (path.startswith("/api/rooms/") and path.endswith("/avatar"))
-                or (path.startswith("/api/rooms/") and "/tasks" in path)):
+        if (
+            path in self._SKIP_PATHS
+            or any(path.startswith(p) for p in self._SKIP_PREFIXES)
+            or (path.startswith("/api/rooms/") and path.endswith("/read"))
+            or (path.startswith("/api/rooms/") and path.endswith("/mute"))
+            or (path.startswith("/api/rooms/") and path.endswith("/pin"))
+            or (path.startswith("/api/rooms/") and path.endswith("/auto-delete"))
+            or (path.startswith("/api/rooms/") and path.endswith("/slow-mode"))
+            or (path.startswith("/api/rooms/") and path.endswith("/avatar"))
+            or (path.startswith("/api/rooms/") and "/tasks" in path)
+        ):
             response = await call_next(request)
             self._set_csrf_cookie(response, request)
             return response
@@ -216,7 +217,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             return response
 
         content_type = request.headers.get("content-type", "")
-        submitted    = None
+        submitted = None
 
         try:
             if "application/json" in content_type:
@@ -255,17 +256,14 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if not submitted:
             logger.warning(f"CSRF: нет токена для {request.method} {path}")
             return JSONResponse(
-                {"error": "CSRF token not provided",
-                 "hint": "Add X-CSRF-Token header or csrf_token field"},
-                status_code=403, headers={"X-CSRF-Required": "true"}
+                {"error": "CSRF token not provided", "hint": "Add X-CSRF-Token header or csrf_token field"},
+                status_code=403,
+                headers={"X-CSRF-Required": "true"},
             )
 
         if not secrets.compare_digest(str(submitted), str(csrf_cookie)):
             logger.warning(f"CSRF: неверный токен для {path}")
-            return JSONResponse(
-                {"error": "Invalid CSRF token"},
-                status_code=403, headers={"X-CSRF-Required": "true"}
-            )
+            return JSONResponse({"error": "Invalid CSRF token"}, status_code=403, headers={"X-CSRF-Required": "true"})
 
         response = await call_next(request)
         if response is None:
@@ -278,27 +276,36 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if not request.cookies.get("csrf_token"):
             token = token or secrets.token_urlsafe(32)
             response.set_cookie(
-                "csrf_token", token,
+                "csrf_token",
+                token,
                 httponly=False,
                 secure=_IS_PROD,
                 samesite="Strict",
-                max_age=86400, path="/",
+                max_age=86400,
+                path="/",
             )
 
 
 class TokenRefreshMiddleware(BaseHTTPMiddleware):
     """Автоматически обновляет access_token если он отсутствует, но есть refresh_token."""
 
-    _SKIP = frozenset({
-        "/api/authentication/login", "/api/authentication/register",
-        "/api/authentication/refresh",
-        "/api/authentication/logout", "/health", "/favicon.ico",
-    })
+    _SKIP = frozenset(
+        {
+            "/api/authentication/login",
+            "/api/authentication/register",
+            "/api/authentication/refresh",
+            "/api/authentication/logout",
+            "/health",
+            "/favicon.ico",
+        }
+    )
 
     async def dispatch(self, request: Request, call_next):
-        if (request.url.path.startswith("/static/")
-                or request.url.path in self._SKIP
-                or request.headers.get("upgrade", "").lower() == "websocket"):
+        if (
+            request.url.path.startswith("/static/")
+            or request.url.path in self._SKIP
+            or request.headers.get("upgrade", "").lower() == "websocket"
+        ):
             return await call_next(request)
 
         if not request.cookies.get("access_token") and request.cookies.get("refresh_token"):
@@ -310,17 +317,26 @@ class TokenRefreshMiddleware(BaseHTTPMiddleware):
                     new_access = create_access_token(user.id, user.phone, user.username)
                     # Создаём новый refresh token (ротация)
                     from app.security.auth_jwt import create_refresh_token
+
                     new_refresh, _ = create_refresh_token(user.id, db)
                     response = await call_next(request)
                     response.set_cookie(
-                        "access_token", new_access,
-                        httponly=True, secure=_IS_PROD,
-                        samesite="Lax", max_age=3600, path="/",
+                        "access_token",
+                        new_access,
+                        httponly=True,
+                        secure=_IS_PROD,
+                        samesite="Lax",
+                        max_age=3600,
+                        path="/",
                     )
                     response.set_cookie(
-                        "refresh_token", new_refresh,
-                        httponly=True, secure=_IS_PROD,
-                        samesite="Lax", max_age=86400 * 30, path="/",
+                        "refresh_token",
+                        new_refresh,
+                        httponly=True,
+                        secure=_IS_PROD,
+                        samesite="Lax",
+                        max_age=86400 * 30,
+                        path="/",
                     )
                     return response
                 finally:

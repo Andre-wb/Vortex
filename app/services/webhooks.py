@@ -10,6 +10,7 @@ Rooms can register webhook URLs that receive POST notifications on events:
 Payload is signed with HMAC-SHA256 (room-specific secret) in X-Vortex-Signature header.
 Retries: 3 attempts with exponential backoff (1s, 4s, 16s).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,14 +38,15 @@ _webhook_pool = httpx.AsyncClient(
 @dataclass
 class WebhookConfig:
     """Webhook registration for a room."""
-    room_id:    int
-    url:        str
-    secret:     str = field(default_factory=lambda: os.urandom(32).hex())
-    events:     list[str] = field(default_factory=lambda: ["message"])
-    active:     bool  = True
+
+    room_id: int
+    url: str
+    secret: str = field(default_factory=lambda: os.urandom(32).hex())
+    events: list[str] = field(default_factory=lambda: ["message"])
+    active: bool = True
     created_at: float = field(default_factory=time.time)
-    failures:   int   = 0
-    last_error: str   = ""
+    failures: int = 0
+    last_error: str = ""
 
 
 class WebhookManager:
@@ -90,22 +92,24 @@ class WebhookManager:
 
     async def _deliver(self, hook: WebhookConfig, event: str, payload: dict) -> None:
         """Deliver webhook with retries and HMAC signing."""
-        body = json.dumps({
-            "event":   event,
-            "room_id": hook.room_id,
-            "ts":      int(time.time()),
-            "data":    payload,
-        }, separators=(",", ":"), ensure_ascii=False)
+        body = json.dumps(
+            {
+                "event": event,
+                "room_id": hook.room_id,
+                "ts": int(time.time()),
+                "data": payload,
+            },
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
 
-        signature = hmac.new(
-            hook.secret.encode(), body.encode(), hashlib.sha256
-        ).hexdigest()
+        signature = hmac.new(hook.secret.encode(), body.encode(), hashlib.sha256).hexdigest()
 
         headers = {
-            "Content-Type":       "application/json",
-            "X-Hook-Event":       event,
-            "X-Hook-Signature":   f"sha256={signature}",
-            "User-Agent":         "Mozilla/5.0 (compatible)",
+            "Content-Type": "application/json",
+            "X-Hook-Event": event,
+            "X-Hook-Signature": f"sha256={signature}",
+            "User-Agent": "Mozilla/5.0 (compatible)",
         }
 
         for attempt in range(3):
@@ -120,7 +124,7 @@ class WebhookManager:
 
             hook.failures += 1
             if attempt < 2:
-                await asyncio.sleep(1 * (4 ** attempt))  # 1s, 4s
+                await asyncio.sleep(1 * (4**attempt))  # 1s, 4s
 
         # Disable after 10 consecutive failures
         if hook.failures >= 10:
@@ -130,9 +134,9 @@ class WebhookManager:
     def get_hooks(self, room_id: int) -> list[dict]:
         return [
             {
-                "url":     h.url,
-                "events":  h.events,
-                "active":  h.active,
+                "url": h.url,
+                "events": h.events,
+                "active": h.active,
                 "failures": h.failures,
             }
             for h in self._hooks.get(room_id, [])

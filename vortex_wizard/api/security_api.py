@@ -309,7 +309,7 @@ async def panic(body: PanicBody, request: Request) -> dict:
     from . import admin_api as _admin_api
 
     try:
-        await _admin_api.node_stop(request)  # type: ignore[arg-type]
+        await _admin_api.node_stop()
     except Exception as e:
         logger.warning("panic: node_stop failed: %s", e)
 

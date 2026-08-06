@@ -33,8 +33,9 @@ def _cert_message(cid_hex: str, x3dh_hex: str, sign_hex: str) -> bytes:
     return bytes.fromhex(cid_hex) + bytes.fromhex(x3dh_hex) + bytes.fromhex(sign_hex)
 
 
-def _build_bundle_with_device(account_ed: Ed25519PrivateKey, cid_hex: str, *,
-                              omit_cert=False, tamper_cert=False, n_opk=2):
+def _build_bundle_with_device(
+    account_ed: Ed25519PrivateKey, cid_hex: str, *, omit_cert=False, tamper_cert=False, n_opk=2
+):
     """Собирает publish-тело с device-identity тройкой; cert подписан account_ed."""
     ik_hex = _x25519_pub_hex()
     ik_bytes = bytes.fromhex(ik_hex)
@@ -48,16 +49,16 @@ def _build_bundle_with_device(account_ed: Ed25519PrivateKey, cid_hex: str, *,
         cert = bytes([cert[0] ^ 0xFF]) + cert[1:]
 
     body = {
-        "identity_key":      ik_hex,
-        "signed_prekey":     spk_pub.hex(),
+        "identity_key": ik_hex,
+        "signed_prekey": spk_pub.hex(),
         "signed_prekey_sig": account_ed.sign(spk_pub).hex(),
-        "signed_prekey_id":  1,
-        "identity_key_ed":   account_ed.public_key().public_bytes_raw().hex(),
-        "identity_key_sig":  account_ed.sign(ik_bytes).hex(),
-        "supports_v2":       True,
-        "device_x3dh_pub":   dev_x3dh_hex,
-        "device_sign_pub":   dev_sign_hex,
-        "one_time_prekeys":  [{"key_id": i, "public_key": _x25519_pub_hex()} for i in range(n_opk)],
+        "signed_prekey_id": 1,
+        "identity_key_ed": account_ed.public_key().public_bytes_raw().hex(),
+        "identity_key_sig": account_ed.sign(ik_bytes).hex(),
+        "supports_v2": True,
+        "device_x3dh_pub": dev_x3dh_hex,
+        "device_sign_pub": dev_sign_hex,
+        "one_time_prekeys": [{"key_id": i, "public_key": _x25519_pub_hex()} for i in range(n_opk)],
     }
     if not omit_cert:
         body["device_cert_sig"] = cert.hex()
@@ -72,23 +73,31 @@ def warn_only(monkeypatch):
 def _register(tc):
     tag = random_str(8)
     phone = f"+3{int(_phone_prefix, 16):04d}{random_digits(7)}"
-    tc.post("/api/authentication/register", json={
-        "username": f"di_{tag}", "password": _PW, "display_name": f"DI {tag}",
-        "phone": phone, "avatar_emoji": "\U0001f511", "x25519_public_key": _x25519_pub_hex(),
-    })
+    tc.post(
+        "/api/authentication/register",
+        json={
+            "username": f"di_{tag}",
+            "password": _PW,
+            "display_name": f"DI {tag}",
+            "phone": phone,
+            "avatar_emoji": "\U0001f511",
+            "x25519_public_key": _x25519_pub_hex(),
+        },
+    )
     return f"di_{tag}"
 
 
 def _login(tc, username, cid):
     csrf = tc.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-    tc.post("/api/authentication/login",
-            json={"phone_or_username": username, "password": _PW},
-            headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+    tc.post(
+        "/api/authentication/login",
+        json={"phone_or_username": username, "password": _PW},
+        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid},
+    )
     return csrf
 
 
 class TestDeviceIdentityPublish:
-
     def test_cert_is_verifiable_from_fetch_response(self, warn_only):
         """Главный тест плумбинга: по ответу /devices восстанавливаем cert-сообщение
         и верифицируем подпись против identity_key_ed — как сделает отправитель."""
@@ -97,9 +106,11 @@ class TestDeviceIdentityPublish:
             cid = secrets.token_hex(16)
             account_ed = Ed25519PrivateKey.generate()
             csrf = _login(tc, username, cid)
-            r = tc.post("/api/keys/prekeys/publish",
-                        json=_build_bundle_with_device(account_ed, cid),
-                        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            r = tc.post(
+                "/api/keys/prekeys/publish",
+                json=_build_bundle_with_device(account_ed, cid),
+                headers={"X-CSRF-Token": csrf, "X-Device-Id": cid},
+            )
             assert r.status_code == 200, r.text
 
             me = tc.get("/api/authentication/me").json()
@@ -120,9 +131,11 @@ class TestDeviceIdentityPublish:
             cid = secrets.token_hex(16)
             account_ed = Ed25519PrivateKey.generate()
             csrf = _login(tc, username, cid)
-            tc.post("/api/keys/prekeys/publish",
-                    json=_build_bundle_with_device(account_ed, cid),
-                    headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            tc.post(
+                "/api/keys/prekeys/publish",
+                json=_build_bundle_with_device(account_ed, cid),
+                headers={"X-CSRF-Token": csrf, "X-Device-Id": cid},
+            )
             me = tc.get("/api/authentication/me").json()
             single = tc.get(f"/api/keys/prekeys/{me['user_id']}").json()
             assert single["device_x3dh_pub"] and single["device_sign_pub"]
@@ -135,9 +148,11 @@ class TestDeviceIdentityPublish:
             cid = secrets.token_hex(16)
             account_ed = Ed25519PrivateKey.generate()
             csrf = _login(tc, username, cid)
-            r = tc.post("/api/keys/prekeys/publish",
-                        json=_build_bundle_with_device(account_ed, cid, tamper_cert=True),
-                        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            r = tc.post(
+                "/api/keys/prekeys/publish",
+                json=_build_bundle_with_device(account_ed, cid, tamper_cert=True),
+                headers={"X-CSRF-Token": csrf, "X-Device-Id": cid},
+            )
             assert r.status_code == 200, r.text  # сервер cert не валидирует
 
             me = tc.get("/api/authentication/me").json()
@@ -155,9 +170,11 @@ class TestDeviceIdentityPublish:
             cid = secrets.token_hex(16)
             account_ed = Ed25519PrivateKey.generate()
             csrf = _login(tc, username, cid)
-            r = tc.post("/api/keys/prekeys/publish",
-                        json=_build_bundle_with_device(account_ed, cid, omit_cert=True),
-                        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            r = tc.post(
+                "/api/keys/prekeys/publish",
+                json=_build_bundle_with_device(account_ed, cid, omit_cert=True),
+                headers={"X-CSRF-Token": csrf, "X-Device-Id": cid},
+            )
             assert r.status_code == 200, r.text
             me = tc.get("/api/authentication/me").json()
             b = tc.get(f"/api/keys/prekeys/{me['user_id']}/devices").json()["bundles"][0]
@@ -172,6 +189,5 @@ class TestDeviceIdentityPublish:
             csrf = _login(tc, username, cid)
             body = _build_bundle_with_device(account_ed, cid)
             body["device_x3dh_pub"] = "aa" * 31  # 31 байт вместо 32 → pydantic min_length
-            r = tc.post("/api/keys/prekeys/publish", json=body,
-                        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            r = tc.post("/api/keys/prekeys/publish", json=body, headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
             assert r.status_code in (400, 422)

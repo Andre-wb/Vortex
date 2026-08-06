@@ -23,6 +23,7 @@ format 0.0.4):
   vortex_http_requests_total{method,path,status}   (from profiler)
   vortex_http_request_duration_seconds{quantile="0.5|0.9|0.99",path}  (from profiler)
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -93,7 +94,7 @@ async def _node_metrics(env: dict) -> Iterable[str]:
                     j = r.json()
                     peers = int(j.get("peers", 0))
                     rooms = int(j.get("rooms", 0))
-                    ws    = int(j.get("ws_connections", 0))
+                    ws = int(j.get("ws_connections", 0))
     except Exception:
         alive = 0
 
@@ -116,7 +117,7 @@ def _audit_metrics(env_file: Path) -> Iterable[str]:
     with contextlib.suppress(Exception):
         c = sqlite3.connect(str(_audit_db_path(env_file)))
         try:
-            total  = c.execute("SELECT COUNT(*) FROM audit_entries").fetchone()[0]
+            total = c.execute("SELECT COUNT(*) FROM audit_entries").fetchone()[0]
             alerts = c.execute("SELECT COUNT(*) FROM audit_entries WHERE alert=1").fetchone()[0]
         finally:
             c.close()
@@ -138,9 +139,10 @@ def _backup_metrics(env_file: Path) -> Iterable[str]:
     if marker.is_file():
         with contextlib.suppress(Exception):
             import json as _json
+
             d = _json.loads(marker.read_text())
             updated_at = int(d.get("updated_at", 0))
-            byte_size  = int(d.get("byte_size", 0))
+            byte_size = int(d.get("byte_size", 0))
     yield "# HELP vortex_backup_updated_at_seconds Epoch seconds of last backup."
     yield "# TYPE vortex_backup_updated_at_seconds gauge"
     yield f"vortex_backup_updated_at_seconds {updated_at}"

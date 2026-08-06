@@ -14,6 +14,7 @@ Status values returned:
 The verifier never raises — it returns a dict so startup logic can decide
 whether to refuse requests, warn, or proceed.
 """
+
 from __future__ import annotations
 
 import json
@@ -42,9 +43,9 @@ _DEFAULT_PINNED_PUBKEY = os.getenv(
 
 @dataclass
 class IntegrityReport:
-    status: str                               # see module docstring
-    signed_by: Optional[str] = None           # pubkey hex that signed the manifest
-    trusted_pubkey: Optional[str] = None      # pubkey we verified against
+    status: str  # see module docstring
+    signed_by: Optional[str] = None  # pubkey hex that signed the manifest
+    trusted_pubkey: Optional[str] = None  # pubkey we verified against
     version: Optional[str] = None
     built_at: Optional[int] = None
     matched: int = 0
@@ -157,7 +158,6 @@ def verify_at_startup(
         )
     else:
         report.message = (
-            f"All {diff['matched']} files match manifest v{payload.get('version')} "
-            f"(signed by {signed_by[:16]}…)"
+            f"All {diff['matched']} files match manifest v{payload.get('version')} (signed by {signed_by[:16]}…)"
         )
     return report

@@ -6,12 +6,14 @@ Comprehensive tests for:
 
 Pattern: def test_xxx(client) — uses the session-scope SyncASGIClient from conftest.
 """
+
 import json
 import secrets
 
 from conftest import login_user, make_user, random_str
 
 # Helpers
+
 
 def _auth(client) -> dict:
     """Register + login a fresh user, return auth headers."""
@@ -22,14 +24,18 @@ def _auth(client) -> dict:
 
 def _create_room(client, headers) -> int:
     """Create a public room and return its id."""
-    r = client.post("/api/rooms", json={
-        "name": f"bot_room_{random_str(6)}",
-        "is_public": True,
-        "encrypted_room_key": {
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext": secrets.token_hex(60),
+    r = client.post(
+        "/api/rooms",
+        json={
+            "name": f"bot_room_{random_str(6)}",
+            "is_public": True,
+            "encrypted_room_key": {
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(60),
+            },
         },
-    }, headers=headers)
+        headers=headers,
+    )
     assert r.status_code in (200, 201), f"room creation failed: {r.text}"
     data = r.json()
     return data.get("id") or data.get("room", {}).get("id")
@@ -49,6 +55,7 @@ def _bot_token_header(token: str) -> dict:
 
 
 # Bot Creation (bot_api.py)
+
 
 def test_create_bot_requires_auth(client):
     r = client.post("/api/bots", json={"name": "NoAuth"})
@@ -87,6 +94,7 @@ def test_create_bot_name_too_long(client):
 
 # List / get bots
 
+
 def test_list_bots_requires_auth(anon_client):
     r = anon_client.get("/api/bots")
     assert r.status_code in (401, 403)
@@ -115,6 +123,7 @@ def test_list_bots_after_creation(client):
 
 
 # Update bot
+
 
 def test_update_bot_name(client):
     h = _auth(client)
@@ -169,6 +178,7 @@ def test_update_bot_not_owned(client):
 
 # Token management
 
+
 def test_get_bot_token(client):
     h = _auth(client)
     bot = _create_bot(client, h)
@@ -212,6 +222,7 @@ def test_regenerate_token_not_owned(client):
 
 # Bot /me and /rooms (bot-auth endpoints)
 
+
 def test_bot_me_valid_token(client):
     h = _auth(client)
     bot = _create_bot(client, h)
@@ -242,6 +253,7 @@ def test_bot_list_rooms_valid_token(client):
 
 
 # Add bot to room / remove
+
 
 def test_add_bot_to_room(client):
     h = _auth(client)
@@ -289,6 +301,7 @@ def test_remove_bot_not_in_room(client):
 
 # Delete bot
 
+
 def test_delete_bot(client):
     h = _auth(client)
     bot = _create_bot(client, h)
@@ -316,6 +329,7 @@ def test_delete_bot_not_owned(client):
 
 
 # SDK Info (bot_advanced.py)
+
 
 def test_sdk_info_no_auth_required(client):
     r = client.get("/api/bots/sdk-info")
@@ -345,6 +359,7 @@ def test_sdk_info_http_api_endpoints(client):
 
 
 # Bot Store (bot_advanced.py)
+
 
 def test_bot_store_no_auth_required(client):
     r = client.get("/api/bots/store")
@@ -384,8 +399,7 @@ def test_bot_store_entry_fields(client):
     bot = _create_bot(client, h)
     bid = bot["bot_id"]
     # Publish bot to marketplace
-    client.post(f"/api/bots/{bid}/publish",
-                json={"is_public": True, "category": "utilities"}, headers=h)
+    client.post(f"/api/bots/{bid}/publish", json={"is_public": True, "category": "utilities"}, headers=h)
     data = client.get("/api/bots/store").json()
     if data["bots"]:
         entry = data["bots"][0]
@@ -394,6 +408,7 @@ def test_bot_store_entry_fields(client):
 
 
 # Scopes (bot_advanced.py)
+
 
 def test_scopes_list_no_auth(client):
     r = client.get("/api/bots/scopes")
@@ -424,8 +439,9 @@ def test_set_bot_scopes_valid(client):
     h = _auth(client)
     bot = _create_bot(client, h)
     bid = bot["bot_id"]
-    r = client.put(f"/api/bots/{bid}/scopes",
-                   json={"scopes": ["messages.read", "messages.send", "files.send"]}, headers=h)
+    r = client.put(
+        f"/api/bots/{bid}/scopes", json={"scopes": ["messages.read", "messages.send", "files.send"]}, headers=h
+    )
     assert r.status_code == 200
     assert r.json()["ok"] is True
     # Verify new scopes are returned
@@ -439,8 +455,7 @@ def test_set_bot_scopes_invalid_scope(client):
     h = _auth(client)
     bot = _create_bot(client, h)
     bid = bot["bot_id"]
-    r = client.put(f"/api/bots/{bid}/scopes",
-                   json={"scopes": ["messages.read", "made_up_scope"]}, headers=h)
+    r = client.put(f"/api/bots/{bid}/scopes", json={"scopes": ["messages.read", "made_up_scope"]}, headers=h)
     assert r.status_code == 400
 
 
@@ -449,12 +464,12 @@ def test_set_bot_scopes_not_owner(client):
     bot = _create_bot(client, h1)  # create bot while user1 cookie is active
     bid = bot["bot_id"]
     h2 = _auth(client)  # login user2 (overwrites cookie)
-    r = client.put(f"/api/bots/{bid}/scopes",
-                   json={"scopes": ["messages.read"]}, headers=h2)
+    r = client.put(f"/api/bots/{bid}/scopes", json={"scopes": ["messages.read"]}, headers=h2)
     assert r.status_code in (403, 404)
 
 
 # Slash Commands (bot_advanced.py)
+
 
 def test_get_room_commands_requires_auth(anon_client):
     r = anon_client.get("/api/rooms/1/commands")
@@ -479,20 +494,26 @@ def test_register_slash_commands_valid(client):
     h = _auth(client)
     bot = _create_bot(client, h)
     token = bot["api_token"]
-    r = client.post("/api/bot/commands/register",
-                    json={"commands": [
-                        {"name": "help", "description": "Show help"},
-                        {"name": "ping", "description": "Pong"},
-                    ]},
-                    headers=_bot_token_header(token))
+    r = client.post(
+        "/api/bot/commands/register",
+        json={
+            "commands": [
+                {"name": "help", "description": "Show help"},
+                {"name": "ping", "description": "Pong"},
+            ]
+        },
+        headers=_bot_token_header(token),
+    )
     assert r.status_code == 200
     assert r.json()["commands_count"] == 2
 
 
 def test_register_slash_commands_invalid_token(client):
-    r = client.post("/api/bot/commands/register",
-                    json={"commands": [{"name": "help", "description": ""}]},
-                    headers=_bot_token_header("bogus_token"))
+    r = client.post(
+        "/api/bot/commands/register",
+        json={"commands": [{"name": "help", "description": ""}]},
+        headers=_bot_token_header("bogus_token"),
+    )
     assert r.status_code == 401
 
 
@@ -502,9 +523,11 @@ def test_get_bot_commands_after_register(client):
     bid = bot["bot_id"]
     token = bot["api_token"]
     # Register commands via bot API
-    client.post("/api/bot/commands/register",
-                json={"commands": [{"name": "hello", "description": "Say hello"}]},
-                headers=_bot_token_header(token))
+    client.post(
+        "/api/bot/commands/register",
+        json={"commands": [{"name": "hello", "description": "Say hello"}]},
+        headers=_bot_token_header(token),
+    )
     # Retrieve via public endpoint
     r = client.get(f"/api/bots/{bid}/commands")
     assert r.status_code == 200
@@ -520,9 +543,11 @@ def test_room_commands_include_bot_commands_after_install(client):
     room_id = _create_room(client, h)
 
     # Register command
-    client.post("/api/bot/commands/register",
-                json={"commands": [{"name": "greet", "description": "Greet user"}]},
-                headers=_bot_token_header(token))
+    client.post(
+        "/api/bot/commands/register",
+        json={"commands": [{"name": "greet", "description": "Greet user"}]},
+        headers=_bot_token_header(token),
+    )
 
     # Add bot to room
     client.post(f"/api/bots/{bid}/rooms/{room_id}", headers=h)
@@ -536,15 +561,20 @@ def test_room_commands_include_bot_commands_after_install(client):
 
 # Webhook (bot_advanced.py)
 
+
 def test_set_webhook(client):
     h = _auth(client)
     bot = _create_bot(client, h)
     token = bot["api_token"]
-    r = client.post("/api/bot/webhook/set", json={
-        "url": "https://myserver.example.com/webhook",
-        "secret": "my_webhook_secret",
-        "events": ["message", "reaction"],
-    }, headers=_bot_token_header(token))
+    r = client.post(
+        "/api/bot/webhook/set",
+        json={
+            "url": "https://myserver.example.com/webhook",
+            "secret": "my_webhook_secret",
+            "events": ["message", "reaction"],
+        },
+        headers=_bot_token_header(token),
+    )
     assert r.status_code == 200
     data = r.json()
     assert data["ok"] is True
@@ -555,10 +585,14 @@ def test_get_webhook_info(client):
     h = _auth(client)
     bot = _create_bot(client, h)
     token = bot["api_token"]
-    client.post("/api/bot/webhook/set", json={
-        "url": "https://example.com/hook",
-        "events": ["message"],
-    }, headers=_bot_token_header(token))
+    client.post(
+        "/api/bot/webhook/set",
+        json={
+            "url": "https://example.com/hook",
+            "events": ["message"],
+        },
+        headers=_bot_token_header(token),
+    )
     r = client.get("/api/bot/webhook/info", headers=_bot_token_header(token))
     assert r.status_code == 200
     wh = r.json()["webhook"]
@@ -571,10 +605,14 @@ def test_delete_webhook(client):
     h = _auth(client)
     bot = _create_bot(client, h)
     token = bot["api_token"]
-    client.post("/api/bot/webhook/set", json={
-        "url": "https://example.com/hook",
-        "events": ["message"],
-    }, headers=_bot_token_header(token))
+    client.post(
+        "/api/bot/webhook/set",
+        json={
+            "url": "https://example.com/hook",
+            "events": ["message"],
+        },
+        headers=_bot_token_header(token),
+    )
     r = client.post("/api/bot/webhook/delete", headers=_bot_token_header(token))
     assert r.status_code == 200
     assert r.json()["ok"] is True
@@ -584,9 +622,13 @@ def test_delete_webhook(client):
 
 
 def test_webhook_requires_bot_auth(client):
-    r = client.post("/api/bot/webhook/set", json={
-        "url": "https://example.com/hook", "events": ["message"],
-    })
+    r = client.post(
+        "/api/bot/webhook/set",
+        json={
+            "url": "https://example.com/hook",
+            "events": ["message"],
+        },
+    )
     assert r.status_code == 401
 
 
@@ -594,11 +636,15 @@ def test_webhook_auto_generates_secret_if_empty(client):
     h = _auth(client)
     bot = _create_bot(client, h)
     token = bot["api_token"]
-    client.post("/api/bot/webhook/set", json={
-        "url": "https://example.com/hook",
-        "secret": "",          # empty → should be auto-generated
-        "events": ["message"],
-    }, headers=_bot_token_header(token))
+    client.post(
+        "/api/bot/webhook/set",
+        json={
+            "url": "https://example.com/hook",
+            "secret": "",  # empty → should be auto-generated
+            "events": ["message"],
+        },
+        headers=_bot_token_header(token),
+    )
     r = client.get("/api/bot/webhook/info", headers=_bot_token_header(token))
     wh = r.json()["webhook"]
     # Secret must be set (non-empty) even though we sent ""
@@ -606,6 +652,7 @@ def test_webhook_auto_generates_secret_if_empty(client):
 
 
 # Inline Bot (bot_advanced.py)
+
 
 def test_register_inline_handler(client):
     h = _auth(client)
@@ -622,12 +669,16 @@ def test_answer_inline_query(client):
     bot = _create_bot(client, h)
     token = bot["api_token"]
     client.post("/api/bot/inline/register", headers=_bot_token_header(token))
-    r = client.post("/api/bot/inline/answer", json={
-        "results": [
-            {"id": "1", "title": "Hello World", "description": "A greeting", "content": "Hello!"},
-            {"id": "2", "title": "Goodbye", "description": "A farewell", "content": "Bye!"},
-        ]
-    }, headers=_bot_token_header(token))
+    r = client.post(
+        "/api/bot/inline/answer",
+        json={
+            "results": [
+                {"id": "1", "title": "Hello World", "description": "A greeting", "content": "Hello!"},
+                {"id": "2", "title": "Goodbye", "description": "A farewell", "content": "Bye!"},
+            ]
+        },
+        headers=_bot_token_header(token),
+    )
     assert r.status_code == 200
     assert r.json()["results_count"] == 2
 
@@ -639,9 +690,11 @@ def test_query_inline_bot(client):
     token = bot["api_token"]
     # Register + seed results
     client.post("/api/bot/inline/register", headers=_bot_token_header(token))
-    client.post("/api/bot/inline/answer", json={
-        "results": [{"id": "1", "title": "Weather Today", "description": "Sunny", "content": "☀️"}]
-    }, headers=_bot_token_header(token))
+    client.post(
+        "/api/bot/inline/answer",
+        json={"results": [{"id": "1", "title": "Weather Today", "description": "Sunny", "content": "☀️"}]},
+        headers=_bot_token_header(token),
+    )
     # Query as a normal user
     user_h = _auth(client)
     r = client.get(f"/api/bots/{bid}/inline?q=weather", headers=user_h)
@@ -658,12 +711,16 @@ def test_query_inline_bot_filter(client):
     bid = bot["bot_id"]
     token = bot["api_token"]
     client.post("/api/bot/inline/register", headers=_bot_token_header(token))
-    client.post("/api/bot/inline/answer", json={
-        "results": [
-            {"id": "1", "title": "Apple Pie", "description": "Dessert", "content": "🍎"},
-            {"id": "2", "title": "Banana Bread", "description": "Dessert", "content": "🍌"},
-        ]
-    }, headers=_bot_token_header(token))
+    client.post(
+        "/api/bot/inline/answer",
+        json={
+            "results": [
+                {"id": "1", "title": "Apple Pie", "description": "Dessert", "content": "🍎"},
+                {"id": "2", "title": "Banana Bread", "description": "Dessert", "content": "🍌"},
+            ]
+        },
+        headers=_bot_token_header(token),
+    )
     user_h = _auth(client)
     r = client.get(f"/api/bots/{bid}/inline?q=apple", headers=user_h)
     results = r.json()["results"]
@@ -684,12 +741,16 @@ def test_inline_requires_user_auth(anon_client):
 
 # Callback handler (bot_advanced.py)
 
+
 def test_handle_callback(client):
-    r = client.post("/api/bot/callback", json={
-        "callback_data": "action:confirm",
-        "message_id": 42,
-        "user_id": 7,
-    })
+    r = client.post(
+        "/api/bot/callback",
+        json={
+            "callback_data": "action:confirm",
+            "message_id": 42,
+            "user_id": 7,
+        },
+    )
     assert r.status_code == 200
     data = r.json()
     assert data["ok"] is True
@@ -708,12 +769,12 @@ def test_handle_callback_empty_body(client):
 
 # Bot marketplace / publish (bot_api.py)
 
+
 def test_publish_bot(client):
     h = _auth(client)
     bot = _create_bot(client, h)
     bid = bot["bot_id"]
-    r = client.post(f"/api/bots/{bid}/publish",
-                    json={"is_public": True, "category": "utilities"}, headers=h)
+    r = client.post(f"/api/bots/{bid}/publish", json={"is_public": True, "category": "utilities"}, headers=h)
     assert r.status_code in (200, 201)
     assert r.json()["ok"] is True
 
@@ -723,8 +784,7 @@ def test_publish_bot_not_owner(client):
     bot = _create_bot(client, h1)  # create bot while user1 cookie is active
     bid = bot["bot_id"]
     h2 = _auth(client)  # login user2 (overwrites cookie)
-    r = client.post(f"/api/bots/{bid}/publish",
-                    json={"is_public": True, "category": "utilities"}, headers=h2)
+    r = client.post(f"/api/bots/{bid}/publish", json={"is_public": True, "category": "utilities"}, headers=h2)
     assert r.status_code in (403, 404)
 
 
@@ -732,13 +792,10 @@ def test_submit_bot_review(client):
     h_owner = _auth(client)
     bot = _create_bot(client, h_owner)
     bid = bot["bot_id"]
-    client.post(f"/api/bots/{bid}/publish",
-                json={"is_public": True, "category": "other"}, headers=h_owner)
+    client.post(f"/api/bots/{bid}/publish", json={"is_public": True, "category": "other"}, headers=h_owner)
 
     h_reviewer = _auth(client)
-    r = client.post(f"/api/bots/{bid}/reviews",
-                    json={"rating": 5, "text": "Amazing bot!"},
-                    headers=h_reviewer)
+    r = client.post(f"/api/bots/{bid}/reviews", json={"rating": 5, "text": "Amazing bot!"}, headers=h_reviewer)
     assert r.status_code in (200, 201, 400, 404)  # endpoint may not exist yet
     if r.status_code in (200, 201):
         assert r.json()["ok"] is True
@@ -755,6 +812,7 @@ def test_get_bot_reviews(client):
 
 
 # Mini App Dev Info (bot_advanced.py)
+
 
 def test_mini_app_dev_info_not_owner(client):
     h1 = _auth(client)
@@ -793,6 +851,7 @@ def test_mini_app_dev_info_available_apis(client):
 
 # Mini App token (bot_api.py)
 
+
 def test_mini_app_token_no_mini_app_configured(client):
     h = _auth(client)
     bot = _create_bot(client, h)
@@ -815,6 +874,7 @@ def test_mini_app_token_with_mini_app(client):
 
 
 # Bot long-poll updates (bot_api.py)
+
 
 def test_bot_get_updates_valid_token_no_updates(client):
     h = _auth(client)
@@ -845,11 +905,13 @@ def test_bot_get_updates_timeout_bounds(client):
 
 # deliver_webhook (unit test — no HTTP server needed)
 
+
 def test_deliver_webhook_no_webhook_configured(client):
     """deliver_webhook returns False when no webhook is set for that bot."""
     import asyncio
 
     from app.bots.bot_advanced import _webhooks, deliver_webhook
+
     bot_id = 999888777  # fictitious, no webhook registered
     _webhooks.pop(bot_id, None)
     loop = asyncio.new_event_loop()
@@ -863,6 +925,7 @@ def test_deliver_webhook_event_not_in_events_list(client):
     import asyncio
 
     from app.bots.bot_advanced import _webhooks, deliver_webhook
+
     bot_id = 999888776
     _webhooks[bot_id] = {
         "url": "https://example.com/hook",

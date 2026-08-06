@@ -24,6 +24,7 @@ Stealth Mode — маскировка Vortex трафика от DPI/цензу�
   6. STUN Fallback — собственный STUN через CDN/domain fronting
   7. TLS Fingerprint — маскировка под популярные браузеры
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -137,6 +138,7 @@ def sanitize_response(response: Response) -> Response:
 
 # 3. Traffic Camouflage — маскировка под обычный HTTPS
 
+
 def camouflage_payload(data: bytes) -> bytes:
     """
     Wrap binary data to look like a standard HTTP response body.
@@ -145,6 +147,7 @@ def camouflage_payload(data: bytes) -> bytes:
     Format: [4B real_len][random_padding][data][random_padding]
     """
     import struct
+
     real_len = len(data)
     # Pad to standard sizes (like MetadataPadding in privacy.py)
     targets = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
@@ -161,15 +164,17 @@ def camouflage_payload(data: bytes) -> bytes:
 def decamouflage_payload(data: bytes) -> bytes:
     """Extract real data from camouflaged payload."""
     import struct
+
     if len(data) < 4:
         return data
     real_len = struct.unpack(">I", data[:4])[0]
     if real_len > len(data) - 4:
         return data  # not camouflaged
-    return data[4:4 + real_len]
+    return data[4 : 4 + real_len]
 
 
 # 4. UDP Discovery Encryption
+
 
 def encrypt_udp_broadcast(payload: bytes) -> bytes:
     """
@@ -208,6 +213,7 @@ def decrypt_udp_broadcast(data: bytes) -> Optional[bytes]:
 
 # 5. Port Randomization
 
+
 def get_stealth_port() -> int:
     """
     Generate a random high port for stealth mode.
@@ -228,6 +234,7 @@ def get_stealth_udp_port() -> int:
 
 
 # 6. STUN Fallback — CDN/domain fronted STUN
+
 
 def get_stealth_ice_servers() -> list[dict]:
     """
@@ -287,6 +294,7 @@ def get_fake_index() -> str:
 
 # 8. Stealth Middleware — автоматическая маскировка всех ответов
 
+
 class StealthMiddleware(BaseHTTPMiddleware):
     """
     Middleware that sanitizes all responses in stealth mode:
@@ -304,23 +312,28 @@ class StealthMiddleware(BaseHTTPMiddleware):
         # Block endpoints that expose app info
         if path in ("/health", "/api/docs", "/api/redoc", "/openapi.json"):
             from starlette.responses import PlainTextResponse
+
             return PlainTextResponse("Not Found", status_code=404)
 
         # Block manifest.json (contains app name)
         if path == "/manifest.json" or path == "/static/manifest.json":
             from starlette.responses import JSONResponse
-            return JSONResponse({
-                "name": "Web App",
-                "short_name": "App",
-                "start_url": "/",
-                "display": "standalone",
-            })
+
+            return JSONResponse(
+                {
+                    "name": "Web App",
+                    "short_name": "App",
+                    "start_url": "/",
+                    "display": "standalone",
+                }
+            )
 
         response = await call_next(request)
         return sanitize_response(response)
 
 
 # 9. Stealth Status
+
 
 def get_stealth_status() -> dict:
     """Return stealth mode status."""

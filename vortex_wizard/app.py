@@ -8,6 +8,7 @@ Mode selection:
     * Subsequent launches           → admin dashboard
     * ``--mode`` flag overrides
 """
+
 from __future__ import annotations
 
 import argparse
@@ -74,9 +75,11 @@ def _default_env_file() -> Path:
         base = home / "Library" / "Application Support" / "Vortex"
     elif sys.platform.startswith("win"):
         import os
+
         base = Path(os.environ.get("APPDATA") or home) / "Vortex"
     else:
         import os
+
         base = Path(os.environ.get("XDG_CONFIG_HOME") or (home / ".config")) / "vortex"
     base.mkdir(parents=True, exist_ok=True)
     return base / ".env"
@@ -107,6 +110,7 @@ def _open_window(url: str, title: str) -> None:
     except ImportError:
         logger.info("pywebview not installed — opening browser instead")
         import webbrowser
+
         webbrowser.open(url)
         return
 
@@ -169,23 +173,31 @@ def main(argv: Optional[list[str]] = None) -> int:
         description="Vortex node setup + admin dashboard (all-local, zero telemetry)",
     )
     ap.add_argument(
-        "--mode", choices=("auto", "setup", "admin"), default="auto",
+        "--mode",
+        choices=("auto", "setup", "admin"),
+        default="auto",
         help="Force a specific UI mode (default: auto)",
     )
     ap.add_argument(
-        "--host", default="127.0.0.1",
+        "--host",
+        default="127.0.0.1",
         help="Bind host (default: 127.0.0.1 — loopback only)",
     )
     ap.add_argument(
-        "--port", type=int, default=None,
+        "--port",
+        type=int,
+        default=None,
         help="Bind port (default: random free port)",
     )
     ap.add_argument(
-        "--no-window", action="store_true",
+        "--no-window",
+        action="store_true",
         help="Don't launch the webview — serve the API on stdout only",
     )
     ap.add_argument(
-        "--env-file", type=Path, default=None,
+        "--env-file",
+        type=Path,
+        default=None,
         help="Vortex env file to read/write (default: per-user config dir)",
     )
     args = ap.parse_args(argv)
@@ -202,7 +214,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     # Run uvicorn in a background thread so pywebview's event loop can own
     # the main thread (required on macOS for AppKit).
     server_thread = threading.Thread(
-        target=_start_server, args=(mode, args.host, port, env_file), daemon=True,
+        target=_start_server,
+        args=(mode, args.host, port, env_file),
+        daemon=True,
     )
     server_thread.start()
 

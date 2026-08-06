@@ -3,6 +3,7 @@ JWT authentication — HMAC-HS256 with a local secret.
 X25519 is used for E2E encryption between devices, not for JWT.
 No RSA, no external CAs.
 """
+
 from __future__ import annotations
 
 import logging
@@ -38,7 +39,7 @@ _JWT_ALG = "HS256"
 # in the in-process set for the current worker, and reads fall back to it.
 _JTI_PREFIX = "jwt:revoked:"
 
-_revoked_jti: dict[str, float] = {}      # in-memory fallback
+_revoked_jti: dict[str, float] = {}  # in-memory fallback
 _revoked_lock = threading.Lock()
 
 _redis_client = None
@@ -58,16 +59,18 @@ def _get_redis():
         if url:
             try:
                 import redis
+
                 client = redis.Redis.from_url(
-                    url, decode_responses=True,
-                    socket_connect_timeout=2, socket_timeout=2,
+                    url,
+                    decode_responses=True,
+                    socket_connect_timeout=2,
+                    socket_timeout=2,
                 )
                 client.ping()
                 _redis_client = client
                 logger.info("JWT revocation denylist: using Redis backend")
             except Exception as e:
-                logger.warning("JWT denylist: Redis unavailable (%s) — "
-                               "falling back to in-process store", e)
+                logger.warning("JWT denylist: Redis unavailable (%s) — falling back to in-process store", e)
                 _redis_client = None
         _redis_init_done = True
     return _redis_client
@@ -83,7 +86,9 @@ def revoke_access_token(token: str) -> None:
     """Add an access token's jti to the denylist until it would expire."""
     try:
         payload = jwt.decode(
-            token, Config.JWT_SECRET, algorithms=[_JWT_ALG],
+            token,
+            Config.JWT_SECRET,
+            algorithms=[_JWT_ALG],
             options={"verify_exp": False, "verify_aud": False},
         )
     except jwt.InvalidTokenError:
@@ -136,17 +141,18 @@ def _is_jti_revoked(jti: str) -> bool:
 
 # Access Token (JWT HS256)
 
+
 def create_access_token(user_id: int, phone: str, username: str) -> str:
     now = datetime.now(timezone.utc)
     exp = now + timedelta(minutes=Config.ACCESS_TOKEN_EXPIRE_MIN)
     payload: dict[str, Any] = {
-        "sub":      str(user_id),
-        "phone":    phone,
+        "sub": str(user_id),
+        "phone": phone,
         "username": username,
-        "iat":      now,
-        "exp":      exp,
-        "jti":      secrets.token_hex(16),
-        "typ":      "access",
+        "iat": now,
+        "exp": exp,
+        "jti": secrets.token_hex(16),
+        "typ": "access",
     }
     return jwt.encode(payload, Config.JWT_SECRET, algorithm=_JWT_ALG)
 
@@ -178,39 +184,47 @@ def decode_access_token(token: str) -> dict[str, Any]:
 
 # Refresh Token (opaque, SHA-256 hash stored in DB via Rust)
 
+
 def create_refresh_token(
-        user_id: int, db: Session,
-        ip: str | None = None,
-        ua: str | None = None,
+    user_id: int,
+    db: Session,
+    ip: str | None = None,
+    ua: str | None = None,
 ) -> tuple[str, datetime]:
     # Clean up expired tokens
     db.query(RefreshToken).filter(
         RefreshToken.user_id == user_id,
         RefreshToken.expires_at < datetime.now(timezone.utc),
-        ).delete()
+    ).delete()
 
     raw = secrets.token_urlsafe(64)
     exp = datetime.now(timezone.utc) + timedelta(days=Config.REFRESH_TOKEN_EXPIRE_DAYS)
 
     # hash_token -> SHA-256 via Rust (constant-time)
-    db.add(RefreshToken(
-        user_id=user_id,
-        token_hash=hash_token(raw),
-        expires_at=exp,
-        ip_address=ip,
-        user_agent=ua,
-    ))
+    db.add(
+        RefreshToken(
+            user_id=user_id,
+            token_hash=hash_token(raw),
+            expires_at=exp,
+            ip_address=ip,
+            user_agent=ua,
+        )
+    )
     db.commit()
     return raw, exp
 
 
 def verify_refresh_token(raw: str, db: Session) -> User:
     token_hash = hash_token(raw)
-    rec = db.query(RefreshToken).filter(
-        RefreshToken.token_hash == token_hash,
-        RefreshToken.revoked_at.is_(None),
-        RefreshToken.expires_at > datetime.now(timezone.utc),
-        ).first()
+    rec = (
+        db.query(RefreshToken)
+        .filter(
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.revoked_at.is_(None),
+            RefreshToken.expires_at > datetime.now(timezone.utc),
+        )
+        .first()
+    )
     if not rec:
         raise HTTPException(401, "Refresh token is invalid or expired")
     user = db.query(User).filter(User.id == rec.user_id, User.is_active.is_(True)).first()
@@ -226,9 +240,10 @@ def verify_refresh_token(raw: str, db: Session) -> User:
 
 # FastAPI Dependencies
 
+
 async def get_current_user(
-        request: Request,
-        db: Session = Depends(get_db),
+    request: Request,
+    db: Session = Depends(get_db),
 ) -> User:
     token = request.cookies.get("access_token")
     if not token:
@@ -238,10 +253,14 @@ async def get_current_user(
     if not token:
         raise HTTPException(401, "Unauthorized")
     payload = decode_access_token(token)
-    user = db.query(User).filter(
-        User.id == int(payload["sub"]),
-        User.is_active.is_(True),
-        ).first()
+    user = (
+        db.query(User)
+        .filter(
+            User.id == int(payload["sub"]),
+            User.is_active.is_(True),
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(401, "User not found")
     return user
@@ -250,10 +269,14 @@ async def get_current_user(
 async def get_user_ws(token: str, db: Session) -> User:
     """For WebSocket — token is passed as a query parameter."""
     payload = decode_access_token(token)
-    user = db.query(User).filter(
-        User.id == int(payload["sub"]),
-        User.is_active.is_(True),
-        ).first()
+    user = (
+        db.query(User)
+        .filter(
+            User.id == int(payload["sub"]),
+            User.is_active.is_(True),
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(401, "User not found")
     return user

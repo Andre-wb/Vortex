@@ -11,6 +11,7 @@ Configuration:
   SFU_URL=http://mediasoup-host:3000   (for external SFUs)
   SFU_API_KEY=secret                    (optional auth for external SFU)
 """
+
 from __future__ import annotations
 
 import abc
@@ -32,6 +33,7 @@ SFU_API_KEY: str = os.getenv("SFU_API_KEY", "")
 
 # Data structures
 
+
 @dataclass
 class SFUParticipantInfo:
     user_id: int
@@ -47,6 +49,7 @@ class SFURoomInfo:
 
 
 # Abstract SFU bridge
+
 
 class SFUBridge(abc.ABC):
     """Abstract interface for SFU operations."""
@@ -90,6 +93,7 @@ class SFUBridge(abc.ABC):
 
 # Builtin SFU (delegates to existing app/chats/sfu.py with aiortc)
 
+
 class BuiltinSFU(SFUBridge):
     """
     Uses the existing aiortc-based SFU in app/chats/sfu.py.
@@ -102,12 +106,14 @@ class BuiltinSFU(SFUBridge):
     async def is_available(self) -> bool:
         try:
             from app.chats.sfu import is_sfu_available
+
             return is_sfu_available()
         except ImportError:
             return False
 
     async def create_room(self, room_id: str, **kwargs) -> SFURoomInfo:
         from app.chats.sfu import get_or_create_sfu_room
+
         # Room is lazily created on join, but we can pre-create it
         # The second arg is numeric room_id used for access control
         numeric_room = kwargs.get("numeric_room_id", 0)
@@ -116,6 +122,7 @@ class BuiltinSFU(SFUBridge):
 
     async def join_room(self, room_id, user_id, username, sdp_offer=None, **kwargs):
         from app.chats.sfu import _sfu_rooms, get_or_create_sfu_room
+
         sfu_room = _sfu_rooms.get(room_id)
         if not sfu_room:
             numeric_room = kwargs.get("numeric_room_id", 0)
@@ -134,6 +141,7 @@ class BuiltinSFU(SFUBridge):
 
     async def leave_room(self, room_id, user_id):
         from app.chats.sfu import _sfu_rooms
+
         sfu_room = _sfu_rooms.get(room_id)
         if sfu_room:
             await sfu_room.leave(user_id)
@@ -142,6 +150,7 @@ class BuiltinSFU(SFUBridge):
 
     async def get_participants(self, room_id):
         from app.chats.sfu import _sfu_rooms
+
         sfu_room = _sfu_rooms.get(room_id)
         if not sfu_room:
             return []
@@ -156,6 +165,7 @@ class BuiltinSFU(SFUBridge):
 
     async def close_room(self, room_id):
         from app.chats.sfu import _sfu_rooms
+
         sfu_room = _sfu_rooms.get(room_id)
         if sfu_room:
             await sfu_room.close()
@@ -164,6 +174,7 @@ class BuiltinSFU(SFUBridge):
 
 
 # Mediasoup bridge (HTTP API)
+
 
 class MediasoupBridge(SFUBridge):
     """
@@ -281,6 +292,7 @@ class MediasoupBridge(SFUBridge):
 
 # Janus bridge (HTTP API)
 
+
 class JanusBridge(SFUBridge):
     """
     Connect to an external Janus Gateway via its REST API.
@@ -335,11 +347,13 @@ class JanusBridge(SFUBridge):
             await self._create_session()
 
         # Attach to videoroom plugin
-        attach_data = await self._janus_session_request({
-            "janus": "attach",
-            "plugin": "janus.plugin.videoroom",
-            "transaction": f"attach_{room_id}",
-        })
+        attach_data = await self._janus_session_request(
+            {
+                "janus": "attach",
+                "plugin": "janus.plugin.videoroom",
+                "transaction": f"attach_{room_id}",
+            }
+        )
         handle_id = attach_data.get("data", {}).get("id")
         if handle_id:
             self._handle_ids[room_id] = handle_id
@@ -407,10 +421,7 @@ class JanusBridge(SFUBridge):
 
         return {
             "sdp_answer": jsep.get("sdp", ""),
-            "participants": [
-                {"user_id": p.get("id"), "username": p.get("display", "")}
-                for p in participants
-            ],
+            "participants": [{"user_id": p.get("id"), "username": p.get("display", "")} for p in participants],
         }
 
     async def leave_room(self, room_id, user_id):

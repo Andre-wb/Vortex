@@ -18,6 +18,7 @@ The actual endpoint logic is split across:
                          federation, webhook forwarding
     ide_shared.py      — shared constants, helpers, request models
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter

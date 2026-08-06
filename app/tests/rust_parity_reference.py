@@ -3,6 +3,7 @@
 Только stdlib и без импорта `app.*`: шимы приложения переключаются на Rust,
 эталон обязан оставаться независимым.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -61,9 +62,7 @@ def _py_sender_pseudo(case: dict[str, Any]) -> str:
 
 
 def _py_canonical_json(case: dict[str, Any]) -> str:
-    dumped = json.dumps(
-        case["obj"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    )
+    dumped = json.dumps(case["obj"], sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return dumped.encode("utf-8").hex()
 
 
@@ -205,9 +204,7 @@ FUNCTIONS: tuple[ParityFn, ...] = (
             {"secret_hex": _det("pseudo-secret"), "room_id": -9223372036854775808, "user_id": -1},
         ),
         python=_py_sender_pseudo,
-        rust=lambda m, c: m.compute_sender_pseudo(
-            _b(c["secret_hex"]), c["room_id"], c["user_id"]
-        ),
+        rust=lambda m, c: m.compute_sender_pseudo(_b(c["secret_hex"]), c["room_id"], c["user_id"]),
     ),
     ParityFn(
         name="canonical_json",
@@ -264,9 +261,7 @@ FUNCTIONS: tuple[ParityFn, ...] = (
             {"shared_secret_hex": _det("ss-b"), "info_hex": ""},
         ),
         python=_py_root_kdf,
-        rust=lambda m, c: m.ratchet_root_kdf(
-            _b(c["shared_secret_hex"]), _b(c["info_hex"])
-        ).hex(),
+        rust=lambda m, c: m.ratchet_root_kdf(_b(c["shared_secret_hex"]), _b(c["info_hex"])).hex(),
     ),
     ParityFn(
         name="sha256_hex",

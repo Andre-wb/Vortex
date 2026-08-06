@@ -11,6 +11,7 @@ Covers:
   - Bot marketplace (publish, detail, reviews, install)
   - Native bridge (push register/unregister, capabilities, biometric)
 """
+
 from __future__ import annotations
 
 from conftest import SyncASGIClient, make_user, random_str
@@ -30,10 +31,14 @@ def _create_room(client, headers, name=None):
 
 
 def _create_bot(client, headers):
-    r = client.post("/api/bots", json={
-        "username": f"bot_{random_str(6)}",
-        "display_name": "Test Bot",
-    }, headers=headers)
+    r = client.post(
+        "/api/bots",
+        json={
+            "username": f"bot_{random_str(6)}",
+            "display_name": "Test Bot",
+        },
+        headers=headers,
+    )
     if r.status_code in (200, 201):
         return r.json()
     return None
@@ -76,10 +81,14 @@ class TestBotMarketplace:
         bid = bot.get("id") or bot.get("bot_id")
         if not bid:
             return
-        r = client.post(f"/api/bots/{bid}/publish", json={
-            "is_public": True,
-            "category": "utility",
-        }, headers=h)
+        r = client.post(
+            f"/api/bots/{bid}/publish",
+            json={
+                "is_public": True,
+                "category": "utility",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 403, 404)
 
     def test_marketplace_install_requires_auth(self, client):
@@ -88,10 +97,14 @@ class TestBotMarketplace:
 
     def test_submit_review(self, client):
         _, h = _auth(client)
-        r = client.post("/api/marketplace/999999/review", json={
-            "rating": 5,
-            "text": "Great bot!",
-        }, headers=h)
+        r = client.post(
+            "/api/marketplace/999999/review",
+            json={
+                "rating": 5,
+                "text": "Great bot!",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 201, 404)
 
     def test_marketplace_sort(self, client):

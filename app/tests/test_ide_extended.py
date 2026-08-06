@@ -1,4 +1,5 @@
 """Tests for IDE Monitoring & Versioning endpoints (/api/ide/*)."""
+
 from __future__ import annotations
 
 from conftest import SyncASGIClient, make_user, random_str
@@ -47,10 +48,14 @@ class TestIDEVersioning:
 
     def test_save_version(self, client):
         _, h = _auth(client)
-        r = client.post(f"/api/ide/save/{VALID_PID}", json={
-            "code": "on /start { emit \"hello\"; }",
-            "message": "initial save",
-        }, headers=h)
+        r = client.post(
+            f"/api/ide/save/{VALID_PID}",
+            json={
+                "code": 'on /start { emit "hello"; }',
+                "message": "initial save",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 201, 404)
 
     def test_rollback_nonexistent(self, client):

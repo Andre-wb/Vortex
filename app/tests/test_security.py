@@ -1,13 +1,13 @@
 """
 Security tests — WAF, CSRF, headers, injection prevention.
 """
+
 import secrets
 
 import pytest
 
 
 class TestSecurityHeaders:
-
     def test_x_frame_options(self, client):
         resp = client.get("/health")
         assert resp.headers.get("x-frame-options") == "DENY"
@@ -42,7 +42,6 @@ class TestSecurityHeaders:
 
 @pytest.mark.security
 class TestCSRF:
-
     def test_csrf_token_endpoint(self, client):
         resp = client.get("/api/authentication/csrf-token")
         assert resp.status_code == 200
@@ -54,7 +53,7 @@ class TestCSRF:
         resp = client.get("/api/authentication/csrf-token")
         assert resp.status_code == 200
         # Cookie should be set in response
-        resp.cookies if hasattr(resp, 'cookies') else {}
+        resp.cookies if hasattr(resp, "cookies") else {}
         # Check via headers
         resp.headers.get("set-cookie", "")
         assert True  # May use client cookies
@@ -62,49 +61,61 @@ class TestCSRF:
 
 @pytest.mark.security
 class TestSQLInjection:
-
     def test_login_sql_injection_username(self, client):
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/login", json={
-            "phone_or_username": "' OR '1'='1' --",
-            "password": "anything",
-        }, headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": "' OR '1'='1' --",
+                "password": "anything",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         # Should not return 200 (login success)
         assert resp.status_code != 200
 
     def test_login_sql_injection_password(self, client):
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/login", json={
-            "phone_or_username": "admin",
-            "password": "' OR '1'='1",
-        }, headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": "admin",
+                "password": "' OR '1'='1",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code != 200
 
     def test_register_sql_injection_username(self, client):
-        resp = client.post("/api/authentication/register", json={
-            "username": "'; DROP TABLE users; --",
-            "password": "ValidPassword99!@",
-            "phone": "+79001234567",
-            "display_name": "Hacker",
-            "avatar_emoji": "💀",
-            "x25519_public_key": secrets.token_hex(32),
-        })
+        resp = client.post(
+            "/api/authentication/register",
+            json={
+                "username": "'; DROP TABLE users; --",
+                "password": "ValidPassword99!@",
+                "phone": "+79001234567",
+                "display_name": "Hacker",
+                "avatar_emoji": "💀",
+                "x25519_public_key": secrets.token_hex(32),
+            },
+        )
         # Should fail validation (special chars in username)
         assert resp.status_code in (400, 403, 422)
 
 
 @pytest.mark.security
 class TestXSS:
-
     def test_register_xss_in_display_name(self, client):
-        resp = client.post("/api/authentication/register", json={
-            "username": f"xss_test_{secrets.token_hex(4)}",
-            "password": "ValidPassword99!@",
-            "phone": f"+790{secrets.token_hex(4)[:7]}",
-            "display_name": "<script>alert('xss')</script>",
-            "avatar_emoji": "🛸",
-            "x25519_public_key": secrets.token_hex(32),
-        })
+        resp = client.post(
+            "/api/authentication/register",
+            json={
+                "username": f"xss_test_{secrets.token_hex(4)}",
+                "password": "ValidPassword99!@",
+                "phone": f"+790{secrets.token_hex(4)[:7]}",
+                "display_name": "<script>alert('xss')</script>",
+                "avatar_emoji": "🛸",
+                "x25519_public_key": secrets.token_hex(32),
+            },
+        )
         # Should either sanitize or accept (server doesn't render HTML)
         # But XSS payload should not be reflected in headers
         if resp.status_code == 201:
@@ -115,37 +126,48 @@ class TestXSS:
 
 @pytest.mark.security
 class TestPasswordSecurity:
-
     def test_password_too_short_rejected(self, client):
-        resp = client.post("/api/authentication/register", json={
-            "username": f"short_{secrets.token_hex(4)}",
-            "password": "123",
-            "phone": f"+790{secrets.token_hex(4)[:7]}",
-            "display_name": "Short",
-            "avatar_emoji": "😴",
-            "x25519_public_key": secrets.token_hex(32),
-        })
+        resp = client.post(
+            "/api/authentication/register",
+            json={
+                "username": f"short_{secrets.token_hex(4)}",
+                "password": "123",
+                "phone": f"+790{secrets.token_hex(4)[:7]}",
+                "display_name": "Short",
+                "avatar_emoji": "😴",
+                "x25519_public_key": secrets.token_hex(32),
+            },
+        )
         assert resp.status_code in (400, 422)
 
     def test_timing_attack_resistance(self, client):
         """Login with wrong credentials should take similar time regardless of user existence."""
         import time
+
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
 
         # Existing user (wrong password)
         start1 = time.perf_counter()
-        client.post("/api/authentication/login", json={
-            "phone_or_username": "nonexistent_user_xyz_123",
-            "password": "WrongPass!@123",
-        }, headers={"X-CSRF-Token": csrf})
+        client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": "nonexistent_user_xyz_123",
+                "password": "WrongPass!@123",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         t1 = time.perf_counter() - start1
 
         # Non-existing user
         start2 = time.perf_counter()
-        client.post("/api/authentication/login", json={
-            "phone_or_username": "also_nonexistent_abc_456",
-            "password": "WrongPass!@123",
-        }, headers={"X-CSRF-Token": csrf})
+        client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": "also_nonexistent_abc_456",
+                "password": "WrongPass!@123",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         t2 = time.perf_counter() - start2
 
         # Times should be within reasonable range (not 10x different)

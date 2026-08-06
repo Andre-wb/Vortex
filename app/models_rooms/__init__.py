@@ -4,6 +4,7 @@ app/models_rooms — Модели комнат, сообщений, файлов
 Разбит на подмодули. Все классы реэкспортируются здесь для обратной совместимости:
     from app.models_rooms import Room, RoomMember, Message, ...
 """
+
 from app.models_rooms.admin import AuditLog, SpaceEmoji
 from app.models_rooms.analytics import (
     ChannelDonation,

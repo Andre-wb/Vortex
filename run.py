@@ -10,6 +10,7 @@
   python run.py --wizard-port 9090   — указать порт wizard-а (по умолчанию 7979)
   python run.py --no-browser — не открывать браузер автоматически
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,10 +28,11 @@ import webbrowser
 from pathlib import Path
 from typing import NamedTuple
 
-ENV_FILE  = Path(".env")
-CERT_DIR  = Path("certs")
+ENV_FILE = Path(".env")
+CERT_DIR = Path("certs")
 CERT_FILE = CERT_DIR / "vortex.crt"
-KEY_FILE  = CERT_DIR / "vortex.key"
+KEY_FILE = CERT_DIR / "vortex.key"
+
 
 class SSLResult(NamedTuple):
     ok: bool
@@ -39,6 +41,7 @@ class SSLResult(NamedTuple):
     ca: str
     message: str
     trusted: bool
+
 
 BANNER = r"""
   ██╗   ██╗ ██████╗ ██████╗ ████████╗███████╗██╗  ██╗
@@ -50,18 +53,16 @@ BANNER = r"""
 """
 
 
-
 def _p(text: str, color: str = "") -> None:
     _colors = {
-        "green":  "\033[92m",
-        "red":    "\033[91m",
+        "green": "\033[92m",
+        "red": "\033[91m",
         "yellow": "\033[93m",
-        "cyan":   "\033[96m",
-        "dim":    "\033[2m",
+        "cyan": "\033[96m",
+        "dim": "\033[2m",
     }
     reset = "\033[0m" if color else ""
     print(f"{_colors.get(color, '')}{text}{reset}", flush=True)
-
 
 
 def _read_env() -> dict[str, str]:
@@ -78,7 +79,6 @@ def _read_env() -> dict[str, str]:
 
 def _is_initialized() -> bool:
     return _read_env().get("NODE_INITIALIZED") == "true"
-
 
 
 def _local_ip() -> str:
@@ -107,7 +107,6 @@ def _wait_for_port(port: int, timeout: float = 10.0) -> bool:
     return False
 
 
-
 def _open_browser(url: str) -> None:
     """
     Открывает браузер надёжно на macOS, Windows и Linux.
@@ -117,6 +116,7 @@ def _open_browser(url: str) -> None:
       2. subprocess(['open', url]) на macOS — надёжнее webbrowser
       3. Вызывается только ПОСЛЕ _wait_for_port() — сервер уже готов
     """
+
     def _do() -> None:
         system = platform.system()
         try:
@@ -149,7 +149,6 @@ def _open_browser(url: str) -> None:
     threading.Thread(target=_do, daemon=False).start()
 
 
-
 def _check_python() -> None:
     pass
 
@@ -164,29 +163,25 @@ def _check_deps() -> list[str]:
     return missing
 
 
-
 def cmd_status() -> None:
     _p(BANNER, "cyan")
-    env  = _read_env()
+    env = _read_env()
     done = env.get("NODE_INITIALIZED") == "true"
-    ssl  = CERT_FILE.exists() and KEY_FILE.exists()
-    ip   = _local_ip()
+    ssl = CERT_FILE.exists() and KEY_FILE.exists()
+    ip = _local_ip()
 
     _p("─" * 54, "dim")
-    _p(f"  Статус:          {'✓ Настроен' if done else '✗ Не настроен'}",
-       "green" if done else "red")
+    _p(f"  Статус:          {'✓ Настроен' if done else '✗ Не настроен'}", "green" if done else "red")
     if done:
-        port  = env.get("PORT", "9000")
+        port = env.get("PORT", "9000")
         proto = "https" if ssl else "http"
         _p(f"  Имя устройства:  {env.get('DEVICE_NAME', 'не задано')}")
         _p(f"  Адрес:           {proto}://localhost:{port}", "cyan")
         if ip != "127.0.0.1":
             _p(f"  В сети:          {proto}://{ip}:{port}  ← другие устройства", "cyan")
-        _p(f"  SSL:             {'✓ ' + str(CERT_FILE) if ssl else '✗ нет'}",
-           "green" if ssl else "yellow")
+        _p(f"  SSL:             {'✓ ' + str(CERT_FILE) if ssl else '✗ нет'}", "green" if ssl else "yellow")
         _p(f"  База данных:     {env.get('DB_PATH', 'vortex.db')}")
     _p("─" * 54, "dim")
-
 
 
 def cmd_reset() -> None:
@@ -207,7 +202,6 @@ def cmd_reset() -> None:
     _p("  Запустите 'python run.py' для повторной настройки.\n", "cyan")
 
 
-
 def cmd_generate_worker(backend_url: str) -> None:
     """Генерация файлов Cloudflare Worker для CDN relay."""
     import secrets
@@ -222,6 +216,7 @@ def cmd_generate_worker(backend_url: str) -> None:
     relay_secret = secrets.token_hex(32)
 
     from app.transport.cdn_relay import generate_worker_files
+
     output_dir = generate_worker_files(backend_url, relay_secret)
 
     _p(f"\n✓ Cloudflare Worker сгенерирован в {output_dir}/", "green")
@@ -234,7 +229,6 @@ def cmd_generate_worker(backend_url: str) -> None:
     _p("\n  Добавьте в .env на клиенте:", "yellow")
     _p("  CDN_RELAY_URL=https://vortex-relay.<username>.workers.dev", "cyan")
     _p(f"  CDN_RELAY_SECRET={relay_secret}\n", "cyan")
-
 
 
 def cmd_first_launch() -> None:
@@ -259,7 +253,10 @@ def cmd_first_launch() -> None:
             _p("\n  ⚠ cloudflared не установлен!", "yellow")
             _p("  Установите: brew install cloudflared  (macOS)", "dim")
             _p("              sudo apt install cloudflared  (Linux)", "dim")
-            _p("              Или: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/\n", "dim")
+            _p(
+                "              Или: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/\n",
+                "dim",
+            )
 
             cont = input("  Продолжить без Cloudflare Tunnel? (y/n) [y]: ").strip().lower()
             if cont == "n":
@@ -342,10 +339,12 @@ def _generate_self_signed_cert() -> None:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
     ip = _local_ip()
-    subject = x509.Name([
-        x509.NameAttribute(NameOID.COMMON_NAME, "Vortex Node"),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Vortex"),
-    ])
+    subject = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, "Vortex Node"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Vortex"),
+        ]
+    )
 
     san_list = [
         x509.DNSName("localhost"),
@@ -367,14 +366,15 @@ def _generate_self_signed_cert() -> None:
         .sign(key, hashes.SHA256())
     )
 
-    KEY_FILE.write_bytes(key.private_bytes(
-        serialization.Encoding.PEM,
-        serialization.PrivateFormat.TraditionalOpenSSL,
-        serialization.NoEncryption(),
-    ))
+    KEY_FILE.write_bytes(
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+    )
     CERT_FILE.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
     os.chmod(KEY_FILE, 0o600)
-
 
 
 def cmd_setup(wizard_port: int, no_browser: bool) -> None:
@@ -394,9 +394,9 @@ def cmd_setup(wizard_port: int, no_browser: bool) -> None:
         _p("  Убедитесь что папка node_setup/ находится рядом с run.py", "yellow")
         sys.exit(1)
 
-    ip        = _local_ip()
+    ip = _local_ip()
     local_url = f"http://127.0.0.1:{wizard_port}"
-    net_url   = f"http://{ip}:{wizard_port}"
+    net_url = f"http://{ip}:{wizard_port}"
 
     # Запускаем wizard в потоке (daemon=False — не убьётся раньше времени)
     wizard_thread = threading.Thread(
@@ -427,7 +427,6 @@ def cmd_setup(wizard_port: int, no_browser: bool) -> None:
     except KeyboardInterrupt:
         _p("\n\n  Настройка прервана.", "yellow")
         sys.exit(0)
-
 
 
 def _find_cloudflared() -> str | None:
@@ -463,6 +462,7 @@ def _has_cloudflared() -> bool:
 
 
 _tunnel_ready = threading.Event()
+
 
 def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
     """
@@ -504,7 +504,7 @@ def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
                 for line in proc.stdout:
                     line = line.strip()
                     if not url_found and ("trycloudflare.com" in line or "cfargotunnel.com" in line):
-                        urls = _re.findall(r'https://[a-zA-Z0-9\-]+\.(?:trycloudflare\.com|cfargotunnel\.com)', line)
+                        urls = _re.findall(r"https://[a-zA-Z0-9\-]+\.(?:trycloudflare\.com|cfargotunnel\.com)", line)
                         if urls:
                             url_found = True
                             # Wait for tunnel to stabilize before showing URL
@@ -537,18 +537,17 @@ def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
         return None
 
 
-
 def cmd_run() -> None:
     _p(BANNER, "cyan")
 
-    env     = _read_env()
-    host    = "0.0.0.0"
-    port    = int(env.get("PORT", "9000"))
-    name    = env.get("DEVICE_NAME", platform.node())
-    mode    = env.get("NETWORK_MODE", "local")
-    ssl     = CERT_FILE.exists() and KEY_FILE.exists()
-    proto   = "https" if ssl else "http"
-    ip      = _local_ip()
+    env = _read_env()
+    host = "0.0.0.0"
+    port = int(env.get("PORT", "9000"))
+    name = env.get("DEVICE_NAME", platform.node())
+    mode = env.get("NETWORK_MODE", "local")
+    ssl = CERT_FILE.exists() and KEY_FILE.exists()
+    proto = "https" if ssl else "http"
+    ip = _local_ip()
 
     _p(f"  ⚡ Узел: {name}", "cyan")
     _p(f"  🔒 Режим: {'🌍 Глобальный' if mode == 'global' else '📡 Локальный'}")
@@ -600,7 +599,7 @@ def cmd_run() -> None:
         )
         if ssl:
             kwargs["ssl_certfile"] = str(CERT_FILE)
-            kwargs["ssl_keyfile"]  = str(KEY_FILE)
+            kwargs["ssl_keyfile"] = str(KEY_FILE)
 
         uvicorn.run(**kwargs)
 
@@ -615,14 +614,13 @@ def cmd_run() -> None:
             _p("  ⛔ Останавливаем Cloudflare Tunnel...", "dim")
             # Убиваем все процессы cloudflared (включая перезапущенные)
             with contextlib.suppress(Exception):
-                subprocess.run(["pkill", "-f", "cloudflared tunnel"], timeout=5,
-                               capture_output=True)
-
+                subprocess.run(["pkill", "-f", "cloudflared tunnel"], timeout=5, capture_output=True)
 
 
 def cmd_invite() -> None:
     """Включает режим инвайт-кодов и генерирует/показывает код."""
     import secrets as _sec
+
     env = _read_env()
     code = env.get("INVITE_CODE_NODE")
     mode = env.get("REGISTRATION_MODE", "open")
@@ -653,7 +651,6 @@ def cmd_invite() -> None:
     _p("  Измените в .env: REGISTRATION_MODE=open\n", "dim")
 
 
-
 def main() -> None:
     _check_python()
 
@@ -662,18 +659,22 @@ def main() -> None:
         description="⚡ VORTEX Node Launcher",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("--setup",        action="store_true", help="Принудительно открыть мастер настройки")
-    parser.add_argument("--status",       action="store_true", help="Показать статус узла")
-    parser.add_argument("--reset",        action="store_true", help="Сбросить настройки")
-    parser.add_argument("--no-browser",   action="store_true", help="Не открывать браузер автоматически")
-    parser.add_argument("--wizard-port",  type=int, default=7979, metavar="PORT",
-                        help="Порт мастера настройки (по умолчанию: 7979)")
-    parser.add_argument("--generate-worker", action="store_true",
-                        help="Сгенерировать Cloudflare Worker для CDN relay")
-    parser.add_argument("--backend",     type=str, default="", metavar="URL",
-                        help="URL бэкенда для CDN Worker (например: https://your-server.com:8000)")
-    parser.add_argument("--invite",      action="store_true",
-                        help="Включить режим инвайтов и показать/сгенерировать код")
+    parser.add_argument("--setup", action="store_true", help="Принудительно открыть мастер настройки")
+    parser.add_argument("--status", action="store_true", help="Показать статус узла")
+    parser.add_argument("--reset", action="store_true", help="Сбросить настройки")
+    parser.add_argument("--no-browser", action="store_true", help="Не открывать браузер автоматически")
+    parser.add_argument(
+        "--wizard-port", type=int, default=7979, metavar="PORT", help="Порт мастера настройки (по умолчанию: 7979)"
+    )
+    parser.add_argument("--generate-worker", action="store_true", help="Сгенерировать Cloudflare Worker для CDN relay")
+    parser.add_argument(
+        "--backend",
+        type=str,
+        default="",
+        metavar="URL",
+        help="URL бэкенда для CDN Worker (например: https://your-server.com:8000)",
+    )
+    parser.add_argument("--invite", action="store_true", help="Включить режим инвайтов и показать/сгенерировать код")
     args = parser.parse_args()
 
     if args.invite:

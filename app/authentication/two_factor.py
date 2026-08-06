@@ -1,4 +1,5 @@
 """2FA (TOTP) — настройка, включение, отключение, верификация при логине."""
+
 from __future__ import annotations
 
 import time
@@ -40,6 +41,7 @@ def _check_totp_rate(user_id: int) -> bool:
 async def setup_2fa(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Генерирует TOTP-секрет и возвращает URI для QR-кода."""
     import pyotp
+
     secret = pyotp.random_base32()
     u.totp_secret = secret
     db.commit()
@@ -48,10 +50,10 @@ async def setup_2fa(u: User = Depends(get_current_user), db: Session = Depends(g
 
 
 @router.post("/2fa/enable")
-async def enable_2fa(body: TwoFAVerifyRequest, u: User = Depends(get_current_user),
-                     db: Session = Depends(get_db)):
+async def enable_2fa(body: TwoFAVerifyRequest, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Проверяет TOTP-код и включает 2FA."""
     import pyotp
+
     if not u.totp_secret:
         raise HTTPException(400, "Set up 2FA first via /2fa/setup")
     totp = pyotp.TOTP(u.totp_secret)
@@ -63,10 +65,10 @@ async def enable_2fa(body: TwoFAVerifyRequest, u: User = Depends(get_current_use
 
 
 @router.post("/2fa/disable")
-async def disable_2fa(body: TwoFAVerifyRequest, u: User = Depends(get_current_user),
-                      db: Session = Depends(get_db)):
+async def disable_2fa(body: TwoFAVerifyRequest, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Отключает 2FA после подтверждения TOTP-кодом."""
     import pyotp
+
     if not u.totp_enabled:
         return {"ok": True}
     totp = pyotp.TOTP(u.totp_secret)
@@ -79,10 +81,10 @@ async def disable_2fa(body: TwoFAVerifyRequest, u: User = Depends(get_current_us
 
 
 @router.post("/2fa/verify-login")
-async def verify_2fa_login(body: TwoFALoginRequest, request: Request,
-                           db: Session = Depends(get_db)):
+async def verify_2fa_login(body: TwoFALoginRequest, request: Request, db: Session = Depends(get_db)):
     """Подтверждение 2FA-кода при логине."""
     import pyotp
+
     user = db.query(User).filter(User.id == body.user_id, User.is_active.is_(True)).first()
     if not user or not user.totp_enabled or not user.totp_secret:
         raise HTTPException(401, "User not found or 2FA not enabled")

@@ -20,14 +20,23 @@ def _register_login(tc):
     tag = random_str(8)
     phone = f"+3{int(_phone_prefix, 16):04d}{random_digits(7)}"
     ik = secrets.token_hex(32)
-    tc.post("/api/authentication/register", json={
-        "username": f"lk_{tag}", "password": _PW, "display_name": f"LK {tag}",
-        "phone": phone, "avatar_emoji": "\U0001f511", "x25519_public_key": ik,
-    })
+    tc.post(
+        "/api/authentication/register",
+        json={
+            "username": f"lk_{tag}",
+            "password": _PW,
+            "display_name": f"LK {tag}",
+            "phone": phone,
+            "avatar_emoji": "\U0001f511",
+            "x25519_public_key": ik,
+        },
+    )
     csrf = tc.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-    tc.post("/api/authentication/login",
-            json={"phone_or_username": f"lk_{tag}", "password": _PW},
-            headers={"X-CSRF-Token": csrf})
+    tc.post(
+        "/api/authentication/login",
+        json={"phone_or_username": f"lk_{tag}", "password": _PW},
+        headers={"X-CSRF-Token": csrf},
+    )
     return csrf
 
 
@@ -78,12 +87,10 @@ def test_link_backward_compat_no_triple():
     with TestClient(app, raise_server_exceptions=False) as tc:
         csrf = _register_login(tc)
         h = {"X-CSRF-Token": csrf}
-        r = tc.post("/api/keys/link/request",
-                    json={"new_device_pub": secrets.token_hex(32)}, headers=h)
+        r = tc.post("/api/keys/link/request", json={"new_device_pub": secrets.token_hex(32)}, headers=h)
         assert r.status_code == 200, r.text
         code = r.json()["link_code"]
         g = tc.get(f"/api/keys/link/{code}", headers=h).json()
-        assert g["new_device_x3dh_pub"] is None       # тройки нет
-        a = tc.post(f"/api/keys/link/{code}/approve",
-                    json={"encrypted_keys": secrets.token_hex(32)}, headers=h)
-        assert a.status_code == 200, a.text           # legacy-approve без cert-материала
+        assert g["new_device_x3dh_pub"] is None  # тройки нет
+        a = tc.post(f"/api/keys/link/{code}/approve", json={"encrypted_keys": secrets.token_hex(32)}, headers=h)
+        assert a.status_code == 200, a.text  # legacy-approve без cert-материала

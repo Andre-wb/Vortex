@@ -33,10 +33,12 @@ logger = logging.getLogger(__name__)
 def _shutdown_wizard():
     """Функция, вызываемая после завершения настройки: через 1.5 сек останавливает сервер."""
     import time
+
     time.sleep(1.5)
     _setup_done.set()
     # Читаем актуальное значение из _app напрямую
     from . import _app
+
     if _app._server_instance:
         _app._server_instance.should_exit = True
 
@@ -72,9 +74,9 @@ async def system_info():
         s.close()
 
     return {
-        "hostname":   socket.gethostname(),
-        "platform":   platform.system(),
-        "local_ips":  ips,
+        "hostname": socket.gethostname(),
+        "platform": platform.system(),
+        "local_ips": ips,
         "ssl_methods": detect_available_methods(),
         "cert_exists": (CERT_DIR / "vortex.crt").exists(),
         "initialized": _read_env_dict().get("NODE_INITIALIZED") == "true",
@@ -106,22 +108,22 @@ async def ssl_self_signed(body: SelfSignedRequest):
     Возвращает пути к файлам и инструкцию по установке CA.
     """
     result = generate_self_signed(
-        cert_dir       = CERT_DIR,
-        hostname       = body.hostname or socket.gethostname(),
-        org_name       = body.org_name,
-        install_ca     = body.install_ca,
-        admin_password = body.admin_password,
+        cert_dir=CERT_DIR,
+        hostname=body.hostname or socket.gethostname(),
+        org_name=body.org_name,
+        install_ca=body.install_ca,
+        admin_password=body.admin_password,
     )
     if not result.ok:
         raise HTTPException(500, result.message)
 
     return {
-        "ok":          True,
-        "cert":        result.cert,
-        "key":         result.key,
-        "ca":          result.ca,
-        "trusted":     result.trusted,
-        "message":     result.message,
+        "ok": True,
+        "cert": result.cert,
+        "key": result.key,
+        "ca": result.ca,
+        "trusted": result.trusted,
+        "message": result.message,
     }
 
 
@@ -134,10 +136,10 @@ async def ssl_letsencrypt(body: LetsEncryptRequest):
     if not body.domain:
         raise HTTPException(400, "Please specify a domain")
     result = generate_letsencrypt(
-        cert_dir = CERT_DIR,
-        domain   = body.domain,
-        email    = body.email,
-        staging  = body.staging,
+        cert_dir=CERT_DIR,
+        domain=body.domain,
+        email=body.email,
+        staging=body.staging,
     )
     if not result.ok:
         raise HTTPException(500, result.message)
@@ -152,8 +154,7 @@ async def ssl_mkcert():
     result = generate_with_mkcert(CERT_DIR)
     if not result.ok:
         raise HTTPException(500, result.message)
-    return {"ok": True, "cert": result.cert, "key": result.key,
-            "trusted": result.trusted, "message": result.message}
+    return {"ok": True, "cert": result.cert, "key": result.key, "trusted": result.trusted, "message": result.message}
 
 
 @wizard_app.post("/api/ssl/manual")

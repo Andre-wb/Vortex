@@ -12,6 +12,7 @@ Metadata tradeoff is deliberate and documented: peer node operators see
 `origin_pubkey`, `room_id_origin`, `sender_ts`, ciphertext size. The UI
 shows a dismissible warning banner to participants (see banners.js).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -49,9 +50,9 @@ _LIST_LIMIT_MAX = 500
 # Abuse limits for the public-facing envelope endpoints. The signature only
 # proves the caller controls `origin_pubkey` (it cannot forge someone else's
 # key), so we still need flood protection and an ownership proof on read.
-_MAX_PAYLOAD_BYTES = 64 * 1024          # reject oversized envelopes
-_POST_RATE_PER_MIN = 120                # per source IP
-_OWNERSHIP_TS_WINDOW = 300              # seconds of clock skew allowed on GET
+_MAX_PAYLOAD_BYTES = 64 * 1024  # reject oversized envelopes
+_POST_RATE_PER_MIN = 120  # per source IP
+_OWNERSHIP_TS_WINDOW = 300  # seconds of clock skew allowed on GET
 
 # In-memory sliding window: source_ip -> deque[monotonic timestamps]
 _post_hits: dict[str, deque] = defaultdict(deque)
@@ -88,11 +89,11 @@ def _verify_pubkey_ownership(origin_pubkey_hex: str, ts: int, signature_hex: str
 
 
 class FederatedEnvelopeBody(BaseModel):
-    origin_pubkey:  str  = Field(..., min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    origin_pubkey: str = Field(..., min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     room_id_origin: int
-    sender_ts:      int  = Field(..., ge=0)
-    payload:        dict
-    signature:      str  = Field(..., min_length=128, max_length=128, pattern=r"^[0-9a-f]{128}$")
+    sender_ts: int = Field(..., ge=0)
+    payload: dict
+    signature: str = Field(..., min_length=128, max_length=128, pattern=r"^[0-9a-f]{128}$")
 
 
 def _envelope_hash(payload: dict) -> str:
@@ -101,6 +102,7 @@ def _envelope_hash(payload: dict) -> str:
 
 try:
     import vortex_chat as _vc_rust
+
     _HAS_RUST_VERIFY = hasattr(_vc_rust, "verify_signature")
 except ImportError:
     _HAS_RUST_VERIFY = False
@@ -126,8 +128,7 @@ def _verify_signature(origin_pubkey_hex: str, payload: dict, signature_hex: str)
 
 
 @router.post("/envelopes")
-async def receive_envelope(body: FederatedEnvelopeBody, request: Request,
-                           db: Session = Depends(get_db)):
+async def receive_envelope(body: FederatedEnvelopeBody, request: Request, db: Session = Depends(get_db)):
     """
     Accept a signed envelope from a peer node. Verifies the ed25519
     signature against `origin_pubkey`, dedups by SHA-256(payload), and
@@ -154,12 +155,12 @@ async def receive_envelope(body: FederatedEnvelopeBody, request: Request,
         return {"status": "duplicate", "envelope_hash": env_hash}
 
     env = FederatedEnvelope(
-        origin_pubkey_hex = body.origin_pubkey,
-        room_id_origin    = body.room_id_origin,
-        envelope_hash     = env_hash,
-        payload_blob      = _canonical(body.payload),
-        signature_hex     = body.signature,
-        sender_ts         = body.sender_ts,
+        origin_pubkey_hex=body.origin_pubkey,
+        room_id_origin=body.room_id_origin,
+        envelope_hash=env_hash,
+        payload_blob=_canonical(body.payload),
+        signature_hex=body.signature,
+        sender_ts=body.sender_ts,
     )
     db.add(env)
     try:
@@ -180,11 +181,11 @@ async def receive_envelope(body: FederatedEnvelopeBody, request: Request,
 @router.get("/envelopes")
 async def list_envelopes(
     origin_pubkey: str = Query(..., min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"),
-    ts:            int = Query(..., ge=0, description="Unix ts signed in the ownership proof"),
-    sig:           str = Query(..., min_length=128, max_length=128, pattern=r"^[0-9a-f]{128}$"),
-    since:         int = Query(0, ge=0),
-    limit:         int = Query(200, ge=1, le=_LIST_LIMIT_MAX),
-    db:            Session = Depends(get_db),
+    ts: int = Query(..., ge=0, description="Unix ts signed in the ownership proof"),
+    sig: str = Query(..., min_length=128, max_length=128, pattern=r"^[0-9a-f]{128}$"),
+    since: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=_LIST_LIMIT_MAX),
+    db: Session = Depends(get_db),
 ):
     """
     Retrieve replicated envelopes authored by `origin_pubkey`.
@@ -201,30 +202,33 @@ async def list_envelopes(
     if not _verify_pubkey_ownership(origin_pubkey, ts, sig):
         raise HTTPException(403, "invalid or expired ownership proof")
 
-    rows = (db.query(FederatedEnvelope)
-              .filter(FederatedEnvelope.origin_pubkey_hex == origin_pubkey,
-                      FederatedEnvelope.sender_ts >= since)
-              .order_by(FederatedEnvelope.sender_ts.asc(),
-                        FederatedEnvelope.id.asc())
-              .limit(limit)
-              .all())
+    rows = (
+        db.query(FederatedEnvelope)
+        .filter(FederatedEnvelope.origin_pubkey_hex == origin_pubkey, FederatedEnvelope.sender_ts >= since)
+        .order_by(FederatedEnvelope.sender_ts.asc(), FederatedEnvelope.id.asc())
+        .limit(limit)
+        .all()
+    )
     out = []
     for r in rows:
         try:
             payload = json.loads(r.payload_blob.decode("utf-8"))
         except Exception:  # noqa: S112
             continue
-        out.append({
-            "hash":           r.envelope_hash,
-            "room_id_origin": r.room_id_origin,
-            "sender_ts":      r.sender_ts,
-            "signature":      r.signature_hex,
-            "payload":        payload,
-        })
+        out.append(
+            {
+                "hash": r.envelope_hash,
+                "room_id_origin": r.room_id_origin,
+                "sender_ts": r.sender_ts,
+                "signature": r.signature_hex,
+                "payload": payload,
+            }
+        )
     return {"count": len(out), "envelopes": out}
 
 
 # Push (called from message send path)
+
 
 async def push_envelope_to_peers(
     signing_key: NodeSigningKey,
@@ -249,11 +253,11 @@ async def push_envelope_to_peers(
         return {}
 
     body = {
-        "origin_pubkey":  signing_key.pubkey_hex(),
+        "origin_pubkey": signing_key.pubkey_hex(),
         "room_id_origin": room_id_origin,
-        "sender_ts":      sender_ts,
-        "payload":        payload,
-        "signature":      signature,
+        "sender_ts": sender_ts,
+        "payload": payload,
+        "signature": signature,
     }
 
     verify_tls = bool(getattr(Config, "FEDERATION_VERIFY_TLS", False))
@@ -285,6 +289,7 @@ async def push_envelope_to_peers(
 
 # Convenience: caller-side wrapper used from the WS handler
 
+
 def _signing_key_from_app(app) -> Optional[NodeSigningKey]:
     sk = getattr(getattr(app, "state", None), "signing_key", None)
     return sk if isinstance(sk, NodeSigningKey) else None
@@ -313,10 +318,10 @@ async def maybe_replicate(room, payload: dict, sender_ts_epoch: int, app=None) -
 
     try:
         await push_envelope_to_peers(
-            signing_key     = sk,
-            room_id_origin  = int(room.id),
-            payload         = payload,
-            sender_ts       = int(sender_ts_epoch),
+            signing_key=sk,
+            room_id_origin=int(room.id),
+            payload=payload,
+            sender_ts=int(sender_ts_epoch),
         )
     except Exception as e:
         logger.warning("federation: push failed room=%s: %s", room.id, e)

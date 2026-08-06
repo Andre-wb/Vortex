@@ -3,6 +3,7 @@
 Серверные схемы create-room/channel приняли общую EciesKeyFields (гибрид+классика);
 self-ключ создателя переживает store→fetch через тот же key-bundle, что DM.
 """
+
 import secrets
 
 import pytest
@@ -17,10 +18,10 @@ def _sender(client):
 
 def _hybrid_key() -> dict:
     return {
-        "hybrid":               True,
+        "hybrid": True,
         "x25519_ephemeral_pub": secrets.token_hex(32),
-        "kyber_ciphertext":     secrets.token_hex(1088),
-        "ciphertext":           secrets.token_hex(60),
+        "kyber_ciphertext": secrets.token_hex(1088),
+        "ciphertext": secrets.token_hex(60),
     }
 
 
@@ -29,9 +30,15 @@ def _classical_key() -> dict:
 
 
 def _create_room(client, u, key):
-    r = client.post("/api/rooms", json={
-        "name": f"room_{random_str(6)}", "is_private": False, "encrypted_room_key": key,
-    }, headers=u["headers"])
+    r = client.post(
+        "/api/rooms",
+        json={
+            "name": f"room_{random_str(6)}",
+            "is_private": False,
+            "encrypted_room_key": key,
+        },
+        headers=u["headers"],
+    )
     assert r.status_code in (200, 201), r.text
     body = r.json()
     return body.get("id") or body.get("room", {}).get("id")
@@ -69,9 +76,14 @@ def test_room_create_classical_still_works(client):
 def test_channel_create_hybrid_self_key_survives(client):
     u = _sender(client)
     key = _hybrid_key()
-    r = client.post("/api/channels", json={
-        "name": f"ch_{random_str(6)}", "encrypted_room_key": key,
-    }, headers=u["headers"])
+    r = client.post(
+        "/api/channels",
+        json={
+            "name": f"ch_{random_str(6)}",
+            "encrypted_room_key": key,
+        },
+        headers=u["headers"],
+    )
     if r.status_code not in (200, 201):
         pytest.skip(f"channel create unavailable: {r.status_code}")
     channel_id = r.json().get("id") or r.json().get("room", {}).get("id")

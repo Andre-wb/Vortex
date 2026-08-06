@@ -5,6 +5,7 @@ Endpoints:
   POST /api/keys/prekeys/publish   — upload SPK + batch of OPKs.
   GET  /api/keys/prekeys/{user_id} — retrieve Pre-Key Bundle (consumes one OPK).
 """
+
 from __future__ import annotations
 
 import logging
@@ -53,11 +54,7 @@ def _resolve_device_id(request: Request, user_id: int, db: Session) -> Optional[
     cid = _validated_client_device_id(request)
     if cid is None:
         return None
-    device = (
-        db.query(UserDevice)
-        .filter(UserDevice.user_id == user_id, UserDevice.client_device_id == cid)
-        .first()
-    )
+    device = db.query(UserDevice).filter(UserDevice.user_id == user_id, UserDevice.client_device_id == cid).first()
     return device.id if device is not None else None
 
 
@@ -124,6 +121,7 @@ def _device_identity_fields(bundle: PreKeyBundle) -> dict:
 
 class OneTimePreKeyUpload(BaseModel):
     """A single one-time Pre-Key for upload."""
+
     key_id: int = Field(..., description="Local OPK identifier (assigned by client)")
     public_key: str = Field(
         ...,
@@ -135,6 +133,7 @@ class OneTimePreKeyUpload(BaseModel):
 
 class OneTimeKyberPreKeyUpload(BaseModel):
     """A single one-time Kyber Pre-Key (ML-KEM-768) for upload (PQXDH P6)."""
+
     key_id: int = Field(..., description="Local PQOPK identifier (assigned by client)")
     public_key: str = Field(
         ...,
@@ -150,6 +149,7 @@ class PublishPreKeysRequest(BaseModel):
     Client sends its Identity Key, Signed Pre-Key (with signature)
     and a batch of One-Time Pre-Keys.
     """
+
     identity_key: str = Field(
         ...,
         min_length=64,
@@ -177,43 +177,54 @@ class PublishPreKeysRequest(BaseModel):
         default=None,
         min_length=64,
         max_length=64,
-        description="Ed25519 public identity key in hex (used to verify signatures). "
-                    "Optional for pre-batch-4 clients.",
+        description="Ed25519 public identity key in hex (used to verify signatures). Optional for pre-batch-4 clients.",
     )
     identity_key_sig: Optional[str] = Field(
         default=None,
         min_length=128,
         max_length=128,
         description="Ed25519 signature of the X25519 identity_key, binding it to "
-                    "identity_key_ed. Optional for pre-batch-4 clients.",
+        "identity_key_ed. Optional for pre-batch-4 clients.",
     )
     supports_v2: Optional[bool] = Field(
         default=None,
         description="Client can RECEIVE v2 Double Ratchet messages.",
     )
     device_x3dh_pub: Optional[str] = Field(
-        default=None, min_length=64, max_length=64,
+        default=None,
+        min_length=64,
+        max_length=64,
         description="X25519 device X3DH public key in hex (device-identity triple).",
     )
     device_sign_pub: Optional[str] = Field(
-        default=None, min_length=64, max_length=64,
+        default=None,
+        min_length=64,
+        max_length=64,
         description="Ed25519 device signing public key in hex (device-identity triple).",
     )
     device_cert_sig: Optional[str] = Field(
-        default=None, min_length=128, max_length=128,
+        default=None,
+        min_length=128,
+        max_length=128,
         description="Ed25519 account signature over (client_device_id ‖ device_x3dh_pub ‖ "
-                    "device_sign_pub) in hex. Null when the account Ed25519 is not on this device.",
+        "device_sign_pub) in hex. Null when the account Ed25519 is not on this device.",
     )
     device_kyber_pub: Optional[str] = Field(
-        default=None, min_length=2368, max_length=2368,
+        default=None,
+        min_length=2368,
+        max_length=2368,
         description="ML-KEM-768 Kyber pre-key public in hex (1184 bytes = 2368 hex). PQXDH.",
     )
     device_kyber_sig: Optional[str] = Field(
-        default=None, min_length=128, max_length=128,
+        default=None,
+        min_length=128,
+        max_length=128,
         description="Ed25519 signature of device_kyber_pub by device_sign_pub in hex.",
     )
     device_kyber_id: Optional[int] = Field(
-        default=None, ge=0, description="Kyber pre-key id for rotation.",
+        default=None,
+        ge=0,
+        description="Kyber pre-key id for rotation.",
     )
     one_time_prekeys: list[OneTimePreKeyUpload] = Field(
         default_factory=list,
@@ -229,29 +240,31 @@ class PublishPreKeysRequest(BaseModel):
 
 class PreKeyBundleResponse(BaseModel):
     """Response with a user's Pre-Key Bundle."""
+
     user_id: int
-    device_id: Optional[int] = None          # device this bundle belongs to, or None
-    identity_key: str           # hex
-    signed_prekey: str          # hex
-    signed_prekey_sig: str      # hex
+    device_id: Optional[int] = None  # device this bundle belongs to, or None
+    identity_key: str  # hex
+    signed_prekey: str  # hex
+    signed_prekey_sig: str  # hex
     signed_prekey_id: int
-    identity_key_ed: Optional[str] = None    # hex Ed25519 identity pub or None
-    identity_key_sig: Optional[str] = None   # hex Ed25519 sig of identity_key or None
-    supports_v2: Optional[bool] = None       # peer can receive v2 Double Ratchet
+    identity_key_ed: Optional[str] = None  # hex Ed25519 identity pub or None
+    identity_key_sig: Optional[str] = None  # hex Ed25519 sig of identity_key or None
+    supports_v2: Optional[bool] = None  # peer can receive v2 Double Ratchet
     # Device-identity triple (public parts) — forward-looking, verified at fan-out.
-    device_x3dh_pub: Optional[str] = None    # hex X25519 device X3DH pub
-    device_sign_pub: Optional[str] = None    # hex Ed25519 device signing pub
-    device_cert_sig: Optional[str] = None    # hex Ed25519 account cert over the triple
-    client_device_id: Optional[str] = None   # id signed inside the cert
-    device_kyber_pub: Optional[str] = None   # hex ML-KEM-768 Kyber pre-key pub (PQXDH)
-    device_kyber_sig: Optional[str] = None   # hex Ed25519 sig of kyber pub by device_sign_pub
-    device_kyber_id: Optional[int] = None    # Kyber pre-key id
-    one_time_prekey: Optional[str] = None   # hex — single OPK or None
+    device_x3dh_pub: Optional[str] = None  # hex X25519 device X3DH pub
+    device_sign_pub: Optional[str] = None  # hex Ed25519 device signing pub
+    device_cert_sig: Optional[str] = None  # hex Ed25519 account cert over the triple
+    client_device_id: Optional[str] = None  # id signed inside the cert
+    device_kyber_pub: Optional[str] = None  # hex ML-KEM-768 Kyber pre-key pub (PQXDH)
+    device_kyber_sig: Optional[str] = None  # hex Ed25519 sig of kyber pub by device_sign_pub
+    device_kyber_id: Optional[int] = None  # Kyber pre-key id
+    one_time_prekey: Optional[str] = None  # hex — single OPK or None
     one_time_prekey_id: Optional[int] = None
 
 
 class DeviceBundle(BaseModel):
     """One device's Pre-Key Bundle within a multi-device fetch."""
+
     device_id: Optional[int] = None
     identity_key: str
     signed_prekey: str
@@ -276,31 +289,33 @@ class PreKeyBundleListResponse(BaseModel):
 
     One entry per publishing device; OPK НЕ включён (см. /claim-opk).
     """
+
     user_id: int
     bundles: list[DeviceBundle]
 
 
 class ClaimOpkRequest(BaseModel):
     """Claim one OPK of a specific device for X3DH establishment."""
-    device_id: Optional[int] = None   # UserDevice.id бандла; None → device_id IS NULL
-    want_kyber: bool = False          # также израсходовать PQOPK (PQXDH P6) — только если сессия идёт в PQ
+
+    device_id: Optional[int] = None  # UserDevice.id бандла; None → device_id IS NULL
+    want_kyber: bool = False  # также израсходовать PQOPK (PQXDH P6) — только если сессия идёт в PQ
 
 
 class ClaimOpkResponse(BaseModel):
-    one_time_prekey: Optional[str] = None      # hex или None (пул пуст)
+    one_time_prekey: Optional[str] = None  # hex или None (пул пуст)
     one_time_prekey_id: Optional[int] = None
-    one_time_kyber_prekey: Optional[str] = None       # ML-KEM-768 pub hex или None (PQXDH P6)
+    one_time_kyber_prekey: Optional[str] = None  # ML-KEM-768 pub hex или None (PQXDH P6)
     one_time_kyber_prekey_id: Optional[int] = None
 
 
 class PreKeyStatusResponse(BaseModel):
     """Pre-Key Bundle status."""
+
     published: bool
     signed_prekey_id: Optional[int] = None
     available_opk_count: int = 0
     low_opk_warning: bool = False
     supports_v2: Optional[bool] = None
-
 
 
 @router.post("/publish", response_model=PreKeyStatusResponse)
@@ -378,9 +393,11 @@ async def publish_prekeys(
             dev_cert_bytes = bytes.fromhex(body.device_cert_sig)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid hex encoding in device-identity fields") from None
-    if (dev_x3dh_bytes is not None and len(dev_x3dh_bytes) != 32) \
-            or (dev_sign_bytes is not None and len(dev_sign_bytes) != 32) \
-            or (dev_cert_bytes is not None and len(dev_cert_bytes) != 64):
+    if (
+        (dev_x3dh_bytes is not None and len(dev_x3dh_bytes) != 32)
+        or (dev_sign_bytes is not None and len(dev_sign_bytes) != 32)
+        or (dev_cert_bytes is not None and len(dev_cert_bytes) != 64)
+    ):
         raise HTTPException(status_code=400, detail="Invalid device-identity field lengths")
 
     # PQXDH per-device Kyber pre-key (ML-KEM-768). Public подписан device
@@ -397,8 +414,9 @@ async def publish_prekeys(
             dev_kyber_sig_bytes = bytes.fromhex(body.device_kyber_sig)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid hex encoding in Kyber pre-key fields") from None
-    if (dev_kyber_bytes is not None and len(dev_kyber_bytes) != 1184) \
-            or (dev_kyber_sig_bytes is not None and len(dev_kyber_sig_bytes) != 64):
+    if (dev_kyber_bytes is not None and len(dev_kyber_bytes) != 1184) or (
+        dev_kyber_sig_bytes is not None and len(dev_kyber_sig_bytes) != 64
+    ):
         raise HTTPException(status_code=400, detail="Invalid Kyber pre-key field lengths")
     if dev_kyber_bytes is not None and dev_sign_bytes is not None:
         dev_sign_ed = Ed25519PublicKey.from_public_bytes(dev_sign_bytes)
@@ -412,9 +430,7 @@ async def publish_prekeys(
     device_id = _resolve_device_id(request, user.id, db)
     client_device_id = _validated_client_device_id(request)
     bundle: Optional[PreKeyBundle] = (
-        db.query(PreKeyBundle)
-        .filter(PreKeyBundle.user_id == user.id, PreKeyBundle.device_id == device_id)
-        .first()
+        db.query(PreKeyBundle).filter(PreKeyBundle.user_id == user.id, PreKeyBundle.device_id == device_id).first()
     )
 
     now = datetime.now(timezone.utc)
@@ -469,14 +485,16 @@ async def publish_prekeys(
             logger.warning("Skipping OPK with wrong length, key_id=%d", opk.key_id)
             continue
 
-        db.add(OneTimePreKey(
-            user_id=user.id,
-            device_id=device_id,
-            key_id=opk.key_id,
-            public_key=opk_bytes,
-            used=False,
-            created_at=now,
-        ))
+        db.add(
+            OneTimePreKey(
+                user_id=user.id,
+                device_id=device_id,
+                key_id=opk.key_id,
+                public_key=opk_bytes,
+                used=False,
+                created_at=now,
+            )
+        )
 
     # One-time Kyber pre-keys (ML-KEM-768, PQXDH P6) — тот же upsert-путь.
     for pqopk in body.one_time_kyber_prekeys:
@@ -488,14 +506,16 @@ async def publish_prekeys(
         if len(pqopk_bytes) != 1184:
             logger.warning("Skipping PQOPK with wrong length, key_id=%d", pqopk.key_id)
             continue
-        db.add(OneTimeKyberPreKey(
-            user_id=user.id,
-            device_id=device_id,
-            key_id=pqopk.key_id,
-            public_key=pqopk_bytes,
-            used=False,
-            created_at=now,
-        ))
+        db.add(
+            OneTimeKyberPreKey(
+                user_id=user.id,
+                device_id=device_id,
+                key_id=pqopk.key_id,
+                public_key=pqopk_bytes,
+                used=False,
+                created_at=now,
+            )
+        )
 
     db.commit()
 
@@ -504,6 +524,7 @@ async def publish_prekeys(
     if ik_ed_bytes is not None:
         try:
             from app.security.key_backup import _kt_log_account_ed
+
             _kt_log_account_ed(user.id, ik_ed_bytes.hex(), db)
         except Exception as _e:
             logger.debug("KT account_ed log skipped: %s", _e)
@@ -521,7 +542,10 @@ async def publish_prekeys(
 
     logger.info(
         "User %d published prekeys (spk_id=%d, new_opk=%d, total_opk=%d)",
-        user.id, body.signed_prekey_id, len(body.one_time_prekeys), available,
+        user.id,
+        body.signed_prekey_id,
+        len(body.one_time_prekeys),
+        available,
     )
 
     return PreKeyStatusResponse(
@@ -546,10 +570,7 @@ async def get_prekey_bundle(
     установление сессии берёт OPK через POST /{user_id}/claim-opk.
     """
     bundle: Optional[PreKeyBundle] = (
-        db.query(PreKeyBundle)
-        .filter(PreKeyBundle.user_id == user_id)
-        .order_by(PreKeyBundle.updated_at.desc())
-        .first()
+        db.query(PreKeyBundle).filter(PreKeyBundle.user_id == user_id).order_by(PreKeyBundle.updated_at.desc()).first()
     )
 
     if bundle is None:
@@ -568,7 +589,7 @@ async def get_prekey_bundle(
         identity_key_ed=bundle.identity_key_ed.hex() if bundle.identity_key_ed else None,
         identity_key_sig=bundle.identity_key_sig.hex() if bundle.identity_key_sig else None,
         supports_v2=bundle.supports_v2,
-        one_time_prekey=None,        # discovery не выдаёт OPK — см. /claim-opk
+        one_time_prekey=None,  # discovery не выдаёт OPK — см. /claim-opk
         one_time_prekey_id=None,
         **_device_identity_fields(bundle),
     )
@@ -589,10 +610,7 @@ async def get_prekey_bundles_all(
     список (не 404) → caller падает в v1 без спец-обработки.
     """
     bundles: list[PreKeyBundle] = (
-        db.query(PreKeyBundle)
-        .filter(PreKeyBundle.user_id == user_id)
-        .order_by(PreKeyBundle.device_id)
-        .all()
+        db.query(PreKeyBundle).filter(PreKeyBundle.user_id == user_id).order_by(PreKeyBundle.device_id).all()
     )
 
     out = [
@@ -605,7 +623,7 @@ async def get_prekey_bundles_all(
             identity_key_ed=bundle.identity_key_ed.hex() if bundle.identity_key_ed else None,
             identity_key_sig=bundle.identity_key_sig.hex() if bundle.identity_key_sig else None,
             supports_v2=bundle.supports_v2,
-            one_time_prekey=None,        # discovery не выдаёт OPK — см. /claim-opk
+            one_time_prekey=None,  # discovery не выдаёт OPK — см. /claim-opk
             one_time_prekey_id=None,
             **_device_identity_fields(bundle),
         )
@@ -648,11 +666,15 @@ async def claim_opk(
         if remaining < _LOW_OPK_THRESHOLD:
             logger.warning(
                 "User %d device %s has only %d OPKs left — client should replenish",
-                user_id, body.device_id, remaining,
+                user_id,
+                body.device_id,
+                remaining,
             )
     return ClaimOpkResponse(
-        one_time_prekey=opk_hex, one_time_prekey_id=opk_key_id,
-        one_time_kyber_prekey=kyber_hex, one_time_kyber_prekey_id=kyber_key_id,
+        one_time_prekey=opk_hex,
+        one_time_prekey_id=opk_key_id,
+        one_time_kyber_prekey=kyber_hex,
+        one_time_kyber_prekey_id=kyber_key_id,
     )
 
 
@@ -670,9 +692,7 @@ async def get_prekey_status(
     """
     device_id = _resolve_device_id(request, user.id, db)
     bundle: Optional[PreKeyBundle] = (
-        db.query(PreKeyBundle)
-        .filter(PreKeyBundle.user_id == user.id, PreKeyBundle.device_id == device_id)
-        .first()
+        db.query(PreKeyBundle).filter(PreKeyBundle.user_id == user.id, PreKeyBundle.device_id == device_id).first()
     )
 
     if bundle is None:

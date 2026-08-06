@@ -1,4 +1,5 @@
 """GET /v1/integrity — status of the source-code attestation."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Request

@@ -2,6 +2,7 @@
 Translation endpoint — proxies requests to a LibreTranslate instance.
 Rate-limited to 50 translations per user per hour (in-memory).
 """
+
 from __future__ import annotations
 
 import logging
@@ -38,7 +39,6 @@ def _check_rate_limit(user_id: int) -> None:
     _user_hits[user_id].append(now)
 
 
-
 class TranslateRequest(BaseModel):
     text: str
     source: str = "auto"
@@ -48,7 +48,6 @@ class TranslateRequest(BaseModel):
 class TranslateResponse(BaseModel):
     translatedText: str  # noqa: N815
     detectedLanguage: Optional[str] = None  # noqa: N815
-
 
 
 @router.post("", response_model=TranslateResponse)

@@ -1,6 +1,7 @@
 """
 app/peer/peer_p2p.py — P2P encrypted send/receive routes.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,40 +27,42 @@ _peer_ssl_ctx = make_peer_ssl_context()
 
 # P2P encrypted send
 
+
 async def _send_to_peer_encrypted(
-        peer:           PeerInfo,
-        room_id:        int,
-        sender:         str,
-        ciphertext_hex: str,
-        msg_type:       str = "text",
+    peer: PeerInfo,
+    room_id: int,
+    sender: str,
+    ciphertext_hex: str,
+    msg_type: str = "text",
 ) -> bool:
     import httpx
 
     node_priv, node_pub_raw = _get_node_keys()
-    node_pub        = node_pub_raw if isinstance(node_pub_raw, bytes) else bytes(node_pub_raw)
-    node_priv_bytes = node_priv    if isinstance(node_priv,    bytes) else bytes(node_priv)
+    node_pub = node_pub_raw if isinstance(node_pub_raw, bytes) else bytes(node_pub_raw)
+    node_priv_bytes = node_priv if isinstance(node_priv, bytes) else bytes(node_priv)
 
     payload_dict = {
-        "room_id":    room_id,
-        "sender":     sender,
+        "room_id": room_id,
+        "sender": sender,
         "ciphertext": ciphertext_hex,
-        "msg_type":   msg_type,
+        "msg_type": msg_type,
     }
 
     try:
         if peer.has_encryption():
             from app.security.key_exchange import encrypt_p2p_payload
-            encrypted    = encrypt_p2p_payload(payload_dict, node_priv_bytes, peer.node_pubkey_hex)
+
+            encrypted = encrypt_p2p_payload(payload_dict, node_priv_bytes, peer.node_pubkey_hex)
             request_body = {
                 "ephemeral_pub": encrypted["ephemeral_pub"],
-                "ciphertext":    encrypted["ciphertext"],
+                "ciphertext": encrypted["ciphertext"],
                 "sender_pubkey": node_pub.hex(),
             }
         else:
             logger.warning(f"Peer {peer.ip} no pubkey — P2P unencrypted")
             request_body = {
                 "plaintext_payload": payload_dict,
-                "sender_pubkey":     node_pub.hex(),
+                "sender_pubkey": node_pub.hex(),
             }
 
         async with httpx.AsyncClient(timeout=3.0, verify=_peer_ssl_ctx) as client:
@@ -76,10 +79,11 @@ async def _send_to_peer_encrypted(
 
 # REST API — P2P receive / send
 
+
 class P2PReceiveRequest(BaseModel):
-    ephemeral_pub:     Optional[str]  = None
-    ciphertext:        Optional[str]  = None
-    sender_pubkey:     Optional[str]  = None
+    ephemeral_pub: Optional[str] = None
+    ciphertext: Optional[str] = None
+    sender_pubkey: Optional[str] = None
     plaintext_payload: Optional[dict] = None
 
 
@@ -98,6 +102,7 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
         node_priv = node_priv_raw if isinstance(node_priv_raw, bytes) else bytes(node_priv_raw)
         try:
             from app.security.key_exchange import decrypt_p2p_payload
+
             msg = decrypt_p2p_payload(body.ephemeral_pub, body.ciphertext, node_priv)
         except Exception as e:
             logger.warning(f"P2P decrypt failed from {src_ip}: {e}")
@@ -114,30 +119,33 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
         elif not peer:
             registry.update(src_ip, src_ip, Config.PORT, body.sender_pubkey)
 
-    room_id        = msg.get("room_id")
-    sender         = msg.get("sender", "unknown")
+    room_id = msg.get("room_id")
+    sender = msg.get("sender", "unknown")
     ciphertext_hex = msg.get("ciphertext", "")
-    msg_type       = msg.get("msg_type", "text")
+    msg_type = msg.get("msg_type", "text")
 
     if not room_id:
         raise HTTPException(400, "Missing room_id in payload")
 
-    await ws_manager.broadcast_to_room(room_id, {
-        "type":       "peer_message",
-        "sender":     sender,
-        "sender_ip":  src_ip,
-        "ciphertext": ciphertext_hex,
-        "msg_type":   msg_type,
-        "from_peer":  True,
-    })
+    await ws_manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "peer_message",
+            "sender": sender,
+            "sender_ip": src_ip,
+            "ciphertext": ciphertext_hex,
+            "msg_type": msg_type,
+            "from_peer": True,
+        },
+    )
     return {"ok": True}
 
 
 class SendReq(BaseModel):
-    room_id:    int
+    room_id: int
     ciphertext: str
-    msg_type:   str           = "text"
-    peer_ip:    Optional[str] = None
+    msg_type: str = "text"
+    peer_ip: Optional[str] = None
 
 
 @router.post("/send")
@@ -146,19 +154,16 @@ async def send_p2p(body: SendReq, u: User = Depends(get_current_user)):
         peer = registry.get(body.peer_ip)
         if not peer:
             raise HTTPException(404, "Peer not found")
-        ok = await _send_to_peer_encrypted(
-            peer, body.room_id, u.username, body.ciphertext, body.msg_type
-        )
+        ok = await _send_to_peer_encrypted(peer, body.room_id, u.username, body.ciphertext, body.msg_type)
         return {"sent": ok, "encrypted": peer.has_encryption()}
 
-    peers   = registry.active()
+    peers = registry.active()
     results = await asyncio.gather(
-        *[_send_to_peer_encrypted(p, body.room_id, u.username, body.ciphertext, body.msg_type)
-          for p in peers],
+        *[_send_to_peer_encrypted(p, body.room_id, u.username, body.ciphertext, body.msg_type) for p in peers],
         return_exceptions=True,
     )
     return {
-        "sent_to":         sum(1 for r in results if r is True),
-        "total":           len(peers),
+        "sent_to": sum(1 for r in results if r is True),
+        "total": len(peers),
         "encrypted_peers": sum(1 for p in peers if p.has_encryption()),
     }

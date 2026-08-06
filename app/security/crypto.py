@@ -16,6 +16,7 @@
   - JWT (PyJWT HMAC-HS256)
   - Все что не является узким местом производительности
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import vortex_chat as _vc
+
     _RUST = True
     logger.info(f"✅ vortex_chat {_vc.VERSION} (Rust) загружен")
 except ImportError:
@@ -40,18 +42,21 @@ except ImportError:
 
 # Python fallbacks
 
+
 def _py_generate_key() -> bytes:
     return secrets.token_bytes(32)
 
 
 def _py_encrypt(plaintext: bytes, key: bytes) -> bytes:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     nonce = secrets.token_bytes(12)
     return nonce + AESGCM(key).encrypt(nonce, plaintext, None)
 
 
 def _py_decrypt(data: bytes, key: bytes) -> bytes:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     if len(data) < 12:
         raise ValueError("Encrypted data too short")
     return AESGCM(key).decrypt(data[:12], data[12:], None)
@@ -60,6 +65,7 @@ def _py_decrypt(data: bytes, key: bytes) -> bytes:
 def _py_hash(data: bytes) -> bytes:
     try:
         import blake3
+
         return blake3.blake3(data).digest()
     except ImportError:
         logger.warning("blake3 не установлен — используется BLAKE2b (несовместимо с Rust BLAKE3!)")
@@ -68,6 +74,7 @@ def _py_hash(data: bytes) -> bytes:
 
 def _py_hash_password(pw: str) -> str:
     from argon2 import PasswordHasher
+
     ph = PasswordHasher()
     return ph.hash(pw)
 
@@ -76,6 +83,7 @@ def _py_verify_password(pw: str, h: str) -> bool:
     try:
         from argon2 import PasswordHasher
         from argon2.exceptions import VerifyMismatchError
+
         ph = PasswordHasher()
         return ph.verify(h, pw)
     except VerifyMismatchError:
@@ -96,11 +104,13 @@ def _py_verify_token(token: str, expected_hash: str) -> bool:
 def _py_generate_keypair() -> tuple[bytes, bytes]:
     """X25519 ключевая пара через cryptography."""
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+
     priv = X25519PrivateKey.generate()
-    pub  = priv.public_key()
+    pub = priv.public_key()
     from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
+
     priv_bytes = priv.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
-    pub_bytes  = pub.public_bytes(Encoding.Raw, PublicFormat.Raw)
+    pub_bytes = pub.public_bytes(Encoding.Raw, PublicFormat.Raw)
     return priv_bytes, pub_bytes
 
 
@@ -114,18 +124,18 @@ def _py_derive_session_key(private_bytes: bytes, peer_public_bytes: bytes) -> by
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-    priv      = X25519PrivateKey.from_private_bytes(private_bytes)
-    peer_pub  = X25519PublicKey.from_public_bytes(peer_public_bytes)
-    shared    = priv.exchange(peer_pub)
+
+    priv = X25519PrivateKey.from_private_bytes(private_bytes)
+    peer_pub = X25519PublicKey.from_public_bytes(peer_public_bytes)
+    shared = priv.exchange(peer_pub)
     local_pub = priv.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
-    pair      = sorted([local_pub, peer_public_bytes])   # canonical order
-    salt      = pair[0] + pair[1]                        # 64 bytes
-    return HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=salt, info=b"vortex-session"
-    ).derive(shared)
+    pair = sorted([local_pub, peer_public_bytes])  # canonical order
+    salt = pair[0] + pair[1]  # 64 bytes
+    return HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=b"vortex-session").derive(shared)
 
 
 # Публичный API — единый для Rust и Python
+
 
 def generate_key() -> bytes:
     """Генерирует 32-байтный AES ключ."""
@@ -147,7 +157,7 @@ def decrypt_message(data: bytes, key: bytes) -> bytes:
         try:
             result = _vc.decrypt_message(data, key)
             # Rust may return str (UTF-8 decoded) instead of bytes
-            return result.encode('utf-8') if isinstance(result, str) else bytes(result)
+            return result.encode("utf-8") if isinstance(result, str) else bytes(result)
         except ValueError:
             # Rust fails on non-UTF-8 binary plaintext — fallback to Python
             return _py_decrypt(data, key)
@@ -211,7 +221,7 @@ def rust_available() -> bool:
 # X25519 ключи узла (хранятся на диске)
 
 _node_priv: Optional[bytes] = None
-_node_pub:  Optional[bytes] = None
+_node_pub: Optional[bytes] = None
 
 
 def load_or_create_node_keypair(keys_dir: Path) -> tuple[bytes, bytes]:
@@ -228,11 +238,11 @@ def load_or_create_node_keypair(keys_dir: Path) -> tuple[bytes, bytes]:
     keys_dir.mkdir(parents=True, exist_ok=True)
 
     priv_path = keys_dir / "x25519_private.bin"
-    pub_path  = keys_dir / "x25519_public.bin"
+    pub_path = keys_dir / "x25519_public.bin"
 
     if priv_path.exists() and pub_path.exists():
         _node_priv = priv_path.read_bytes()
-        _node_pub  = pub_path.read_bytes()
+        _node_pub = pub_path.read_bytes()
         # Исправляем права если они слишком открыты
         current_mode = priv_path.stat().st_mode & 0o777
         if current_mode != 0o600:

@@ -18,6 +18,7 @@ quality random fill in ~2 µs; pure Python version here is 20-40 µs. At
 Controlled by Config.METADATA_PADDING — when disabled we return the
 plaintext verbatim (no prefix) so legacy deploys stay compatible.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -29,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 try:
     import vortex_chat as _vc_rust
-    _HAS_RUST_PAD = (hasattr(_vc_rust, "pad_to_bucket")
-                     and hasattr(_vc_rust, "unpad_from_bucket"))
+
+    _HAS_RUST_PAD = hasattr(_vc_rust, "pad_to_bucket") and hasattr(_vc_rust, "unpad_from_bucket")
 except ImportError:
     _HAS_RUST_PAD = False
 
@@ -42,6 +43,7 @@ def _enabled() -> bool:
     # Lazy import to avoid app-boot circular dependency.
     try:
         from app.config import Config
+
         return bool(getattr(Config, "METADATA_PADDING", True))
     except Exception:
         return os.getenv("METADATA_PADDING", "true").lower() in ("1", "true", "yes")
@@ -62,11 +64,7 @@ def pad(plaintext: bytes) -> bytes:
         raise ValueError("plaintext exceeds 64 KiB padding limit")
     needed = n + 2
     bucket = next((b for b in BUCKETS if b >= needed), 65536)
-    return (
-        struct.pack(">H", n)
-        + plaintext
-        + os.urandom(bucket - n - 2)
-    )
+    return struct.pack(">H", n) + plaintext + os.urandom(bucket - n - 2)
 
 
 def unpad(padded: bytes) -> bytes:

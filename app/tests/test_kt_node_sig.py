@@ -10,7 +10,6 @@
 детекцию (fork vs reset) даёт только Фаза 3 (STH+gossip). Тест проверяет субстрат.
 """
 
-
 import contextlib
 
 from conftest import login_user, make_user
@@ -29,37 +28,48 @@ def kt_entry_message(user_id, key_type, pub_key_hash, prev_hash, seq) -> bytes:
 
 # --- 1. Cross-impl оракул (тот же вектор, что JS) -------------------------
 
+
 def test_kt_message_and_sig_match_cross_impl_vector():
     node = Ed25519PrivateKey.from_private_bytes(bytes([0x22]) * 32)
     assert _raw(node.public_key()).hex() == "a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0"
     msg = kt_entry_message(1, "account_ed", "ab" * 32, None, 1)
     assert msg == b"vortex-kt-entry:v1:1:account_ed:" + (b"ab" * 32) + b"::1"
-    node.public_key().verify(bytes.fromhex(
-        "abe83fb1cede4608250f204b25eae68074fc1d8c651f169b581ceb6c1eab71f52ee54f51414dc092ccbfe15c32c669a116b3984f321efcc5f7a2c4e750ec6008"), msg)
+    node.public_key().verify(
+        bytes.fromhex(
+            "abe83fb1cede4608250f204b25eae68074fc1d8c651f169b581ceb6c1eab71f52ee54f51414dc092ccbfe15c32c669a116b3984f321efcc5f7a2c4e750ec6008"
+        ),
+        msg,
+    )
 
 
 # --- 2. Эндпоинт: account-Ed логируется с проверяемой нода-подписью --------
+
 
 def _publish_bundle(client, headers, x25519_hex, account_ed):
     ik = bytes.fromhex(x25519_hex)
     ed_pub_hex = _raw(account_ed.public_key()).hex()
     spk = _raw(X25519PrivateKey.generate().public_key())
-    r = client.post("/api/keys/prekeys/publish", json={
-        "identity_key":      x25519_hex,
-        "signed_prekey":     spk.hex(),
-        "signed_prekey_sig": account_ed.sign(spk).hex(),
-        "signed_prekey_id":  1,
-        "identity_key_ed":   ed_pub_hex,
-        "identity_key_sig":  account_ed.sign(ik).hex(),
-        "supports_v2":       True,
-        "one_time_prekeys":  [],
-    }, headers=headers)
+    r = client.post(
+        "/api/keys/prekeys/publish",
+        json={
+            "identity_key": x25519_hex,
+            "signed_prekey": spk.hex(),
+            "signed_prekey_sig": account_ed.sign(spk).hex(),
+            "signed_prekey_id": 1,
+            "identity_key_ed": ed_pub_hex,
+            "identity_key_sig": account_ed.sign(ik).hex(),
+            "supports_v2": True,
+            "one_time_prekeys": [],
+        },
+        headers=headers,
+    )
     assert r.status_code == 200, r.text
     return ed_pub_hex
 
 
 def test_publish_logs_account_ed_with_verifiable_node_sig(client, monkeypatch):
     from app.config import Config
+
     monkeypatch.setattr(Config, "PREKEY_SIG_ENFORCE", False)
 
     u = make_user(client)
@@ -82,19 +92,22 @@ def test_publish_logs_account_ed_with_verifiable_node_sig(client, monkeypatch):
     # Нода-подпись РЕАЛЬНО сходится против раздаваемого node_pubkey (то, что проверит клиент).
     node_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(node_pub))
     node_key.verify(
-        bytes.fromhex(e["node_sig"]),
-        kt_entry_message(uid, "account_ed", e["pub_key_hash"], e["prev_hash"], e["seq"]))
+        bytes.fromhex(e["node_sig"]), kt_entry_message(uid, "account_ed", e["pub_key_hash"], e["prev_hash"], e["seq"])
+    )
 
     # Негатив: против ЧУЖОГО ключа не сходится (подпись привязана к ноде).
     other = Ed25519PrivateKey.generate().public_key()
     with contextlib.suppress(Exception):
-        other.verify(bytes.fromhex(e["node_sig"]),
-                     kt_entry_message(uid, "account_ed", e["pub_key_hash"], e["prev_hash"], e["seq"]))
+        other.verify(
+            bytes.fromhex(e["node_sig"]),
+            kt_entry_message(uid, "account_ed", e["pub_key_hash"], e["prev_hash"], e["seq"]),
+        )
         raise AssertionError("verified against wrong node key")
 
 
 def test_account_ed_dedup_no_duplicate_on_republish(client, monkeypatch):
     from app.config import Config
+
     monkeypatch.setattr(Config, "PREKEY_SIG_ENFORCE", False)
 
     u = make_user(client)
@@ -102,7 +115,7 @@ def test_account_ed_dedup_no_duplicate_on_republish(client, monkeypatch):
     uid = u["data"]["user_id"]
     account_ed = Ed25519PrivateKey.generate()
     _publish_bundle(client, h, u["x25519_pub"], account_ed)
-    _publish_bundle(client, h, u["x25519_pub"], account_ed)   # тот же account_ed
+    _publish_bundle(client, h, u["x25519_pub"], account_ed)  # тот же account_ed
 
     body = client.get(f"/api/keys/transparency/{uid}", headers=h).json()
     acct = [e for e in body["entries"] if e["key_type"] == "account_ed"]

@@ -1,4 +1,5 @@
 """Comprehensive coverage boost tests — targets low-coverage modules."""
+
 import secrets
 
 import pytest
@@ -6,12 +7,17 @@ from conftest import login_user, make_user, random_str
 
 # Bot API (app/bots/bot_api.py — 24% coverage)
 
+
 class TestBotAPI:
     def test_create_bot(self, client, logged_user):
-        r = client.post("/api/bots", json={
-            "name": f"bot_{random_str(6)}",
-            "description": "Test bot",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/bots",
+            json={
+                "name": f"bot_{random_str(6)}",
+                "description": "Test bot",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 201, 400, 422)
 
     def test_list_my_bots(self, client, logged_user):
@@ -43,9 +49,13 @@ class TestBotAPI:
         assert r.status_code in (200, 400, 404, 405, 422)
 
     def test_bot_update(self, client, logged_user):
-        r = client.put("/api/bots/1", json={
-            "description": "Updated bot",
-        }, headers=logged_user["headers"])
+        r = client.put(
+            "/api/bots/1",
+            json={
+                "description": "Updated bot",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 400, 403, 404, 405, 422)
 
     def test_bot_delete(self, client, logged_user):
@@ -57,10 +67,14 @@ class TestBotAPI:
         assert r.status_code in (200, 400, 403, 404, 405, 422)
 
     def test_bot_review(self, client, logged_user):
-        r = client.post("/api/bots/1/review", json={
-            "rating": 5,
-            "text": "Great bot!",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/bots/1/review",
+            json={
+                "rating": 5,
+                "text": "Great bot!",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 201, 400, 404, 405, 422)
 
     def test_bot_reviews_list(self, client):
@@ -79,10 +93,14 @@ class TestBotAPI:
 
     def test_bot_send_message(self, client, logged_user, room):
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.post("/api/bot/send", json={
-            "room_id": room_id,
-            "text": "Hello from bot",
-        }, headers={"Authorization": "Bearer invalid_token"})
+        r = client.post(
+            "/api/bot/send",
+            json={
+                "room_id": room_id,
+                "text": "Hello from bot",
+            },
+            headers={"Authorization": "Bearer invalid_token"},
+        )
         assert r.status_code in (200, 401, 403, 404, 422)
 
     def test_bot_commands(self, client, logged_user):
@@ -90,14 +108,19 @@ class TestBotAPI:
         assert r.status_code in (200, 404, 405)
 
     def test_bot_mini_app(self, client, logged_user):
-        r = client.put("/api/bots/1/mini-app", json={
-            "mini_app_url": "https://example.com/mini",
-            "mini_app_enabled": True,
-        }, headers=logged_user["headers"])
+        r = client.put(
+            "/api/bots/1/mini-app",
+            json={
+                "mini_app_url": "https://example.com/mini",
+                "mini_app_enabled": True,
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 400, 403, 404, 405, 422)
 
 
 # Reports & Moderation (app/chats/reports.py — 26% coverage)
+
 
 class TestReportsExtended:
     def test_report_user(self, client, two_users):
@@ -105,25 +128,37 @@ class TestReportsExtended:
         target_id = u2.get("data", {}).get("user_id") or u2.get("data", {}).get("id")
         if not target_id:
             pytest.skip("No target ID")
-        r = client.post(f"/api/users/report/{target_id}", json={
-            "reason": "spam",
-            "description": "Sending spam messages",
-        }, headers=u1["headers"])
+        r = client.post(
+            f"/api/users/report/{target_id}",
+            json={
+                "reason": "spam",
+                "description": "Sending spam messages",
+            },
+            headers=u1["headers"],
+        )
         assert r.status_code in (200, 201, 400, 404, 422)
 
     def test_report_self(self, client, logged_user):
         user_id = logged_user.get("data", {}).get("user_id") or logged_user.get("data", {}).get("id")
         if not user_id:
             pytest.skip("No user ID")
-        r = client.post(f"/api/users/report/{user_id}", json={
-            "reason": "spam",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            f"/api/users/report/{user_id}",
+            json={
+                "reason": "spam",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (400, 403, 404, 422)
 
     def test_report_invalid_reason(self, client, logged_user):
-        r = client.post("/api/users/report/999", json={
-            "reason": "invalid_reason_xyz",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/users/report/999",
+            json={
+                "reason": "invalid_reason_xyz",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 400, 404, 422)
 
     def test_my_reports(self, client, logged_user):
@@ -137,13 +172,18 @@ class TestReportsExtended:
 
 # Spaces (app/chats/spaces.py — 31% coverage)
 
+
 class TestSpacesExtended:
     def test_create_space(self, client, logged_user):
-        r = client.post("/api/spaces", json={
-            "name": f"space_{random_str(6)}",
-            "description": "Test workspace",
-            "avatar_emoji": "\U0001f3e2",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/spaces",
+            json={
+                "name": f"space_{random_str(6)}",
+                "description": "Test workspace",
+                "avatar_emoji": "\U0001f3e2",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 201, 422)
 
     def test_list_my_spaces(self, client, logged_user):
@@ -152,10 +192,14 @@ class TestSpacesExtended:
 
     def test_space_details(self, client, logged_user):
         # Create a space first
-        cr = client.post("/api/spaces", json={
-            "name": f"detail_{random_str(6)}",
-            "description": "Details test",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"detail_{random_str(6)}",
+                "description": "Details test",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             space_id = data.get("id") or data.get("space", {}).get("id")
@@ -164,22 +208,34 @@ class TestSpacesExtended:
                 assert r.status_code in (200, 404)
 
     def test_update_space(self, client, logged_user):
-        cr = client.post("/api/spaces", json={
-            "name": f"upd_{random_str(6)}",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"upd_{random_str(6)}",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             space_id = data.get("id") or data.get("space", {}).get("id")
             if space_id:
-                r = client.put(f"/api/spaces/{space_id}", json={
-                    "name": f"updated_{random_str(4)}",
-                }, headers=logged_user["headers"])
+                r = client.put(
+                    f"/api/spaces/{space_id}",
+                    json={
+                        "name": f"updated_{random_str(4)}",
+                    },
+                    headers=logged_user["headers"],
+                )
                 assert r.status_code in (200, 403, 404)
 
     def test_delete_space(self, client, logged_user):
-        cr = client.post("/api/spaces", json={
-            "name": f"del_{random_str(6)}",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"del_{random_str(6)}",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             space_id = data.get("id") or data.get("space", {}).get("id")
@@ -188,10 +244,14 @@ class TestSpacesExtended:
                 assert r.status_code in (200, 204, 403, 404)
 
     def test_space_join(self, client, logged_user):
-        cr = client.post("/api/spaces", json={
-            "name": f"join_{random_str(6)}",
-            "is_public": True,
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"join_{random_str(6)}",
+                "is_public": True,
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             invite = data.get("invite_code") or data.get("space", {}).get("invite_code")
@@ -202,9 +262,13 @@ class TestSpacesExtended:
                 assert r.status_code in (200, 201, 400, 404)
 
     def test_space_members(self, client, logged_user):
-        cr = client.post("/api/spaces", json={
-            "name": f"mem_{random_str(6)}",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"mem_{random_str(6)}",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             space_id = data.get("id") or data.get("space", {}).get("id")
@@ -213,33 +277,49 @@ class TestSpacesExtended:
                 assert r.status_code in (200, 404)
 
     def test_space_categories(self, client, logged_user):
-        cr = client.post("/api/spaces", json={
-            "name": f"cat_{random_str(6)}",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"cat_{random_str(6)}",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             space_id = data.get("id") or data.get("space", {}).get("id")
             if space_id:
-                r = client.post(f"/api/spaces/{space_id}/categories", json={
-                    "name": "General",
-                }, headers=logged_user["headers"])
+                r = client.post(
+                    f"/api/spaces/{space_id}/categories",
+                    json={
+                        "name": "General",
+                    },
+                    headers=logged_user["headers"],
+                )
                 assert r.status_code in (200, 201, 403, 404, 422)
 
     def test_space_create_room(self, client, logged_user):
-        cr = client.post("/api/spaces", json={
-            "name": f"room_{random_str(6)}",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"room_{random_str(6)}",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             space_id = data.get("id") or data.get("space", {}).get("id")
             if space_id:
-                r = client.post(f"/api/spaces/{space_id}/rooms", json={
-                    "name": f"room_{random_str(4)}",
-                    "encrypted_room_key": {
-                        "ephemeral_pub": secrets.token_hex(32),
-                        "ciphertext": secrets.token_hex(60),
+                r = client.post(
+                    f"/api/spaces/{space_id}/rooms",
+                    json={
+                        "name": f"room_{random_str(4)}",
+                        "encrypted_room_key": {
+                            "ephemeral_pub": secrets.token_hex(32),
+                            "ciphertext": secrets.token_hex(60),
+                        },
                     },
-                }, headers=logged_user["headers"])
+                    headers=logged_user["headers"],
+                )
                 assert r.status_code in (200, 201, 403, 404, 422)
 
     def test_public_spaces(self, client):
@@ -251,27 +331,38 @@ class TestSpacesExtended:
         assert r.status_code in (200, 204, 400, 403, 404, 405)
 
     def test_space_avatar(self, client, logged_user):
-        cr = client.post("/api/spaces", json={
-            "name": f"ava_{random_str(6)}",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/spaces",
+            json={
+                "name": f"ava_{random_str(6)}",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             space_id = data.get("id") or data.get("space", {}).get("id")
             if space_id:
-                r = client.post(f"/api/spaces/{space_id}/avatar",
+                r = client.post(
+                    f"/api/spaces/{space_id}/avatar",
                     files={"file": ("avatar.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100, "image/png")},
-                    headers=logged_user["headers"])
+                    headers=logged_user["headers"],
+                )
                 assert r.status_code in (200, 400, 403, 404, 422, 500)
 
 
 # Stickers (app/chats/stickers.py — 34% coverage)
 
+
 class TestStickersExtended:
     def test_create_pack(self, client, logged_user):
-        r = client.post("/api/stickers/packs", json={
-            "name": f"pack_{random_str(6)}",
-            "description": "Test sticker pack",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/stickers/packs",
+            json={
+                "name": f"pack_{random_str(6)}",
+                "description": "Test sticker pack",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 201, 422)
 
     def test_list_packs(self, client):
@@ -283,9 +374,13 @@ class TestStickersExtended:
         assert r.status_code in (200, 404, 405, 422)
 
     def test_pack_details(self, client, logged_user):
-        cr = client.post("/api/stickers/packs", json={
-            "name": f"det_{random_str(6)}",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/stickers/packs",
+            json={
+                "name": f"det_{random_str(6)}",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             pack_id = data.get("id") or data.get("pack", {}).get("id")
@@ -294,17 +389,23 @@ class TestStickersExtended:
                 assert r.status_code in (200, 404)
 
     def test_add_sticker(self, client, logged_user):
-        cr = client.post("/api/stickers/packs", json={
-            "name": f"add_{random_str(6)}",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/stickers/packs",
+            json={
+                "name": f"add_{random_str(6)}",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             pack_id = data.get("id") or data.get("pack", {}).get("id")
             if pack_id:
-                r = client.post(f"/api/stickers/packs/{pack_id}/stickers",
+                r = client.post(
+                    f"/api/stickers/packs/{pack_id}/stickers",
                     files={"file": ("sticker.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100, "image/png")},
                     data={"emoji": "\U0001f600"},
-                    headers=logged_user["headers"])
+                    headers=logged_user["headers"],
+                )
                 assert r.status_code in (200, 201, 400, 403, 404, 422, 500)
 
     def test_favorite_pack(self, client, logged_user):
@@ -320,9 +421,13 @@ class TestStickersExtended:
         assert r.status_code in (200, 204, 404, 405)
 
     def test_delete_pack(self, client, logged_user):
-        cr = client.post("/api/stickers/packs", json={
-            "name": f"del_{random_str(6)}",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/stickers/packs",
+            json={
+                "name": f"del_{random_str(6)}",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             pack_id = data.get("id") or data.get("pack", {}).get("id")
@@ -336,6 +441,7 @@ class TestStickersExtended:
 
 
 # DM Extended (app/chats/dm.py — 37% coverage)
+
 
 class TestDMFlow:
     def test_full_dm_flow(self, client):
@@ -363,10 +469,14 @@ class TestDMFlow:
             room_id = data.get("room_id") or data.get("id") or data.get("room", {}).get("id")
             if room_id:
                 # Store key
-                r2 = client.post(f"/api/dm/store-key/{room_id}", json={
-                    "ephemeral_pub": secrets.token_hex(32),
-                    "ciphertext": secrets.token_hex(60),
-                }, headers=h1)
+                r2 = client.post(
+                    f"/api/dm/store-key/{room_id}",
+                    json={
+                        "ephemeral_pub": secrets.token_hex(32),
+                        "ciphertext": secrets.token_hex(60),
+                    },
+                    headers=h1,
+                )
                 assert r2.status_code in (200, 400, 404, 422)
 
         # List DMs
@@ -375,6 +485,7 @@ class TestDMFlow:
 
 
 # Voice Extended (app/chats/voice.py — 24% coverage)
+
 
 class TestVoiceFlow:
     def test_voice_full_flow(self, client, logged_user, room):
@@ -389,15 +500,23 @@ class TestVoiceFlow:
             assert r2.status_code in (200, 400, 404)
 
             # Mute
-            r3 = client.post(f"/api/voice/{room_id}/mute", json={
-                "is_muted": True,
-            }, headers=logged_user["headers"])
+            r3 = client.post(
+                f"/api/voice/{room_id}/mute",
+                json={
+                    "is_muted": True,
+                },
+                headers=logged_user["headers"],
+            )
             assert r3.status_code in (200, 400, 404, 422)
 
             # Toggle video
-            r4 = client.post(f"/api/voice/{room_id}/mute", json={
-                "is_video": False,
-            }, headers=logged_user["headers"])
+            r4 = client.post(
+                f"/api/voice/{room_id}/mute",
+                json={
+                    "is_video": False,
+                },
+                headers=logged_user["headers"],
+            )
             assert r4.status_code in (200, 400, 404, 422)
 
             # Leave
@@ -407,34 +526,45 @@ class TestVoiceFlow:
 
 # File Uploads (app/files/resumable.py — 28% coverage)
 
+
 class TestResumableUpload:
     def test_upload_init(self, client, logged_user, room):
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.post("/api/files/upload-init", json={
-            "room_id": room_id,
-            "filename": "test.txt",
-            "total_size": 100,
-            "content_type": "text/plain",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/files/upload-init",
+            json={
+                "room_id": room_id,
+                "filename": "test.txt",
+                "total_size": 100,
+                "content_type": "text/plain",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 201, 400, 404, 422)
 
     def test_upload_chunk(self, client, logged_user, room):
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
         # Init upload
-        init = client.post("/api/files/upload-init", json={
-            "room_id": room_id,
-            "filename": "chunk_test.txt",
-            "total_size": 50,
-            "content_type": "text/plain",
-        }, headers=logged_user["headers"])
+        init = client.post(
+            "/api/files/upload-init",
+            json={
+                "room_id": room_id,
+                "filename": "chunk_test.txt",
+                "total_size": 50,
+                "content_type": "text/plain",
+            },
+            headers=logged_user["headers"],
+        )
         if init.status_code in (200, 201):
             data = init.json()
             upload_id = data.get("upload_id") or data.get("id")
             if upload_id:
-                r = client.post(f"/api/files/upload-chunk/{upload_id}",
+                r = client.post(
+                    f"/api/files/upload-chunk/{upload_id}",
                     files={"chunk": ("chunk", b"Hello, World! Test chunk data." * 2, "application/octet-stream")},
                     data={"chunk_index": "0"},
-                    headers=logged_user["headers"])
+                    headers=logged_user["headers"],
+                )
                 assert r.status_code in (200, 201, 400, 404, 422)
 
     def test_upload_status(self, client, logged_user):
@@ -444,15 +574,20 @@ class TestResumableUpload:
 
 # Saved Messages Extended (app/chats/saved.py — 59% coverage)
 
+
 class TestSavedExtended:
     def test_list_saved(self, client, logged_user):
         r = client.get("/api/saved", headers=logged_user["headers"])
         assert r.status_code == 200
 
     def test_save_message(self, client, logged_user):
-        r = client.post("/api/saved/999", json={
-            "note": "Important message",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/saved/999",
+            json={
+                "note": "Important message",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 201, 400, 404)
 
     def test_unsave_message(self, client, logged_user):
@@ -462,12 +597,17 @@ class TestSavedExtended:
 
 # Tasks Extended (app/chats/tasks.py — 58% coverage)
 
+
 class TestTasksExtended:
     def test_create_task(self, client, logged_user, room):
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.post(f"/api/rooms/{room_id}/tasks", json={
-            "text": "Test task item",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            f"/api/rooms/{room_id}/tasks",
+            json={
+                "text": "Test task item",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 201, 404)
 
     def test_list_tasks(self, client, logged_user, room):
@@ -478,54 +618,78 @@ class TestTasksExtended:
     def test_complete_task(self, client, logged_user, room):
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
         # Create task
-        cr = client.post(f"/api/rooms/{room_id}/tasks", json={
-            "text": "Complete me",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            f"/api/rooms/{room_id}/tasks",
+            json={
+                "text": "Complete me",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             task_id = data.get("id") or data.get("task", {}).get("id")
             if task_id:
-                r = client.put(f"/api/rooms/{room_id}/tasks/{task_id}", json={
-                    "is_done": True,
-                }, headers=logged_user["headers"])
+                r = client.put(
+                    f"/api/rooms/{room_id}/tasks/{task_id}",
+                    json={
+                        "is_done": True,
+                    },
+                    headers=logged_user["headers"],
+                )
                 assert r.status_code in (200, 404, 422)
 
     def test_delete_task(self, client, logged_user, room):
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
-        cr = client.post(f"/api/rooms/{room_id}/tasks", json={
-            "text": "Delete me",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            f"/api/rooms/{room_id}/tasks",
+            json={
+                "text": "Delete me",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             task_id = data.get("id") or data.get("task", {}).get("id")
             if task_id:
-                r = client.delete(f"/api/rooms/{room_id}/tasks/{task_id}",
-                    headers=logged_user["headers"])
+                r = client.delete(f"/api/rooms/{room_id}/tasks/{task_id}", headers=logged_user["headers"])
                 assert r.status_code in (200, 204, 404)
 
     def test_assign_task(self, client, logged_user, room):
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
-        cr = client.post(f"/api/rooms/{room_id}/tasks", json={
-            "text": "Assign me",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            f"/api/rooms/{room_id}/tasks",
+            json={
+                "text": "Assign me",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             task_id = data.get("id") or data.get("task", {}).get("id")
             user_id = logged_user.get("data", {}).get("user_id") or logged_user.get("data", {}).get("id")
             if task_id and user_id:
-                r = client.put(f"/api/rooms/{room_id}/tasks/{task_id}", json={
-                    "assignee_id": user_id,
-                }, headers=logged_user["headers"])
+                r = client.put(
+                    f"/api/rooms/{room_id}/tasks/{task_id}",
+                    json={
+                        "assignee_id": user_id,
+                    },
+                    headers=logged_user["headers"],
+                )
                 assert r.status_code in (200, 404, 422)
 
 
 # Statuses Extended (app/chats/statuses.py — 76% coverage)
 
+
 class TestStatusesExtended:
     def test_create_text_status(self, client, logged_user):
-        r = client.post("/api/statuses", json={
-            "text": f"Status {random_str(10)}",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/statuses",
+            json={
+                "text": f"Status {random_str(10)}",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 201)
 
     def test_list_statuses(self, client, logged_user):
@@ -533,9 +697,13 @@ class TestStatusesExtended:
         assert r.status_code == 200
 
     def test_delete_status(self, client, logged_user):
-        cr = client.post("/api/statuses", json={
-            "text": "Delete this status",
-        }, headers=logged_user["headers"])
+        cr = client.post(
+            "/api/statuses",
+            json={
+                "text": "Delete this status",
+            },
+            headers=logged_user["headers"],
+        )
         if cr.status_code in (200, 201):
             data = cr.json()
             status_id = data.get("id") or data.get("status", {}).get("id")
@@ -551,6 +719,7 @@ class TestStatusesExtended:
 
 
 # WAF Extended (app/security/waf.py — 64% coverage)
+
 
 class TestWAFEndpoints:
     def test_waf_stats(self, client):
@@ -580,6 +749,7 @@ class TestWAFEndpoints:
 
 # Keys Extended (app/keys/keys.py — 50% coverage)
 
+
 class TestKeysExtended:
     def test_node_pubkey(self, client):
         r = client.get("/api/keys/node")
@@ -598,10 +768,12 @@ class TestKeysExtended:
 
 # Antispam Bot (app/bots/antispam_bot.py — 26% coverage)
 
+
 class TestAntispamBot:
     def test_ensure_antispam_bot(self):
         from app.bots.antispam_bot import ensure_antispam_bot
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             bot_id = ensure_antispam_bot(db)
@@ -617,6 +789,7 @@ class TestAntispamBot:
         from app.bots.antispam_bot import check_repeat_spam
         from app.database import SessionLocal
         from app.models import User
+
         db = SessionLocal()
         try:
             user = db.query(User).first()
@@ -632,6 +805,7 @@ class TestAntispamBot:
         from app.database import SessionLocal
         from app.models import User
         from app.models_rooms import RoomRole
+
         db = SessionLocal()
         try:
             user = db.query(User).first()
@@ -646,6 +820,7 @@ class TestAntispamBot:
         from app.bots.antispam_bot import check_caps_spam
         from app.database import SessionLocal
         from app.models import User
+
         db = SessionLocal()
         try:
             user = db.query(User).first()
@@ -658,15 +833,18 @@ class TestAntispamBot:
 
 # Federation Extended (app/federation/federation.py — 36% coverage)
 
+
 class TestFederationExtended:
     def test_federation_relay_manager(self):
         from app.federation.federation import relay
+
         assert relay is not None
         rooms = relay.get_user_rooms(999)
         assert isinstance(rooms, list)
 
     def test_is_federated_room(self):
         from app.federation.federation import relay
+
         assert relay.is_federated_room(-1) is False  # No rooms created yet
         assert relay.is_federated_room(1) is False
 
@@ -676,6 +854,7 @@ class TestFederationExtended:
 
 
 # Main app endpoints (app/main.py — 64% coverage)
+
 
 class TestMainEndpoints:
     def test_root(self, client):

@@ -68,6 +68,7 @@ app/security/key_exchange.py — ECIES и P2P шифрование между у
     - Получатель расшифровывает своим постоянным X25519 ключом узла
     - Подслушивающий не может расшифровать даже если узнает постоянный ключ позже
 """
+
 from __future__ import annotations
 
 import json
@@ -84,6 +85,7 @@ logger = logging.getLogger(__name__)
 
 
 # ECIES: шифрование данных для X25519 получателя
+
 
 def ecies_encrypt(plaintext: bytes, recipient_pub_hex: str) -> dict:
     """
@@ -127,7 +129,7 @@ def ecies_encrypt(plaintext: bytes, recipient_pub_hex: str) -> dict:
 
     return {
         "ephemeral_pub": ephemeral_pub.hex(),
-        "ciphertext":    ciphertext.hex(),
+        "ciphertext": ciphertext.hex(),
     }
 
 
@@ -153,14 +155,14 @@ def ecies_encrypt_for_client(plaintext: bytes, recipient_pub_hex: str) -> dict:
     ephemeral_priv, ephemeral_pub = generate_x25519_keypair()
     # ЕДИНСТВЕННОЕ отличие от ecies_encrypt: salt=None (client-диалект), не salt=sorted.
     shared = X25519PrivateKey.from_private_bytes(ephemeral_priv).exchange(
-        X25519PublicKey.from_public_bytes(bytes.fromhex(recipient_pub_hex)))
-    shared_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
-                      info=b"vortex-session").derive(shared)
+        X25519PublicKey.from_public_bytes(bytes.fromhex(recipient_pub_hex))
+    )
+    shared_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"vortex-session").derive(shared)
 
     ciphertext = encrypt_message(plaintext, shared_key)
     return {
         "ephemeral_pub": ephemeral_pub.hex(),
-        "ciphertext":    ciphertext.hex(),
+        "ciphertext": ciphertext.hex(),
     }
 
 
@@ -181,7 +183,7 @@ def ecies_decrypt_node(ephemeral_pub_hex: str, ciphertext_hex: str, our_node_pri
         Расшифрованные bytes
     """
     ephemeral_pub = bytes.fromhex(ephemeral_pub_hex)
-    ciphertext    = bytes.fromhex(ciphertext_hex)
+    ciphertext = bytes.fromhex(ciphertext_hex)
 
     # DH с эфемерным ключом отправителя → тот же shared_key что и при шифровании
     shared_key = derive_x25519_session_key(our_node_private, ephemeral_pub)
@@ -197,6 +199,7 @@ def ecies_decrypt_node(ephemeral_pub_hex: str, ciphertext_hex: str, our_node_pri
 
 
 # P2P шифрование между узлами Vortex
+
 
 def encrypt_p2p_payload(payload_dict: dict, our_node_private: bytes, peer_node_pub_hex: str) -> dict:
     """
@@ -218,12 +221,11 @@ def encrypt_p2p_payload(payload_dict: dict, our_node_private: bytes, peer_node_p
         Вызывающий код добавляет sender_pubkey отдельно.
     """
     payload_bytes = json.dumps(payload_dict, ensure_ascii=False).encode("utf-8")
-    encrypted     = ecies_encrypt(payload_bytes, peer_node_pub_hex)
+    encrypted = ecies_encrypt(payload_bytes, peer_node_pub_hex)
     return encrypted
 
 
-def decrypt_p2p_payload(ephemeral_pub_hex: str, ciphertext_hex: str,
-                        our_node_private: bytes) -> dict:
+def decrypt_p2p_payload(ephemeral_pub_hex: str, ciphertext_hex: str, our_node_private: bytes) -> dict:
     """
     Расшифровывает входящий P2P payload от другого узла.
 
@@ -234,13 +236,14 @@ def decrypt_p2p_payload(ephemeral_pub_hex: str, ciphertext_hex: str,
         ValueError: если расшифровка или десериализация не удалась
     """
     try:
-        raw   = ecies_decrypt_node(ephemeral_pub_hex, ciphertext_hex, our_node_private)
+        raw = ecies_decrypt_node(ephemeral_pub_hex, ciphertext_hex, our_node_private)
         return json.loads(raw.decode("utf-8"))
     except Exception as e:
         raise ValueError(f"Failed to decrypt P2P payload: {e}") from e
 
 
 # Утилиты для форматирования (используются в rooms.py и chat.py)
+
 
 def format_encrypted_key(enc_dict: dict) -> tuple[str, str]:
     """
@@ -250,8 +253,7 @@ def format_encrypted_key(enc_dict: dict) -> tuple[str, str]:
     return enc_dict["ephemeral_pub"], enc_dict["ciphertext"]
 
 
-def hybrid_ecies_encrypt(plaintext: bytes, recipient_pub_hex: str,
-                         recipient_kyber_pub_hex: str | None = None) -> dict:
+def hybrid_ecies_encrypt(plaintext: bytes, recipient_pub_hex: str, recipient_kyber_pub_hex: str | None = None) -> dict:
     """
     Гибридное ECIES шифрование: X25519 + Kyber-768 (если доступен kyber ключ).
 
@@ -265,14 +267,13 @@ def hybrid_ecies_encrypt(plaintext: bytes, recipient_pub_hex: str,
     if recipient_kyber_pub_hex:
         try:
             from app.security.post_quantum import hybrid_encrypt, pq_available
+
             if pq_available():
                 result = hybrid_encrypt(plaintext, recipient_pub_hex, recipient_kyber_pub_hex)
                 logger.info("Hybrid PQ encryption used for recipient pubkey=%s...", recipient_pub_hex[:16])
                 return result
             else:
-                logger.warning(
-                    "Recipient has kyber key but PQ library unavailable — falling back to X25519-only"
-                )
+                logger.warning("Recipient has kyber key but PQ library unavailable — falling back to X25519-only")
         except Exception as e:
             logger.warning("Hybrid encryption failed, falling back to X25519-only: %s", e)
 
@@ -284,8 +285,8 @@ def hybrid_ecies_encrypt(plaintext: bytes, recipient_pub_hex: str,
         )
     else:
         logger.warning(
-            "Recipient has no kyber_public_key — using X25519-only ECIES (no PQ protection), "
-            "pubkey=%s...", recipient_pub_hex[:16],
+            "Recipient has no kyber_public_key — using X25519-only ECIES (no PQ protection), pubkey=%s...",
+            recipient_pub_hex[:16],
         )
     result = ecies_encrypt(plaintext, recipient_pub_hex)
     result["hybrid"] = False

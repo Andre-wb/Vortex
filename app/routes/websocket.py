@@ -21,6 +21,7 @@ Handshake (обмен ключами, протокол X25519 DH):
   5. Дальше клиенты шлют {"type":"message","ciphertext":"<base64>","room_id":N}
      Сервер ретранслирует ciphertext как есть — НЕ дешифруя.
 """
+
 from __future__ import annotations
 
 import base64
@@ -50,12 +51,13 @@ class PeerClient:
         room_id     — комната, в которой находится клиент (None до входа)
         handshake_done — True после получения hello от этого клиента
     """
+
     def __init__(self, client_id: str, websocket: WebSocket):
-        self.client_id:      str             = client_id
-        self.websocket:      WebSocket       = websocket
-        self.public_key:     Optional[bytes] = None
-        self.room_id:        Optional[int]   = None
-        self.handshake_done: bool            = False
+        self.client_id: str = client_id
+        self.websocket: WebSocket = websocket
+        self.public_key: Optional[bytes] = None
+        self.room_id: Optional[int] = None
+        self.handshake_done: bool = False
 
     async def send(self, payload: dict) -> bool:
         """
@@ -68,6 +70,8 @@ class PeerClient:
         except Exception as e:
             logger.debug(f"Не удалось отправить {self.client_id}: {e}")
             return False
+
+
 _clients: dict[str, PeerClient] = {}
 
 
@@ -88,7 +92,7 @@ async def _broadcast_public_keys(room_id: int):
 
     peers_info = [
         {
-            "client_id":  c.client_id,
+            "client_id": c.client_id,
             "public_key": base64.b64encode(c.public_key).decode(),
         }
         for c in members
@@ -97,11 +101,13 @@ async def _broadcast_public_keys(room_id: int):
 
     # Рассылаем каждому участнику
     for client in members:
-        await client.send({
-            "type":  "peers_keys",
-            "room_id": room_id,
-            "peers": peers_info,
-        })
+        await client.send(
+            {
+                "type": "peers_keys",
+                "room_id": room_id,
+                "peers": peers_info,
+            }
+        )
 
 
 @router.websocket("/ws/{client_id}")
@@ -131,7 +137,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
     try:
         while True:
-            raw  = await websocket.receive_text()
+            raw = await websocket.receive_text()
 
             # reject oversized frames before parsing/relaying.
             if len(raw) > MAX_WS_FRAME_BYTES:
@@ -177,20 +183,25 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
                 for peer in _clients_in_room(room_id):
                     if peer.client_id != client_id:
-                        await peer.send({
-                            "type":      "user_joined",
-                            "client_id": client_id,
-                        })
+                        await peer.send(
+                            {
+                                "type": "user_joined",
+                                "client_id": client_id,
+                            }
+                        )
 
                 if client.handshake_done:
                     await _broadcast_public_keys(room_id)
 
-                await client.send({
-                    "type":    "joined",
-                    "room_id": room_id,
-                    "peers":   [p.client_id for p in _clients_in_room(room_id)
-                                if p.client_id != client_id],  # список других участников
-                })
+                await client.send(
+                    {
+                        "type": "joined",
+                        "room_id": room_id,
+                        "peers": [
+                            p.client_id for p in _clients_in_room(room_id) if p.client_id != client_id
+                        ],  # список других участников
+                    }
+                )
 
             elif msg_type == "message":
                 if not client.handshake_done:
@@ -209,10 +220,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 target_id: Optional[str] = msg.get("to")
 
                 relay_payload = {
-                    "type":       "message",
-                    "from":       client_id,
+                    "type": "message",
+                    "from": client_id,
                     "ciphertext": ciphertext_b64,
-                    "room_id":    client.room_id,
+                    "room_id": client.room_id,
                 }
 
                 if target_id:
@@ -226,10 +237,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         if peer.client_id != client_id:
                             await peer.send(relay_payload)
 
-                await client.send({
-                    "type":   "delivered",
-                    "to":     target_id or "room",
-                })
+                await client.send(
+                    {
+                        "type": "delivered",
+                        "to": target_id or "room",
+                    }
+                )
 
             elif msg_type == "typing":
                 if client.room_id is None:
@@ -238,11 +251,13 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 # Ретранслируем индикатор печати всем в комнате
                 for peer in _clients_in_room(client.room_id):
                     if peer.client_id != client_id:
-                        await peer.send({
-                            "type":      "typing",
-                            "client_id": client_id,
-                            "is_typing": bool(msg.get("is_typing", False)),
-                        })
+                        await peer.send(
+                            {
+                                "type": "typing",
+                                "client_id": client_id,
+                                "is_typing": bool(msg.get("is_typing", False)),
+                            }
+                        )
 
             else:
                 await client.send({"type": "error", "message": f"Unknown type: {msg_type}"})
@@ -259,9 +274,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         # Уведомляем оставшихся в комнате что клиент ушёл
         if client.room_id is not None:
             for peer in _clients_in_room(client.room_id):
-                await peer.send({
-                    "type":      "user_left",
-                    "client_id": client_id,
-                })
+                await peer.send(
+                    {
+                        "type": "user_left",
+                        "client_id": client_id,
+                    }
+                )
 
         logger.info(f"WS очищен: {client_id}")

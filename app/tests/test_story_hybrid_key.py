@@ -3,6 +3,7 @@
 StoryKeyEnvelope.kyber_ciphertext переживает store→fetch; _story_dict отдаёт
 гибрид-форму при наличии kyber, иначе классику (backward-compat).
 """
+
 import json
 import secrets
 
@@ -11,11 +12,11 @@ from conftest import login_user, make_user
 
 def _hybrid_env(uid: int) -> dict:
     return {
-        "user_id":              uid,
-        "hybrid":               True,
+        "user_id": uid,
+        "hybrid": True,
         "x25519_ephemeral_pub": secrets.token_hex(32),
-        "kyber_ciphertext":     secrets.token_hex(1088),
-        "ciphertext":           secrets.token_hex(60),
+        "kyber_ciphertext": secrets.token_hex(1088),
+        "ciphertext": secrets.token_hex(60),
     }
 
 
@@ -25,10 +26,10 @@ def _classical_env(uid: int) -> dict:
 
 def _create_story(client, headers, envelopes):
     data = {
-        "media_type":    "text",
-        "text_ct":       b"hi".hex(),
-        "meta_ct":       json.dumps({}).encode().hex(),
-        "duration":      "5",
+        "media_type": "text",
+        "text_ct": b"hi".hex(),
+        "meta_ct": json.dumps({}).encode().hex(),
+        "duration": "5",
         "key_envelopes": json.dumps(envelopes),
     }
     r = client.post("/api/stories", data=data, files={"_": ("", b"")}, headers=headers)
@@ -90,6 +91,7 @@ def test_story_delivered_to_contact_by_user_id(client):
     r = client.post("/api/contacts", json={"user_id": author_id}, headers=v_h)
     if r.status_code not in (200, 201):
         import pytest
+
         pytest.skip(f"contact add unavailable: {r.status_code} {r.text}")
 
     # author создаёт story с конвертом, ключёванным по РЕАЛЬНОМУ user_id viewer'а
@@ -113,8 +115,7 @@ def test_contacts_endpoint_carries_kyber_pub_sig(client):
     peer = make_user(client)
     peer_id = peer["data"].get("user_id") or peer["data"].get("id")
     pub, sig = secrets.token_hex(1184), secrets.token_hex(64)
-    client.post("/api/keys/kyber", json={"kyber_public_key": pub, "kyber_public_key_sig": sig},
-                headers=peer["headers"])
+    client.post("/api/keys/kyber", json={"kyber_public_key": pub, "kyber_public_key_sig": sig}, headers=peer["headers"])
 
     # owner логинится последним (cookie → owner) и добавляет peer в контакты
     owner = make_user(client)
@@ -122,6 +123,7 @@ def test_contacts_endpoint_carries_kyber_pub_sig(client):
     r = client.post("/api/contacts", json={"user_id": peer_id}, headers=o_h)
     if r.status_code not in (200, 201):
         import pytest
+
         pytest.skip(f"contact add unavailable: {r.status_code} {r.text}")
 
     contacts = client.get("/api/contacts", headers=o_h).json()

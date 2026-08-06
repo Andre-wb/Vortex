@@ -2,6 +2,7 @@
 Advanced Bot Features — Inline bots, keyboards, components, slash commands,
 webhooks, payment API, bot store, mini-app IDE, bot permissions/scopes.
 """
+
 from __future__ import annotations
 
 import collections
@@ -26,49 +27,59 @@ router = APIRouter(tags=["bots-advanced"])
 
 # Schemas
 
+
 class InlineQueryResult(BaseModel):
     id: str
     title: str
     description: str = ""
-    content: str = ""          # Message content to send
+    content: str = ""  # Message content to send
     thumbnail_url: str = ""
+
 
 class InlineQueryResponse(BaseModel):
     results: list[InlineQueryResult] = []
 
+
 class KeyboardButton(BaseModel):
     text: str
-    callback_data: str = ""   # Data sent back on click
-    url: str = ""             # Open URL instead
+    callback_data: str = ""  # Data sent back on click
+    url: str = ""  # Open URL instead
+
 
 class ReplyKeyboard(BaseModel):
     buttons: list[list[KeyboardButton]]  # 2D grid
     one_time: bool = False
     resize: bool = True
 
+
 class MessageComponent(BaseModel):
-    type: str                 # "button", "select", "modal"
+    type: str  # "button", "select", "modal"
     custom_id: str
     label: str = ""
-    style: str = "primary"    # primary, secondary, success, danger
+    style: str = "primary"  # primary, secondary, success, danger
     options: list[dict] = []  # For select menus
     placeholder: str = ""
     min_values: int = 1
     max_values: int = 1
+
 
 class SlashCommand(BaseModel):
     name: str = Field(..., min_length=1, max_length=32, pattern="^[a-z0-9_]+$")
     description: str = Field("", max_length=100)
     options: list[dict] = []  # {name, type, description, required, choices}
 
+
 class WebhookConfig(BaseModel):
     url: str = Field(..., max_length=500)
     secret: str = Field(default="", max_length=100)
     events: list[str] = Field(default_factory=lambda: ["message"])  # message, reaction, member_join, etc.
 
+
 class BotScope(BaseModel):
     """OAuth-style permission scopes for bots."""
+
     scopes: list[str] = Field(default_factory=lambda: ["messages.read", "messages.send"])
+
 
 class SendWithKeyboardRequest(BaseModel):
     room_id: int
@@ -76,19 +87,22 @@ class SendWithKeyboardRequest(BaseModel):
     keyboard: ReplyKeyboard | None = None
     components: list[MessageComponent] = []
 
+
 class PaymentRequest(BaseModel):
     room_id: int
     title: str = Field(..., max_length=100)
     description: str = Field("", max_length=500)
-    amount: str                # "5.00"
-    currency: str = "USDT"    # USDT, TON, BTC, ETH
-    wallet_address: str       # Where to send payment
+    amount: str  # "5.00"
+    currency: str = "USDT"  # USDT, TON, BTC, ETH
+    wallet_address: str  # Where to send payment
 
 
 # Bot auth helper
 
+
 def _get_bot(request: Request, db: Session = Depends(get_db)) -> Bot:
     from app.bots.bot_shared import _hash_token
+
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bot "):
         raise HTTPException(401, "Expected: Authorization: Bot <token>")
@@ -112,6 +126,7 @@ def _get_bot(request: Request, db: Session = Depends(get_db)) -> Bot:
 _MAX_INLINE_BOTS = 4096
 _inline_handlers: collections.OrderedDict[int, list] = collections.OrderedDict()
 
+
 @router.post("/api/bot/inline/register")
 async def register_inline_handler(request: Request, db: Session = Depends(get_db)):
     """Register this bot as an inline bot (responds to @mentions in any chat)."""
@@ -124,8 +139,7 @@ async def register_inline_handler(request: Request, db: Session = Depends(get_db
 
 
 @router.post("/api/bot/inline/answer")
-async def answer_inline_query(body: InlineQueryResponse, request: Request,
-                              db: Session = Depends(get_db)):
+async def answer_inline_query(body: InlineQueryResponse, request: Request, db: Session = Depends(get_db)):
     """Answer an inline query with results."""
     bot = _get_bot(request, db)
     # Store results for clients to fetch
@@ -137,8 +151,12 @@ async def answer_inline_query(body: InlineQueryResponse, request: Request,
 
 
 @router.get("/api/bots/{bot_id}/inline")
-async def query_inline_bot(bot_id: int, q: str = Query(default="", max_length=200),
-                           u: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def query_inline_bot(
+    bot_id: int,
+    q: str = Query(default="", max_length=200),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Client queries an inline bot with @bot_name search text.
     Returns cached results from the bot.
     """
@@ -149,25 +167,31 @@ async def query_inline_bot(bot_id: int, q: str = Query(default="", max_length=20
     # Filter by query
     if q:
         q_lower = q.lower()
-        results = [r for r in results
-                   if q_lower in r.get("title", "").lower() or q_lower in r.get("description", "").lower()]
+        results = [
+            r for r in results if q_lower in r.get("title", "").lower() or q_lower in r.get("description", "").lower()
+        ]
     return {"results": results[:20], "bot_name": bot.name}
 
 
 # 2. Custom Keyboards + 3. Message Components
 
+
 @router.post("/api/bot/send-keyboard")
-async def send_with_keyboard(body: SendWithKeyboardRequest, request: Request,
-                             db: Session = Depends(get_db)):
+async def send_with_keyboard(body: SendWithKeyboardRequest, request: Request, db: Session = Depends(get_db)):
     """Send a message with custom keyboard or interactive components.
 
     Keyboard: buttons below the message (quick replies)
     Components: buttons/selects/modals embedded in the message
     """
     bot = _get_bot(request, db)
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == body.room_id, RoomMember.user_id == bot.user_id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == body.room_id,
+            RoomMember.user_id == bot.user_id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Bot not in this room")
 
@@ -179,30 +203,37 @@ async def send_with_keyboard(body: SendWithKeyboardRequest, request: Request,
         metadata["components"] = [c.dict() for c in body.components]
 
     # Store as system message with JSON metadata
-    content = json.dumps({
-        "text": body.text,
-        "metadata": metadata,
-    }).encode()
+    content = json.dumps(
+        {
+            "text": body.text,
+            "metadata": metadata,
+        }
+    ).encode()
 
     msg = Message(
-        room_id=body.room_id, sender_id=bot.user_id,
-        msg_type=MessageType.TEXT, content_encrypted=content,
+        room_id=body.room_id,
+        sender_id=bot.user_id,
+        msg_type=MessageType.TEXT,
+        content_encrypted=content,
     )
     db.add(msg)
     db.commit()
     db.refresh(msg)
 
     # Broadcast to room
-    await manager.broadcast_to_room(body.room_id, {
-        "type": "message",
-        "id": msg.id,
-        "sender_id": bot.user_id,
-        "text": body.text,
-        "is_bot": True,
-        "keyboard": metadata.get("keyboard"),
-        "components": metadata.get("components"),
-        "created_at": msg.created_at.isoformat() if msg.created_at else "",
-    })
+    await manager.broadcast_to_room(
+        body.room_id,
+        {
+            "type": "message",
+            "id": msg.id,
+            "sender_id": bot.user_id,
+            "text": body.text,
+            "is_bot": True,
+            "keyboard": metadata.get("keyboard"),
+            "components": metadata.get("components"),
+            "created_at": msg.created_at.isoformat() if msg.created_at else "",
+        },
+    )
 
     return {"ok": True, "message_id": msg.id}
 
@@ -220,14 +251,14 @@ async def handle_callback(request: Request, db: Session = Depends(get_db)):
     user_id = body.get("user_id")
 
     # Store callback for bot to fetch via /updates or webhook
-    return {"ok": True, "callback_data": callback_data,
-            "message_id": message_id, "user_id": user_id}
+    return {"ok": True, "callback_data": callback_data, "message_id": message_id, "user_id": user_id}
 
 
 # 4. Slash Commands
 
 # In-memory: bot_id -> list of registered commands
 _slash_commands: dict[int, list[dict]] = {}
+
 
 @router.post("/api/bot/commands/register")
 async def register_slash_commands(request: Request, db: Session = Depends(get_db)):
@@ -255,12 +286,17 @@ async def get_bot_commands(bot_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/rooms/{room_id}/commands")
-async def get_room_commands(room_id: int, u: User = Depends(get_current_user),
-                            db: Session = Depends(get_db)):
+async def get_room_commands(room_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get all slash commands available in a room (from all bots)."""
-    bot_members = db.query(RoomMember).join(User).filter(
-        RoomMember.room_id == room_id, User.is_bot.is_(True),
-    ).all()
+    bot_members = (
+        db.query(RoomMember)
+        .join(User)
+        .filter(
+            RoomMember.room_id == room_id,
+            User.is_bot.is_(True),
+        )
+        .all()
+    )
     all_commands = []
     for bm in bot_members:
         bot = db.query(Bot).filter(Bot.user_id == bm.user_id).first()
@@ -277,6 +313,7 @@ async def get_room_commands(room_id: int, u: User = Depends(get_current_user),
 
 # In-memory: bot_id -> webhook config
 _webhooks: dict[int, dict] = {}
+
 
 @router.post("/api/bot/webhook/set")
 async def set_webhook(body: WebhookConfig, request: Request, db: Session = Depends(get_db)):
@@ -319,13 +356,18 @@ async def deliver_webhook(bot_id: int, event: str, payload: dict) -> bool:
         import hmac
 
         import httpx
+
         body = json.dumps({"event": event, "payload": payload})
         sig = hmac.new(wh["secret"].encode(), body.encode(), hashlib.sha256).hexdigest()
         async with httpx.AsyncClient(timeout=10) as client:
-            await client.post(wh["url"], content=body, headers={
-                "Content-Type": "application/json",
-                "X-Hook-Signature": sig,
-            })
+            await client.post(
+                wh["url"],
+                content=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Hook-Signature": sig,
+                },
+            )
         return True
     except Exception as e:
         logger.warning("Webhook delivery failed for bot %d: %s", bot_id, e)
@@ -333,6 +375,7 @@ async def deliver_webhook(bot_id: int, event: str, payload: dict) -> bool:
 
 
 # 6. Bot SDK Info (documentation endpoint)
+
 
 @router.get("/api/bots/sdk-info")
 async def sdk_info():
@@ -392,55 +435,73 @@ bot.start();
 
 # 7. Payment API (crypto P2P through bots)
 
+
 @router.post("/api/bot/payment/create")
-async def create_payment(body: PaymentRequest, request: Request,
-                         db: Session = Depends(get_db)):
+async def create_payment(body: PaymentRequest, request: Request, db: Session = Depends(get_db)):
     """Create a payment request via bot (sends [PAY] card to room).
 
     All money goes P2P to the specified wallet. 0% platform fee.
     """
     bot = _get_bot(request, db)
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == body.room_id, RoomMember.user_id == bot.user_id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == body.room_id,
+            RoomMember.user_id == bot.user_id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Bot not in room")
 
-    pay_json = json.dumps({
-        "title": body.title,
-        "description": body.description,
-        "amount": body.amount,
-        "currency": body.currency,
-        "address": body.wallet_address,
-        "created": datetime.now(timezone.utc).isoformat(),
-        "bot_name": bot.name,
-    })
+    pay_json = json.dumps(
+        {
+            "title": body.title,
+            "description": body.description,
+            "amount": body.amount,
+            "currency": body.currency,
+            "address": body.wallet_address,
+            "created": datetime.now(timezone.utc).isoformat(),
+            "bot_name": bot.name,
+        }
+    )
 
     content = f"[PAY] {pay_json}".encode()
     msg = Message(
-        room_id=body.room_id, sender_id=bot.user_id,
-        msg_type=MessageType.TEXT, content_encrypted=content,
+        room_id=body.room_id,
+        sender_id=bot.user_id,
+        msg_type=MessageType.TEXT,
+        content_encrypted=content,
     )
     db.add(msg)
     db.commit()
     db.refresh(msg)
 
-    await manager.broadcast_to_room(body.room_id, {
-        "type": "message", "id": msg.id, "sender_id": bot.user_id,
-        "text": f"[PAY] {pay_json}", "is_bot": True,
-        "created_at": msg.created_at.isoformat() if msg.created_at else "",
-    })
+    await manager.broadcast_to_room(
+        body.room_id,
+        {
+            "type": "message",
+            "id": msg.id,
+            "sender_id": bot.user_id,
+            "text": f"[PAY] {pay_json}",
+            "is_bot": True,
+            "created_at": msg.created_at.isoformat() if msg.created_at else "",
+        },
+    )
 
     return {"ok": True, "message_id": msg.id}
 
 
 # 8. Bot Store (enhanced marketplace with one-click install)
 
+
 @router.get("/api/bots/store")
-async def bot_store(category: str = Query(default="", max_length=30),
-                    q: str = Query(default="", max_length=100),
-                    sort: str = Query(default="popular"),
-                    db: Session = Depends(get_db)):
+async def bot_store(
+    category: str = Query(default="", max_length=30),
+    q: str = Query(default="", max_length=100),
+    sort: str = Query(default="popular"),
+    db: Session = Depends(get_db),
+):
     """Enhanced bot store with categories, search, and sorting."""
     query = db.query(Bot).filter(Bot.is_public.is_(True), Bot.is_active.is_(True))
     if category:
@@ -454,22 +515,31 @@ async def bot_store(category: str = Query(default="", max_length=30),
     else:
         query = query.order_by(Bot.installs.desc())
     bots = query.limit(50).all()
-    return {"bots": [
-        {"id": b.id, "name": b.name, "description": b.description,
-         "category": b.category, "installs": b.installs, "rating": round(b.rating or 0, 1),
-         "avatar_url": b.avatar_url, "is_public": True,
-         "has_inline": b.id in _inline_handlers,
-         "has_commands": bool(_slash_commands.get(b.id) or json.loads(b.commands or "[]")),
-         "has_mini_app": b.mini_app_enabled}
-        for b in bots
-    ]}
+    return {
+        "bots": [
+            {
+                "id": b.id,
+                "name": b.name,
+                "description": b.description,
+                "category": b.category,
+                "installs": b.installs,
+                "rating": round(b.rating or 0, 1),
+                "avatar_url": b.avatar_url,
+                "is_public": True,
+                "has_inline": b.id in _inline_handlers,
+                "has_commands": bool(_slash_commands.get(b.id) or json.loads(b.commands or "[]")),
+                "has_mini_app": b.mini_app_enabled,
+            }
+            for b in bots
+        ]
+    }
 
 
 # 9. Mini Apps IDE (dev tools info endpoint)
 
+
 @router.get("/api/bots/{bot_id}/mini-app/dev")
-async def mini_app_dev_info(bot_id: int, u: User = Depends(get_current_user),
-                            db: Session = Depends(get_db)):
+async def mini_app_dev_info(bot_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Mini App development tools and configuration."""
     bot = db.query(Bot).filter(Bot.id == bot_id).first()
     if not bot or bot.owner_id != u.id:
@@ -527,14 +597,15 @@ AVAILABLE_SCOPES = {
 # In-memory: bot_id -> set of granted scopes
 _bot_scopes: dict[int, set[str]] = {}
 
+
 @router.get("/api/bots/scopes")
 async def list_available_scopes():
     """List all available OAuth-style scopes for bots."""
     return {"scopes": AVAILABLE_SCOPES}
 
+
 @router.get("/api/bots/{bot_id}/scopes")
-async def get_bot_scopes(bot_id: int, u: User = Depends(get_current_user),
-                         db: Session = Depends(get_db)):
+async def get_bot_scopes(bot_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get scopes granted to a bot."""
     bot = db.query(Bot).filter(Bot.id == bot_id).first()
     if not bot:
@@ -544,8 +615,9 @@ async def get_bot_scopes(bot_id: int, u: User = Depends(get_current_user),
 
 
 @router.put("/api/bots/{bot_id}/scopes")
-async def set_bot_scopes(bot_id: int, body: BotScope,
-                         u: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def set_bot_scopes(
+    bot_id: int, body: BotScope, u: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """Set scopes for a bot (owner only)."""
     bot = db.query(Bot).filter(Bot.id == bot_id).first()
     if not bot or bot.owner_id != u.id:

@@ -16,6 +16,7 @@ Flow for a paranoid client connecting to a controller:
     5. If sealed AND on_chain.code_hash == controller_hash → TRUST
        Otherwise                                         → REFUSE
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -93,6 +94,7 @@ async def cross_verify_controller(
     result["onchain_hash"] = peer.code_hash_hex if peer.is_sealed else None
     if peer.last_checkin:
         import time
+
         result["last_checkin_age"] = int(time.time()) - peer.last_checkin
 
     if not peer.is_sealed:
@@ -100,10 +102,7 @@ async def cross_verify_controller(
         return result
 
     if peer.code_hash_hex.lower() != controller_hash.lower():
-        result["reason"] = (
-            f"hash mismatch: on-chain={peer.code_hash_hex[:16]}… "
-            f"controller={controller_hash[:16]}…"
-        )
+        result["reason"] = f"hash mismatch: on-chain={peer.code_hash_hex[:16]}… controller={controller_hash[:16]}…"
         return result
 
     result["ok"] = True
@@ -160,8 +159,8 @@ async def _fetch_and_hash_manifest(
         canonical = json.dumps(
             {
                 "signed_by": j.get("signed_by"),
-                "version":   j.get("version"),
-                "built_at":  j.get("built_at"),
+                "version": j.get("version"),
+                "built_at": j.get("built_at"),
             },
             sort_keys=True,
             separators=(",", ":"),

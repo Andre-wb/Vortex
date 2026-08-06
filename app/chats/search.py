@@ -8,6 +8,7 @@ app/chats/search.py — Поиск пользователей по различ�
   - Имя пользователя / display_name (с фильтрацией по сходству)
   - Поиск сообщений в комнате (по file_name, sender, type, дате)
 """
+
 from __future__ import annotations
 
 import difflib
@@ -32,7 +33,7 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 messages_search_router = APIRouter(prefix="/api/rooms", tags=["messages"])
 
 _PHONE_LIKE_RE = re.compile(r"^\+?\d[\d\s\-()]{5,}$")
-_IP_RE         = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+_IP_RE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 
 
 def _name_similarity(query: str, name: str | None) -> float:
@@ -77,9 +78,9 @@ def _mask_phone(phone: str | None) -> str | None:
 
 @router.get("/search")
 async def search_users(
-        q:  str     = Query(..., min_length=1, max_length=128),
-        u:  User    = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    q: str = Query(..., min_length=1, max_length=128),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Поиск пользователей по телефону, email, IP или имени.
@@ -127,12 +128,7 @@ async def search_users(
     )
 
     # Получаем id контактов текущего пользователя одним запросом
-    contact_ids = set(
-        row[0] for row in
-        db.query(Contact.contact_id)
-        .filter(Contact.owner_id == u.id)
-        .all()
-    )
+    contact_ids = set(row[0] for row in db.query(Contact.contact_id).filter(Contact.owner_id == u.id).all())
 
     # Post-filter by similarity and sort best matches first
     threshold = _similarity_threshold(len(q))
@@ -156,19 +152,21 @@ async def search_users(
 
     results = []
     for _sim, user in scored[:20]:
-        results.append({
-            "user_id":               user.id,
-            "username":              user.username,
-            "display_name":          user.display_name or user.username,
-            "avatar_emoji":          user.avatar_emoji,
-            "avatar_url":            user.avatar_url,
-            "phone":                 _mask_phone(user.phone),
-            "x25519_public_key":     user.x25519_public_key,
-            "kyber_public_key":      user.kyber_public_key,
-            "kyber_public_key_sig":  user.kyber_public_key_sig,
-            "is_contact":            user.id in contact_ids,
-            "is_self":               user.id == u.id,
-        })
+        results.append(
+            {
+                "user_id": user.id,
+                "username": user.username,
+                "display_name": user.display_name or user.username,
+                "avatar_emoji": user.avatar_emoji,
+                "avatar_url": user.avatar_url,
+                "phone": _mask_phone(user.phone),
+                "x25519_public_key": user.x25519_public_key,
+                "kyber_public_key": user.kyber_public_key,
+                "kyber_public_key_sig": user.kyber_public_key_sig,
+                "is_contact": user.id in contact_ids,
+                "is_self": user.id == u.id,
+            }
+        )
 
     return {"users": results}
 
@@ -193,10 +191,15 @@ async def global_search(
         like_q = f"%{q}%"
         user_filters.append(User.username.ilike(like_q))
 
-    users = db.query(User).filter(
-        User.is_active.is_(True),
-        or_(*user_filters),
-    ).limit(30).all()
+    users = (
+        db.query(User)
+        .filter(
+            User.is_active.is_(True),
+            or_(*user_filters),
+        )
+        .limit(30)
+        .all()
+    )
 
     # Post-filter by similarity
     threshold = _similarity_threshold(len(q))
@@ -208,72 +211,98 @@ async def global_search(
             scored_users.append((sim, u2))
     scored_users.sort(key=lambda x: x[0], reverse=True)
 
-    user_results = [{
-        "type": "user",
-        "user_id": u2.id,
-        "username": u2.username,
-        "display_name": u2.display_name or u2.username,
-        "avatar_emoji": u2.avatar_emoji,
-        "avatar_url": u2.avatar_url,
-        "is_self": u2.id == u.id,
-    } for _, u2 in scored_users[:10]]
+    user_results = [
+        {
+            "type": "user",
+            "user_id": u2.id,
+            "username": u2.username,
+            "display_name": u2.display_name or u2.username,
+            "avatar_emoji": u2.avatar_emoji,
+            "avatar_url": u2.avatar_url,
+            "is_self": u2.id == u.id,
+        }
+        for _, u2 in scored_users[:10]
+    ]
 
     # Channels + public groups (by name, sorted by member count)
     # Include: all public rooms + private rooms where user is a member
     from app.models_rooms import Room, RoomMember
+
     like_q = f"%{q}%"
     my_room_ids_set = {m.room_id for m in db.query(RoomMember.room_id).filter(RoomMember.user_id == u.id).all()}
-    public_rooms = db.query(Room).filter(
-        Room.is_dm.is_(False),
-        Room.name.ilike(like_q),
-        or_(Room.is_private.is_(False), Room.id.in_(my_room_ids_set)),
-    ).all()
+    public_rooms = (
+        db.query(Room)
+        .filter(
+            Room.is_dm.is_(False),
+            Room.name.ilike(like_q),
+            or_(Room.is_private.is_(False), Room.id.in_(my_room_ids_set)),
+        )
+        .all()
+    )
 
     channel_results = []
     for ch in public_rooms:
         count = ch.members.count()
-        channel_results.append({
-            "type": "channel" if ch.is_channel else "group",
-            "id": ch.id,
-            "name": ch.name,
-            "description": ch.description,
-            "invite_code": ch.invite_code,
-            "subscriber_count": count,
-        })
+        channel_results.append(
+            {
+                "type": "channel" if ch.is_channel else "group",
+                "id": ch.id,
+                "name": ch.name,
+                "description": ch.description,
+                "invite_code": ch.invite_code,
+                "subscriber_count": count,
+            }
+        )
     channel_results.sort(key=lambda x: x["subscriber_count"], reverse=True)
 
     # My rooms/DMs matching name
-    my_rooms = db.query(Room).filter(
-        Room.id.in_(my_room_ids_set),
-        Room.name.ilike(like_q),
-    ).limit(10).all()
+    my_rooms = (
+        db.query(Room)
+        .filter(
+            Room.id.in_(my_room_ids_set),
+            Room.name.ilike(like_q),
+        )
+        .limit(10)
+        .all()
+    )
 
-    chat_results = [{
-        "type": "dm" if r.is_dm else ("channel" if getattr(r, 'is_channel', False) else "room"),
-        "id": r.id,
-        "name": r.name,
-        "is_dm": r.is_dm,
-        "is_channel": getattr(r, 'is_channel', False),
-    } for r in my_rooms]
+    chat_results = [
+        {
+            "type": "dm" if r.is_dm else ("channel" if getattr(r, "is_channel", False) else "room"),
+            "id": r.id,
+            "name": r.name,
+            "is_dm": r.is_dm,
+            "is_channel": getattr(r, "is_channel", False),
+        }
+        for r in my_rooms
+    ]
 
     # Bots matching name or display_name
-    bots = db.query(User).filter(
-        User.is_bot.is_(True),
-        User.is_active.is_(True),
-        or_(
-            User.username.ilike(f"%{q}%"),
-            User.display_name.ilike(f"%{q}%"),
-        ),
-    ).limit(10).all()
+    bots = (
+        db.query(User)
+        .filter(
+            User.is_bot.is_(True),
+            User.is_active.is_(True),
+            or_(
+                User.username.ilike(f"%{q}%"),
+                User.display_name.ilike(f"%{q}%"),
+            ),
+        )
+        .limit(10)
+        .all()
+    )
 
-    bot_results = [{
-        "type": "bot",
-        "user_id": b.id,
-        "username": b.username,
-        "display_name": b.display_name or b.username,
-        "avatar_emoji": b.avatar_emoji,
-        "avatar_url": b.avatar_url,
-    } for b in bots]
+    bot_results = [
+        {
+            "type": "bot",
+            "user_id": b.id,
+            "username": b.username,
+            "display_name": b.display_name or b.username,
+            "avatar_emoji": b.avatar_emoji,
+            "avatar_url": b.avatar_url,
+        }
+        for b in bots
+    ]
 
     return {
         "users": user_results[:10],
@@ -285,18 +314,19 @@ async def global_search(
 
 # Поиск сообщений в комнате
 
+
 @messages_search_router.get("/{room_id}/messages/search")
 async def search_messages(
-    room_id:   int,
-    q:         str | None  = Query(None, max_length=256),
-    sender_id: int | None  = Query(None),
-    type:      str | None  = Query(None),
-    date_from: str | None  = Query(None, description="ISO date, e.g. 2026-01-01"),
-    date_to:   str | None  = Query(None, description="ISO date, e.g. 2026-12-31"),
-    limit:     int         = Query(50, ge=1, le=200),
-    offset:    int         = Query(0, ge=0),
-    u:         User        = Depends(get_current_user),
-    db:        Session     = Depends(get_db),
+    room_id: int,
+    q: str | None = Query(None, max_length=256),
+    sender_id: int | None = Query(None),
+    type: str | None = Query(None),
+    date_from: str | None = Query(None, description="ISO date, e.g. 2026-01-01"),
+    date_to: str | None = Query(None, description="ISO date, e.g. 2026-12-31"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Поиск сообщений в комнате с фильтрацией.
@@ -307,11 +337,15 @@ async def search_messages(
     возможен только на клиенте после расшифровки.
     """
     # Проверяем членство в комнате
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "You are not a member of this room")
 
@@ -349,28 +383,24 @@ async def search_messages(
         query = query.filter(Message.created_at <= dt_to)
 
     total = query.count()
-    messages = (
-        query
-        .order_by(Message.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    messages = query.order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
 
     results = []
     for m in messages:
         sender = db.query(User).filter(User.id == m.sender_id).first() if m.sender_id else None
-        results.append({
-            "id":          m.id,
-            "room_id":     m.room_id,
-            "sender_id":   m.sender_id,
-            "sender_name": (sender.display_name or sender.username) if sender else None,
-            "msg_type":    m.msg_type.value if m.msg_type else None,
-            "file_name":   m.file_name,
-            "file_size":   m.file_size,
-            "reply_to_id": m.reply_to_id,
-            "is_edited":   m.is_edited,
-            "created_at":  m.created_at.isoformat() if m.created_at else None,
-        })
+        results.append(
+            {
+                "id": m.id,
+                "room_id": m.room_id,
+                "sender_id": m.sender_id,
+                "sender_name": (sender.display_name or sender.username) if sender else None,
+                "msg_type": m.msg_type.value if m.msg_type else None,
+                "file_name": m.file_name,
+                "file_size": m.file_size,
+                "reply_to_id": m.reply_to_id,
+                "is_edited": m.is_edited,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+        )
 
     return {"messages": results, "total": total, "limit": limit, "offset": offset}

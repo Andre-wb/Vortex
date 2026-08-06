@@ -1,4 +1,5 @@
 """Pydantic models for the controller API."""
+
 from __future__ import annotations
 
 from typing import Optional
@@ -8,10 +9,9 @@ from pydantic import BaseModel, Field
 
 class RegistrationPayload(BaseModel):
     """Data the node signs. Must be stable across client/server."""
+
     pubkey: str = Field(..., description="hex-encoded ed25519 public key")
-    endpoints: list[str] = Field(
-        ..., description="list of reachable URLs (wss://, https://, .onion, etc.)"
-    )
+    endpoints: list[str] = Field(..., description="list of reachable URLs (wss://, https://, .onion, etc.)")
     metadata: dict = Field(default_factory=dict)
     timestamp: int = Field(..., description="unix seconds, rejected if stale")
 
@@ -40,6 +40,7 @@ class NodeInfo(BaseModel):
 
 class SignedResponse(BaseModel):
     """Generic envelope. Clients verify `signature` with pinned controller pubkey."""
+
     payload: dict
     signature: str
     signed_by: str

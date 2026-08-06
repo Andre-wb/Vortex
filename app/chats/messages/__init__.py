@@ -16,6 +16,7 @@ app/chats/messages/ — WebSocket чат и обработка сообщени�
   ws_signal.py  — WebRTC сигнальные события
   files.py      — Загрузка файлов через чат
 """
+
 import app.chats.messages.actions
 
 # Регистрируем все sub-роутеры на общем router

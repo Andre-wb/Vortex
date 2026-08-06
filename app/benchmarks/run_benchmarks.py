@@ -14,6 +14,7 @@ benchmarks/run_benchmarks.py — Автоматический запуск вс�
 Использование:
     python benchmarks/run_benchmarks.py [--runs 10] [--output results.json]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,36 +31,48 @@ from typing import Optional
 
 # Вспомогательный класс измерения
 
+
 class BenchResult:
     def __init__(self, name: str, unit: str, values: list[float]):
-        self.name   = name
-        self.unit   = unit
+        self.name = name
+        self.unit = unit
         self.values = values
 
     @property
-    def avg(self)    -> float: return statistics.mean(self.values)
+    def avg(self) -> float:
+        return statistics.mean(self.values)
+
     @property
-    def median(self) -> float: return statistics.median(self.values)
+    def median(self) -> float:
+        return statistics.median(self.values)
+
     @property
-    def p99(self)    -> float: return sorted(self.values)[int(len(self.values) * 0.99)]
+    def p99(self) -> float:
+        return sorted(self.values)[int(len(self.values) * 0.99)]
+
     @property
-    def stdev(self)  -> float: return statistics.stdev(self.values) if len(self.values) > 1 else 0.0
+    def stdev(self) -> float:
+        return statistics.stdev(self.values) if len(self.values) > 1 else 0.0
+
     @property
-    def mn(self)     -> float: return min(self.values)
+    def mn(self) -> float:
+        return min(self.values)
+
     @property
-    def mx(self)     -> float: return max(self.values)
+    def mx(self) -> float:
+        return max(self.values)
 
     def to_dict(self) -> dict:
         return {
-            "name":   self.name,
-            "unit":   self.unit,
-            "runs":   len(self.values),
-            "avg":    round(self.avg,    4),
+            "name": self.name,
+            "unit": self.unit,
+            "runs": len(self.values),
+            "avg": round(self.avg, 4),
             "median": round(self.median, 4),
-            "p99":    round(self.p99,    4),
-            "stdev":  round(self.stdev,  4),
-            "min":    round(self.mn,     4),
-            "max":    round(self.mx,     4),
+            "p99": round(self.p99, 4),
+            "stdev": round(self.stdev, 4),
+            "min": round(self.mn, 4),
+            "max": round(self.mx, 4),
         }
 
     def summary(self) -> str:
@@ -84,19 +97,22 @@ def _timeit(fn: Callable, runs: int) -> list[float]:
 
 # 1. AES-256-GCM шифрование/расшифрование
 
+
 def bench_aes_encrypt(runs: int = 1000) -> BenchResult:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    key  = os.urandom(32)
-    gcm  = AESGCM(key)
-    data = b"Vortex test message payload 256B" * 8   # ~256 байт
+
+    key = os.urandom(32)
+    gcm = AESGCM(key)
+    data = b"Vortex test message payload 256B" * 8  # ~256 байт
     times = _timeit(lambda: gcm.encrypt(os.urandom(12), data, None), runs)
     return BenchResult("AES-256-GCM encrypt (256B)", "ms", times)
 
 
 def bench_aes_roundtrip(runs: int = 500) -> BenchResult:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    key  = os.urandom(32)
-    gcm  = AESGCM(key)
+
+    key = os.urandom(32)
+    gcm = AESGCM(key)
     data = b"Hello Vortex E2E message"
 
     def _rt():
@@ -109,6 +125,7 @@ def bench_aes_roundtrip(runs: int = 500) -> BenchResult:
 
 # 2. X25519 ECIES ключевой обмен
 
+
 def bench_ecies_full(runs: int = 100) -> BenchResult:
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -116,19 +133,19 @@ def bench_ecies_full(runs: int = 100) -> BenchResult:
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
     def _ecies():
-        bob_priv      = X25519PrivateKey.generate()
-        bob_pub       = bob_priv.public_key()
-        room_key      = os.urandom(32)
-        eph           = X25519PrivateKey.generate()
+        bob_priv = X25519PrivateKey.generate()
+        bob_pub = bob_priv.public_key()
+        room_key = os.urandom(32)
+        eph = X25519PrivateKey.generate()
         eph_pub_bytes = eph.public_key().public_bytes_raw()
         # Encrypt
-        shared  = eph.exchange(bob_pub)
-        aes_k   = HKDF(SHA256(), 32, eph_pub_bytes, b"ecies-room-key").derive(shared)
-        nonce   = os.urandom(12)
-        ct      = AESGCM(aes_k).encrypt(nonce, room_key, None)
+        shared = eph.exchange(bob_pub)
+        aes_k = HKDF(SHA256(), 32, eph_pub_bytes, b"ecies-room-key").derive(shared)
+        nonce = os.urandom(12)
+        ct = AESGCM(aes_k).encrypt(nonce, room_key, None)
         # Decrypt
         shared2 = bob_priv.exchange(eph.public_key())
-        aes_k2  = HKDF(SHA256(), 32, eph_pub_bytes, b"ecies-room-key").derive(shared2)
+        aes_k2 = HKDF(SHA256(), 32, eph_pub_bytes, b"ecies-room-key").derive(shared2)
         AESGCM(aes_k2).decrypt(nonce, ct, None)
 
     return BenchResult("X25519 ECIES full cycle (keygen+enc+dec)", "ms", _timeit(_ecies, runs))
@@ -136,24 +153,23 @@ def bench_ecies_full(runs: int = 100) -> BenchResult:
 
 def bench_x25519_keygen(runs: int = 500) -> BenchResult:
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-    return BenchResult(
-        "X25519 key generation", "ms",
-        _timeit(X25519PrivateKey.generate, runs)
-    )
+
+    return BenchResult("X25519 key generation", "ms", _timeit(X25519PrivateKey.generate, runs))
 
 
 # 3. SHA-256 throughput
 
+
 def bench_sha256_throughput() -> BenchResult:
     sizes = [
-        ("SHA-256 throughput  1KB",  1 * 1024),
-        ("SHA-256 throughput  1MB",  1 * 1024 * 1024),
+        ("SHA-256 throughput  1KB", 1 * 1024),
+        ("SHA-256 throughput  1MB", 1 * 1024 * 1024),
         ("SHA-256 throughput 10MB", 10 * 1024 * 1024),
     ]
     results = []
     for label, size in sizes:
         data = os.urandom(size)
-        t0   = time.perf_counter()
+        t0 = time.perf_counter()
         for _ in range(10):
             hashlib.sha256(data).hexdigest()
         elapsed = (time.perf_counter() - t0) / 10
@@ -164,12 +180,14 @@ def bench_sha256_throughput() -> BenchResult:
 
 # 4. HTTP API latency (CSRF endpoint — не требует аутентификации)
 
+
 async def bench_http_latency(runs: int = 50) -> BenchResult:
     """Измеряет задержку ASGI-приложения напрямую (без реальной сети)."""
     try:
         import sys
 
         import httpx
+
         sys.path.insert(0, str(Path(__file__).parent.parent))
         from app.main import app as _app
 
@@ -187,6 +205,7 @@ async def bench_http_latency(runs: int = 50) -> BenchResult:
 
 # 5. Имитация RTT сообщения в WebSocket комнате
 
+
 def bench_message_processing(runs: int = 5000) -> BenchResult:
     """
     Имитирует серверную обработку входящего сообщения:
@@ -196,12 +215,13 @@ def bench_message_processing(runs: int = 5000) -> BenchResult:
     Без реального IO — чистый CPU benchmark.
     """
     import uuid
+
     seen = {}
     os.urandom(32)
 
     def _process():
-        msg_id     = str(uuid.uuid4())
-        is_dup     = msg_id in seen
+        msg_id = str(uuid.uuid4())
+        is_dup = msg_id in seen
         seen[msg_id] = time.monotonic()
         ciphertext = os.urandom(128)
         _ = hashlib.sha256(ciphertext).digest()
@@ -212,17 +232,18 @@ def bench_message_processing(runs: int = 5000) -> BenchResult:
 
 # 6. Chunked file upload simulation
 
+
 def bench_chunk_hashing(runs: int = 50) -> list[BenchResult]:
     """Измеряет скорость хеширования чанков разного размера."""
     results = []
     for size_mb in (1, 5, 10):
-        data  = os.urandom(size_mb * 1024 * 1024)
+        data = os.urandom(size_mb * 1024 * 1024)
         chunk = 1 * 1024 * 1024
         times = []
         for _ in range(runs):
             t0 = time.perf_counter()
             for i in range(0, len(data), chunk):
-                hashlib.sha256(data[i:i + chunk]).hexdigest()
+                hashlib.sha256(data[i : i + chunk]).hexdigest()
             times.append((time.perf_counter() - t0) * 1000)
         results.append(BenchResult(f"Chunk SHA-256 hashing ({size_mb}MB file, 1MB chunks)", "ms", times))
     return results
@@ -256,16 +277,17 @@ Vortex: измерено скриптом run_benchmarks.py на стенде (�
 """
 
 BENCHMARK_ENV = {
-    "os":       "Ubuntu 24.04 LTS",
-    "cpu":      "Intel Core i7-1255U @ 3.5GHz",
-    "ram_gb":   16,
-    "python":   "3.12.x",
-    "network":  "1 Gbps LAN (localhost loopback для in-process тестов)",
-    "runs":     "не менее 50 повторов на тест, берётся median",
+    "os": "Ubuntu 24.04 LTS",
+    "cpu": "Intel Core i7-1255U @ 3.5GHz",
+    "ram_gb": 16,
+    "python": "3.12.x",
+    "network": "1 Gbps LAN (localhost loopback для in-process тестов)",
+    "runs": "не менее 50 повторов на тест, берётся median",
 }
 
 
 # Основная функция
+
 
 async def main(runs: int = 100, output: Optional[str] = None):
     print("\n" + "=" * 80)
@@ -278,10 +300,10 @@ async def main(runs: int = 100, output: Optional[str] = None):
     # Crypto benchmarks
     print("\n[1/5] Крипто-ядро (AES-256-GCM + X25519) …")
     for fn in (
-            lambda: bench_aes_encrypt(runs),
-            lambda: bench_aes_roundtrip(runs),
-            lambda: bench_ecies_full(max(50, runs // 2)),
-            lambda: bench_x25519_keygen(runs),
+        lambda: bench_aes_encrypt(runs),
+        lambda: bench_aes_roundtrip(runs),
+        lambda: bench_ecies_full(max(50, runs // 2)),
+        lambda: bench_x25519_keygen(runs),
     ):
         r = fn()
         all_results.append(r)
@@ -315,13 +337,13 @@ async def main(runs: int = 100, output: Optional[str] = None):
     print(COMPARISON_TABLE)
 
     # Сохранение результатов
-    ts    = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     fname = output or f"benchmarks/results/results_{ts}.json"
     Path(fname).parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "timestamp":   datetime.now().isoformat(),
+        "timestamp": datetime.now().isoformat(),
         "environment": BENCHMARK_ENV,
-        "results":     [r.to_dict() for r in all_results],
+        "results": [r.to_dict() for r in all_results],
     }
     Path(fname).write_text(json.dumps(payload, ensure_ascii=False, indent=2))
     print(f"\n✅ Результаты сохранены: {fname}")
@@ -329,7 +351,7 @@ async def main(runs: int = 100, output: Optional[str] = None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Vortex benchmark suite")
-    parser.add_argument("--runs",   type=int, default=100,       help="Количество повторов на тест")
-    parser.add_argument("--output", type=str, default=None,      help="Путь для JSON-результатов")
+    parser.add_argument("--runs", type=int, default=100, help="Количество повторов на тест")
+    parser.add_argument("--output", type=str, default=None, help="Путь для JSON-результатов")
     args = parser.parse_args()
     asyncio.run(main(runs=args.runs, output=args.output))

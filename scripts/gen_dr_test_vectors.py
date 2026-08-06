@@ -16,6 +16,7 @@
 Запуск (из корня репозитория):
     python scripts/gen_dr_test_vectors.py
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -98,10 +99,14 @@ def gen_kdf_vectors() -> dict:
         rk = _det_bytes(f"kdf-rk-input:{i}")
         dh_out = _det_bytes(f"kdf-rk-dh:{i}")
         new_rk, new_ck = dr.kdf_rk(rk, dh_out)
-        kdf_rk.append({
-            "rk": rk.hex(), "dh_out": dh_out.hex(),
-            "new_rk": new_rk.hex(), "new_ck": new_ck.hex(),
-        })
+        kdf_rk.append(
+            {
+                "rk": rk.hex(),
+                "dh_out": dh_out.hex(),
+                "new_rk": new_rk.hex(),
+                "new_ck": new_ck.hex(),
+            }
+        )
     return {"kdf_ck": kdf_ck, "kdf_rk": kdf_rk}
 
 
@@ -109,12 +114,14 @@ def gen_header_vectors() -> list:
     vectors = []
     for i, (pn, n) in enumerate([(0, 0), (3, 7), (0xFFFFFFFF, 0xFFFFFFFF)]):
         h = dr.Header(dh_public=_det_bytes(f"header-pub:{i}"), prev_count=pn, msg_number=n)
-        vectors.append({
-            "dh_public": h.dh_public.hex(),
-            "prev_count": h.prev_count,
-            "msg_number": h.msg_number,
-            "serialized": h.serialize().hex(),
-        })
+        vectors.append(
+            {
+                "dh_public": h.dh_public.hex(),
+                "prev_count": h.prev_count,
+                "msg_number": h.msg_number,
+                "serialized": h.serialize().hex(),
+            }
+        )
     return vectors
 
 
@@ -139,11 +146,10 @@ def gen_device_cert_vector() -> dict:
     вектор пиннит JS↔Python byte-parity перед включением проверки cert'а (M3)."""
     seed = _det_bytes("device-cert-account-ed")
     account = Ed25519PrivateKey.from_private_bytes(seed)
-    client_device_id = _det_bytes("device-cert-cid", 16)        # 16 байт = 32 hex
+    client_device_id = _det_bytes("device-cert-cid", 16)  # 16 байт = 32 hex
     x3dh_pub = _det_priv("device-cert-x3dh").public_key().public_bytes_raw()
-    sign_pub = Ed25519PrivateKey.from_private_bytes(
-        _det_bytes("device-cert-sign")).public_key().public_bytes_raw()
-    cert_message = client_device_id + x3dh_pub + sign_pub       # cid(16)‖x3dh(32)‖sign(32)
+    sign_pub = Ed25519PrivateKey.from_private_bytes(_det_bytes("device-cert-sign")).public_key().public_bytes_raw()
+    cert_message = client_device_id + x3dh_pub + sign_pub  # cid(16)‖x3dh(32)‖sign(32)
     cert_sig = account.sign(cert_message)
     return {
         "account_ed_seed": seed.hex(),
@@ -165,9 +171,12 @@ def gen_x3dh_vectors(det: _DetSource) -> dict:
     result = {
         "alice": {"ik_priv": dr._priv_to_bytes(alice_ik).hex(), "ik_pub": _pub_hex(alice_ik)},
         "bob": {
-            "ik_priv": dr._priv_to_bytes(bob_ik).hex(), "ik_pub": _pub_hex(bob_ik),
-            "spk_priv": dr._priv_to_bytes(bob_spk).hex(), "spk_pub": _pub_hex(bob_spk),
-            "opk_priv": dr._priv_to_bytes(bob_opk).hex(), "opk_pub": _pub_hex(bob_opk),
+            "ik_priv": dr._priv_to_bytes(bob_ik).hex(),
+            "ik_pub": _pub_hex(bob_ik),
+            "spk_priv": dr._priv_to_bytes(bob_spk).hex(),
+            "spk_pub": _pub_hex(bob_spk),
+            "opk_priv": dr._priv_to_bytes(bob_opk).hex(),
+            "opk_pub": _pub_hex(bob_opk),
         },
     }
 
@@ -175,12 +184,8 @@ def gen_x3dh_vectors(det: _DetSource) -> dict:
         ("with_opk", bob_opk.public_key(), bob_opk),
         ("without_opk", None, None),
     ]:
-        shared, ek = dr.x3dh_initiate(
-            alice_ik, bob_ik.public_key(), bob_spk.public_key(), opk_pub
-        )
-        shared_bob = dr.x3dh_respond(
-            bob_ik, bob_spk, opk_priv, alice_ik.public_key(), ek.public_key()
-        )
+        shared, ek = dr.x3dh_initiate(alice_ik, bob_ik.public_key(), bob_spk.public_key(), opk_pub)
+        shared_bob = dr.x3dh_respond(bob_ik, bob_spk, opk_priv, alice_ik.public_key(), ek.public_key())
         assert shared == shared_bob, f"X3DH mismatch ({name})"
         result[name] = {
             "ek_priv": dr._priv_to_bytes(ek).hex(),
@@ -203,9 +208,9 @@ def gen_x3dh_pq_vectors(det: _DetSource) -> dict:
     bob_spk = _det_priv("pqxdh-bob-spk")
     bob_opk = _det_priv("pqxdh-bob-opk")
 
-    pqpk_pub = _det_bytes_xof("pqxdh-bob-pqpk-pub", 1184)   # ML-KEM-768 pub
-    kem_ct = _det_bytes_xof("pqxdh-kem-ciphertext", 1088)   # ML-KEM-768 ciphertext
-    kem_ss = _det_bytes_xof("pqxdh-kem-shared", 32)         # KEM shared secret
+    pqpk_pub = _det_bytes_xof("pqxdh-bob-pqpk-pub", 1184)  # ML-KEM-768 pub
+    kem_ct = _det_bytes_xof("pqxdh-kem-ciphertext", 1088)  # ML-KEM-768 ciphertext
+    kem_ss = _det_bytes_xof("pqxdh-kem-shared", 32)  # KEM shared secret
 
     result = {
         "pqpk_pub": pqpk_pub.hex(),
@@ -213,9 +218,12 @@ def gen_x3dh_pq_vectors(det: _DetSource) -> dict:
         "kem_shared": kem_ss.hex(),
         "alice": {"ik_priv": dr._priv_to_bytes(alice_ik).hex(), "ik_pub": _pub_hex(alice_ik)},
         "bob": {
-            "ik_priv": dr._priv_to_bytes(bob_ik).hex(), "ik_pub": _pub_hex(bob_ik),
-            "spk_priv": dr._priv_to_bytes(bob_spk).hex(), "spk_pub": _pub_hex(bob_spk),
-            "opk_priv": dr._priv_to_bytes(bob_opk).hex(), "opk_pub": _pub_hex(bob_opk),
+            "ik_priv": dr._priv_to_bytes(bob_ik).hex(),
+            "ik_pub": _pub_hex(bob_ik),
+            "spk_priv": dr._priv_to_bytes(bob_spk).hex(),
+            "spk_pub": _pub_hex(bob_spk),
+            "opk_priv": dr._priv_to_bytes(bob_opk).hex(),
+            "opk_pub": _pub_hex(bob_opk),
         },
     }
 
@@ -224,12 +232,23 @@ def gen_x3dh_pq_vectors(det: _DetSource) -> dict:
         ("without_opk", None, None),
     ]:
         shared, ek = dr.x3dh_initiate_pq(
-            alice_ik, bob_ik.public_key(), bob_spk.public_key(), opk_pub,
-            pqpk_pub, kem_ct, kem_ss,
+            alice_ik,
+            bob_ik.public_key(),
+            bob_spk.public_key(),
+            opk_pub,
+            pqpk_pub,
+            kem_ct,
+            kem_ss,
         )
         shared_bob = dr.x3dh_respond_pq(
-            bob_ik, bob_spk, opk_priv, alice_ik.public_key(), ek.public_key(),
-            pqpk_pub, kem_ct, kem_ss,
+            bob_ik,
+            bob_spk,
+            opk_priv,
+            alice_ik.public_key(),
+            ek.public_key(),
+            pqpk_pub,
+            kem_ct,
+            kem_ss,
         )
         assert shared == shared_bob, f"PQXDH mismatch ({name})"
         result[name] = {
@@ -269,8 +288,7 @@ def gen_transcript(det: _DetSource, x3dh: dict) -> dict:
         """
         d = dr.serialize_state(state)
         d["dh_sending_pub"] = (
-            X25519PrivateKey.from_private_bytes(bytes.fromhex(d["dh_sending"]))
-            .public_key().public_bytes_raw().hex()
+            X25519PrivateKey.from_private_bytes(bytes.fromhex(d["dh_sending"])).public_key().public_bytes_raw().hex()
         )
         return d
 
@@ -283,18 +301,20 @@ def gen_transcript(det: _DetSource, x3dh: dict) -> dict:
 
     def _send(state, actor, msg_id, text):
         header, ct = dr.ratchet_encrypt(state, text.encode("utf-8"))
-        messages.append({
-            "id": msg_id,
-            "from": actor,
-            "plaintext_utf8": text,
-            "header": {
-                "dh_public": header.dh_public.hex(),
-                "prev_count": header.prev_count,
-                "msg_number": header.msg_number,
-            },
-            "header_serialized": header.serialize().hex(),
-            "ciphertext": ct.hex(),
-        })
+        messages.append(
+            {
+                "id": msg_id,
+                "from": actor,
+                "plaintext_utf8": text,
+                "header": {
+                    "dh_public": header.dh_public.hex(),
+                    "prev_count": header.prev_count,
+                    "msg_number": header.msg_number,
+                },
+                "header_serialized": header.serialize().hex(),
+                "ciphertext": ct.hex(),
+            }
+        )
 
     _send(alice, "alice", "a0", "Привет, Боб!")
     _send(alice, "alice", "a1", "Второе сообщение")

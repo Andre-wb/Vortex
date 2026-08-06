@@ -24,6 +24,7 @@ Outputs: INTEGRITY.repo.json at the repo root. This is a DIFFERENT
 file from vortex_controller's INTEGRITY.sig.json — the two manifests
 coexist and are signed by different Ed25519 keypairs.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -54,37 +55,76 @@ MANIFEST_VERSION = "0.1.0"
 
 TRACKED_SUFFIXES = {
     # Code
-    ".py", ".rs", ".js", ".mjs", ".ts", ".tsx", ".jsx",
+    ".py",
+    ".rs",
+    ".js",
+    ".mjs",
+    ".ts",
+    ".tsx",
+    ".jsx",
     # Web
-    ".html", ".css", ".svg",
+    ".html",
+    ".css",
+    ".svg",
     # Data / config
-    ".json", ".toml", ".yaml", ".yml", ".ini", ".cfg", ".conf",
-    ".service", ".lock", ".spec",
+    ".json",
+    ".toml",
+    ".yaml",
+    ".yml",
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".service",
+    ".lock",
+    ".spec",
     # Docs / plain
-    ".md", ".txt",
+    ".md",
+    ".txt",
     # Scripts
-    ".sh", ".ps1",
+    ".sh",
+    ".ps1",
     # Schema
-    ".sql", ".proto",
+    ".sql",
+    ".proto",
 }
 
 # Path components that are always skipped even if they contain .py files.
 EXCLUDE_ANY = {
     # Virtual-envs / build artifacts
-    "__pycache__", ".venv", ".venv-build", "venv", "env",
-    "target", "dist", "build", "out",
-    ".pytest_cache", ".mypy_cache", ".ruff_cache", ".cache",
+    "__pycache__",
+    ".venv",
+    ".venv-build",
+    "venv",
+    "env",
+    "target",
+    "dist",
+    "build",
+    "out",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".cache",
     # Editor / tooling state
-    ".idea", ".vscode", ".github", ".claude",
+    ".idea",
+    ".vscode",
+    ".github",
+    ".claude",
     # VCS
     ".git",
     # Third-party
     "node_modules",
     # Runtime user data — must never be signed (changes constantly)
-    "uploads", "bots_workspace", "logs",
+    "uploads",
+    "bots_workspace",
+    "logs",
     # Test runs & scratch copies
-    "coverage", "test-results", "playwright-tests", "test-ledger",
-    "test-controller", "vortex-test", "example-page",
+    "coverage",
+    "test-results",
+    "playwright-tests",
+    "test-ledger",
+    "test-controller",
+    "vortex-test",
+    "example-page",
     # Heavy binary drops that aren't code
     "Qwen3-8B",
     # Runtime secrets — private keys live here, never signed
@@ -94,12 +134,17 @@ EXCLUDE_ANY = {
 # Specific files to always skip.
 EXCLUDE_NAMES = {
     # The signature files themselves (can't self-sign)
-    "INTEGRITY.sig.json", "INTEGRITY.repo.json",
+    "INTEGRITY.sig.json",
+    "INTEGRITY.repo.json",
     # Runtime secrets / databases
-    ".env", ".env.local", ".env.production",
-    "controller.db", "controller.key",
+    ".env",
+    ".env.local",
+    ".env.production",
+    "controller.db",
+    "controller.key",
     # OS noise
-    ".DS_Store", "Thumbs.db",
+    ".DS_Store",
+    "Thumbs.db",
     # Huge / noisy lockfiles that churn frequently
     "package-lock.json",
 }
@@ -124,12 +169,7 @@ def _should_include(rel: Path) -> bool:
 def _walk(root: Path) -> Iterator[Path]:
     collected: list[Path] = []
     for base, dirs, files in os.walk(root):
-        dirs[:] = [
-            d for d in dirs
-            if d not in EXCLUDE_ANY
-            and not d.startswith(".venv")
-            and not d.startswith("venv-")
-        ]
+        dirs[:] = [d for d in dirs if d not in EXCLUDE_ANY and not d.startswith(".venv") and not d.startswith("venv-")]
         for name in files:
             rel = (Path(base) / name).relative_to(root)
             if _should_include(rel):
@@ -142,6 +182,7 @@ def _walk(root: Path) -> Iterator[Path]:
 # ~10x speedup for SHA-256 on big JSON locale files.
 try:
     import vortex_chat as _vc
+
     _HAS_RUST_SHA = hasattr(_vc, "sha256_hex")
 except ImportError:
     _HAS_RUST_SHA = False
@@ -194,10 +235,14 @@ def _load_or_create_key(path: Path) -> Ed25519PrivateKey:
 
 
 def _pubkey_hex(priv: Ed25519PrivateKey) -> str:
-    return priv.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    ).hex()
+    return (
+        priv.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        .hex()
+    )
 
 
 def verify_signature(signed: dict) -> bool:
@@ -227,15 +272,18 @@ def verify_files(manifest: dict, root: Path) -> dict:
     on_disk = {p.as_posix() for p in _walk(root)}
     extra = sorted(on_disk - set(expected.keys()))
     return {
-        "matched": matched, "total_expected": len(expected),
+        "matched": matched,
+        "total_expected": len(expected),
         "mismatched": sorted(mismatched),
-        "missing": sorted(missing), "extra": extra,
+        "missing": sorted(missing),
+        "extra": extra,
     }
 
 
 # These wrap the same logic used by the CLI commands below. They return
 # structured dicts instead of writing to stdout so the wizard can show
 # results in the admin panel without shelling out.
+
 
 def sign_repo(
     key_path: Path = DEFAULT_KEY_PATH,
@@ -266,12 +314,10 @@ def sign_repo(
 def verify_repo(manifest_path: Path = MANIFEST_PATH) -> dict:
     """Verify disk state against signed manifest. Returns a structured report."""
     if not manifest_path.is_file():
-        return {"ok": False, "status": "no_manifest",
-                "message": f"No manifest at {manifest_path}"}
+        return {"ok": False, "status": "no_manifest", "message": f"No manifest at {manifest_path}"}
     signed = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not verify_signature(signed):
-        return {"ok": False, "status": "bad_signature",
-                "message": "Signature invalid — manifest tampered or wrong key"}
+        return {"ok": False, "status": "bad_signature", "message": "Signature invalid — manifest tampered or wrong key"}
     manifest = signed["payload"]
     result = verify_files(manifest, REPO_ROOT)
     ok = not result["mismatched"] and not result["missing"]
@@ -288,8 +334,7 @@ def verify_repo(manifest_path: Path = MANIFEST_PATH) -> dict:
     }
 
 
-def get_status(manifest_path: Path = MANIFEST_PATH,
-               key_path: Path = DEFAULT_KEY_PATH) -> dict:
+def get_status(manifest_path: Path = MANIFEST_PATH, key_path: Path = DEFAULT_KEY_PATH) -> dict:
     """Quick status — does the manifest/key exist, when was it last signed."""
     info = {
         "has_manifest": manifest_path.is_file(),
@@ -298,12 +343,14 @@ def get_status(manifest_path: Path = MANIFEST_PATH,
     if info["has_manifest"]:
         try:
             signed = json.loads(manifest_path.read_text(encoding="utf-8"))
-            info.update({
-                "pubkey": signed.get("signed_by"),
-                "built_at": signed.get("payload", {}).get("built_at"),
-                "file_count": len(signed.get("payload", {}).get("files", [])),
-                "version": signed.get("payload", {}).get("version"),
-            })
+            info.update(
+                {
+                    "pubkey": signed.get("signed_by"),
+                    "built_at": signed.get("payload", {}).get("built_at"),
+                    "file_count": len(signed.get("payload", {}).get("files", [])),
+                    "version": signed.get("payload", {}).get("version"),
+                }
+            )
         except (json.JSONDecodeError, OSError) as e:
             info["error"] = str(e)
     return info
@@ -319,9 +366,9 @@ def cmd_list(args) -> int:
         if args.paths:
             print(rel.as_posix())
     if not args.paths:
-        print(f"{n} files, {total_bytes/1024/1024:.1f} MB")
+        print(f"{n} files, {total_bytes / 1024 / 1024:.1f} MB")
     else:
-        print(f"# {n} files, {total_bytes/1024/1024:.1f} MB", file=sys.stderr)
+        print(f"# {n} files, {total_bytes / 1024 / 1024:.1f} MB", file=sys.stderr)
     return 0
 
 
@@ -405,8 +452,7 @@ def main() -> int:
     p_verify.set_defaults(func=cmd_verify)
 
     p_list = sub.add_parser("list", help="List files that would be signed")
-    p_list.add_argument("--paths", action="store_true",
-                        help="Print each path (default: only the summary)")
+    p_list.add_argument("--paths", action="store_true", help="Print each path (default: only the summary)")
     p_list.set_defaults(func=cmd_list)
 
     p_show = sub.add_parser("show-pubkey", help="Print release pubkey (hex)")

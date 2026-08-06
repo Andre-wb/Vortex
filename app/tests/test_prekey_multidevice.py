@@ -32,13 +32,13 @@ def _build_bundle(ik_hex, *, n_opk=3, supports_v2=None):
     spk_pub = spk.public_key().public_bytes_raw()
     ik_bytes = bytes.fromhex(ik_hex)
     body = {
-        "identity_key":      ik_hex,
-        "signed_prekey":     spk_pub.hex(),
+        "identity_key": ik_hex,
+        "signed_prekey": spk_pub.hex(),
         "signed_prekey_sig": ed.sign(spk_pub).hex(),
-        "signed_prekey_id":  1,
-        "identity_key_ed":   ed.public_key().public_bytes_raw().hex(),
-        "identity_key_sig":  ed.sign(ik_bytes).hex(),
-        "one_time_prekeys":  [{"key_id": i, "public_key": _x25519_pub_hex()} for i in range(n_opk)],
+        "signed_prekey_id": 1,
+        "identity_key_ed": ed.public_key().public_bytes_raw().hex(),
+        "identity_key_sig": ed.sign(ik_bytes).hex(),
+        "one_time_prekeys": [{"key_id": i, "public_key": _x25519_pub_hex()} for i in range(n_opk)],
     }
     if supports_v2 is not None:
         body["supports_v2"] = supports_v2
@@ -60,14 +60,17 @@ def _register(tc) -> tuple[str, str]:
     tag = random_str(8)
     phone = f"+3{int(_phone_prefix, 16):04d}{random_digits(7)}"
     ik_hex = _x25519_pub_hex()
-    tc.post("/api/authentication/register", json={
-        "username":          f"md_{tag}",
-        "password":          _PW,
-        "display_name":      f"MD {tag}",
-        "phone":             phone,
-        "avatar_emoji":      "\U0001f511",
-        "x25519_public_key": ik_hex,
-    })
+    tc.post(
+        "/api/authentication/register",
+        json={
+            "username": f"md_{tag}",
+            "password": _PW,
+            "display_name": f"MD {tag}",
+            "phone": phone,
+            "avatar_emoji": "\U0001f511",
+            "x25519_public_key": ik_hex,
+        },
+    )
     return f"md_{tag}", ik_hex
 
 
@@ -77,9 +80,7 @@ def _login(tc, username, cid=None) -> str:
     headers = {"X-CSRF-Token": csrf}
     if cid:
         headers["X-Device-Id"] = cid
-    tc.post("/api/authentication/login",
-            json={"phone_or_username": username, "password": _PW},
-            headers=headers)
+    tc.post("/api/authentication/login", json={"phone_or_username": username, "password": _PW}, headers=headers)
     return csrf
 
 
@@ -87,12 +88,10 @@ def _publish(tc, csrf, ik, cid=None, **kw):
     headers = {"X-CSRF-Token": csrf}
     if cid:
         headers["X-Device-Id"] = cid
-    return tc.post("/api/keys/prekeys/publish",
-                   json=_build_bundle(ik, **kw), headers=headers)
+    return tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik, **kw), headers=headers)
 
 
 class TestPerDeviceBundles:
-
     def test_device_header_binds_bundle_to_device(self, warn_only):
         with TestClient(app, raise_server_exceptions=False) as tc:
             username, ik = _register(tc)
@@ -137,13 +136,15 @@ class TestPerDeviceBundles:
             uid = me["user_id"]
             h = {"X-CSRF-Token": csrf_b}
             bundles = tc.get(f"/api/keys/prekeys/{uid}/devices").json()["bundles"]
-            assert all(b["one_time_prekey"] is None for b in bundles)   # discovery без OPK
+            assert all(b["one_time_prekey"] is None for b in bundles)  # discovery без OPK
             dev_ids = [b["device_id"] for b in bundles]
 
             # claim по каждому устройству → OPK своего пула, разные ключи
             claims = {}
             for did in dev_ids:
-                claims[did] = tc.post(f"/api/keys/prekeys/{uid}/claim-opk", json={"device_id": did}, headers=h).json()["one_time_prekey"]
+                claims[did] = tc.post(f"/api/keys/prekeys/{uid}/claim-opk", json={"device_id": did}, headers=h).json()[
+                    "one_time_prekey"
+                ]
             assert all(v is not None for v in claims.values())
             assert len(set(claims.values())) == 2
 
@@ -161,7 +162,7 @@ class TestPerDeviceBundles:
 
             me = tc.get("/api/authentication/me").json()
             single = tc.get(f"/api/keys/prekeys/{me['user_id']}").json()
-            assert single["one_time_prekey"] is None    # discovery без OPK (M4a)
+            assert single["one_time_prekey"] is None  # discovery без OPK (M4a)
             assert single["device_id"] is None
             lst = tc.get(f"/api/keys/prekeys/{me['user_id']}/devices").json()
             assert len(lst["bundles"]) == 1
@@ -204,8 +205,8 @@ class TestPerDeviceBundles:
             bundles = tc.get(f"/api/keys/prekeys/{me['user_id']}/devices").json()["bundles"]
             device_ids = [b["device_id"] for b in bundles]
             assert len(bundles) == 2
-            assert None in device_ids                       # legacy NULL-фантом остаётся
-            assert any(d is not None for d in device_ids)   # плюс device-строка
+            assert None in device_ids  # legacy NULL-фантом остаётся
+            assert any(d is not None for d in device_ids)  # плюс device-строка
             # Одиночный fetch безопасен — берёт свежайший (не фантом)
             assert tc.get(f"/api/keys/prekeys/{me['user_id']}").json()["device_id"] is not None
 

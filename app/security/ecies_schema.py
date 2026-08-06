@@ -9,6 +9,7 @@
 X25519-эфемерный хранится в единой колонке ephemeral_pub независимо от формы;
 наличие kyber_ciphertext ⟹ конверт гибридный.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field, model_validator
@@ -16,10 +17,10 @@ from pydantic import BaseModel, Field, model_validator
 
 class EciesKeyFields(BaseModel):
     ephemeral_pub: str | None = Field(default=None, min_length=64, max_length=64)
-    ciphertext:    str = Field(..., min_length=24)
-    hybrid:               bool | None = None
+    ciphertext: str = Field(..., min_length=24)
+    hybrid: bool | None = None
     x25519_ephemeral_pub: str | None = Field(default=None, min_length=64, max_length=64)
-    kyber_ciphertext:     str | None = Field(default=None, min_length=2176, max_length=2176)
+    kyber_ciphertext: str | None = Field(default=None, min_length=2176, max_length=2176)
 
     @model_validator(mode="after")
     def _check_ecies_shape(self):
@@ -39,9 +40,9 @@ class EciesKeyFields(BaseModel):
         """Форма для validate_ecies_payload и релея клиенту (по наличию kyber_ciphertext)."""
         if self.hybrid:
             return {
-                "hybrid":               True,
+                "hybrid": True,
                 "x25519_ephemeral_pub": self.x25519_ephemeral_pub,
-                "kyber_ciphertext":     self.kyber_ciphertext,
-                "ciphertext":           self.ciphertext,
+                "kyber_ciphertext": self.kyber_ciphertext,
+                "ciphertext": self.ciphertext,
             }
         return {"ephemeral_pub": self.ephemeral_pub, "ciphertext": self.ciphertext}

@@ -13,6 +13,7 @@ The wizard stores state in ``peer_tools_state.json`` next to .env.
 The node queries wizard-managed state via loopback; the wizard stays the
 system of record.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,9 +62,10 @@ def _save_state(env_file: Path, state: dict) -> None:
 
 # 1. Blocklist
 
+
 class BlockBody(BaseModel):
-    pubkey: str   = Field(..., min_length=32, max_length=128, pattern=r"^[0-9a-fA-F]+$")
-    reason: str   = Field("", max_length=200)
+    pubkey: str = Field(..., min_length=32, max_length=128, pattern=r"^[0-9a-fA-F]+$")
+    reason: str = Field("", max_length=200)
 
 
 @router.get("/blocklist")
@@ -79,11 +81,13 @@ async def blocklist_add(body: BlockBody, request: Request) -> dict:
     pk = body.pubkey.lower()
     if any(e["pubkey"] == pk for e in state["blocklist"]):
         return {"ok": True, "already": True}
-    state["blocklist"].append({
-        "pubkey": pk,
-        "reason": body.reason,
-        "added_at": int(time.time()),
-    })
+    state["blocklist"].append(
+        {
+            "pubkey": pk,
+            "reason": body.reason,
+            "added_at": int(time.time()),
+        }
+    )
     _save_state(env_file, state)
     return {"ok": True, "pubkey": pk}
 
@@ -108,9 +112,10 @@ def is_blocked(env_file: Path, pubkey: str) -> bool:
 
 # 2. Bandwidth quota
 
+
 class QuotaBody(BaseModel):
-    daily_mb: int = Field(..., ge=0, le=1_000_000)   # 0 = no limit
-    enabled:  bool = True
+    daily_mb: int = Field(..., ge=0, le=1_000_000)  # 0 = no limit
+    enabled: bool = True
 
 
 @router.get("/quota")
@@ -120,9 +125,9 @@ async def quota_get(request: Request) -> dict:
     today = time.strftime("%Y-%m-%d")
     used_mb = int(q.get("counters", {}).get(today, 0))
     return {
-        "daily_mb":  int(q.get("daily_mb", 0)),
-        "enabled":   bool(q.get("enabled", False)),
-        "today_mb":  used_mb,
+        "daily_mb": int(q.get("daily_mb", 0)),
+        "enabled": bool(q.get("enabled", False)),
+        "today_mb": used_mb,
         "remaining_mb": max(0, int(q.get("daily_mb", 0)) - used_mb) if q.get("enabled") else None,
     }
 
@@ -133,7 +138,7 @@ async def quota_set(body: QuotaBody, request: Request) -> dict:
     state = _load_state(env_file)
     q = state.get("quota", {})
     q["daily_mb"] = body.daily_mb
-    q["enabled"]  = body.enabled
+    q["enabled"] = body.enabled
     q.setdefault("counters", {})
     state["quota"] = q
     _save_state(env_file, state)
@@ -141,7 +146,7 @@ async def quota_set(body: QuotaBody, request: Request) -> dict:
 
 
 class QuotaCountBody(BaseModel):
-    mb:  float = Field(..., ge=0)
+    mb: float = Field(..., ge=0)
 
 
 @router.post("/quota/count")
@@ -164,6 +169,7 @@ async def quota_count(body: QuotaCountBody, request: Request) -> dict:
 
 # 3. Connectivity tester
 
+
 class TestBody(BaseModel):
     peers: list[str] = Field(..., description="list of base URLs to probe")
     timeout_sec: float = 3.0
@@ -182,16 +188,15 @@ async def connectivity_test(body: TestBody) -> dict:
             async with httpx.AsyncClient(timeout=body.timeout_sec, verify=False) as c:  # noqa: S501
                 r = await c.get(path)
                 return {
-                    "url":       url,
-                    "ok":        r.status_code == 200,
-                    "status":    r.status_code,
+                    "url": url,
+                    "ok": r.status_code == 200,
+                    "status": r.status_code,
                     "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
                 }
         except httpx.TimeoutException:
             return {"url": url, "ok": False, "status": 0, "latency_ms": None, "detail": "timeout"}
         except Exception as e:
-            return {"url": url, "ok": False, "status": 0, "latency_ms": None,
-                    "detail": f"{type(e).__name__}: {e}"}
+            return {"url": url, "ok": False, "status": 0, "latency_ms": None, "detail": f"{type(e).__name__}: {e}"}
 
     results = await asyncio.gather(*[one(u) for u in body.peers])
     ok_count = sum(1 for r in results if r["ok"])
@@ -199,6 +204,7 @@ async def connectivity_test(body: TestBody) -> dict:
 
 
 # 4. Bootstrap peers JSON import/export
+
 
 class BootstrapBody(BaseModel):
     peers: list[dict] = Field(..., description="list of {pubkey, url} records")
@@ -208,9 +214,9 @@ class BootstrapBody(BaseModel):
 async def bootstrap_export(request: Request) -> dict:
     state = _load_state(_env_file(request))
     return {
-        "version":  1,
+        "version": 1,
         "exported_at": int(time.time()),
-        "peers":    state.get("bootstrap", []),
+        "peers": state.get("bootstrap", []),
     }
 
 
@@ -250,11 +256,12 @@ async def bootstrap_clear(request: Request) -> dict:
 
 # 5. Dual-seal badge
 
+
 class BadgeBody(BaseModel):
-    pubkey:      str  = Field(..., min_length=32, max_length=128, pattern=r"^[0-9a-fA-F]+$")
-    ctrl_seal:   bool = False
-    chain_seal:  bool = False
-    chain_tx:    Optional[str] = None
+    pubkey: str = Field(..., min_length=32, max_length=128, pattern=r"^[0-9a-fA-F]+$")
+    ctrl_seal: bool = False
+    chain_seal: bool = False
+    chain_tx: Optional[str] = None
 
 
 @router.post("/badge")
@@ -269,9 +276,9 @@ async def badge_set(body: BadgeBody, request: Request) -> dict:
     state = _load_state(env_file)
     pk = body.pubkey.lower()
     state["badges"][pk] = {
-        "ctrl_seal":  body.ctrl_seal,
+        "ctrl_seal": body.ctrl_seal,
         "chain_seal": body.chain_seal,
-        "chain_tx":   body.chain_tx,
+        "chain_tx": body.chain_tx,
         "updated_at": int(time.time()),
     }
     _save_state(env_file, state)
@@ -284,9 +291,12 @@ async def badges_list(request: Request) -> dict:
     out = []
     for pk, b in state.get("badges", {}).items():
         label = (
-            "✓✓ dual" if (b["ctrl_seal"] and b["chain_seal"])
-            else "✓ ctrl" if b["ctrl_seal"]
-            else "✓ chain" if b["chain_seal"]
+            "✓✓ dual"
+            if (b["ctrl_seal"] and b["chain_seal"])
+            else "✓ ctrl"
+            if b["ctrl_seal"]
+            else "✓ chain"
+            if b["chain_seal"]
             else "—"
         )
         out.append({"pubkey": pk, **b, "label": label})

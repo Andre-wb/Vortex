@@ -120,11 +120,13 @@ class ChatService:
             await self.broadcast_encrypted(client_id, encrypted, msg_hash_hex)
 
             # Отправляем отправителю подтверждение о том, что сообщение обработано
-            await websocket.send_json({
-                "type": "delivery",
-                "status": "sent",
-                "hash": msg_hash_hex[:8]  # Короткий хэш для идентификации
-            })
+            await websocket.send_json(
+                {
+                    "type": "delivery",
+                    "status": "sent",
+                    "hash": msg_hash_hex[:8],  # Короткий хэш для идентификации
+                }
+            )
 
     async def broadcast_encrypted(self, sender_id: str, encrypted: bytes, msg_hash: str):
         """
@@ -140,13 +142,15 @@ class ChatService:
         for conn_id, conn in self.active_connections.items():
             if conn_id != sender_id:
                 try:
-                    await conn.send_json({
-                        "type": "message",
-                        "from": sender_id,
-                        "encrypted": encrypted.hex(),       # Передаём как hex-строку
-                        "hash": msg_hash[:8],                # Короткий идентификатор
-                        "encrypted_size": len(encrypted)     # Размер для информации
-                    })
+                    await conn.send_json(
+                        {
+                            "type": "message",
+                            "from": sender_id,
+                            "encrypted": encrypted.hex(),  # Передаём как hex-строку
+                            "hash": msg_hash[:8],  # Короткий идентификатор
+                            "encrypted_size": len(encrypted),  # Размер для информации
+                        }
+                    )
                 except Exception as e:
                     # Если не удалось отправить (например, сокет закрыт), логируем ошибку
                     print(f"❌ Failed to relay to {conn_id}: {e}")
@@ -165,10 +169,7 @@ class ChatService:
         """
         Отправляет одному клиенту системное сообщение.
         """
-        await websocket.send_json({
-            "type": "system",
-            "message": message
-        })
+        await websocket.send_json({"type": "system", "message": message})
 
     async def disconnect_client(self, client_id: str):
         """
@@ -183,6 +184,7 @@ class ChatService:
 # Глобальный экземпляр — создаётся лениво, не при импорте
 # (ChatService требует vortex_chat, который может быть не скомпилирован)
 chat_service = None
+
 
 def get_chat_service() -> ChatService:
     global chat_service

@@ -5,6 +5,7 @@ GET /api/link-preview?url=...
 Fetches the target URL, parses OG meta tags, returns JSON preview data.
 Uses in-memory LRU cache (max 500 entries) to avoid repeated fetches.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -49,6 +50,7 @@ def _check_rate_limit(bucket: dict, key, label: str) -> None:
         raise HTTPException(429, f"Link-preview rate limit exceeded ({_RATE_LIMIT}/min per {label})")
     bucket[key].append(now)
 
+
 _CACHE_MAX = 500
 _cache: OrderedDict[str, dict] = OrderedDict()
 
@@ -68,18 +70,18 @@ def _cache_set(url: str, data: dict) -> None:
 
 
 _OG_RE = re.compile(
-    r'<meta\s[^>]*?'
+    r"<meta\s[^>]*?"
     r'(?:property|name)\s*=\s*["\']og:(\w+)["\']'
     r'[^>]*?content\s*=\s*["\']([^"\']*?)["\']',
     re.IGNORECASE | re.DOTALL,
 )
 _OG_RE_REV = re.compile(
-    r'<meta\s[^>]*?'
+    r"<meta\s[^>]*?"
     r'content\s*=\s*["\']([^"\']*?)["\']'
     r'[^>]*?(?:property|name)\s*=\s*["\']og:(\w+)["\']',
     re.IGNORECASE | re.DOTALL,
 )
-_TITLE_RE = re.compile(r'<title[^>]*>([^<]+)</title>', re.IGNORECASE)
+_TITLE_RE = re.compile(r"<title[^>]*>([^<]+)</title>", re.IGNORECASE)
 _DESC_RE = re.compile(
     r'<meta\s[^>]*?name\s*=\s*["\']description["\'][^>]*?content\s*=\s*["\']([^"\']*?)["\']',
     re.IGNORECASE | re.DOTALL,
@@ -132,11 +134,16 @@ def _parse_og(html: str, url: str) -> dict:
     }
 
 
-
 def _ip_is_blocked(addr: ipaddress._BaseAddress) -> bool:
     """True if an IP belongs to a private/reserved/link-local range we must not reach."""
-    if (addr.is_private or addr.is_loopback or addr.is_link_local
-            or addr.is_reserved or addr.is_multicast or addr.is_unspecified):
+    if (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_reserved
+        or addr.is_multicast
+        or addr.is_unspecified
+    ):
         return True
     # AWS / cloud metadata endpoint (link-local already covers 169.254/16, but be explicit)
     if str(addr).startswith("169.254."):
@@ -211,11 +218,13 @@ def _build_pinned_transport(pinned_ip: str) -> httpx.AsyncHTTPTransport:
 
     class _PinningBackend:
         # Delegate everything to the real backend, but pin connect_tcp's host.
-        async def connect_tcp(self, host, port, timeout=None,
-                              local_address=None, socket_options=None):
+        async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
             return await inner.connect_tcp(
-                pinned_ip, port, timeout=timeout,
-                local_address=local_address, socket_options=socket_options,
+                pinned_ip,
+                port,
+                timeout=timeout,
+                local_address=local_address,
+                socket_options=socket_options,
             )
 
         async def connect_unix_socket(self, *a, **kw):

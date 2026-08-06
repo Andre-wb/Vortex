@@ -28,6 +28,7 @@ The on-chain account layout is Borsh-encoded by Anchor::
     [8:  last_heartbeat (i64 LE)]
     [1:  bump]
 """
+
 from __future__ import annotations
 
 import base64
@@ -52,11 +53,12 @@ _ACCOUNT_DISCRIMINATOR = hashlib.sha256(b"account:Peer").digest()[:8]
 @dataclass
 class PeerAccount:
     """One on-chain peer record (Phase 5 + 7 fields)."""
-    pda: str                       # the PDA address as a base58 string
-    owner: bytes                   # 32-byte owner pubkey
-    node_pubkey: bytes             # 32-byte node ed25519 pubkey
+
+    pda: str  # the PDA address as a base58 string
+    owner: bytes  # 32-byte owner pubkey
+    node_pubkey: bytes  # 32-byte node ed25519 pubkey
     endpoints: list[str]
-    metadata: str                  # raw JSON-ish string as written by the operator
+    metadata: str  # raw JSON-ish string as written by the operator
     registered_at: int
     last_heartbeat: int
     bump: int
@@ -107,6 +109,7 @@ class PeerAccount:
         parsed_meta: dict = {}
         try:
             import json
+
             if self.metadata:
                 parsed_meta = json.loads(self.metadata)
                 if not isinstance(parsed_meta, dict):
@@ -254,23 +257,26 @@ class SolanaRegistryClient:
         If ``online_window_sec`` is given, only peers whose ``last_heartbeat``
         falls within that window are returned.
         """
-        result = await self._rpc("getProgramAccounts", [
-            self.program_id,
-            {
-                "encoding": "base64",
-                "filters": [
-                    # Filter server-side on the discriminator so the RPC doesn't
-                    # send us other account types. Borsh-encoded as 8 raw bytes
-                    # starting at offset 0.
-                    {
-                        "memcmp": {
-                            "offset": 0,
-                            "bytes": _b58encode(_ACCOUNT_DISCRIMINATOR),
+        result = await self._rpc(
+            "getProgramAccounts",
+            [
+                self.program_id,
+                {
+                    "encoding": "base64",
+                    "filters": [
+                        # Filter server-side on the discriminator so the RPC doesn't
+                        # send us other account types. Borsh-encoded as 8 raw bytes
+                        # starting at offset 0.
+                        {
+                            "memcmp": {
+                                "offset": 0,
+                                "bytes": _b58encode(_ACCOUNT_DISCRIMINATOR),
+                            }
                         }
-                    }
-                ],
-            },
-        ])
+                    ],
+                },
+            ],
+        )
 
         peers: list[PeerAccount] = []
         for item in result or []:

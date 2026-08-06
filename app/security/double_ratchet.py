@@ -14,6 +14,7 @@ app/security/double_ratchet.py — Реализация протокола Doubl
   - Signal Specification: https://signal.org/docs/specifications/doubleratchet/
   - X3DH:                 https://signal.org/docs/specifications/x3dh/
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -58,6 +59,7 @@ _X3DH_F = b"\xff" * 32
 
 # Вспомогательные функции для работы с ключами
 
+
 def _priv_to_bytes(key: X25519PrivateKey) -> bytes:
     """Сериализует X25519 приватный ключ в 32 байта (raw)."""
     return key.private_bytes(
@@ -86,6 +88,7 @@ def _dh(private: X25519PrivateKey, public: X25519PublicKey) -> bytes:
 
 
 # Ed25519 подпись для Signed Pre-Key
+
 
 def sign_spk(identity_private: Ed25519PrivateKey, spk_public_bytes: bytes) -> bytes:
     """Подписывает публичный Signed Pre-Key идентификационным ключом Ed25519.
@@ -123,6 +126,7 @@ def verify_spk_signature(
 
 
 # X3DH — Extended Triple Diffie-Hellman Key Agreement
+
 
 def x3dh_initiate(
     ik_private: X25519PrivateKey,
@@ -305,8 +309,8 @@ def x3dh_respond_pq(
 
 try:
     import vortex_chat as _vc_rust
-    _HAS_RUST_RATCHET = (hasattr(_vc_rust, "ratchet_kdf_rk")
-                         and hasattr(_vc_rust, "ratchet_kdf_ck"))
+
+    _HAS_RUST_RATCHET = hasattr(_vc_rust, "ratchet_kdf_rk") and hasattr(_vc_rust, "ratchet_kdf_ck")
 except ImportError:
     _HAS_RUST_RATCHET = False
 
@@ -345,6 +349,7 @@ def kdf_ck(ck: bytes) -> tuple[bytes, bytes]:
 
 # Заголовок сообщения
 
+
 @dataclass(frozen=True)
 class Header:
     """Заголовок Double Ratchet сообщения.
@@ -357,9 +362,10 @@ class Header:
         prev_count: количество сообщений в предыдущей цепочке отправки.
         msg_number: номер сообщения в текущей цепочке отправки.
     """
-    dh_public: bytes     # 32 bytes — текущий ratchet публичный ключ
-    prev_count: int      # количество сообщений в предыдущей цепочке
-    msg_number: int      # номер сообщения в текущей цепочке
+
+    dh_public: bytes  # 32 bytes — текущий ratchet публичный ключ
+    prev_count: int  # количество сообщений в предыдущей цепочке
+    msg_number: int  # номер сообщения в текущей цепочке
 
     def serialize(self) -> bytes:
         """Сериализует заголовок в байты для использования как AAD.
@@ -391,6 +397,7 @@ class Header:
 
 # Состояние Double Ratchet
 
+
 @dataclass
 class RatchetState:
     """Полное состояние Double Ratchet сессии одной стороны.
@@ -409,11 +416,12 @@ class RatchetState:
         skipped_keys:        кэш ключей для пропущенных (out-of-order) сообщений.
                              Ключ: (ratchet_pub_bytes, msg_number) → message_key.
     """
+
     dh_sending: X25519PrivateKey
     dh_receiving: Optional[X25519PublicKey]
-    root_key: bytes                          # 32 bytes
-    sending_chain_key: Optional[bytes]       # 32 bytes
-    receiving_chain_key: Optional[bytes]     # 32 bytes
+    root_key: bytes  # 32 bytes
+    sending_chain_key: Optional[bytes]  # 32 bytes
+    receiving_chain_key: Optional[bytes]  # 32 bytes
     send_count: int = 0
     recv_count: int = 0
     prev_send_count: int = 0
@@ -421,6 +429,7 @@ class RatchetState:
 
 
 # Инициализация Ratchet
+
 
 def ratchet_init_alice(shared_secret: bytes, bob_ratchet_pub: X25519PublicKey) -> RatchetState:
     """Инициализирует Double Ratchet для стороны Alice (инициатор).
@@ -478,6 +487,7 @@ def ratchet_init_bob(shared_secret: bytes, bob_ratchet_pair: X25519PrivateKey) -
 
 # Шифрование / Дешифрование
 
+
 def _encrypt_aes_gcm(message_key: bytes, plaintext: bytes, aad: bytes) -> bytes:
     """Шифрует plaintext с помощью AES-256-GCM.
 
@@ -490,6 +500,7 @@ def _encrypt_aes_gcm(message_key: bytes, plaintext: bytes, aad: bytes) -> bytes:
         nonce (12 bytes) + ciphertext + tag (16 bytes).
     """
     import secrets
+
     nonce = secrets.token_bytes(12)
     ct = AESGCM(message_key).encrypt(nonce, plaintext, aad)
     return nonce + ct
@@ -595,8 +606,7 @@ def _skip_message_keys(state: RatchetState, until: int) -> None:
 
     if until - state.recv_count > MAX_SKIP:
         raise OverflowError(
-            f"Too many skipped messages: {until - state.recv_count} "
-            f"(max {MAX_SKIP}). Possible DoS attack."
+            f"Too many skipped messages: {until - state.recv_count} (max {MAX_SKIP}). Possible DoS attack."
         )
 
     dh_pub_bytes = _pub_to_bytes(state.dh_receiving) if state.dh_receiving else b""
@@ -661,11 +671,7 @@ def ratchet_decrypt(state: RatchetState, header: Header, ciphertext: bytes) -> b
         return plaintext
 
     # 2. Проверяем нужен ли DH ratchet шаг
-    current_dh_pub = (
-        _pub_to_bytes(state.dh_receiving)
-        if state.dh_receiving is not None
-        else None
-    )
+    current_dh_pub = _pub_to_bytes(state.dh_receiving) if state.dh_receiving is not None else None
 
     if current_dh_pub != header.dh_public:
         # Новый ratchet public key — пропускаем оставшиеся ключи старой цепочки
@@ -686,6 +692,7 @@ def ratchet_decrypt(state: RatchetState, header: Header, ciphertext: bytes) -> b
 
 # Утилиты для сериализации (хранение состояния на клиенте)
 
+
 def serialize_state(state: RatchetState) -> dict:
     """Сериализует RatchetState в словарь для хранения (например, в IndexedDB).
 
@@ -702,18 +709,10 @@ def serialize_state(state: RatchetState) -> dict:
 
     return {
         "dh_sending": _priv_to_bytes(state.dh_sending).hex(),
-        "dh_receiving": (
-            _pub_to_bytes(state.dh_receiving).hex()
-            if state.dh_receiving is not None
-            else None
-        ),
+        "dh_receiving": (_pub_to_bytes(state.dh_receiving).hex() if state.dh_receiving is not None else None),
         "root_key": state.root_key.hex(),
-        "sending_chain_key": (
-            state.sending_chain_key.hex() if state.sending_chain_key is not None else None
-        ),
-        "receiving_chain_key": (
-            state.receiving_chain_key.hex() if state.receiving_chain_key is not None else None
-        ),
+        "sending_chain_key": (state.sending_chain_key.hex() if state.sending_chain_key is not None else None),
+        "receiving_chain_key": (state.receiving_chain_key.hex() if state.receiving_chain_key is not None else None),
         "send_count": state.send_count,
         "recv_count": state.recv_count,
         "prev_send_count": state.prev_send_count,
@@ -742,9 +741,7 @@ def deserialize_state(data: dict) -> RatchetState:
     return RatchetState(
         dh_sending=X25519PrivateKey.from_private_bytes(bytes.fromhex(data["dh_sending"])),
         dh_receiving=(
-            X25519PublicKey.from_public_bytes(bytes.fromhex(dh_recv_hex))
-            if dh_recv_hex is not None
-            else None
+            X25519PublicKey.from_public_bytes(bytes.fromhex(dh_recv_hex)) if dh_recv_hex is not None else None
         ),
         root_key=bytes.fromhex(data["root_key"]),
         sending_chain_key=bytes.fromhex(send_ck_hex) if send_ck_hex is not None else None,

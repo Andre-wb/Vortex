@@ -59,6 +59,7 @@ test-results/
 
 # Linting / Type Checking
 .ruff_cache/
+pylint-report.json
 .mypy_cache/
 .dmypy.json
 

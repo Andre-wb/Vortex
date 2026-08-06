@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 try:
     import magic as _magic_lib
+
     _MAGIC_AVAILABLE = True
 except (ImportError, OSError):
     _magic_lib = None
@@ -42,7 +43,9 @@ except (ImportError, OSError):
 
 class FileUploadConfig:
     """Настройки загрузки файлов."""
+
     from app.config import Config as _Cfg
+
     MAX_FILE_SIZE = _Cfg.MAX_FILE_BYTES  # from MAX_FILE_MB env (default 2 GB)
 
     # Ограничения для изображений
@@ -51,81 +54,81 @@ class FileUploadConfig:
 
     # Допустимые MIME-типы и соответствующие расширения
     ALLOWED_MIME_TYPES: dict[str, list[str]] = {
-        'image/jpeg':     ['.jpg', '.jpeg', '.jfif', '.jpe'],   # FIX: добавлены .jfif/.jpe (iPhone, Windows)
-        'image/png':      ['.png'],
-        'image/webp':     ['.webp'],
-        'image/gif':      ['.gif'],
-        'image/bmp':      ['.bmp'],
-        'image/tiff':     ['.tif', '.tiff'],
-        'image/x-adobe-dng': ['.dng'],
+        "image/jpeg": [".jpg", ".jpeg", ".jfif", ".jpe"],  # FIX: добавлены .jfif/.jpe (iPhone, Windows)
+        "image/png": [".png"],
+        "image/webp": [".webp"],
+        "image/gif": [".gif"],
+        "image/bmp": [".bmp"],
+        "image/tiff": [".tif", ".tiff"],
+        "image/x-adobe-dng": [".dng"],
         # image/svg+xml NOT allowed — SVG can carry inline
         # <script>/onload payloads (stored XSS). Use raster formats instead.
         # HEIC/HEIF (iPhone): magic возвращает разные строки в зависимости от libmagic версии
-        'image/heic':     ['.heic', '.heif'],
-        'image/heif':     ['.heic', '.heif'],
-        'video/mp4':        ['.mp4', '.m4v'],
-        'video/webm':       ['.webm'],
-        'video/quicktime':  ['.mov', '.qt'],
-        'video/x-msvideo':  ['.avi'],
-        'video/x-matroska': ['.mkv'],
-        'video/3gpp':       ['.3gp'],
-        'audio/mpeg':       ['.mp3'],
-        'audio/ogg':        ['.ogg', '.oga'],
-        'audio/wav':        ['.wav'],
-        'audio/x-wav':      ['.wav'],
-        'audio/webm':       ['.weba'],
-        'audio/aac':        ['.aac', '.m4a'],
-        'audio/flac':       ['.flac'],
-        'audio/x-flac':     ['.flac'],
-        'audio/mp4':        ['.m4a'],
-        'application/pdf':  ['.pdf'],
-        'text/plain':       ['.txt', '.log', '.md', '.csv'],
-        'text/csv':         ['.csv'],
-        'text/rtf':         ['.rtf'],
-        'application/rtf':  ['.rtf'],
-        'application/msword': ['.doc'],
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-        'application/vnd.ms-excel': ['.xls'],
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-        'application/vnd.ms-powerpoint': ['.ppt'],
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
-        'application/vnd.oasis.opendocument.text': ['.odt'],
-        'application/vnd.oasis.opendocument.spreadsheet': ['.ods'],
-        'application/vnd.oasis.opendocument.presentation': ['.odp'],
+        "image/heic": [".heic", ".heif"],
+        "image/heif": [".heic", ".heif"],
+        "video/mp4": [".mp4", ".m4v"],
+        "video/webm": [".webm"],
+        "video/quicktime": [".mov", ".qt"],
+        "video/x-msvideo": [".avi"],
+        "video/x-matroska": [".mkv"],
+        "video/3gpp": [".3gp"],
+        "audio/mpeg": [".mp3"],
+        "audio/ogg": [".ogg", ".oga"],
+        "audio/wav": [".wav"],
+        "audio/x-wav": [".wav"],
+        "audio/webm": [".weba"],
+        "audio/aac": [".aac", ".m4a"],
+        "audio/flac": [".flac"],
+        "audio/x-flac": [".flac"],
+        "audio/mp4": [".m4a"],
+        "application/pdf": [".pdf"],
+        "text/plain": [".txt", ".log", ".md", ".csv"],
+        "text/csv": [".csv"],
+        "text/rtf": [".rtf"],
+        "application/rtf": [".rtf"],
+        "application/msword": [".doc"],
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+        "application/vnd.ms-excel": [".xls"],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+        "application/vnd.ms-powerpoint": [".ppt"],
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+        "application/vnd.oasis.opendocument.text": [".odt"],
+        "application/vnd.oasis.opendocument.spreadsheet": [".ods"],
+        "application/vnd.oasis.opendocument.presentation": [".odp"],
         # NOTE: text/html intentionally NOT allowed — an uploaded HTML document
         # is a stored-XSS vector. HTML is also force-downloaded by the /uploads
         # mount, but we reject it at ingest as defense-in-depth.
-        'text/css':         ['.css'],
-        'text/javascript':  ['.js', '.mjs'],
-        'text/typescript':  ['.ts', '.tsx'],
-        'application/json': ['.json'],
-        'application/xml':  ['.xml'],
-        'text/xml':         ['.xml'],
-        'text/yaml':        ['.yaml', '.yml'],
-        'text/x-python':    ['.py'],
+        "text/css": [".css"],
+        "text/javascript": [".js", ".mjs"],
+        "text/typescript": [".ts", ".tsx"],
+        "application/json": [".json"],
+        "application/xml": [".xml"],
+        "text/xml": [".xml"],
+        "text/yaml": [".yaml", ".yml"],
+        "text/x-python": [".py"],
         # text/x-php (.php) removed — a server-executable script MIME has
         # no legitimate use in a messenger and is a web-shell vector. Without it,
         # .php uploads are rejected at MIME validation (defense-in-depth alongside
         # the double-extension / web-shell extension checks).
-        'text/x-java':      ['.java'],
-        'text/x-c':         ['.c', '.h'],
-        'text/x-c++':       ['.cpp', '.cxx', '.hpp'],
-        'text/x-csharp':    ['.cs'],
-        'text/x-go':        ['.go'],
-        'text/x-rust':      ['.rs'],
-        'text/x-ruby':      ['.rb'],
-        'text/x-swift':     ['.swift'],
-        'text/x-kotlin':    ['.kt', '.kts'],
-        'text/x-shellscript': ['.sh', '.bash'],
-        'text/x-sql':       ['.sql'],
-        'application/x-vortex-sticker': ['.sticker'],
-        'application/zip':                ['.zip'],
-        'application/x-zip-compressed':   ['.zip'],
-        'application/x-rar-compressed':   ['.rar'],
-        'application/x-7z-compressed':    ['.7z'],
-        'application/gzip':               ['.gz'],
-        'application/x-tar':              ['.tar'],
-        'application/octet-stream':       ['.enc', '.bin'],
+        "text/x-java": [".java"],
+        "text/x-c": [".c", ".h"],
+        "text/x-c++": [".cpp", ".cxx", ".hpp"],
+        "text/x-csharp": [".cs"],
+        "text/x-go": [".go"],
+        "text/x-rust": [".rs"],
+        "text/x-ruby": [".rb"],
+        "text/x-swift": [".swift"],
+        "text/x-kotlin": [".kt", ".kts"],
+        "text/x-shellscript": [".sh", ".bash"],
+        "text/x-sql": [".sql"],
+        "application/x-vortex-sticker": [".sticker"],
+        "application/zip": [".zip"],
+        "application/x-zip-compressed": [".zip"],
+        "application/x-rar-compressed": [".rar"],
+        "application/x-7z-compressed": [".7z"],
+        "application/gzip": [".gz"],
+        "application/x-tar": [".tar"],
+        "application/octet-stream": [".enc", ".bin"],
     }
     ALLOWED_EXTENSIONS = {ext for exts in ALLOWED_MIME_TYPES.values() for ext in exts}
 
@@ -139,7 +142,6 @@ class FileUploadConfig:
     # Включать ли дополнительные проверки содержимого
     REQUIRE_CONTENT_VALIDATION = True
     CHECK_FOR_MALICIOUS_CONTENT = True
-
 
 
 def strip_exif(content: bytes, mime_type: str) -> bytes:
@@ -209,12 +211,12 @@ def _strip_mp4_atoms(content: bytes) -> bytes:
         atoms = []
         pos = offset
         while pos + 8 <= end:
-            size = struct.unpack(">I", data[pos:pos + 4])[0]
-            atype = data[pos + 4:pos + 8]
+            size = struct.unpack(">I", data[pos : pos + 4])[0]
+            atype = data[pos + 4 : pos + 8]
             if size == 0:
                 size = end - pos
             elif size == 1 and pos + 16 <= end:
-                size = struct.unpack(">Q", data[pos + 8:pos + 16])[0]
+                size = struct.unpack(">Q", data[pos + 8 : pos + 16])[0]
             if size < 8 or pos + size > end:
                 break
             atoms.append((pos, size, atype))
@@ -230,9 +232,9 @@ def _strip_mp4_atoms(content: bytes) -> bytes:
             if ctype in metadata_atoms:
                 removed += csize
                 continue
-            parts.append(data[coff:coff + csize])
+            parts.append(data[coff : coff + csize])
         if removed == 0:
-            return data[moov_off:moov_off + moov_size]
+            return data[moov_off : moov_off + moov_size]
         body = b"".join(parts)
         new_size = 8 + len(body)
         return struct.pack(">I", new_size) + b"moov" + body
@@ -251,11 +253,10 @@ def _strip_mp4_atoms(content: bytes) -> bytes:
                 changed = True
                 continue
             else:
-                parts.append(content[aoff:aoff + asize])
+                parts.append(content[aoff : aoff + asize])
         if changed:
             result = b"".join(parts)
-            logger.debug("MP4 metadata atoms stripped (pure-Python): %d bytes removed",
-                         len(content) - len(result))
+            logger.debug("MP4 metadata atoms stripped (pure-Python): %d bytes removed", len(content) - len(result))
             return result
     except Exception as e:
         logger.debug("MP4 atom stripping failed: %s", e)
@@ -274,6 +275,7 @@ def _strip_id3_tags(content: bytes) -> bytes:
     Works without ffmpeg or mutagen.
     """
     import struct
+
     data = bytearray(content)
     changed = False
 
@@ -282,10 +284,7 @@ def _strip_id3_tags(content: bytes) -> bytes:
         # ID3v2 size is syncsafe integer (4 bytes, 7 bits each)
         sz_bytes = data[6:10]
         tag_size = (
-            (sz_bytes[0] & 0x7F) << 21 |
-            (sz_bytes[1] & 0x7F) << 14 |
-            (sz_bytes[2] & 0x7F) << 7 |
-            (sz_bytes[3] & 0x7F)
+            (sz_bytes[0] & 0x7F) << 21 | (sz_bytes[1] & 0x7F) << 14 | (sz_bytes[2] & 0x7F) << 7 | (sz_bytes[3] & 0x7F)
         )
         header_size = 10 + tag_size
         # Check for footer flag (bit 4 of flags byte)
@@ -334,10 +333,23 @@ def strip_video_metadata(content: bytes, mime_type: str) -> bytes:
                 inp_path = inp.name
             out_path = inp_path + ".clean.mp4"
             result = subprocess.run(
-                [ffmpeg, "-i", inp_path, "-map_metadata", "-1",
-                 "-c", "copy", "-fflags", "+bitexact",
-                 "-movflags", "+faststart", "-y", out_path],
-                capture_output=True, timeout=60,
+                [
+                    ffmpeg,
+                    "-i",
+                    inp_path,
+                    "-map_metadata",
+                    "-1",
+                    "-c",
+                    "copy",
+                    "-fflags",
+                    "+bitexact",
+                    "-movflags",
+                    "+faststart",
+                    "-y",
+                    out_path,
+                ],
+                capture_output=True,
+                timeout=60,
             )
             if result.returncode == 0:
                 cleaned = Path(out_path).read_bytes()
@@ -394,7 +406,8 @@ def strip_audio_metadata(content: bytes, mime_type: str) -> bytes:
             out_path = inp_path + ".clean" + ext
             result = subprocess.run(
                 [ffmpeg, "-i", inp_path, "-map_metadata", "-1", *codec_args, "-y", out_path],
-                capture_output=True, timeout=60,
+                capture_output=True,
+                timeout=60,
             )
             if result.returncode == 0:
                 cleaned = Path(out_path).read_bytes()
@@ -413,6 +426,7 @@ def strip_audio_metadata(content: bytes, mime_type: str) -> bytes:
             import tempfile as _tf
 
             import mutagen
+
             with _tf.NamedTemporaryFile(suffix=".tmp", delete=False) as tmp:
                 tmp.write(content)
                 tmp_path = tmp.name
@@ -451,6 +465,7 @@ def strip_pdf_metadata(content: bytes) -> bytes:
     # Try pikepdf first (best PDF library)
     try:
         import pikepdf
+
         pdf = pikepdf.open(io.BytesIO(content))
         # Clear /Info dictionary
         with pdf.open_metadata() as meta:
@@ -471,20 +486,23 @@ def strip_pdf_metadata(content: bytes) -> bytes:
     # Fallback: pypdf
     try:
         from pypdf import PdfReader, PdfWriter
+
         reader = PdfReader(io.BytesIO(content))
         writer = PdfWriter()
         for page in reader.pages:
             writer.add_page(page)
         # Clear metadata
-        writer.add_metadata({
-            "/Producer": "",
-            "/Creator": "",
-            "/Author": "",
-            "/Title": "",
-            "/Subject": "",
-            "/CreationDate": "",
-            "/ModDate": "",
-        })
+        writer.add_metadata(
+            {
+                "/Producer": "",
+                "/Creator": "",
+                "/Author": "",
+                "/Title": "",
+                "/Subject": "",
+                "/CreationDate": "",
+                "/ModDate": "",
+            }
+        )
         buf = io.BytesIO()
         writer.write(buf)
         result = buf.getvalue()
@@ -557,25 +575,46 @@ class FileAnomalyDetector:
         Флагирует: shell.php.jpg, virus.exe.png
         НЕ флагирует: photo.vacation.jpg, my.photo.png, photo 2024-01-01 12.34.jpg
         """
-        _dangerous_exts = frozenset({
-            '.php', '.php3', '.php4', '.php5', '.phtml',
-            '.asp', '.aspx', '.ascx', '.ashx',
-            '.jsp', '.jspx', '.jws',
-            '.cgi', '.pl', '.py', '.rb', '.sh', '.bash',
-            '.exe', '.dll', '.bat', '.cmd', '.ps1', '.vbs',
-        })
-        name  = Path(filename).name
-        parts = name.split('.')
+        _dangerous_exts = frozenset(
+            {
+                ".php",
+                ".php3",
+                ".php4",
+                ".php5",
+                ".phtml",
+                ".asp",
+                ".aspx",
+                ".ascx",
+                ".ashx",
+                ".jsp",
+                ".jspx",
+                ".jws",
+                ".cgi",
+                ".pl",
+                ".py",
+                ".rb",
+                ".sh",
+                ".bash",
+                ".exe",
+                ".dll",
+                ".bat",
+                ".cmd",
+                ".ps1",
+                ".vbs",
+            }
+        )
+        name = Path(filename).name
+        parts = name.split(".")
         if len(parts) <= 2:
             return False
         # Только промежуточные части (исключаем первую часть и последнее расширение)
-        intermediate = {'.' + p.lower() for p in parts[1:-1]}
+        intermediate = {"." + p.lower() for p in parts[1:-1]}
         return bool(intermediate & _dangerous_exts)
 
     @staticmethod
     def detect_null_bytes(filename: str) -> bool:
         """Проверяет наличие null-байтов в имени файла."""
-        return '\x00' in filename
+        return "\x00" in filename
 
     @staticmethod
     def detect_path_traversal(filename: str) -> bool:
@@ -583,10 +622,18 @@ class FileAnomalyDetector:
         Проверяет наличие признаков path traversal или инъекций.
         """
         dangerous_patterns = [
-            '..', '/', '\\', '~',
-            'C:', 'D:',
-            '/etc/', '/bin/', '/usr/bin/',
-            '<?php', '<script', 'javascript:'
+            "..",
+            "/",
+            "\\",
+            "~",
+            "C:",
+            "D:",
+            "/etc/",
+            "/bin/",
+            "/usr/bin/",
+            "<?php",
+            "<script",
+            "javascript:",
         ]
         return any(pattern in filename for pattern in dangerous_patterns)
 
@@ -603,8 +650,8 @@ class FileAnomalyDetector:
             img = Image.open(io.BytesIO(content))
 
             # Конвертируем в RGB, если нужно (удаляем альфа-канал и т.п.)
-            if hasattr(img, 'mode') and img.mode in ['RGBA', 'CMYK', 'YCbCr', 'LAB', 'HSV']:
-                img = img.convert('RGB')
+            if hasattr(img, "mode") and img.mode in ["RGBA", "CMYK", "YCbCr", "LAB", "HSV"]:
+                img = img.convert("RGB")
 
             width, height = img.size
             if width > FileUploadConfig.MAX_IMAGE_DIMENSION or height > FileUploadConfig.MAX_IMAGE_DIMENSION:
@@ -659,18 +706,18 @@ class FileAnomalyDetector:
             return False
 
         archive_magic_numbers = [
-            b'PK\x03\x04',      # ZIP
-            b'PK\x05\x06',      # ZIP (central directory)
-            b'PK\x07\x08',      # ZIP (spanned)
-            b'\x1f\x8b',        # GZIP
-            b'BZh',             # BZIP2
-            b'\x50\x4b',        # ZIP (альтернатива)
+            b"PK\x03\x04",  # ZIP
+            b"PK\x05\x06",  # ZIP (central directory)
+            b"PK\x07\x08",  # ZIP (spanned)
+            b"\x1f\x8b",  # GZIP
+            b"BZh",  # BZIP2
+            b"\x50\x4b",  # ZIP (альтернатива)
         ]
 
         for magic_num in archive_magic_numbers:
             if content.startswith(magic_num):
                 entropy = FileAnomalyDetector.calculate_file_complexity(content)
-                if entropy > 7.5:   # Эмпирическое значение
+                if entropy > 7.5:  # Эмпирическое значение
                     return True
 
         return False
@@ -699,28 +746,34 @@ class UploadQuotaManager:
 
             if user_id:
                 # Часовая квота для пользователя
-                hour_count = self.db.query(func.count(UploadQuota.id)).filter(
-                    UploadQuota.user_id == user_id,
-                    UploadQuota.uploaded_at >= hour_ago
-                ).scalar() or 0
+                hour_count = (
+                    self.db.query(func.count(UploadQuota.id))
+                    .filter(UploadQuota.user_id == user_id, UploadQuota.uploaded_at >= hour_ago)
+                    .scalar()
+                    or 0
+                )
 
                 if hour_count >= FileUploadConfig.MAX_FILES_PER_HOUR:
                     return False, "Hourly upload quota exceeded"
 
                 # Дневная квота для пользователя
-                day_count = self.db.query(func.count(UploadQuota.id)).filter(
-                    UploadQuota.user_id == user_id,
-                    UploadQuota.uploaded_at >= day_ago
-                ).scalar() or 0
+                day_count = (
+                    self.db.query(func.count(UploadQuota.id))
+                    .filter(UploadQuota.user_id == user_id, UploadQuota.uploaded_at >= day_ago)
+                    .scalar()
+                    or 0
+                )
 
                 if day_count >= FileUploadConfig.MAX_FILES_PER_DAY:
                     return False, "Daily upload quota exceeded"
 
             # Проверка квоты по IP (более строгая: в два раза больше лимита пользователя)
-            ip_hour_count = self.db.query(func.count(UploadQuota.id)).filter(
-                UploadQuota.client_ip == client_ip,
-                UploadQuota.uploaded_at >= hour_ago
-            ).scalar() or 0
+            ip_hour_count = (
+                self.db.query(func.count(UploadQuota.id))
+                .filter(UploadQuota.client_ip == client_ip, UploadQuota.uploaded_at >= hour_ago)
+                .scalar()
+                or 0
+            )
 
             if ip_hour_count >= FileUploadConfig.MAX_FILES_PER_HOUR * 2:
                 return False, "Upload limit exceeded for your IP"
@@ -730,7 +783,9 @@ class UploadQuotaManager:
             logger.error(f"Ошибка проверки квот: {e}")
             return False, "Quota check error"
 
-    async def record_upload(self, user_id: Optional[int], client_ip: str, file_size: int, file_hash: Optional[str] = None):
+    async def record_upload(
+        self, user_id: Optional[int], client_ip: str, file_size: int, file_hash: Optional[str] = None
+    ):
         """
         Записывает факт загрузки в БД для учёта квот.
         """
@@ -742,7 +797,7 @@ class UploadQuotaManager:
                 client_ip=client_ip,
                 file_size=file_size,
                 file_hash=file_hash,
-                uploaded_at=datetime.now(timezone.utc)
+                uploaded_at=datetime.now(timezone.utc),
             )
             self.db.add(upload_record)
             self.db.commit()
@@ -783,9 +838,7 @@ def validate_file_mime_type(content: bytes, filename: str) -> tuple[bool, Option
     if mime is None:
         # Fallback: ищем MIME по расширению файла
         ext_to_mime = {
-            ext: mime_type
-            for mime_type, exts in FileUploadConfig.ALLOWED_MIME_TYPES.items()
-            for ext in exts
+            ext: mime_type for mime_type, exts in FileUploadConfig.ALLOWED_MIME_TYPES.items() for ext in exts
         }
         mime = ext_to_mime.get(file_ext)
         if mime is None:
@@ -793,12 +846,8 @@ def validate_file_mime_type(content: bytes, filename: str) -> tuple[bool, Option
 
     # If libmagic reports octet-stream but the original extension is a known
     # allowed type, accept it as octet-stream (encrypted payload).
-    if mime == 'application/octet-stream':
-        ext_to_mime = {
-            ext: mt
-            for mt, exts in FileUploadConfig.ALLOWED_MIME_TYPES.items()
-            for ext in exts
-        }
+    if mime == "application/octet-stream":
+        ext_to_mime = {ext: mt for mt, exts in FileUploadConfig.ALLOWED_MIME_TYPES.items() for ext in exts}
         if file_ext in ext_to_mime:
             # E2E encrypted file — use extension-based mime (libmagic can't read encrypted bytes)
             return True, ext_to_mime[file_ext]
@@ -806,7 +855,7 @@ def validate_file_mime_type(content: bytes, filename: str) -> tuple[bool, Option
     if mime not in FileUploadConfig.ALLOWED_MIME_TYPES:
         # Попытка нормализации: некоторые libmagic версии возвращают x-субтипы
         # например 'audio/x-wav' вместо 'audio/wav' или 'image/x-png' вместо 'image/png'
-        normalized = mime.replace('/x-', '/', 1)
+        normalized = mime.replace("/x-", "/", 1)
         if normalized in FileUploadConfig.ALLOWED_MIME_TYPES:
             mime = normalized
         else:
@@ -814,16 +863,15 @@ def validate_file_mime_type(content: bytes, filename: str) -> tuple[bool, Option
 
     expected_exts = FileUploadConfig.ALLOWED_MIME_TYPES.get(mime, [])
     if file_ext and expected_exts and file_ext not in expected_exts:
-        mime_category = mime.split('/')[0]
+        mime_category = mime.split("/")[0]
         # Находим все расширения для данной категории
         all_category_exts: set[str] = set()
         for m, exts in FileUploadConfig.ALLOWED_MIME_TYPES.items():
-            if m.startswith(mime_category + '/'):
+            if m.startswith(mime_category + "/"):
                 all_category_exts.update(exts)
         if file_ext not in all_category_exts:
             return False, (
-                f"Расширение «{file_ext}» не соответствует типу файла «{mime}». "
-                f"Ожидаются: {', '.join(expected_exts)}"
+                f"Расширение «{file_ext}» не соответствует типу файла «{mime}». Ожидаются: {', '.join(expected_exts)}"
             )
 
     return True, mime
@@ -839,7 +887,7 @@ def save_temp_file(content: bytes, extension: str) -> tuple[Path, Path]:
     temp_file_path = temp_dir / safe_filename
 
     try:
-        with open(temp_file_path, 'wb') as f:
+        with open(temp_file_path, "wb") as f:
             f.write(content)
 
         # Устанавливаем права только для владельца
@@ -880,8 +928,7 @@ async def read_file_chunked(file: UploadFile, max_size: int = FileUploadConfig.M
         total_size += len(chunk)
         if total_size > max_size:
             raise HTTPException(
-                status_code=413,
-                detail=f"Файл слишком большой. Максимальный размер: {max_size // 1024 // 1024}MB"
+                status_code=413, detail=f"Файл слишком большой. Максимальный размер: {max_size // 1024 // 1024}MB"
             )
 
         file_content.extend(chunk)

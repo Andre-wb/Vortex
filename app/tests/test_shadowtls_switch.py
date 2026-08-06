@@ -15,19 +15,17 @@ class _Harness:
         self.received_by_remote = bytearray()
 
     async def __aenter__(self):
-        self._srv = await asyncio.start_server(
-            self._on_remote, "127.0.0.1", 0)
+        self._srv = await asyncio.start_server(self._on_remote, "127.0.0.1", 0)
         host, port = self._srv.sockets[0].getsockname()[:2]
         self.shadow = ShadowTLS(password="testpass")
         self.shadow.get_handshake_target = lambda: (host, port)
         self.csock, ssock = socket.socketpair()
         self.csock.setblocking(False)
-        self.client_reader, self.client_writer = await asyncio.open_connection(
-            sock=ssock)
+        self.client_reader, self.client_writer = await asyncio.open_connection(sock=ssock)
         self.loop = asyncio.get_running_loop()
         self.proxy_task = asyncio.create_task(
-            self.shadow.server_handshake_proxy(
-                self.client_reader, self.client_writer))
+            self.shadow.server_handshake_proxy(self.client_reader, self.client_writer)
+        )
         return self
 
     async def _on_remote(self, reader, writer):
@@ -40,8 +38,7 @@ class _Harness:
         buf = b""
         while len(buf) < n:
             try:
-                chunk = await asyncio.wait_for(
-                    self.loop.sock_recv(self.csock, n - len(buf)), timeout)
+                chunk = await asyncio.wait_for(self.loop.sock_recv(self.csock, n - len(buf)), timeout)
             except asyncio.TimeoutError:
                 break
             if not chunk:
@@ -176,8 +173,7 @@ async def test_real_client_steady_state_transparent_proxy():
                 harness.received_by_remote.extend(header + payload)
                 writer.write(_record(0x17, b"resp-to-" + payload[:8]))
                 await writer.drain()
-        except (asyncio.IncompleteReadError, ConnectionError,
-                asyncio.CancelledError):
+        except (asyncio.IncompleteReadError, ConnectionError, asyncio.CancelledError):
             pass
 
     async with _Harness(echo_records) as h:

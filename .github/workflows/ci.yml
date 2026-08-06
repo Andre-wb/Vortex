@@ -46,10 +46,54 @@ jobs:
         run: pip install ruff
 
       - name: Ruff check
-        run: ruff check app/ --output-format=github
+        run: ruff check app/ vortex_wizard/ vortex_controller/ --output-format=github
 
       - name: Ruff format check
-        run: ruff format --check app/
+        run: ruff format --check app/ vortex_wizard/ vortex_controller/
+
+  pylint:
+    name: Pylint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pylint-pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: pylint-pip-${{ env.PYTHON_VERSION }}-
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmagic1
+
+      - name: Install Python deps
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Pylint version
+        run: pylint --version
+
+      - name: Pylint
+        run: |
+          pylint app vortex_wizard vortex_controller \
+            --output-format=github,json2:pylint-report.json
+
+      - name: Upload pylint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pylint-report
+          path: pylint-report.json
+          retention-days: 7
 
   rust:
     name: Rust Workspace

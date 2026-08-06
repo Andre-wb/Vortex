@@ -11,6 +11,7 @@ Coverage tests for internal/unit-testable modules:
   - app/logging_config.py (edge cases)
   - app/models.py, app/models_rooms.py (repr/validators)
 """
+
 import contextlib
 import hashlib
 import os
@@ -23,17 +24,20 @@ from pydantic import ValidationError
 
 # crypto.py — Python fallback functions (lines 46-121)
 
+
 class TestCryptoPythonFallbacks:
     """Test _py_* functions directly to cover lines 46-121."""
 
     def test_py_generate_key(self):
         from app.security.crypto import _py_generate_key
+
         key = _py_generate_key()
         assert len(key) == 32
         assert isinstance(key, bytes)
 
     def test_py_encrypt_decrypt(self):
         from app.security.crypto import _py_decrypt, _py_encrypt, _py_generate_key
+
         key = _py_generate_key()
         ct = _py_encrypt(b"hello fallback", key)
         assert ct != b"hello fallback"
@@ -42,12 +46,14 @@ class TestCryptoPythonFallbacks:
 
     def test_py_decrypt_short_data(self):
         from app.security.crypto import _py_decrypt, _py_generate_key
+
         key = _py_generate_key()
         with pytest.raises(ValueError, match="too short"):
             _py_decrypt(b"short", key)
 
     def test_py_encrypt_empty(self):
         from app.security.crypto import _py_decrypt, _py_encrypt, _py_generate_key
+
         key = _py_generate_key()
         ct = _py_encrypt(b"", key)
         pt = _py_decrypt(ct, key)
@@ -55,65 +61,77 @@ class TestCryptoPythonFallbacks:
 
     def test_py_hash_blake3(self):
         from app.security.crypto import _py_hash
+
         h = _py_hash(b"test data")
         assert len(h) == 32
         assert isinstance(h, bytes)
 
     def test_py_hash_deterministic(self):
         from app.security.crypto import _py_hash
+
         h1 = _py_hash(b"same")
         h2 = _py_hash(b"same")
         assert h1 == h2
 
     def test_py_hash_different(self):
         from app.security.crypto import _py_hash
+
         h1 = _py_hash(b"aaa")
         h2 = _py_hash(b"bbb")
         assert h1 != h2
 
     def test_py_hash_password(self):
         from app.security.crypto import _py_hash_password
+
         h = _py_hash_password("TestPass123!")
         assert h.startswith("$argon2")
 
     def test_py_verify_password_correct(self):
         from app.security.crypto import _py_hash_password, _py_verify_password
+
         h = _py_hash_password("MyPassword!")
         assert _py_verify_password("MyPassword!", h) is True
 
     def test_py_verify_password_wrong(self):
         from app.security.crypto import _py_hash_password, _py_verify_password
+
         h = _py_hash_password("correct")
         assert _py_verify_password("wrong", h) is False
 
     def test_py_verify_password_invalid_hash(self):
         from app.security.crypto import _py_verify_password
+
         assert _py_verify_password("test", "not_a_valid_hash") is False
 
     def test_py_hash_token(self):
         from app.security.crypto import _py_hash_token
+
         h = _py_hash_token("my_token_123")
         assert len(h) == 64
         assert h == hashlib.sha256(b"my_token_123").hexdigest()
 
     def test_py_verify_token_correct(self):
         from app.security.crypto import _py_hash_token, _py_verify_token
+
         h = _py_hash_token("tok")
         assert _py_verify_token("tok", h) is True
 
     def test_py_verify_token_wrong(self):
         from app.security.crypto import _py_hash_token, _py_verify_token
+
         h = _py_hash_token("tok")
         assert _py_verify_token("bad", h) is False
 
     def test_py_generate_keypair(self):
         from app.security.crypto import _py_generate_keypair
+
         priv, pub = _py_generate_keypair()
         assert len(priv) == 32
         assert len(pub) == 32
 
     def test_py_derive_session_key(self):
         from app.security.crypto import _py_derive_session_key, _py_generate_keypair
+
         priv_a, pub_a = _py_generate_keypair()
         priv_b, pub_b = _py_generate_keypair()
         k1 = _py_derive_session_key(priv_a, pub_b)
@@ -127,11 +145,13 @@ class TestCryptoPublicAPIDispatch:
 
     def test_generate_key_dispatch(self):
         from app.security.crypto import generate_key
+
         k = generate_key()
         assert len(k) == 32
 
     def test_encrypt_decrypt_dispatch(self):
         from app.security.crypto import decrypt_message, encrypt_message, generate_key
+
         k = generate_key()
         ct = encrypt_message(b"dispatch test", k)
         pt = decrypt_message(ct, k)
@@ -139,37 +159,44 @@ class TestCryptoPublicAPIDispatch:
 
     def test_hash_message_dispatch(self):
         from app.security.crypto import hash_message
+
         h = hash_message(b"data")
         assert len(h) == 32
 
     def test_hash_password_dispatch(self):
         from app.security.crypto import hash_password
+
         h = hash_password("Test123!")
         assert isinstance(h, str) and len(h) > 10
 
     def test_verify_password_dispatch(self):
         from app.security.crypto import hash_password, verify_password
+
         h = hash_password("Test123!")
         assert verify_password("Test123!", h) is True
         assert verify_password("Wrong!", h) is False
 
     def test_hash_token_dispatch(self):
         from app.security.crypto import hash_token
+
         h = hash_token("abc")
         assert isinstance(h, str)
 
     def test_verify_token_hash_dispatch(self):
         from app.security.crypto import hash_token, verify_token_hash
+
         h = hash_token("tok")
         assert verify_token_hash("tok", h) is True
 
     def test_generate_keypair_dispatch(self):
         from app.security.crypto import generate_x25519_keypair
+
         priv, pub = generate_x25519_keypair()
         assert len(priv) == 32 and len(pub) == 32
 
     def test_derive_session_key_dispatch(self):
         from app.security.crypto import derive_x25519_session_key, generate_x25519_keypair
+
         pa, puba = generate_x25519_keypair()
         pb, pubb = generate_x25519_keypair()
         k1 = derive_x25519_session_key(pa, pubb)
@@ -178,6 +205,7 @@ class TestCryptoPublicAPIDispatch:
 
     def test_rust_available(self):
         from app.security.crypto import rust_available
+
         assert isinstance(rust_available(), bool)
 
 
@@ -186,6 +214,7 @@ class TestCryptoNodeKeypair:
 
     def test_create_new_keypair(self, tmp_path):
         import app.security.crypto as cm
+
         old_priv, old_pub = cm._node_priv, cm._node_pub
         cm._node_priv, cm._node_pub = None, None
         try:
@@ -198,6 +227,7 @@ class TestCryptoNodeKeypair:
 
     def test_load_existing_keypair(self, tmp_path):
         import app.security.crypto as cm
+
         old_priv, old_pub = cm._node_priv, cm._node_pub
         cm._node_priv, cm._node_pub = None, None
         try:
@@ -210,6 +240,7 @@ class TestCryptoNodeKeypair:
 
     def test_get_node_public_key_hex(self, tmp_path):
         import app.security.crypto as cm
+
         old_priv, old_pub = cm._node_priv, cm._node_pub
         cm._node_priv, cm._node_pub = None, None
         try:
@@ -222,6 +253,7 @@ class TestCryptoNodeKeypair:
     def test_fix_permissions(self, tmp_path):
         """Covers lines 233-235 (permission fix)."""
         import app.security.crypto as cm
+
         old_priv, old_pub = cm._node_priv, cm._node_pub
         cm._node_priv, cm._node_pub = None, None
         try:
@@ -236,22 +268,26 @@ class TestCryptoNodeKeypair:
 
 # key_exchange.py — line 156 (decrypt error)
 
+
 class TestKeyExchangeErrors:
     def test_ecies_decrypt_node_invalid_data(self):
         from app.security.crypto import generate_x25519_keypair
         from app.security.key_exchange import ecies_decrypt_node
+
         priv, _pub = generate_x25519_keypair()
         with pytest.raises(InvalidTag):
             ecies_decrypt_node("aa" * 32, "bb" * 30, priv)
 
     def test_validate_ecies_payload_missing_fields(self):
         from app.security.key_exchange import validate_ecies_payload
+
         assert validate_ecies_payload({}) is False
         assert validate_ecies_payload({"ephemeral_pub": "aa" * 32}) is False
         assert validate_ecies_payload({"ephemeral_pub": "aa" * 32, "ciphertext": "bb" * 30}) is True
 
     def test_format_encrypted_key(self):
         from app.security.key_exchange import format_encrypted_key
+
         eph, ct = format_encrypted_key({"ephemeral_pub": "aabb", "ciphertext": "ccdd"})
         assert eph == "aabb"
         assert ct == "ccdd"
@@ -259,9 +295,11 @@ class TestKeyExchangeErrors:
 
 # auth_jwt.py — lines 100-142 (get_current_user, get_user_ws)
 
+
 class TestAuthJWT:
     def test_create_and_decode_access_token(self):
         from app.security.auth_jwt import create_access_token, decode_access_token
+
         token = create_access_token(1, "+79001234567", "testuser")
         payload = decode_access_token(token)
         assert payload["sub"] == "1"
@@ -271,13 +309,14 @@ class TestAuthJWT:
         import jwt as pyjwt
 
         from app.config import Config
+
         token = pyjwt.encode(
-            {"sub": "1", "exp": 0, "jti": "x", "phone": "x", "username": "x"},
-            Config.JWT_SECRET, algorithm="HS256"
+            {"sub": "1", "exp": 0, "jti": "x", "phone": "x", "username": "x"}, Config.JWT_SECRET, algorithm="HS256"
         )
         from fastapi import HTTPException
 
         from app.security.auth_jwt import decode_access_token
+
         with pytest.raises(HTTPException) as exc_info:
             decode_access_token(token)
         assert exc_info.value.status_code == 401
@@ -286,12 +325,14 @@ class TestAuthJWT:
         from fastapi import HTTPException
 
         from app.security.auth_jwt import decode_access_token
+
         with pytest.raises(HTTPException):
             decode_access_token("not.a.jwt")
 
     def test_create_refresh_token(self):
         from app.database import SessionLocal
         from app.security.auth_jwt import create_refresh_token
+
         db = SessionLocal()
         try:
             raw, _exp = create_refresh_token(1, db, ip="127.0.0.1", ua="test")
@@ -304,6 +345,7 @@ class TestAuthJWT:
 
         from app.database import SessionLocal
         from app.security.auth_jwt import verify_refresh_token
+
         db = SessionLocal()
         try:
             with pytest.raises(HTTPException):
@@ -317,6 +359,7 @@ class TestAuthJWT:
 
         from app.database import SessionLocal
         from app.security.auth_jwt import get_user_ws
+
         db = SessionLocal()
         try:
             with pytest.raises(HTTPException):
@@ -330,6 +373,7 @@ class TestAuthJWT:
 
         from app.database import SessionLocal
         from app.security.auth_jwt import get_current_user
+
         db = SessionLocal()
         request = MagicMock()
         request.cookies = {}
@@ -345,6 +389,7 @@ class TestAuthJWT:
         from app.database import SessionLocal
         from app.models import User
         from app.security.auth_jwt import create_access_token, get_current_user
+
         db = SessionLocal()
         try:
             user = db.query(User).first()
@@ -362,35 +407,42 @@ class TestAuthJWT:
 
 # secure_upload.py — UploadQuotaManager, image validation, temp files
 
+
 class TestSecureUploadInternals:
     def test_file_upload_config_exists(self):
         from app.security.secure_upload import FileUploadConfig
+
         assert FileUploadConfig.MAX_FILE_SIZE > 0
         assert FileUploadConfig.MAX_FILES_PER_HOUR > 0
 
     def test_generate_secure_filename(self):
         from app.security.secure_upload import generate_secure_filename
+
         name = generate_secure_filename(".txt")
         assert name.endswith(".txt")
         assert len(name) > 10
 
     def test_calculate_file_hash(self):
         from app.security.secure_upload import calculate_file_hash
+
         h = calculate_file_hash(b"test content")
         assert isinstance(h, str) and len(h) == 64
 
     def test_validate_mime_text(self):
         from app.security.secure_upload import validate_file_mime_type
+
         ok, _mime = validate_file_mime_type(b"plain text content", "file.txt")
         assert ok is True
 
     def test_validate_mime_unknown_ext(self):
         from app.security.secure_upload import validate_file_mime_type
+
         ok, _mime = validate_file_mime_type(b"\x00" * 50, "file.xyz123")
         assert isinstance(ok, bool)
 
     def test_validate_mime_encrypted(self):
         from app.security.secure_upload import validate_file_mime_type
+
         ok, _mime = validate_file_mime_type(os.urandom(100), "file.enc")
         assert isinstance(ok, bool)
 
@@ -401,6 +453,7 @@ class TestSecureUploadInternals:
         from PIL import Image
 
         from app.security.secure_upload import FileAnomalyDetector
+
         img = Image.new("RGB", (100, 100), color="red")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
@@ -410,6 +463,7 @@ class TestSecureUploadInternals:
     @pytest.mark.asyncio
     async def test_validate_image_content_invalid(self):
         from app.security.secure_upload import FileAnomalyDetector
+
         ok, _err = await FileAnomalyDetector.validate_image_content(b"not an image")
         assert ok is False
 
@@ -420,6 +474,7 @@ class TestSecureUploadInternals:
         from PIL import Image
 
         from app.security.secure_upload import FileAnomalyDetector
+
         # Больше MAX_IMAGE_DIMENSION, но без гигабайтного буфера: 20000x20000
         # это 1.2 ГБ в памяти, и PIL отсекает такую картинку как zip-бомбу
         # ещё до проверки размеров в самом приложении.
@@ -431,10 +486,12 @@ class TestSecureUploadInternals:
 
     def test_upload_quota_manager_import(self):
         from app.security.secure_upload import UploadQuotaManager
+
         assert UploadQuotaManager is not None
 
     def test_save_and_cleanup_temp(self, tmp_path):
         from app.security.secure_upload import cleanup_temp_files, save_temp_file
+
         with patch("app.security.secure_upload.FileUploadConfig") as cfg:
             cfg.TEMP_DIR = tmp_path
             path, temp_dir = save_temp_file(b"temp data", ".txt")
@@ -444,10 +501,12 @@ class TestSecureUploadInternals:
 
 # antispam_bot.py — bot management and spam checks
 
+
 class TestAntispamBotInternals:
     def test_ensure_bot_creates(self):
         from app.bots.antispam_bot import ensure_antispam_bot
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             uid = ensure_antispam_bot(db)
@@ -459,6 +518,7 @@ class TestAntispamBotInternals:
         from app.bots.antispam_bot import add_antispam_bot_to_room, ensure_antispam_bot
         from app.database import SessionLocal
         from app.models_rooms import Room
+
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
@@ -473,6 +533,7 @@ class TestAntispamBotInternals:
     def test_remove_bot_from_room(self):
         from app.bots.antispam_bot import remove_antispam_bot_from_room
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             result = remove_antispam_bot_from_room(999999, db)
@@ -484,6 +545,7 @@ class TestAntispamBotInternals:
     async def test_antispam_bot_message(self):
         from app.bots.antispam_bot import antispam_bot_message, ensure_antispam_bot
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
@@ -498,6 +560,7 @@ class TestAntispamBotInternals:
         from app.bots.antispam_bot import check_repeat_spam, ensure_antispam_bot
         from app.database import SessionLocal
         from app.models import User
+
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
@@ -515,6 +578,7 @@ class TestAntispamBotInternals:
         from app.database import SessionLocal
         from app.models import User
         from app.models_rooms import RoomRole
+
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
@@ -532,6 +596,7 @@ class TestAntispamBotInternals:
         from app.database import SessionLocal
         from app.models import User
         from app.models_rooms import RoomRole
+
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
@@ -548,6 +613,7 @@ class TestAntispamBotInternals:
         from app.bots.antispam_bot import check_caps_spam, ensure_antispam_bot
         from app.database import SessionLocal
         from app.models import User
+
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
@@ -564,6 +630,7 @@ class TestAntispamBotInternals:
         from app.bots.antispam_bot import check_caps_spam, ensure_antispam_bot
         from app.database import SessionLocal
         from app.models import User
+
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
@@ -571,8 +638,7 @@ class TestAntispamBotInternals:
             if not user:
                 pytest.skip("No non-bot users")
             result = await check_caps_spam(
-                999999, user,
-                "THIS IS ALLCAPS SCREAMING MESSAGE THAT IS VERY LOUD AND OBNOXIOUS", db
+                999999, user, "THIS IS ALLCAPS SCREAMING MESSAGE THAT IS VERY LOUD AND OBNOXIOUS", db
             )
             assert isinstance(result, bool)
         finally:
@@ -582,6 +648,7 @@ class TestAntispamBotInternals:
     async def test_handle_antispam_command(self):
         from app.bots.antispam_bot import ensure_antispam_bot, handle_antispam_command
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
@@ -593,10 +660,12 @@ class TestAntispamBotInternals:
 
 # connection_manager.py — connect/disconnect/broadcast with mock WS
 
+
 class TestConnectionManagerMethods:
     @pytest.mark.asyncio
     async def test_connect_and_disconnect(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         ws = MagicMock()
         ws.accept = AsyncMock()
@@ -609,6 +678,7 @@ class TestConnectionManagerMethods:
     @pytest.mark.asyncio
     async def test_broadcast_to_room(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         ws1, ws2 = MagicMock(), MagicMock()
         ws1.accept = ws2.accept = AsyncMock()
@@ -624,6 +694,7 @@ class TestConnectionManagerMethods:
     @pytest.mark.asyncio
     async def test_send_to_user(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         ws = MagicMock()
         ws.accept = AsyncMock()
@@ -640,6 +711,7 @@ class TestConnectionManagerMethods:
     @pytest.mark.asyncio
     async def test_set_typing(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         ws = MagicMock()
         ws.accept = AsyncMock()
@@ -654,6 +726,7 @@ class TestConnectionManagerMethods:
     @pytest.mark.asyncio
     async def test_check_rate_limit(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         ws = MagicMock()
         ws.accept = AsyncMock()
@@ -667,6 +740,7 @@ class TestConnectionManagerMethods:
     @pytest.mark.asyncio
     async def test_connect_global_and_notify(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         ws = MagicMock()
         ws.accept = AsyncMock()
@@ -681,6 +755,7 @@ class TestConnectionManagerMethods:
     @pytest.mark.asyncio
     async def test_close_all(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         ws = MagicMock()
         ws.accept = AsyncMock()
@@ -691,6 +766,7 @@ class TestConnectionManagerMethods:
 
     def test_dedup_stats_keys(self):
         from app.peer.connection_manager import ConnectionManager
+
         mgr = ConnectionManager()
         stats = mgr.dedup_stats()
         assert isinstance(stats, dict)
@@ -698,13 +774,16 @@ class TestConnectionManagerMethods:
 
 # config.py — _read_env, validate, _ensure_vapid_keys
 
+
 class TestConfigInternals:
     def test_config_validate(self):
         from app.config import Config
+
         Config.validate()
 
     def test_config_ensure_dirs(self, tmp_path):
         from app.config import Config
+
         old_up, old_keys = Config.UPLOAD_DIR, Config.KEYS_DIR
         try:
             Config.UPLOAD_DIR = tmp_path / "up"
@@ -717,6 +796,7 @@ class TestConfigInternals:
 
     def test_config_attributes(self):
         from app.config import Config
+
         assert isinstance(Config.JWT_SECRET, str)
         assert isinstance(Config.DB_POOL_SIZE, int)
         assert isinstance(Config.DB_MAX_OVERFLOW, int)
@@ -727,20 +807,24 @@ class TestConfigInternals:
 
 # database.py — engine info, init_db, URL resolution
 
+
 class TestDatabaseInternals:
     def test_get_engine_info(self):
         from app.database import get_engine_info
+
         info = get_engine_info()
         assert info["backend"] in ("sqlite", "postgresql")
         assert "async_available" in info
 
     def test_database_url_resolution(self):
         from app.database import DATABASE_URL, _is_postgres, _is_sqlite
+
         assert isinstance(DATABASE_URL, str)
         assert _is_sqlite or _is_postgres
 
     def test_init_db_idempotent(self):
         from app.database import init_db
+
         init_db()
         init_db()
 
@@ -748,6 +832,7 @@ class TestDatabaseInternals:
         from sqlalchemy import text
 
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             db.execute(text("SELECT 1"))
@@ -756,6 +841,7 @@ class TestDatabaseInternals:
 
     def test_get_db_generator(self):
         from app.database import get_db
+
         gen = get_db()
         db = next(gen)
         assert db is not None
@@ -765,18 +851,23 @@ class TestDatabaseInternals:
 
 # logging_config.py — edge cases
 
+
 class TestLoggingEdgeCases:
     def test_json_formatter_with_exception(self):
         import json
         import logging
 
         from app.logging_config import JSONFormatter
+
         f = JSONFormatter()
+        import sys
+
+        exc = None
         try:
             raise ValueError("test error")
         except ValueError:
-            import sys
-            record = logging.LogRecord("t", logging.ERROR, "", 0, "err", (), sys.exc_info())
+            exc = sys.exc_info()
+        record = logging.LogRecord("t", logging.ERROR, "", 0, "err", (), exc)
         output = f.format(record)
         parsed = json.loads(output)
         assert "exception" in parsed
@@ -786,6 +877,7 @@ class TestLoggingEdgeCases:
         import logging
 
         from app.logging_config import JSONFormatter
+
         f = JSONFormatter()
         record = logging.LogRecord("t", logging.INFO, "", 0, "msg", (), None)
         record.duration_ms = 42
@@ -799,52 +891,58 @@ class TestLoggingEdgeCases:
         import sys
 
         from app.logging_config import ConsoleFormatter
+
         f = ConsoleFormatter()
+        exc = None
         try:
             raise RuntimeError("boom")
         except RuntimeError:
-            record = logging.LogRecord("t", logging.ERROR, "", 0, "err", (), sys.exc_info())
+            exc = sys.exc_info()
+        record = logging.LogRecord("t", logging.ERROR, "", 0, "err", (), exc)
         output = f.format(record)
         assert "RuntimeError" in output
 
     def test_setup_logging_json(self, tmp_path):
         from app.logging_config import setup_logging
+
         setup_logging(log_format="json", log_level="WARNING", log_dir=str(tmp_path))
 
 
 # models.py / models_rooms.py — __repr__, validators
 
+
 class TestModelEdgeCases:
     def test_user_model_repr(self):
         from app.models import User
+
         u = User(id=1, username="test", phone="+79001234567")
         r = repr(u)
         assert "test" in r or "User" in str(type(u))
 
     def test_register_request_phone_validation(self):
         from app.models import RegisterRequest
+
         with pytest.raises(ValidationError):
-            RegisterRequest(
-                username="valid_user", password="StrongPass1!",
-                phone="invalid", x25519_public_key="a" * 64
-            )
+            RegisterRequest(username="valid_user", password="StrongPass1!", phone="invalid", x25519_public_key="a" * 64)
 
     def test_register_request_valid(self):
         from app.models import RegisterRequest
+
         req = RegisterRequest(
-            username="valid_user", password="StrongPass1!",
-            phone="+79001234567", x25519_public_key="a" * 64
+            username="valid_user", password="StrongPass1!", phone="+79001234567", x25519_public_key="a" * 64
         )
         assert req.username == "valid_user"
 
     def test_room_role_enum(self):
         from app.models_rooms import RoomRole
+
         assert RoomRole.OWNER.value == "owner"
         assert RoomRole.ADMIN.value == "admin"
         assert RoomRole.MEMBER.value == "member"
 
     def test_message_type_enum(self):
         from app.models_rooms import MessageType
+
         assert MessageType.TEXT.value == "text"
         assert MessageType.FILE.value == "file"
         assert MessageType.IMAGE.value == "image"

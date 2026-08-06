@@ -11,6 +11,7 @@ Covers:
   - Bot marketplace (publish, detail, reviews, install)
   - Native bridge (push register/unregister, capabilities, biometric)
 """
+
 from __future__ import annotations
 
 from conftest import SyncASGIClient, make_user, random_str
@@ -30,10 +31,14 @@ def _create_room(client, headers, name=None):
 
 
 def _create_bot(client, headers):
-    r = client.post("/api/bots", json={
-        "username": f"bot_{random_str(6)}",
-        "display_name": "Test Bot",
-    }, headers=headers)
+    r = client.post(
+        "/api/bots",
+        json={
+            "username": f"bot_{random_str(6)}",
+            "display_name": "Test Bot",
+        },
+        headers=headers,
+    )
     if r.status_code in (200, 201):
         return r.json()
     return None
@@ -52,19 +57,27 @@ class TestNativeBridge:
 
     def test_push_register(self, client):
         _, h = _auth(client)
-        r = client.post("/api/native/push/register", json={
-            "token": "fake_fcm_token_12345",
-            "platform": "android",
-            "app_version": "1.0.0",
-        }, headers=h)
+        r = client.post(
+            "/api/native/push/register",
+            json={
+                "token": "fake_fcm_token_12345",
+                "platform": "android",
+                "app_version": "1.0.0",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 201)
 
     def test_push_register_invalid_platform(self, client):
         _, h = _auth(client)
-        r = client.post("/api/native/push/register", json={
-            "token": "fake",
-            "platform": "symbian",
-        }, headers=h)
+        r = client.post(
+            "/api/native/push/register",
+            json={
+                "token": "fake",
+                "platform": "symbian",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 400, 422)
 
     def test_push_subscriptions(self, client):
@@ -74,10 +87,14 @@ class TestNativeBridge:
 
     def test_push_unregister(self, client):
         _, h = _auth(client)
-        r = client.post("/api/native/push/unregister", json={
-            "endpoint": "fake_endpoint",
-            "app_id": "com.vortex.chat",
-        }, headers=h)
+        r = client.post(
+            "/api/native/push/unregister",
+            json={
+                "endpoint": "fake_endpoint",
+                "app_id": "com.vortex.chat",
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 404)
 
     def test_biometric_challenge(self, client):

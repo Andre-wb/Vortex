@@ -1,4 +1,5 @@
 """Peer registry and federation tests."""
+
 import secrets
 
 from conftest import random_str
@@ -9,6 +10,7 @@ class TestPeerRegistry:
 
     def test_peer_info_creation(self):
         from app.peer.peer_registry import PeerInfo
+
         peer = PeerInfo(
             name="test-node",
             ip="192.168.1.100",
@@ -22,6 +24,7 @@ class TestPeerRegistry:
 
     def test_peer_info_to_dict(self):
         from app.peer.peer_registry import PeerInfo
+
         peer = PeerInfo(name="node", ip="10.0.0.1", port=9000)
         d = peer.to_dict()
         assert d["name"] == "node"
@@ -30,17 +33,21 @@ class TestPeerRegistry:
 
     def test_peer_has_encryption(self):
         from app.peer.peer_registry import PeerInfo
+
         peer_no_key = PeerInfo(name="n", ip="1.1.1.1", port=9000)
         assert peer_no_key.has_encryption() is False
 
         peer_with_key = PeerInfo(
-            name="n", ip="1.1.1.1", port=9000,
+            name="n",
+            ip="1.1.1.1",
+            port=9000,
             node_pubkey_hex=secrets.token_hex(32),
         )
         assert peer_with_key.has_encryption() is True
 
     def test_registry_update(self):
         from app.peer.peer_registry import PeerRegistry
+
         reg = PeerRegistry()
         is_new = reg.update("192.168.1.10", "node1", 9000)
         assert is_new is True
@@ -49,6 +56,7 @@ class TestPeerRegistry:
 
     def test_registry_active(self):
         from app.peer.peer_registry import PeerRegistry
+
         reg = PeerRegistry()
         reg.update("192.168.1.10", "node1", 9000)
         reg.update("192.168.1.11", "node2", 9000)
@@ -57,6 +65,7 @@ class TestPeerRegistry:
 
     def test_registry_get(self):
         from app.peer.peer_registry import PeerRegistry
+
         reg = PeerRegistry()
         reg.update("10.0.0.1", "n1", 9000)
         peer = reg.get("10.0.0.1")
@@ -65,6 +74,7 @@ class TestPeerRegistry:
 
     def test_registry_get_nonexistent(self):
         from app.peer.peer_registry import PeerRegistry
+
         reg = PeerRegistry()
         assert reg.get("99.99.99.99") is None
 
@@ -72,6 +82,7 @@ class TestPeerRegistry:
         import time
 
         from app.peer.peer_registry import PeerRegistry
+
         reg = PeerRegistry()
         reg.update("10.0.0.1", "old", 9000)
         # Manually make peer old
@@ -98,10 +109,13 @@ class TestPeerEndpoints:
         assert r.status_code == 200
 
     def test_peers_send_unauthenticated(self, client):
-        r = client.post("/api/peers/send", json={
-            "room_id": 1,
-            "ciphertext": secrets.token_hex(32),
-        })
+        r = client.post(
+            "/api/peers/send",
+            json={
+                "room_id": 1,
+                "ciphertext": secrets.token_hex(32),
+            },
+        )
         assert r.status_code in (401, 403, 422)
 
 
@@ -117,10 +131,13 @@ class TestFederationEndpoints:
         assert r.status_code in (200, 404)
 
     def test_guest_login(self, client):
-        r = client.post("/api/federation/guest-login", json={
-            "display_name": f"Guest_{random_str(5)}",
-            "x25519_pubkey": secrets.token_hex(32),
-        })
+        r = client.post(
+            "/api/federation/guest-login",
+            json={
+                "display_name": f"Guest_{random_str(5)}",
+                "x25519_pubkey": secrets.token_hex(32),
+            },
+        )
         assert r.status_code in (200, 201, 400, 403, 422)
 
 
@@ -128,20 +145,26 @@ class TestPeerReceive:
     """Peer message receive endpoint."""
 
     def test_receive_encrypted_message(self, client):
-        r = client.post("/api/peers/receive", json={
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext": secrets.token_hex(64),
-            "sender_pubkey": secrets.token_hex(32),
-        })
+        r = client.post(
+            "/api/peers/receive",
+            json={
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(64),
+                "sender_pubkey": secrets.token_hex(32),
+            },
+        )
         assert r.status_code in (200, 400, 403, 422)
 
     def test_receive_plaintext_message(self, client):
-        r = client.post("/api/peers/receive", json={
-            "plaintext_payload": {
-                "room_id": 1,
-                "sender": "remote",
-                "ciphertext": secrets.token_hex(32),
+        r = client.post(
+            "/api/peers/receive",
+            json={
+                "plaintext_payload": {
+                    "room_id": 1,
+                    "sender": "remote",
+                    "ciphertext": secrets.token_hex(32),
+                },
+                "sender_pubkey": secrets.token_hex(32),
             },
-            "sender_pubkey": secrets.token_hex(32),
-        })
+        )
         assert r.status_code in (200, 400, 403, 422)

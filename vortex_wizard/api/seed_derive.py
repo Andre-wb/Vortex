@@ -14,6 +14,7 @@ non-hardened child derivation. A compromise of the node key does not
 reveal the wallet key and vice versa — they are independent children of
 the master seed.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -35,11 +36,13 @@ _SOLANA_PATH = (44, 501, 0, 0)
 def generate_mnemonic() -> str:
     """Return a fresh 24-word BIP39 English mnemonic (256 bits entropy)."""
     from mnemonic import Mnemonic
+
     return Mnemonic("english").generate(256)
 
 
 def validate_mnemonic(phrase: str) -> bool:
     from mnemonic import Mnemonic
+
     return Mnemonic("english").check(normalize_mnemonic(phrase))
 
 
@@ -50,6 +53,7 @@ def normalize_mnemonic(phrase: str) -> str:
 def mnemonic_to_seed(phrase: str, passphrase: str = "") -> bytes:
     """BIP39 mnemonic → 64-byte seed via PBKDF2-HMAC-SHA512."""
     from mnemonic import Mnemonic
+
     return Mnemonic.to_seed(normalize_mnemonic(phrase), passphrase=passphrase)
 
 
@@ -76,6 +80,7 @@ def _derive_path(seed: bytes, path: tuple[int, ...]) -> bytes:
 def _ed25519_pubkey(priv_raw: bytes) -> bytes:
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
     priv = Ed25519PrivateKey.from_private_bytes(priv_raw)
     return priv.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -85,9 +90,9 @@ def _ed25519_pubkey(priv_raw: bytes) -> bytes:
 
 @dataclass
 class DerivedIdentity:
-    node_priv_raw: bytes   # 32 bytes — write to keys/ed25519_signing.bin
-    node_pubkey_hex: str   # 64 hex chars
-    wallet_priv_raw: bytes # 32 bytes — kept in-memory only, never written
+    node_priv_raw: bytes  # 32 bytes — write to keys/ed25519_signing.bin
+    node_pubkey_hex: str  # 64 hex chars
+    wallet_priv_raw: bytes  # 32 bytes — kept in-memory only, never written
     wallet_pubkey_base58: str
 
 

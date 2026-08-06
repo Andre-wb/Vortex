@@ -5,7 +5,6 @@ double_ratchet.py), режимы warn-only/enforce, cross-signature identity_key
 хранение Ed25519-ключа и расход one-time prekeys.
 """
 
-
 import pytest
 from conftest import _phone_prefix, random_digits, random_str
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -24,25 +23,41 @@ def _register_and_login(tc):
     tag = random_str(8)
     phone = f"+3{int(_phone_prefix, 16):04d}{random_digits(7)}"
     ik_hex = _x25519_pub_hex()
-    tc.post("/api/authentication/register", json={
-        "username":          f"pk_{tag}",
-        "password":          "Str0ng_abcd!@",
-        "display_name":      f"PK {tag}",
-        "phone":             phone,
-        "avatar_emoji":      "\U0001f511",
-        "x25519_public_key": ik_hex,
-    })
+    tc.post(
+        "/api/authentication/register",
+        json={
+            "username": f"pk_{tag}",
+            "password": "Str0ng_abcd!@",
+            "display_name": f"PK {tag}",
+            "phone": phone,
+            "avatar_emoji": "\U0001f511",
+            "x25519_public_key": ik_hex,
+        },
+    )
     csrf = tc.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-    tc.post("/api/authentication/login", json={
-        "phone_or_username": f"pk_{tag}",
-        "password":          "Str0ng_abcd!@",
-    }, headers={"X-CSRF-Token": csrf})
+    tc.post(
+        "/api/authentication/login",
+        json={
+            "phone_or_username": f"pk_{tag}",
+            "password": "Str0ng_abcd!@",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
     return csrf, ik_hex
 
 
-def _build_bundle(ik_hex, *, ed_priv=None, spk_priv=None, bad_spk_sig=False,
-                  bad_id_sig=False, omit_ed=False, omit_id_sig=False, n_opk=3,
-                  supports_v2=None):
+def _build_bundle(
+    ik_hex,
+    *,
+    ed_priv=None,
+    spk_priv=None,
+    bad_spk_sig=False,
+    bad_id_sig=False,
+    omit_ed=False,
+    omit_id_sig=False,
+    n_opk=3,
+    supports_v2=None,
+):
     """Собирает тело publish-запроса с корректными или намеренно битыми подписями."""
     ed = ed_priv or Ed25519PrivateKey.generate()
     spk = spk_priv or X25519PrivateKey.generate()
@@ -57,11 +72,11 @@ def _build_bundle(ik_hex, *, ed_priv=None, spk_priv=None, bad_spk_sig=False,
         id_sig = bytes([id_sig[0] ^ 0xFF]) + id_sig[1:]
 
     body = {
-        "identity_key":      ik_hex,
-        "signed_prekey":     spk_pub.hex(),
+        "identity_key": ik_hex,
+        "signed_prekey": spk_pub.hex(),
         "signed_prekey_sig": spk_sig.hex(),
-        "signed_prekey_id":  1,
-        "one_time_prekeys":  [{"key_id": i, "public_key": _x25519_pub_hex()} for i in range(n_opk)],
+        "signed_prekey_id": 1,
+        "one_time_prekeys": [{"key_id": i, "public_key": _x25519_pub_hex()} for i in range(n_opk)],
     }
     if not omit_ed:
         body["identity_key_ed"] = ed.public_key().public_bytes_raw().hex()
@@ -83,13 +98,12 @@ def warn_only(monkeypatch):
 
 
 class TestPublishValid:
-
     def test_valid_bundle_accepted(self, warn_only):
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            r = tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik),
-                        headers={"X-CSRF-Token": csrf})
+            r = tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik), headers={"X-CSRF-Token": csrf})
             assert r.status_code == 200, r.text
             body = r.json()
             assert body["published"] is True
@@ -97,14 +111,15 @@ class TestPublishValid:
 
     def test_valid_bundle_accepted_in_enforce(self, enforce):
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            r = tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik),
-                        headers={"X-CSRF-Token": csrf})
+            r = tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik), headers={"X-CSRF-Token": csrf})
             assert r.status_code == 200, r.text
 
     def test_ed_key_stored_and_returned_in_bundle(self, warn_only):
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
             bundle = _build_bundle(ik)
@@ -120,65 +135,73 @@ class TestPublishValid:
 
 
 class TestEnforceRejects:
-
     def test_bad_spk_sig_rejected(self, enforce):
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            r = tc.post("/api/keys/prekeys/publish",
-                        json=_build_bundle(ik, bad_spk_sig=True),
-                        headers={"X-CSRF-Token": csrf})
+            r = tc.post(
+                "/api/keys/prekeys/publish", json=_build_bundle(ik, bad_spk_sig=True), headers={"X-CSRF-Token": csrf}
+            )
             assert r.status_code == 400
 
     def test_bad_identity_binding_sig_rejected(self, enforce):
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            r = tc.post("/api/keys/prekeys/publish",
-                        json=_build_bundle(ik, bad_id_sig=True),
-                        headers={"X-CSRF-Token": csrf})
+            r = tc.post(
+                "/api/keys/prekeys/publish", json=_build_bundle(ik, bad_id_sig=True), headers={"X-CSRF-Token": csrf}
+            )
             assert r.status_code == 400
 
     def test_missing_ed_key_rejected(self, enforce):
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            r = tc.post("/api/keys/prekeys/publish",
-                        json=_build_bundle(ik, omit_ed=True, omit_id_sig=True),
-                        headers={"X-CSRF-Token": csrf})
+            r = tc.post(
+                "/api/keys/prekeys/publish",
+                json=_build_bundle(ik, omit_ed=True, omit_id_sig=True),
+                headers={"X-CSRF-Token": csrf},
+            )
             assert r.status_code == 400
 
     def test_rejected_bundle_not_persisted(self, enforce):
         """Отклонённый в enforce бандл не должен частично записаться в БД."""
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            tc.post("/api/keys/prekeys/publish",
-                    json=_build_bundle(ik, bad_spk_sig=True),
-                    headers={"X-CSRF-Token": csrf})
+            tc.post(
+                "/api/keys/prekeys/publish", json=_build_bundle(ik, bad_spk_sig=True), headers={"X-CSRF-Token": csrf}
+            )
             status = tc.get("/api/keys/prekeys/status/me").json()
             assert status["published"] is False
 
 
 class TestWarnOnly:
-
     def test_bad_sig_accepted_and_stored_in_warn_mode(self, warn_only):
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            r = tc.post("/api/keys/prekeys/publish",
-                        json=_build_bundle(ik, bad_spk_sig=True),
-                        headers={"X-CSRF-Token": csrf})
+            r = tc.post(
+                "/api/keys/prekeys/publish", json=_build_bundle(ik, bad_spk_sig=True), headers={"X-CSRF-Token": csrf}
+            )
             assert r.status_code == 200, r.text
             assert tc.get("/api/keys/prekeys/status/me").json()["published"] is True
 
     def test_legacy_client_without_ed_accepted_in_warn(self, warn_only):
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            r = tc.post("/api/keys/prekeys/publish",
-                        json=_build_bundle(ik, omit_ed=True, omit_id_sig=True),
-                        headers={"X-CSRF-Token": csrf})
+            r = tc.post(
+                "/api/keys/prekeys/publish",
+                json=_build_bundle(ik, omit_ed=True, omit_id_sig=True),
+                headers={"X-CSRF-Token": csrf},
+            )
             assert r.status_code == 200, r.text
 
 
@@ -188,10 +211,12 @@ class TestSupportsV2Capability:
 
     def test_supports_v2_stored_and_returned(self, warn_only):
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik, supports_v2=True),
-                    headers={"X-CSRF-Token": csrf})
+            tc.post(
+                "/api/keys/prekeys/publish", json=_build_bundle(ik, supports_v2=True), headers={"X-CSRF-Token": csrf}
+            )
             me = tc.get("/api/authentication/me").json()
 
             fetched = tc.get(f"/api/keys/prekeys/{me['user_id']}").json()
@@ -203,35 +228,39 @@ class TestSupportsV2Capability:
     def test_legacy_bundle_without_supports_v2_is_null(self, warn_only):
         """Пред-6b бандл (без supports_v2) → null: отправитель не шлёт v2."""
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik),  # без supports_v2
-                    headers={"X-CSRF-Token": csrf})
+            tc.post(
+                "/api/keys/prekeys/publish",
+                json=_build_bundle(ik),  # без supports_v2
+                headers={"X-CSRF-Token": csrf},
+            )
             status = tc.get("/api/keys/prekeys/status/me").json()
             assert status["supports_v2"] in (None, False)
 
     def test_republish_flips_supports_v2(self, warn_only):
         """republish с supports_v2=True обновляет ранее опубликованный бандл."""
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik),
-                    headers={"X-CSRF-Token": csrf})
+            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik), headers={"X-CSRF-Token": csrf})
             assert tc.get("/api/keys/prekeys/status/me").json()["supports_v2"] in (None, False)
-            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik, supports_v2=True),
-                    headers={"X-CSRF-Token": csrf})
+            tc.post(
+                "/api/keys/prekeys/publish", json=_build_bundle(ik, supports_v2=True), headers={"X-CSRF-Token": csrf}
+            )
             assert tc.get("/api/keys/prekeys/status/me").json()["supports_v2"] is True
 
 
 class TestOpkConsumption:
-
     def test_opk_consumed_via_claim_not_discovery(self, warn_only):
         """M4a: discovery (GET) OPK НЕ расходует; расход — только через /claim-opk."""
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as tc:
             csrf, ik = _register_and_login(tc)
-            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik, n_opk=2),
-                    headers={"X-CSRF-Token": csrf})
+            tc.post("/api/keys/prekeys/publish", json=_build_bundle(ik, n_opk=2), headers={"X-CSRF-Token": csrf})
             uid = tc.get("/api/authentication/me").json()["user_id"]
             h = {"X-CSRF-Token": csrf}
 

@@ -14,6 +14,7 @@ the node operator's jurisdiction.
 All exported data is the user's own data only — no other users' data is included.
 Message content is E2E encrypted and exported as ciphertext (server cannot decrypt).
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -30,7 +31,6 @@ from app.security.auth_jwt import get_current_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["privacy"])
-
 
 
 @router.get("/api/privacy/export")
@@ -63,45 +63,60 @@ async def export_user_data(
     memberships = []
     members = db.query(RoomMember).filter(RoomMember.user_id == u.id).all()
     for m in members:
-        memberships.append({
-            "room_id": m.room_id,
-            "role": getattr(m, "role", "member"),
-            "joined_at": str(getattr(m, "joined_at", "")),
-            "is_banned": getattr(m, "is_banned", False),
-        })
+        memberships.append(
+            {
+                "room_id": m.room_id,
+                "role": getattr(m, "role", "member"),
+                "joined_at": str(getattr(m, "joined_at", "")),
+                "is_banned": getattr(m, "is_banned", False),
+            }
+        )
 
     # Messages (encrypted — server cannot read content)
-    messages_count = db.query(Message).filter(
-        Message.sender_pseudo.isnot(None),
-    ).count()
+    messages_count = (
+        db.query(Message)
+        .filter(
+            Message.sender_pseudo.isnot(None),
+        )
+        .count()
+    )
 
     # Files uploaded
     files = []
-    file_transfers = db.query(FileTransfer).filter(
-        FileTransfer.uploader_id == u.id,
-    ).all()
+    file_transfers = (
+        db.query(FileTransfer)
+        .filter(
+            FileTransfer.uploader_id == u.id,
+        )
+        .all()
+    )
     for ft in file_transfers:
-        files.append({
-            "file_id": ft.id,
-            "original_name": ft.original_name,
-            "mime_type": ft.mime_type,
-            "size_bytes": ft.size_bytes,
-            "file_hash": ft.file_hash,
-            "created_at": str(getattr(ft, "created_at", "")),
-        })
+        files.append(
+            {
+                "file_id": ft.id,
+                "original_name": ft.original_name,
+                "mime_type": ft.mime_type,
+                "size_bytes": ft.size_bytes,
+                "file_hash": ft.file_hash,
+                "created_at": str(getattr(ft, "created_at", "")),
+            }
+        )
 
     # Devices (if model exists)
     devices = []
     with contextlib.suppress(Exception):
         from app.models import UserDevice
+
         user_devices = db.query(UserDevice).filter(UserDevice.user_id == u.id).all()
         for d in user_devices:
-            devices.append({
-                "device_id": d.id,
-                "device_name": getattr(d, "device_name", ""),
-                "device_type": getattr(d, "device_type", ""),
-                "created_at": str(getattr(d, "created_at", "")),
-            })
+            devices.append(
+                {
+                    "device_id": d.id,
+                    "device_name": getattr(d, "device_name", ""),
+                    "device_type": getattr(d, "device_type", ""),
+                    "created_at": str(getattr(d, "created_at", "")),
+                }
+            )
 
     export = {
         "export_type": "gdpr_article_15",
@@ -130,7 +145,6 @@ async def export_user_data(
 
     logger.info("GDPR data export for user %s (id=%d)", u.username, u.id)
     return export
-
 
 
 @router.delete("/api/privacy/erase")
@@ -167,6 +181,7 @@ async def erase_user_data(
         # Remove devices
         with contextlib.suppress(Exception):
             from app.models import UserDevice
+
             count = db.query(UserDevice).filter(UserDevice.user_id == u.id).delete()
             erased["devices"] = count
 
@@ -184,8 +199,7 @@ async def erase_user_data(
         db.commit()
         erased["account"] = True
 
-        logger.warning("GDPR erasure completed for user %s (id=%d): %s",
-                        u.username, u.id, erased)
+        logger.warning("GDPR erasure completed for user %s (id=%d): %s", u.username, u.id, erased)
 
     except Exception as e:
         db.rollback()
@@ -205,7 +219,6 @@ async def erase_user_data(
     }
 
 
-
 @router.get("/api/privacy/portability")
 async def data_portability(
     u: User = Depends(get_current_user),
@@ -222,10 +235,12 @@ async def data_portability(
     memberships = []
     members = db.query(RoomMember).filter(RoomMember.user_id == u.id).all()
     for m in members:
-        memberships.append({
-            "room_id": m.room_id,
-            "role": getattr(m, "role", "member"),
-        })
+        memberships.append(
+            {
+                "room_id": m.room_id,
+                "role": getattr(m, "role", "member"),
+            }
+        )
 
     portable = {
         "format": "vortex-portable-v1",
@@ -248,7 +263,6 @@ async def data_portability(
     return portable
 
 
-
 async def enforce_retention_policy(db: Session, max_age_days: int = 365):
     """
     Enforce data retention policy by removing data older than max_age_days.
@@ -266,9 +280,13 @@ async def enforce_retention_policy(db: Session, max_age_days: int = 365):
     try:
         # Delete messages older than retention period
         # (only those without room-level auto-delete, which is handled separately)
-        expired = db.query(Message).filter(
-            Message.created_at < cutoff,
-        ).delete(synchronize_session=False)
+        expired = (
+            db.query(Message)
+            .filter(
+                Message.created_at < cutoff,
+            )
+            .delete(synchronize_session=False)
+        )
         count += expired
         db.commit()
 
@@ -280,7 +298,6 @@ async def enforce_retention_policy(db: Session, max_age_days: int = 365):
         logger.error("Retention enforcement error: %s", e)
 
     return count
-
 
 
 @router.get("/api/privacy/rights")

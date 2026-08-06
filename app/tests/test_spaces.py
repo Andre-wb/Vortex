@@ -6,13 +6,16 @@ from conftest import random_str
 
 
 class TestSpaces:
-
     def test_create_space(self, client, logged_user):
-        resp = client.post("/api/spaces", json={
-            "name": f"space_{random_str()}",
-            "description": "Test workspace",
-            "avatar_emoji": "🏠",
-        }, headers=logged_user["headers"])
+        resp = client.post(
+            "/api/spaces",
+            json={
+                "name": f"space_{random_str()}",
+                "description": "Test workspace",
+                "avatar_emoji": "🏠",
+            },
+            headers=logged_user["headers"],
+        )
         assert resp.status_code in (200, 201)
         if resp.status_code in (200, 201):
             data = resp.json()
@@ -24,10 +27,14 @@ class TestSpaces:
 
     def test_create_space_unauthenticated(self, client):
         from conftest import SyncASGIClient
+
         bare = SyncASGIClient()
-        resp = bare.post("/api/spaces", json={
-            "name": "HackSpace",
-            "description": "Unauthorized",
-        })
+        resp = bare.post(
+            "/api/spaces",
+            json={
+                "name": "HackSpace",
+                "description": "Unauthorized",
+            },
+        )
         assert resp.status_code in (401, 403, 422)
         bare.close()

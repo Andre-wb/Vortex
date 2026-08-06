@@ -1,16 +1,15 @@
-
 from pydantic import BaseModel
 
 
 class SSOProviderConfig(BaseModel):
-    type: str                  # google | github | apple | microsoft | oidc
-    client_id: str     = ""
+    type: str  # google | github | apple | microsoft | oidc
+    client_id: str = ""
     client_secret: str = ""
-    tenant_id: str     = ""   # Microsoft
-    team_id: str       = ""   # Apple
-    key_id: str        = ""   # Apple
-    private_key: str   = ""   # Apple
-    discovery_url: str = ""   # Generic OIDC
+    tenant_id: str = ""  # Microsoft
+    team_id: str = ""  # Apple
+    key_id: str = ""  # Apple
+    private_key: str = ""  # Apple
+    discovery_url: str = ""  # Generic OIDC
 
 
 class SSOConfig(BaseModel):
@@ -19,8 +18,8 @@ class SSOConfig(BaseModel):
 
 
 class SelfSignedRequest(BaseModel):
-    hostname: str  = ""
-    org_name: str  = "Vortex Node"
+    hostname: str = ""
+    org_name: str = "Vortex Node"
     install_ca: bool = True
     admin_password: str = ""  # пароль администратора для установки CA без терминала
 
@@ -34,6 +33,7 @@ class LetsEncryptRequest(BaseModel):
 class ManualCertRequest(BaseModel):
     cert_path: str
     key_path: str
+
 
 class NodeConfig(BaseModel):
     device_name: str

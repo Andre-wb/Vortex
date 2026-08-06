@@ -10,6 +10,7 @@ the node as a child process (``sys.executable --run-node``) without
 requiring a separate Python interpreter or ``run.py`` on the user's
 machine. Everything needed to run the node lives inside the bundle.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -35,6 +36,7 @@ def _run_bundled_node() -> int:
     # to a stable per-user directory instead of whatever CWD the wizard
     # happened to be in — same dir the wizard uses for its .env.
     import os
+
     if sys.platform == "darwin":
         state_root = Path.home() / "Library" / "Application Support" / "Vortex"
     elif sys.platform.startswith("win"):
@@ -51,6 +53,7 @@ def _run_bundled_node() -> int:
     # relative lookups work without touching the node code.
     if mei:
         import shutil as _shutil
+
         # These are READ-ONLY, bundle-owned assets. Safe to rewrite every
         # boot — they are NOT user data. User data (vortex.db, logs,
         # keys, uploads) is never on this list.
@@ -82,4 +85,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--run-node":
         raise SystemExit(_run_bundled_node())
     from vortex_wizard.app import main
+
     raise SystemExit(main())

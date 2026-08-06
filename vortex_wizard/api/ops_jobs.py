@@ -4,6 +4,7 @@ Each job is a ``async def job(env_file: Path) -> dict`` consumed by the
 scheduler in ``scheduler.py``. Jobs are deliberately tolerant — a failure
 is logged into the job's last_msg, it doesn't kill the loop.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -30,14 +31,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/admin/ops", tags=["ops"])
 
 
-
-_RES_DISK_FREE_PCT_WARN = 10     # warn if free disk < 10%
-_RES_MEM_RSS_MB_WARN    = 2048   # warn if RSS > 2 GB
-_RES_CPU_SECONDS_WINDOW = 300    # cpu-seconds observed in last 5 min
-_RES_CPU_WARN_SEC       = 250    # >250 cpu-seconds / 5 min → ~80% saturated
+_RES_DISK_FREE_PCT_WARN = 10  # warn if free disk < 10%
+_RES_MEM_RSS_MB_WARN = 2048  # warn if RSS > 2 GB
+_RES_CPU_SECONDS_WINDOW = 300  # cpu-seconds observed in last 5 min
+_RES_CPU_WARN_SEC = 250  # >250 cpu-seconds / 5 min → ~80% saturated
 _PRUNE_FILES_OLDER_DAYS = 30
-_UPTIME_WINDOW_DAYS     = 30
-
+_UPTIME_WINDOW_DAYS = 30
 
 
 async def job_cron_backup(env_file: Path) -> dict:
@@ -66,15 +65,15 @@ async def job_cron_backup(env_file: Path) -> dict:
     blob_key = _backup_api._derive_blob_key(priv_bytes)
 
     plaintext = _backup_api._sqlite_snapshot(db_path)
-    blob      = _backup_api._encrypt_blob(plaintext, blob_key)
-    sha       = _h.sha256(blob).hexdigest()
+    blob = _backup_api._encrypt_blob(plaintext, blob_key)
+    sha = _h.sha256(blob).hexdigest()
 
     payload = {
-        "action":    "put",
-        "pubkey":    pub,
-        "sha256":    sha,
+        "action": "put",
+        "pubkey": pub,
+        "sha256": sha,
         "byte_size": len(blob),
-        "blob_b64":  _b64.b64encode(blob).decode("ascii"),
+        "blob_b64": _b64.b64encode(blob).decode("ascii"),
         "timestamp": int(time.time()),
     }
     ctrl_url = env.get("CONTROLLER_URL", "").rstrip("/")
@@ -82,18 +81,21 @@ async def job_cron_backup(env_file: Path) -> dict:
 
     # Drop the marker file the Prometheus exporter reads.
     with contextlib.suppress(Exception):
-        (env_file.parent / "backup_last.meta").write_text(json.dumps({
-            "updated_at": res.get("updated_at") or int(time.time()),
-            "byte_size":  len(blob),
-            "sha256":     sha,
-        }))
+        (env_file.parent / "backup_last.meta").write_text(
+            json.dumps(
+                {
+                    "updated_at": res.get("updated_at") or int(time.time()),
+                    "byte_size": len(blob),
+                    "sha256": sha,
+                }
+            )
+        )
 
     return {
-        "message":   f"uploaded {len(blob)} B (plaintext {len(plaintext)} B)",
+        "message": f"uploaded {len(blob)} B (plaintext {len(plaintext)} B)",
         "byte_size": len(blob),
-        "sha256":    sha,
+        "sha256": sha,
     }
-
 
 
 async def job_prune(env_file: Path) -> dict:
@@ -141,7 +143,6 @@ async def job_prune(env_file: Path) -> dict:
             pass
 
     return {"message": "; ".join(actions) or "nothing to prune", "actions": actions}
-
 
 
 _last_cpu_sec = 0.0
@@ -193,8 +194,7 @@ async def job_resource_watchdog(env_file: Path) -> dict:
             c = _audit._conn(env_file)
             try:
                 c.execute(
-                    "UPDATE audit_entries SET alert=1, alert_reason=? "
-                    "WHERE id = (SELECT MAX(id) FROM audit_entries)",
+                    "UPDATE audit_entries SET alert=1, alert_reason=? WHERE id = (SELECT MAX(id) FROM audit_entries)",
                     ("; ".join(alerts),),
                 )
             finally:
@@ -203,26 +203,26 @@ async def job_resource_watchdog(env_file: Path) -> dict:
         # Fan out to configured alert channels (email / Slack / etc.)
         try:
             from . import alerts as _alerts
+
             severity = "critical" if free_pct < 2 else "warning"
             await _alerts.dispatch(
                 env_file,
-                severity=severity,   # type: ignore[arg-type]
+                severity=severity,  # type: ignore[arg-type]
                 title="Vortex resource watchdog",
                 body="; ".join(alerts) + f"\ndisk_free_pct={free_pct:.1f}"
-                     f"\nrss_mb={rss_mb}\ncpu_sec_delta={cpu_delta:.0f}",
+                f"\nrss_mb={rss_mb}\ncpu_sec_delta={cpu_delta:.0f}",
                 tags=["resource_watchdog"],
             )
         except Exception as e:
             logger.debug("alerts dispatch failed: %s", e)
 
     return {
-        "message":        "; ".join(alerts) or "ok",
-        "disk_free_pct":  round(free_pct, 1),
-        "rss_mb":         rss_mb,
-        "cpu_sec_delta":  round(cpu_delta, 1),
-        "alerts":         alerts,
+        "message": "; ".join(alerts) or "ok",
+        "disk_free_pct": round(free_pct, 1),
+        "rss_mb": rss_mb,
+        "cpu_sec_delta": round(cpu_delta, 1),
+        "alerts": alerts,
     }
-
 
 
 def _uptime_path(env_file: Path) -> Path:
@@ -275,7 +275,7 @@ def _trim_uptime(p: Path, cutoff: int) -> None:
     if not p.is_file():
         return
     if p.stat().st_size < 64 * 1024:
-        return      # too small to bother — rewrite is wasteful
+        return  # too small to bother — rewrite is wasteful
     keep_lines = []
     with p.open("r", encoding="utf-8") as f:
         for line in f:
@@ -310,20 +310,21 @@ def _uptime_percent(env_file: Path, window_sec: int = _UPTIME_WINDOW_DAYS * 8640
     return round(100.0 * up / total, 2), total, up
 
 
-
 def install_default_jobs(env_file: Path) -> None:
     s = _sched.get(env_file)
-    s.register("cron_backup",       job_cron_backup,       default_interval="daily")
-    s.register("prune",             job_prune,             default_interval="weekly")
+    s.register("cron_backup", job_cron_backup, default_interval="daily")
+    s.register("prune", job_prune, default_interval="weekly")
     s.register("resource_watchdog", job_resource_watchdog, default_interval="hourly")
-    s.register("uptime_ping",       job_uptime_ping,       default_interval="hourly")
+    s.register("uptime_ping", job_uptime_ping, default_interval="hourly")
     # JWT rotation — default off; operator opts in by flipping interval.
     from . import security_api as _sec
-    s.register("jwt_rotate",        _sec.job_jwt_rotate,   default_interval="off")
+
+    s.register("jwt_rotate", _sec.job_jwt_rotate, default_interval="off")
 
     # Wave-10 jobs (mirror backup, autocompound candidate staging)
     try:
         from . import operator as _op
+
         _op.install_jobs(env_file)
     except Exception as e:
         logger.warning("operator jobs install failed: %s", e)
@@ -331,6 +332,7 @@ def install_default_jobs(env_file: Path) -> None:
     # Monitoring — custom alert rules (W2)
     try:
         from . import monitoring as _mon
+
         _mon.install_monitoring_jobs(env_file)
     except Exception as e:
         logger.warning("monitoring jobs install failed: %s", e)
@@ -338,6 +340,7 @@ def install_default_jobs(env_file: Path) -> None:
     # DB operations — PITR snapshots (W3)
     try:
         from . import db_ops as _dbo
+
         _dbo.install_dbops_jobs(env_file)
     except Exception as e:
         logger.warning("dbops jobs install failed: %s", e)
@@ -345,6 +348,7 @@ def install_default_jobs(env_file: Path) -> None:
     # Peer advanced — blacklist expiry (W4)
     try:
         from . import peer_advanced as _pa
+
         _pa.install_peer_adv_jobs(env_file)
     except Exception as e:
         logger.warning("peer_advanced jobs install failed: %s", e)
@@ -352,6 +356,7 @@ def install_default_jobs(env_file: Path) -> None:
     # Secrets — expiry reminder (W5)
     try:
         from . import secrets_mgr as _sm
+
         _sm.install_secrets_jobs(env_file)
     except Exception as e:
         logger.warning("secrets_mgr jobs install failed: %s", e)
@@ -359,12 +364,12 @@ def install_default_jobs(env_file: Path) -> None:
     # Backup plus — multi-controller + integrity check (W6)
     try:
         from . import backup_plus as _bp
+
         _bp.install_backup_plus_jobs(env_file)
     except Exception as e:
         logger.warning("backup_plus jobs install failed: %s", e)
 
     s.start()
-
 
 
 class IntervalBody(BaseModel):
@@ -380,9 +385,9 @@ def _env_file(request: Request) -> Path:
 async def list_jobs(request: Request) -> dict:
     s = _sched.get(_env_file(request))
     return {
-        "jobs":      s.jobs(),
-        "presets":   list(_sched.INTERVAL_PRESETS.keys()),
-        "tick_sec":  s._tick_sec,
+        "jobs": s.jobs(),
+        "presets": list(_sched.INTERVAL_PRESETS.keys()),
+        "tick_sec": s._tick_sec,
     }
 
 
@@ -430,23 +435,27 @@ async def uptime_badge(request: Request) -> Response:
   </g>
   <g fill="#fff" text-anchor="middle"
      font-family="Verdana,Geneva,sans-serif" font-size="11">
-    <text x="{w_left/2}" y="14">{label}</text>
-    <text x="{w_left + w_right/2}" y="14">{value}</text>
+    <text x="{w_left / 2}" y="14">{label}</text>
+    <text x="{w_left + w_right / 2}" y="14">{value}</text>
   </g>
 </svg>"""
-    return Response(content=svg, media_type="image/svg+xml", headers={
-        "Cache-Control": "public, max-age=60",
-    })
+    return Response(
+        content=svg,
+        media_type="image/svg+xml",
+        headers={
+            "Cache-Control": "public, max-age=60",
+        },
+    )
 
 
 @router.get("/uptime")
 async def uptime_stats(request: Request) -> dict:
     pct, total, up = _uptime_percent(_env_file(request))
     return {
-        "uptime_pct":   pct,
+        "uptime_pct": pct,
         "total_samples": total,
-        "up_samples":    up,
-        "window_days":   _UPTIME_WINDOW_DAYS,
+        "up_samples": up,
+        "window_days": _UPTIME_WINDOW_DAYS,
     }
 
 
@@ -458,11 +467,12 @@ class VersionPinBody(BaseModel):
 @router.get("/version")
 async def version_info(request: Request) -> dict:
     from vortex_wizard import VERSION
+
     env_file = _env_file(request)
     env = _backup_api._read_env(env_file)
     return {
         "version": VERSION,
-        "pinned":  env.get("VERSION_PIN", "").lower() in ("1", "true", "yes"),
+        "pinned": env.get("VERSION_PIN", "").lower() in ("1", "true", "yes"),
     }
 
 

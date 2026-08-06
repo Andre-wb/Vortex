@@ -8,6 +8,7 @@ computes P50/P95/P99. Also exports Prometheus-format counters so the
 Only a few thousand samples are held at any time — this is about
 diagnosing wizard-side bottlenecks, not a full-blown APM.
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,12 +24,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/wiz/admin/profiler", tags=["profiler"])
 
-_BUCKET_MAX_SAMPLES = 500   # per (method, path) bucket
+_BUCKET_MAX_SAMPLES = 500  # per (method, path) bucket
 _STATUS_COUNTER_CAP = 10_000
 
 
 class _PerEndpointStats:
     """Rolling samples + counters for one (method, path) tuple."""
+
     __slots__ = ("count", "samples", "status_counts")
 
     def __init__(self):
@@ -45,8 +47,7 @@ class _PerEndpointStats:
         if not self.samples:
             return 0.0
         sorted_samples = sorted(self.samples)
-        idx = max(0, min(len(sorted_samples) - 1,
-                         round((p / 100.0) * (len(sorted_samples) - 1))))
+        idx = max(0, min(len(sorted_samples) - 1, round((p / 100.0) * (len(sorted_samples) - 1))))
         return sorted_samples[idx]
 
 
@@ -66,6 +67,7 @@ _PATH_PATTERNS = [
 
 def _template(path: str) -> str:
     import re
+
     for pat, repl in _PATH_PATTERNS:
         path = re.sub(pat, repl, path)
     return path[:128]
@@ -78,10 +80,16 @@ class ProfilerMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable],
     ):
         # Skip polling-heavy endpoints to keep the picture signal-rich.
-        skip_paths = ("/api/wiz/admin/logs", "/api/wiz/admin/metrics",
-                      "/api/wiz/admin/profiler", "/api/wiz/admin/node/status",
-                      "/api/wiz/admin/audit", "/static", "/locales",
-                      "/favicon")
+        skip_paths = (
+            "/api/wiz/admin/logs",
+            "/api/wiz/admin/metrics",
+            "/api/wiz/admin/profiler",
+            "/api/wiz/admin/node/status",
+            "/api/wiz/admin/audit",
+            "/static",
+            "/locales",
+            "/favicon",
+        )
         path = request.url.path
         for sp in skip_paths:
             if path.startswith(sp):
@@ -114,9 +122,7 @@ def render_prometheus() -> Iterable[str]:
     lines.append("# TYPE vortex_http_requests_total counter")
     for (method, tpl), st in items:
         for code, cnt in st.status_counts.items():
-            lines.append(
-                f'vortex_http_requests_total{{method="{method}",path="{tpl}",status="{code}"}} {cnt}'
-            )
+            lines.append(f'vortex_http_requests_total{{method="{method}",path="{tpl}",status="{code}"}} {cnt}')
     lines.append("# HELP vortex_http_request_duration_seconds Rolling-window latency quantiles (ms / 1000).")
     lines.append("# TYPE vortex_http_request_duration_seconds gauge")
     for (method, tpl), st in items:
@@ -136,15 +142,17 @@ async def profiler_summary(top: int = 20) -> dict:
 
     rows = []
     for (method, tpl), st in items:
-        rows.append({
-            "method":   method,
-            "path":     tpl,
-            "count":    st.count,
-            "p50_ms":   round(st.percentile(50), 1),
-            "p95_ms":   round(st.percentile(95), 1),
-            "p99_ms":   round(st.percentile(99), 1),
-            "status_counts": dict(st.status_counts),
-        })
+        rows.append(
+            {
+                "method": method,
+                "path": tpl,
+                "count": st.count,
+                "p50_ms": round(st.percentile(50), 1),
+                "p95_ms": round(st.percentile(95), 1),
+                "p99_ms": round(st.percentile(99), 1),
+                "status_counts": dict(st.status_counts),
+            }
+        )
     # Sort by p99 desc — slowest first
     rows.sort(key=lambda r: r["p99_ms"], reverse=True)
     return {"endpoints": rows[:top], "total": len(rows)}

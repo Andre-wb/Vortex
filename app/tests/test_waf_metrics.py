@@ -1,4 +1,5 @@
 """Метрики WAF: имена приходят из Rust, значения — из живого движка."""
+
 from __future__ import annotations
 
 import pytest
@@ -47,7 +48,6 @@ def _samples(engine):
 
 
 class TestMetricNamesComeFromRust:
-
     def test_python_uses_exactly_the_rust_names(self):
         rust = vortex_waf.METRIC_NAMES
         assert rust["counters"] == waf_metrics.COUNTERS
@@ -69,7 +69,6 @@ class TestMetricNamesComeFromRust:
 
 
 class TestCollector:
-
     def test_exports_counter_and_gauge_values(self):
         samples = _samples(_FakeEngine(_sample_stats()))
 
@@ -81,10 +80,7 @@ class TestCollector:
 
     def test_rule_triggers_carry_the_rule_label(self):
         samples = _samples(_FakeEngine(_sample_stats()))
-        by_rule = {
-            s.labels["rule"]: s.value
-            for s in samples["vortex_waf_rule_triggers_total"]
-        }
+        by_rule = {s.labels["rule"]: s.value for s in samples["vortex_waf_rule_triggers_total"]}
         assert by_rule == {"SQLI-001": 2, "XSS-004": 1}
 
     def test_derived_values_are_not_exported(self):
@@ -110,7 +106,6 @@ class TestCollector:
 
 
 class TestRegistration:
-
     def test_register_is_idempotent(self, registry):
         engine = _FakeEngine(_sample_stats())
         try:
@@ -133,7 +128,6 @@ class TestRegistration:
 
 
 class TestLiveEndpoint:
-
     def test_metrics_endpoint_exposes_waf_families(self, client):
         response = client.get("/metrics")
         if response.status_code != 200:

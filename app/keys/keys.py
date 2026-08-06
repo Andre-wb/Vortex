@@ -24,7 +24,7 @@ _logger = logging.getLogger(__name__)
 
 
 class KyberPublishRequest(BaseModel):
-    kyber_public_key: str = Field(..., min_length=2368, max_length=2368)    # ML-KEM-768 pub = 1184 байта
+    kyber_public_key: str = Field(..., min_length=2368, max_length=2368)  # ML-KEM-768 pub = 1184 байта
     kyber_public_key_sig: str = Field(..., min_length=128, max_length=128)  # Ed25519 подпись hex
 
 
@@ -39,8 +39,7 @@ async def publish_kyber(
     сервер хранит pub+sig, подпись проверяют ОТПРАВИТЕЛИ против доверенного
     аккаунтного Ed25519 (сервер не корень доверия)."""
     try:
-        if len(bytes.fromhex(body.kyber_public_key)) != 1184 \
-                or len(bytes.fromhex(body.kyber_public_key_sig)) != 64:
+        if len(bytes.fromhex(body.kyber_public_key)) != 1184 or len(bytes.fromhex(body.kyber_public_key_sig)) != 64:
             raise ValueError
     except ValueError:
         raise HTTPException(400, "Invalid kyber public key / signature") from None
@@ -61,6 +60,7 @@ _coturn_available = None
 def _detect_public_ip() -> str:
     """Detect the node's external IP for TURN candidates."""
     import socket
+
     # Try env first
     ip = os.getenv("PUBLIC_IP") or os.getenv("EXTERNAL_IP")
     if ip:
@@ -141,10 +141,9 @@ def _generate_turn_credentials(ttl: int = 86400) -> tuple[str, str]:
     """Generate time-limited TURN credentials (RFC 5766 long-term auth with shared secret)."""
     timestamp = int(time.time()) + ttl
     username = f"{timestamp}:vortex"
-    password = hmac.new(
-        _TURN_SECRET.encode(), username.encode(), hashlib.sha1
-    ).digest()
+    password = hmac.new(_TURN_SECRET.encode(), username.encode(), hashlib.sha1).digest()
     import base64
+
     return username, base64.b64encode(password).decode()
 
 
@@ -166,6 +165,7 @@ def _get_self_hosted_turn() -> list[dict] | None:
 def _load_or_create_node_kyber(keys_dir) -> str | None:
     """Load or create a Kyber-768 keypair for this node. Returns public key hex or None."""
     import logging as _log
+
     _logger = _log.getLogger(__name__)
     kyber_pub_path = keys_dir / "mlkem768_public.bin"
     kyber_sk_path = keys_dir / "mlkem768_secret.bin"
@@ -173,6 +173,7 @@ def _load_or_create_node_kyber(keys_dir) -> str | None:
         return kyber_pub_path.read_bytes().hex()
     try:
         from app.security.post_quantum import Kyber768, pq_available
+
         if not pq_available():
             return None
         k_pub, k_sk = Kyber768.keygen()
@@ -212,6 +213,7 @@ async def get_ice_servers(u: User = Depends(get_current_user)):
     turn_cred = os.getenv("TURN_CREDENTIAL", "")
 
     from app.transport.stealth import get_stealth_ice_servers, is_stealth
+
     if is_stealth():
         servers = get_stealth_ice_servers()
     else:

@@ -7,6 +7,7 @@ app/chats/contacts.py — API управления контактами поль
   - PUT    /api/contacts/{id}      — обновить никнейм контакта
   - DELETE /api/contacts/{id}      — удалить контакт
 """
+
 from __future__ import annotations
 
 import logging
@@ -31,6 +32,7 @@ block_router = APIRouter(prefix="/api/users", tags=["users"])
 
 # Pydantic схемы
 
+
 class AddContactRequest(BaseModel):
     user_id: int
 
@@ -40,6 +42,7 @@ class UpdateContactRequest(BaseModel):
 
 
 # Вспомогательные функции
+
 
 def _mask_phone(phone: str | None) -> str | None:
     """Маскирование номера телефона: показывает первые 4 и последние 2 символа."""
@@ -73,9 +76,9 @@ def _is_user_online(user_id: int, db: Session | None = None) -> bool:
     from starlette.websockets import WebSocketState
 
     # Проверяем глобальный WS (с валидацией состояния)
-    if hasattr(manager, '_global_ws') and user_id in manager._global_ws:
+    if hasattr(manager, "_global_ws") and user_id in manager._global_ws:
         ws = manager._global_ws[user_id]
-        if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
+        if hasattr(ws, "client_state") and ws.client_state != WebSocketState.CONNECTED:
             manager._global_ws.pop(user_id, None)
         else:
             return True
@@ -84,7 +87,7 @@ def _is_user_online(user_id: int, db: Session | None = None) -> bool:
         conn = room_users.get(user_id)
         if conn:
             ws = conn.websocket
-            if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
+            if hasattr(ws, "client_state") and ws.client_state != WebSocketState.CONNECTED:
                 continue  # stale — будет очищен при следующем broadcast
             return True
     return False
@@ -92,18 +95,14 @@ def _is_user_online(user_id: int, db: Session | None = None) -> bool:
 
 # Эндпоинты
 
+
 @router.get("")
 async def list_contacts(
-        u:  User    = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Список контактов текущего пользователя с информацией о каждом."""
-    contacts = (
-        db.query(Contact)
-        .filter(Contact.owner_id == u.id)
-        .order_by(Contact.created_at.desc())
-        .all()
-    )
+    contacts = db.query(Contact).filter(Contact.owner_id == u.id).order_by(Contact.created_at.desc()).all()
 
     if not contacts:
         return {"contacts": []}
@@ -123,8 +122,7 @@ async def list_contacts(
     my_dm_rooms = (
         db.query(RoomMember.room_id, RoomMember.user_id)
         .join(Room, Room.id == RoomMember.room_id)
-        .filter(Room.is_dm.is_(True), RoomMember.room_id.in_(my_dm_room_ids),
-                RoomMember.user_id.in_(contact_ids))
+        .filter(Room.is_dm.is_(True), RoomMember.room_id.in_(my_dm_room_ids), RoomMember.user_id.in_(contact_ids))
         .all()
     )
     dm_map = {row.user_id: row.room_id for row in my_dm_rooms}
@@ -135,40 +133,42 @@ async def list_contacts(
         if not contact_user:
             continue
 
-        _show_ls = getattr(contact_user, 'show_last_seen', True)
+        _show_ls = getattr(contact_user, "show_last_seen", True)
         if _show_ls is None:
             _show_ls = True
-        result.append({
-            "contact_id":   c.id,
-            "user_id":      contact_user.id,
-            "username":     contact_user.username,
-            "display_name": contact_user.display_name or contact_user.username,
-            "avatar_emoji": contact_user.avatar_emoji,
-            "avatar_url":   contact_user.avatar_url,
-            "phone":        _mask_phone(contact_user.phone),
-            "nickname":     c.nickname,
-            "is_online":    _is_user_online(contact_user.id),
-            "last_seen":    contact_user.last_seen.isoformat() + "Z" if contact_user.last_seen and _show_ls else None,
-            "show_last_seen": _show_ls,
-            "custom_status": contact_user.custom_status,
-            "status_emoji":  contact_user.status_emoji,
-            "presence":      contact_user.presence or "online",
-            "dm_room_id":   dm_map.get(c.contact_id),
-            "created_at":   c.created_at.isoformat(),
-            "x25519_public_key":     contact_user.x25519_public_key,
-            "kyber_public_key":      contact_user.kyber_public_key,
-            "kyber_public_key_sig":  contact_user.kyber_public_key_sig,
-            "fingerprint_verified":  bool(c.fingerprint_verified),
-        })
+        result.append(
+            {
+                "contact_id": c.id,
+                "user_id": contact_user.id,
+                "username": contact_user.username,
+                "display_name": contact_user.display_name or contact_user.username,
+                "avatar_emoji": contact_user.avatar_emoji,
+                "avatar_url": contact_user.avatar_url,
+                "phone": _mask_phone(contact_user.phone),
+                "nickname": c.nickname,
+                "is_online": _is_user_online(contact_user.id),
+                "last_seen": contact_user.last_seen.isoformat() + "Z" if contact_user.last_seen and _show_ls else None,
+                "show_last_seen": _show_ls,
+                "custom_status": contact_user.custom_status,
+                "status_emoji": contact_user.status_emoji,
+                "presence": contact_user.presence or "online",
+                "dm_room_id": dm_map.get(c.contact_id),
+                "created_at": c.created_at.isoformat(),
+                "x25519_public_key": contact_user.x25519_public_key,
+                "kyber_public_key": contact_user.kyber_public_key,
+                "kyber_public_key_sig": contact_user.kyber_public_key_sig,
+                "fingerprint_verified": bool(c.fingerprint_verified),
+            }
+        )
 
     return {"contacts": result}
 
 
 @router.post("", status_code=201)
 async def add_contact(
-        body: AddContactRequest,
-        u:    User    = Depends(get_current_user),
-        db:   Session = Depends(get_db),
+    body: AddContactRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Добавить пользователя в контакты."""
     if body.user_id == u.id:
@@ -178,10 +178,14 @@ async def add_contact(
     if not target:
         raise HTTPException(404, "User not found")
 
-    existing = db.query(Contact).filter(
-        Contact.owner_id == u.id,
-        Contact.contact_id == body.user_id,
-    ).first()
+    existing = (
+        db.query(Contact)
+        .filter(
+            Contact.owner_id == u.id,
+            Contact.contact_id == body.user_id,
+        )
+        .first()
+    )
     if existing:
         raise HTTPException(409, "Contact already added")
 
@@ -193,32 +197,36 @@ async def add_contact(
     dm_room_id = _find_dm_room(u.id, body.user_id, db)
 
     return {
-        "contact_id":   contact.id,
-        "user_id":      target.id,
-        "username":     target.username,
+        "contact_id": contact.id,
+        "user_id": target.id,
+        "username": target.username,
         "display_name": target.display_name or target.username,
         "avatar_emoji": target.avatar_emoji,
-        "avatar_url":   target.avatar_url,
-        "phone":        _mask_phone(target.phone),
-        "nickname":     contact.nickname,
-        "is_online":    _is_user_online(target.id),
-        "dm_room_id":   dm_room_id,
-        "created_at":   contact.created_at.isoformat(),
+        "avatar_url": target.avatar_url,
+        "phone": _mask_phone(target.phone),
+        "nickname": contact.nickname,
+        "is_online": _is_user_online(target.id),
+        "dm_room_id": dm_room_id,
+        "created_at": contact.created_at.isoformat(),
     }
 
 
 @router.put("/{contact_id}")
 async def update_contact(
-        contact_id: int,
-        body:       UpdateContactRequest,
-        u:          User    = Depends(get_current_user),
-        db:         Session = Depends(get_db),
+    contact_id: int,
+    body: UpdateContactRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Обновить никнейм контакта."""
-    contact = db.query(Contact).filter(
-        Contact.id == contact_id,
-        Contact.owner_id == u.id,
-    ).first()
+    contact = (
+        db.query(Contact)
+        .filter(
+            Contact.id == contact_id,
+            Contact.owner_id == u.id,
+        )
+        .first()
+    )
     if not contact:
         raise HTTPException(404, "Contact not found")
 
@@ -230,15 +238,19 @@ async def update_contact(
 
 @router.delete("/{contact_id}")
 async def delete_contact(
-        contact_id: int,
-        u:          User    = Depends(get_current_user),
-        db:         Session = Depends(get_db),
+    contact_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Удалить контакт."""
-    contact = db.query(Contact).filter(
-        Contact.id == contact_id,
-        Contact.owner_id == u.id,
-    ).first()
+    contact = (
+        db.query(Contact)
+        .filter(
+            Contact.id == contact_id,
+            Contact.owner_id == u.id,
+        )
+        .first()
+    )
     if not contact:
         raise HTTPException(404, "Contact not found")
 
@@ -250,22 +262,27 @@ async def delete_contact(
 
 # Верификация fingerprint
 
+
 class VerifyFingerprintRequest(BaseModel):
     pubkey_hash: str = Field(..., min_length=64, max_length=64)
 
 
 @router.post("/{contact_id}/verify-fingerprint")
 async def verify_fingerprint(
-        contact_id: int,
-        body:       VerifyFingerprintRequest,
-        u:          User    = Depends(get_current_user),
-        db:         Session = Depends(get_db),
+    contact_id: int,
+    body: VerifyFingerprintRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Отметить fingerprint контакта как проверенный."""
-    contact = db.query(Contact).filter(
-        Contact.id == contact_id,
-        Contact.owner_id == u.id,
-    ).first()
+    contact = (
+        db.query(Contact)
+        .filter(
+            Contact.id == contact_id,
+            Contact.owner_id == u.id,
+        )
+        .first()
+    )
     if not contact:
         raise HTTPException(404, "Contact not found")
 
@@ -279,15 +296,19 @@ async def verify_fingerprint(
 
 @router.delete("/{contact_id}/verify-fingerprint")
 async def unverify_fingerprint(
-        contact_id: int,
-        u:          User    = Depends(get_current_user),
-        db:         Session = Depends(get_db),
+    contact_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Снять верификацию fingerprint."""
-    contact = db.query(Contact).filter(
-        Contact.id == contact_id,
-        Contact.owner_id == u.id,
-    ).first()
+    contact = (
+        db.query(Contact)
+        .filter(
+            Contact.id == contact_id,
+            Contact.owner_id == u.id,
+        )
+        .first()
+    )
     if not contact:
         raise HTTPException(404, "Contact not found")
 
@@ -301,11 +322,12 @@ async def unverify_fingerprint(
 
 # Блокировка пользователей
 
+
 @block_router.get("/profile/{user_id}")
 async def get_user_profile(
-        user_id: int,
-        u:       User    = Depends(get_current_user),
-        db:      Session = Depends(get_db),
+    user_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Полный профиль пользователя: данные, DM-комната, общие группы и медиа."""
     from app.models_rooms import FileTransfer
@@ -316,12 +338,17 @@ async def get_user_profile(
 
     dm_room_id = _find_dm_room(u.id, user_id, db)
 
-    contact_row = db.query(Contact).filter(
-        Contact.owner_id == u.id, Contact.contact_id == user_id,
-    ).first()
+    contact_row = (
+        db.query(Contact)
+        .filter(
+            Contact.owner_id == u.id,
+            Contact.contact_id == user_id,
+        )
+        .first()
+    )
 
     # Общие группы (не DM, где оба участники)
-    my_rooms    = db.query(RoomMember.room_id).filter(RoomMember.user_id == u.id).subquery()
+    my_rooms = db.query(RoomMember.room_id).filter(RoomMember.user_id == u.id).subquery()
     their_rooms = db.query(RoomMember.room_id).filter(RoomMember.user_id == user_id).subquery()
     common_room_rows = (
         db.query(Room)
@@ -333,8 +360,7 @@ async def get_user_profile(
         .all()
     )
     common_groups = [
-        {"id": r.id, "name": r.name, "avatar_emoji": getattr(r, "avatar_emoji", None) or "💬"}
-        for r in common_room_rows
+        {"id": r.id, "name": r.name, "avatar_emoji": getattr(r, "avatar_emoji", None) or "💬"} for r in common_room_rows
     ]
 
     # Общие медиа (изображения из DM + общих групп)
@@ -354,46 +380,48 @@ async def get_user_profile(
         )
         shared_media = [
             {
-                "id":          f.id,
-                "room_id":     f.room_id,
+                "id": f.id,
+                "room_id": f.room_id,
                 "stored_name": f.stored_name,
-                "mime_type":   f.mime_type,
-                "file_name":   f.original_name,
+                "mime_type": f.mime_type,
+                "file_name": f.original_name,
             }
             for f in media_rows
         ]
 
     return {
         "user": {
-            "id":            target.id,
-            "username":      target.username,
-            "display_name":  target.display_name or target.username,
-            "avatar_emoji":  target.avatar_emoji,
-            "avatar_url":    target.avatar_url,
+            "id": target.id,
+            "username": target.username,
+            "display_name": target.display_name or target.username,
+            "avatar_emoji": target.avatar_emoji,
+            "avatar_url": target.avatar_url,
             "custom_status": target.custom_status,
-            "status_emoji":  target.status_emoji,
-            "presence":      target.presence or "online",
-            "bio":           target.bio,
-            "birth_date":    target.birth_date,
-            "profile_bg":    target.profile_bg,
-            "profile_icon":  target.profile_icon,
-            "is_online":     _is_user_online(target.id),
-            "last_seen":     target.last_seen.isoformat() + "Z" if target.last_seen and getattr(target, 'show_last_seen', True) not in (False,) else None,
-            "show_last_seen": getattr(target, 'show_last_seen', True) is not False,
+            "status_emoji": target.status_emoji,
+            "presence": target.presence or "online",
+            "bio": target.bio,
+            "birth_date": target.birth_date,
+            "profile_bg": target.profile_bg,
+            "profile_icon": target.profile_icon,
+            "is_online": _is_user_online(target.id),
+            "last_seen": target.last_seen.isoformat() + "Z"
+            if target.last_seen and getattr(target, "show_last_seen", True) not in (False,)
+            else None,
+            "show_last_seen": getattr(target, "show_last_seen", True) is not False,
             "x25519_public_key": target.x25519_public_key,
         },
-        "dm_room_id":    dm_room_id,
+        "dm_room_id": dm_room_id,
         "common_groups": common_groups,
-        "shared_media":  shared_media,
+        "shared_media": shared_media,
         "fingerprint_verified": bool(contact_row.fingerprint_verified) if contact_row else False,
     }
 
 
 @block_router.post("/block/{user_id}")
 async def block_user(
-        user_id: int,
-        u:       User    = Depends(get_current_user),
-        db:      Session = Depends(get_db),
+    user_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Заблокировать/разблокировать пользователя — запрещает ему отправлять DM.
 
@@ -412,19 +440,27 @@ async def block_user(
 
     dm_room_id = _find_dm_room(u.id, user_id, db)
 
-    existing_block = db.query(BlockedUser).filter(
-        BlockedUser.blocker_id == u.id,
-        BlockedUser.blocked_id == user_id,
-    ).first()
+    existing_block = (
+        db.query(BlockedUser)
+        .filter(
+            BlockedUser.blocker_id == u.id,
+            BlockedUser.blocked_id == user_id,
+        )
+        .first()
+    )
 
     if existing_block:
         # разблокировка — удаляем запись и снимаем бан с DM-комнаты
         db.delete(existing_block)
         if dm_room_id:
-            member = db.query(RoomMember).filter(
-                RoomMember.room_id == dm_room_id,
-                RoomMember.user_id == user_id,
-            ).first()
+            member = (
+                db.query(RoomMember)
+                .filter(
+                    RoomMember.room_id == dm_room_id,
+                    RoomMember.user_id == user_id,
+                )
+                .first()
+            )
             if member:
                 member.is_banned = False
         db.commit()
@@ -435,10 +471,14 @@ async def block_user(
 
     # Сохраняем прежнее поведение: баним заблокированного в существующей DM
     if dm_room_id:
-        member = db.query(RoomMember).filter(
-            RoomMember.room_id == dm_room_id,
-            RoomMember.user_id == user_id,
-        ).first()
+        member = (
+            db.query(RoomMember)
+            .filter(
+                RoomMember.room_id == dm_room_id,
+                RoomMember.user_id == user_id,
+            )
+            .first()
+        )
         if member:
             member.is_banned = True
 

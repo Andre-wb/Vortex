@@ -169,8 +169,7 @@ class Config:
     SOLANA_PROGRAM_ID = os.getenv("SOLANA_PROGRAM_ID", "").strip()
     # Obfuscation disabled in TESTING mode to avoid probe detector blocking test requests
     OBFUSCATION_ENABLED = (
-        os.getenv("OBFUSCATION_ENABLED", "true").lower() == "true"
-        and os.getenv("TESTING", "").lower() != "true"
+        os.getenv("OBFUSCATION_ENABLED", "true").lower() == "true" and os.getenv("TESTING", "").lower() != "true"
     )
 
     # BMP Delivery — route message delivery through Blind Mailbox Protocol
@@ -192,7 +191,7 @@ class Config:
     PREKEY_SIG_ENFORCE = os.getenv("VORTEX_PREKEY_SIG_ENFORCE", "false").lower() in ("true", "1", "yes")
 
     VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
-    VAPID_PUBLIC_KEY  = os.getenv("VAPID_PUBLIC_KEY", "")
+    VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 
     _raw_reg_mode = os.getenv("REGISTRATION_MODE", "open").strip().lower()
     REGISTRATION_MODE = _raw_reg_mode if _raw_reg_mode in ("open", "invite", "closed") else "closed"
@@ -203,7 +202,7 @@ class Config:
     REDIS_CHANNEL_PREFIX = os.getenv("REDIS_CHANNEL_PREFIX", "vortex")
 
     STORE_IPS = os.getenv("STORE_IPS", "false").lower() != "false"
-    HASH_IPS  = os.getenv("HASH_IPS", "true").lower() == "true"
+    HASH_IPS = os.getenv("HASH_IPS", "true").lower() == "true"
     TOR_SOCKS_HOST = os.getenv("TOR_SOCKS_HOST", "127.0.0.1")
     TOR_SOCKS_PORT = int(os.getenv("TOR_SOCKS_PORT", "9050"))
     TOR_HIDDEN_SERVICE = os.getenv("TOR_HIDDEN_SERVICE", "false").lower() in ("1", "true", "yes")
@@ -220,6 +219,7 @@ class Config:
     STEALTH_TURN_URL = os.getenv("STEALTH_TURN_URL", "")
 
     import secrets as _secrets
+
     SHADOWSOCKS_PASSWORD = os.getenv("SHADOWSOCKS_PASSWORD", "") or _secrets.token_urlsafe(32)
     BRIDGE_MODE = os.getenv("BRIDGE_MODE", "false").lower() == "true"
     DOMAIN_FRONT_HOST = os.getenv("DOMAIN_FRONT_HOST", "")  # e.g. "www.cloudflare.com"
@@ -239,8 +239,7 @@ class Config:
     AZURE_RELAY_SECRET = _auto_secret("AZURE_RELAY_SECRET")
     NAIVE_USERNAME = _auto_value("NAIVE_USERNAME", lambda: secrets.token_hex(8))
     NAIVE_PASSWORD = _auto_value("NAIVE_PASSWORD", lambda: secrets.token_urlsafe(24))
-    NAIVE_PROBE_DOMAIN = _auto_value(
-        "NAIVE_PROBE_DOMAIN", lambda: secrets.choice(NAIVE_PROBE_DOMAINS))
+    NAIVE_PROBE_DOMAIN = _auto_value("NAIVE_PROBE_DOMAIN", lambda: secrets.choice(NAIVE_PROBE_DOMAINS))
 
     # Имя Azure Storage account задаёт оператор своего развёртывания.
     AZURE_STORAGE_ACCOUNT = os.getenv("AZURE_STORAGE_ACCOUNT", "")
@@ -259,8 +258,7 @@ class Config:
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "").strip()
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "").strip()
     AWS_LAMBDA_FUNCTION_NAME = os.getenv("AWS_LAMBDA_FUNCTION_NAME", "").strip()
-    AWS_CLOUDFRONT_DISTRIBUTION_ID = os.getenv(
-        "AWS_CLOUDFRONT_DISTRIBUTION_ID", "").strip()
+    AWS_CLOUDFRONT_DISTRIBUTION_ID = os.getenv("AWS_CLOUDFRONT_DISTRIBUTION_ID", "").strip()
 
     AZURE_FUNCTION_APP = os.getenv("AZURE_FUNCTION_APP", "").strip()
     AZURE_PUBLISH_USER = os.getenv("AZURE_PUBLISH_USER", "").strip()
@@ -279,23 +277,22 @@ class Config:
     # раздал его своим клиентам, ручка выдачи отвечает 404.
     TRANSPORT_ACCESS_TOKEN = os.getenv("TRANSPORT_ACCESS_TOKEN", "").strip()
     _secrets_rate_default = "999999" if os.getenv("TESTING", "").lower() == "true" else "10"
-    TRANSPORT_SECRETS_RATE_LIMIT = int(
-        os.getenv("TRANSPORT_SECRETS_RATE_LIMIT", _secrets_rate_default))
+    TRANSPORT_SECRETS_RATE_LIMIT = int(os.getenv("TRANSPORT_SECRETS_RATE_LIMIT", _secrets_rate_default))
 
     TRANSLATE_URL = os.getenv("TRANSLATE_URL", "http://localhost:5000")
     TRANSLATE_ENABLED = os.getenv("TRANSLATE_ENABLED", "false").lower() == "true"
 
-    OLLAMA_URL   = os.getenv("OLLAMA_URL",   "http://localhost:11434")
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
-    AI_ENABLED   = os.getenv("AI_ENABLED",   "true").lower() != "false"
-    AI_PROVIDER  = os.getenv("AI_PROVIDER",  "auto")  # auto/ollama/openai/anthropic
-    AI_API_KEY   = os.getenv("AI_API_KEY",   "")
-    AI_API_URL   = os.getenv("AI_API_URL",   "")
-    AI_MODEL     = os.getenv("AI_MODEL",     "")
+    AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() != "false"
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "auto")  # auto/ollama/openai/anthropic
+    AI_API_KEY = os.getenv("AI_API_KEY", "")
+    AI_API_URL = os.getenv("AI_API_URL", "")
+    AI_MODEL = os.getenv("AI_MODEL", "")
 
-    SFU_MODE     = os.getenv("SFU_MODE",     "builtin")  # builtin/mediasoup/janus
-    SFU_URL      = os.getenv("SFU_URL",      "")
-    SFU_API_KEY  = os.getenv("SFU_API_KEY",  "")
+    SFU_MODE = os.getenv("SFU_MODE", "builtin")  # builtin/mediasoup/janus
+    SFU_URL = os.getenv("SFU_URL", "")
+    SFU_API_KEY = os.getenv("SFU_API_KEY", "")
 
     @classmethod
     def get_database_url(cls) -> str:
@@ -344,7 +341,10 @@ class Config:
                 cls.NETWORK_MODE,
             )
         if cls.REGISTRATION_MODE not in ("open", "invite", "closed"):
-            logger.warning("Config: REGISTRATION_MODE=%r is invalid (expected 'open', 'invite', or 'closed')", cls.REGISTRATION_MODE)
+            logger.warning(
+                "Config: REGISTRATION_MODE=%r is invalid (expected 'open', 'invite', or 'closed')",
+                cls.REGISTRATION_MODE,
+            )
         if not (1 <= cls.MAX_FILE_MB <= 10000):
             logger.warning("Config: MAX_FILE_MB=%d is out of valid range (1-10000)", cls.MAX_FILE_MB)
 

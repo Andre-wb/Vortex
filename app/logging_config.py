@@ -16,6 +16,7 @@ Features:
     - Structured context (user_id, room_id, peer_ip, etc.)
     - Performance timing in log records
 """
+
 from __future__ import annotations
 
 import logging
@@ -34,7 +35,6 @@ request_user_id: ContextVar[int | None] = ContextVar("request_user_id", default=
 def new_correlation_id() -> str:
     """Generate a short correlation ID for request tracing."""
     return uuid.uuid4().hex[:12]
-
 
 
 class JSONFormatter(logging.Formatter):
@@ -61,8 +61,7 @@ class JSONFormatter(logging.Formatter):
             log_entry["exception"] = self.formatException(record.exc_info)
 
         # Add extra fields from record
-        for key in ("duration_ms", "status_code", "method", "path", "client_ip",
-                     "room_id", "peer_ip", "bytes_sent"):
+        for key in ("duration_ms", "status_code", "method", "path", "client_ip", "room_id", "peer_ip", "bytes_sent"):
             val = getattr(record, key, None)
             if val is not None:
                 log_entry[key] = val
@@ -70,16 +69,15 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_entry, ensure_ascii=False, default=str)
 
 
-
 class ConsoleFormatter(logging.Formatter):
     """Human-readable colored formatter for development."""
 
     COLORS = {
-        "DEBUG":    "\033[36m",   # cyan
-        "INFO":     "\033[32m",   # green
-        "WARNING":  "\033[33m",   # yellow
-        "ERROR":    "\033[31m",   # red
-        "CRITICAL": "\033[1;31m", # bold red
+        "DEBUG": "\033[36m",  # cyan
+        "INFO": "\033[32m",  # green
+        "WARNING": "\033[33m",  # yellow
+        "ERROR": "\033[31m",  # red
+        "CRITICAL": "\033[1;31m",  # bold red
     }
     RESET = "\033[0m"
 
@@ -88,14 +86,12 @@ class ConsoleFormatter(logging.Formatter):
         cid = correlation_id.get("-")
         timestamp = datetime.fromtimestamp(record.created).strftime("%H:%M:%S.%f")[:-3]
 
-        msg = f"{color}{timestamp} {record.levelname:7s}{self.RESET} " \
-              f"[{cid}] {record.name} — {record.getMessage()}"
+        msg = f"{color}{timestamp} {record.levelname:7s}{self.RESET} [{cid}] {record.name} — {record.getMessage()}"
 
         if record.exc_info and record.exc_info[1]:
             msg += "\n" + self.formatException(record.exc_info)
 
         return msg
-
 
 
 def setup_logging(
@@ -164,5 +160,7 @@ def setup_logging(
     root_logger = logging.getLogger(__name__)
     root_logger.info(
         "Logging configured: format=%s level=%s dir=%s",
-        fmt, level_name, log_dir,
+        fmt,
+        level_name,
+        log_dir,
     )

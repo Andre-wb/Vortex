@@ -8,6 +8,7 @@ app/chats/rooms/ — Управление комнатами.
   keys.py     — Ключи: вступление, предоставление, key-bundle, ротация
   theme.py    — Темы комнат: установка, сброс, принятие DM-тем
 """
+
 # Импорт подмодулей регистрирует @router.* декораторы на общем router
 import app.chats.rooms.crud
 import app.chats.rooms.keys

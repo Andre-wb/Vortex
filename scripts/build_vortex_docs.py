@@ -14,6 +14,7 @@ sub-headings and `p1…pN` for paragraphs. Lists use `li1…liN`, tables
 use `td…` triplets (label/value/hint). Inspired by the existing `gxd`
 structure in `vortex-introduce-page` so rendering stays consistent.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,12 +32,11 @@ def section(title: str, subtitle: str, **items: str) -> dict:
 
 def paragraphs(*texts: str) -> dict:
     """Build {p1: "...", p2: "..."} from positional args."""
-    return {f"p{i+1}": t for i, t in enumerate(texts)}
+    return {f"p{i + 1}": t for i, t in enumerate(texts)}
 
 
 def list_items(*items: str) -> dict:
-    return {f"li{i+1}": t for i, t in enumerate(items)}
-
+    return {f"li{i + 1}": t for i, t in enumerate(items)}
 
 
 ARCH = section(
@@ -46,7 +46,7 @@ ARCH = section(
     h1="The three processes",
     p1="The **client** is the app on your phone, browser, or desktop. It generates keys, encrypts messages, renders screens, and talks to a node through HTTPS and WebSockets. All plaintext stays here.",
     p2="A **node** is a Python process running `python -m app.main`. It stores encrypted ciphertext, fans out WebSocket events, records reactions and reads, serves files, and brokers WebRTC signalling. A node never holds plaintext; without the recipient's device key the ciphertext is opaque even to the operator.",
-    p3="The **controller** is a separate Python process (`vortex_controller`) that publishes the signed manifest of all running node code. Clients hit `/v1/integrity` before trusting a node. If the file hashes don't match the signed manifest, the controller returns `status:\"mismatched\"` and the client refuses to connect.",
+    p3='The **controller** is a separate Python process (`vortex_controller`) that publishes the signed manifest of all running node code. Clients hit `/v1/integrity` before trusting a node. If the file hashes don\'t match the signed manifest, the controller returns `status:"mismatched"` and the client refuses to connect.',
     h2="Why split node and controller",
     p4="Because the controller is a single pubkey. Clients pin that pubkey at release time, and the controller attests any new node it signs in. This lets volunteer operators run nodes without every release having to reship a hard-coded list. It also stops an attacker who compromises one node from also forging release signatures.",
     p5="The controller's storage is tiny (a SQLite file that lists trusted pubkeys and their health). Operators can easily back it up and mirror it — which is why we ship a dedicated `vortex_controller` package instead of bolting the endpoint onto the node.",
@@ -62,7 +62,7 @@ ARCH = section(
 CRYPTO = section(
     "Cryptography primitives",
     "Every algorithm, its job, and why Vortex picked it.",
-    intro="Vortex leans entirely on peer-reviewed primitives. No custom block ciphers, no \"we rolled our own\". The stack below is identical to Signal's, plus a post-quantum envelope from the NIST final round.",
+    intro='Vortex leans entirely on peer-reviewed primitives. No custom block ciphers, no "we rolled our own". The stack below is identical to Signal\'s, plus a post-quantum envelope from the NIST final round.',
     x25519_name="X25519",
     x25519_rfc="RFC 7748 (the core curve) + RFC 8418 (pairing for key agreement).",
     x25519_use="Static device keys (identity) and ephemeral session keys (forward secrecy).",
@@ -134,9 +134,9 @@ WEBSOCKET = section(
     intro="A client opens one WebSocket per node session. Frames are JSON; we chose JSON over CBOR for this layer because messages are thin envelopes around already-encrypted ciphertext, debuggability is more valuable than 10 % smaller headers.",
     handshake="Handshake",
     h1="Client sends `GET /ws?token=<access_jwt>` with `Upgrade: websocket`. Node validates the token in the HTTP layer and upgrades. Any non-2xx status closes the socket before handshake.",
-    h2="First server frame: `{type:\"hello\", node_version, node_pubkey, features}`. `features` lists optional capabilities so the client can enable/disable Kyber, Double Ratchet, post-quantum handshake, etc.",
+    h2='First server frame: `{type:"hello", node_version, node_pubkey, features}`. `features` lists optional capabilities so the client can enable/disable Kyber, Double Ratchet, post-quantum handshake, etc.',
     ping="Ping / pong",
-    pg1="Server sends `{type:\"p\"}` every 25 s. Client replies `{type:\"q\"}`. Three missed replies ⇒ the server closes the connection and frees its room subscriptions. Client reconnects with exponential backoff capped at 30 s.",
+    pg1='Server sends `{type:"p"}` every 25 s. Client replies `{type:"q"}`. Three missed replies ⇒ the server closes the connection and frees its room subscriptions. Client reconnects with exponential backoff capped at 30 s.',
     events="Event types",
     e1="`m` — new message (or edit / delete / reaction).",
     e2="`t` — typing started / stopped for a user in a room.",
@@ -147,10 +147,10 @@ WEBSOCKET = section(
     e7="`n` — system notification (room created, user joined, user banned).",
     e8="`e` — generic error payload; clients should surface it to the user.",
     subscribe="Subscribing to rooms",
-    sub1="Client sends `{type:\"sub\", room: <id>}`. The node adds the socket to that room's fan-out set. Re-subscribing is idempotent.",
-    sub2="On unsubscribe `{type:\"unsub\", room: <id>}` the socket leaves the set but stays connected.",
+    sub1='Client sends `{type:"sub", room: <id>}`. The node adds the socket to that room\'s fan-out set. Re-subscribing is idempotent.',
+    sub2='On unsubscribe `{type:"unsub", room: <id>}` the socket leaves the set but stays connected.',
     backfill="Backfill after reconnect",
-    b1="After a reconnect the client sends `{type:\"sub\", room: <id>, since: <message_id>}`. The node replays every message with `id > since`, then resumes live fan-out. `since` is inclusive of the last read message id — the client de-dups on its own side.",
+    b1='After a reconnect the client sends `{type:"sub", room: <id>, since: <message_id>}`. The node replays every message with `id > since`, then resumes live fan-out. `since` is inclusive of the last read message id — the client de-dups on its own side.',
 )
 
 
@@ -173,8 +173,8 @@ ROOMS = section(
     m1="A message row stores `room_id, sender_id, ciphertext, nonce, sent_at, edited_at?, deleted_at?, reply_to?, thread_id?, kind`. `kind` differentiates text, image, file, voice note, call record, and system events.",
     m2="`ciphertext` is opaque to the node. `sender_pseudo` is stored in cleartext for routing (fan-out to the right WebSocket subscribers), but it's a short hash derived from `sender_id + room_id` so a node compromise doesn't leak who's active in which room to outside observers.",
     edits="Edits and deletes",
-    ed1="Edits are new ciphertext posted to `/api/messages/{id}/edit` with the previous message's id. The old ciphertext is overwritten; the `edited_at` column flips to the current time so clients can render a subtle \"(edited)\" mark.",
-    ed2="Deletes mark `deleted_at` and null out the ciphertext column. The message row itself stays so replies still make sense. \"Delete for everyone\" fans out `{type:\"m\", deleted:true, id:...}` to every open socket.",
+    ed1='Edits are new ciphertext posted to `/api/messages/{id}/edit` with the previous message\'s id. The old ciphertext is overwritten; the `edited_at` column flips to the current time so clients can render a subtle "(edited)" mark.',
+    ed2='Deletes mark `deleted_at` and null out the ciphertext column. The message row itself stays so replies still make sense. "Delete for everyone" fans out `{type:"m", deleted:true, id:...}` to every open socket.',
     reactions="Reactions",
     rx1="A reaction is a row in a separate table keyed by `(message_id, user_id, emoji)`. Adding the same emoji twice no-ops; removing a reaction posts `DELETE /api/messages/{id}/reactions/{emoji}`. Clients aggregate on read.",
     threads="Threads",
@@ -206,7 +206,7 @@ CALLS = section(
     "Signalling over WebSocket, media over SRTP, TURN fallback.",
     intro="Vortex uses the standard WebRTC stack. The node is signalling-only — once two peers have each other's ICE candidates, media flows directly between them or through a coturn TURN relay when NAT traversal fails.",
     signalling="Signalling",
-    s1="Caller POSTs `/api/calls/{room_id}/start`, the node broadcasts `{type:\"c\", kind:\"offer\", sdp:...}` to every other socket in the room. Callees post back `{type:\"c\", kind:\"answer\", sdp:...}`, candidates are exchanged as `{kind:\"candidate\", ice:...}` until the PeerConnection reports `connected`.",
+    s1='Caller POSTs `/api/calls/{room_id}/start`, the node broadcasts `{type:"c", kind:"offer", sdp:...}` to every other socket in the room. Callees post back `{type:"c", kind:"answer", sdp:...}`, candidates are exchanged as `{kind:"candidate", ice:...}` until the PeerConnection reports `connected`.',
     s2="The node validates each SDP for obvious shenanigans (no private IPs in the offer, no external TURN servers not on our allow-list) before forwarding.",
     turn="TURN relay",
     t1="We ship a coturn instance bound to the node's public IP with short-lived credentials. The node mints `turn://user:password@node:3478` URLs signed with HMAC for each peer at call start.",
@@ -215,7 +215,7 @@ CALLS = section(
     c1="Audio: Opus @ 48 kHz. Video: VP9 baseline at launch, H.264 fallback for older hardware, AV1 opt-in for premium devices.",
     c2="Each codec negotiation goes through the host's WebRTC stack — we don't override, we just influence priorities through constraint objects.",
     callkit="CallKit / ConnectionService",
-    ck1="iOS calls integrate with CallKit so the OS shows the native \"Vortex Call\" answer screen, supports Apple Watch, and participates in Do Not Disturb.",
+    ck1='iOS calls integrate with CallKit so the OS shows the native "Vortex Call" answer screen, supports Apple Watch, and participates in Do Not Disturb.',
     ck2="Android uses ConnectionService. The telecom framework manages headset state and Bluetooth routing for free.",
 )
 
@@ -284,7 +284,7 @@ BMP = section(
     "Messages queue server-side without the server knowing who sent them.",
     intro="BMP is a store-and-forward layer for high-censorship scenarios. A sender can drop an encrypted blob at any node — not just the recipient's home node — and the blob rides gossip until the recipient's device pulls it from a nearby mailbox.",
     mechanics="Mechanics",
-    m1="Sender derives a 32-byte `mailbox_id` from `hkdf(recipient_pubkey, \"bmp-v1\")`. They POST `{mailbox_id, blob}` to any gossiping node. The node stores the pair for up to 7200 s.",
+    m1='Sender derives a 32-byte `mailbox_id` from `hkdf(recipient_pubkey, "bmp-v1")`. They POST `{mailbox_id, blob}` to any gossiping node. The node stores the pair for up to 7200 s.',
     m2="The node's BMP module periodically gossips a summary of mailbox_ids to peers. Peers who see a `mailbox_id` for one of their local users pull the blob.",
     m3="Recipient's node decrypts — it's actually just the pass-through of an already E2E-encrypted message. The sender's identity remains hidden: no one except the final recipient's client can correlate the blob to a user.",
     delivery="Delivery semantics",
@@ -353,7 +353,7 @@ BOTS = section(
     l2="Run: either the bot runs in-process as a coroutine inside the node (convenient, single-operator), or externally by polling `/api/bots/{id}/updates` with the bot token (scalable, multi-operator).",
     l3="Deploy: code updates are signed by the owner and atomically swapped in. Running bots are drained gracefully.",
     gravitix="Gravitix DSL",
-    g1="A tailored language for chat bots. `on /start { emit \"hi\" }` declares a handler. See the dedicated Gravitix reference for the full spec.",
+    g1='A tailored language for chat bots. `on /start { emit "hi" }` declares a handler. See the dedicated Gravitix reference for the full spec.',
     g2="Bots written in Gravitix get compiled to a small bytecode and run in a sandboxed interpreter — no filesystem or network access unless explicitly granted.",
     antispam="Antispam bot",
     as1="Every room gets an invisible bot that watches for flood patterns, too-many-links, repeated copy-paste, and suspicious account ages. Infractions trigger warnings, then auto-timeout, then report to admins.",
@@ -367,9 +367,9 @@ BOTS = section(
 CONTROLLER = section(
     "Controller",
     "Integrity attestation and entry discovery.",
-    intro="The controller (`vortex_controller` package) is a separate process with a smaller surface than the node. Its only jobs: say \"this code is what was signed\", publish entry URLs, and track peer health.",
+    intro='The controller (`vortex_controller` package) is a separate process with a smaller surface than the node. Its only jobs: say "this code is what was signed", publish entry URLs, and track peer health.',
     endpoints="Endpoints",
-    e1="`GET /v1/integrity` — returns `{status, signed_by, version, matched, mismatched, missing, extra, message}`. Clients call this first and refuse to proceed unless `status==\"verified\"`.",
+    e1='`GET /v1/integrity` — returns `{status, signed_by, version, matched, mismatched, missing, extra, message}`. Clients call this first and refuse to proceed unless `status=="verified"`.',
     e2="`GET /v1/health` — returns `{status, version, pubkey, stats:{online, approved, total}}`.",
     e3="`GET /v1/trusted_nodes` — published list of federated nodes.",
     e4="`GET /v1/entries` — entry URLs (WS + HTTPS) for connecting to the network.",
@@ -479,7 +479,7 @@ WEBCLIENT = section(  # noqa: S604
     o2="Reading existing chats works fully offline — all already-synced ciphertext lives in IndexedDB and decrypts locally.",
     i18n="I18N",
     i1="146 languages in `static/locales/*.json`. The UI picks one at first launch via `lang-picker.js`; subsequent launches read the saved choice from `localStorage`.",
-    i2="Typewriter animation on the welcome screen cycles through the localised \"Choose your language\" hint for every language.",
+    i2='Typewriter animation on the welcome screen cycles through the localised "Choose your language" hint for every language.',
 )
 
 
@@ -594,7 +594,7 @@ EXTRAS = section(
     "Topics that deserve their own chapter but fit nowhere else.",
     intro="Small corners of the protocol that matter in production.",
     ratchet="Double Ratchet wire format",
-    r1="Every DM message carries a 64-byte header with the sender's ratchet index, the receiving chain index, and the ephemeral public key. Headers are encrypted with a separate header key derived from the root key via HKDF info=\"hdr\".",
+    r1='Every DM message carries a 64-byte header with the sender\'s ratchet index, the receiving chain index, and the ephemeral public key. Headers are encrypted with a separate header key derived from the root key via HKDF info="hdr".',
     r2="Chains reset every 1000 messages even if no ratchet has occurred, to cap the damage a key compromise could do.",
     prekeys="Prekeys",
     pk1="New contacts exchange prekeys published ahead of time through the node. A client uploads 10 ephemeral prekeys; the node serves them on demand. When running low (< 3 remaining) the client uploads another batch.",
@@ -674,7 +674,6 @@ ROADMAP = section(
 )
 
 
-
 VORTEX_DOCS = {
     "meta": {
         "title": "Vortex Reference",
@@ -683,38 +682,37 @@ VORTEX_DOCS = {
         "howToRead": "Each chapter is self-contained. Start anywhere. Every section links to the relevant source file paths inside the repo.",
         "updatedAt": "Rolling — rebuilt on every release.",
     },
-    "architecture":         ARCH,
-    "crypto":               CRYPTO,
-    "auth":                 AUTH,
-    "websocket":            WEBSOCKET,
-    "rooms":                ROOMS,
-    "files":                FILES,
-    "calls":                CALLS,
-    "federation":           FED,
-    "gossip":               GOSSIP,
-    "stealth":              STEALTH,
-    "stealthDetail":        STEALTH_LEVELS_DETAIL,
-    "bmp":                  BMP,
-    "push":                 PUSH,
-    "storage":              STORAGE,
-    "bots":                 BOTS,
-    "controller":           CONTROLLER,
-    "deploy":               DEPLOY,
-    "mobile":               MOBILE,
-    "webclient":            WEBCLIENT,
-    "security":             SECURITY,
-    "privacy":              PRIVACY,
-    "ai":                   AI_FEATURES,
-    "monitoring":           MONITORING,
-    "testing":              TESTING,
-    "cli":                  CLI,
-    "extras":               EXTRAS,
-    "networking":           NETWORKING,
-    "codebase":             CODEBASE,
-    "accessibility":        ACCESSIBILITY,
-    "roadmap":              ROADMAP,
+    "architecture": ARCH,
+    "crypto": CRYPTO,
+    "auth": AUTH,
+    "websocket": WEBSOCKET,
+    "rooms": ROOMS,
+    "files": FILES,
+    "calls": CALLS,
+    "federation": FED,
+    "gossip": GOSSIP,
+    "stealth": STEALTH,
+    "stealthDetail": STEALTH_LEVELS_DETAIL,
+    "bmp": BMP,
+    "push": PUSH,
+    "storage": STORAGE,
+    "bots": BOTS,
+    "controller": CONTROLLER,
+    "deploy": DEPLOY,
+    "mobile": MOBILE,
+    "webclient": WEBCLIENT,
+    "security": SECURITY,
+    "privacy": PRIVACY,
+    "ai": AI_FEATURES,
+    "monitoring": MONITORING,
+    "testing": TESTING,
+    "cli": CLI,
+    "extras": EXTRAS,
+    "networking": NETWORKING,
+    "codebase": CODEBASE,
+    "accessibility": ACCESSIBILITY,
+    "roadmap": ROADMAP,
 }
-
 
 
 def target_paths() -> Iterable[Path]:

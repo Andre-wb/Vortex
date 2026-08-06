@@ -7,6 +7,7 @@ Serves two SPAs:
 Plus a small set of /api/wiz/* endpoints for data the UI needs. Every
 endpoint is loopback-only (server binds 127.0.0.1) — no network exposure.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -65,7 +66,9 @@ def build_app(mode: str, env_file: Path | None = None) -> FastAPI:
     app = FastAPI(
         title="Vortex Wizard",
         version=VERSION,
-        docs_url=None, redoc_url=None, openapi_url=None,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
     app.state.mode = mode
     # Where to read/write the Vortex env file — set once here so both
@@ -121,6 +124,7 @@ def build_app(mode: str, env_file: Path | None = None) -> FastAPI:
     async def _stop_scheduler():
         with contextlib.suppress(Exception):
             from .api.scheduler import get as _getsched
+
             await _getsched(app.state.env_file).stop()
 
     # Audit middleware runs after routers are registered so it sees every
@@ -153,8 +157,7 @@ def build_app(mode: str, env_file: Path | None = None) -> FastAPI:
     @app.middleware("http")
     async def _no_cache_static(request, call_next):
         resp = await call_next(request)
-        if request.url.path.startswith("/static/") or \
-           request.url.path.startswith("/locales/"):
+        if request.url.path.startswith("/static/") or request.url.path.startswith("/locales/"):
             resp.headers["Cache-Control"] = "no-cache, must-revalidate"
         return resp
 
@@ -189,8 +192,8 @@ def build_app(mode: str, env_file: Path | None = None) -> FastAPI:
     # wizard welcome again even though NODE_INITIALIZED=true is set.
     _no_cache_headers = {
         "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-        "Pragma":        "no-cache",
-        "Expires":       "0",
+        "Pragma": "no-cache",
+        "Expires": "0",
     }
 
     @app.get("/{path:path}", include_in_schema=False)

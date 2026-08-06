@@ -25,6 +25,7 @@ Everything else — register, heartbeat, nodes/random, entries, mirrors —
 is blocked, so a compromised controller cannot issue signed responses
 that would be trusted in a regular flow.
 """
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -38,7 +39,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 _SAFE_PREFIXES = (
     "/v1/health",
     "/v1/integrity",
-    "/v1/treasury",   # public fee schedule — independent of registry state
+    "/v1/treasury",  # public fee schedule — independent of registry state
     "/static/",
     "/locales/",
     "/favicon",
@@ -46,9 +47,13 @@ _SAFE_PREFIXES = (
 
 # Exact paths that are always safe.
 _SAFE_EXACT = {
-    "/", "",
+    "/",
+    "",
     "/INTEGRITY.sig.json",
-    "/nodes", "/entries", "/mirrors", "/security",
+    "/nodes",
+    "/entries",
+    "/mirrors",
+    "/security",
 }
 
 

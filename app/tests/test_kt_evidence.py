@@ -32,21 +32,28 @@ def _entry_message(uid, kt, h, prev, seq) -> bytes:
 
 def _stmt(uid, edhex, seq, sig):
     return {
-        "key_type": "account_ed", "user_id": uid, "pub_key_hash": _hash(edhex),
-        "prev_hash": None, "seq": seq, "node_sig": sig,
-        "node_pubkey": _NPUB, "account_ed_hex": edhex,
+        "key_type": "account_ed",
+        "user_id": uid,
+        "pub_key_hash": _hash(edhex),
+        "prev_hash": None,
+        "seq": seq,
+        "node_sig": sig,
+        "node_pubkey": _NPUB,
+        "account_ed_hex": edhex,
     }
 
 
 def _sample_blob() -> str:
     # Формат ЗЕРКАЛО exportEvidence (JS): {vortex_kt_evidence, peer_user_id, reset_ambiguous, statements[]}.
-    return json.dumps({
-        "vortex_kt_evidence": "v1",
-        "peer_user_id": 1,
-        "reset_ambiguous": True,
-        "statements": [_stmt(1, _ED_OLD, 1, _SIG_OLD), _stmt(1, _ED_NEW, 2, _SIG_NEW)],
-        "note": "self-verifiable, reset-ambiguous",
-    })
+    return json.dumps(
+        {
+            "vortex_kt_evidence": "v1",
+            "peer_user_id": 1,
+            "reset_ambiguous": True,
+            "statements": [_stmt(1, _ED_OLD, 1, _SIG_OLD), _stmt(1, _ED_NEW, 2, _SIG_NEW)],
+            "note": "self-verifiable, reset-ambiguous",
+        }
+    )
 
 
 def _verify_blob(blob: str):
@@ -59,7 +66,8 @@ def _verify_blob(blob: str):
         # 1. node_sig реально сходится под раздаваемым node_pubkey.
         Ed25519PublicKey.from_public_bytes(bytes.fromhex(s["node_pubkey"])).verify(
             bytes.fromhex(s["node_sig"]),
-            _entry_message(s["user_id"], s["key_type"], s["pub_key_hash"], s["prev_hash"], s["seq"]))
+            _entry_message(s["user_id"], s["key_type"], s["pub_key_hash"], s["prev_hash"], s["seq"]),
+        )
         # 2. pub_key_hash действительно = sha256(account_ed_hex).
         assert _hash(s["account_ed_hex"]) == s["pub_key_hash"]
     return {
@@ -70,21 +78,22 @@ def _verify_blob(blob: str):
 
 def test_exported_evidence_is_third_party_verifiable():
     r = _verify_blob(_sample_blob())
-    assert r["distinct_keys"] is True   # два РАЗНЫХ account-Ed для одного юзера
-    assert r["same_node"] is True       # один node_pubkey → не миграция ноды
+    assert r["distinct_keys"] is True  # два РАЗНЫХ account-Ed для одного юзера
+    assert r["same_node"] is True  # один node_pubkey → не миграция ноды
 
 
 def test_cross_user_pair_rejected():
     import pytest
+
     o = json.loads(_sample_blob())
-    o["statements"][1]["user_id"] = 999   # вторая про другого юзера → не «пара про пира»
+    o["statements"][1]["user_id"] = 999  # вторая про другого юзера → не «пара про пира»
     with pytest.raises(AssertionError):
         _verify_blob(json.dumps(o))
 
 
 def test_tampered_statement_fails_verification():
     o = json.loads(_sample_blob())
-    o["statements"][0]["pub_key_hash"] = "cd" * 32   # подмена → node_sig не сойдётся
+    o["statements"][0]["pub_key_hash"] = "cd" * 32  # подмена → node_sig не сойдётся
     with contextlib.suppress(Exception):
         _verify_blob(json.dumps(o))
         raise AssertionError("tampered blob verified")

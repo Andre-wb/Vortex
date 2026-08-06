@@ -2,6 +2,7 @@
 app/chats/chat_schedule.py — Scheduled messages, timed (self-destructing) messages,
 delivery loop, and expired-message cleanup.
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,8 +25,8 @@ async def handle_timed_message(room_id: int, user: User, data: dict, db: Session
         return
 
     ciphertext_hex = data.get("ciphertext", "").strip()
-    ttl_seconds    = data.get("ttl_seconds", 60)
-    client_msg_id  = data.get("msg_id", "")
+    ttl_seconds = data.get("ttl_seconds", 60)
+    client_msg_id = data.get("msg_id", "")
 
     if not ciphertext_hex or len(ciphertext_hex) < 48:
         return
@@ -36,49 +37,56 @@ async def handle_timed_message(room_id: int, user: User, data: dict, db: Session
         return
 
     expires = datetime.now(timezone.utc) + timedelta(seconds=min(int(ttl_seconds), 86400))
-    enc_v   = parse_enc_v(data)
+    enc_v = parse_enc_v(data)
 
     msg = Message(
-        room_id           = room_id,
-        sender_pseudo     = compute_sender_pseudo(room_id, user.id),
-        msg_type          = MessageType.TEXT,
-        content_encrypted = ciphertext_bytes,
-        enc_version       = enc_v,
-        expires_at        = expires,
+        room_id=room_id,
+        sender_pseudo=compute_sender_pseudo(room_id, user.id),
+        msg_type=MessageType.TEXT,
+        content_encrypted=ciphertext_bytes,
+        enc_version=enc_v,
+        expires_at=expires,
     )
     db.add(msg)
     db.commit()
     db.refresh(msg)
 
-    await manager.send_to_user(room_id, user.id, {
-        "type":      "ack",
-        "msg_id":    client_msg_id,
-        "server_id": msg.id,
-    })
+    await manager.send_to_user(
+        room_id,
+        user.id,
+        {
+            "type": "ack",
+            "msg_id": client_msg_id,
+            "server_id": msg.id,
+        },
+    )
 
-    await manager.broadcast_to_room(room_id, {
-        "type":          "message",
-        "msg_id":        msg.id,
-        "client_msg_id": client_msg_id,
-        "sender_id":     user.id,
-        "sender_pseudo": msg.sender_pseudo,
-        "sender":        user.username,
-        "display_name":  user.display_name or user.username,
-        "avatar_emoji":  user.avatar_emoji,
-        "avatar_url":    user.avatar_url,
-        "ciphertext":    ciphertext_hex,
-        "enc_v":         enc_v,
-        "status":        "sent",
-        "expires_at":    utc_iso(expires),
-        "created_at":    utc_iso(msg.created_at),
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "message",
+            "msg_id": msg.id,
+            "client_msg_id": client_msg_id,
+            "sender_id": user.id,
+            "sender_pseudo": msg.sender_pseudo,
+            "sender": user.username,
+            "display_name": user.display_name or user.username,
+            "avatar_emoji": user.avatar_emoji,
+            "avatar_url": user.avatar_url,
+            "ciphertext": ciphertext_hex,
+            "enc_v": enc_v,
+            "status": "sent",
+            "expires_at": utc_iso(expires),
+            "created_at": utc_iso(msg.created_at),
+        },
+    )
 
 
 async def handle_schedule_message(room_id: int, user: User, data: dict, db: Session) -> None:
     """Сохраняет сообщение для отложенной отправки."""
     if user.global_muted_until and user.global_muted_until > datetime.now(timezone.utc):
         remaining = user.global_muted_until - datetime.now(timezone.utc)
-        days  = remaining.days
+        days = remaining.days
         hours = remaining.seconds // 3600
         if days > 0:
             time_str = f"{days}d {hours}h"
@@ -86,16 +94,20 @@ async def handle_schedule_message(room_id: int, user: User, data: dict, db: Sess
             time_str = f"{hours}h {remaining.seconds % 3600 // 60}m"
         else:
             time_str = f"{remaining.seconds // 60}m"
-        await manager.send_to_user(room_id, user.id, {
-            "type":    "error",
-            "message": f"You are muted on the platform. Remaining: {time_str}",
-            "code":    "global_muted",
-        })
+        await manager.send_to_user(
+            room_id,
+            user.id,
+            {
+                "type": "error",
+                "message": f"You are muted on the platform. Remaining: {time_str}",
+                "code": "global_muted",
+            },
+        )
         return
 
-    ciphertext_hex   = data.get("ciphertext", "").strip()
+    ciphertext_hex = data.get("ciphertext", "").strip()
     scheduled_at_str = data.get("scheduled_at", "")
-    client_msg_id    = data.get("msg_id", "")
+    client_msg_id = data.get("msg_id", "")
 
     if not ciphertext_hex or not scheduled_at_str:
         return
@@ -118,65 +130,80 @@ async def handle_schedule_message(room_id: int, user: User, data: dict, db: Sess
         return
 
     msg = Message(
-        room_id           = room_id,
-        sender_pseudo     = compute_sender_pseudo(room_id, user.id),
-        msg_type          = MessageType.TEXT,
-        content_encrypted = ciphertext_bytes,
-        enc_version       = parse_enc_v(data),
-        reply_to_id       = data.get("reply_to_id"),
-        scheduled_at      = scheduled_at,
-        is_scheduled      = True,
+        room_id=room_id,
+        sender_pseudo=compute_sender_pseudo(room_id, user.id),
+        msg_type=MessageType.TEXT,
+        content_encrypted=ciphertext_bytes,
+        enc_version=parse_enc_v(data),
+        reply_to_id=data.get("reply_to_id"),
+        scheduled_at=scheduled_at,
+        is_scheduled=True,
     )
     db.add(msg)
     db.commit()
     db.refresh(msg)
 
-    await manager.send_to_user(room_id, user.id, {
-        "type":         "ack",
-        "msg_id":       client_msg_id,
-        "server_id":    msg.id,
-        "scheduled":    True,
-        "scheduled_at": utc_iso(scheduled_at),
-    })
-    await manager.send_to_user(room_id, user.id, {
-        "type":    "system",
-        "message": f"Message scheduled for {scheduled_at.strftime('%Y-%m-%d %H:%M')}",
-    })
+    await manager.send_to_user(
+        room_id,
+        user.id,
+        {
+            "type": "ack",
+            "msg_id": client_msg_id,
+            "server_id": msg.id,
+            "scheduled": True,
+            "scheduled_at": utc_iso(scheduled_at),
+        },
+    )
+    await manager.send_to_user(
+        room_id,
+        user.id,
+        {
+            "type": "system",
+            "message": f"Message scheduled for {scheduled_at.strftime('%Y-%m-%d %H:%M')}",
+        },
+    )
 
 
 async def deliver_scheduled_messages(db: Session) -> int:
     """Доставляет запланированные сообщения, у которых наступило время."""
     now = datetime.now(timezone.utc)
-    scheduled = db.query(Message).filter(
-        Message.is_scheduled.is_(True),
-        Message.scheduled_at.is_not(None),
-        Message.scheduled_at <= now,
-    ).all()
+    scheduled = (
+        db.query(Message)
+        .filter(
+            Message.is_scheduled.is_(True),
+            Message.scheduled_at.is_not(None),
+            Message.scheduled_at <= now,
+        )
+        .all()
+    )
 
     delivered = 0
     for msg in scheduled:
         msg.is_scheduled = False
-        msg.created_at   = now
+        msg.created_at = now
         db.commit()
         db.refresh(msg)
 
         ciphertext_hex = msg.content_encrypted.hex() if msg.content_encrypted else ""
 
-        await manager.broadcast_to_room(msg.room_id, {
-            "type":         "message",
-            "msg_id":       msg.id,
-            "sender_id":    msg.sender_id,
-            "sender_pseudo": msg.sender_pseudo,
-            "sender":       msg.sender.username if msg.sender else "—",
-            "display_name": (msg.sender.display_name or msg.sender.username) if msg.sender else "—",
-            "avatar_emoji": msg.sender.avatar_emoji if msg.sender else None,
-            "avatar_url":   msg.sender.avatar_url if msg.sender else None,
-            "ciphertext":   ciphertext_hex,
-            "enc_v":        msg.enc_version,
-            "reply_to_id":  msg.reply_to_id,
-            "status":       "sent",
-            "created_at":   utc_iso(msg.created_at),
-        })
+        await manager.broadcast_to_room(
+            msg.room_id,
+            {
+                "type": "message",
+                "msg_id": msg.id,
+                "sender_id": msg.sender_id,
+                "sender_pseudo": msg.sender_pseudo,
+                "sender": msg.sender.username if msg.sender else "—",
+                "display_name": (msg.sender.display_name or msg.sender.username) if msg.sender else "—",
+                "avatar_emoji": msg.sender.avatar_emoji if msg.sender else None,
+                "avatar_url": msg.sender.avatar_url if msg.sender else None,
+                "ciphertext": ciphertext_hex,
+                "enc_v": msg.enc_version,
+                "reply_to_id": msg.reply_to_id,
+                "status": "sent",
+                "created_at": utc_iso(msg.created_at),
+            },
+        )
         delivered += 1
 
     if delivered:
@@ -186,10 +213,14 @@ async def deliver_scheduled_messages(db: Session) -> int:
 
 async def cleanup_expired_messages(db: Session) -> int:
     """Удаляет просроченные сообщения. Возвращает количество удалённых."""
-    expired = db.query(Message).filter(
-        Message.expires_at.is_not(None),
-        Message.expires_at < datetime.now(timezone.utc),
-    ).all()
+    expired = (
+        db.query(Message)
+        .filter(
+            Message.expires_at.is_not(None),
+            Message.expires_at < datetime.now(timezone.utc),
+        )
+        .all()
+    )
 
     deleted = 0
     rooms_to_notify: dict[int, list[int]] = {}

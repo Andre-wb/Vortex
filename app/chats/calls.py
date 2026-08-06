@@ -4,6 +4,7 @@ app/chats/calls.py — Call history API.
 Tracks all voice/video calls (1-to-1 and group).
 Provides a "recent calls" view for the Calls tab.
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,10 +23,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/calls", tags=["calls"])
 
 
-
 class CallStartRequest(BaseModel):
-    callee_id: int | None = None       # NULL for group calls
-    room_id: int | None = None         # For group/voice channel calls
+    callee_id: int | None = None  # NULL for group calls
+    room_id: int | None = None  # For group/voice channel calls
     call_type: str = Field(default="audio", pattern="^(audio|video|group_audio|group_video)$")
 
 
@@ -33,7 +33,6 @@ class CallEndRequest(BaseModel):
     call_id: int
     status: str = Field(default="answered", pattern="^(answered|missed|declined|busy)$")
     duration: int = Field(default=0, ge=0)
-
 
 
 def _call_dict(call: CallHistory, current_user_id: int, db: Session) -> dict:
@@ -71,7 +70,6 @@ def _call_dict(call: CallHistory, current_user_id: int, db: Session) -> dict:
     }
 
 
-
 @router.get("/recent")
 async def recent_calls(
     limit: int = Query(default=50, le=200),
@@ -80,25 +78,37 @@ async def recent_calls(
     db: Session = Depends(get_db),
 ):
     """Get recent calls for the current user (incoming + outgoing)."""
-    calls = db.query(CallHistory).filter(
-        or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id)
-    ).order_by(CallHistory.started_at.desc()).offset(offset).limit(limit).all()
+    calls = (
+        db.query(CallHistory)
+        .filter(or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id))
+        .order_by(CallHistory.started_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return {
         "calls": [_call_dict(c, u.id, db) for c in calls],
-        "total": db.query(func.count(CallHistory.id)).filter(
-            or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id)
-        ).scalar() or 0,
+        "total": db.query(func.count(CallHistory.id))
+        .filter(or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id))
+        .scalar()
+        or 0,
     }
 
 
 @router.get("/missed")
 async def missed_calls(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get missed calls."""
-    calls = db.query(CallHistory).filter(
-        CallHistory.callee_id == u.id,
-        CallHistory.status == "missed",
-    ).order_by(CallHistory.started_at.desc()).limit(50).all()
+    calls = (
+        db.query(CallHistory)
+        .filter(
+            CallHistory.callee_id == u.id,
+            CallHistory.status == "missed",
+        )
+        .order_by(CallHistory.started_at.desc())
+        .limit(50)
+        .all()
+    )
 
     return {"calls": [_call_dict(c, u.id, db) for c in calls]}
 
@@ -106,11 +116,17 @@ async def missed_calls(u: User = Depends(get_current_user), db: Session = Depend
 @router.get("/missed/unseen")
 async def unseen_missed_calls(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get missed calls the user hasn't seen yet (shown on login)."""
-    calls = db.query(CallHistory).filter(
-        CallHistory.callee_id == u.id,
-        CallHistory.status == "missed",
-        CallHistory.seen.is_(False),
-    ).order_by(CallHistory.started_at.desc()).limit(20).all()
+    calls = (
+        db.query(CallHistory)
+        .filter(
+            CallHistory.callee_id == u.id,
+            CallHistory.status == "missed",
+            CallHistory.seen.is_(False),
+        )
+        .order_by(CallHistory.started_at.desc())
+        .limit(20)
+        .all()
+    )
 
     return {
         "calls": [_call_dict(c, u.id, db) for c in calls],
@@ -131,11 +147,11 @@ async def mark_missed_seen(u: User = Depends(get_current_user), db: Session = De
 
 
 @router.post("/start", status_code=201)
-async def start_call(body: CallStartRequest, u: User = Depends(get_current_user),
-                     db: Session = Depends(get_db)):
+async def start_call(body: CallStartRequest, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Record a call start. Called by the initiator."""
     # Compute sealed pseudonyms for metadata privacy
     from app.security.sealed_sender import compute_sender_pseudo
+
     _room = body.room_id or 0
     _caller_pseudo = compute_sender_pseudo(_room, u.id)
     _callee_pseudo = compute_sender_pseudo(_room, body.callee_id) if body.callee_id else None
@@ -156,13 +172,16 @@ async def start_call(body: CallStartRequest, u: User = Depends(get_current_user)
 
 
 @router.post("/end")
-async def end_call(body: CallEndRequest, u: User = Depends(get_current_user),
-                   db: Session = Depends(get_db)):
+async def end_call(body: CallEndRequest, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Record a call end. Updates status and duration."""
-    call = db.query(CallHistory).filter(
-        CallHistory.id == body.call_id,
-        or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id),
-    ).first()
+    call = (
+        db.query(CallHistory)
+        .filter(
+            CallHistory.id == body.call_id,
+            or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id),
+        )
+        .first()
+    )
     if not call:
         raise HTTPException(404, "Call not found")
 
@@ -177,21 +196,24 @@ async def end_call(body: CallEndRequest, u: User = Depends(get_current_user),
 @router.delete("/clear")
 async def clear_history(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Clear all call history for current user."""
-    db.query(CallHistory).filter(
-        or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id)
-    ).delete(synchronize_session=False)
+    db.query(CallHistory).filter(or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id)).delete(
+        synchronize_session=False
+    )
     db.commit()
     return {"ok": True}
 
 
 @router.delete("/{call_id}")
-async def delete_call(call_id: int, u: User = Depends(get_current_user),
-                      db: Session = Depends(get_db)):
+async def delete_call(call_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Delete a call from history."""
-    call = db.query(CallHistory).filter(
-        CallHistory.id == call_id,
-        or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id),
-    ).first()
+    call = (
+        db.query(CallHistory)
+        .filter(
+            CallHistory.id == call_id,
+            or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id),
+        )
+        .first()
+    )
     if not call:
         raise HTTPException(404, "Call not found")
     db.delete(call)
@@ -204,15 +226,11 @@ async def call_stats(u: User = Depends(get_current_user), db: Session = Depends(
     """Get call statistics."""
     base = or_(CallHistory.caller_id == u.id, CallHistory.callee_id == u.id)
     total = db.query(func.count(CallHistory.id)).filter(base).scalar() or 0
-    answered = db.query(func.count(CallHistory.id)).filter(
-        base, CallHistory.status == "answered"
-    ).scalar() or 0
-    missed = db.query(func.count(CallHistory.id)).filter(
-        base, CallHistory.status == "missed"
-    ).scalar() or 0
-    total_duration = db.query(func.sum(CallHistory.duration)).filter(
-        base, CallHistory.status == "answered"
-    ).scalar() or 0
+    answered = db.query(func.count(CallHistory.id)).filter(base, CallHistory.status == "answered").scalar() or 0
+    missed = db.query(func.count(CallHistory.id)).filter(base, CallHistory.status == "missed").scalar() or 0
+    total_duration = (
+        db.query(func.sum(CallHistory.duration)).filter(base, CallHistory.status == "answered").scalar() or 0
+    )
 
     return {
         "total_calls": total,

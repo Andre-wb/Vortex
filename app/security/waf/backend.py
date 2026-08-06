@@ -3,6 +3,7 @@
 Движок целиком живёт в крейте `vortex_waf`: правила, разбор тела, ограничение
 частоты, блокировки, капча. Python-слой отвечает только за ASGI и HTTP.
 """
+
 from __future__ import annotations
 
 import logging

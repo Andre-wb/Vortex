@@ -1,6 +1,7 @@
 """
 rooms_crud — CRUD operations for rooms: create, read, update, delete, leave.
 """
+
 from __future__ import annotations
 
 import io
@@ -41,11 +42,12 @@ def _random_aes256_hex() -> str:
 
 # Room creation
 
+
 @router.post("", status_code=201)
 async def create_room(
-        body: RoomCreate,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    body: RoomCreate,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Creates a new room.
@@ -75,14 +77,13 @@ async def create_room(
     # can still participate in any number of rooms, they just can't
     # *create* more than ``max_big_groups`` of the large kind themselves.
     from app.security.limits import get_limits_for_user
+
     tier = await get_limits_for_user(u)
     if tier.max_big_groups > 0:
         # ``Room`` is already imported from ``app.models_rooms`` at the top
         # of this module — reuse it directly for the tier check.
         existing_big = (
-            db.query(Room)
-              .filter(Room.creator_id == u.id, Room.max_members > tier.big_group_threshold)
-              .count()
+            db.query(Room).filter(Room.creator_id == u.id, Room.max_members > tier.big_group_threshold).count()
         )
         if existing_big >= tier.max_big_groups:
             raise HTTPException(
@@ -98,14 +99,14 @@ async def create_room(
 
     # Create room without room_key — server does not store key in plaintext
     room = Room(
-        name        = body.name,
-        description = body.description,
-        creator_id  = u.id,
-        is_private  = body.is_private,
-        is_voice    = body.is_voice,
-        invite_code = generative_invite_code(8),
-        max_members = 200,
-        avatar_emoji = "🔊" if body.is_voice else "💬",
+        name=body.name,
+        description=body.description,
+        creator_id=u.id,
+        is_private=body.is_private,
+        is_voice=body.is_voice,
+        invite_code=generative_invite_code(8),
+        max_members=200,
+        avatar_emoji="🔊" if body.is_voice else "💬",
         # room_key intentionally absent
     )
     db.add(room)
@@ -115,26 +116,29 @@ async def create_room(
     db.add(RoomMember(room_id=room.id, user_id=u.id, role=RoomRole.OWNER))
 
     # Save encrypted key for creator
-    db.add(EncryptedRoomKey(
-        room_id          = room.id,
-        user_id          = u.id,
-        ephemeral_pub    = body.encrypted_room_key.eph_pub,
-        ciphertext       = body.encrypted_room_key.ciphertext,
-        kyber_ciphertext = body.encrypted_room_key.kyber_ciphertext,
-        recipient_pub    = u.x25519_public_key,
-    ))
+    db.add(
+        EncryptedRoomKey(
+            room_id=room.id,
+            user_id=u.id,
+            ephemeral_pub=body.encrypted_room_key.eph_pub,
+            ciphertext=body.encrypted_room_key.ciphertext,
+            kyber_ciphertext=body.encrypted_room_key.kyber_ciphertext,
+            recipient_pub=u.x25519_public_key,
+        )
+    )
 
     # auto-escrow: every public room gets a server-held symmetric
     # key so new joiners and offline catch-up work without waiting for an
     # online peer. Private rooms keep the pure ECIES-per-member flow.
     if not body.is_private:
         from app.chats.rooms.public_keys import store_public_key_and_propagate
+
         await store_public_key_and_propagate(
-            room_id    = room.id,
-            key_hex    = (body.public_room_key_hex or _random_aes256_hex()),
-            algorithm  = "aes-256-gcm",
-            db         = db,
-            rotated    = False,
+            room_id=room.id,
+            key_hex=(body.public_room_key_hex or _random_aes256_hex()),
+            algorithm="aes-256-gcm",
+            db=db,
+            rotated=False,
         )
 
     db.commit()
@@ -143,22 +147,26 @@ async def create_room(
     # Auto-add antispam bot to new rooms (skip DMs — they must have exactly 2 members)
     if not getattr(room, "is_dm", False):
         from app.bots.antispam_bot import add_antispam_bot_to_room
+
         add_antispam_bot_to_room(room.id, db)
 
     logger.info(f"Room created: '{room.name}' (id={room.id}) by {u.username}")
 
-    return JSONResponse(status_code=201, content={
-        **_room_dict(room),
-        "has_key": True,   # creator already has the key
-    })
+    return JSONResponse(
+        status_code=201,
+        content={
+            **_room_dict(room),
+            "has_key": True,  # creator already has the key
+        },
+    )
 
 
 # Standard room operations
 
+
 @router.get("/my")
 async def my_rooms(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    members = db.query(RoomMember).filter(
-        RoomMember.user_id == u.id, RoomMember.is_banned.is_(False)).all()
+    members = db.query(RoomMember).filter(RoomMember.user_id == u.id, RoomMember.is_banned.is_(False)).all()
     member_map = {m.room_id: m for m in members}
     ids = list(member_map.keys())
     rooms = db.query(Room).filter(Room.id.in_(ids), Room.is_dm.is_(False), Room.is_channel.is_(False)).all()
@@ -166,10 +174,12 @@ async def my_rooms(u: User = Depends(get_current_user), db: Session = Depends(ge
     # Check key availability for each room
     key_set = {
         ek.room_id
-        for ek in db.query(EncryptedRoomKey).filter(
+        for ek in db.query(EncryptedRoomKey)
+        .filter(
             EncryptedRoomKey.user_id == u.id,
             EncryptedRoomKey.room_id.in_(ids),
-            ).all()
+        )
+        .all()
     }
 
     result = []
@@ -178,10 +188,15 @@ async def my_rooms(u: User = Depends(get_current_user), db: Session = Depends(ge
         # Count unread messages
         m = member_map.get(r.id)
         last_read = m.last_read_message_id or 0 if m else 0
-        d["unread_count"] = db.query(func.count(Message.id)).filter(
-            Message.room_id == r.id,
-            Message.id > last_read,
-        ).scalar() or 0
+        d["unread_count"] = (
+            db.query(func.count(Message.id))
+            .filter(
+                Message.room_id == r.id,
+                Message.id > last_read,
+            )
+            .scalar()
+            or 0
+        )
         d["is_muted"] = m.is_muted if m else False
         d["my_role"] = m.role.value if m else None
         result.append(d)
@@ -191,12 +206,12 @@ async def my_rooms(u: User = Depends(get_current_user), db: Session = Depends(ge
 
 @router.get("/public")
 async def public_rooms(
-    q:           str  = "",
-    type:        str  = "all",     # all | group | channel | voice
-    min_members: int  = 0,
-    sort:        str  = "newest",  # newest | popular | online
-    offset:      int  = 0,
-    limit:       int  = 40,
+    q: str = "",
+    type: str = "all",  # all | group | channel | voice
+    min_members: int = 0,
+    sort: str = "newest",  # newest | popular | online
+    offset: int = 0,
+    limit: int = 40,
     db: Session = Depends(get_db),
 ):
     """Catalog of public rooms with filtering and pagination."""
@@ -226,15 +241,15 @@ async def public_rooms(
         rooms_all.sort(key=lambda r: r.created_at or "", reverse=True)
 
     total = len(rooms_all)
-    page  = rooms_all[offset: offset + max(1, min(limit, 100))]
+    page = rooms_all[offset : offset + max(1, min(limit, 100))]
     return {"rooms": [_room_dict(r) for r in page], "total": total, "offset": offset}
 
 
 @router.get("/{room_id}")
 async def get_room(
-        room_id: int,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     r = db.query(Room).filter(Room.id == room_id).first()
     if not r:
@@ -242,9 +257,14 @@ async def get_room(
     _require_member(room_id, u.id, db)
 
     # Add current user's role for frontend
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     d = _room_dict(r)
     d["my_role"] = member.role.value if member else None
     return d
@@ -252,12 +272,13 @@ async def get_room(
 
 # Room settings update
 
+
 @router.put("/{room_id}")
 async def update_room(
-        room_id: int,
-        body: RoomUpdate,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    body: RoomUpdate,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Updates room settings. OWNER or ADMIN only.
@@ -284,6 +305,7 @@ async def update_room(
         # existing ECIES flow.
         if body.is_private and not prev_private:
             from app.chats.rooms.public_keys import invalidate_and_propagate
+
             await invalidate_and_propagate(room_id, db)
         # Private → public flip: auto-provision a fresh server-held key so
         # the room behaves like a public channel without the user having
@@ -293,12 +315,13 @@ async def update_room(
         # who already have the E2E key via ECIES).
         elif prev_private and not body.is_private:
             from app.chats.rooms.public_keys import store_public_key_and_propagate
+
             await store_public_key_and_propagate(
-                room_id   = room_id,
-                key_hex   = _random_aes256_hex(),
-                algorithm = "aes-256-gcm",
-                db        = db,
-                rotated   = False,
+                room_id=room_id,
+                key_hex=_random_aes256_hex(),
+                algorithm="aes-256-gcm",
+                db=db,
+                rotated=False,
             )
     if body.auto_delete_seconds is not None:
         r.auto_delete_seconds = body.auto_delete_seconds if body.auto_delete_seconds > 0 else None
@@ -309,6 +332,7 @@ async def update_room(
 
         # Auto-add/remove antispam bot from room
         from app.bots.antispam_bot import add_antispam_bot_to_room, remove_antispam_bot_from_room
+
         if body.antispam_enabled:
             add_antispam_bot_to_room(room_id, db)
         else:
@@ -317,6 +341,7 @@ async def update_room(
     if body.antispam_config is not None:
         # Validate JSON
         import json as _json
+
         try:
             parsed = _json.loads(body.antispam_config)
             if not isinstance(parsed, dict):
@@ -360,15 +385,19 @@ async def update_room(
     logger.info(f"Room {room_id} updated by {u.username}")
 
     # Notify members about settings change
-    await manager.broadcast_to_room(room_id, {
-        "type":       "room_updated",
-        "room":       _room_dict(r),
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "room_updated",
+            "room": _room_dict(r),
+        },
+    )
 
     return _room_dict(r)
 
 
 # Cross-node replication toggle (owner-only, DM-forbidden)
+
 
 class ReplicationBody(BaseModel):
     mode: str = Field(..., pattern=r"^(none|federated)$")
@@ -376,10 +405,10 @@ class ReplicationBody(BaseModel):
 
 @router.patch("/{room_id}/replication")
 async def set_room_replication(
-        room_id: int,
-        body: ReplicationBody,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    body: ReplicationBody,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Flip cross-node replication for a room. OWNER only.
@@ -406,26 +435,32 @@ async def set_room_replication(
 
     logger.info(
         "Room %s replication_mode: %s -> %s (owner=%s)",
-        room_id, prev, body.mode, u.username,
+        room_id,
+        prev,
+        body.mode,
+        u.username,
     )
 
     # Notify all online members so their UI updates (banner appears/hides
     # for everyone at once).
-    await manager.broadcast_to_room(room_id, {
-        "type":             "room_replication_changed",
-        "room_id":          room_id,
-        "replication_mode": body.mode,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "room_replication_changed",
+            "room_id": room_id,
+            "replication_mode": body.mode,
+        },
+    )
 
     return {"room_id": room_id, "replication_mode": body.mode}
 
 
 @router.post("/{room_id}/avatar")
 async def upload_room_avatar(
-        room_id: int,
-        file: UploadFile = File(...),
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    file: UploadFile = File(...),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Uploads room avatar. OWNER or ADMIN only.
@@ -463,22 +498,24 @@ async def upload_room_avatar(
     logger.info(f"Room {room_id} avatar uploaded by {u.username}")
 
     # Notify members
-    await manager.broadcast_to_room(room_id, {
-        "type":       "room_updated",
-        "room":       _room_dict(r),
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "room_updated",
+            "room": _room_dict(r),
+        },
+    )
 
     return {"ok": True, "avatar_url": r.avatar_url}
 
 
 @router.delete("/{room_id}/leave")
 async def leave_room(
-        room_id: int,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    m = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id).first()
+    m = db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == u.id).first()
     if not m:
         raise HTTPException(404)
 
@@ -486,7 +523,7 @@ async def leave_room(
     db.query(EncryptedRoomKey).filter(
         EncryptedRoomKey.room_id == room_id,
         EncryptedRoomKey.user_id == u.id,
-        ).delete()
+    ).delete()
 
     r = db.query(Room).filter(Room.id == room_id).first()
 
@@ -506,7 +543,7 @@ async def leave_room(
     # Key rotation — the leaving member won't be able to decrypt new messages
     # For DMs rotation is not needed — room is deleted along with the member
     if r and not r.is_dm:
-        _invalidate_room_escrows(room_id, db)   # escrow'ы на старый ключ устарели
+        _invalidate_room_escrows(room_id, db)  # escrow'ы на старый ключ устарели
         db.commit()
         await manager.broadcast_to_room(room_id, {"type": "key_rotated"})
         logger.info(f"Room key rotated after leave in room {room_id}")
@@ -516,9 +553,9 @@ async def leave_room(
 
 @router.delete("/{room_id}")
 async def delete_room(
-        room_id: int,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     m = _require_member(room_id, u.id, db)
     if m.role != RoomRole.OWNER:

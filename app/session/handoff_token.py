@@ -30,6 +30,7 @@ Target-side verification:
        by calling controller_client.fetch_random_peers / lookup.
     4. Verify Ed25519 signature with src_node_pubkey.
 """
+
 from __future__ import annotations
 
 import secrets
@@ -41,17 +42,13 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from app.peer.controller_client import NodeSigningKey
 from app.peer.controller_client import _canonical as _controller_canonical
 
-HANDOFF_TTL_SEC = 300          # 5 min window to consume the token
-HANDOFF_SKEW_SEC = 60           # accept small clock drift
-
-
+HANDOFF_TTL_SEC = 300  # 5 min window to consume the token
+HANDOFF_SKEW_SEC = 60  # accept small clock drift
 
 
 def _canonical(obj) -> bytes:
     """Та же канонизация, что и при подписи через ``NodeSigningKey.sign``."""
     return _controller_canonical(obj)
-
-
 
 
 def issue_handoff_token(
@@ -85,8 +82,6 @@ def issue_handoff_token(
         "payload": payload,
         "signature": signing_key.sign(payload),
     }
-
-
 
 
 class HandoffError(Exception):

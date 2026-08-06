@@ -6,6 +6,7 @@ POST /api/ide/save/{pid}            save current code as new version
 POST /api/ide/rollback/{pid}/{v}    restore version N
 GET  /api/ide/graph/{pid}           return graph {nodes, edges} extracted from code
 """
+
 from __future__ import annotations
 
 import json
@@ -23,7 +24,6 @@ from app.security.auth_jwt import get_current_user
 router = APIRouter(prefix="/api/ide", tags=["ide"])
 
 _MAX_VERSIONS = 20
-
 
 
 def _versions_path(project_id: str) -> Path:
@@ -48,7 +48,6 @@ def _save_versions(project_id: str, versions: list) -> None:
     )
 
 
-
 def _extract_graph(code: str) -> dict:
     """Regex-based graph extraction from Gravitix source."""
     nodes: list[dict] = []
@@ -70,43 +69,42 @@ def _extract_graph(code: str) -> dict:
         _add_node(node_id, label, "handler")
 
     # Flow definitions:  flow foo { ... }
-    for m in re.finditer(r'\bflow\s+(\w+)', code):
+    for m in re.finditer(r"\bflow\s+(\w+)", code):
         node_id = f"flow_{m.group(1)}"
         _add_node(node_id, m.group(1), "flow")
 
     # Function definitions:  fn foo( ...
-    for m in re.finditer(r'\bfn\s+(\w+)\s*\(', code):
+    for m in re.finditer(r"\bfn\s+(\w+)\s*\(", code):
         node_id = f"fn_{m.group(1)}"
         _add_node(node_id, f"fn {m.group(1)}()", "function")
 
     # State block or state var
-    if re.search(r'\bstate\s*\{', code):
+    if re.search(r"\bstate\s*\{", code):
         _add_node("state_block", "state {}", "state")
-    for m in re.finditer(r'\bstate\s+(\w+)\s*=', code):
+    for m in re.finditer(r"\bstate\s+(\w+)\s*=", code):
         node_id = f"state_{m.group(1)}"
         _add_node(node_id, f"state.{m.group(1)}", "state")
 
     # Edges:  run flow X
-    for m in re.finditer(r'\brun\s+flow\s+(\w+)', code):
+    for m in re.finditer(r"\brun\s+flow\s+(\w+)", code):
         target_id = f"flow_{m.group(1)}"
         edges.append({"from": "current", "to": target_id, "label": "run flow"})
 
     # Edges: function calls (fn_name(...) where fn_name is a known fn node)
     fn_names = {n["label"].split("(")[0][3:] for n in nodes if n["type"] == "function"}
     for fname in fn_names:
-        call_re = re.compile(r'\b' + re.escape(fname) + r'\s*\(')
+        call_re = re.compile(r"\b" + re.escape(fname) + r"\s*\(")
         # find all calls outside the fn definition itself
         for m in call_re.finditer(code):
             # Skip the definition line
-            line_start = code.rfind('\n', 0, m.start()) + 1
-            line = code[line_start: code.find('\n', m.start())]
-            if re.match(r'\s*fn\s+', line):
+            line_start = code.rfind("\n", 0, m.start()) + 1
+            line = code[line_start : code.find("\n", m.start())]
+            if re.match(r"\s*fn\s+", line):
                 continue
             edges.append({"from": "caller", "to": f"fn_{fname}", "label": "call"})
             break  # one edge per function is enough
 
     return {"nodes": nodes, "edges": edges}
-
 
 
 @router.get("/versions/{project_id}")
@@ -176,6 +174,7 @@ async def ide_rollback_version(
 
     # Write the restored code to the main .grav file so it's consistent on disk
     from app.bots.ide_runner import _script_path
+
     _script_path(pid).write_text(entry["code"], encoding="utf-8")
 
     return {
@@ -186,7 +185,6 @@ async def ide_rollback_version(
     }
 
 
-
 @router.get("/graph/{project_id}")
 async def ide_flow_graph(
     project_id: str,
@@ -195,6 +193,7 @@ async def ide_flow_graph(
     """Extract and return a flow graph (nodes + edges) from the project's .grav file."""
     pid = _require_project(project_id, current_user)
     from app.bots.ide_runner import _script_path
+
     path = _script_path(pid)
     if not path.exists():
         return {"project_id": pid, "nodes": [], "edges": []}

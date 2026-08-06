@@ -19,6 +19,7 @@ Endpoints:
   GET  /api/sfu/available        — check SFU
   WS   /ws/sfu/{call_id}         — renegotiation + ICE
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -50,9 +51,9 @@ SFU_MAX_PARTICIPANTS = int(os.getenv("SFU_MAX_PARTICIPANTS", "200"))
 # SFU selects which layer to forward to each subscriber based on viewport
 
 SIMULCAST_LAYERS = {
-    "high":   {"maxBitrate": 2_500_000, "maxFramerate": 30, "scaleDown": 1},
-    "medium": {"maxBitrate":   600_000, "maxFramerate": 20, "scaleDown": 2},
-    "low":    {"maxBitrate":   150_000, "maxFramerate": 10, "scaleDown": 4},
+    "high": {"maxBitrate": 2_500_000, "maxFramerate": 30, "scaleDown": 1},
+    "medium": {"maxBitrate": 600_000, "maxFramerate": 20, "scaleDown": 2},
+    "low": {"maxBitrate": 150_000, "maxFramerate": 10, "scaleDown": 4},
 }
 
 # Default subscription quality per viewer position
@@ -64,6 +65,7 @@ SPEAKER_DETECT_INTERVAL = 0.3
 
 try:
     from aiortc import RTCIceCandidate, RTCPeerConnection, RTCSessionDescription  # type: ignore
+
     _SFU_AVAILABLE = True
 except ImportError:
     _SFU_AVAILABLE = False
@@ -74,9 +76,7 @@ def is_sfu_available() -> bool:
     return _SFU_AVAILABLE
 
 
-
 _sfu_rooms: dict[str, SFURoom] = {}
-
 
 
 class SFUOfferRequest(BaseModel):
@@ -87,7 +87,6 @@ class SFUAnswerResponse(BaseModel):
     sdp: str
     type: str = "answer"
     participants: list[dict] = []
-
 
 
 def _parse_pt_kinds(sdp: str) -> dict[int, str]:
@@ -116,7 +115,6 @@ def _parse_pt_kinds(sdp: str) -> dict[int, str]:
     return result
 
 
-
 @dataclass
 class SFUParticipant:
     user_id: int
@@ -124,19 +122,18 @@ class SFUParticipant:
     display_name: str = ""
     avatar_emoji: str = ""
     avatar_url: str = ""
-    pc: object | None = None                                # RTCPeerConnection
-    ws: WebSocket | None = None                             # renegotiation WS
-    ready_sources: set = field(default_factory=set)         # UIDs whose media can be forwarded here
-    pending_sources: list = field(default_factory=list)     # UIDs awaiting renegotiation
+    pc: object | None = None  # RTCPeerConnection
+    ws: WebSocket | None = None  # renegotiation WS
+    ready_sources: set = field(default_factory=set)  # UIDs whose media can be forwarded here
+    pending_sources: list = field(default_factory=list)  # UIDs awaiting renegotiation
     # Simulcast: which layer to forward per source user
     # {source_uid: "high" | "medium" | "low" | "none"}
     subscriptions: dict = field(default_factory=dict)
     # Simulcast: SSRC → layer mapping from client's SDP (populated on join)
-    simulcast_ssrcs: dict = field(default_factory=dict)     # {(kind, layer): ssrc}
+    simulcast_ssrcs: dict = field(default_factory=dict)  # {(kind, layer): ssrc}
     # Audio level tracking for dominant speaker detection
     audio_level: float = 0.0
     audio_level_ts: float = 0.0
-
 
 
 class SFURoom:
@@ -171,7 +168,6 @@ class SFURoom:
     @property
     def participant_count(self) -> int:
         return len(self.participants)
-
 
     async def join(self, user: User, offer_sdp: str) -> tuple[str, list[dict]]:
         """
@@ -208,9 +204,7 @@ class SFURoom:
                 if state in ("failed", "closed"):
                     spawn(self.leave(user.id))
 
-            await pc.setRemoteDescription(
-                RTCSessionDescription(sdp=offer_sdp, type="offer")
-            )
+            await pc.setRemoteDescription(RTCSessionDescription(sdp=offer_sdp, type="offer"))
             answer = await pc.createAnswer()
             await pc.setLocalDescription(answer)
 
@@ -254,17 +248,18 @@ class SFURoom:
             for uid, p in self.participants.items():
                 if uid != user.id and p.ws:
                     with contextlib.suppress(Exception):
-                        await p.ws.send_json({
-                            "type": "sfu_participant_joined",
-                            "user_id": user.id,
-                            "username": user.username,
-                            "display_name": user.display_name or user.username,
-                            "avatar_emoji": user.avatar_emoji or "",
-                            "avatar_url": user.avatar_url or "",
-                        })
+                        await p.ws.send_json(
+                            {
+                                "type": "sfu_participant_joined",
+                                "user_id": user.id,
+                                "username": user.username,
+                                "display_name": user.display_name or user.username,
+                                "avatar_emoji": user.avatar_emoji or "",
+                                "avatar_url": user.avatar_url or "",
+                            }
+                        )
 
             return pc.localDescription.sdp, plist
-
 
     def _add_send_transceivers(self, pc, target_uid: int, source_uid: int) -> None:
         """Add sendonly audio + video transceivers for forwarding *source*'s media to *target*."""
@@ -273,9 +268,11 @@ class SFURoom:
             self._send_ssrc_table[(target_uid, source_uid, kind)] = t.sender._ssrc
             logger.debug(
                 "[SFU] sendonly %s: target=%s source=%s ssrc=%s",
-                kind, target_uid, source_uid, t.sender._ssrc,
+                kind,
+                target_uid,
+                source_uid,
+                t.sender._ssrc,
             )
-
 
     def _patch_transport(self, uid: int, pc) -> None:
         """Monkey-patch DTLS transport's ``_handle_rtp_data`` for opaque forwarding."""
@@ -296,7 +293,6 @@ class SFURoom:
         transport._handle_rtp_data = _forwarding_handle
         transport._vortex_patched = True  # type: ignore[attr-defined]
         logger.debug("[SFU] Patched DTLS transport for user %s", uid)
-
 
     async def _forward_rtp(self, from_uid: int, rtp_data: bytes) -> None:
         """Forward an RTP packet with simulcast layer selection and viewport filtering."""
@@ -361,6 +357,7 @@ class SFURoom:
     def _update_audio_level(self, uid: int, rtp_data: bytes) -> None:
         """Extract audio level from RTP for dominant speaker detection."""
         import time
+
         p = self.participants.get(uid)
         if not p:
             return
@@ -374,7 +371,6 @@ class SFURoom:
         p.audio_level = alpha * level + (1 - alpha) * p.audio_level
         p.audio_level_ts = now
 
-
     async def _try_renegotiate(self, participant: SFUParticipant) -> None:
         """Create and push a renegotiation offer (new sendonly tracks)."""
         if not participant.ws or not participant.pc:
@@ -382,14 +378,15 @@ class SFURoom:
         try:
             offer = await participant.pc.createOffer()
             await participant.pc.setLocalDescription(offer)
-            await participant.ws.send_json({
-                "type": "sfu_offer",
-                "sdp": participant.pc.localDescription.sdp,
-            })
+            await participant.ws.send_json(
+                {
+                    "type": "sfu_offer",
+                    "sdp": participant.pc.localDescription.sdp,
+                }
+            )
             logger.debug("[SFU] renegotiation offer → user %s", participant.user_id)
         except Exception as e:
             logger.warning("[SFU] renegotiation failed for %s: %s", participant.user_id, e)
-
 
     async def handle_answer(self, user_id: int, sdp: str) -> None:
         """Process renegotiation answer — mark forwarding targets as ready."""
@@ -397,9 +394,7 @@ class SFURoom:
         if not p or not p.pc:
             return
         try:
-            await p.pc.setRemoteDescription(
-                RTCSessionDescription(sdp=sdp, type="answer")
-            )
+            await p.pc.setRemoteDescription(RTCSessionDescription(sdp=sdp, type="answer"))
             p.ready_sources.update(p.pending_sources)
             p.pending_sources.clear()
             logger.debug("[SFU] answer OK for %s, ready_sources=%s", user_id, p.ready_sources)
@@ -411,14 +406,15 @@ class SFURoom:
         if not p or not p.pc:
             return
         try:
-            await p.pc.addIceCandidate(RTCIceCandidate(
-                sdpMid=candidate_data.get("sdpMid", ""),
-                sdpMLineIndex=candidate_data.get("sdpMLineIndex", 0),
-                candidate=candidate_data.get("candidate", ""),
-            ))
+            await p.pc.addIceCandidate(
+                RTCIceCandidate(
+                    sdpMid=candidate_data.get("sdpMid", ""),
+                    sdpMLineIndex=candidate_data.get("sdpMLineIndex", 0),
+                    candidate=candidate_data.get("candidate", ""),
+                )
+            )
         except Exception as e:
             logger.debug("[SFU] ICE error for %s: %s", user_id, e)
-
 
     async def leave(self, user_id: int) -> None:
         async with self._lock:
@@ -441,16 +437,17 @@ class SFURoom:
             for _uid, other in self.participants.items():
                 if other.ws:
                     with contextlib.suppress(Exception):
-                        await other.ws.send_json({
-                            "type": "sfu_participant_left",
-                            "user_id": user_id,
-                            "username": p.username,
-                        })
+                        await other.ws.send_json(
+                            {
+                                "type": "sfu_participant_left",
+                                "user_id": user_id,
+                                "username": p.username,
+                            }
+                        )
 
             if not self.participants:
                 _sfu_rooms.pop(self.call_id, None)
                 logger.info("[SFU] Room %s closed (empty)", self.call_id)
-
 
     async def handle_subscribe(self, user_id: int, subscriptions: dict) -> None:
         """
@@ -481,7 +478,6 @@ class SFURoom:
         self._simulcast_map[user_id] = mapping
         logger.debug("[SFU] user %s simulcast map: %s", user_id, mapping)
 
-
     async def _start_speaker_detection(self) -> None:
         """Start the dominant speaker detection background loop."""
         if self._speaker_task and not self._speaker_task.done():
@@ -491,6 +487,7 @@ class SFURoom:
     async def _speaker_detection_loop(self) -> None:
         """Periodically detect the loudest speaker and broadcast."""
         import time
+
         while self.participants:
             await asyncio.sleep(SPEAKER_DETECT_INTERVAL)
             try:
@@ -512,14 +509,15 @@ class SFURoom:
                     for _uid, p in self.participants.items():
                         if p.ws:
                             with contextlib.suppress(Exception):
-                                await p.ws.send_json({
-                                    "type": "sfu_dominant_speaker",
-                                    "user_id": best_uid,
-                                    "level": round(best_level, 3),
-                                })
+                                await p.ws.send_json(
+                                    {
+                                        "type": "sfu_dominant_speaker",
+                                        "user_id": best_uid,
+                                        "level": round(best_level, 3),
+                                    }
+                                )
             except Exception as e:
                 logger.debug("[SFU] Speaker detection error: %s", e)
-
 
     def get_stats(self) -> dict:
         """Return SFU room statistics."""
@@ -531,11 +529,7 @@ class SFURoom:
             "rtp_forwarded": self._total_rtp_forwarded,
             "rtp_dropped": self._total_rtp_dropped,
             "simulcast_sources": len(self._simulcast_map),
-            "subscriptions": {
-                uid: dict(p.subscriptions)
-                for uid, p in self.participants.items()
-                if p.subscriptions
-            },
+            "subscriptions": {uid: dict(p.subscriptions) for uid, p in self.participants.items() if p.subscriptions},
         }
 
     def set_ws(self, user_id: int, ws: WebSocket) -> None:
@@ -555,7 +549,6 @@ class SFURoom:
             self.participants.clear()
             _sfu_rooms.pop(self.call_id, None)
 
-
     @staticmethod
     def _get_transport(pc):
         """Return the shared DTLS transport for a PeerConnection (BUNDLE)."""
@@ -570,12 +563,10 @@ class SFURoom:
         return None
 
 
-
 def get_or_create_sfu_room(call_id: str, room_id: int) -> SFURoom:
     if call_id not in _sfu_rooms:
         _sfu_rooms[call_id] = SFURoom(call_id, room_id)
     return _sfu_rooms[call_id]
-
 
 
 @router.get("/api/sfu/available")
@@ -610,6 +601,7 @@ async def sfu_join(
         raise HTTPException(501, detail="SFU unavailable (aiortc not installed)")
 
     from app.chats.group_calls import _active_group_calls
+
     gc = _active_group_calls.get(call_id)
     if not gc:
         raise HTTPException(404, detail="Call not found")
@@ -633,7 +625,6 @@ async def sfu_leave(call_id: str, user: User = Depends(get_current_user)):
     if room:
         await room.leave(user.id)
     return {"ok": True}
-
 
 
 @router.websocket("/ws/sfu/{call_id}")

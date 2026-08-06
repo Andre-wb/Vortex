@@ -40,6 +40,7 @@ Threat model:
                     logged to the audit log; rate-limiting prevents bulk attack
   • Full compromise + secret → social graph recoverable (use HSM to mitigate)
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -60,9 +61,9 @@ _audit_logger = logging.getLogger("vortex.sealed_sender.audit")
 #   SEALED_SENDER_RESOLVE_LIMIT  — max resolutions per window  (default: 100)
 #   SEALED_SENDER_RESOLVE_WINDOW — window size in seconds       (default: 60)
 #
-_RESOLVE_LIMIT  = int(os.environ.get("SEALED_SENDER_RESOLVE_LIMIT",  "100"))
+_RESOLVE_LIMIT = int(os.environ.get("SEALED_SENDER_RESOLVE_LIMIT", "100"))
 _RESOLVE_WINDOW = int(os.environ.get("SEALED_SENDER_RESOLVE_WINDOW", "60"))
-_resolve_counter: list[float] = []   # timestamps of recent resolve calls
+_resolve_counter: list[float] = []  # timestamps of recent resolve calls
 _resolve_lock = threading.Lock()
 
 
@@ -78,7 +79,6 @@ def _check_resolve_rate() -> bool:
             return False
         _resolve_counter.append(now)
     return True
-
 
 
 def _get_secret() -> bytes:
@@ -99,6 +99,7 @@ def _get_secret() -> bytes:
             else:
                 # Auto-generate and persist to .env
                 from app.config import _auto_secret
+
                 generated = _auto_secret("SEALED_SENDER_SECRET")
                 try:
                     _SECRET = bytes.fromhex(generated[:64])
@@ -107,9 +108,9 @@ def _get_secret() -> bytes:
     return _SECRET
 
 
-
 try:
     import vortex_chat as _vc_rust
+
     _HAS_RUST_PSEUDO = hasattr(_vc_rust, "compute_sender_pseudo")
 except ImportError:
     _HAS_RUST_PSEUDO = False
@@ -174,7 +175,9 @@ def resolve_pseudo(
     if not _check_resolve_rate():
         _audit_logger.warning(
             "resolve_pseudo RATE_LIMITED room_id=%s pseudo=%s… caller=%s",
-            room_id, pseudo[:8], caller,
+            room_id,
+            pseudo[:8],
+            caller,
         )
         return None
 
@@ -186,6 +189,9 @@ def resolve_pseudo(
 
     _audit_logger.info(
         "resolve_pseudo room_id=%s pseudo=%s… caller=%s resolved=%s",
-        room_id, pseudo[:8], caller, result,
+        room_id,
+        pseudo[:8],
+        caller,
+        result,
     )
     return result

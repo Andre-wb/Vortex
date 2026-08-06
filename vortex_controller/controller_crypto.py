@@ -9,6 +9,7 @@ Two sides:
 Payload canonicalization is JSON with sort_keys=True and separators=(",",":").
 Both sides MUST use this form to produce identical bytes.
 """
+
 from __future__ import annotations
 
 import base64
@@ -27,6 +28,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 
 try:
     import vortex_chat as _vc_rust
+
     _HAS_RUST_CJSON = hasattr(_vc_rust, "canonical_json")
 except ImportError:
     _HAS_RUST_CJSON = False
@@ -40,10 +42,7 @@ def canonical_json(data: Any) -> bytes:
     """
     if _HAS_RUST_CJSON:
         return _vc_rust.canonical_json(data)
-    return json.dumps(
-        data, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
-
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 class ControllerKey:
@@ -90,7 +89,6 @@ class ControllerKey:
         return self._priv.sign(data).hex()
 
 
-
 def verify_signature(pubkey_hex: str, signature_hex: str, payload: Any) -> bool:
     """Verify a signature over canonical JSON of payload.
 
@@ -126,7 +124,6 @@ def sign_response(controller_key: ControllerKey, data: Any) -> dict:
         "signature": controller_key.sign(data),
         "signed_by": controller_key.pubkey_hex(),
     }
-
 
 
 def b64encode(data: bytes) -> str:

@@ -2,6 +2,7 @@
 
 Имена метрик и соответствие ключам снимка приходят из `vortex_waf.METRIC_NAMES`.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -14,10 +15,7 @@ logger = logging.getLogger(__name__)
 
 METRIC_NAMES: dict = getattr(_rust, "METRIC_NAMES", None)
 if METRIC_NAMES is None:
-    raise ImportError(
-        "vortex_waf собран без METRIC_NAMES. Пересоберите расширение:\n"
-        "    make rust-build"
-    )
+    raise ImportError("vortex_waf собран без METRIC_NAMES. Пересоберите расширение:\n    make rust-build")
 
 COUNTERS: dict[str, str] = METRIC_NAMES["counters"]
 GAUGES: dict[str, str] = METRIC_NAMES["gauges"]
@@ -43,17 +41,9 @@ def all_metric_names() -> set[str]:
 def _families():
     from prometheus_client.metrics_core import CounterMetricFamily, GaugeMetricFamily
 
-    counters = {
-        name: CounterMetricFamily(name, _HELP.get(key, name))
-        for name, key in COUNTERS.items()
-    }
-    gauges = {
-        name: GaugeMetricFamily(name, _HELP.get(key, name))
-        for name, key in GAUGES.items()
-    }
-    rules = CounterMetricFamily(
-        RULE_TRIGGERS_TOTAL, "Срабатываний правил", labels=[RULE_LABEL]
-    )
+    counters = {name: CounterMetricFamily(name, _HELP.get(key, name)) for name, key in COUNTERS.items()}
+    gauges = {name: GaugeMetricFamily(name, _HELP.get(key, name)) for name, key in GAUGES.items()}
+    rules = CounterMetricFamily(RULE_TRIGGERS_TOTAL, "Срабатываний правил", labels=[RULE_LABEL])
     return counters, gauges, rules
 
 

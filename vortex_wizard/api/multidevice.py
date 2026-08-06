@@ -15,6 +15,7 @@ Features:
 Each payload is wrapped as ``{"payload": {...}, "signature": "hex"}``
 signed with the node's Ed25519 key so it can't be forged.
 """
+
 from __future__ import annotations
 
 import base64
@@ -59,13 +60,17 @@ def _sign(env_file: Path, payload: dict) -> str:
 
 
 def _pubkey_hex(env_file: Path) -> str:
-    priv = Ed25519PrivateKey.from_private_bytes(
-        _sec.get_unlocked_signing_key_bytes(env_file))
+    priv = Ed25519PrivateKey.from_private_bytes(_sec.get_unlocked_signing_key_bytes(env_file))
     from cryptography.hazmat.primitives import serialization
-    return priv.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    ).hex()
+
+    return (
+        priv.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        .hex()
+    )
 
 
 def _to_qr_string(envelope: dict) -> str:
@@ -91,6 +96,7 @@ def _from_qr_string(s: str) -> dict:
 # handoff_token mechanism), and gets back a session token bound to the
 # same pubkey.
 
+
 class DeviceLinkBody(BaseModel):
     ttl_seconds: int = Field(300, ge=30, le=3600)
 
@@ -99,25 +105,26 @@ class DeviceLinkBody(BaseModel):
 async def make_device_link(body: DeviceLinkBody, request: Request) -> dict:
     env_file = _env_file(request)
     payload = {
-        "kind":       "device_link",
-        "pubkey":     _pubkey_hex(env_file),
-        "nonce":      _secrets.token_urlsafe(16),
-        "issued_at":  int(time.time()),
+        "kind": "device_link",
+        "pubkey": _pubkey_hex(env_file),
+        "nonce": _secrets.token_urlsafe(16),
+        "issued_at": int(time.time()),
         "expires_at": int(time.time()) + body.ttl_seconds,
     }
     envelope = {"payload": payload, "signature": _sign(env_file, payload)}
     return {
-        "uri":        _to_qr_string(envelope),
-        "envelope":   envelope,
+        "uri": _to_qr_string(envelope),
+        "envelope": envelope,
         "expires_in": body.ttl_seconds,
     }
 
 
 # 2. Session transfer (#45)
 
+
 class SessionXferBody(BaseModel):
     target_pubkey: str = Field(..., min_length=64, max_length=128, pattern=r"^[0-9a-fA-F]+$")
-    ttl_seconds:   int = Field(600, ge=30, le=3600)
+    ttl_seconds: int = Field(600, ge=30, le=3600)
 
 
 @router.post("/session")
@@ -130,28 +137,29 @@ async def make_session_transfer(body: SessionXferBody, request: Request) -> dict
     """
     env_file = _env_file(request)
     payload = {
-        "kind":          "session_transfer",
-        "src_pubkey":    _pubkey_hex(env_file),
+        "kind": "session_transfer",
+        "src_pubkey": _pubkey_hex(env_file),
         "target_pubkey": body.target_pubkey.lower(),
-        "nonce":         _secrets.token_urlsafe(16),
-        "issued_at":     int(time.time()),
-        "expires_at":    int(time.time()) + body.ttl_seconds,
+        "nonce": _secrets.token_urlsafe(16),
+        "issued_at": int(time.time()),
+        "expires_at": int(time.time()) + body.ttl_seconds,
     }
     envelope = {"payload": payload, "signature": _sign(env_file, payload)}
     return {
-        "uri":        _to_qr_string(envelope),
-        "envelope":   envelope,
+        "uri": _to_qr_string(envelope),
+        "envelope": envelope,
         "expires_in": body.ttl_seconds,
     }
 
 
 # 3. Mobile companion QR (#46)
 
+
 class MobileQRBody(BaseModel):
     # Optional hint — the mobile app uses this as its default public URL
     # for reaching the node while on the same LAN.
-    public_url:  Optional[str] = None
-    ttl_seconds: int           = Field(900, ge=60, le=3600)
+    public_url: Optional[str] = None
+    ttl_seconds: int = Field(900, ge=60, le=3600)
 
 
 @router.post("/mobile")
@@ -160,22 +168,23 @@ async def make_mobile_qr(body: MobileQRBody, request: Request) -> dict:
     env = _b._read_env(env_file)
     pub_url = body.public_url or env.get("ANNOUNCE_URL", "") or env.get("PUBLIC_URL", "")
     payload = {
-        "kind":        "mobile_bootstrap",
-        "pubkey":      _pubkey_hex(env_file),
-        "public_url":  pub_url,
-        "controller":  env.get("CONTROLLER_URL", ""),
-        "issued_at":   int(time.time()),
-        "expires_at":  int(time.time()) + body.ttl_seconds,
+        "kind": "mobile_bootstrap",
+        "pubkey": _pubkey_hex(env_file),
+        "public_url": pub_url,
+        "controller": env.get("CONTROLLER_URL", ""),
+        "issued_at": int(time.time()),
+        "expires_at": int(time.time()) + body.ttl_seconds,
     }
     envelope = {"payload": payload, "signature": _sign(env_file, payload)}
     return {
-        "uri":        _to_qr_string(envelope),
-        "envelope":   envelope,
+        "uri": _to_qr_string(envelope),
+        "envelope": envelope,
         "expires_in": body.ttl_seconds,
     }
 
 
 # 4. Config-import QR (#2) — spawn a second node with same controller
+
 
 @router.get("/config")
 async def export_config(request: Request) -> dict:
@@ -187,15 +196,20 @@ async def export_config(request: Request) -> dict:
     """
     env_file = _env_file(request)
     env = _b._read_env(env_file)
-    keys = ("CONTROLLER_URL", "CONTROLLER_PUBKEY", "NETWORK_MODE",
-            "CONTROLLER_FALLBACK_URLS", "BOOTSTRAP_PEERS",
-            "UPDATE_MANIFEST_URL")
+    keys = (
+        "CONTROLLER_URL",
+        "CONTROLLER_PUBKEY",
+        "NETWORK_MODE",
+        "CONTROLLER_FALLBACK_URLS",
+        "BOOTSTRAP_PEERS",
+        "UPDATE_MANIFEST_URL",
+    )
     cfg = {k: env[k] for k in keys if k in env}
     payload = {
-        "kind":       "node_config",
+        "kind": "node_config",
         "source_pubkey": _pubkey_hex(env_file),
-        "config":     cfg,
-        "issued_at":  int(time.time()),
+        "config": cfg,
+        "issued_at": int(time.time()),
         "expires_at": int(time.time()) + 900,
     }
     envelope = {"payload": payload, "signature": _sign(env_file, payload)}
@@ -218,7 +232,7 @@ async def import_config(body: ImportConfigBody, request: Request) -> dict:
     except Exception as e:
         raise HTTPException(400, f"cannot parse QR: {e}") from None
     payload = env_body.get("payload") or {}
-    sig     = env_body.get("signature") or ""
+    sig = env_body.get("signature") or ""
     src = payload.get("source_pubkey", "")
     if len(src) != 64:
         raise HTTPException(400, "missing source_pubkey")
@@ -236,11 +250,11 @@ async def import_config(body: ImportConfigBody, request: Request) -> dict:
 
     _sec._write_env_keys(_env_file(request), {k: str(v) for k, v in cfg.items()})
     return {
-        "ok":          True,
-        "applied":     len(cfg),
-        "keys":        list(cfg.keys()),
-        "source_pub":  src,
-        "note":        "restart the node to apply",
+        "ok": True,
+        "applied": len(cfg),
+        "keys": list(cfg.keys()),
+        "source_pub": src,
+        "note": "restart the node to apply",
     }
 
 
@@ -253,25 +267,30 @@ async def import_config(body: ImportConfigBody, request: Request) -> dict:
 # ``seed_tools.backup_discover``. Here we re-expose it under the
 # multidevice prefix so the setup SPA can call both from one namespace.
 
+
 class FirstScreenDiscoverBody(BaseModel):
     controller_url: str = Field(..., min_length=8, max_length=2048)
-    mnemonic:       str = Field(..., min_length=20)
+    mnemonic: str = Field(..., min_length=20)
 
 
 @router.post("/firstscreen/discover")
 async def firstscreen_discover(body: FirstScreenDiscoverBody, request: Request) -> dict:
     # Thin wrapper so the admin + setup SPAs share one endpoint namespace.
     from .seed_tools import BackupDiscoverBody, backup_discover
-    return await backup_discover(BackupDiscoverBody(
-        controller_url=body.controller_url,
-        mnemonic=body.mnemonic,
-    ))
+
+    return await backup_discover(
+        BackupDiscoverBody(
+            controller_url=body.controller_url,
+            mnemonic=body.mnemonic,
+        )
+    )
 
 
 # Shared: QR preview PNG (for UIs that want a <img>)
 
+
 class QrRenderBody(BaseModel):
-    uri:  str = Field(..., max_length=8192)
+    uri: str = Field(..., max_length=8192)
     size: int = Field(240, ge=80, le=1024)
 
 
@@ -291,6 +310,7 @@ async def qr_png(body: QrRenderBody) -> dict:
 
     img = qrcode.make(body.uri, box_size=max(2, body.size // 32))
     import io as _io
+
     buf = _io.BytesIO()
     img.save(buf, format="PNG")
     return {

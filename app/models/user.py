@@ -1,6 +1,7 @@
 """
 app/models/user.py — User models, device models, and Pydantic authentication schemas.
 """
+
 from __future__ import annotations
 
 import re
@@ -14,24 +15,24 @@ from app.base import Base
 from app.security.crypto import hash_password, verify_password
 
 _PHONE_RE = re.compile(r"^\+?[1-9]\d{9,14}$")
-_USER_RE  = re.compile(r"^[a-zA-Z0-9_]{3,30}$")
+_USER_RE = re.compile(r"^[a-zA-Z0-9_]{3,30}$")
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id               = Column(Integer,     primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     # nullable=True: phone is optional — users can register with username alone.
     # unique constraint preserved: if provided, phone must be globally unique.
-    phone            = Column(String(20),  unique=True, nullable=True,  index=True)
-    username         = Column(String(50),  unique=True, nullable=False, index=True)
-    password_hash    = Column(String(512), nullable=False)
-    display_name     = Column(String(100), nullable=True)
-    avatar_emoji     = Column(String(10),  default="👤")
-    avatar_url       = Column(String(255), nullable=True)
-    reply_color      = Column(String(20),  nullable=True)   # Custom color for reply bubbles (hex, e.g. "#7c3aed")
-    reply_icon       = Column(String(10),  nullable=True)   # Custom emoji icon for reply bubbles
+    phone = Column(String(20), unique=True, nullable=True, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    password_hash = Column(String(512), nullable=False)
+    display_name = Column(String(100), nullable=True)
+    avatar_emoji = Column(String(10), default="👤")
+    avatar_url = Column(String(255), nullable=True)
+    reply_color = Column(String(20), nullable=True)  # Custom color for reply bubbles (hex, e.g. "#7c3aed")
+    reply_icon = Column(String(10), nullable=True)  # Custom emoji icon for reply bubbles
 
     # X25519 public key of the user — generated ON THE CLIENT during registration.
     # Server never sees the private key.
@@ -40,15 +41,15 @@ class User(Base):
     # Kyber-768 (ML-KEM) public key — for hybrid post-quantum key exchange.
     # ADR-004 K2: генерится клиентом (E2E), подписан аккаунтным Ed25519.
     kyber_public_key = Column(Text, nullable=True)
-    kyber_public_key_sig = Column(Text, nullable=True)   # Ed25519-подпись аккаунта над kyber_public_key
+    kyber_public_key_sig = Column(Text, nullable=True)  # Ed25519-подпись аккаунта над kyber_public_key
 
     # Rich status: custom text + emoji + presence
     custom_status = Column(String(100), nullable=True)
-    status_emoji  = Column(String(10),  nullable=True)
-    presence      = Column(String(20),  default="online")  # online, away, dnd, invisible
+    status_emoji = Column(String(10), nullable=True)
+    presence = Column(String(20), default="online")  # online, away, dnd, invisible
 
-    email    = Column(String(255), unique=True, nullable=True, index=True)
-    last_ip  = Column(String(45),  nullable=True)
+    email = Column(String(255), unique=True, nullable=True, index=True)
+    last_ip = Column(String(45), nullable=True)
 
     # Solana wallet linked to this account for Vortex Premium. Optional —
     # users who haven't linked one stay on the free tier. Base58 Pubkey
@@ -56,15 +57,15 @@ class User(Base):
     wallet_pubkey = Column(String(48), nullable=True, index=True)
 
     # Profile card
-    bio          = Column(String(300), nullable=True)
-    birth_date   = Column(String(10),  nullable=True)
-    profile_bg   = Column(String(120), nullable=True)
-    profile_icon = Column(String(50),  nullable=True)
+    bio = Column(String(300), nullable=True)
+    birth_date = Column(String(10), nullable=True)
+    profile_bg = Column(String(120), nullable=True)
+    profile_icon = Column(String(50), nullable=True)
 
     network_mode = Column(String(10), default="local")
 
     # 2FA (TOTP)
-    totp_secret  = Column(String(64), nullable=True)
+    totp_secret = Column(String(64), nullable=True)
     totp_enabled = Column(Boolean, default=False)
 
     # Seed phrase (BIP39) — Argon2id hash for anonymous account recovery
@@ -72,24 +73,24 @@ class User(Base):
 
     # WebAuthn / Passkey
     passkey_credential_id = Column(String(512), nullable=True, index=True)
-    passkey_public_key    = Column(Text,        nullable=True)
-    passkey_sign_count    = Column(Integer,     default=0)
+    passkey_public_key = Column(Text, nullable=True)
+    passkey_sign_count = Column(Integer, default=0)
 
-    is_bot      = Column(Boolean,  default=False)
-    is_active   = Column(Boolean,  default=True)
-    created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    last_seen   = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    is_bot = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_seen = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
     # Moderation
     global_muted_until = Column(DateTime, nullable=True)
-    banned_until       = Column(DateTime, nullable=True)
-    strike_count       = Column(Integer,  default=0)
-    auto_delete_days   = Column(Integer,  default=0)  # 0 = disabled
-    show_last_seen     = Column(Boolean,  default=True)  # show last seen time
+    banned_until = Column(DateTime, nullable=True)
+    strike_count = Column(Integer, default=0)
+    auto_delete_days = Column(Integer, default=0)  # 0 = disabled
+    show_last_seen = Column(Boolean, default=True)  # show last seen time
 
-    room_memberships = relationship(
-        "RoomMember", back_populates="user", cascade="all, delete-orphan"
-    )
+    room_memberships = relationship("RoomMember", back_populates="user", cascade="all, delete-orphan")
 
     def set_password(self, password: str) -> None:
         self.password_hash = hash_password(password)
@@ -103,21 +104,22 @@ class User(Base):
 
 class UserDevice(Base):
     """Active user device/session."""
+
     __tablename__ = "user_devices"
 
-    id                 = Column(Integer,     primary_key=True, autoincrement=True)
-    user_id            = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    device_name        = Column(String(255), nullable=False)
-    device_type        = Column(String(50),  default="web")
-    ip_address         = Column(String(45),  nullable=True)
-    last_active        = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
-    created_at         = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
-    refresh_token_hash = Column(String(64),  nullable=True, index=True)
-    device_pub_key     = Column(String(64),  nullable=True)            # per-device X25519 pub (hex, 32 bytes)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    device_name = Column(String(255), nullable=False)
+    device_type = Column(String(50), default="web")
+    ip_address = Column(String(45), nullable=True)
+    last_active = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    refresh_token_hash = Column(String(64), nullable=True, index=True)
+    device_pub_key = Column(String(64), nullable=True)  # per-device X25519 pub (hex, 32 bytes)
     # Стабильный client-side id физического устройства. Сервер
     # дедуплицирует UserDevice по (user_id, client_device_id) вместо новой строки
     # на каждый логин — стабильный набор устройств для Sesame. NULL — pre-P2 клиент.
-    client_device_id   = Column(String(32),  nullable=True, index=True)
+    client_device_id = Column(String(32), nullable=True, index=True)
 
     user = relationship("User", backref="devices")
 
@@ -125,53 +127,56 @@ class UserDevice(Base):
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
-    id          = Column(Integer,     primary_key=True)
-    user_id     = Column(Integer,     nullable=False, index=True)
-    token_hash  = Column(String(64),  unique=True, nullable=False)
-    expires_at  = Column(DateTime,    nullable=False)
-    revoked_at  = Column(DateTime,    nullable=True)
-    created_at  = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
-    ip_address  = Column(String(45),  nullable=True)
-    user_agent  = Column(String(512), nullable=True)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(512), nullable=True)
 
 
 class KeyBackup(Base):
     """Encrypted key vault — client encrypts all keys with passphrase-derived AES key."""
+
     __tablename__ = "key_backups"
 
-    id         = Column(Integer,     primary_key=True, autoincrement=True)
-    user_id    = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
-    vault_data = Column(Text,        nullable=False)   # hex: nonce(12) + AES-256-GCM(keys_json)
-    vault_salt = Column(String(64),  nullable=False)   # hex salt for PBKDF2
-    kdf_params = Column(Text,        nullable=False)   # JSON: {"alg":"PBKDF2","iter":600000,"hash":"SHA-256"}
-    version    = Column(Integer,     default=1)
-    created_at = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime,    default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    vault_data = Column(Text, nullable=False)  # hex: nonce(12) + AES-256-GCM(keys_json)
+    vault_salt = Column(String(64), nullable=False)  # hex salt for PBKDF2
+    kdf_params = Column(Text, nullable=False)  # JSON: {"alg":"PBKDF2","iter":600000,"hash":"SHA-256"}
+    version = Column(Integer, default=1)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
     user = relationship("User", backref="key_backups")
 
 
 class DeviceLinkRequest(Base):
     """Cross-device key transfer request (new device → existing device)."""
+
     __tablename__ = "device_link_requests"
 
-    id              = Column(Integer,     primary_key=True, autoincrement=True)
-    user_id         = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    link_code_hash  = Column(String(64),  nullable=False, index=True)
-    new_device_pub  = Column(String(64),  nullable=False)   # X25519 ephemeral pub of new device (hex)
-    status          = Column(String(20),  default="pending") # pending, approved, expired
-    encrypted_keys  = Column(Text,        nullable=True)     # ECIES encrypted key bundle (set on approve)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    link_code_hash = Column(String(64), nullable=False, index=True)
+    new_device_pub = Column(String(64), nullable=False)  # X25519 ephemeral pub of new device (hex)
+    status = Column(String(20), default="pending")  # pending, approved, expired
+    encrypted_keys = Column(Text, nullable=True)  # ECIES encrypted key bundle (set on approve)
     # M4b: тройка device-identity нового устройства (для approver-signing cert'а)
-    new_device_x3dh_pub  = Column(String(64),  nullable=True)   # device X3DH pub (hex)
-    new_device_sign_pub  = Column(String(64),  nullable=True)   # device signing pub (hex)
-    new_device_client_id = Column(String(32),  nullable=True)   # client_device_id (hex)
+    new_device_x3dh_pub = Column(String(64), nullable=True)  # device X3DH pub (hex)
+    new_device_sign_pub = Column(String(64), nullable=True)  # device signing pub (hex)
+    new_device_client_id = Column(String(32), nullable=True)  # client_device_id (hex)
     # M4b: аккаунт-уровневый материал, выданный одобряющим на approve (публичный)
-    device_cert_sig  = Column(String(128), nullable=True)   # account Ed25519 подписал cert устройства
-    account_ed_pub   = Column(String(64),  nullable=True)   # аккаунтный Ed25519 pub (подписант)
-    identity_key_sig = Column(String(128), nullable=True)   # account Ed25519 подписал account X25519 identity_key
-    created_at      = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
-    expires_at      = Column(DateTime,    nullable=False)
+    device_cert_sig = Column(String(128), nullable=True)  # account Ed25519 подписал cert устройства
+    account_ed_pub = Column(String(64), nullable=True)  # аккаунтный Ed25519 pub (подписант)
+    identity_key_sig = Column(String(128), nullable=True)  # account Ed25519 подписал account X25519 identity_key
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
 
     user = relationship("User", backref="link_requests")
 
@@ -182,15 +187,16 @@ class SyncEvent(Base):
     Types: 'key_update' (new/changed room keys), 'history' (encrypted message batch).
     Server stores ONLY encrypted data — cannot distinguish keys from noise.
     """
+
     __tablename__ = "sync_events"
 
-    id         = Column(Integer,     primary_key=True, autoincrement=True)
-    user_id    = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    device_id  = Column(Integer,     nullable=False)         # source device
-    event_type = Column(String(20),  nullable=False)         # key_update | history
-    payload    = Column(Text,        nullable=False)         # hex: ECIES-encrypted blob
-    seq        = Column(Integer,     nullable=False, default=0)  # monotonic per user
-    created_at = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    device_id = Column(Integer, nullable=False)  # source device
+    event_type = Column(String(20), nullable=False)  # key_update | history
+    payload = Column(Text, nullable=False)  # hex: ECIES-encrypted blob
+    seq = Column(Integer, nullable=False, default=0)  # monotonic per user
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class SecretShare(Base):
@@ -200,35 +206,37 @@ class SecretShare(Base):
     encrypts each share for a specific recipient (ECIES),
     and uploads encrypted blobs. Server cannot reconstruct the key.
     """
+
     __tablename__ = "secret_shares"
 
-    id              = Column(Integer,     primary_key=True, autoincrement=True)
-    owner_id        = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    recipient_id    = Column(Integer,     ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    share_index     = Column(Integer,     nullable=False)          # 1..N
-    encrypted_share = Column(Text,        nullable=False)          # ECIES-encrypted share (hex)
-    threshold       = Column(Integer,     nullable=False)          # M (min to reconstruct)
-    total_shares    = Column(Integer,     nullable=False)          # N
-    label           = Column(String(100), nullable=True)           # e.g. "Alice"
-    status          = Column(String(20),  default="active")        # active, used, revoked
-    created_at      = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    recipient_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    share_index = Column(Integer, nullable=False)  # 1..N
+    encrypted_share = Column(Text, nullable=False)  # ECIES-encrypted share (hex)
+    threshold = Column(Integer, nullable=False)  # M (min to reconstruct)
+    total_shares = Column(Integer, nullable=False)  # N
+    label = Column(String(100), nullable=True)  # e.g. "Alice"
+    status = Column(String(20), default="active")  # active, used, revoked
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    owner     = relationship("User", foreign_keys=[owner_id], backref="owned_shares")
+    owner = relationship("User", foreign_keys=[owner_id], backref="owned_shares")
     recipient = relationship("User", foreign_keys=[recipient_id], backref="held_shares")
 
 
 class DeviceCrossSign(Base):
     """Cross-signing record: device A vouches for device B's public key."""
+
     __tablename__ = "device_cross_signs"
 
-    id              = Column(Integer,     primary_key=True, autoincrement=True)
-    user_id         = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    signer_device   = Column(Integer,     nullable=False)    # device_id that signed
-    signed_device   = Column(Integer,     nullable=False)    # device_id being vouched for
-    signature       = Column(Text,        nullable=False)    # hex: HMAC-SHA256(signer_key, signed_device_pub)
-    signer_pub_hash = Column(String(64),  nullable=False)    # SHA-256(signer pub) for verification
-    signed_pub_hash = Column(String(64),  nullable=False)    # SHA-256(signed pub) for verification
-    created_at      = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    signer_device = Column(Integer, nullable=False)  # device_id that signed
+    signed_device = Column(Integer, nullable=False)  # device_id being vouched for
+    signature = Column(Text, nullable=False)  # hex: HMAC-SHA256(signer_key, signed_device_pub)
+    signer_pub_hash = Column(String(64), nullable=False)  # SHA-256(signer pub) for verification
+    signed_pub_hash = Column(String(64), nullable=False)  # SHA-256(signed pub) for verification
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class FederatedBackupShard(Base):
@@ -238,19 +246,20 @@ class FederatedBackupShard(Base):
     for the peer's node X25519 pubkey. Peers hold shards they cannot decrypt
     without the user's passphrase.
     """
+
     __tablename__ = "federated_backup_shards"
 
-    id              = Column(Integer,     primary_key=True, autoincrement=True)
-    user_id         = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    shard_index     = Column(Integer,     nullable=False)          # 1..N
-    peer_ip         = Column(String(45),  nullable=False)
-    peer_port       = Column(Integer,     nullable=False)
-    encrypted_shard = Column(Text,        nullable=False)          # ECIES(node_pub, shard_data) hex
-    shard_hash      = Column(String(64),  nullable=False)          # SHA-256(plaintext shard) for integrity
-    status          = Column(String(20),  default="placed")        # placed, verified, lost
-    threshold       = Column(Integer,     nullable=False)          # M
-    total_shards    = Column(Integer,     nullable=False)          # N
-    created_at      = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    shard_index = Column(Integer, nullable=False)  # 1..N
+    peer_ip = Column(String(45), nullable=False)
+    peer_port = Column(Integer, nullable=False)
+    encrypted_shard = Column(Text, nullable=False)  # ECIES(node_pub, shard_data) hex
+    shard_hash = Column(String(64), nullable=False)  # SHA-256(plaintext shard) for integrity
+    status = Column(String(20), default="placed")  # placed, verified, lost
+    threshold = Column(Integer, nullable=False)  # M
+    total_shards = Column(Integer, nullable=False)  # N
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", backref="federated_shards")
 
@@ -262,18 +271,19 @@ class KeyTransparencyEntry(Base):
     Server signs each entry with HMAC-SHA256(server_key, entry_data).
     Clients verify the chain to detect unauthorized key insertions.
     """
+
     __tablename__ = "key_transparency_log"
 
-    id            = Column(Integer,     primary_key=True, autoincrement=True)
-    user_id       = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    key_type      = Column(String(30),  nullable=False)            # x25519, kyber, device
-    pub_key_hash  = Column(String(64),  nullable=False)            # SHA-256(pubkey_hex)
-    prev_hash     = Column(String(64),  nullable=True)             # SHA-256(prev entry) — chain
-    signature     = Column(Text,        nullable=False)            # legacy HMAC (не проверяемо клиентом — не security)
-    node_sig      = Column(String(128), nullable=True)             # ADR-009 P1: Ed25519 node-подпись записи (третьесторонне-проверяема)
-    device_id     = Column(Integer,     nullable=True)             # which device registered key
-    seq           = Column(Integer,     nullable=False, default=0) # monotonic per user
-    created_at    = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    key_type = Column(String(30), nullable=False)  # x25519, kyber, device
+    pub_key_hash = Column(String(64), nullable=False)  # SHA-256(pubkey_hex)
+    prev_hash = Column(String(64), nullable=True)  # SHA-256(prev entry) — chain
+    signature = Column(Text, nullable=False)  # legacy HMAC (не проверяемо клиентом — не security)
+    node_sig = Column(String(128), nullable=True)  # ADR-009 P1: Ed25519 node-подпись записи (третьесторонне-проверяема)
+    device_id = Column(Integer, nullable=True)  # which device registered key
+    seq = Column(Integer, nullable=False, default=0)  # monotonic per user
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class VerificationAttestation(Base):
@@ -287,46 +297,50 @@ class VerificationAttestation(Base):
     и применяет latest-per-peer. Заворачивание room-key всё равно независимо ре-чекает
     ЖИВОЙ ed против сохранённого — мирор лишь синхронизирует локальный hint.
     """
+
     __tablename__ = "verification_attestations"
 
-    id               = Column(Integer,     primary_key=True, autoincrement=True)
-    owner_user_id    = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    peer_user_id     = Column(Integer,     nullable=False)
-    verified_ed      = Column(String(64),  nullable=False)   # account-Ed пира (hex), что владелец сверил
-    state            = Column(String(10),  nullable=False)   # verified | revoked
-    signed_at        = Column(Integer,     nullable=False)   # unix, клиентский — latest выигрывает
-    client_device_id = Column(String(32),  nullable=False)   # подписант: device-триплет + cert
-    device_x3dh_pub  = Column(String(64),  nullable=False)
-    device_sign_pub  = Column(String(64),  nullable=False)
-    device_cert_sig  = Column(String(128), nullable=False)   # account-Ed подписал триплет
-    attest_sig       = Column(String(128), nullable=False)   # device_sign_pub подписал payload
-    created_at       = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    peer_user_id = Column(Integer, nullable=False)
+    verified_ed = Column(String(64), nullable=False)  # account-Ed пира (hex), что владелец сверил
+    state = Column(String(10), nullable=False)  # verified | revoked
+    signed_at = Column(Integer, nullable=False)  # unix, клиентский — latest выигрывает
+    client_device_id = Column(String(32), nullable=False)  # подписант: device-триплет + cert
+    device_x3dh_pub = Column(String(64), nullable=False)
+    device_sign_pub = Column(String(64), nullable=False)
+    device_cert_sig = Column(String(128), nullable=False)  # account-Ed подписал триплет
+    attest_sig = Column(String(128), nullable=False)  # device_sign_pub подписал payload
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class UserStatus(Base):
     """24-hour ephemeral status/story posts."""
+
     __tablename__ = "user_statuses"
 
-    id         = Column(Integer,     primary_key=True, index=True)
-    user_id    = Column(Integer,     ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    text       = Column(String(500), nullable=True)
-    media_url  = Column(String(255), nullable=True)
-    created_at = Column(DateTime,    default=lambda: datetime.now(timezone.utc))
-    expires_at = Column(DateTime,    nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    text = Column(String(500), nullable=True)
+    media_url = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
 
 
 # Pydantic schemas
 
+
 class RegisterRequest(BaseModel):
-    phone:             str | None = Field(None, max_length=20)
-    username:          str = Field(..., min_length=3,  max_length=30)
-    password:          str = Field(..., min_length=8,  max_length=128)
-    display_name:      str = Field("",  max_length=100)
-    avatar_emoji:      str = Field("👤", max_length=10)
-    email:             str | None = Field(None, max_length=255)
-    invite_code:       str | None = Field(None, max_length=64)
-    x25519_public_key: str = Field(..., min_length=64, max_length=64,
-                                   description="X25519 client public key in hex (32 bytes = 64 chars)")
+    phone: str | None = Field(None, max_length=20)
+    username: str = Field(..., min_length=3, max_length=30)
+    password: str = Field(..., min_length=8, max_length=128)
+    display_name: str = Field("", max_length=100)
+    avatar_emoji: str = Field("👤", max_length=10)
+    email: str | None = Field(None, max_length=255)
+    invite_code: str | None = Field(None, max_length=64)
+    x25519_public_key: str = Field(
+        ..., min_length=64, max_length=64, description="X25519 client public key in hex (32 bytes = 64 chars)"
+    )
 
     @field_validator("phone")
     @classmethod
@@ -368,14 +382,15 @@ class RegisterRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     phone_or_username: str = Field(..., min_length=3, max_length=128)
-    password:          str = Field(..., min_length=1, max_length=128)
+    password: str = Field(..., min_length=1, max_length=128)
 
 
 class KeyLoginRequest(BaseModel):
     """Passwordless login via X25519 challenge-response."""
+
     challenge_id: str = Field(..., min_length=32, max_length=32)
-    pubkey:       str = Field(..., min_length=64, max_length=64)
-    proof:        str = Field(..., min_length=64, max_length=64)
+    pubkey: str = Field(..., min_length=64, max_length=64)
+    proof: str = Field(..., min_length=64, max_length=64)
 
     @field_validator("pubkey", "proof")
     @classmethod
@@ -388,16 +403,16 @@ class KeyLoginRequest(BaseModel):
 
 
 class UpdateProfileRequest(BaseModel):
-    display_name:      str | None = Field(None, max_length=100)
-    avatar_emoji:      str | None = Field(None, max_length=10)
-    email:             str | None = Field(None, max_length=255)
+    display_name: str | None = Field(None, max_length=100)
+    avatar_emoji: str | None = Field(None, max_length=10)
+    email: str | None = Field(None, max_length=255)
     x25519_public_key: str | None = Field(None, min_length=64, max_length=64)
 
 
 class UpdateRichStatusRequest(BaseModel):
     custom_status: str | None = Field(None, max_length=100)
-    status_emoji:  str | None = Field(None, max_length=10)
-    presence:      str | None = Field(None, max_length=20)
+    status_emoji: str | None = Field(None, max_length=10)
+    presence: str | None = Field(None, max_length=20)
 
     @field_validator("presence")
     @classmethod
@@ -413,7 +428,8 @@ class PasswordStrengthRequest(BaseModel):
 
 class SeedLoginRequest(BaseModel):
     """Login by username + seed phrase (for anonymous accounts without a phone)."""
-    username:    str = Field(..., min_length=3, max_length=30)
+
+    username: str = Field(..., min_length=3, max_length=30)
     seed_phrase: str = Field(..., min_length=10, max_length=512)
 
     @field_validator("username")

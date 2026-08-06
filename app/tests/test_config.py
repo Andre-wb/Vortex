@@ -1,11 +1,11 @@
 """
 Tests for configuration and database setup.
 """
+
 import contextlib
 
 
 class TestConfig:
-
     def test_config_loaded(self):
         from app.config import Config
 
@@ -41,7 +41,6 @@ class TestConfig:
 
 
 class TestDatabase:
-
     def test_init_db_idempotent(self):
         """init_db should be safe to call multiple times."""
         from app.database import init_db
@@ -55,6 +54,7 @@ class TestDatabase:
         db = SessionLocal()
         try:
             from sqlalchemy import text
+
             result = db.execute(text("SELECT 1"))
             assert result.scalar() == 1
         finally:
@@ -71,7 +71,6 @@ class TestDatabase:
 
 
 class TestLogging:
-
     def test_logging_config_module_exists(self):
         from app.logging_config import new_correlation_id
 
@@ -87,8 +86,13 @@ class TestLogging:
 
         formatter = JSONFormatter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=0, msg="test message", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
         output = formatter.format(record)
         parsed = json.loads(output)

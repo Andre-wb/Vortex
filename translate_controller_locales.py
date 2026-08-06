@@ -18,6 +18,7 @@ Protection layers (same as main app):
   3. Product/tech terms (Vortex, Cloudflare, IPFS, Tor, ...) → placeholder
   4. {placeholders} in template strings → preserved
 """
+
 from __future__ import annotations
 
 import argparse
@@ -49,22 +50,52 @@ CODE_MAP = {
 }
 
 # Terms that should never be translated (product, tech, brand names)
-_PROTECTED_TERMS = sorted([
-    "Vortex", "vortexx.sol", "vortexx",
-    "Controller", "Cloudflare", "Tor", "IPFS", "IPNS", "Solana",
-    "SNS", "Bonfida", "DNS", "DNSLink", "HTTPS", "HTTP",
-    "WebSocket", "QR", "QR Code", "Ed25519", "X25519",
-    "WebAuthn", "FIDO2", "Passkey", "Passkeys",
-    "PostgreSQL", "SQLite", "Python", "Rust",
-    "Anchor", "Devnet", "Mainnet",
-    "Wi-Fi", "GitHub",
-    # Network mode labels we expose verbatim in the UI
-    "Global", "Custom", "Local",
-    # Classification labels appearing in response payloads
-    "pubkey", "mirrors",
-], key=len, reverse=True)
-
-
+_PROTECTED_TERMS = sorted(
+    [
+        "Vortex",
+        "vortexx.sol",
+        "vortexx",
+        "Controller",
+        "Cloudflare",
+        "Tor",
+        "IPFS",
+        "IPNS",
+        "Solana",
+        "SNS",
+        "Bonfida",
+        "DNS",
+        "DNSLink",
+        "HTTPS",
+        "HTTP",
+        "WebSocket",
+        "QR",
+        "QR Code",
+        "Ed25519",
+        "X25519",
+        "WebAuthn",
+        "FIDO2",
+        "Passkey",
+        "Passkeys",
+        "PostgreSQL",
+        "SQLite",
+        "Python",
+        "Rust",
+        "Anchor",
+        "Devnet",
+        "Mainnet",
+        "Wi-Fi",
+        "GitHub",
+        # Network mode labels we expose verbatim in the UI
+        "Global",
+        "Custom",
+        "Local",
+        # Classification labels appearing in response payloads
+        "pubkey",
+        "mirrors",
+    ],
+    key=len,
+    reverse=True,
+)
 
 
 def _protect(text: str) -> tuple[str, dict]:
@@ -108,8 +139,6 @@ def _restore(text: str, slots: dict) -> str:
     return text
 
 
-
-
 def _walk_strings(obj, path=()):
     if isinstance(obj, dict):
         for k, v in obj.items():
@@ -130,8 +159,6 @@ def _set_path(obj, path, value):
         cur[last] = value
     else:
         cur[int(last)] = value
-
-
 
 
 def translate_file(target_code: str, source_obj: dict, force: bool) -> bool:
@@ -199,10 +226,8 @@ def translate_file(target_code: str, source_obj: dict, force: bool) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--force", action="store_true",
-                    help="Overwrite files that already differ from en.json")
-    ap.add_argument("--only", type=str, default="",
-                    help="Comma-separated list of locales to translate (default: all)")
+    ap.add_argument("--force", action="store_true", help="Overwrite files that already differ from en.json")
+    ap.add_argument("--only", type=str, default="", help="Comma-separated list of locales to translate (default: all)")
     args = ap.parse_args()
 
     source_path = LOCALE_DIR / f"{SOURCE_LOCALE}.json"
@@ -211,9 +236,7 @@ def main() -> int:
         return 1
     source_obj = json.loads(source_path.read_text(encoding="utf-8"))
 
-    all_locales = sorted(
-        p.stem for p in LOCALE_DIR.glob("*.json") if p.stem != SOURCE_LOCALE
-    )
+    all_locales = sorted(p.stem for p in LOCALE_DIR.glob("*.json") if p.stem != SOURCE_LOCALE)
     only = [c.strip() for c in args.only.split(",") if c.strip()]
     todo = only or all_locales
 

@@ -5,6 +5,7 @@ Provides blockchain-inspired code-hash validation, rotating participation tokens
 consistent-hashing task distribution, health-check failover, and gossip protocol
 for decentralized node discovery.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -51,11 +52,13 @@ _gossip_rate_limiter = GossipRateLimiter()
 _reputation_manager = ReputationManager()
 _node_vector_clock: Optional[VectorClock] = None
 
+
 def _get_vector_clock() -> VectorClock:
     global _node_vector_clock
     if _node_vector_clock is None:
-        _node_vector_clock = VectorClock(Config.NODE_ID if hasattr(Config, 'NODE_ID') else secrets.token_hex(8))
+        _node_vector_clock = VectorClock(Config.NODE_ID if hasattr(Config, "NODE_ID") else secrets.token_hex(8))
     return _node_vector_clock
+
 
 # Constants
 
@@ -95,8 +98,9 @@ def _get_token_secret() -> bytes:
 # federation deployment share this secret; if unset it derives from
 # VORTEX_NETWORK_KEY so a single deployment still has a non-public secret, but
 # operators are urged to set FEDERATION_PSK explicitly across nodes.
-_FED_PROOF_HEADER = "X-Federation-Proof"      # "<ts>:<hmac_hex>"
-_FED_PROOF_WINDOW = 300                       # ±5 min clock skew
+_FED_PROOF_HEADER = "X-Federation-Proof"  # "<ts>:<hmac_hex>"
+_FED_PROOF_WINDOW = 300  # ±5 min clock skew
+
 
 # Hardened federation requires an explicit, shared PSK. Without it we refuse to
 # treat handshakes as authenticated (the endpoint still works for code-hash
@@ -148,9 +152,7 @@ def verify_federation_proof(node_id: str, proof: Optional[str]) -> bool:
         return False
     if abs(int(time.time()) - ts) > _FED_PROOF_WINDOW:
         return False
-    expected = hmac.new(
-        _fed_psk(), f"vortex-fed-handshake:{node_id}:{ts}".encode(), hashlib.sha256
-    ).hexdigest()
+    expected = hmac.new(_fed_psk(), f"vortex-fed-handshake:{node_id}:{ts}".encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(mac, expected)
 
 
@@ -170,6 +172,7 @@ _BLOCKED_PEER_NETS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
 
 class TrustedNode(Base):
     """A trusted peer node in the Vortex federation network."""
+
     __tablename__ = "trusted_nodes"
 
     id = Column(Integer, primary_key=True)
@@ -249,8 +252,14 @@ class ValidateTokenRequest(BaseModel):
 
 def _ip_is_internal(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     """True if an IP must never be reached via federation node-add (SSRF)."""
-    if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved \
-            or addr.is_multicast or addr.is_unspecified:
+    if (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_reserved
+        or addr.is_multicast
+        or addr.is_unspecified
+    ):
         return True
     if str(addr).startswith("169.254."):  # cloud metadata (AWS/GCP/Azure)
         return True
@@ -303,6 +312,7 @@ class NodeSandbox:
         Raises ValueError for invalid or blocked URLs.
         """
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
 
         if parsed.scheme not in ("https", "http"):
@@ -349,6 +359,7 @@ class NodeSandbox:
         # Re-validate at connect time to shrink the DNS-rebinding TOCTOU window
         # between validate_url() and the actual request.
         from urllib.parse import urlparse
+
         host = urlparse(url).hostname or ""
         if host not in ("localhost", "127.0.0.1", "::1"):
             _resolve_safe_ips(host)  # raises ValueError if it now points internal
@@ -508,9 +519,7 @@ def generate_node_token(node_id: str) -> tuple[str, datetime]:
     bucket = _time_bucket()
     msg = f"{node_id}:{bucket}".encode()
     token = hmac.new(_get_token_secret(), msg, hashlib.sha256).hexdigest()
-    expires_at = datetime.fromtimestamp(
-        (bucket + 1) * TOKEN_ROTATION_INTERVAL, tz=timezone.utc
-    )
+    expires_at = datetime.fromtimestamp((bucket + 1) * TOKEN_ROTATION_INTERVAL, tz=timezone.utc)
     return token, expires_at
 
 
@@ -578,9 +587,7 @@ def distribute_tasks(nodes: list[TrustedNode]) -> dict[int, list[str]]:
 
 def _apply_task_distribution(db: Session) -> None:
     """Recompute and persist task assignments for all active nodes."""
-    active_nodes = db.query(TrustedNode).filter(
-        TrustedNode.status.in_(["active", "verified"])
-    ).all()
+    active_nodes = db.query(TrustedNode).filter(TrustedNode.status.in_(["active", "verified"])).all()
 
     if not active_nodes:
         return
@@ -622,9 +629,7 @@ async def _broadcast_gossip(endpoint_path: str, payload: dict) -> None:
     """Send a gossip message to all active nodes."""
     db = SessionLocal()
     try:
-        active_nodes = db.query(TrustedNode).filter(
-            TrustedNode.status.in_(["active", "verified"])
-        ).all()
+        active_nodes = db.query(TrustedNode).filter(TrustedNode.status.in_(["active", "verified"])).all()
         urls = [(n.url, n.node_id) for n in active_nodes]
     finally:
         db.close()
@@ -687,10 +692,15 @@ async def _failover_node(dead_node_id: int) -> None:
 
         # If the dead node had critical tasks, ensure the highest-trust node picks them up
         if dead_tasks:
-            highest = db.query(TrustedNode).filter(
-                TrustedNode.status.in_(["active", "verified"]),
-                TrustedNode.id != dead_node_id,
-            ).order_by(TrustedNode.trust_score.desc()).first()
+            highest = (
+                db.query(TrustedNode)
+                .filter(
+                    TrustedNode.status.in_(["active", "verified"]),
+                    TrustedNode.id != dead_node_id,
+                )
+                .order_by(TrustedNode.trust_score.desc())
+                .first()
+            )
 
             if highest:
                 existing = json.loads(highest.task_slots) if highest.task_slots else []
@@ -701,7 +711,8 @@ async def _failover_node(dead_node_id: int) -> None:
                 db.commit()
                 logger.info(
                     "Critical tasks from dead node %s reassigned to %s",
-                    dead_node.url, highest.url,
+                    dead_node.url,
+                    highest.url,
                 )
 
         db.commit()
@@ -709,7 +720,9 @@ async def _failover_node(dead_node_id: int) -> None:
         if old_status != "dead":
             logger.warning(
                 "Node %s declared dead (fail_count=%d, trust=%d)",
-                dead_node.url, dead_node.fail_count, dead_node.trust_score,
+                dead_node.url,
+                dead_node.fail_count,
+                dead_node.trust_score,
             )
             await _gossip_node_left(dead_node)
     except Exception as e:
@@ -738,9 +751,7 @@ async def _health_monitor_loop() -> None:
 
         db = SessionLocal()
         try:
-            nodes = db.query(TrustedNode).filter(
-                TrustedNode.status.in_(["active", "verified", "pending"])
-            ).all()
+            nodes = db.query(TrustedNode).filter(TrustedNode.status.in_(["active", "verified", "pending"])).all()
 
             if not nodes:
                 continue
@@ -764,7 +775,9 @@ async def _health_monitor_loop() -> None:
                         node.fail_count += 1
                         logger.debug(
                             "Health check failed for %s (count=%d): %s",
-                            node.url, node.fail_count, e,
+                            node.url,
+                            node.fail_count,
+                            e,
                         )
                         if node.fail_count >= MAX_FAIL_COUNT and node.status != "dead":
                             db.commit()
@@ -792,9 +805,7 @@ async def _token_rotation_loop() -> None:
 
         db = SessionLocal()
         try:
-            nodes = db.query(TrustedNode).filter(
-                TrustedNode.status.in_(["active", "verified"])
-            ).all()
+            nodes = db.query(TrustedNode).filter(TrustedNode.status.in_(["active", "verified"])).all()
 
             for node in nodes:
                 nid = node.node_id or str(node.id)
@@ -857,10 +868,14 @@ async def _verify_code_hash_via_validator(
     Returns True if the candidate hash matches the validator's hash (or our own
     if no external validators are available).
     """
-    validators = db.query(TrustedNode).filter(
-        TrustedNode.status.in_(["active", "verified"]),
-        TrustedNode.url != exclude_url,
-    ).all()
+    validators = (
+        db.query(TrustedNode)
+        .filter(
+            TrustedNode.status.in_(["active", "verified"]),
+            TrustedNode.url != exclude_url,
+        )
+        .all()
+    )
 
     if validators:
         validator = _sysrand.choice(validators)
@@ -886,7 +901,8 @@ async def _verify_code_hash_via_validator(
         except Exception as e:
             logger.warning(
                 "Validator %s unreachable for code verification: %s",
-                validator.url, e,
+                validator.url,
+                e,
             )
 
     # Fallback: compare against local code hash
@@ -1000,7 +1016,8 @@ async def _initiate_handshake(node_db_id: int) -> None:
                 db.commit()
                 logger.warning(
                     "Handshake rejected by %s: %s",
-                    node.url, data.get("reason", "unknown"),
+                    node.url,
+                    data.get("reason", "unknown"),
                 )
     except Exception as e:
         logger.error("Handshake with node %d failed: %s", node_db_id, e)
@@ -1023,6 +1040,7 @@ def _get_local_node_id() -> str:
 def _get_local_url() -> str:
     """Best-effort construction of this node's reachable URL."""
     import socket
+
     host = Config.HOST
     if host in ("0.0.0.0", "::"):
         try:
@@ -1113,9 +1131,7 @@ async def network_status(
 ):
     """Return a summary of the federation network status."""
     total = db.query(TrustedNode).count()
-    active = db.query(TrustedNode).filter(
-        TrustedNode.status.in_(["active", "verified"])
-    ).count()
+    active = db.query(TrustedNode).filter(TrustedNode.status.in_(["active", "verified"])).count()
     pending = db.query(TrustedNode).filter(TrustedNode.status == "pending").count()
     dead = db.query(TrustedNode).filter(TrustedNode.status == "dead").count()
     suspended = db.query(TrustedNode).filter(TrustedNode.status == "suspended").count()
@@ -1128,8 +1144,7 @@ async def network_status(
         "suspended": suspended,
         "local_node_id": _get_local_node_id(),
         "local_code_hash": _get_cached_code_hash(),
-        "monitor_running": _monitor_task is not None and not _monitor_task.done()
-        if _monitor_task else False,
+        "monitor_running": _monitor_task is not None and not _monitor_task.done() if _monitor_task else False,
     }
 
 
@@ -1157,20 +1172,17 @@ async def receive_handshake(
     # is not sufficient to gain trust or be minted a participation token.
     proof = request.headers.get(_FED_PROOF_HEADER)
     if not verify_federation_proof(body.node_id, proof):
-        logger.warning(
-            "Handshake rejected for %s: missing/invalid federation proof", normalized_url
-        )
+        logger.warning("Handshake rejected for %s: missing/invalid federation proof", normalized_url)
         raise HTTPException(403, "Federation handshake requires a valid pre-shared proof")
 
     # Verify code hash (defence in depth — same-version check)
-    hash_valid = await _verify_code_hash_via_validator(
-        body.code_hash, normalized_url, db
-    )
+    hash_valid = await _verify_code_hash_via_validator(body.code_hash, normalized_url, db)
 
     if not hash_valid:
         logger.warning(
             "Handshake rejected for %s: code hash mismatch (theirs=%s)",
-            normalized_url, body.code_hash[:16] + "...",
+            normalized_url,
+            body.code_hash[:16] + "...",
         )
         return {
             "accepted": False,
@@ -1377,9 +1389,7 @@ async def my_tasks(
     local_hash = _get_cached_code_hash()
 
     # Check if this node is registered anywhere; return local perspective
-    active_nodes = db.query(TrustedNode).filter(
-        TrustedNode.status.in_(["active", "verified"])
-    ).all()
+    active_nodes = db.query(TrustedNode).filter(TrustedNode.status.in_(["active", "verified"])).all()
 
     # Compute what tasks *would* be assigned to the local node
     # by simulating it as part of the active set

@@ -1,6 +1,7 @@
 """
 app/peer/peer_models.py — PeerInfo dataclass, PeerRegistry class, registry singleton, _main_loop
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,13 +19,14 @@ logger = logging.getLogger(__name__)
 
 # PeerInfo
 
+
 @dataclass
 class PeerInfo:
-    name:            str
-    ip:              str
-    port:            int
+    name: str
+    ip: str
+    port: int
     node_pubkey_hex: Optional[str] = None
-    last_seen:       float         = field(default_factory=time.monotonic)
+    last_seen: float = field(default_factory=time.monotonic)
 
     def alive(self) -> bool:
         return (time.monotonic() - self.last_seen) < Config.PEER_TIMEOUT_SEC
@@ -34,13 +36,13 @@ class PeerInfo:
 
     def to_dict(self) -> dict:
         return {
-            "name":      self.name,
-            "ip":        self.ip,
-            "port":      self.port,
-            "age_sec":   round(time.monotonic() - self.last_seen, 1),
-            "online":    self.alive(),
+            "name": self.name,
+            "ip": self.ip,
+            "port": self.port,
+            "age_sec": round(time.monotonic() - self.last_seen, 1),
+            "online": self.alive(),
             "encrypted": self.has_encryption(),
-            "pubkey":    self.node_pubkey_hex[:16] + "..." if self.node_pubkey_hex else None,
+            "pubkey": self.node_pubkey_hex[:16] + "..." if self.node_pubkey_hex else None,
         }
 
     @property
@@ -51,16 +53,16 @@ class PeerInfo:
 
 # PeerRegistry
 
+
 class PeerRegistry:
     def __init__(self):
-        self._peers:      dict[str, PeerInfo] = {}
-        self._lock        = threading.Lock()
-        self.own_ip:  str = "127.0.0.1"
+        self._peers: dict[str, PeerInfo] = {}
+        self._lock = threading.Lock()
+        self.own_ip: str = "127.0.0.1"
         self._peer_rooms: dict[str, list] = {}
-        self._rooms_lock  = threading.Lock()
+        self._rooms_lock = threading.Lock()
 
-    def update(self, ip: str, name: str, port: int,
-               node_pubkey_hex: Optional[str] = None) -> bool:
+    def update(self, ip: str, name: str, port: int, node_pubkey_hex: Optional[str] = None) -> bool:
         try:
             ipaddress.ip_address(ip)
         except ValueError:
@@ -73,17 +75,17 @@ class PeerRegistry:
             is_new = ip not in self._peers
             if not is_new:
                 p = self._peers[ip]
-                p.name      = name
-                p.port      = port
+                p.name = name
+                p.port = port
                 p.last_seen = time.monotonic()
                 if node_pubkey_hex and len(node_pubkey_hex) == 64:
                     p.node_pubkey_hex = node_pubkey_hex
             else:
                 self._peers[ip] = PeerInfo(
-                    name            = name,
-                    ip              = ip,
-                    port            = port,
-                    node_pubkey_hex = node_pubkey_hex,
+                    name=name,
+                    ip=ip,
+                    port=port,
+                    node_pubkey_hex=node_pubkey_hex,
                 )
                 logger.info(f"🔍 New peer: {name}@{ip}:{port} encrypted={bool(node_pubkey_hex)}")
             return is_new
@@ -110,22 +112,24 @@ class PeerRegistry:
             self._peer_rooms[ip] = rooms
 
     def get_all_peer_rooms(self) -> list[dict]:
-        result     = []
+        result = []
         active_ips = {p.ip for p in self.active()}
         with self._rooms_lock:
             for ip, rooms in self._peer_rooms.items():
                 if ip not in active_ips:
                     continue
-                peer      = self.get(ip)
+                peer = self.get(ip)
                 peer_name = peer.name if peer else ip
                 peer_port = peer.port if peer else getattr(Config, "PORT", 8000)
                 for room in rooms:
-                    result.append({
-                        **room,
-                        "peer_ip":   ip,
-                        "peer_name": peer_name,
-                        "peer_port": peer_port,
-                    })
+                    result.append(
+                        {
+                            **room,
+                            "peer_ip": ip,
+                            "peer_name": peer_name,
+                            "peer_port": peer_port,
+                        }
+                    )
         return result
 
 

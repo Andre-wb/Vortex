@@ -23,6 +23,7 @@ Security:
 This is similar to Signal's "sealed sender + server queue" but distributed
 across federation peers instead of a single server.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -35,19 +36,20 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-MAX_PENDING_PER_USER = 1000       # max queued messages per recipient
-MAX_MESSAGE_SIZE = 256 * 1024     # 256KB max per stored message
-MESSAGE_TTL = 86400               # 24 hours
-REPLICATION_FACTOR = 3            # store on N peers
-CLEANUP_INTERVAL = 3600           # cleanup every hour
+MAX_PENDING_PER_USER = 1000  # max queued messages per recipient
+MAX_MESSAGE_SIZE = 256 * 1024  # 256KB max per stored message
+MESSAGE_TTL = 86400  # 24 hours
+REPLICATION_FACTOR = 3  # store on N peers
+CLEANUP_INTERVAL = 3600  # cleanup every hour
 
 
 @dataclass
 class StoredMessage:
     """A message held for offline recipient."""
-    msg_hash: str                  # BLAKE2b hash for dedup
-    recipient_pseudo: str          # sealed sender pseudo (not user_id)
-    encrypted_payload: bytes       # E2E encrypted content
+
+    msg_hash: str  # BLAKE2b hash for dedup
+    recipient_pseudo: str  # sealed sender pseudo (not user_id)
+    encrypted_payload: bytes  # E2E encrypted content
     room_id: int
     stored_at: float = field(default_factory=time.time)
     ttl: int = MESSAGE_TTL
@@ -79,8 +81,7 @@ class StoreForwardManager:
         """Start background cleanup task."""
         if self._cleanup_task is None:
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
-            logger.info("StoreForwardManager started (TTL=%ds, max=%d/user)",
-                        MESSAGE_TTL, MAX_PENDING_PER_USER)
+            logger.info("StoreForwardManager started (TTL=%ds, max=%d/user)", MESSAGE_TTL, MAX_PENDING_PER_USER)
 
     async def stop(self):
         """Stop background cleanup."""
@@ -105,8 +106,7 @@ class StoreForwardManager:
         Returns True if stored, False if rejected (limit/size/duplicate).
         """
         if len(encrypted_payload) > MAX_MESSAGE_SIZE:
-            logger.debug("Store-forward rejected: payload too large (%d bytes)",
-                         len(encrypted_payload))
+            logger.debug("Store-forward rejected: payload too large (%d bytes)", len(encrypted_payload))
             return False
 
         # Compute hash for deduplication
@@ -137,8 +137,12 @@ class StoreForwardManager:
             queue.append(msg)
             self._queue[recipient_pseudo] = queue
 
-        logger.debug("Store-forward: queued message for %s (room=%d, size=%d)",
-                      recipient_pseudo[:8], room_id, len(encrypted_payload))
+        logger.debug(
+            "Store-forward: queued message for %s (room=%d, size=%d)",
+            recipient_pseudo[:8],
+            room_id,
+            len(encrypted_payload),
+        )
         return True
 
     async def deliver(self, recipient_pseudo: str) -> list[StoredMessage]:
@@ -154,12 +158,10 @@ class StoreForwardManager:
         valid = [m for m in queue if not m.expired]
         expired_count = len(queue) - len(valid)
         if expired_count:
-            logger.debug("Store-forward: %d expired messages discarded for %s",
-                          expired_count, recipient_pseudo[:8])
+            logger.debug("Store-forward: %d expired messages discarded for %s", expired_count, recipient_pseudo[:8])
 
         if valid:
-            logger.info("Store-forward: delivering %d messages to %s",
-                        len(valid), recipient_pseudo[:8])
+            logger.info("Store-forward: delivering %d messages to %s", len(valid), recipient_pseudo[:8])
 
         return valid
 
@@ -188,11 +190,7 @@ class StoreForwardManager:
         """Queue statistics."""
         total_messages = sum(len(q) for q in self._queue.values())
         total_recipients = len(self._queue)
-        total_bytes = sum(
-            len(m.encrypted_payload)
-            for q in self._queue.values()
-            for m in q
-        )
+        total_bytes = sum(len(m.encrypted_payload) for q in self._queue.values() for m in q)
         return {
             "total_messages": total_messages,
             "total_recipients": total_recipients,

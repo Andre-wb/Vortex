@@ -7,6 +7,7 @@ controller domain directly (e.g. users behind domain-level censorship).
 The list is signed with the controller's Ed25519 key; clients verify the
 signature against the pinned controller pubkey.
 """
+
 from __future__ import annotations
 
 import time

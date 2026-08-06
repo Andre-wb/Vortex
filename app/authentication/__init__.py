@@ -3,6 +3,7 @@
 
 Каждый модуль при импорте регистрирует свои эндпоинты на router из _helpers.
 """
+
 # Общий роутер и хелперы
 import app.authentication.key_login
 import app.authentication.passkey

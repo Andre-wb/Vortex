@@ -16,6 +16,7 @@
 `compare` возвращает ненулевой код, если нарушен любой порог приёмки, —
 годится как гейт в CI или в чек-листе релиза.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -71,6 +72,7 @@ def _server_rss_mb(pid: int | None) -> float:
         return 0.0
     try:
         import resource
+
         if pid == os.getpid():
             usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             return usage / (1024 * 1024) if sys.platform == "darwin" else usage / 1024
@@ -78,9 +80,12 @@ def _server_rss_mb(pid: int | None) -> float:
         pass
     try:
         import subprocess
+
         out = subprocess.run(
             ["ps", "-o", "rss=", "-p", str(pid)],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return int(out.stdout.strip()) / 1024
     except Exception:
@@ -122,9 +127,7 @@ def _hammer(url: str, path: str, requests: int, concurrency: int) -> EndpointRes
 
 def record(args: argparse.Namespace) -> int:
     endpoints = args.endpoint or list(DEFAULT_ENDPOINTS)
-    results = [
-        _hammer(args.url, path, args.requests, args.concurrency) for path in endpoints
-    ]
+    results = [_hammer(args.url, path, args.requests, args.concurrency) for path in endpoints]
     baseline = Baseline(
         label=args.label,
         recorded_at=int(time.time()),
@@ -180,28 +183,18 @@ def compare(args: argparse.Namespace) -> int:
         for metric, tolerance in (("p95_ms", P95_TOLERANCE), ("p99_ms", P99_TOLERANCE)):
             bad, delta = _regression(item[metric], current[metric], tolerance)
             marker = "РЕГРЕССИЯ" if bad else "ok"
-            print(
-                f"{path:<20} {metric:<7} {item[metric]:>8.3f} → {current[metric]:>8.3f} "
-                f"({delta:+.1%}) {marker}"
-            )
+            print(f"{path:<20} {metric:<7} {item[metric]:>8.3f} → {current[metric]:>8.3f} ({delta:+.1%}) {marker}")
             if bad:
-                violations.append(
-                    f"{path}: {metric} вырос на {delta:.1%} (порог {tolerance:.0%})"
-                )
+                violations.append(f"{path}: {metric} вырос на {delta:.1%} (порог {tolerance:.0%})")
 
-        bad, delta = _regression(
-            current["throughput_rps"], item["throughput_rps"], THROUGHPUT_TOLERANCE
-        )
+        bad, delta = _regression(current["throughput_rps"], item["throughput_rps"], THROUGHPUT_TOLERANCE)
         print(
             f"{path:<20} {'rps':<7} {item['throughput_rps']:>8.1f} → "
             f"{current['throughput_rps']:>8.1f} ({-delta:+.1%}) "
             f"{'РЕГРЕССИЯ' if bad else 'ok'}"
         )
         if bad:
-            violations.append(
-                f"{path}: пропускная способность упала на {delta:.1%} "
-                f"(порог {THROUGHPUT_TOLERANCE:.0%})"
-            )
+            violations.append(f"{path}: пропускная способность упала на {delta:.1%} (порог {THROUGHPUT_TOLERANCE:.0%})")
 
     bad, delta = _regression(before["rss_mb"], after["rss_mb"], RSS_TOLERANCE)
     if before["rss_mb"]:

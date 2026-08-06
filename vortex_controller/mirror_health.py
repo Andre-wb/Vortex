@@ -13,6 +13,7 @@ Probe strategy:
 The checker runs in the FastAPI lifespan; it makes no persistent state —
 results live in ``app.state.mirror_health``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,7 +28,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-CHECK_INTERVAL_SEC = 300   # 5 min between full sweeps
+CHECK_INTERVAL_SEC = 300  # 5 min between full sweeps
 PROBE_TIMEOUT_SEC = 5.0
 
 
@@ -52,6 +53,7 @@ class MirrorStatus:
 @dataclass
 class HealthState:
     """In-memory health state shared via app.state."""
+
     by_url: dict[str, MirrorStatus] = field(default_factory=dict)
     last_sweep: float = 0.0
 
@@ -158,10 +160,10 @@ def _probe_url(url: str) -> Optional[str]:
     """Translate a mirror URL into something HTTP-probeable."""
     low = url.lower()
     if low.startswith("ipfs://"):
-        cid = url[len("ipfs://"):]
+        cid = url[len("ipfs://") :]
         return f"https://ipfs.io/ipfs/{cid}/"
     if low.startswith("ipns://"):
-        name = url[len("ipns://"):]
+        name = url[len("ipns://") :]
         return f"https://ipfs.io/ipns/{name}/"
     if low.startswith(("http://", "https://")):
         return url

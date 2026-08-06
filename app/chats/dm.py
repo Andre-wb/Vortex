@@ -4,6 +4,7 @@ app/chats/dm.py — API для личных сообщений (Direct Messages)
 DM реализованы как комнаты с is_dm=True, max_members=2.
 Ключи шифруются через ECIES как и в обычных комнатах.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -39,6 +40,7 @@ router = APIRouter(prefix="/api/dm", tags=["dm"])
 
 # Pydantic схемы
 
+
 class EncryptedKeyPayload(EciesKeyFields):
     pass
 
@@ -49,6 +51,7 @@ class CreateDMRequest(BaseModel):
 
 
 # Вспомогательные функции
+
 
 def _find_existing_dm(user_a: int, user_b: int, db: Session) -> Room | None:
     """Находит существующую DM комнату между двумя пользователями."""
@@ -73,7 +76,7 @@ def _find_existing_dm(user_a: int, user_b: int, db: Session) -> Room | None:
 
 def _is_user_online(user_id: int) -> bool:
     """Проверяет, подключён ли пользователь к какому-либо WS."""
-    if hasattr(manager, '_global_ws') and user_id in manager._global_ws:
+    if hasattr(manager, "_global_ws") and user_id in manager._global_ws:
         return True
     return any(user_id in room_users for room_users in manager._rooms.values())
 
@@ -82,45 +85,48 @@ def _room_to_dict(room: Room, other_user: User, has_key: bool) -> dict:
     """Формирует ответ DM комнаты."""
     return {
         "room": {
-            "id":           room.id,
-            "name":         room.name,
-            "is_dm":        True,
-            "is_private":   True,
-            "has_key":      has_key,
+            "id": room.id,
+            "name": room.name,
+            "is_dm": True,
+            "is_private": True,
+            "has_key": has_key,
             "member_count": 2,
             "online_count": 0,
-            "invite_code":  room.invite_code,
-            "created_at":   room.created_at.isoformat(),
-            "updated_at":   room.updated_at.isoformat() if room.updated_at else None,
+            "invite_code": room.invite_code,
+            "created_at": room.created_at.isoformat(),
+            "updated_at": room.updated_at.isoformat() if room.updated_at else None,
         },
         "other_user": {
-            "user_id":           other_user.id,
-            "username":          other_user.username,
-            "display_name":      other_user.display_name or other_user.username,
-            "avatar_emoji":      other_user.avatar_emoji,
-            "avatar_url":        other_user.avatar_url,
-            "x25519_public_key":     other_user.x25519_public_key,
-            "kyber_public_key":      other_user.kyber_public_key,
-            "kyber_public_key_sig":  other_user.kyber_public_key_sig,
-            "is_bot":            getattr(other_user, 'is_bot', False) or False,
-            "is_online":         _is_user_online(other_user.id),
-            "last_seen":         other_user.last_seen.isoformat() if other_user.last_seen and getattr(other_user, 'show_last_seen', True) not in (False,) else None,
-            "show_last_seen":    getattr(other_user, 'show_last_seen', True) is not False,
-            "custom_status":     other_user.custom_status,
-            "status_emoji":      other_user.status_emoji,
-            "presence":          other_user.presence or "online",
+            "user_id": other_user.id,
+            "username": other_user.username,
+            "display_name": other_user.display_name or other_user.username,
+            "avatar_emoji": other_user.avatar_emoji,
+            "avatar_url": other_user.avatar_url,
+            "x25519_public_key": other_user.x25519_public_key,
+            "kyber_public_key": other_user.kyber_public_key,
+            "kyber_public_key_sig": other_user.kyber_public_key_sig,
+            "is_bot": getattr(other_user, "is_bot", False) or False,
+            "is_online": _is_user_online(other_user.id),
+            "last_seen": other_user.last_seen.isoformat()
+            if other_user.last_seen and getattr(other_user, "show_last_seen", True) not in (False,)
+            else None,
+            "show_last_seen": getattr(other_user, "show_last_seen", True) is not False,
+            "custom_status": other_user.custom_status,
+            "status_emoji": other_user.status_emoji,
+            "presence": other_user.presence or "online",
         },
     }
 
 
 # Эндпоинты
 
+
 @router.post("/{target_user_id}", status_code=200)
 async def create_or_get_dm(
-        target_user_id: int,
-        body:           CreateDMRequest,
-        u:              User    = Depends(get_current_user),
-        db:             Session = Depends(get_db),
+    target_user_id: int,
+    body: CreateDMRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Получить или создать DM комнату с target_user_id.
@@ -132,47 +138,66 @@ async def create_or_get_dm(
     if target_user_id == u.id:
         raise HTTPException(400, "Cannot create DM with yourself")
 
-    target = db.query(User).filter(
-        User.id == target_user_id, User.is_active.is_(True),
-    ).first()
+    target = (
+        db.query(User)
+        .filter(
+            User.id == target_user_id,
+            User.is_active.is_(True),
+        )
+        .first()
+    )
     if not target:
         raise HTTPException(404, "User not found or deactivated")
 
     # отказываем в открытии/переоткрытии DM, если любая из сторон
     # заблокировала другую (раньше блок применялся лишь как is_banned на
     # старой комнате, и заблокированный мог открыть свежий DM).
-    is_blocked = db.query(BlockedUser).filter(
-        ((BlockedUser.blocker_id == target_user_id) & (BlockedUser.blocked_id == u.id))
-        | ((BlockedUser.blocker_id == u.id) & (BlockedUser.blocked_id == target_user_id))
-    ).first()
+    is_blocked = (
+        db.query(BlockedUser)
+        .filter(
+            ((BlockedUser.blocker_id == target_user_id) & (BlockedUser.blocked_id == u.id))
+            | ((BlockedUser.blocker_id == u.id) & (BlockedUser.blocked_id == target_user_id))
+        )
+        .first()
+    )
     if is_blocked:
         raise HTTPException(403, "Cannot open a direct message with this user")
 
     # Проверяем существующий DM
     existing = _find_existing_dm(u.id, target_user_id, db)
     if existing:
-        has_key = db.query(EncryptedRoomKey).filter(
-            EncryptedRoomKey.room_id == existing.id,
-            EncryptedRoomKey.user_id == u.id,
-        ).first() is not None
+        has_key = (
+            db.query(EncryptedRoomKey)
+            .filter(
+                EncryptedRoomKey.room_id == existing.id,
+                EncryptedRoomKey.user_id == u.id,
+            )
+            .first()
+            is not None
+        )
 
         entry = _room_to_dict(existing, target, has_key)
-        entry["other_user"]["is_contact"] = db.query(Contact).filter(
-            Contact.owner_id == u.id,
-            Contact.contact_id == target.id,
-        ).first() is not None
+        entry["other_user"]["is_contact"] = (
+            db.query(Contact)
+            .filter(
+                Contact.owner_id == u.id,
+                Contact.contact_id == target.id,
+            )
+            .first()
+            is not None
+        )
         return entry
 
     # Создаём DM комнату
     min_id, max_id = sorted([u.id, target_user_id])
     room = Room(
-        name        = f"dm:{min_id}:{max_id}",
-        description = "",
-        creator_id  = u.id,
-        is_private  = True,
-        invite_code = generative_invite_code(8),
-        max_members = 2,
-        is_dm       = True,
+        name=f"dm:{min_id}:{max_id}",
+        description="",
+        creator_id=u.id,
+        is_private=True,
+        invite_code=generative_invite_code(8),
+        max_members=2,
+        is_dm=True,
     )
     db.add(room)
     db.flush()
@@ -182,63 +207,81 @@ async def create_or_get_dm(
 
     # Сохраняем зашифрованный ключ для создателя (если передан)
     if body.encrypted_room_key and validate_ecies_payload(body.encrypted_room_key.ecies_dict()):
-        db.add(EncryptedRoomKey(
-            room_id          = room.id,
-            user_id          = u.id,
-            ephemeral_pub    = body.encrypted_room_key.eph_pub,
-            ciphertext       = body.encrypted_room_key.ciphertext,
-            kyber_ciphertext = body.encrypted_room_key.kyber_ciphertext,
-            recipient_pub    = u.x25519_public_key,
-        ))
+        db.add(
+            EncryptedRoomKey(
+                room_id=room.id,
+                user_id=u.id,
+                ephemeral_pub=body.encrypted_room_key.eph_pub,
+                ciphertext=body.encrypted_room_key.ciphertext,
+                kyber_ciphertext=body.encrypted_room_key.kyber_ciphertext,
+                recipient_pub=u.x25519_public_key,
+            )
+        )
 
     # Сохраняем зашифрованный ключ для получателя (если передан)
     if body.encrypted_key_for_target and target.x25519_public_key:
         if validate_ecies_payload(body.encrypted_key_for_target.ecies_dict()):
-            db.add(EncryptedRoomKey(
-                room_id          = room.id,
-                user_id          = target_user_id,
-                ephemeral_pub    = body.encrypted_key_for_target.eph_pub,
-                ciphertext       = body.encrypted_key_for_target.ciphertext,
-                kyber_ciphertext = body.encrypted_key_for_target.kyber_ciphertext,
-                recipient_pub    = target.x25519_public_key,
-            ))
+            db.add(
+                EncryptedRoomKey(
+                    room_id=room.id,
+                    user_id=target_user_id,
+                    ephemeral_pub=body.encrypted_key_for_target.eph_pub,
+                    ciphertext=body.encrypted_key_for_target.ciphertext,
+                    kyber_ciphertext=body.encrypted_key_for_target.kyber_ciphertext,
+                    recipient_pub=target.x25519_public_key,
+                )
+            )
     elif target.x25519_public_key:
         # Fallback: PendingKeyRequest если клиент не передал ключ для получателя
-        db.add(PendingKeyRequest(
-            room_id    = room.id,
-            user_id    = target_user_id,
-            pubkey_hex = target.x25519_public_key,
-            expires_at = datetime.now(timezone.utc) + timedelta(hours=48),
-        ))
+        db.add(
+            PendingKeyRequest(
+                room_id=room.id,
+                user_id=target_user_id,
+                pubkey_hex=target.x25519_public_key,
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
+            )
+        )
 
     db.commit()
     db.refresh(room)
 
     logger.info(f"DM created: {u.username} ↔ {target.username} (room {room.id})")
 
-    target_entry = _room_to_dict(room, u, has_key=bool(
-        body.encrypted_key_for_target and target.x25519_public_key
-    ))
-    target_entry["other_user"]["is_contact"] = db.query(Contact).filter(
-        Contact.owner_id == target_user_id,
-        Contact.contact_id == u.id,
-    ).first() is not None
+    target_entry = _room_to_dict(room, u, has_key=bool(body.encrypted_key_for_target and target.x25519_public_key))
+    target_entry["other_user"]["is_contact"] = (
+        db.query(Contact)
+        .filter(
+            Contact.owner_id == target_user_id,
+            Contact.contact_id == u.id,
+        )
+        .first()
+        is not None
+    )
 
     # BMP mode: new_dm notification goes through BMP room deposit
     # Target user will see the DM when polling their room BMP mailbox
     from app.config import Config
+
     if not Config.BMP_DELIVERY_ENABLED:
-        await manager.notify_user(target_user_id, {
-            "type":    "new_dm",
-            "room":    target_entry["room"],
-            "dm_user": target_entry["other_user"],
-        })
+        await manager.notify_user(
+            target_user_id,
+            {
+                "type": "new_dm",
+                "room": target_entry["room"],
+                "dm_user": target_entry["other_user"],
+            },
+        )
 
     entry = _room_to_dict(room, target, has_key=True)
-    entry["other_user"]["is_contact"] = db.query(Contact).filter(
-        Contact.owner_id == u.id,
-        Contact.contact_id == target.id,
-    ).first() is not None
+    entry["other_user"]["is_contact"] = (
+        db.query(Contact)
+        .filter(
+            Contact.owner_id == u.id,
+            Contact.contact_id == target.id,
+        )
+        .first()
+        is not None
+    )
     return entry
 
 
@@ -248,10 +291,10 @@ class StoreKeyRequest(EciesKeyFields):
 
 @router.post("/store-key/{room_id}", status_code=200)
 async def store_key_for_user(
-        room_id: int,
-        body:    StoreKeyRequest,
-        u:       User    = Depends(get_current_user),
-        db:      Session = Depends(get_db),
+    room_id: int,
+    body: StoreKeyRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Сохранить зашифрованный ключ комнаты для другого пользователя.
@@ -262,26 +305,38 @@ async def store_key_for_user(
         raise HTTPException(404, "Room not found")
 
     # Проверяем что вызывающий — участник комнаты
-    is_member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    is_member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not is_member:
         raise HTTPException(403, "You are not a member of this room")
 
     # Проверяем что целевой пользователь — тоже участник
-    target_member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == body.user_id,
-    ).first()
+    target_member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == body.user_id,
+        )
+        .first()
+    )
     if not target_member:
         raise HTTPException(400, "User is not a member of this room")
 
     # Не перезаписываем если ключ уже есть
-    existing = db.query(EncryptedRoomKey).filter(
-        EncryptedRoomKey.room_id == room_id,
-        EncryptedRoomKey.user_id == body.user_id,
-    ).first()
+    existing = (
+        db.query(EncryptedRoomKey)
+        .filter(
+            EncryptedRoomKey.room_id == room_id,
+            EncryptedRoomKey.user_id == body.user_id,
+        )
+        .first()
+    )
     if existing:
         return {"ok": True, "message": "Key already exists"}
 
@@ -289,14 +344,16 @@ async def store_key_for_user(
         raise HTTPException(400, "Invalid ECIES payload")
 
     target_user = db.query(User).filter(User.id == body.user_id).first()
-    db.add(EncryptedRoomKey(
-        room_id          = room_id,
-        user_id          = body.user_id,
-        ephemeral_pub    = body.eph_pub,
-        ciphertext       = body.ciphertext,
-        kyber_ciphertext = body.kyber_ciphertext,
-        recipient_pub    = target_user.x25519_public_key if target_user else None,
-    ))
+    db.add(
+        EncryptedRoomKey(
+            room_id=room_id,
+            user_id=body.user_id,
+            ephemeral_pub=body.eph_pub,
+            ciphertext=body.ciphertext,
+            kyber_ciphertext=body.kyber_ciphertext,
+            recipient_pub=target_user.x25519_public_key if target_user else None,
+        )
+    )
 
     # Удаляем PendingKeyRequest если есть
     db.query(PendingKeyRequest).filter(
@@ -309,17 +366,19 @@ async def store_key_for_user(
 
     # Доставляем ключ получателю через room WS (если подключён) и notification WS
     key_payload = {
-        "type":    "room_key",
+        "type": "room_key",
         "room_id": room_id,
         **body.ecies_dict(),
     }
     # BMP mode: key delivery through BMP room deposit
     from app.config import Config
+
     if Config.BMP_DELIVERY_ENABLED:
         with contextlib.suppress(Exception):
             import json
 
             from app.transport.blind_mailbox import deposit_envelope
+
             await deposit_envelope(room_id, json.dumps(key_payload))
     else:
         delivered = await manager.send_to_user(room_id, body.user_id, key_payload)
@@ -331,8 +390,8 @@ async def store_key_for_user(
 
 @router.get("/list")
 async def list_dms(
-        u:  User    = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Список всех DM комнат текущего пользователя, отсортированных по updated_at."""
     # Находим все DM комнаты пользователя
@@ -347,11 +406,7 @@ async def list_dms(
     result = []
     for room in dm_rooms:
         # Находим другого участника
-        other_member = (
-            db.query(RoomMember)
-            .filter(RoomMember.room_id == room.id, RoomMember.user_id != u.id)
-            .first()
-        )
+        other_member = db.query(RoomMember).filter(RoomMember.room_id == room.id, RoomMember.user_id != u.id).first()
         if not other_member:
             continue
 
@@ -359,29 +414,48 @@ async def list_dms(
         if not other_user:
             continue
 
-        has_key = db.query(EncryptedRoomKey).filter(
-            EncryptedRoomKey.room_id == room.id,
-            EncryptedRoomKey.user_id == u.id,
-        ).first() is not None
+        has_key = (
+            db.query(EncryptedRoomKey)
+            .filter(
+                EncryptedRoomKey.room_id == room.id,
+                EncryptedRoomKey.user_id == u.id,
+            )
+            .first()
+            is not None
+        )
 
         entry = _room_to_dict(room, other_user, has_key)
 
         # Проверяем, является ли собеседник контактом
-        entry["other_user"]["is_contact"] = db.query(Contact).filter(
-            Contact.owner_id == u.id,
-            Contact.contact_id == other_user.id,
-        ).first() is not None
+        entry["other_user"]["is_contact"] = (
+            db.query(Contact)
+            .filter(
+                Contact.owner_id == u.id,
+                Contact.contact_id == other_user.id,
+            )
+            .first()
+            is not None
+        )
 
         # Подсчёт непрочитанных сообщений
-        my_member = db.query(RoomMember).filter(
-            RoomMember.room_id == room.id,
-            RoomMember.user_id == u.id,
-        ).first()
+        my_member = (
+            db.query(RoomMember)
+            .filter(
+                RoomMember.room_id == room.id,
+                RoomMember.user_id == u.id,
+            )
+            .first()
+        )
         last_read = my_member.last_read_message_id or 0 if my_member else 0
-        entry["room"]["unread_count"] = db.query(func.count(Message.id)).filter(
-            Message.room_id == room.id,
-            Message.id > last_read,
-        ).scalar() or 0
+        entry["room"]["unread_count"] = (
+            db.query(func.count(Message.id))
+            .filter(
+                Message.room_id == room.id,
+                Message.id > last_read,
+            )
+            .scalar()
+            or 0
+        )
 
         result.append(entry)
 

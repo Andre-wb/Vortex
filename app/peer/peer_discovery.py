@@ -1,6 +1,7 @@
 """
 app/peer/peer_discovery.py — UDP discovery helpers & listeners/senders.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,6 +26,7 @@ _peer_ssl_ctx = make_peer_ssl_context()
 
 
 # Helpers
+
 
 def _local_ip() -> str:
     for target in ("192.168.1.1", "10.0.0.1", "172.16.0.1", "8.8.8.8"):
@@ -59,10 +61,12 @@ def _subnet_broadcast(ip: str) -> str:
 
 def _get_node_keys():
     from app.security.crypto import load_or_create_node_keypair
+
     return load_or_create_node_keypair(Config.KEYS_DIR)
 
 
 # Room fetching
+
 
 async def _fetch_peer_rooms(peer: PeerInfo) -> None:
     for scheme in ("https", "http"):
@@ -73,9 +77,7 @@ async def _fetch_peer_rooms(peer: PeerInfo) -> None:
                 if resp.status_code == 200:
                     rooms = resp.json().get("rooms", [])
                     registry.set_peer_rooms(peer.ip, rooms)
-                    logger.info(
-                        f"📦 {len(rooms)} public rooms from {peer.name}@{peer.ip} via {scheme}"
-                    )
+                    logger.info(f"📦 {len(rooms)} public rooms from {peer.name}@{peer.ip} via {scheme}")
                     return
         except Exception as e:
             logger.debug(f"Failed {scheme}://{peer.ip}: {e}")
@@ -90,6 +92,7 @@ def _schedule_fetch_peer_rooms(peer: PeerInfo) -> None:
 
 
 # Discovery
+
 
 def start_discovery(device_name: str = "") -> None:
     try:
@@ -114,6 +117,7 @@ def start_discovery(device_name: str = "") -> None:
 
     try:
         import vortex_chat as _vc
+
         _vc.start_discovery(name, Config.PORT)
         logger.info(f"🦀 Rust UDP discovery: «{name}»")
 
@@ -140,9 +144,7 @@ def start_discovery(device_name: str = "") -> None:
         logger.info("Python UDP discovery fallback")
 
     threading.Thread(target=_py_listener, daemon=True, name="udp-listen").start()
-    threading.Thread(
-        target=_py_sender, args=(name, node_pubkey_hex), daemon=True, name="udp-send"
-    ).start()
+    threading.Thread(target=_py_sender, args=(name, node_pubkey_hex), daemon=True, name="udp-send").start()
     logger.info(f"🐍 Python UDP discovery: «{name}» pubkey={'yes' if node_pubkey_hex else 'no'}")
 
 
@@ -166,12 +168,13 @@ def _py_listener():
 
             # Stealth mode: try to decrypt UDP broadcast
             from app.transport.stealth import decrypt_udp_broadcast, is_stealth
+
             if is_stealth():
                 decrypted = decrypt_udp_broadcast(data)
                 if decrypted:
                     data = decrypted
 
-            info   = json.loads(data.decode())
+            info = json.loads(data.decode())
             pubkey = info.get("pubkey")
             if pubkey and len(pubkey) != 64:
                 pubkey = None
@@ -222,11 +225,12 @@ def _py_sender(name: str, node_pubkey_hex: Optional[str]):
 
             # Stealth mode: encrypt UDP broadcast
             from app.transport.stealth import encrypt_udp_broadcast, get_stealth_udp_port, is_stealth
+
             if is_stealth():
                 payload = encrypt_udp_broadcast(payload)
             udp_port = get_stealth_udp_port() if is_stealth() else Config.UDP_PORT
 
-            bcast   = _subnet_broadcast(own_ip)
+            bcast = _subnet_broadcast(own_ip)
             sock.sendto(payload, (bcast, udp_port))
             with contextlib.suppress(Exception):
                 sock.sendto(payload, ("255.255.255.255", udp_port))

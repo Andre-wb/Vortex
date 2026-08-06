@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Token Bucket — ограничение нагрузки на ретранслятор
 
+
 class TokenBucket:
     """
     Алгоритм Token Bucket для ограничения скорости сообщений.
@@ -40,20 +41,20 @@ class TokenBucket:
     __slots__ = ("_last_ts", "_tokens", "capacity", "rate")
 
     def __init__(self, capacity: float = 20.0, rate: float = 5.0):
-        self.capacity  = capacity
-        self.rate      = rate
-        self._tokens   = capacity
-        self._last_ts  = time.monotonic()
+        self.capacity = capacity
+        self.rate = rate
+        self._tokens = capacity
+        self._last_ts = time.monotonic()
 
     def consume(self, tokens: float = 1.0) -> bool:
         """
         Пытается потребить `tokens` токенов.
         Возвращает True если токенов достаточно, False — если лимит исчерпан.
         """
-        now   = time.monotonic()
+        now = time.monotonic()
         delta = now - self._last_ts
         self._last_ts = now
-        self._tokens  = min(self.capacity, self._tokens + delta * self.rate)
+        self._tokens = min(self.capacity, self._tokens + delta * self.rate)
         if self._tokens >= tokens:
             self._tokens -= tokens
             return True
@@ -61,6 +62,7 @@ class TokenBucket:
 
 
 # Глобальный кэш дедупликации сообщений
+
 
 class MessageDeduplicator:
     """
@@ -73,10 +75,10 @@ class MessageDeduplicator:
 
     def __init__(self, max_size: int = 10_000, ttl_sec: float = 300.0):
         self._max_size = max_size
-        self._ttl      = ttl_sec
-        self._seen:    dict[str, float] = {}   # msg_id → timestamp
-        self._order:   deque[str]       = deque()
-        self._lock     = asyncio.Lock()
+        self._ttl = ttl_sec
+        self._seen: dict[str, float] = {}  # msg_id → timestamp
+        self._order: deque[str] = deque()
+        self._lock = asyncio.Lock()
 
     async def is_duplicate(self, msg_id: str) -> bool:
         """
@@ -114,6 +116,7 @@ deduplicator = MessageDeduplicator(max_size=10_000, ttl_sec=300.0)
 
 # ConnectedUser
 
+
 @dataclass
 class ConnectedUser:
     """
@@ -122,18 +125,20 @@ class ConnectedUser:
     Дополнения:
         rate_limiter — индивидуальный Token Bucket для защиты от флуда.
     """
-    user_id:      int
-    username:     str
+
+    user_id: int
+    username: str
     display_name: str
     avatar_emoji: str
-    websocket:    WebSocket
-    room_id:      int
-    connected_at: datetime    = field(default_factory=lambda: datetime.now(timezone.utc))
-    is_typing:    bool        = False
+    websocket: WebSocket
+    room_id: int
+    connected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    is_typing: bool = False
     rate_limiter: TokenBucket = field(default_factory=lambda: TokenBucket(capacity=30, rate=10))
 
 
 # Pending Delivery Queue — серверная очередь недоставленных сообщений
+
 
 class PendingDeliveryQueue:
     """
@@ -148,11 +153,11 @@ class PendingDeliveryQueue:
     """
 
     def __init__(self, max_per_user_room: int = 1000, ttl_sec: float = 604800.0):
-        self._max    = max_per_user_room
-        self._ttl    = ttl_sec
+        self._max = max_per_user_room
+        self._ttl = ttl_sec
         # (room_id, user_id) → deque[(timestamp, payload)]
         self._queues: dict[tuple[int, int], deque] = defaultdict(deque)
-        self._lock   = asyncio.Lock()
+        self._lock = asyncio.Lock()
 
     async def enqueue(self, room_id: int, user_id: int, payload: dict) -> None:
         """Добавить сообщение в очередь для офлайн-пользователя."""
@@ -221,10 +226,10 @@ class PendingNotificationQueue:
     """
 
     def __init__(self, max_per_user: int = 50, ttl_sec: float = 300.0):
-        self._max  = max_per_user
-        self._ttl  = ttl_sec
+        self._max = max_per_user
+        self._ttl = ttl_sec
         self._queues: dict[int, deque] = defaultdict(deque)
-        self._lock   = asyncio.Lock()
+        self._lock = asyncio.Lock()
 
     async def enqueue(self, user_id: int, payload: dict) -> None:
         async with self._lock:
@@ -263,6 +268,7 @@ pending_notifications = PendingNotificationQueue()
 
 # ConnectionManager
 
+
 class ConnectionManager:
     """
     Менеджер WebSocket-соединений с поддержкой комнат.
@@ -276,6 +282,7 @@ class ConnectionManager:
     # per-user concurrent WebSocket connection cap (room + global WS).
     # Sane default; override via env MAX_WS_PER_USER. 0/negative disables the cap.
     import os as _os
+
     try:
         MAX_WS_PER_USER: int = int(_os.getenv("MAX_WS_PER_USER", "20"))
     except ValueError:
@@ -283,12 +290,12 @@ class ConnectionManager:
     del _os
 
     def __init__(self):
-        self._rooms:      dict[int, dict[int, ConnectedUser]] = defaultdict(dict)
-        self._global_ws:  dict[int, WebSocket] = {}
+        self._rooms: dict[int, dict[int, ConnectedUser]] = defaultdict(dict)
+        self._global_ws: dict[int, WebSocket] = {}
         self._sse_queues: dict[str, asyncio.Queue] = {}
-        self._lock        = asyncio.Lock()
+        self._lock = asyncio.Lock()
         # live count of concurrent sockets per user (room + global).
-        self._ws_count:   dict[int, int] = defaultdict(int)
+        self._ws_count: dict[int, int] = defaultdict(int)
 
     def _ws_cap_reached(self, user_id: int) -> bool:
         """True if registering one more socket for this user would exceed the cap."""
@@ -307,13 +314,13 @@ class ConnectionManager:
             self._ws_count.pop(user_id, None)
 
     async def connect(
-            self,
-            room_id:      int,
-            user_id:      int,
-            username:     str,
-            display_name: str,
-            avatar_emoji: str,
-            ws:           WebSocket,
+        self,
+        room_id: int,
+        user_id: int,
+        username: str,
+        display_name: str,
+        avatar_emoji: str,
+        ws: WebSocket,
     ) -> None:
         await ws.accept()
         # enforce per-user concurrent WS cap. Reject (close) over the limit.
@@ -324,12 +331,12 @@ class ConnectionManager:
                     await ws.close(code=4429)  # 4429 ≈ "too many connections"
                 return
             self._rooms[room_id][user_id] = ConnectedUser(
-                user_id      = user_id,
-                username     = username,
-                display_name = display_name,
-                avatar_emoji = avatar_emoji,
-                websocket    = ws,
-                room_id      = room_id,
+                user_id=user_id,
+                username=username,
+                display_name=display_name,
+                avatar_emoji=avatar_emoji,
+                websocket=ws,
+                room_id=room_id,
             )
             self._ws_count_inc(user_id)
         logger.debug("WS+ connection (sanitized)")
@@ -355,44 +362,82 @@ class ConnectionManager:
             # BMP mode: suppress user_left broadcast (zero metadata leakage)
 
     # Message types that are system/control (always go via WS)
-    _WS_ONLY_TYPES = frozenset({
-        "room_deleted", "key_rotated", "kicked", "room_updated", "ack", "error",
-        "pong", "system", "waiting_for_key", "node_pubkey", "room_key",
-        "key_request", "key_response", "online",
-    })
+    _WS_ONLY_TYPES = frozenset(
+        {
+            "room_deleted",
+            "key_rotated",
+            "kicked",
+            "room_updated",
+            "ack",
+            "error",
+            "pong",
+            "system",
+            "waiting_for_key",
+            "node_pubkey",
+            "room_key",
+            "key_request",
+            "key_response",
+            "online",
+        }
+    )
 
     # Content types that go via BMP (zero metadata leakage)
     # Content types: ALL go through BMP (zero metadata leakage)
     # Covers: rooms, groups, channels, DMs, federated rooms, spaces
-    _BMP_TYPES = frozenset({
-        "message", "thread_message", "message_edited", "message_deleted",
-        "reaction", "messages_read", "message_pinned", "typing",
-        "file_sending", "stop_file_sending", "screenshot_taken",
-        "signal", "poll", "poll_update", "voice_update", "voice_state",
-        "file", "forward", "thread_update",
-        "stream_scheduled", "stream_update", "stream_state",
-        "auto_delete_changed", "slow_mode_changed",
-        "channel_feed", "space_update",
-        "group_call_invite", "group_call_update",
-        "notification", "new_dm", "incoming_call",
-    })
+    _BMP_TYPES = frozenset(
+        {
+            "message",
+            "thread_message",
+            "message_edited",
+            "message_deleted",
+            "reaction",
+            "messages_read",
+            "message_pinned",
+            "typing",
+            "file_sending",
+            "stop_file_sending",
+            "screenshot_taken",
+            "signal",
+            "poll",
+            "poll_update",
+            "voice_update",
+            "voice_state",
+            "file",
+            "forward",
+            "thread_update",
+            "stream_scheduled",
+            "stream_update",
+            "stream_state",
+            "auto_delete_changed",
+            "slow_mode_changed",
+            "channel_feed",
+            "space_update",
+            "group_call_invite",
+            "group_call_update",
+            "notification",
+            "new_dm",
+            "incoming_call",
+        }
+    )
 
     async def broadcast_to_room(
-            self,
-            room_id: int,
-            payload: dict[str, Any],
-            exclude: int | None = None,
-            member_ids: list[int] | None = None,
+        self,
+        room_id: int,
+        payload: dict[str, Any],
+        exclude: int | None = None,
+        member_ids: list[int] | None = None,
     ) -> None:
         msg_type = payload.get("type", "")
 
         # BMP delivery for content messages
         from app.config import Config
+
         if Config.BMP_DELIVERY_ENABLED and msg_type in self._BMP_TYPES:
             try:
                 import json
 
                 from app.transport.blind_mailbox import deposit_envelope
+
                 await deposit_envelope(room_id, json.dumps(payload))
             except Exception:
                 logger.debug("BMP deposit failed (sanitized)")
@@ -406,8 +451,7 @@ class ConnectionManager:
 
             # Edit/delete/reaction must also go via WS for instant UI update
             # (BMP polling has latency; these actions need immediate feedback)
-            _ws_also = {"message_edited", "message_deleted", "reaction",
-                        "message_pinned", "typing", "messages_read"}
+            _ws_also = {"message_edited", "message_deleted", "reaction", "message_pinned", "typing", "messages_read"}
             if msg_type not in _ws_also:
                 return  # BMP-only for content messages
 
@@ -471,6 +515,7 @@ class ConnectionManager:
         """Добавляет рандомный padding к WS-фрейму (anti DPI size analysis)."""
         import json
         import secrets
+
         pad_len = 32 + secrets.randbelow(225)  # 32..256
         payload["_p"] = secrets.token_urlsafe(pad_len)
         return json.dumps(payload)
@@ -498,7 +543,6 @@ class ConnectionManager:
         if not msg_id:
             return False
         return await deduplicator.is_duplicate(msg_id)
-
 
     async def connect_global(self, user_id: int, ws: WebSocket) -> None:
         """Подключает глобальный WS для уведомлений пользователя."""
@@ -551,6 +595,7 @@ class ConnectionManager:
         """Сохраняет уведомление в БД для гарантированной доставки."""
         # BMP mode: don't persist content notifications (they go through BMP)
         from app.config import Config
+
         if Config.BMP_DELIVERY_ENABLED:
             _type = payload.get("type", "")
             # Only persist system notifications (kicked, room_deleted)
@@ -559,6 +604,7 @@ class ConnectionManager:
         try:
             from app.database import SessionLocal
             from app.models_rooms.encryption import PendingNotification
+
             db = SessionLocal()
             try:
                 notif = PendingNotification(
@@ -580,6 +626,7 @@ class ConnectionManager:
         try:
             from app.database import SessionLocal
             from app.models_rooms.encryption import PendingNotification
+
             db = SessionLocal()
             try:
                 rows = (
@@ -602,9 +649,9 @@ class ConnectionManager:
                     except Exception:
                         break
                 if ids_to_delete:
-                    db.query(PendingNotification).filter(
-                        PendingNotification.id.in_(ids_to_delete)
-                    ).delete(synchronize_session=False)
+                    db.query(PendingNotification).filter(PendingNotification.id.in_(ids_to_delete)).delete(
+                        synchronize_session=False
+                    )
                     db.commit()
                 return sent
             finally:
@@ -616,11 +663,11 @@ class ConnectionManager:
     def get_online_users(self, room_id: int) -> list[dict]:
         return [
             {
-                "user_id":      c.user_id,
-                "username":     c.username,
+                "user_id": c.user_id,
+                "username": c.username,
                 "display_name": c.display_name,
                 "avatar_emoji": c.avatar_emoji,
-                "is_typing":    c.is_typing,
+                "is_typing": c.is_typing,
             }
             for c in self._rooms.get(room_id, {}).values()
         ]
@@ -647,6 +694,7 @@ class ConnectionManager:
     async def cleanup_stale(self) -> int:
         """Remove stale WebSocket connections (disconnected but not cleaned up)."""
         from starlette.websockets import WebSocketState
+
         removed = 0
         async with self._lock:
             # Clean stale room connections
@@ -654,7 +702,7 @@ class ConnectionManager:
                 for uid in list(self._rooms[room_id].keys()):
                     conn = self._rooms[room_id][uid]
                     ws = conn.websocket
-                    if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
+                    if hasattr(ws, "client_state") and ws.client_state != WebSocketState.CONNECTED:
                         del self._rooms[room_id][uid]
                         self._ws_count_dec(uid)  # keep cap counter in sync
                         removed += 1
@@ -663,7 +711,7 @@ class ConnectionManager:
             # Clean stale global WS
             for uid in list(self._global_ws.keys()):
                 ws = self._global_ws[uid]
-                if hasattr(ws, 'client_state') and ws.client_state != WebSocketState.CONNECTED:
+                if hasattr(ws, "client_state") and ws.client_state != WebSocketState.CONNECTED:
                     del self._global_ws[uid]
                     self._ws_count_dec(uid)  # keep cap counter in sync
                     removed += 1
@@ -690,9 +738,9 @@ class ConnectionManager:
     def dedup_stats(self) -> dict:
         """Возвращает статистику дедупликатора и pending queue для мониторинга."""
         return {
-            "seen_msg_ids":  deduplicator.seen_count(),
-            "rooms":         len(self._rooms),
-            "connections":   self.total_connections(),
+            "seen_msg_ids": deduplicator.seen_count(),
+            "rooms": len(self._rooms),
+            "connections": self.total_connections(),
             "pending_queue": pending_queue.stats(),
         }
 

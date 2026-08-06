@@ -13,6 +13,7 @@ GET  /api/ide/webhooks/{pid}               registered webhooks
 GET  /api/ide/permissions/{pid}            RBAC permissions config
 POST /api/ide/permissions/{pid}/assign     assign a role to a user
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -33,7 +34,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ide", tags=["ide"])
 
 
-
 @router.get("/analytics/{project_id}")
 async def bot_analytics(project_id: str, current_user: User = Depends(get_current_user)):
     """Return analytics for a bot project (log-based + track()-based events)."""
@@ -42,7 +42,9 @@ async def bot_analytics(project_id: str, current_user: User = Depends(get_curren
     logs = get_logs(pid, last_n=500)
 
     # Parse logs for metrics
-    message_count = sum(1 for line in logs if "message" in line.lower() or "emit" in line.lower() or "send" in line.lower())
+    message_count = sum(
+        1 for line in logs if "message" in line.lower() or "emit" in line.lower() or "send" in line.lower()
+    )
     error_count = sum(1 for line in logs if "error" in line.lower() or "ERROR" in line)
     command_count = sum(1 for line in logs if "command" in line.lower() or "/start" in line or "/help" in line)
     callback_count = sum(1 for line in logs if "callback" in line.lower())
@@ -80,7 +82,6 @@ async def bot_analytics(project_id: str, current_user: User = Depends(get_curren
     }
 
 
-
 @router.get("/metrics/{project_id}")
 async def get_bot_metrics(
     project_id: str,
@@ -107,7 +108,6 @@ async def get_bot_metrics(
     return {"ok": True, "metrics": metrics, "ab_results": ab_results}
 
 
-
 @router.get("/queues/{project_id}")
 async def get_bot_queues(
     project_id: str,
@@ -121,7 +121,6 @@ async def get_bot_queues(
             data = json.loads(queues_file.read_text(encoding="utf-8"))
             return {"ok": True, "queues": data}
     return {"ok": True, "queues": {}}
-
 
 
 @router.get("/audit/{project_id}")
@@ -140,7 +139,6 @@ async def get_bot_audit(
     return {"ok": True, "entries": []}
 
 
-
 @router.get("/breakers/{project_id}")
 async def get_breaker_status(project_id: str, user=Depends(get_current_user)):
     """Get circuit breaker states for a bot."""
@@ -153,7 +151,6 @@ async def get_breaker_status(project_id: str, user=Depends(get_current_user)):
         return {"ok": True, "breakers": data}
     except Exception:
         return {"ok": True, "breakers": {}}
-
 
 
 @router.get("/packages")
@@ -196,7 +193,6 @@ async def install_package(body: dict, user=Depends(get_current_user)):
     return {"ok": True, "installed": package_name, "path": f"plugins/{package_name}.grav"}
 
 
-
 @router.get("/admin/{project_id}")
 async def get_bot_admin(project_id: str, user=Depends(get_current_user)):
     """Get bot admin panel configuration."""
@@ -211,7 +207,6 @@ async def get_bot_admin(project_id: str, user=Depends(get_current_user)):
         return {"ok": False, "error": str(e)}
 
 
-
 @router.get("/webhooks/{project_id}")
 async def get_webhooks(project_id: str, user=Depends(get_current_user)):
     """Get registered webhooks for a bot."""
@@ -224,7 +219,6 @@ async def get_webhooks(project_id: str, user=Depends(get_current_user)):
         return {"ok": True, "webhooks": data}
     except Exception:
         return {"ok": True, "webhooks": []}
-
 
 
 @router.get("/permissions/{project_id}")

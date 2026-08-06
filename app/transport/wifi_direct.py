@@ -21,6 +21,7 @@ app/transport/wifi_direct.py — Wi-Fi Direct (P2P) транспорт.
   - Дальность до ~200м (802.11 P2P)
   - Скорость до 250 Мбит/с
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -40,21 +41,23 @@ logger = logging.getLogger(__name__)
 
 _WIFI_DIRECT_AVAILABLE: bool | None = None
 
+
 def is_wifi_direct_available() -> bool:
     """Check if Wi-Fi Direct is supported on this platform."""
     global _WIFI_DIRECT_AVAILABLE
     if _WIFI_DIRECT_AVAILABLE is None:
-        if sys.platform == 'linux':
+        if sys.platform == "linux":
             # Check for wpa_cli
             try:
-                subprocess.run(['wpa_cli', '-v'], capture_output=True, timeout=3)
+                subprocess.run(["wpa_cli", "-v"], capture_output=True, timeout=3)
                 _WIFI_DIRECT_AVAILABLE = True
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 logger.info("Wi-Fi Direct unavailable: wpa_cli not found")
                 _WIFI_DIRECT_AVAILABLE = False
-        elif sys.platform == 'win32':
+        elif sys.platform == "win32":
             try:
                 import winrt  # noqa: F401
+
                 _WIFI_DIRECT_AVAILABLE = True
             except ImportError:
                 logger.info("Wi-Fi Direct unavailable: winrt not installed")
@@ -67,29 +70,32 @@ def is_wifi_direct_available() -> bool:
 
 # Структуры данных
 
+
 @dataclass
 class WifiDirectPeer:
     """Пир обнаруженный через Wi-Fi Direct."""
-    mac:         str
-    name:        str
-    ip:          Optional[str] = None
-    port:        int = 8000
-    connected:   bool = False
-    interface:   Optional[str] = None   # p2p-wlan0-0 или аналог
-    last_seen:   float = field(default_factory=time.monotonic)
+
+    mac: str
+    name: str
+    ip: Optional[str] = None
+    port: int = 8000
+    connected: bool = False
+    interface: Optional[str] = None  # p2p-wlan0-0 или аналог
+    last_seen: float = field(default_factory=time.monotonic)
 
     def to_dict(self) -> dict:
         return {
-            "mac":       self.mac,
-            "name":      self.name,
-            "ip":        self.ip,
-            "port":      self.port,
+            "mac": self.mac,
+            "name": self.name,
+            "ip": self.ip,
+            "port": self.port,
             "connected": self.connected,
             "transport": "wifi_direct",
         }
 
 
 # Linux: wpa_supplicant P2P через wpa_cli
+
 
 class WpaCliInterface:
     """
@@ -114,9 +120,7 @@ class WpaCliInterface:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, _stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
+            stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             out = stdout.decode("utf-8", errors="ignore").strip()
             logger.debug(f"wpa_cli {' '.join(args)}: {out[:100]}")
             return out
@@ -170,9 +174,9 @@ class WpaCliInterface:
                 info[key.strip()] = val.strip()
 
         return {
-            "mac":      mac,
-            "name":     info.get("device_name", mac),
-            "pri_dev":  info.get("primary_dev_type", ""),
+            "mac": mac,
+            "name": info.get("device_name", mac),
+            "pri_dev": info.get("primary_dev_type", ""),
             "config_methods": info.get("config_methods", ""),
             "dev_capab": info.get("dev_capab", ""),
         }
@@ -216,6 +220,7 @@ class WpaCliInterface:
         """Ищет активный P2P интерфейс (p2p-*)."""
         try:
             import os
+
             interfaces = os.listdir("/sys/class/net")
             for iface in interfaces:
                 if iface.startswith("p2p-"):
@@ -228,7 +233,10 @@ class WpaCliInterface:
         """Получает IP адрес на P2P интерфейсе."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "ip", "addr", "show", interface,
+                "ip",
+                "addr",
+                "show",
+                interface,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -243,6 +251,7 @@ class WpaCliInterface:
 
 
 # Windows: WinRT WiFiDirect
+
 
 class WinRTWifiDirect:
     """
@@ -259,11 +268,11 @@ class WinRTWifiDirect:
             return False
         try:
             import winrt.windows.devices.wifidirect as wfd  # noqa: F401
+
             self._available = True
             return True
         except ImportError:
-            logger.warning("winrt не установлен. "
-                           "pip install winrt-Windows.Devices.WiFiDirect")
+            logger.warning("winrt не установлен. pip install winrt-Windows.Devices.WiFiDirect")
             return False
 
     async def scan(self) -> list[dict]:
@@ -275,15 +284,17 @@ class WinRTWifiDirect:
 
             # Запрашиваем список WiFi Direct устройств
             selector = wfd.WiFiDirectDevice.get_device_selector()
-            devices  = await de.DeviceInformation.find_all_async(selector)
+            devices = await de.DeviceInformation.find_all_async(selector)
 
             result = []
             for dev in devices:
-                result.append({
-                    "id":   dev.id,
-                    "name": dev.name,
-                    "kind": str(dev.kind),
-                })
+                result.append(
+                    {
+                        "id": dev.id,
+                        "name": dev.name,
+                        "kind": str(dev.kind),
+                    }
+                )
 
             return result
         except Exception as e:
@@ -308,6 +319,7 @@ class WinRTWifiDirect:
 
 # Unified Wi-Fi Direct Manager
 
+
 class WifiDirectManager:
     """
     Кросс-платформенный менеджер Wi-Fi Direct.
@@ -318,9 +330,9 @@ class WifiDirectManager:
     """
 
     def __init__(self):
-        self._peers:     dict[str, WifiDirectPeer] = {}
+        self._peers: dict[str, WifiDirectPeer] = {}
         self._available: bool = False
-        self._platform:  str  = sys.platform
+        self._platform: str = sys.platform
         self._linux_iface: Optional[str] = None
         self._scan_task: Optional[asyncio.Task] = None
         self._on_peer_cb: Optional[Callable] = None
@@ -329,11 +341,11 @@ class WifiDirectManager:
         self._reconnect_task: Optional[asyncio.Task] = None
 
     async def start(
-            self,
-            node_name: str,
-            http_port: int,
-            wifi_interface: str = "wlan0",
-            on_peer_discovered: Optional[Callable] = None,
+        self,
+        node_name: str,
+        http_port: int,
+        wifi_interface: str = "wlan0",
+        on_peer_discovered: Optional[Callable] = None,
     ) -> bool:
         """
         Инициализирует Wi-Fi Direct.
@@ -402,26 +414,23 @@ class WifiDirectManager:
         self._available = False
         logger.info("📶 Wi-Fi Direct остановлен")
 
-
     async def _linux_scan_loop(self) -> None:
         while self._available:
             try:
                 if self._wpa:
                     raw_peers = await self._wpa.p2p_peers()
                     for raw in raw_peers:
-                        mac  = raw["mac"]
+                        mac = raw["mac"]
                         name = raw.get("name", mac)
                         is_new = mac not in self._peers
                         self._peers[mac] = WifiDirectPeer(
-                            mac  = mac,
-                            name = name,
+                            mac=mac,
+                            name=name,
                         )
                         if is_new:
                             logger.info(f"📶 Wi-Fi Direct peer: {name} ({mac})")
                             if self._on_peer_cb:
-                                spawn(
-                                    self._on_peer_cb(self._peers[mac])
-                                )
+                                spawn(self._on_peer_cb(self._peers[mac]))
             except Exception as e:
                 logger.debug(f"P2P scan error: {e}")
 
@@ -433,7 +442,7 @@ class WifiDirectManager:
                 if self._winrt:
                     devices = await self._winrt.scan()
                     for dev in devices:
-                        mac  = dev.get("id", "")
+                        mac = dev.get("id", "")
                         name = dev.get("name", mac)
                         is_new = mac not in self._peers
                         self._peers[mac] = WifiDirectPeer(mac=mac, name=name)
@@ -442,7 +451,6 @@ class WifiDirectManager:
             except Exception as e:
                 logger.debug(f"WinRT scan error: {e}")
             await asyncio.sleep(15.0)
-
 
     async def start_auto_reconnect(self) -> None:
         """Background loop: re-connect dropped Wi-Fi Direct peers (exp backoff)."""
@@ -466,7 +474,6 @@ class WifiDirectManager:
             except Exception as e:
                 logger.debug(f"WiFi Direct reconnect error: {e}")
             await asyncio.sleep(backoff)
-
 
     async def connect_pbc(self, peer_mac: str) -> Optional[str]:
         """
@@ -496,7 +503,6 @@ class WifiDirectManager:
             return await self._winrt.connect(device_id)
         return None
 
-
     @property
     def available(self) -> bool:
         return self._available
@@ -513,10 +519,8 @@ class WifiDirectManager:
             # Синхронный вариант для quick check
             with contextlib.suppress(Exception):
                 import subprocess as sp
-                result = sp.run(
-                    ["ip", "addr", "show", self._linux_iface],
-                    capture_output=True, text=True, timeout=2
-                )
+
+                result = sp.run(["ip", "addr", "show", self._linux_iface], capture_output=True, text=True, timeout=2)
                 m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", result.stdout)
                 if m:
                     return m.group(1)
@@ -524,13 +528,13 @@ class WifiDirectManager:
 
     def status(self) -> dict:
         return {
-            "available":     self._available,
-            "platform":      self._platform,
+            "available": self._available,
+            "platform": self._platform,
             "p2p_interface": self._linux_iface,
-            "p2p_ip":        self.get_p2p_interface_ip(),
-            "peers":         len(self.get_peers()),
-            "connected":     len(self.get_connected_peers()),
-            "peers_list":    [p.to_dict() for p in self.get_peers()],
+            "p2p_ip": self.get_p2p_interface_ip(),
+            "peers": len(self.get_peers()),
+            "connected": len(self.get_connected_peers()),
+            "peers_list": [p.to_dict() for p in self.get_peers()],
         }
 
 

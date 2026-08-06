@@ -20,6 +20,7 @@ Privacy guarantees:
   - Mailbox server cannot link mailbox_id to push_token (only emits category)
   - Each category covers ~N_users/256 users, providing k-anonymity
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -42,9 +43,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/push-proxy", tags=["bmp-push-proxy"])
 
 
-CATEGORY_COUNT = 256                # Number of push categories (k-anonymity buckets)
-TOKEN_TTL = 7 * 86400              # Push tokens expire after 7 days
-MAX_TOKENS_PER_CATEGORY = 10000    # Prevent abuse
+CATEGORY_COUNT = 256  # Number of push categories (k-anonymity buckets)
+TOKEN_TTL = 7 * 86400  # Push tokens expire after 7 days
+MAX_TOKENS_PER_CATEGORY = 10000  # Prevent abuse
 
 # FIX F11(a): /wake is an INTERNAL trigger (mailbox server → proxy). It must not
 # be callable by arbitrary clients, or anyone could fan out push wakes for any
@@ -58,18 +59,18 @@ _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
 # Anything else (and any host resolving to an internal/reserved IP) is rejected
 # BEFORE webpush() is ever called, so the proxy can't be used as an SSRF sink.
 ALLOWED_PUSH_HOST_SUFFIXES = (
-    "push.services.mozilla.com",     # Firefox / autopush
-    "fcm.googleapis.com",            # Chrome / Android (FCM)
-    "android.googleapis.com",        # legacy GCM/FCM
-    "web.push.apple.com",            # Safari / Apple Web Push
-    "notify.windows.com",            # Edge / WNS
+    "push.services.mozilla.com",  # Firefox / autopush
+    "fcm.googleapis.com",  # Chrome / Android (FCM)
+    "android.googleapis.com",  # legacy GCM/FCM
+    "web.push.apple.com",  # Safari / Apple Web Push
+    "notify.windows.com",  # Edge / WNS
     "wns2-by3p.notify.windows.com",
 )
 
 # FIX F11(a,d): per-IP rate limits on register/wake (in-memory sliding window).
-_REGISTER_RATE_LIMIT = 60          # registrations / window per IP
-_WAKE_RATE_LIMIT = 600             # wake triggers / window per IP
-_RATE_WINDOW = 60                  # seconds
+_REGISTER_RATE_LIMIT = 60  # registrations / window per IP
+_WAKE_RATE_LIMIT = 600  # wake triggers / window per IP
+_RATE_WINDOW = 60  # seconds
 _register_hits: dict[str, list[float]] = defaultdict(list)
 _wake_hits: dict[str, list[float]] = defaultdict(list)
 
@@ -111,8 +112,14 @@ def _endpoint_is_safe(endpoint: str) -> bool:
     try:
         for info in socket.getaddrinfo(host, None):
             addr = ipaddress.ip_address(info[4][0])
-            if (addr.is_private or addr.is_loopback or addr.is_link_local
-                    or addr.is_reserved or addr.is_multicast or addr.is_unspecified):
+            if (
+                addr.is_private
+                or addr.is_loopback
+                or addr.is_link_local
+                or addr.is_reserved
+                or addr.is_multicast
+                or addr.is_unspecified
+            ):
                 return False
             if str(addr).startswith("169.254."):
                 return False
@@ -121,11 +128,10 @@ def _endpoint_is_safe(endpoint: str) -> bool:
     return True
 
 
-
 @dataclass
 class PushRegistration:
     token: str
-    endpoint: str       # Web Push endpoint URL
+    endpoint: str  # Web Push endpoint URL
     registered_at: float
 
 
@@ -193,7 +199,6 @@ class PushProxyStore:
 push_proxy = PushProxyStore()
 
 
-
 async def _send_push(endpoint: str, token: str):
     """
     Send a minimal "wake up and poll BMP" push notification.
@@ -208,6 +213,7 @@ async def _send_push(endpoint: str, token: str):
             return
 
         from app.push.web_push import _get_vapid_key_pair
+
         private_key, _public_key = _get_vapid_key_pair()
         if not private_key:
             return
@@ -216,6 +222,7 @@ async def _send_push(endpoint: str, token: str):
         import json
 
         from pywebpush import webpush
+
         webpush(
             subscription_info={"endpoint": endpoint, "keys": json.loads(token)},
             data=json.dumps({"type": "bmp_wake"}),
@@ -227,14 +234,10 @@ async def _send_push(endpoint: str, token: str):
         logger.debug("[PushProxy] Push failed: %s", e)
 
 
-
 class ProxyRegisterRequest(BaseModel):
-    categories: list[int] = Field(..., min_length=1, max_length=256,
-                                   description="Category numbers (0-255)")
-    token: str = Field(..., min_length=10,
-                       description="Push subscription keys as JSON string")
-    endpoint: str = Field(..., min_length=10,
-                          description="Web Push endpoint URL")
+    categories: list[int] = Field(..., min_length=1, max_length=256, description="Category numbers (0-255)")
+    token: str = Field(..., min_length=10, description="Push subscription keys as JSON string")
+    endpoint: str = Field(..., min_length=10, description="Web Push endpoint URL")
 
 
 @router.post("/register")
@@ -281,8 +284,7 @@ def _authorize_wake(request: Request) -> None:
     is_loopback = peer in _LOOPBACK_HOSTS
 
     provided = (request.headers.get("x-push-wake-secret", "") or "").strip()
-    secret_ok = bool(PUSH_WAKE_SECRET) and bool(provided) and \
-        hmac.compare_digest(provided, PUSH_WAKE_SECRET)
+    secret_ok = bool(PUSH_WAKE_SECRET) and bool(provided) and hmac.compare_digest(provided, PUSH_WAKE_SECRET)
 
     if secret_ok or is_loopback:
         return
@@ -308,7 +310,6 @@ async def proxy_wake(body: WakeRequest, request: Request):
 async def proxy_stats():
     """Push proxy statistics."""
     return push_proxy.stats()
-
 
 
 def compute_category(mailbox_id: str) -> int:

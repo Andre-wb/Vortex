@@ -14,6 +14,7 @@ The controller NEVER sees plaintext. Key derivation, encryption, and
 decryption happen exclusively on the node side (see
 ``app/backup/client.py``).
 """
+
 from __future__ import annotations
 
 import base64
@@ -32,27 +33,27 @@ MAX_CLOCK_SKEW_SEC = 300
 
 
 class PutBackupPayload(BaseModel):
-    action:    Literal["put"]         = "put"
-    pubkey:    str                    = Field(..., min_length=64, max_length=128, pattern=r"^[0-9a-f]+$")
-    sha256:    str                    = Field(..., min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
-    byte_size: int                    = Field(..., ge=1)
-    blob_b64:  str                    = Field(..., min_length=4)
-    timestamp: int                    = Field(..., ge=0)
+    action: Literal["put"] = "put"
+    pubkey: str = Field(..., min_length=64, max_length=128, pattern=r"^[0-9a-f]+$")
+    sha256: str = Field(..., min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    byte_size: int = Field(..., ge=1)
+    blob_b64: str = Field(..., min_length=4)
+    timestamp: int = Field(..., ge=0)
 
 
 class FetchBackupPayload(BaseModel):
-    action:    Literal["fetch", "meta", "delete"]
-    pubkey:    str                    = Field(..., min_length=64, max_length=128, pattern=r"^[0-9a-f]+$")
-    timestamp: int                    = Field(..., ge=0)
+    action: Literal["fetch", "meta", "delete"]
+    pubkey: str = Field(..., min_length=64, max_length=128, pattern=r"^[0-9a-f]+$")
+    timestamp: int = Field(..., ge=0)
 
 
 class SignedPutBackup(BaseModel):
-    payload:   PutBackupPayload
+    payload: PutBackupPayload
     signature: str = Field(..., min_length=128, max_length=128, pattern=r"^[0-9a-f]{128}$")
 
 
 class SignedFetchBackup(BaseModel):
-    payload:   FetchBackupPayload
+    payload: FetchBackupPayload
     signature: str = Field(..., min_length=128, max_length=128, pattern=r"^[0-9a-f]{128}$")
 
 
@@ -64,9 +65,9 @@ def _verify(body_payload, body_signature: str) -> None:
     if not _within_skew(body_payload.timestamp):
         raise HTTPException(400, "timestamp too far from server clock")
     if not verify_signature(
-        pubkey_hex    = body_payload.pubkey,
-        signature_hex = body_signature,
-        payload       = body_payload.model_dump(),
+        pubkey_hex=body_payload.pubkey,
+        signature_hex=body_signature,
+        payload=body_payload.model_dump(),
     ):
         raise HTTPException(401, "invalid signature")
 
@@ -85,6 +86,7 @@ async def put_backup(req: SignedPutBackup, request: Request) -> dict:
 
     # Cheap integrity check — mostly to stop truncated uploads silently winning.
     import hashlib as _h
+
     if _h.sha256(blob).hexdigest() != req.payload.sha256:
         raise HTTPException(400, "sha256 mismatch (transport corruption?)")
 
@@ -108,13 +110,13 @@ async def fetch_backup(req: SignedFetchBackup, request: Request) -> dict:
         raise HTTPException(404, "no backup found")
 
     return {
-        "ok":          True,
-        "pubkey_hex":  row["pubkey_hex"],
-        "sha256":      row["sha256"],
-        "byte_size":   row["byte_size"],
-        "created_at":  row["created_at"],
-        "updated_at":  row["updated_at"],
-        "blob_b64":    base64.b64encode(row["blob"]).decode("ascii"),
+        "ok": True,
+        "pubkey_hex": row["pubkey_hex"],
+        "sha256": row["sha256"],
+        "byte_size": row["byte_size"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+        "blob_b64": base64.b64encode(row["blob"]).decode("ascii"),
     }
 
 

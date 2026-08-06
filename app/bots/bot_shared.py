@@ -4,6 +4,7 @@ app/bots/bot_shared.py — Shared dependencies for the bot subsystem.
 Contains: router, auth dependency, in-memory update queues, Pydantic schemas,
 and constants reused across bot_crud, bot_messaging, and bot_marketplace.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,12 +26,14 @@ def _hash_token(token: str) -> str:
     """SHA-256 hash of a bot API token."""
     return hashlib.sha256(token.encode()).hexdigest()
 
+
 # Router
 
 router = APIRouter(tags=["bots"])
 
 
 # Dependency: authenticate bot by api_token in Authorization header
+
 
 def _get_bot_by_token(request: Request, db: Session = Depends(get_db)) -> Bot:
     """
@@ -98,9 +101,11 @@ def remove_bot_queue(bot_user_id: int) -> None:
 
 # Pydantic schemas
 
+
 class CreateBotRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=50)
     description: str = Field("", max_length=500)
+
 
 class UpdateBotRequest(BaseModel):
     name: str | None = Field(None, min_length=2, max_length=50)
@@ -108,23 +113,34 @@ class UpdateBotRequest(BaseModel):
     commands: str | None = Field(None, max_length=2000)  # JSON string: [{"command":"/help","description":"..."}]
     mini_app_url: str | None = Field(None, max_length=500)  # URL of the mini app (https:// or http://)
 
+
 class PublishBotRequest(BaseModel):
     is_public: bool = True
     category: str = Field("other", max_length=30)
+
 
 class SubmitReviewRequest(BaseModel):
     rating: int = Field(..., ge=1, le=5)
     text: str = Field("", max_length=500)
 
+
 # Predefined marketplace categories
 MARKETPLACE_CATEGORIES = [
-    "utilities", "games", "moderation", "music",
-    "productivity", "social", "fun", "other",
+    "utilities",
+    "games",
+    "moderation",
+    "music",
+    "productivity",
+    "social",
+    "fun",
+    "other",
 ]
+
 
 class BotSendRequest(BaseModel):
     room_id: int
     text: str = Field(..., min_length=1, max_length=4000)
+
 
 class BotReplyRequest(BaseModel):
     room_id: int

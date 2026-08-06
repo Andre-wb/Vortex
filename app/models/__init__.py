@@ -8,6 +8,7 @@ app/models/ — Доменные модели SQLAlchemy и Pydantic-схемы.
   media.py       — CallHistory, UploadQuota, PushSubscription
   contact.py     — Contact
 """
+
 from app.models.bot import Bot, BotReview
 from app.models.contact import Contact
 from app.models.media import CallHistory, PushSubscription, UploadQuota

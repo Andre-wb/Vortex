@@ -14,6 +14,7 @@ Wraps real HTTP/WebSocket traffic in protocols indistinguishable from:
 
 Domain fronting and Shadowsocks-like transports are production-ready.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 # obfs4-like: Random byte padding that looks like encrypted noise
+
 
 class VortexObfuscationTransport:
     """
@@ -73,7 +75,7 @@ class VortexObfuscationTransport:
         data_len = struct.unpack(">H", frame[:2])[0]
         nonce = frame[2:10]
         mac_received = frame[10:42]
-        data = frame[42:42 + data_len]
+        data = frame[42 : 42 + data_len]
 
         # Verify HMAC
         mac_expected = hmac.new(self.secret, nonce + data, hashlib.sha256).digest()
@@ -88,6 +90,7 @@ Obfs4Transport = VortexObfuscationTransport
 
 
 # Meek / Domain Fronting: hide real destination behind CDN
+
 
 class DomainFrontingTransport:
     """
@@ -160,6 +163,7 @@ class DomainFrontingTransport:
 
 # Shadowsocks-like: SOCKS5 proxy with AEAD encryption
 
+
 class ShadowsocksTransport:
     """
     Shadowsocks/VLESS-like transport: encrypted SOCKS5 proxy.
@@ -186,6 +190,7 @@ class ShadowsocksTransport:
         """Derive a 32-byte AES key via HKDF with the provided random salt."""
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
         return HKDF(
             algorithm=hashes.SHA256(),
             length=32,
@@ -204,17 +209,18 @@ class ShadowsocksTransport:
         # Build address header
         if self._is_ipv4(target_host):
             import socket
+
             addr_header = bytes([self.ATYPE_IPV4]) + socket.inet_aton(target_host)
         else:
             host_bytes = target_host.encode()
             addr_header = bytes([self.ATYPE_DOMAIN, len(host_bytes)]) + host_bytes
 
         port_bytes = struct.pack(">H", target_port)
-        plaintext  = addr_header + port_bytes + data
+        plaintext = addr_header + port_bytes + data
 
-        salt  = os.urandom(32)
+        salt = os.urandom(32)
         nonce = os.urandom(12)
-        ct    = AESGCM(self._derive_key(salt)).encrypt(nonce, plaintext, None)
+        ct = AESGCM(self._derive_key(salt)).encrypt(nonce, plaintext, None)
 
         return salt + nonce + ct
 
@@ -225,8 +231,8 @@ class ShadowsocksTransport:
         """
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-        salt      = encrypted[:32]
-        nonce     = encrypted[32:44]
+        salt = encrypted[:32]
+        nonce = encrypted[32:44]
         plaintext = AESGCM(self._derive_key(salt)).decrypt(nonce, encrypted[44:], None)
 
         atype = plaintext[0]
@@ -234,17 +240,18 @@ class ShadowsocksTransport:
 
         if atype == self.ATYPE_IPV4:
             import socket
-            host = socket.inet_ntoa(plaintext[offset:offset + 4])
+
+            host = socket.inet_ntoa(plaintext[offset : offset + 4])
             offset += 4
         elif atype == self.ATYPE_DOMAIN:
             domain_len = plaintext[offset]
             offset += 1
-            host = plaintext[offset:offset + domain_len].decode()
+            host = plaintext[offset : offset + domain_len].decode()
             offset += domain_len
         else:
             raise ValueError(f"Unsupported address type: {atype}")
 
-        port = struct.unpack(">H", plaintext[offset:offset + 2])[0]
+        port = struct.unpack(">H", plaintext[offset : offset + 2])[0]
         offset += 2
         data = plaintext[offset:]
 
@@ -270,6 +277,7 @@ class ShadowsocksTransport:
 
 # TLS-in-TLS: WebSocket inside raw TLS without WS Upgrade header
 
+
 class TLSInTLSTransport:
     """
     Wraps WebSocket-like bidirectional communication in plain HTTPS POST/GET.
@@ -282,19 +290,18 @@ class TLSInTLSTransport:
     Looks like: user browsing a website with AJAX requests.
     """
 
-    _MAX_SESSIONS = 10_000   # cap to prevent memory DoS
-    _SESSION_TTL  = 3600     # seconds — sessions older than this are evicted
+    _MAX_SESSIONS = 10_000  # cap to prevent memory DoS
+    _SESSION_TTL = 3600  # seconds — sessions older than this are evicted
 
     def __init__(self):
-        self.sessions:      dict[str, asyncio.Queue] = {}
-        self._created_at:   dict[str, float]         = {}
+        self.sessions: dict[str, asyncio.Queue] = {}
+        self._created_at: dict[str, float] = {}
 
     def create_session(self) -> str:
         """Create a new tunnel session, evicting stale ones if the cap is reached."""
         now = time.time()
         # Evict expired sessions first
-        expired = [sid for sid, ts in self._created_at.items()
-                   if now - ts > self._SESSION_TTL]
+        expired = [sid for sid, ts in self._created_at.items() if now - ts > self._SESSION_TTL]
         for sid in expired:
             self.sessions.pop(sid, None)
             self._created_at.pop(sid, None)
@@ -343,6 +350,7 @@ tunnel = TLSInTLSTransport()
 
 # Bridge Nodes: volunteer relays in uncensored countries
 
+
 class BridgeRegistry:
     """
     Registry of bridge nodes — volunteer relays in uncensored countries.
@@ -380,10 +388,7 @@ class BridgeRegistry:
 
     def list_bridges(self) -> list[dict]:
         """List all known bridges."""
-        return [
-            {"id": bid, **info}
-            for bid, info in self._bridges.items()
-        ]
+        return [{"id": bid, **info} for bid, info in self._bridges.items()]
 
     def remove_bridge(self, bridge_id: str) -> bool:
         """Remove a bridge."""
@@ -415,10 +420,7 @@ class BridgeRegistry:
         """Get the most reliable bridge (highest success rate)."""
         if not self._bridges:
             return None
-        alive = [
-            (bid, info) for bid, info in self._bridges.items()
-            if time.time() - info["last_seen"] < 3600
-        ]
+        alive = [(bid, info) for bid, info in self._bridges.items() if time.time() - info["last_seen"] < 3600]
         if not alive:
             return None
         alive.sort(key=lambda x: x[1]["success_count"], reverse=True)
@@ -455,6 +457,7 @@ bridge_registry = BridgeRegistry()
 
 # PT 2.0 Subprocess Launcher — real obfs4proxy / snowflake / meek support
 
+
 class PTSubprocessTransport:
     """
     Pluggable Transport 2.0 client: launches an external PT binary
@@ -485,9 +488,12 @@ class PTSubprocessTransport:
     """
 
     _SEARCH_PATHS = (
-        "obfs4proxy", "lyrebird",
-        "/usr/bin/obfs4proxy", "/usr/local/bin/obfs4proxy",
-        "/usr/bin/lyrebird",   "/usr/local/bin/lyrebird",
+        "obfs4proxy",
+        "lyrebird",
+        "/usr/bin/obfs4proxy",
+        "/usr/local/bin/obfs4proxy",
+        "/usr/bin/lyrebird",
+        "/usr/local/bin/lyrebird",
     )
 
     def __init__(self, binary: Optional[str] = None):
@@ -512,6 +518,7 @@ class PTSubprocessTransport:
     def find_binary(cls, name: Optional[str] = None) -> Optional[str]:
         """Find a PT binary on $PATH or known locations."""
         import shutil
+
         if name:
             found = shutil.which(name)
             if found:
@@ -530,13 +537,14 @@ class PTSubprocessTransport:
             return False
 
         import tempfile
+
         self._state_dir = tempfile.mkdtemp(prefix="vortex_pt_")
 
         env = {
             **os.environ,
             "TOR_PT_MANAGED_TRANSPORT_VER": "1",
-            "TOR_PT_CLIENT_TRANSPORTS":     transport,
-            "TOR_PT_STATE_LOCATION":        self._state_dir,
+            "TOR_PT_CLIENT_TRANSPORTS": transport,
+            "TOR_PT_STATE_LOCATION": self._state_dir,
         }
 
         try:
@@ -552,7 +560,8 @@ class PTSubprocessTransport:
 
         try:
             started = await asyncio.wait_for(
-                self._read_pt_startup(transport), timeout=timeout,
+                self._read_pt_startup(transport),
+                timeout=timeout,
             )
         except asyncio.TimeoutError:
             logger.warning("PT startup timed out after %.0fs", timeout)
@@ -562,7 +571,10 @@ class PTSubprocessTransport:
         if started:
             logger.info(
                 "PT %s started: socks5://%s:%d (binary=%s)",
-                transport, self._socks_host, self._socks_port, binary,
+                transport,
+                self._socks_host,
+                self._socks_port,
+                binary,
             )
         return started
 
@@ -603,11 +615,13 @@ class PTSubprocessTransport:
         self._socks_port = None
         if self._state_dir:
             import shutil
+
             shutil.rmtree(self._state_dir, ignore_errors=True)
             self._state_dir = None
 
 
 # Transport Manager: select best transport automatically
+
 
 class PluggableTransportManager:
     """
@@ -652,6 +666,7 @@ class PluggableTransportManager:
             available.insert(min(2, len(available)), "shadowsocks")
         try:
             from app.transport.steganography import can_use_steganography
+
             if can_use_steganography():
                 available.insert(min(3, len(available)), "steganography")
         except ImportError:
@@ -684,6 +699,7 @@ class PluggableTransportManager:
     def _check_stego() -> bool:
         try:
             from app.transport.steganography import can_use_steganography
+
             return can_use_steganography()
         except ImportError:
             return False

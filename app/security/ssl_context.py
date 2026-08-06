@@ -4,6 +4,7 @@ app/security/ssl_context.py — Shared SSL context for outgoing peer connections
 All server-to-server httpx clients MUST use this instead of verify=False.
 The context trusts system CAs + the project's own vortex-ca.crt (self-signed).
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -30,6 +31,7 @@ def make_peer_ssl_context() -> ssl.SSLContext:
     # Apply TLS record padding for DPI resistance
     with contextlib.suppress(Exception):
         from app.transport.advanced_stealth import TLSRecordPadder
+
         TLSRecordPadder.configure_ssl_context(ctx)
 
     return ctx

@@ -8,6 +8,7 @@ Covers:
     - Migration-hint merger: Solana peers and controller peers are combined,
       deduped by pubkey, and self is excluded.
 """
+
 from __future__ import annotations
 
 import base64
@@ -90,7 +91,7 @@ def test_parse_peer_account_roundtrip():
 def test_parse_peer_rejects_bad_discriminator():
     from app.peer.solana_registry import parse_peer_account
 
-    raw = b"\xFF" * 8 + b"\x00" * 100
+    raw = b"\xff" * 8 + b"\x00" * 100
     with pytest.raises(ValueError, match="discriminator"):
         parse_peer_account(raw)
 
@@ -106,9 +107,13 @@ def test_is_online_window():
     from app.peer.solana_registry import PeerAccount
 
     p = PeerAccount(
-        pda="p", owner=b"", node_pubkey=b"\x00" * 32,
-        endpoints=[], metadata="",
-        registered_at=0, last_heartbeat=int(time.time()) - 60,
+        pda="p",
+        owner=b"",
+        node_pubkey=b"\x00" * 32,
+        endpoints=[],
+        metadata="",
+        registered_at=0,
+        last_heartbeat=int(time.time()) - 60,
         bump=0,
     )
     assert p.is_online(window_sec=120)
@@ -119,9 +124,14 @@ def test_to_controller_peer_shape():
     from app.peer.solana_registry import PeerAccount
 
     p = PeerAccount(
-        pda="p", owner=b"\xaa" * 32, node_pubkey=b"\xbb" * 32,
-        endpoints=["wss://x"], metadata='{"name":"n"}',
-        registered_at=0, last_heartbeat=100, bump=255,
+        pda="p",
+        owner=b"\xaa" * 32,
+        node_pubkey=b"\xbb" * 32,
+        endpoints=["wss://x"],
+        metadata='{"name":"n"}',
+        registered_at=0,
+        last_heartbeat=100,
+        bump=255,
     )
     view = p.to_controller_peer()
     assert view["pubkey"] == "bb" * 32
@@ -134,9 +144,14 @@ def test_to_controller_peer_metadata_fallback():
     from app.peer.solana_registry import PeerAccount
 
     p = PeerAccount(
-        pda="p", owner=b"\xaa" * 32, node_pubkey=b"\xbb" * 32,
-        endpoints=["wss://x"], metadata="not-json!",
-        registered_at=0, last_heartbeat=100, bump=255,
+        pda="p",
+        owner=b"\xaa" * 32,
+        node_pubkey=b"\xbb" * 32,
+        endpoints=["wss://x"],
+        metadata="not-json!",
+        registered_at=0,
+        last_heartbeat=100,
+        bump=255,
     )
     view = p.to_controller_peer()
     assert view["metadata"] == {"raw": "not-json!"}
@@ -187,11 +202,11 @@ async def test_fetch_peers_skips_invalid_rows():
     owner = b"\x11" * 32
     good = _encode_peer_account(owner, b"\xcc" * 32, ["wss://c:9000"], "", 0, int(time.time()), 255)
 
-    bad_disc = b"\xFF" * 8 + b"\x00" * 70
+    bad_disc = b"\xff" * 8 + b"\x00" * 70
 
     fake_result = [
         {"pubkey": "PdaGood", "account": {"data": [base64.b64encode(good).decode(), "base64"]}},
-        {"pubkey": "PdaBad",  "account": {"data": [base64.b64encode(bad_disc).decode(), "base64"]}},
+        {"pubkey": "PdaBad", "account": {"data": [base64.b64encode(bad_disc).decode(), "base64"]}},
     ]
 
     async def fake_post(self, url, **kwargs):
@@ -213,10 +228,15 @@ async def test_solana_rpc_error_propagates():
     from app.peer.solana_registry import SolanaRegistryClient, SolanaRpcError
 
     async def fake_post(self, url, **kwargs):
-        return _mock_response("POST", url, json={
-            "jsonrpc": "2.0", "id": 1,
-            "error": {"code": -32602, "message": "Invalid params"},
-        })
+        return _mock_response(
+            "POST",
+            url,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {"code": -32602, "message": "Invalid params"},
+            },
+        )
 
     with patch.object(httpx.AsyncClient, "post", fake_post):
         client = SolanaRegistryClient(rpc_url="http://x", program_id="pid")
@@ -266,26 +286,46 @@ async def test_migration_hint_merges_solana_and_controller_peers():
         now = int(time.time())
         solana_peers = [
             PeerAccount(
-                pda="pda1", owner=b"\x00" * 32, node_pubkey=bytes.fromhex("aa" * 32),
-                endpoints=["wss://solana-node-a:9000"], metadata='{"name":"A"}',
-                registered_at=0, last_heartbeat=now, bump=0,
+                pda="pda1",
+                owner=b"\x00" * 32,
+                node_pubkey=bytes.fromhex("aa" * 32),
+                endpoints=["wss://solana-node-a:9000"],
+                metadata='{"name":"A"}',
+                registered_at=0,
+                last_heartbeat=now,
+                bump=0,
             ),
             PeerAccount(
-                pda="pda2", owner=b"\x00" * 32, node_pubkey=bytes.fromhex("cc" * 32),
-                endpoints=["wss://solana-win:9000"], metadata='{"name":"C-solana"}',
-                registered_at=0, last_heartbeat=now, bump=0,
+                pda="pda2",
+                owner=b"\x00" * 32,
+                node_pubkey=bytes.fromhex("cc" * 32),
+                endpoints=["wss://solana-win:9000"],
+                metadata='{"name":"C-solana"}',
+                registered_at=0,
+                last_heartbeat=now,
+                bump=0,
             ),
             # Stale — filtered out by online_window_sec=600
             PeerAccount(
-                pda="stale", owner=b"\x00" * 32, node_pubkey=bytes.fromhex("dd" * 32),
-                endpoints=["wss://old:9000"], metadata="",
-                registered_at=0, last_heartbeat=now - 10_000, bump=0,
+                pda="stale",
+                owner=b"\x00" * 32,
+                node_pubkey=bytes.fromhex("dd" * 32),
+                endpoints=["wss://old:9000"],
+                metadata="",
+                registered_at=0,
+                last_heartbeat=now - 10_000,
+                bump=0,
             ),
             # Should be excluded as self
             PeerAccount(
-                pda="self_ref", owner=b"\x00" * 32, node_pubkey=bytes.fromhex(self_pub),
-                endpoints=["wss://me:9000"], metadata="",
-                registered_at=0, last_heartbeat=now, bump=0,
+                pda="self_ref",
+                owner=b"\x00" * 32,
+                node_pubkey=bytes.fromhex(self_pub),
+                endpoints=["wss://me:9000"],
+                metadata="",
+                registered_at=0,
+                last_heartbeat=now,
+                bump=0,
             ),
         ]
 
@@ -310,6 +350,7 @@ async def test_migration_hint_merges_solana_and_controller_peers():
         class _FakeSolanaClient:
             def __init__(self, *a, **kw):
                 pass
+
             async def fetch_peers(self, online_window_sec=None, now=None):
                 if online_window_sec is not None:
                     return [p for p in solana_peers if p.is_online(online_window_sec)]
@@ -325,11 +366,13 @@ async def test_migration_hint_merges_solana_and_controller_peers():
         Config.SOLANA_PROGRAM_ID = "FakeProgram"
 
         try:
-            with patch("app.peer.solana_registry.SolanaRegistryClient", _FakeSolanaClient), \
-                 patch("app.peer.controller_client.client_from_config",
-                       return_value=_FakeControllerClient()):
+            with (
+                patch("app.peer.solana_registry.SolanaRegistryClient", _FakeSolanaClient),
+                patch("app.peer.controller_client.client_from_config", return_value=_FakeControllerClient()),
+            ):
                 async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://node-self",
+                    transport=ASGITransport(app=app),
+                    base_url="http://node-self",
                 ) as http:
                     r = await http.get("/api/session/migration-hint")
 
@@ -387,10 +430,10 @@ async def test_migration_hint_works_without_solana():
         Config.SOLANA_RPC_URL = ""  # disable Solana
 
         try:
-            with patch("app.peer.controller_client.client_from_config",
-                       return_value=_FakeControllerClient()):
+            with patch("app.peer.controller_client.client_from_config", return_value=_FakeControllerClient()):
                 async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://node-self",
+                    transport=ASGITransport(app=app),
+                    base_url="http://node-self",
                 ) as http:
                     r = await http.get("/api/session/migration-hint")
             data = r.json()

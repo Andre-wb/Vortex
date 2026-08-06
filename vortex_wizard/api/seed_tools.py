@@ -383,9 +383,9 @@ async def preflight(body: PreflightBody, request: Request) -> dict:
 
     # cloudflared binary
     if body.require_tunnel:
-        from .admin_api import _find_cloudflared  # reuse existing finder
+        from .admin_api import _find_cloudflared_bin
 
-        path = _find_cloudflared()
+        path = _find_cloudflared_bin()
         checks.append(
             {
                 "name": "cloudflared",

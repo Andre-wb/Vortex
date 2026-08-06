@@ -12,6 +12,7 @@ v2: Динамическая генерация knock-путей — DPI не м
     Пути ротируются каждые ROTATION_INTERVAL секунд.
     TTL рандомизирован (30 мин — 2 ч).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -29,11 +30,24 @@ logger = logging.getLogger(__name__)
 
 _ROTATION_INTERVAL = 600  # Ротация путей каждые 10 минут
 _COVER_PATH_POOL = [
-    "/cover/pricing", "/cover/about", "/cover/docs", "/cover/contact",
-    "/cover/blog", "/cover/careers", "/cover/status", "/cover/legal",
-    "/cover/faq", "/cover/support", "/cover/partners", "/cover/api",
-    "/cover/security", "/cover/compliance", "/cover/changelog",
-    "/cover/integrations", "/cover/enterprise", "/cover/demo",
+    "/cover/pricing",
+    "/cover/about",
+    "/cover/docs",
+    "/cover/contact",
+    "/cover/blog",
+    "/cover/careers",
+    "/cover/status",
+    "/cover/legal",
+    "/cover/faq",
+    "/cover/support",
+    "/cover/partners",
+    "/cover/api",
+    "/cover/security",
+    "/cover/compliance",
+    "/cover/changelog",
+    "/cover/integrations",
+    "/cover/enterprise",
+    "/cover/demo",
 ]
 _KNOCK_SEQUENCE_LEN = 2  # Сколько страниц нужно посетить
 
@@ -44,6 +58,7 @@ def _ensure_secret() -> bytes:
     global _server_secret
     if not _server_secret:
         from app.config import Config
+
         _server_secret = hashlib.sha256(Config.JWT_SECRET.encode()).digest()
     return _server_secret
 
@@ -87,7 +102,6 @@ def _get_previous_knock_sequence() -> list[str]:
     return [_COVER_PATH_POOL[i] for i in indices]
 
 
-
 _knock_tokens: dict[str, float] = {}  # token -> expires_at (monotonic)
 _knock_progress: dict[str, tuple[list[str], float]] = {}
 _PROGRESS_TTL = 120
@@ -118,7 +132,9 @@ def record_page_visit(session_id: str, path: str) -> Optional[str]:
         prev_seq = _get_previous_knock_sequence()
 
         matched = False
-        if (expected_idx < len(current_seq) and path == current_seq[expected_idx]) or (expected_idx < len(prev_seq) and path == prev_seq[expected_idx]):
+        if (expected_idx < len(current_seq) and path == current_seq[expected_idx]) or (
+            expected_idx < len(prev_seq) and path == prev_seq[expected_idx]
+        ):
             matched = True
 
         if matched:
@@ -153,6 +169,7 @@ def verify_knock(token: str) -> bool:
 def is_knock_required() -> bool:
     """Проверяет, включён ли knock sequence (только в global mode)."""
     from app.config import Config
+
     return Config.NETWORK_MODE == "global" and Config.OBFUSCATION_ENABLED
 
 

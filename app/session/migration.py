@@ -16,6 +16,7 @@ This module is intentionally *stateless in HTTP* — the only persistent state
 is the per-user ``SessionCursor`` (last BMP timestamp + subscribed rooms) so a
 reconnecting client can resume without losing messages.
 """
+
 from __future__ import annotations
 
 import logging
@@ -39,6 +40,7 @@ router = APIRouter(prefix="/api/session", tags=["session"])
 
 
 # Per-user cursor (in-memory; a real deployment would back this with Redis)
+
 
 class SessionCursor(BaseModel):
     user_pubkey: str
@@ -68,6 +70,7 @@ _cursor_store = _CursorStore()
 
 
 # Load / health signal
+
 
 class _NodeLoad:
     """Very rough load estimate — enough for "go elsewhere" hints.
@@ -106,6 +109,7 @@ def _active_ws_count() -> int:
     """Count active WS connections via the existing ConnectionManager, if any."""
     try:
         from app.peer.connection_manager import manager as _mgr
+
         # ConnectionManager tracks users in `.rooms` (room_id → list of users)
         rooms = getattr(_mgr, "rooms", {}) or {}
         return sum(len(v) for v in rooms.values())
@@ -117,6 +121,7 @@ _load = _NodeLoad()
 
 
 # Peer pubkey resolver (source-node trust for handoff)
+
 
 def _default_source_resolver() -> SourceResolver:
     """Build a resolver from whatever context this node has.
@@ -145,6 +150,7 @@ class SourceResolver:
     async def warm(self) -> None:
         """Refresh the cache from the controller (best-effort)."""
         from app.peer.controller_client import client_from_config
+
         client = client_from_config()
         if not client:
             return
@@ -166,6 +172,7 @@ _resolver = _default_source_resolver()
 
 
 # Request / response models
+
 
 class MigrationHintAlt(BaseModel):
     pubkey: str
@@ -211,6 +218,7 @@ class CursorSetRequest(BaseModel):
 
 
 # Endpoints
+
 
 def _require_signing_key(request: Optional[Request] = None) -> NodeSigningKey:
     """Load the node's Ed25519 signing key (shared with controller_client).
@@ -264,7 +272,8 @@ async def _collect_alternatives(self_pubkey: str) -> list[MigrationHintAlt]:
     solana_task = _fetch_solana_alternatives(self_pub)
     controller_task = _fetch_controller_alternatives(self_pub)
     solana_peers, controller_peers = await _gather_best_effort(
-        solana_task, controller_task,
+        solana_task,
+        controller_task,
     )
 
     merged: dict[str, MigrationHintAlt] = {}
@@ -292,6 +301,7 @@ async def _gather_best_effort(*coros) -> list[list]:
 
 async def _fetch_controller_alternatives(self_pub: str) -> list[MigrationHintAlt]:
     from app.peer.controller_client import client_from_config
+
     client = client_from_config()
     if not client:
         return []
@@ -312,6 +322,7 @@ async def _fetch_solana_alternatives(self_pub: str) -> list[MigrationHintAlt]:
     if not (Config.SOLANA_RPC_URL and Config.SOLANA_PROGRAM_ID):
         return []
     from app.peer.solana_registry import SolanaRegistryClient
+
     client = SolanaRegistryClient(
         rpc_url=Config.SOLANA_RPC_URL,
         program_id=Config.SOLANA_PROGRAM_ID,
@@ -322,12 +333,14 @@ async def _fetch_solana_alternatives(self_pub: str) -> list[MigrationHintAlt]:
         if p.node_pubkey_hex.lower() == self_pub:
             continue
         view = p.to_controller_peer()
-        out.append(MigrationHintAlt(
-            pubkey=view["pubkey"],
-            endpoints=view["endpoints"],
-            metadata=view["metadata"],
-            last_seen=view["last_seen"],
-        ))
+        out.append(
+            MigrationHintAlt(
+                pubkey=view["pubkey"],
+                endpoints=view["endpoints"],
+                metadata=view["metadata"],
+                last_seen=view["last_seen"],
+            )
+        )
     return out
 
 
@@ -379,9 +392,7 @@ async def handoff_accept(body: HandoffAcceptRequest, request: Request) -> Handof
     client picks a different target instead of piling onto a hot node.
     """
     if _load.is_overloaded():
-        alternatives = await _collect_alternatives(
-            _require_signing_key(request).pubkey_hex()
-        )
+        alternatives = await _collect_alternatives(_require_signing_key(request).pubkey_hex())
         raise HTTPException(
             status_code=503,
             headers={"Retry-After": "0", "X-Vortex-Reason": "overloaded"},

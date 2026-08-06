@@ -4,6 +4,7 @@ asyncio держит на задачу только слабую ссылку, �
 create_task() может быть собран сборщиком мусора до завершения. spawn()
 удерживает задачу в множестве до её завершения.
 """
+
 from __future__ import annotations
 
 import asyncio

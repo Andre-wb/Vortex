@@ -4,6 +4,7 @@ The manifest is a dict of ``{relative_path: sha256_hex}`` plus a version and
 build timestamp. File walking is strictly deterministic (sorted paths) so
 two independent builds of the same source produce byte-identical manifests.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -15,15 +16,30 @@ from pathlib import Path
 # File suffixes we consider "code" — everything else (uploads, cached db,
 # runtime keys, virtualenv bytecode) is skipped.
 _TRACKED_SUFFIXES = {
-    ".py", ".html", ".css", ".js", ".json",
-    ".md", ".toml", ".txt", ".svg",
+    ".py",
+    ".html",
+    ".css",
+    ".js",
+    ".json",
+    ".md",
+    ".toml",
+    ".txt",
+    ".svg",
 }
 
 # Path components that must always be skipped, even if they contain tracked
 # file types (e.g. a test-generated SQLite file dropped under a source dir).
 _EXCLUDE_ANY = {
-    "__pycache__", ".venv", "venv", ".git", "node_modules",
-    "target", "dist", "build", ".pytest_cache", ".mypy_cache",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".pytest_cache",
+    ".mypy_cache",
     "keys",  # runtime keypairs are per-deployment, not part of the release
     "logs",
 }
@@ -62,6 +78,7 @@ def _walk_files(root: Path) -> Iterator[Path]:
 
 try:
     import vortex_chat as _vc_rust
+
     _HAS_RUST_SHA = hasattr(_vc_rust, "sha256_hex")
 except ImportError:
     _HAS_RUST_SHA = False
@@ -86,10 +103,12 @@ def build_manifest(root: Path, version: str, built_at: int) -> dict:
     """Produce a deterministic manifest of source files under ``root``."""
     files: list[dict] = []
     for rel in _walk_files(root):
-        files.append({
-            "path": rel.as_posix(),
-            "sha256": sha256_of_file(root / rel),
-        })
+        files.append(
+            {
+                "path": rel.as_posix(),
+                "sha256": sha256_of_file(root / rel),
+            }
+        )
     return {
         "version": version,
         "built_at": int(built_at),

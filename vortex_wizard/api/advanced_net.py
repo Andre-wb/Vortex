@@ -14,6 +14,7 @@ Five loosely-related features bundled together:
   5. Guided tour — step data so the admin SPA can run a tooltip
      walkthrough on first login.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -42,8 +43,9 @@ def _env_file(request: Request) -> Path:
 
 # 1. Onion-only toggle
 
+
 class OnionBody(BaseModel):
-    enabled:    bool
+    enabled: bool
     socks_addr: str = Field("127.0.0.1:9050", max_length=100)
 
 
@@ -51,7 +53,7 @@ class OnionBody(BaseModel):
 async def onion_get(request: Request) -> dict:
     env = _b._read_env(_env_file(request))
     return {
-        "enabled":    env.get("ONION_ONLY", "").lower() in ("1", "true", "yes"),
+        "enabled": env.get("ONION_ONLY", "").lower() in ("1", "true", "yes"),
         "socks_addr": env.get("ONION_SOCKS", "127.0.0.1:9050"),
         "tor_running": await _tor_reachable(env.get("ONION_SOCKS", "127.0.0.1:9050")),
     }
@@ -61,14 +63,18 @@ async def onion_get(request: Request) -> dict:
 async def onion_set(body: OnionBody, request: Request) -> dict:
     env_file = _env_file(request)
     from .security_api import _write_env_keys
-    _write_env_keys(env_file, {
-        "ONION_ONLY":  "true" if body.enabled else "false",
-        "ONION_SOCKS": body.socks_addr,
-    })
+
+    _write_env_keys(
+        env_file,
+        {
+            "ONION_ONLY": "true" if body.enabled else "false",
+            "ONION_SOCKS": body.socks_addr,
+        },
+    )
     return {
-        "ok":        True,
-        "enabled":   body.enabled,
-        "note":      "Restart the node to apply. Ensure Tor is running on " + body.socks_addr,
+        "ok": True,
+        "enabled": body.enabled,
+        "note": "Restart the node to apply. Ensure Tor is running on " + body.socks_addr,
     }
 
 
@@ -88,6 +94,7 @@ async def _tor_reachable(addr: str) -> bool:
 
 # 2. Let's Encrypt (certbot wrapper)
 
+
 def _find_certbot() -> Optional[str]:
     # Same approach as _find_cloudflared — check PATH then common brew dirs.
     p = shutil.which("certbot")
@@ -105,6 +112,7 @@ def _cert_expiry(cert_path: Path) -> Optional[int]:
         return None
     try:
         from cryptography import x509
+
         cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
         return int(cert.not_valid_after_utc.timestamp())
     except Exception:
@@ -119,17 +127,17 @@ async def le_status(request: Request) -> dict:
     expiry = _cert_expiry(cert)
     return {
         "certbot_installed": bool(_find_certbot()),
-        "certbot_path":      _find_certbot(),
-        "contact_email":     env.get("LETSENCRYPT_EMAIL", ""),
-        "domain":            env.get("LETSENCRYPT_DOMAIN", ""),
-        "cert_path":         str(cert),
-        "cert_expires_at":   expiry,
-        "days_left":         (expiry - int(time.time())) // 86400 if expiry else None,
+        "certbot_path": _find_certbot(),
+        "contact_email": env.get("LETSENCRYPT_EMAIL", ""),
+        "domain": env.get("LETSENCRYPT_DOMAIN", ""),
+        "cert_path": str(cert),
+        "cert_expires_at": expiry,
+        "days_left": (expiry - int(time.time())) // 86400 if expiry else None,
     }
 
 
 class LESetupBody(BaseModel):
-    email:  str = Field(..., min_length=3, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    email: str = Field(..., min_length=3, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     domain: str = Field(..., min_length=3, max_length=253)
 
 
@@ -137,10 +145,14 @@ class LESetupBody(BaseModel):
 async def le_setup(body: LESetupBody, request: Request) -> dict:
     env_file = _env_file(request)
     from .security_api import _write_env_keys
-    _write_env_keys(env_file, {
-        "LETSENCRYPT_EMAIL":  body.email,
-        "LETSENCRYPT_DOMAIN": body.domain,
-    })
+
+    _write_env_keys(
+        env_file,
+        {
+            "LETSENCRYPT_EMAIL": body.email,
+            "LETSENCRYPT_DOMAIN": body.domain,
+        },
+    )
     return {"ok": True}
 
 
@@ -172,14 +184,23 @@ async def le_issue(request: Request) -> dict:
     cert_dir.mkdir(exist_ok=True)
 
     cmd = [
-        cb, "certonly", "--standalone",
-        "--non-interactive", "--agree-tos",
-        "-m", email,
-        "-d", domain,
-        "--cert-name", "vortex",
-        "--config-dir", str(cert_dir / "letsencrypt"),
-        "--work-dir",   str(cert_dir / "le-work"),
-        "--logs-dir",   str(cert_dir / "le-logs"),
+        cb,
+        "certonly",
+        "--standalone",
+        "--non-interactive",
+        "--agree-tos",
+        "-m",
+        email,
+        "-d",
+        domain,
+        "--cert-name",
+        "vortex",
+        "--config-dir",
+        str(cert_dir / "letsencrypt"),
+        "--work-dir",
+        str(cert_dir / "le-work"),
+        "--logs-dir",
+        str(cert_dir / "le-logs"),
     ]
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -199,11 +220,11 @@ async def le_issue(request: Request) -> dict:
     live = cert_dir / "letsencrypt" / "live" / "vortex"
     if (live / "fullchain.pem").is_file():
         shutil.copy2(live / "fullchain.pem", cert_dir / "vortex.crt")
-        shutil.copy2(live / "privkey.pem",   cert_dir / "vortex.key")
+        shutil.copy2(live / "privkey.pem", cert_dir / "vortex.key")
 
     return {
-        "ok":     True,
-        "cert":   str(cert_dir / "vortex.crt"),
+        "ok": True,
+        "cert": str(cert_dir / "vortex.crt"),
         "stdout": (stdout or b"").decode()[:2000],
     }
 
@@ -217,6 +238,7 @@ _DEFAULT_MANIFEST_URL = "https://vortexx.sol/release/manifest.json"
 async def update_check(request: Request) -> dict:
     """Compare current version against a (configurable) release manifest."""
     from vortex_wizard import VERSION
+
     env = _b._read_env(_env_file(request))
     pinned = env.get("VERSION_PIN", "").lower() in ("1", "true", "yes")
     if pinned:
@@ -230,14 +252,14 @@ async def update_check(request: Request) -> dict:
             return {"current": VERSION, "error": f"HTTP {r.status_code}", "checked": True}
         m = r.json()
         latest = str(m.get("latest", "")).strip()
-        notes  = str(m.get("notes_url", "")).strip()
-        newer  = _semver_gt(latest, VERSION)
+        notes = str(m.get("notes_url", "")).strip()
+        newer = _semver_gt(latest, VERSION)
         return {
-            "current":         VERSION,
-            "latest":          latest,
+            "current": VERSION,
+            "latest": latest,
             "newer_available": newer,
-            "notes_url":       notes,
-            "checked":         True,
+            "notes_url": notes,
+            "checked": True,
         }
     except Exception as e:
         return {"current": VERSION, "error": f"{type(e).__name__}: {e}", "checked": True}
@@ -247,6 +269,7 @@ def _semver_gt(a: str, b: str) -> bool:
     def parse(s: str) -> tuple:
         parts = re.split(r"[^\d]+", s.strip())
         return tuple(int(p) if p.isdigit() else 0 for p in parts[:3]) + (0,) * (3 - len(parts[:3]))
+
     return parse(a) > parse(b)
 
 
@@ -254,49 +277,49 @@ def _semver_gt(a: str, b: str) -> bool:
 
 _PRESETS = [
     {
-        "id":    "personal",
+        "id": "personal",
         "title": "Личная нода",
-        "desc":  "Только для меня и пары друзей. Без туннеля, без регистрации.",
+        "desc": "Только для меня и пары друзей. Без туннеля, без регистрации.",
         "env": {
-            "NETWORK_MODE":         "local",
-            "MAX_ROOMS_PER_USER":   "20",
+            "NETWORK_MODE": "local",
+            "MAX_ROOMS_PER_USER": "20",
             "BMP_DELIVERY_ENABLED": "true",
         },
     },
     {
-        "id":    "family",
+        "id": "family",
         "title": "Семейная",
-        "desc":  "Для 2-10 пользователей. Через Cloudflare tunnel или своим доменом.",
+        "desc": "Для 2-10 пользователей. Через Cloudflare tunnel или своим доменом.",
         "env": {
-            "NETWORK_MODE":         "global",
-            "MAX_ROOMS_PER_USER":   "50",
+            "NETWORK_MODE": "global",
+            "MAX_ROOMS_PER_USER": "50",
             "BMP_DELIVERY_ENABLED": "true",
-            "FEDERATION_ENABLED":   "true",
+            "FEDERATION_ENABLED": "true",
         },
     },
     {
-        "id":    "community",
+        "id": "community",
         "title": "Community 1k+",
-        "desc":  "Публичная нода. PostgreSQL, антиспам, rate-limiting.",
+        "desc": "Публичная нода. PostgreSQL, антиспам, rate-limiting.",
         "env": {
-            "NETWORK_MODE":         "global",
-            "MAX_ROOMS_PER_USER":   "200",
+            "NETWORK_MODE": "global",
+            "MAX_ROOMS_PER_USER": "200",
             "BMP_DELIVERY_ENABLED": "true",
-            "FEDERATION_ENABLED":   "true",
-            "RATE_LIMIT_PER_MIN":   "60",
+            "FEDERATION_ENABLED": "true",
+            "RATE_LIMIT_PER_MIN": "60",
         },
     },
     {
-        "id":    "pro",
+        "id": "pro",
         "title": "Pro 10k+",
-        "desc":  "Оператор-уровень. Stake, premium payouts, мониторинг.",
+        "desc": "Оператор-уровень. Stake, premium payouts, мониторинг.",
         "env": {
-            "NETWORK_MODE":          "global",
-            "MAX_ROOMS_PER_USER":    "1000",
-            "BMP_DELIVERY_ENABLED":  "true",
-            "FEDERATION_ENABLED":    "true",
-            "RATE_LIMIT_PER_MIN":    "200",
-            "OPERATOR_MODE":         "pro",
+            "NETWORK_MODE": "global",
+            "MAX_ROOMS_PER_USER": "1000",
+            "BMP_DELIVERY_ENABLED": "true",
+            "FEDERATION_ENABLED": "true",
+            "RATE_LIMIT_PER_MIN": "200",
+            "OPERATOR_MODE": "pro",
         },
     },
 ]
@@ -318,6 +341,7 @@ async def presets_apply(body: PresetApplyBody, request: Request) -> dict:
         raise HTTPException(404, "unknown preset id")
     env_file = _env_file(request)
     from .security_api import _write_env_keys
+
     _write_env_keys(env_file, preset["env"])
     return {"ok": True, "applied": preset["id"], "keys_written": list(preset["env"].keys())}
 
@@ -325,24 +349,32 @@ async def presets_apply(body: PresetApplyBody, request: Request) -> dict:
 # 5. Guided tour — step data
 
 _TOUR_STEPS = [
-    {"target": ".nav-item[data-tab='integrity']",
-     "title": "Code integrity",
-     "body":  "Проверяется автоматически — смотри что ни один файл не подменён."},
-    {"target": ".nav-item[data-tab='identity']",
-     "title": "Идентичность",
-     "body":  "Твой pubkey — делись им, чтобы другие ноды могли тебя пригласить."},
-    {"target": ".nav-item[data-tab='controller']",
-     "title": "Controller",
-     "body":  "Регистратор нод — не хранит сообщения, только адреса."},
-    {"target": ".nav-item[data-tab='peers']",
-     "title": "Peers",
-     "body":  "Ноды с которыми есть активное соединение."},
-    {"target": ".nav-item[data-tab='observability']",
-     "title": "Observability",
-     "body":  "Логи, audit, /metrics, планировщик. Всё локально — никакой телеметрии."},
-    {"target": "#btn-node-start",
-     "title": "Запусти ноду",
-     "body":  "Жми чтобы стартовать. Можно остановить и сбросить в любой момент."},
+    {
+        "target": ".nav-item[data-tab='integrity']",
+        "title": "Code integrity",
+        "body": "Проверяется автоматически — смотри что ни один файл не подменён.",
+    },
+    {
+        "target": ".nav-item[data-tab='identity']",
+        "title": "Идентичность",
+        "body": "Твой pubkey — делись им, чтобы другие ноды могли тебя пригласить.",
+    },
+    {
+        "target": ".nav-item[data-tab='controller']",
+        "title": "Controller",
+        "body": "Регистратор нод — не хранит сообщения, только адреса.",
+    },
+    {"target": ".nav-item[data-tab='peers']", "title": "Peers", "body": "Ноды с которыми есть активное соединение."},
+    {
+        "target": ".nav-item[data-tab='observability']",
+        "title": "Observability",
+        "body": "Логи, audit, /metrics, планировщик. Всё локально — никакой телеметрии.",
+    },
+    {
+        "target": "#btn-node-start",
+        "title": "Запусти ноду",
+        "body": "Жми чтобы стартовать. Можно остановить и сбросить в любой момент.",
+    },
 ]
 
 
@@ -356,5 +388,6 @@ async def tour_steps(request: Request) -> dict:
 @router.post("/tour/complete")
 async def tour_complete(request: Request) -> dict:
     from .security_api import _write_env_keys
+
     _write_env_keys(_env_file(request), {"TOUR_COMPLETED": "true"})
     return {"ok": True}

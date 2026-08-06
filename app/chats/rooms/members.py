@@ -1,6 +1,7 @@
 """
 rooms_members — Управление участниками комнаты: список, кик, роли, мут, бан.
 """
+
 from __future__ import annotations
 
 import json as _json
@@ -38,15 +39,15 @@ def _parse_perms(raw: str | None) -> dict | None:
 
 # Granular permission keys that owner/admin can toggle per member
 PERMISSION_KEYS = [
-    "can_send",           # Send messages
-    "can_send_media",     # Send photos/videos/files
+    "can_send",  # Send messages
+    "can_send_media",  # Send photos/videos/files
     "can_send_stickers",  # Send stickers & GIFs
-    "can_send_links",     # Send links
-    "can_pin",            # Pin messages
+    "can_send_links",  # Send links
+    "can_pin",  # Pin messages
     "can_delete_others",  # Delete other's messages
-    "can_invite",         # Add members
-    "can_change_info",    # Edit room name/description/avatar
-    "can_manage_calls",   # Start/end group calls
+    "can_invite",  # Add members
+    "can_change_info",  # Edit room name/description/avatar
+    "can_manage_calls",  # Start/end group calls
 ]
 
 
@@ -61,47 +62,46 @@ class SetPermissionsRequest(BaseModel):
 
 @router.get("/{room_id}/members")
 async def members(
-        room_id: int,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     actor = _require_member(room_id, u.id, db)
     all_m = db.query(RoomMember).filter(RoomMember.room_id == room_id).all()
 
     # Участники с pending key requests
-    pending_ids = {
-        p.user_id for p in db.query(PendingKeyRequest).filter(
-            PendingKeyRequest.room_id == room_id
-        ).all()
-    }
+    pending_ids = {p.user_id for p in db.query(PendingKeyRequest).filter(PendingKeyRequest.room_id == room_id).all()}
 
     return {
         "my_role": actor.role.value,
-        "members": [{
-            "user_id":      m.user_id,
-            "username":     m.user.username      if m.user else "\u2014",
-            "display_name": m.user.display_name  if m.user else "\u2014",
-            "avatar_emoji": m.user.avatar_emoji  if m.user else "\U0001f464",
-            "avatar_url":   m.user.avatar_url   if m.user else None,
-            "role":         m.role.value,
-            "is_online":    manager.is_online(room_id, m.user_id),
-            "is_muted":     m.is_muted,
-            "is_banned":    m.is_banned,
-            "is_bot":       bool(m.user.is_bot) if m.user else False,
-            "x25519_pubkey":m.user.x25519_public_key if m.user else None,
-            "has_key":      m.user_id not in pending_ids,
-            "tag":          getattr(m, 'tag', None),
-            "tag_color":    getattr(m, 'tag_color', None),
-            "custom_permissions": _parse_perms(getattr(m, 'custom_permissions', None)),
-        } for m in all_m],
+        "members": [
+            {
+                "user_id": m.user_id,
+                "username": m.user.username if m.user else "\u2014",
+                "display_name": m.user.display_name if m.user else "\u2014",
+                "avatar_emoji": m.user.avatar_emoji if m.user else "\U0001f464",
+                "avatar_url": m.user.avatar_url if m.user else None,
+                "role": m.role.value,
+                "is_online": manager.is_online(room_id, m.user_id),
+                "is_muted": m.is_muted,
+                "is_banned": m.is_banned,
+                "is_bot": bool(m.user.is_bot) if m.user else False,
+                "x25519_pubkey": m.user.x25519_public_key if m.user else None,
+                "has_key": m.user_id not in pending_ids,
+                "tag": getattr(m, "tag", None),
+                "tag_color": getattr(m, "tag_color", None),
+                "custom_permissions": _parse_perms(getattr(m, "custom_permissions", None)),
+            }
+            for m in all_m
+        ],
     }
 
 
 @router.get("/{room_id}/member-keys")
 async def member_keys(
-        room_id: int,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Ключи участников для верификации личности + PQ-обёртки room-key (ADR-008 G1).
 
@@ -139,32 +139,34 @@ async def member_keys(
             .first()
         )
         ident_x25519 = bundle.identity_key.hex() if bundle and bundle.identity_key else None
-        out.append({
-            "user_id":              user.id,
-            # Корень: account Ed25519 (пиннится/верифицируется OOB).
-            "identity_key_ed":      bundle.identity_key_ed.hex() if bundle and bundle.identity_key_ed else None,
-            # X25519-обёрточный = account identity_key (то, что подписывает identity_key_sig).
-            # Fallback на users.x25519, если v2-бандла нет → неверифицируемо (клиент → unverified).
-            "x25519_public_key":    ident_x25519 or user.x25519_public_key,
-            "identity_key_sig":     bundle.identity_key_sig.hex() if bundle and bundle.identity_key_sig else None,
-            "kyber_public_key":     user.kyber_public_key,
-            "kyber_public_key_sig": user.kyber_public_key_sig,
-        })
+        out.append(
+            {
+                "user_id": user.id,
+                # Корень: account Ed25519 (пиннится/верифицируется OOB).
+                "identity_key_ed": bundle.identity_key_ed.hex() if bundle and bundle.identity_key_ed else None,
+                # X25519-обёрточный = account identity_key (то, что подписывает identity_key_sig).
+                # Fallback на users.x25519, если v2-бандла нет → неверифицируемо (клиент → unverified).
+                "x25519_public_key": ident_x25519 or user.x25519_public_key,
+                "identity_key_sig": bundle.identity_key_sig.hex() if bundle and bundle.identity_key_sig else None,
+                "kyber_public_key": user.kyber_public_key,
+                "kyber_public_key_sig": user.kyber_public_key_sig,
+            }
+        )
     return {"room_id": room_id, "members": out}
 
 
 @router.post("/{room_id}/kick/{target_id}")
 async def kick(
-        room_id: int, target_id: int,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    target_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     actor = _require_member(room_id, u.id, db)
     if actor.role not in (RoomRole.ADMIN, RoomRole.OWNER):
         raise HTTPException(403, "Insufficient permissions")
 
-    t = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
+    t = db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t or t.role == RoomRole.OWNER:
         raise HTTPException(403)
 
@@ -174,14 +176,14 @@ async def kick(
     db.query(EncryptedRoomKey).filter(
         EncryptedRoomKey.room_id == room_id,
         EncryptedRoomKey.user_id == target_id,
-        ).delete()
+    ).delete()
 
     db.commit()
     await manager.send_to_user(room_id, target_id, {"type": "kicked"})
 
     # Ротация ключа — кикнутый участник не сможет расшифровать новые сообщения
     db.query(EncryptedRoomKey).filter(EncryptedRoomKey.room_id == room_id).delete()
-    _invalidate_room_escrows(room_id, db)   # escrow'ы на старый ключ устарели
+    _invalidate_room_escrows(room_id, db)  # escrow'ы на старый ключ устарели
     db.commit()
     await manager.broadcast_to_room(room_id, {"type": "key_rotated"})
     logger.info(f"Room key rotated after kick in room {room_id}")
@@ -191,12 +193,14 @@ async def kick(
 
 # Управление ролями и модерация участников
 
+
 @router.put("/{room_id}/members/{target_id}/role")
 async def change_member_role(
-        room_id: int, target_id: int,
-        body: ChangeRoleRequest,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    target_id: int,
+    body: ChangeRoleRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Изменить роль участника. Только OWNER может назначать/снимать админов."""
     actor = _require_member(room_id, u.id, db)
@@ -206,8 +210,7 @@ async def change_member_role(
     if target_id == u.id:
         raise HTTPException(400, "Cannot change your own role")
 
-    t = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
+    t = db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
         raise HTTPException(404, "Member not found")
     if t.role == RoomRole.OWNER:
@@ -217,11 +220,14 @@ async def change_member_role(
     t.role = new_role
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type": "member_updated",
-        "user_id": target_id,
-        "role": new_role.value,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "member_updated",
+            "user_id": target_id,
+            "role": new_role.value,
+        },
+    )
     logger.info(f"Role changed: user {target_id} -> {new_role.value} in room {room_id} by {u.username}")
 
     return {"ok": True, "role": new_role.value}
@@ -229,9 +235,10 @@ async def change_member_role(
 
 @router.put("/{room_id}/members/{target_id}/mute")
 async def toggle_mute_member(
-        room_id: int, target_id: int,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    target_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Заглушить / разглушить участника. ADMIN и OWNER могут мутить."""
     actor = _require_member(room_id, u.id, db)
@@ -241,8 +248,7 @@ async def toggle_mute_member(
     if target_id == u.id:
         raise HTTPException(400, "Cannot mute yourself")
 
-    t = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
+    t = db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
         raise HTTPException(404, "Member not found")
     if t.role == RoomRole.OWNER:
@@ -253,11 +259,14 @@ async def toggle_mute_member(
     t.is_muted = not t.is_muted
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type": "member_updated",
-        "user_id": target_id,
-        "is_muted": t.is_muted,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "member_updated",
+            "user_id": target_id,
+            "is_muted": t.is_muted,
+        },
+    )
     logger.info(f"Mute toggled: user {target_id} is_muted={t.is_muted} in room {room_id} by {u.username}")
 
     return {"ok": True, "is_muted": t.is_muted}
@@ -265,9 +274,10 @@ async def toggle_mute_member(
 
 @router.put("/{room_id}/members/{target_id}/ban")
 async def toggle_ban_member(
-        room_id: int, target_id: int,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    target_id: int,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Забанить / разбанить участника. ADMIN и OWNER могут банить."""
     actor = _require_member(room_id, u.id, db)
@@ -277,8 +287,7 @@ async def toggle_ban_member(
     if target_id == u.id:
         raise HTTPException(400, "Cannot ban yourself")
 
-    t = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
+    t = db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
         raise HTTPException(404, "Member not found")
     if t.role == RoomRole.OWNER:
@@ -298,11 +307,14 @@ async def toggle_ban_member(
         db.commit()
         await manager.send_to_user(room_id, target_id, {"type": "kicked"})
 
-    await manager.broadcast_to_room(room_id, {
-        "type": "member_updated",
-        "user_id": target_id,
-        "is_banned": t.is_banned,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "member_updated",
+            "user_id": target_id,
+            "is_banned": t.is_banned,
+        },
+    )
     logger.info(f"Ban toggled: user {target_id} is_banned={t.is_banned} in room {room_id} by {u.username}")
 
     return {"ok": True, "is_banned": t.is_banned}
@@ -310,20 +322,21 @@ async def toggle_ban_member(
 
 # Теги участников
 
+
 @router.put("/{room_id}/members/{target_id}/tag")
 async def set_member_tag(
-        room_id: int, target_id: int,
-        body: SetTagRequest,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    target_id: int,
+    body: SetTagRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Назначить / снять тег участника. Только OWNER и ADMIN."""
     actor = _require_member(room_id, u.id, db)
     if actor.role not in (RoomRole.ADMIN, RoomRole.OWNER):
         raise HTTPException(403, "Insufficient permissions")
 
-    t = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
+    t = db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
         raise HTTPException(404, "Member not found")
 
@@ -331,17 +344,21 @@ async def set_member_tag(
     t.tag_color = body.tag_color
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type": "member_updated",
-        "user_id": target_id,
-        "tag": t.tag,
-        "tag_color": t.tag_color,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "member_updated",
+            "user_id": target_id,
+            "tag": t.tag,
+            "tag_color": t.tag_color,
+        },
+    )
 
     return {"ok": True, "tag": t.tag, "tag_color": t.tag_color}
 
 
 # Гранулярные права участников
+
 
 @router.get("/{room_id}/permissions-schema")
 async def get_permissions_schema(u: User = Depends(get_current_user)):
@@ -351,18 +368,18 @@ async def get_permissions_schema(u: User = Depends(get_current_user)):
 
 @router.put("/{room_id}/members/{target_id}/permissions")
 async def set_member_permissions(
-        room_id: int, target_id: int,
-        body: SetPermissionsRequest,
-        u: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    room_id: int,
+    target_id: int,
+    body: SetPermissionsRequest,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Установить гранулярные права участника. Только OWNER."""
     actor = _require_member(room_id, u.id, db)
     if actor.role != RoomRole.OWNER:
         raise HTTPException(403, "Only the owner can change permissions")
 
-    t = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
+    t = db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == target_id).first()
     if not t:
         raise HTTPException(404, "Member not found")
 
@@ -371,16 +388,20 @@ async def set_member_permissions(
     t.custom_permissions = _json.dumps(cleaned) if cleaned else None
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type": "member_updated",
-        "user_id": target_id,
-        "custom_permissions": cleaned,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "member_updated",
+            "user_id": target_id,
+            "custom_permissions": cleaned,
+        },
+    )
 
     return {"ok": True, "permissions": cleaned}
 
 
 # Bot commands in room — for slash command autocomplete
+
 
 @router.get("/{room_id}/bot-commands")
 async def get_room_bot_commands(
@@ -394,9 +415,13 @@ async def get_room_bot_commands(
     from app.bots.bot_crud import Bot
 
     # Get bot user_ids in this room
-    bot_members = db.query(RoomMember.user_id).filter(
-        RoomMember.room_id == room_id,
-    ).all()
+    bot_members = (
+        db.query(RoomMember.user_id)
+        .filter(
+            RoomMember.room_id == room_id,
+        )
+        .all()
+    )
     bot_user_ids = [m[0] for m in bot_members]
 
     # Find bots among members
@@ -404,10 +429,14 @@ async def get_room_bot_commands(
 
     # Also include bots if this is a DM with a bot
     if not bots:
-        other = db.query(RoomMember).filter(
-            RoomMember.room_id == room_id,
-            RoomMember.user_id != u.id,
-        ).first()
+        other = (
+            db.query(RoomMember)
+            .filter(
+                RoomMember.room_id == room_id,
+                RoomMember.user_id != u.id,
+            )
+            .first()
+        )
         if other:
             bot = db.query(Bot).filter(Bot.user_id == other.user_id).first()
             if bot:
@@ -424,10 +453,12 @@ async def get_room_bot_commands(
         if isinstance(cmds, list):
             for c in cmds:
                 if isinstance(c, dict) and c.get("command"):
-                    commands.append({
-                        "command": c["command"],
-                        "description": c.get("description", ""),
-                        "bot_name": bot.name,
-                    })
+                    commands.append(
+                        {
+                            "command": c["command"],
+                            "description": c.get("description", ""),
+                            "bot_name": bot.name,
+                        }
+                    )
 
     return {"commands": commands}

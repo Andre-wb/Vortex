@@ -14,6 +14,7 @@ SSE (Server-Sent Events) + POST выглядит как обычный HTTP/2 т
 
 Не содержит WebSocket Upgrade -> не детектируется как мессенджер.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -51,11 +52,15 @@ async def sse_stream(
     SSE endpoint — альтернатива WebSocket для получения сообщений.
     Выглядит как обычный HTTP GET с длинным ответом (видеостриминг).
     """
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Access denied")
 
@@ -125,18 +130,22 @@ async def sse_send(
     POST endpoint — отправка сообщения через SSE транспорт.
     Выглядит как обычная отправка формы.
     """
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Access denied")
 
     # Отправляем в SSE очереди всех подписчиков этой комнаты
     payload = {**body.data, "type": body.action, "sender_id": u.id}
 
-    if hasattr(manager, '_sse_queues'):
+    if hasattr(manager, "_sse_queues"):
         prefix = f"sse:{room_id}:"
         for key, queue in list(manager._sse_queues.items()):
             if key.startswith(prefix):

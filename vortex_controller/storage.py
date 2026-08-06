@@ -17,6 +17,7 @@ URL resolution:
     2. POSTGRES_* env vars → postgresql+asyncpg://...
     3. sqlite+aiosqlite:///controller.db (dev fallback)
 """
+
 from __future__ import annotations
 
 import logging
@@ -73,14 +74,15 @@ class EncryptedBackup(Base):
       - sha256 of ciphertext for tamper-detection
       - size and timestamps for dashboards
     """
+
     __tablename__ = "encrypted_backups"
 
     pubkey_hex: Mapped[str] = mapped_column(String(128), primary_key=True)
-    blob:       Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
-    sha256_hex: Mapped[str]   = mapped_column(String(64),  nullable=False)
-    byte_size:  Mapped[int]   = mapped_column(Integer,     nullable=False)
-    created_at: Mapped[int]   = mapped_column(BigInteger,  nullable=False)
-    updated_at: Mapped[int]   = mapped_column(BigInteger,  nullable=False)
+    blob: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    sha256_hex: Mapped[str] = mapped_column(String(64), nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 
 class Node(Base):
@@ -88,9 +90,7 @@ class Node(Base):
 
     pubkey_hex: Mapped[str] = mapped_column(String(128), primary_key=True)
     endpoints: Mapped[list] = mapped_column(_JSONType, nullable=False, default=list)
-    node_metadata: Mapped[dict] = mapped_column(
-        "metadata", _JSONType, nullable=False, default=dict
-    )
+    node_metadata: Mapped[dict] = mapped_column("metadata", _JSONType, nullable=False, default=dict)
     registered_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
     last_heartbeat: Mapped[int] = mapped_column(BigInteger, nullable=False)
     approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -99,7 +99,6 @@ class Node(Base):
         Index("idx_nodes_last_heartbeat", "last_heartbeat"),
         Index("idx_nodes_approved", "approved"),
     )
-
 
 
 def resolve_database_url() -> str:
@@ -131,7 +130,6 @@ def _ensure_async_driver(url: str) -> str:
     return url
 
 
-
 class Storage:
     """Async SQLAlchemy storage for controller nodes."""
 
@@ -146,9 +144,7 @@ class Storage:
             pool_pre_ping=True,
             future=True,
         )
-        self._session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
+        self._session_maker = async_sessionmaker(self._engine, class_=AsyncSession, expire_on_commit=False)
         logger.info("Storage: %s", self._redacted_url())
 
     def _redacted_url(self) -> str:
@@ -168,7 +164,6 @@ class Storage:
 
     async def close(self) -> None:
         await self._engine.dispose()
-
 
     async def register(
         self,
@@ -208,7 +203,6 @@ class Storage:
             await s.commit()
             return True
 
-
     async def get(self, pubkey_hex: str) -> Optional[dict]:
         async with self._session_maker() as s:
             node = await s.get(Node, pubkey_hex)
@@ -229,11 +223,7 @@ class Storage:
         """
 
         cutoff = int(time.time()) - ONLINE_WINDOW_SEC
-        stmt = (
-            select(Node)
-            .where(Node.approved.is_(True))
-            .where(Node.last_heartbeat >= cutoff)
-        )
+        stmt = select(Node).where(Node.approved.is_(True)).where(Node.last_heartbeat >= cutoff)
         async with self._session_maker() as s:
             all_rows = (await s.execute(stmt)).scalars().all()
 
@@ -258,7 +248,6 @@ class Storage:
             weights.pop(idx)
         return [_to_dict(r) for r in rows]
 
-
     # Hard cap on blob size to stop a node from occupying unbounded storage
     # on the controller. Real-world backups should compress far under this
     # (a 50MB sqlite db gzips to ~10MB, AES-GCM adds 28B overhead).
@@ -275,26 +264,28 @@ class Storage:
         async with self._session_maker() as s:
             existing = await s.get(EncryptedBackup, pubkey_hex)
             if existing:
-                existing.blob       = blob
+                existing.blob = blob
                 existing.sha256_hex = sha256_hex
-                existing.byte_size  = size
+                existing.byte_size = size
                 existing.updated_at = now
                 created = existing.created_at
             else:
-                s.add(EncryptedBackup(
-                    pubkey_hex = pubkey_hex,
-                    blob       = blob,
-                    sha256_hex = sha256_hex,
-                    byte_size  = size,
-                    created_at = now,
-                    updated_at = now,
-                ))
+                s.add(
+                    EncryptedBackup(
+                        pubkey_hex=pubkey_hex,
+                        blob=blob,
+                        sha256_hex=sha256_hex,
+                        byte_size=size,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
                 created = now
             await s.commit()
         return {
             "pubkey_hex": pubkey_hex,
-            "sha256":     sha256_hex,
-            "byte_size":  size,
+            "sha256": sha256_hex,
+            "byte_size": size,
             "created_at": created,
             "updated_at": now,
         }
@@ -306,9 +297,9 @@ class Storage:
                 return None
             return {
                 "pubkey_hex": row.pubkey_hex,
-                "blob":       bytes(row.blob),
-                "sha256":     row.sha256_hex,
-                "byte_size":  int(row.byte_size),
+                "blob": bytes(row.blob),
+                "sha256": row.sha256_hex,
+                "byte_size": int(row.byte_size),
                 "created_at": int(row.created_at),
                 "updated_at": int(row.updated_at),
             }
@@ -321,8 +312,8 @@ class Storage:
                 return None
             return {
                 "pubkey_hex": row.pubkey_hex,
-                "sha256":     row.sha256_hex,
-                "byte_size":  int(row.byte_size),
+                "sha256": row.sha256_hex,
+                "byte_size": int(row.byte_size),
                 "created_at": int(row.created_at),
                 "updated_at": int(row.updated_at),
             }
@@ -341,9 +332,7 @@ class Storage:
         async with self._session_maker() as s:
             total = (await s.execute(select(func.count()).select_from(Node))).scalar_one()
             approved = (
-                await s.execute(
-                    select(func.count()).select_from(Node).where(Node.approved.is_(True))
-                )
+                await s.execute(select(func.count()).select_from(Node).where(Node.approved.is_(True)))
             ).scalar_one()
             online = (
                 await s.execute(
@@ -373,7 +362,7 @@ def _to_dict(node: Node) -> dict:
 # Penalty applied to node weight when capabilities are missing. Lower
 # weight = fewer users get routed to this node through /v1/nodes/random.
 _CAP_PENALTY = {
-    "ai_capable": 0.15,   # nodes without local AI lose ~15% of weight
+    "ai_capable": 0.15,  # nodes without local AI lose ~15% of weight
 }
 
 
@@ -386,7 +375,7 @@ def _capability_weight(meta: dict) -> float:
     mul = 1.0
     for flag, penalty in _CAP_PENALTY.items():
         if not bool(meta.get(flag)):
-            mul *= (1.0 - penalty)
+            mul *= 1.0 - penalty
     return mul
 
 

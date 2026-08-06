@@ -1,4 +1,5 @@
 """GET /v1/health — liveness and stats."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
@@ -30,11 +31,11 @@ async def treasury(request: Request) -> dict:
     payment actually landed at the address advertised by this controller.
     """
     return {
-        "pubkey":       getattr(request.app.state, "treasury_pubkey", "") or "",
-        "chain":        "solana",
-        "sns_domain":   "vortexx.sol",
+        "pubkey": getattr(request.app.state, "treasury_pubkey", "") or "",
+        "chain": "solana",
+        "sns_domain": "vortexx.sol",
         "fee_schedule": {
-            "register_fee_sol":    1.0,
+            "register_fee_sol": 1.0,
             "premium_protocol_pct": 20,
         },
     }

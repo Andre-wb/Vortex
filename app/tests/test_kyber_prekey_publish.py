@@ -30,9 +30,15 @@ def _x25519_pub_hex() -> str:
     return X25519PrivateKey.generate().public_key().public_bytes_raw().hex()
 
 
-def _build_bundle_with_kyber(account_ed: Ed25519PrivateKey, cid_hex: str, *,
-                             with_device=True, tamper_kyber_sig=False,
-                             bad_kyber_len=False, n_opk=2):
+def _build_bundle_with_kyber(
+    account_ed: Ed25519PrivateKey,
+    cid_hex: str,
+    *,
+    with_device=True,
+    tamper_kyber_sig=False,
+    bad_kyber_len=False,
+    n_opk=2,
+):
     """publish-тело с per-device Kyber pre-key. Kyber pub подписан device signing-
     ключом (когда with_device); при with_device=False device_sign_pub опущен."""
     ik_hex = _x25519_pub_hex()
@@ -51,18 +57,18 @@ def _build_bundle_with_kyber(account_ed: Ed25519PrivateKey, cid_hex: str, *,
         kyber_sig = bytes([kyber_sig[0] ^ 0xFF]) + kyber_sig[1:]
 
     body = {
-        "identity_key":      ik_hex,
-        "signed_prekey":     spk_pub.hex(),
+        "identity_key": ik_hex,
+        "signed_prekey": spk_pub.hex(),
         "signed_prekey_sig": account_ed.sign(spk_pub).hex(),
-        "signed_prekey_id":  1,
-        "identity_key_ed":   account_ed.public_key().public_bytes_raw().hex(),
-        "identity_key_sig":  account_ed.sign(ik_bytes).hex(),
-        "supports_v2":       True,
-        "device_x3dh_pub":   _x25519_pub_hex(),
-        "device_kyber_pub":  kyber_pub.hex(),
-        "device_kyber_sig":  kyber_sig.hex(),
-        "device_kyber_id":   1,
-        "one_time_prekeys":  [{"key_id": i, "public_key": _x25519_pub_hex()} for i in range(n_opk)],
+        "signed_prekey_id": 1,
+        "identity_key_ed": account_ed.public_key().public_bytes_raw().hex(),
+        "identity_key_sig": account_ed.sign(ik_bytes).hex(),
+        "supports_v2": True,
+        "device_x3dh_pub": _x25519_pub_hex(),
+        "device_kyber_pub": kyber_pub.hex(),
+        "device_kyber_sig": kyber_sig.hex(),
+        "device_kyber_id": 1,
+        "one_time_prekeys": [{"key_id": i, "public_key": _x25519_pub_hex()} for i in range(n_opk)],
     }
     if with_device:
         body["device_sign_pub"] = dev_sign_hex
@@ -77,23 +83,31 @@ def warn_only(monkeypatch):
 def _register(tc):
     tag = random_str(8)
     phone = f"+3{int(_phone_prefix, 16):04d}{random_digits(7)}"
-    tc.post("/api/authentication/register", json={
-        "username": f"pq_{tag}", "password": _PW, "display_name": f"PQ {tag}",
-        "phone": phone, "avatar_emoji": "\U0001f511", "x25519_public_key": _x25519_pub_hex(),
-    })
+    tc.post(
+        "/api/authentication/register",
+        json={
+            "username": f"pq_{tag}",
+            "password": _PW,
+            "display_name": f"PQ {tag}",
+            "phone": phone,
+            "avatar_emoji": "\U0001f511",
+            "x25519_public_key": _x25519_pub_hex(),
+        },
+    )
     return f"pq_{tag}"
 
 
 def _login(tc, username, cid):
     csrf = tc.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-    tc.post("/api/authentication/login",
-            json={"phone_or_username": username, "password": _PW},
-            headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+    tc.post(
+        "/api/authentication/login",
+        json={"phone_or_username": username, "password": _PW},
+        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid},
+    )
     return csrf
 
 
 class TestKyberPrekeyPublish:
-
     def test_kyber_prekey_verifiable_from_fetch(self, warn_only):
         """Плумбинг: по ответу /devices device_kyber_sig верифицируется над сырыми
         байтами kyber pub против device_sign_pub — как сделает отправитель (P5)."""
@@ -102,8 +116,7 @@ class TestKyberPrekeyPublish:
             cid = secrets.token_hex(16)
             csrf = _login(tc, username, cid)
             body, _ = _build_bundle_with_kyber(Ed25519PrivateKey.generate(), cid)
-            r = tc.post("/api/keys/prekeys/publish", json=body,
-                        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            r = tc.post("/api/keys/prekeys/publish", json=body, headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
             assert r.status_code == 200, r.text
 
             me = tc.get("/api/authentication/me").json()
@@ -121,8 +134,7 @@ class TestKyberPrekeyPublish:
             cid = secrets.token_hex(16)
             csrf = _login(tc, username, cid)
             body, _ = _build_bundle_with_kyber(Ed25519PrivateKey.generate(), cid)
-            tc.post("/api/keys/prekeys/publish", json=body,
-                    headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            tc.post("/api/keys/prekeys/publish", json=body, headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
             me = tc.get("/api/authentication/me").json()
             single = tc.get(f"/api/keys/prekeys/{me['user_id']}").json()
             assert single["device_kyber_pub"] and single["device_kyber_sig"]
@@ -137,8 +149,7 @@ class TestKyberPrekeyPublish:
             body, _ = _build_bundle_with_kyber(Ed25519PrivateKey.generate(), cid)
             for k in ("device_kyber_pub", "device_kyber_sig", "device_kyber_id"):
                 body.pop(k)
-            r = tc.post("/api/keys/prekeys/publish", json=body,
-                        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            r = tc.post("/api/keys/prekeys/publish", json=body, headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
             assert r.status_code == 200, r.text
             me = tc.get("/api/authentication/me").json()
             b = tc.get(f"/api/keys/prekeys/{me['user_id']}/devices").json()["bundles"][0]
@@ -155,8 +166,7 @@ class TestKyberPrekeyPublish:
             csrf = _login(tc, username, cid)
             body, _ = _build_bundle_with_kyber(Ed25519PrivateKey.generate(), cid, with_device=False)
             assert "device_sign_pub" not in body
-            r = tc.post("/api/keys/prekeys/publish", json=body,
-                        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            r = tc.post("/api/keys/prekeys/publish", json=body, headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
             assert r.status_code == 200, r.text
             me = tc.get("/api/authentication/me").json()
             b = tc.get(f"/api/keys/prekeys/{me['user_id']}/devices").json()["bundles"][0]
@@ -169,8 +179,7 @@ class TestKyberPrekeyPublish:
             cid = secrets.token_hex(16)
             csrf = _login(tc, username, cid)
             body, _ = _build_bundle_with_kyber(Ed25519PrivateKey.generate(), cid, bad_kyber_len=True)
-            r = tc.post("/api/keys/prekeys/publish", json=body,
-                        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            r = tc.post("/api/keys/prekeys/publish", json=body, headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
             assert r.status_code in (400, 422)
 
     def test_tampered_kyber_sig_warn_only_accepts(self, warn_only):
@@ -180,8 +189,7 @@ class TestKyberPrekeyPublish:
             cid = secrets.token_hex(16)
             csrf = _login(tc, username, cid)
             body, _ = _build_bundle_with_kyber(Ed25519PrivateKey.generate(), cid, tamper_kyber_sig=True)
-            r = tc.post("/api/keys/prekeys/publish", json=body,
-                        headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
+            r = tc.post("/api/keys/prekeys/publish", json=body, headers={"X-CSRF-Token": csrf, "X-Device-Id": cid})
             assert r.status_code == 200, r.text  # warn-only принял
             me = tc.get("/api/authentication/me").json()
             b = tc.get(f"/api/keys/prekeys/{me['user_id']}/devices").json()["bundles"][0]

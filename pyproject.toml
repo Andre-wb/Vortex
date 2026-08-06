@@ -65,7 +65,9 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-timeout>=2.2.0",
     "pytest-httpx>=0.30.0",
+    "asgi-lifespan>=2.1.0",
     "ruff>=0.3.0",
+    "pylint==4.0.6",
     "bandit>=1.7.0",
     "pre-commit>=3.6.0",
     "mypy>=1.8.0",
@@ -131,6 +133,70 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
+
+
+[tool.pylint.main]
+py-version = "3.10"
+jobs = 0
+persistent = false
+recursive = true
+fail-under = 9.54
+ignore = [".git", "__pycache__", ".venv", ".venv-build", "node_modules", "build", "dist", "target"]
+extension-pkg-allow-list = ["blake3", "curl_cffi", "pydantic_core"]
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114",
+    "C0115",
+    "C0116",
+    "C0415",
+    "W0404",
+    "W0611",
+    "C0410",
+    "C0411",
+    "C0412",
+    "C0413",
+    "C0321",
+    "C0121",
+    "R0801",
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.typecheck]
+ignored-modules = [
+    "vortex_chat",
+    "vortex_waf",
+    "sqlalchemy.sql.functions",
+    "winrt",
+    "winrt.windows.devices.enumeration",
+    "winrt.windows.devices.wifidirect",
+    "pqcrypto",
+    "pqcrypto.kem.kyber768",
+    "oqs",
+    "torch",
+    "transformers",
+    "passlib",
+    "passlib.hash",
+    "netifaces",
+    "bless",
+    "dbus_next",
+    "aiortc",
+    "solders",
+    "boto3",
+    "google.cloud",
+    "google.oauth2",
+    "AppKit",
+    "objc",
+    "Foundation",
+]
+
+[tool.pylint.reports]
+score = true
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "n", "e", "f", "r", "s", "t", "v", "db", "ws", "id", "ip", "pk", "sk", "ct", "ss", "iv", "ok", "_"]
 
 
 [tool.pytest.ini_options]

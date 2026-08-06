@@ -21,6 +21,7 @@ Zero-Knowledge Server Architecture — сервер не знает НИЧЕГО
   - Аутентификация: сервер видит только username (необходим для routing) +
     password_hash (Argon2id). Все остальное — зашифровано.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -58,21 +59,22 @@ class ProfileVault(Base):
 
     Server cannot read ANY of this.
     """
+
     __tablename__ = "profile_vaults"
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
-                        nullable=False, unique=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     # AES-256-GCM encrypted blob (hex): nonce(12) + ciphertext + tag(16)
     vault_data = Column(Text, nullable=False)
     # Version counter — client increments on each update
-    version    = Column(Integer, default=1)
+    version = Column(Integer, default=1)
     # Blind index for display_name search: HMAC-SHA256(server_blind_key, lowercase(display_name))
     # Allows searching without decryption. Client sends blind index alongside vault.
     blind_name = Column(String(64), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
     user = relationship("User", backref="profile_vault")
 
@@ -86,18 +88,19 @@ class RoomVault(Base):
 
     Server cannot read room names or descriptions.
     """
+
     __tablename__ = "room_vaults"
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    room_id    = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"),
-                        nullable=False, unique=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     vault_data = Column(Text, nullable=False)
-    version    = Column(Integer, default=1)
+    version = Column(Integer, default=1)
     # Blind index for room name search
     blind_name = Column(String(64), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
     room = relationship("Room", backref="room_vault")
 
@@ -108,19 +111,20 @@ class ContactVault(Base):
 
     Server cannot know who is in whose contact list.
     """
+
     __tablename__ = "contact_vaults"
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    owner_id   = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
-                        nullable=False, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     # Encrypted blob: { contact_pubkey, nickname, verified, notes }
     vault_data = Column(Text, nullable=False)
     # Blind index: HMAC(owner_key, contact_pubkey) — for dedup without revealing contact
-    blind_id   = Column(String(64), nullable=False, index=True)
-    version    = Column(Integer, default=1)
+    blind_id = Column(String(64), nullable=False, index=True)
+    version = Column(Integer, default=1)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
     owner = relationship("User", backref="contact_vaults")
 
@@ -129,11 +133,11 @@ class EncryptedCallRecord(Base):
     """
     Encrypted call history. Server stores opaque blob, cannot see who called whom.
     """
+
     __tablename__ = "encrypted_call_records"
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    owner_id   = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
-                        nullable=False, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     # Encrypted: { caller_pubkey, callee_pubkey, type, duration, status, started_at, ended_at }
     vault_data = Column(Text, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -146,15 +150,15 @@ class EncryptedNotification(Base):
     Encrypted notification payload. Server cannot read notification content.
     Encrypted with recipient's X25519 public key via ECIES.
     """
+
     __tablename__ = "encrypted_notifications"
 
-    id            = Column(Integer, primary_key=True, autoincrement=True)
-    recipient_id  = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
-                           nullable=False, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recipient_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     # ECIES encrypted payload: { ephemeral_pub, ciphertext }
     ephemeral_pub = Column(String(64), nullable=False)
-    ciphertext    = Column(Text, nullable=False)
-    created_at    = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    ciphertext = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class AuditVault(Base):
@@ -162,11 +166,11 @@ class AuditVault(Base):
     Encrypted audit log. Room admins can decrypt with room admin key.
     Server sees nothing.
     """
+
     __tablename__ = "audit_vaults"
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    room_id    = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"),
-                        nullable=False, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
     vault_data = Column(Text, nullable=False)  # encrypted with room_key
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -188,8 +192,7 @@ def _get_blind_key() -> bytes:
             # Generate and log warning — in production, must be set via env
             _BLIND_INDEX_KEY = os.urandom(32)
             logger.warning(
-                "VORTEX_BLIND_INDEX_KEY not set — generated random key. "
-                "Set env var for persistence across restarts!"
+                "VORTEX_BLIND_INDEX_KEY not set — generated random key. Set env var for persistence across restarts!"
             )
     return _BLIND_INDEX_KEY
 
@@ -211,13 +214,14 @@ def compute_blind_index(value: str, context: str = "") -> str:
 
 # Timestamp Obfuscation — prevent activity pattern analysis
 
+
 def obfuscate_timestamp(dt: datetime, jitter_seconds: int = 300) -> datetime:
     """
     Add random jitter to timestamp to prevent activity analysis.
     Default: ±5 minutes jitter.
     """
     jitter = secrets.randbelow(jitter_seconds * 2) - jitter_seconds
-    return dt.replace(microsecond=0) + __import__('datetime').timedelta(seconds=jitter)
+    return dt.replace(microsecond=0) + __import__("datetime").timedelta(seconds=jitter)
 
 
 def coarsen_timestamp(dt: datetime, granularity_minutes: int = 15) -> datetime:
@@ -232,6 +236,7 @@ def coarsen_timestamp(dt: datetime, granularity_minutes: int = 15) -> datetime:
 
 
 # Sealed Sender Enhancement
+
 
 def derive_sender_pseudo(user_secret: bytes, room_id: int) -> str:
     """
@@ -253,6 +258,7 @@ def verify_sender_pseudo(user_secret: bytes, room_id: int, pseudo: str) -> bool:
 
 
 # Encrypted Metadata Wrapper — для file_name, forwarded_from и т.д.
+
 
 class EncryptedMetadata:
     """
@@ -281,6 +287,7 @@ class EncryptedMetadata:
 
 
 # Pydantic Schemas
+
 
 class ProfileVaultRequest(BaseModel):
     vault_data: str = Field(..., min_length=1, description="AES-256-GCM encrypted profile (hex)")
@@ -314,6 +321,7 @@ class BlindSearchRequest(BaseModel):
 
 class EncryptedMessageMeta(BaseModel):
     """Encrypted metadata fields for messages."""
+
     file_name_encrypted: str | None = None
     forwarded_from_encrypted: str | None = None
 
@@ -371,19 +379,21 @@ def _has_relationship(viewer_id: int, target_id: int, db: Session) -> bool:
     from app.models.contact import Contact
     from app.models_rooms.rooms import RoomMember
 
-    contact = db.query(Contact.id).filter(
-        ((Contact.owner_id == viewer_id) & (Contact.contact_id == target_id))
-        | ((Contact.owner_id == target_id) & (Contact.contact_id == viewer_id))
-    ).first()
+    contact = (
+        db.query(Contact.id)
+        .filter(
+            ((Contact.owner_id == viewer_id) & (Contact.contact_id == target_id))
+            | ((Contact.owner_id == target_id) & (Contact.contact_id == viewer_id))
+        )
+        .first()
+    )
     if contact:
         return True
 
     shared = (
         db.query(RoomMember.room_id)
         .filter(RoomMember.user_id == viewer_id)
-        .intersect(
-            db.query(RoomMember.room_id).filter(RoomMember.user_id == target_id)
-        )
+        .intersect(db.query(RoomMember.room_id).filter(RoomMember.user_id == target_id))
         .first()
     )
     return shared is not None
@@ -391,20 +401,21 @@ def _has_relationship(viewer_id: int, target_id: int, db: Session) -> bool:
 
 def _lazy_get_db():
     from app.database import get_db
+
     return get_db
 
 
 def _lazy_get_current_user():
     from app.security.auth_jwt import get_current_user
-    return get_current_user
 
+    return get_current_user
 
 
 @zk_router.put("/profile")
 async def save_profile_vault(
     body: ProfileVaultRequest,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     vault = db.query(ProfileVault).filter(ProfileVault.user_id == u.id).first()
     if vault:
@@ -426,7 +437,7 @@ async def save_profile_vault(
 @zk_router.get("/profile")
 async def get_profile_vault(
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     vault = db.query(ProfileVault).filter(ProfileVault.user_id == u.id).first()
     if not vault:
@@ -438,7 +449,7 @@ async def get_profile_vault(
 async def get_user_profile_vault(
     user_id: int,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     # FIX F8: IDOR — was returning ANY user's profile vault to ANY authed caller.
     # Restrict to the owner, or to a verifiable mutual-contact / shared-room
@@ -460,18 +471,23 @@ async def get_user_profile_vault(
     return {"ok": True, "vault_data": vault.vault_data}
 
 
-
 @zk_router.put("/room/{room_id}")
 async def save_room_vault(
     room_id: int,
     body: RoomVaultRequest,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     from app.models_rooms.rooms import RoomMember
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-    ).first()
+
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a room member")
 
@@ -492,7 +508,7 @@ async def save_room_vault(
 async def get_room_vault(
     room_id: int,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     vault = db.query(RoomVault).filter(RoomVault.room_id == room_id).first()
     if not vault:
@@ -500,16 +516,20 @@ async def get_room_vault(
     return {"ok": True, "vault_data": vault.vault_data, "version": vault.version}
 
 
-
 @zk_router.put("/contacts")
 async def save_contact_vault(
     body: ContactVaultRequest,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
-    existing = db.query(ContactVault).filter(
-        ContactVault.owner_id == u.id, ContactVault.blind_id == body.blind_id,
-    ).first()
+    existing = (
+        db.query(ContactVault)
+        .filter(
+            ContactVault.owner_id == u.id,
+            ContactVault.blind_id == body.blind_id,
+        )
+        .first()
+    )
     if existing:
         existing.vault_data = body.vault_data
         existing.version += 1
@@ -522,14 +542,13 @@ async def save_contact_vault(
 @zk_router.get("/contacts")
 async def get_contact_vaults(
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     entries = db.query(ContactVault).filter(ContactVault.owner_id == u.id).all()
     return {
         "ok": True,
         "contacts": [
-            {"id": e.id, "vault_data": e.vault_data, "blind_id": e.blind_id, "version": e.version}
-            for e in entries
+            {"id": e.id, "vault_data": e.vault_data, "blind_id": e.blind_id, "version": e.version} for e in entries
         ],
     }
 
@@ -538,11 +557,16 @@ async def get_contact_vaults(
 async def delete_contact_vault(
     blind_id: str,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
-    entry = db.query(ContactVault).filter(
-        ContactVault.owner_id == u.id, ContactVault.blind_id == blind_id,
-    ).first()
+    entry = (
+        db.query(ContactVault)
+        .filter(
+            ContactVault.owner_id == u.id,
+            ContactVault.blind_id == blind_id,
+        )
+        .first()
+    )
     if not entry:
         raise HTTPException(404, "Contact not found")
     db.delete(entry)
@@ -550,12 +574,11 @@ async def delete_contact_vault(
     return {"ok": True}
 
 
-
 @zk_router.post("/calls")
 async def save_call_record(
     body: CallRecordRequest,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     record = EncryptedCallRecord(owner_id=u.id, vault_data=body.vault_data)
     db.add(record)
@@ -566,26 +589,28 @@ async def save_call_record(
 @zk_router.get("/calls")
 async def get_call_records(
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
-    records = db.query(EncryptedCallRecord).filter(
-        EncryptedCallRecord.owner_id == u.id,
-    ).order_by(EncryptedCallRecord.created_at.desc()).limit(100).all()
+    records = (
+        db.query(EncryptedCallRecord)
+        .filter(
+            EncryptedCallRecord.owner_id == u.id,
+        )
+        .order_by(EncryptedCallRecord.created_at.desc())
+        .limit(100)
+        .all()
+    )
     return {
         "ok": True,
-        "records": [
-            {"id": r.id, "vault_data": r.vault_data, "created_at": r.created_at.isoformat()}
-            for r in records
-        ],
+        "records": [{"id": r.id, "vault_data": r.vault_data, "created_at": r.created_at.isoformat()} for r in records],
     }
-
 
 
 @zk_router.post("/notifications")
 async def push_encrypted_notification(
     body: EncryptedNotificationRequest,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     # FIX F9: write-IDOR — the authenticated user was never used, so anyone could
     # inject encrypted notifications into any recipient's queue (spam / DoS the
@@ -598,9 +623,7 @@ async def push_encrypted_notification(
 
     if not _rate_limit(f"notif:sender:{u.id}", max_events=60, window_seconds=60.0):
         raise HTTPException(429, "Too many notifications sent, slow down")
-    if not _rate_limit(
-        f"notif:pair:{u.id}:{body.recipient_id}", max_events=20, window_seconds=60.0
-    ):
+    if not _rate_limit(f"notif:pair:{u.id}:{body.recipient_id}", max_events=20, window_seconds=60.0):
         raise HTTPException(429, "Too many notifications to this recipient, slow down")
 
     notif = EncryptedNotification(
@@ -617,15 +640,25 @@ async def push_encrypted_notification(
 @zk_router.get("/notifications")
 async def get_encrypted_notifications(
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
-    notifs = db.query(EncryptedNotification).filter(
-        EncryptedNotification.recipient_id == u.id,
-    ).order_by(EncryptedNotification.created_at.asc()).limit(200).all()
+    notifs = (
+        db.query(EncryptedNotification)
+        .filter(
+            EncryptedNotification.recipient_id == u.id,
+        )
+        .order_by(EncryptedNotification.created_at.asc())
+        .limit(200)
+        .all()
+    )
 
     result = [
-        {"id": n.id, "ephemeral_pub": n.ephemeral_pub, "ciphertext": n.ciphertext,
-         "created_at": n.created_at.isoformat()}
+        {
+            "id": n.id,
+            "ephemeral_pub": n.ephemeral_pub,
+            "ciphertext": n.ciphertext,
+            "created_at": n.created_at.isoformat(),
+        }
         for n in notifs
     ]
     for n in notifs:
@@ -634,12 +667,11 @@ async def get_encrypted_notifications(
     return {"ok": True, "notifications": result}
 
 
-
 @zk_router.post("/search")
 async def blind_search(
     body: BlindSearchRequest,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     if body.search_type == "user":
         vaults = db.query(ProfileVault).filter(ProfileVault.blind_name == body.blind_index).all()
@@ -651,19 +683,24 @@ async def blind_search(
         raise HTTPException(400, "search_type must be 'user' or 'room'")
 
 
-
 @zk_router.post("/audit/{room_id}")
 async def save_audit_entry(
     room_id: int,
     request: Request,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     body = await request.json()
     from app.models_rooms.rooms import RoomMember
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-    ).first()
+
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a room member")
     entry = AuditVault(room_id=room_id, vault_data=body.get("vault_data", ""))
@@ -676,26 +713,37 @@ async def save_audit_entry(
 async def get_audit_entries(
     room_id: int,
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     from app.models_rooms.rooms import RoomMember
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-    ).first()
+
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a room member")
-    entries = db.query(AuditVault).filter(
-        AuditVault.room_id == room_id,
-    ).order_by(AuditVault.created_at.desc()).limit(200).all()
+    entries = (
+        db.query(AuditVault)
+        .filter(
+            AuditVault.room_id == room_id,
+        )
+        .order_by(AuditVault.created_at.desc())
+        .limit(200)
+        .all()
+    )
     return {
         "ok": True,
         "entries": [{"id": e.id, "vault_data": e.vault_data, "created_at": e.created_at.isoformat()} for e in entries],
     }
 
 
-
 @zk_router.get("/status")
-async def zk_status(u = Depends(_lazy_get_current_user())):
+async def zk_status(u=Depends(_lazy_get_current_user())):
     return {
         "ok": True,
         "zk_enabled": True,
@@ -724,11 +772,10 @@ async def zk_status(u = Depends(_lazy_get_current_user())):
     }
 
 
-
 @zk_router.get("/blind-key")
 async def get_blind_key_encrypted(
     db: Session = Depends(_lazy_get_db()),
-    u = Depends(_lazy_get_current_user()),
+    u=Depends(_lazy_get_current_user()),
 ):
     if not u.x25519_public_key:
         raise HTTPException(400, "User has no public key")
@@ -737,6 +784,7 @@ async def get_blind_key_encrypted(
     # CLIENT-диалект (salt=None) — браузер расшифровывает через decryptRoomKeyEnvelope
     # (zk-crypto.js). ecies_encrypt (node, salt=sorted) давал InvalidTag → фича мертва.
     from app.security.key_exchange import ecies_encrypt_for_client
+
     result = ecies_encrypt_for_client(blind_key, u.x25519_public_key)
 
     return {

@@ -9,6 +9,7 @@ app/transport/obfuscation.py — Anti-DPI обфускация трафика.
 Цель: трафик Vortex должен быть неотличим от обычного HTTPS-серфинга
 для систем типа ТСПУ (Роскомнадзор), GFW (Китай), NeTFilt и т.д.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -79,7 +80,7 @@ class TrafficObfuscator:
         real_len, _pad_len = struct.unpack(">HH", padded[:4])
         if 4 + real_len > len(padded):
             return padded  # не запаковано
-        return padded[4:4 + real_len]
+        return padded[4 : 4 + real_len]
 
     @staticmethod
     def random_delay() -> float:

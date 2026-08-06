@@ -10,6 +10,7 @@ Covers:
   - LRU cache behaviour
   - Auth requirement
 """
+
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -36,8 +37,8 @@ def _logged_user(client):
 
 # Unit tests for _parse_og
 
-class TestParseOG:
 
+class TestParseOG:
     def test_extracts_og_title(self):
         html = '<meta property="og:title" content="Hello World" />'
         result = lp_module._parse_og(html, "https://example.com/page")
@@ -64,10 +65,7 @@ class TestParseOG:
         assert result["title"] == "Fallback Title"
 
     def test_og_title_takes_precedence_over_title_tag(self):
-        html = (
-            '<meta property="og:title" content="OG Title" />'
-            "<title>HTML Title</title>"
-        )
+        html = '<meta property="og:title" content="OG Title" /><title>HTML Title</title>'
         result = lp_module._parse_og(html, "https://example.com/page")
         assert result["title"] == "OG Title"
 
@@ -121,8 +119,8 @@ class TestParseOG:
 
 # Unit tests for LRU cache helpers
 
-class TestLRUCache:
 
+class TestLRUCache:
     def setup_method(self):
         """Clear the module-level cache before each test."""
         lp_module._cache.clear()
@@ -161,8 +159,8 @@ class TestLRUCache:
 
 # Integration tests via HTTP endpoint
 
-class TestLinkPreviewEndpoint:
 
+class TestLinkPreviewEndpoint:
     def test_endpoint_requires_auth(self, anon_client):
         r = anon_client.get("/api/link-preview", params={"url": "https://example.com/"})
         assert r.status_code in (401, 403, 422)
@@ -249,12 +247,12 @@ class TestLinkPreviewEndpoint:
         """Mock httpx to return a page with OG tags and verify parsed result."""
         _, h = _logged_user(client)
         fake_html = (
-            '<html><head>'
+            "<html><head>"
             '<meta property="og:title" content="Mock Title" />'
             '<meta property="og:description" content="Mock Desc" />'
             '<meta property="og:image" content="https://mock.example.com/img.png" />'
             '<meta property="og:site_name" content="MockSite" />'
-            '</head></html>'
+            "</head></html>"
         )
 
         mock_response = MagicMock()

@@ -16,6 +16,7 @@ If Bonfida is unreachable we fall back to:
 For the MVP only Bonfida is implemented. The interface is narrow enough that
 a second provider can be plugged in later.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -38,11 +39,12 @@ _SOL_DOMAIN = re.compile(r"^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*\.sol$", 
 @dataclass
 class SnsRecord:
     """Parsed SNS lookup result."""
+
     domain: str
-    url: Optional[str] = None           # controller URL from the URL record
-    pubkey: Optional[str] = None        # controller ed25519 pubkey (from TXT)
-    mirrors: list[str] = None           # extra mirror URLs (from TXT)
-    raw_txt: Optional[str] = None       # raw TXT content, for debugging
+    url: Optional[str] = None  # controller URL from the URL record
+    pubkey: Optional[str] = None  # controller ed25519 pubkey (from TXT)
+    mirrors: list[str] = None  # extra mirror URLs (from TXT)
+    raw_txt: Optional[str] = None  # raw TXT content, for debugging
 
     def __post_init__(self):
         if self.mirrors is None:

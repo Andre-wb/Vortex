@@ -10,6 +10,7 @@ One endpoint per artifact:
 Each artifact is generated fresh from the current .env, so paths /
 PORT / KEYS_DIR / DEVICE_NAME match the running configuration.
 """
+
 from __future__ import annotations
 
 import io
@@ -33,7 +34,6 @@ router = APIRouter(prefix="/api/wiz/admin/deploy", tags=["deploy"])
 def _env_file(request: Request) -> Path:
     p = getattr(request.app.state, "env_file", None)
     return Path(p) if p else Path(".env")
-
 
 
 def _dockerfile(env: dict) -> str:
@@ -122,7 +122,6 @@ volumes:
 """
 
 
-
 def _systemd_unit(env: dict, workdir: Path) -> str:
     device = env.get("DEVICE_NAME", "vortex-node") or "vortex-node"
     user = env.get("DEPLOY_USER", "vortex")
@@ -183,7 +182,6 @@ WantedBy=multi-user.target
 """
 
 
-
 def _launchd_plist(env: dict, workdir: Path) -> str:
     device = env.get("DEVICE_NAME", "vortex-node") or "vortex-node"
     safe = re.sub(r"[^A-Za-z0-9.-]", "-", device.lower())
@@ -233,7 +231,6 @@ def _launchd_plist(env: dict, workdir: Path) -> str:
 """
 
 
-
 @router.get("/dockerfile")
 async def get_dockerfile(request: Request) -> Response:
     env = _b._read_env(_env_file(request))
@@ -250,16 +247,14 @@ async def get_compose(request: Request) -> Response:
 async def get_systemd(request: Request) -> Response:
     env_file = _env_file(request)
     env = _b._read_env(env_file)
-    return Response(content=_systemd_unit(env, env_file.parent.resolve()),
-                    media_type="text/plain")
+    return Response(content=_systemd_unit(env, env_file.parent.resolve()), media_type="text/plain")
 
 
 @router.get("/launchd.plist")
 async def get_launchd(request: Request) -> Response:
     env_file = _env_file(request)
     env = _b._read_env(env_file)
-    return Response(content=_launchd_plist(env, env_file.parent.resolve()),
-                    media_type="application/xml")
+    return Response(content=_launchd_plist(env, env_file.parent.resolve()), media_type="application/xml")
 
 
 @router.get("/all.zip")
@@ -278,7 +273,8 @@ async def get_bundle(request: Request) -> StreamingResponse:
     buf.seek(0)
     filename = f"vortex-deploy-{time.strftime('%Y%m%d')}.zip"
     return StreamingResponse(
-        buf, media_type="application/zip",
+        buf,
+        media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

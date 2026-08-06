@@ -4,6 +4,7 @@
 забирает через key-bundle оффлайн. Гибрид/классика (EciesKeyFields), skip-if-
 exists, self-heal (DELETE /my-key → has_key=False → key_request).
 """
+
 import secrets
 
 import pytest
@@ -12,10 +13,10 @@ from conftest import login_user, make_user, random_str
 
 def _hybrid_key() -> dict:
     return {
-        "hybrid":               True,
+        "hybrid": True,
         "x25519_ephemeral_pub": secrets.token_hex(32),
-        "kyber_ciphertext":     secrets.token_hex(1088),
-        "ciphertext":           secrets.token_hex(60),
+        "kyber_ciphertext": secrets.token_hex(1088),
+        "ciphertext": secrets.token_hex(60),
     }
 
 
@@ -32,10 +33,15 @@ def _uid(u: dict) -> int:
 
 
 def _create_room_full(client, headers):
-    r = client.post("/api/rooms", json={
-        "name": f"room_{random_str(6)}", "is_private": True,
-        "encrypted_room_key": _classical_key(),
-    }, headers=headers)
+    r = client.post(
+        "/api/rooms",
+        json={
+            "name": f"room_{random_str(6)}",
+            "is_private": True,
+            "encrypted_room_key": _classical_key(),
+        },
+        headers=headers,
+    )
     assert r.status_code in (200, 201), r.text
     b = r.json()
     room = b.get("room", b)
@@ -55,8 +61,7 @@ def _pair(client):
 
 
 def _provision(client, a, room_id, x_id, key):
-    return client.post(f"/api/rooms/{room_id}/provision-key",
-                       json={"for_user_id": x_id, **key}, headers=a["headers"])
+    return client.post(f"/api/rooms/{room_id}/provision-key", json={"for_user_id": x_id, **key}, headers=a["headers"])
 
 
 def test_provision_hybrid_and_fetch_offline(client):
@@ -105,7 +110,7 @@ def test_provision_skip_if_exists(client):
 
     x_h = login_user(client, x["username"], x["password"])
     got = client.get(f"/api/rooms/{room_id}/key-bundle", headers=x_h).json()
-    assert got["ephemeral_pub"] == first["ephemeral_pub"]   # остался первый
+    assert got["ephemeral_pub"] == first["ephemeral_pub"]  # остался первый
 
 
 def test_provision_requires_caller_membership(client):
@@ -114,8 +119,9 @@ def test_provision_requires_caller_membership(client):
     room_id = _create_room(client, a["headers"])
     # X (не член, без ключа) не может провижнить
     x_h = login_user(client, x["username"], x["password"])
-    r = client.post(f"/api/rooms/{room_id}/provision-key",
-                    json={"for_user_id": _uid(a), **_classical_key()}, headers=x_h)
+    r = client.post(
+        f"/api/rooms/{room_id}/provision-key", json={"for_user_id": _uid(a), **_classical_key()}, headers=x_h
+    )
     assert r.status_code in (403, 404), r.text
 
 
@@ -153,8 +159,9 @@ def test_provision_requires_caller_has_key(client):
     b_h = login_user(client, b["username"], b["password"])
     client.post(f"/api/rooms/join/{invite}", headers=b_h)
     # B (член, но без ключа) пробует провижнить для X → 403
-    r = client.post(f"/api/rooms/{room_id}/provision-key",
-                    json={"for_user_id": _uid(x), **_classical_key()}, headers=b_h)
+    r = client.post(
+        f"/api/rooms/{room_id}/provision-key", json={"for_user_id": _uid(x), **_classical_key()}, headers=b_h
+    )
     assert r.status_code == 403, r.text
 
 

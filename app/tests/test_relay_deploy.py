@@ -7,6 +7,7 @@ test_relay_deploy.py — автоматический передеплой ре�
   - Cloudflare Worker, Lambda@Edge + CloudFront, Azure zipdeploy, Caddy
   - повторные попытки в пределах grace-окна
 """
+
 from __future__ import annotations
 
 import json
@@ -78,6 +79,7 @@ def isolate_last_run():
 @pytest.fixture
 def fake_http(monkeypatch):
     import httpx
+
     FakeClient.calls = []
     FakeClient.responses = {}
     monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
@@ -87,8 +89,15 @@ def fake_http(monkeypatch):
 class TestSigV4:
     def test_matches_aws_test_vector(self):
         headers = rd.sigv4_headers(
-            "GET", "service", "us-east-1", "example.amazonaws.com", "/", "", b"",
-            AWS_TEST_KEY, AWS_TEST_SECRET,
+            "GET",
+            "service",
+            "us-east-1",
+            "example.amazonaws.com",
+            "/",
+            "",
+            b"",
+            AWS_TEST_KEY,
+            AWS_TEST_SECRET,
             now=datetime(2015, 8, 30, 12, 36, 0, tzinfo=timezone.utc),
         )
         assert f"Signature={AWS_TEST_SIGNATURE}" in headers["Authorization"]
@@ -97,8 +106,15 @@ class TestSigV4:
 
     def test_extra_headers_are_signed(self):
         headers = rd.sigv4_headers(
-            "PUT", "lambda", "us-east-1", "lambda.us-east-1.amazonaws.com",
-            "/x", "", b"{}", AWS_TEST_KEY, AWS_TEST_SECRET,
+            "PUT",
+            "lambda",
+            "us-east-1",
+            "lambda.us-east-1.amazonaws.com",
+            "/x",
+            "",
+            b"{}",
+            AWS_TEST_KEY,
+            AWS_TEST_SECRET,
             extra={"content-type": "application/json"},
         )
         assert "content-type" in headers["Authorization"]
@@ -113,14 +129,12 @@ class TestSigV4:
 
 class TestConfiguration:
     def test_all_targets_idle_by_default(self, monkeypatch):
-        for key in ("CLOUDFLARE_API_TOKEN", "AWS_ACCESS_KEY_ID",
-                    "AZURE_FUNCTION_APP", "NAIVE_CADDYFILE_PATH"):
+        for key in ("CLOUDFLARE_API_TOKEN", "AWS_ACCESS_KEY_ID", "AZURE_FUNCTION_APP", "NAIVE_CADDYFILE_PATH"):
             monkeypatch.setattr(Config, key, "")
         assert [t.name for t in rd.TARGETS if t.configured] == []
 
     async def test_deploy_all_without_targets_is_noop(self, monkeypatch):
-        for key in ("CLOUDFLARE_API_TOKEN", "AWS_ACCESS_KEY_ID",
-                    "AZURE_FUNCTION_APP", "NAIVE_CADDYFILE_PATH"):
+        for key in ("CLOUDFLARE_API_TOKEN", "AWS_ACCESS_KEY_ID", "AZURE_FUNCTION_APP", "NAIVE_CADDYFILE_PATH"):
             monkeypatch.setattr(Config, key, "")
         assert await rd.deploy_all() == {}
 
@@ -148,14 +162,12 @@ class TestCloudflare:
         assert call["headers"]["Authorization"] == "Bearer cf-token"
         metadata = json.loads(call["files"]["metadata"][1])
         assert metadata["main_module"] == "worker.js"
-        assert metadata["bindings"] == [
-            {"type": "kv_namespace", "name": "VORTEX_KV", "namespace_id": "kv-1"}]
+        assert metadata["bindings"] == [{"type": "kv_namespace", "name": "VORTEX_KV", "namespace_id": "kv-1"}]
         assert "AUTH_SECRET_PREV" in call["files"]["worker.js"][1]
         assert Config.CDN_WORKER_KV_SECRET in call["files"]["worker.js"][1]
         assert "updated" in detail
 
-    async def test_refuses_without_kv_namespace(self, fake_http, cloudflare_configured,
-                                                monkeypatch):
+    async def test_refuses_without_kv_namespace(self, fake_http, cloudflare_configured, monkeypatch):
         """Без namespace_id заливка сняла бы KV-привязку у живого Worker."""
         monkeypatch.setattr(Config, "CDN_WORKER_KV_NAMESPACE_ID", "")
         with pytest.raises(rd.DeployError, match="KV binding"):
@@ -192,8 +204,7 @@ class TestAWSLambdaEdge:
             FakeResponse(200, json_body={"FunctionArn": f"{ARN}:8"}),
             FakeResponse(200),
         ]
-        fake_http.responses["get"] = [
-            FakeResponse(200, text=DIST_XML, headers={"ETag": "etag-1"})]
+        fake_http.responses["get"] = [FakeResponse(200, text=DIST_XML, headers={"ETag": "etag-1"})]
 
         detail = await rd.AWSLambdaEdgeTarget().deploy()
 
@@ -211,25 +222,26 @@ class TestAWSLambdaEdge:
         assert sent.startswith("<DistributionConfig")
         assert "8" in detail
 
-    async def test_fails_when_distribution_has_no_association(self, fake_http,
-                                                              aws_configured):
+    async def test_fails_when_distribution_has_no_association(self, fake_http, aws_configured):
         fake_http.responses["put"] = [FakeResponse(200, json_body={"FunctionArn": f"{ARN}:8"})]
-        fake_http.responses["get"] = [FakeResponse(
-            200, text='<DistributionConfig xmlns="x"><CallerReference>r</CallerReference>'
-                      "</DistributionConfig>", headers={"ETag": "e"})]
+        fake_http.responses["get"] = [
+            FakeResponse(
+                200,
+                text='<DistributionConfig xmlns="x"><CallerReference>r</CallerReference></DistributionConfig>',
+                headers={"ETag": "e"},
+            )
+        ]
         with pytest.raises(rd.DeployError, match="no association"):
             await rd.AWSLambdaEdgeTarget().deploy()
 
     def test_swap_arn_handles_unversioned_association(self):
-        xml = (f'<DistributionConfig xmlns="x"><LambdaFunctionARN>{ARN}'
-               "</LambdaFunctionARN></DistributionConfig>")
+        xml = f'<DistributionConfig xmlns="x"><LambdaFunctionARN>{ARN}</LambdaFunctionARN></DistributionConfig>'
         out = rd.AWSLambdaEdgeTarget._swap_arn(xml, f"{ARN}:3")
         assert f"<LambdaFunctionARN>{ARN}:3</LambdaFunctionARN>" in out
 
     def test_swap_arn_ignores_other_functions(self):
         other = "arn:aws:lambda:us-east-1:1234:function:SomethingElse:1"
-        xml = (f'<DistributionConfig xmlns="x"><LambdaFunctionARN>{other}'
-               "</LambdaFunctionARN></DistributionConfig>")
+        xml = f'<DistributionConfig xmlns="x"><LambdaFunctionARN>{other}</LambdaFunctionARN></DistributionConfig>'
         assert rd.AWSLambdaEdgeTarget._swap_arn(xml, f"{ARN}:3") is None
 
     async def test_lambda_error_raises(self, fake_http, aws_configured):
@@ -250,8 +262,7 @@ class TestAzure:
         assert call["url"] == "https://vortex-fn.scm.azurewebsites.net/api/zipdeploy"
         assert call["auth"] == ("$vortex", "pw")
         with zipfile.ZipFile(BytesIO(call["content"])) as zf:
-            assert sorted(zf.namelist()) == [
-                "VortexRelay/function.json", "VortexRelay/index.js", "host.json"]
+            assert sorted(zf.namelist()) == ["VortexRelay/function.json", "VortexRelay/index.js", "host.json"]
             trigger = json.loads(zf.read("VortexRelay/function.json"))
             assert trigger["bindings"][0]["route"] == "api/1/objects"
             assert "AUTH_SECRET_PREV" in zf.read("VortexRelay/index.js").decode()
@@ -274,8 +285,7 @@ class TestCaddy:
         assert call["content"].decode() == written
 
     async def test_write_failure_is_reported(self, fake_http, tmp_path, monkeypatch):
-        monkeypatch.setattr(Config, "NAIVE_CADDYFILE_PATH",
-                            str(tmp_path / "missing" / "Caddyfile"))
+        monkeypatch.setattr(Config, "NAIVE_CADDYFILE_PATH", str(tmp_path / "missing" / "Caddyfile"))
         with pytest.raises(rd.DeployError, match="cannot write"):
             await rd.CaddyTarget().deploy()
 

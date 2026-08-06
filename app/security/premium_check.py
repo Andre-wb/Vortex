@@ -11,6 +11,7 @@ Public surface:
     premium_checker.invalidate(w)  — drop cache entry (call after purchase)
     require_premium                — FastAPI dependency for gating endpoints
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -31,7 +32,6 @@ from app.database import get_db
 from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
-
 
 
 VORTEX_PROGRAM_ID = os.getenv(
@@ -63,8 +63,6 @@ _SUBSCRIPTION_DISCRIMINATOR = hashlib.sha256(b"account:Subscription").digest()[:
 _SUBSCRIPTION_SEED = b"subscription"
 
 
-
-
 @dataclass
 class PremiumStatus:
     """Result of a subscription lookup.
@@ -73,6 +71,7 @@ class PremiumStatus:
     ``reason`` carries extra context for debugging / error UX and stays
     empty on the happy path.
     """
+
     wallet_pubkey: str
     is_premium: bool = False
     end_timestamp: int = 0
@@ -95,8 +94,6 @@ class PremiumStatus:
         }
 
 
-
-
 class PremiumChecker:
     """Caches per-wallet subscription status.
 
@@ -108,7 +105,6 @@ class PremiumChecker:
         self._cache: dict[str, PremiumStatus] = {}
         self._inflight: dict[str, asyncio.Task] = {}
         self._lock = asyncio.Lock()
-
 
     async def get_status(self, wallet_pubkey: str) -> PremiumStatus:
         """Return premium status; never raises on RPC errors."""
@@ -135,7 +131,6 @@ class PremiumChecker:
 
     def invalidate(self, wallet_pubkey: str) -> None:
         self._cache.pop(wallet_pubkey, None)
-
 
     async def _fetch_status(self, wallet_pubkey: str) -> PremiumStatus:
         try:
@@ -185,8 +180,6 @@ class PremiumChecker:
         return parsed
 
 
-
-
 def _derive_subscription_pda(beneficiary_base58: str) -> str:
     """Compute ``["subscription", beneficiary]`` PDA for vortex_registry.
 
@@ -195,6 +188,7 @@ def _derive_subscription_pda(beneficiary_base58: str) -> str:
     "no subscription" response.
     """
     from solders.pubkey import Pubkey  # deferred import
+
     program_id = Pubkey.from_string(VORTEX_PROGRAM_ID)
     beneficiary = Pubkey.from_string(beneficiary_base58)
     pda, _bump = Pubkey.find_program_address(
@@ -204,13 +198,12 @@ def _derive_subscription_pda(beneficiary_base58: str) -> str:
     return str(pda)
 
 
-
-
 async def _rpc_get_account_info(pda_base58: str) -> Optional[bytes]:
     """Return raw account data, ``b""`` if the account doesn't exist, or
     ``None`` on network / RPC failure.
     """
     import httpx
+
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
@@ -245,8 +238,6 @@ async def _rpc_get_account_info(pda_base58: str) -> Optional[bytes]:
         return None
 
 
-
-
 def _parse_subscription(raw: bytes, expected_wallet: str) -> PremiumStatus:
     """Decode the on-chain Subscription layout.
 
@@ -265,6 +256,7 @@ def _parse_subscription(raw: bytes, expected_wallet: str) -> PremiumStatus:
         raise ValueError("discriminator mismatch — not a Subscription account")
 
     from solders.pubkey import Pubkey  # deferred import
+
     str(Pubkey(raw[8:40]))
     (end_timestamp,) = struct.unpack("<q", raw[40:48])
     (months_total_paid,) = struct.unpack("<I", raw[48:52])
@@ -273,10 +265,7 @@ def _parse_subscription(raw: bytes, expected_wallet: str) -> PremiumStatus:
 
     # Encode default Pubkey as empty string so UIs can check `if x:` naturally.
     default_pubkey = bytes(32)
-    last_gift_from = (
-        "" if last_gift_from_bytes == default_pubkey
-        else str(Pubkey(last_gift_from_bytes))
-    )
+    last_gift_from = "" if last_gift_from_bytes == default_pubkey else str(Pubkey(last_gift_from_bytes))
 
     return PremiumStatus(
         wallet_pubkey=expected_wallet,
@@ -286,8 +275,6 @@ def _parse_subscription(raw: bytes, expected_wallet: str) -> PremiumStatus:
         lifetime_lamports_paid=lifetime_lamports,
         last_gift_from=last_gift_from,
     )
-
-
 
 
 premium_checker = PremiumChecker()
@@ -306,6 +293,7 @@ async def require_premium_wallet(wallet_pubkey: str) -> PremiumStatus:
             ...
     """
     from fastapi import HTTPException
+
     status = await premium_checker.get_status(wallet_pubkey)
     if not status.is_premium:
         raise HTTPException(
@@ -317,8 +305,6 @@ async def require_premium_wallet(wallet_pubkey: str) -> PremiumStatus:
             },
         )
     return status
-
-
 
 
 # FIX F14: import get_current_user / get_db at module level so the wallet-linking
@@ -420,7 +406,7 @@ async def get_wallet_link_challenge(
     # working — verification reconstructs the same bytes server-side.
     message = _link_message(user.id, nonce)
     return {
-        "challenge":  base64.b64encode(message).decode("ascii"),
+        "challenge": base64.b64encode(message).decode("ascii"),
         "expires_at": int(expires_at),
         "ttl_seconds": _CHALLENGE_TTL_SECONDS,
         "instructions": (
@@ -476,6 +462,7 @@ async def link_wallet_signed(
     # Validate wallet format + extract raw bytes.
     try:
         from solders.pubkey import Pubkey
+
         pk = Pubkey.from_string(wallet)
         pubkey_bytes = bytes(pk)
     except Exception:
@@ -484,6 +471,7 @@ async def link_wallet_signed(
     # Decode signature.
     try:
         import base58
+
         signature = base58.b58decode(signature_b58)
     except Exception:
         raise HTTPException(400, "signature_b58 is not valid base58") from None
@@ -496,8 +484,10 @@ async def link_wallet_signed(
     try:
         from cryptography.exceptions import InvalidSignature
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
         Ed25519PublicKey.from_public_bytes(pubkey_bytes).verify(
-            signature, expected_message,
+            signature,
+            expected_message,
         )
     except InvalidSignature:
         raise HTTPException(403, "signature does not match wallet pubkey") from None
@@ -545,9 +535,9 @@ async def get_premium_plans() -> dict:
     """
     return {
         "plans": [
-            {"tier": 0, "months": 1,  "lamports":  33_333_333, "usd":  5, "label": "Monthly"},
-            {"tier": 1, "months": 3,  "lamports":  80_000_000, "usd": 12, "label": "Quarterly"},
-            {"tier": 2, "months": 6,  "lamports": 133_333_333, "usd": 20, "label": "Half-year"},
+            {"tier": 0, "months": 1, "lamports": 33_333_333, "usd": 5, "label": "Monthly"},
+            {"tier": 1, "months": 3, "lamports": 80_000_000, "usd": 12, "label": "Quarterly"},
+            {"tier": 2, "months": 6, "lamports": 133_333_333, "usd": 20, "label": "Half-year"},
             {"tier": 3, "months": 12, "lamports": 253_333_333, "usd": 38, "label": "Yearly"},
         ],
         "program_id": VORTEX_PROGRAM_ID,

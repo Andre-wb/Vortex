@@ -6,6 +6,7 @@ HTTP-эндпоинты управления.
 
   from app.security.waf import WAFMiddleware, init_waf_engine, waf_router
 """
+
 from app.security.waf.backend import (
     RULE_COUNT,
     VERSION,

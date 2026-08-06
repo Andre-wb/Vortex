@@ -3,6 +3,7 @@ app/transport/global_routes.py — API endpoints for global mode (gossip, bootst
 
 These routes are available only when NETWORK_MODE=global.
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,8 +37,10 @@ def _check_gossip_rate(ip: str) -> bool:
 
 # Pydantic schemas
 
+
 class GossipRequest(BaseModel):
     """Incoming gossip request: peer list + rooms from another node."""
+
     sender_ip: str = Field(..., description="Sender IP")
     sender_port: int = Field(..., description="Sender port")
     sender_pubkey: str = Field("", description="X25519 pubkey of sender (hex)")
@@ -47,6 +50,7 @@ class GossipRequest(BaseModel):
 
 class BootstrapRequest(BaseModel):
     """Request for initial connection to the network."""
+
     sender_ip: str = Field(..., description="New node IP")
     sender_port: int = Field(..., description="New node port")
     sender_pubkey: str = Field("", description="X25519 pubkey of new node (hex)")
@@ -54,11 +58,13 @@ class BootstrapRequest(BaseModel):
 
 class AddPeerRequest(BaseModel):
     """Manual peer addition (from QR code or manual input)."""
+
     ip: str = Field(..., description="Peer IP")
     port: int = Field(9000, description="Peer port")
 
 
 # Gossip endpoint (accepts from any node without authentication)
+
 
 @router.post("/gossip")
 async def gossip(body: GossipRequest, request: Request):
@@ -101,6 +107,7 @@ async def gossip(body: GossipRequest, request: Request):
 
 # Bootstrap endpoint (initial connection)
 
+
 @router.post("/bootstrap")
 async def bootstrap(body: BootstrapRequest, request: Request):
     """
@@ -142,6 +149,7 @@ async def bootstrap(body: BootstrapRequest, request: Request):
 
 # Room search
 
+
 @router.get("/search-rooms")
 async def search_rooms_local(q: str = Query("", description="Search query")):
     """
@@ -152,6 +160,7 @@ async def search_rooms_local(q: str = Query("", description="Search query")):
     try:
         from app.database import SessionLocal
         from app.models_rooms import Room
+
         db = SessionLocal()
         try:
             query = db.query(Room).filter(Room.is_private.is_(False))
@@ -199,6 +208,7 @@ async def search_rooms_global(
 
 # Node info
 
+
 @router.get("/node-info")
 async def node_info():
     """
@@ -208,6 +218,7 @@ async def node_info():
     """
     try:
         from app.security.crypto import load_or_create_node_keypair
+
         _, pub = load_or_create_node_keypair(Config.KEYS_DIR)
         pubkey = pub.hex() if isinstance(pub, bytes) else bytes(pub).hex()
     except Exception:
@@ -222,6 +233,7 @@ async def node_info():
 
 
 # Peer management (requires authentication)
+
 
 @router.get("/peers")
 async def list_global_peers(u: User = Depends(get_current_user)):
@@ -247,6 +259,7 @@ async def list_global_peers(u: User = Depends(get_current_user)):
 async def cdn_status(u: User = Depends(get_current_user)):
     """CDN relay status (Multi-CDN failover)."""
     from app.transport.cdn_relay import cdn_config
+
     return cdn_config.get_status()
 
 

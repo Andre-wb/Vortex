@@ -11,6 +11,7 @@ Endpoints:
   GET  /api/bmp/stats                  — server-side stats (admin)
   DELETE /api/bmp/gc                   — manual garbage collection (admin)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import vortex_chat as _vc
+
     _RUST_BMP = True
     logger.info("[BMP] Rust backend loaded (vortex_chat %s)", _vc.VERSION)
 except ImportError:
@@ -44,20 +46,19 @@ except ImportError:
 router = APIRouter(prefix="/api/bmp", tags=["blind-mailbox"])
 
 
-BMP_MAX_MSG_SIZE = 64 * 1024          # 64 KB max per message
-BMP_MAX_MSGS_PER_BOX = 200            # max messages per mailbox
-BMP_TTL_SECONDS = 7200                # 2 hours — messages expire
-BMP_GC_INTERVAL = 300                 # garbage collection every 5 min
-BMP_MAX_BATCH = 100                   # max mailboxes per batch request
-BMP_RATE_LIMIT_PER_MIN = 600          # max operations per user per minute
-
+BMP_MAX_MSG_SIZE = 64 * 1024  # 64 KB max per message
+BMP_MAX_MSGS_PER_BOX = 200  # max messages per mailbox
+BMP_TTL_SECONDS = 7200  # 2 hours — messages expire
+BMP_GC_INTERVAL = 300  # garbage collection every 5 min
+BMP_MAX_BATCH = 100  # max mailboxes per batch request
+BMP_RATE_LIMIT_PER_MIN = 600  # max operations per user per minute
 
 
 @dataclass
 class MailboxMessage:
-    ciphertext: str           # hex-encoded encrypted payload
-    timestamp: float          # time.time() when deposited
-    size: int                 # payload size in bytes
+    ciphertext: str  # hex-encoded encrypted payload
+    timestamp: float  # time.time() when deposited
+    size: int  # payload size in bytes
 
 
 class BlindMailboxStore:
@@ -93,11 +94,13 @@ class BlindMailboxStore:
             if len(box) >= BMP_MAX_MSGS_PER_BOX:
                 box.pop(0)
 
-            box.append(MailboxMessage(
-                ciphertext=ciphertext,
-                timestamp=time.time(),
-                size=len(ciphertext) // 2,
-            ))
+            box.append(
+                MailboxMessage(
+                    ciphertext=ciphertext,
+                    timestamp=time.time(),
+                    size=len(ciphertext) // 2,
+                )
+            )
             self._total_deposited += 1
         return True
 
@@ -109,10 +112,12 @@ class BlindMailboxStore:
             result = []
             for msg in box:
                 if msg.timestamp > since_ts and (now - msg.timestamp) < BMP_TTL_SECONDS:
-                    result.append({
-                        "ct": msg.ciphertext,
-                        "ts": msg.timestamp,
-                    })
+                    result.append(
+                        {
+                            "ct": msg.ciphertext,
+                            "ts": msg.timestamp,
+                        }
+                    )
             self._total_fetched += 1
         return result
 
@@ -132,10 +137,12 @@ class BlindMailboxStore:
                 msgs = []
                 for msg in box:
                     if msg.timestamp > since_ts and (now - msg.timestamp) < BMP_TTL_SECONDS:
-                        msgs.append({
-                            "ct": msg.ciphertext,
-                            "ts": msg.timestamp,
-                        })
+                        msgs.append(
+                            {
+                                "ct": msg.ciphertext,
+                                "ts": msg.timestamp,
+                            }
+                        )
                 if msgs:
                     # Bucket timestamps to 5-minute windows to prevent timing leaks
                     for m in msgs:
@@ -157,16 +164,13 @@ class BlindMailboxStore:
             for mb_id in list(self._boxes.keys()):
                 box = self._boxes[mb_id]
                 before = len(box)
-                self._boxes[mb_id] = [
-                    m for m in box if (now - m.timestamp) < BMP_TTL_SECONDS
-                ]
+                self._boxes[mb_id] = [m for m in box if (now - m.timestamp) < BMP_TTL_SECONDS]
                 removed += before - len(self._boxes[mb_id])
                 if not self._boxes[mb_id]:
                     del self._boxes[mb_id]
             self._total_expired += removed
         if removed:
-            logger.info("[BMP] GC: removed %d expired messages, %d active boxes",
-                        removed, len(self._boxes))
+            logger.info("[BMP] GC: removed %d expired messages, %d active boxes", removed, len(self._boxes))
         return removed
 
     def stats(self) -> dict:
@@ -197,9 +201,7 @@ class BlindMailboxStore:
                 logger.debug("[BMP] GC error: %s", e)
 
 
-
 store = BlindMailboxStore()
-
 
 
 _rate_counters: dict[str, list[float]] = defaultdict(list)
@@ -220,20 +222,19 @@ def _check_rate(ip: str) -> bool:
 
 def _get_ip(request: Request) -> str:
     from app.security.ip_privacy import raw_ip_for_ratelimit
+
     return raw_ip_for_ratelimit(request)
 
 
-
 class DepositRequest(BaseModel):
-    ct: str = Field(..., min_length=24, max_length=BMP_MAX_MSG_SIZE * 2,
-                    description="Hex-encoded E2E encrypted message")
+    ct: str = Field(
+        ..., min_length=24, max_length=BMP_MAX_MSG_SIZE * 2, description="Hex-encoded E2E encrypted message"
+    )
 
 
 class BatchRequest(BaseModel):
-    ids: list[str] = Field(..., min_length=1, max_length=BMP_MAX_BATCH,
-                           description="List of mailbox IDs to fetch")
+    ids: list[str] = Field(..., min_length=1, max_length=BMP_MAX_BATCH, description="List of mailbox IDs to fetch")
     since: float = Field(0, description="Fetch messages newer than this timestamp")
-
 
 
 @router.post("/post/{mailbox_id}")
@@ -280,6 +281,7 @@ async def bmp_batch(
     result = await store.fetch_batch(body.ids, body.since)
     # Pad response to prevent size-based fingerprinting of message volume
     import secrets as _s
+
     return {"mailboxes": result, "_p": _s.token_urlsafe(128 + _s.randbelow(384))}
 
 
@@ -294,7 +296,6 @@ async def bmp_manual_gc(u: User = Depends(get_current_user)):
     """Trigger manual garbage collection."""
     removed = await store.gc()
     return {"removed": removed, **store.stats()}
-
 
 
 async def start_bmp():
@@ -355,7 +356,7 @@ BMP_CLOCK_SKEW_EPOCHS = 1  # accept ±1 epoch
 def _pair_jitter(bmp_secret_hex: str) -> int:
     """Compute per-pair rotation jitter (0..599 seconds) from secret."""
     secret_bytes = bytes.fromhex(bmp_secret_hex)
-    jitter_sig = hmac.new(secret_bytes, b'jitter', hashlib.sha256).digest()
+    jitter_sig = hmac.new(secret_bytes, b"jitter", hashlib.sha256).digest()
     return ((jitter_sig[0] << 8) | jitter_sig[1]) % BMP_ROTATION_JITTER
 
 
@@ -368,7 +369,7 @@ def compute_mailbox_id(bmp_secret_hex: str, timestamp: float | None = None) -> s
     jitter = _pair_jitter(bmp_secret_hex)
     adjusted_ts = ts - jitter
     epoch = max(0, int(adjusted_ts / BMP_ROTATION_PERIOD))
-    epoch_bytes = epoch.to_bytes(8, 'big')
+    epoch_bytes = epoch.to_bytes(8, "big")
     secret_bytes = bytes.fromhex(bmp_secret_hex)
     sig = hmac.new(secret_bytes, epoch_bytes, hashlib.sha256).digest()
     return sig[:16].hex()
@@ -386,7 +387,7 @@ def compute_mailbox_ids(bmp_secret_hex: str, timestamp: float | None = None) -> 
     secret_bytes = bytes.fromhex(bmp_secret_hex)
     ids = []
     for e in range(epoch - BMP_CLOCK_SKEW_EPOCHS, epoch + BMP_CLOCK_SKEW_EPOCHS + 1):
-        epoch_bytes = max(0, e).to_bytes(8, 'big')
+        epoch_bytes = max(0, e).to_bytes(8, "big")
         sig = hmac.new(secret_bytes, epoch_bytes, hashlib.sha256).digest()
         ids.append(sig[:16].hex())
     return ids
@@ -438,10 +439,8 @@ def _emit_wake_signal(mailbox_id: str):
     logger.debug("[BMP] Wake signal category=%d for mailbox %s", category, mailbox_id[:8])
 
 
-
 class BMPSecretRequest(BaseModel):
-    secret: str = Field(..., min_length=64, max_length=64,
-                        description="Hex-encoded 32-byte HKDF-derived BMP secret")
+    secret: str = Field(..., min_length=64, max_length=64, description="Hex-encoded 32-byte HKDF-derived BMP secret")
 
 
 @router.post("/room-secret/{room_id}")
@@ -460,18 +459,22 @@ async def register_room_secret(
     """
     # Verify user is member of the room
     from app.models_rooms import RoomMember
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member of this room")
 
     await room_secrets.set_secret(room_id, body.secret)
     logger.debug("[BMP] Room secret registered (sanitized)")
     return {"ok": True}
-
 
 
 @router.post("/fast-batch")

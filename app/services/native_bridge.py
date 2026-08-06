@@ -5,6 +5,7 @@ Provides API endpoints consumed by the Capacitor native app for features
 unavailable to PWA: persistent push, background sync, biometric auth,
 file system access, share extensions.
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,13 +24,15 @@ router = APIRouter(prefix="/api/native", tags=["native"])
 
 class RegisterPushRequest(BaseModel):
     """Push registration from native app."""
-    token: str             # FCM/APNs token or UnifiedPush endpoint
-    platform: str          # "ios" | "android" | "unified_push"
+
+    token: str  # FCM/APNs token or UnifiedPush endpoint
+    platform: str  # "ios" | "android" | "unified_push"
     app_version: str = ""
 
 
 class UnifiedPushRequest(BaseModel):
     """UnifiedPush endpoint registration."""
+
     endpoint: str
     app_id: str = "org.vortex.messenger"
 
@@ -115,6 +118,7 @@ async def biometric_challenge(u: User = Depends(get_current_user)):
     """
     import os
     import time
+
     challenge = os.urandom(32).hex()
     return {
         "challenge": challenge,

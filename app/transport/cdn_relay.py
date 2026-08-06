@@ -19,6 +19,7 @@ Multi-CDN failover:
 Cloudflare / AWS / Azure скрипты:
   -> генерируются командой: python run.py --generate-worker
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,7 +27,6 @@ import os
 import threading
 
 logger = logging.getLogger(__name__)
-
 
 
 CLOUDFLARE_WORKER_TEMPLATE = """
@@ -180,7 +180,6 @@ module.exports = async function (context, req) {{
 """
 
 
-
 def generate_worker_files(backend_url: str, relay_secret: str, output_dir: str = "cdn_worker") -> str:
     """
     Генерация файлов CDN relay для всех поддерживаемых провайдеров.
@@ -260,7 +259,6 @@ Vortex автоматически переключается между CDN пр
     return output_dir
 
 
-
 class CDNRelayConfig:
     """Конфигурация Multi-CDN relay с автоматическим failover."""
 
@@ -320,10 +318,9 @@ class CDNRelayConfig:
             import hashlib
             import hmac
             import time
+
             ts = str(int(time.time()) // 300)  # 5-минутное окно
-            sig = hmac.new(
-                self.relay_secret.encode(), ts.encode(), hashlib.sha256
-            ).hexdigest()[:32]
+            sig = hmac.new(self.relay_secret.encode(), ts.encode(), hashlib.sha256).hexdigest()[:32]
             return {
                 "X-Relay-Auth": sig,
                 "X-Relay-Ts": ts,
@@ -336,15 +333,14 @@ class CDNRelayConfig:
         import hashlib
         import hmac
         import time
+
         if not auth_header or not ts_header:
             return False
         # Принимаем текущее и предыдущее окно (grace period)
         current_ts = str(int(time.time()) // 300)
         prev_ts = str(int(time.time()) // 300 - 1)
         for ts in (ts_header, current_ts, prev_ts):
-            expected = hmac.new(
-                secret.encode(), ts.encode(), hashlib.sha256
-            ).hexdigest()[:32]
+            expected = hmac.new(secret.encode(), ts.encode(), hashlib.sha256).hexdigest()[:32]
             if hmac.compare_digest(auth_header, expected):
                 return True
         return False

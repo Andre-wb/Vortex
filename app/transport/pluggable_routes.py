@@ -1,6 +1,7 @@
 """
 API endpoints for pluggable transports, bridges, steganography, and tunnel.
 """
+
 from __future__ import annotations
 
 import base64
@@ -44,6 +45,7 @@ def _check_secrets_rate(key: str, limit: int) -> bool:
 def _is_secure_request(request: Request) -> bool:
     """Пароли уходят только по TLS; исключение — локальные вызовы и тесты."""
     from app.config import Config
+
     if Config.TESTING:
         return True
     proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
@@ -51,7 +53,6 @@ def _is_secure_request(request: Request) -> bool:
         return True
     host = request.client.host if request.client else ""
     return host in ("127.0.0.1", "::1", "localhost")
-
 
 
 class BridgeAddRequest(BaseModel):
@@ -76,11 +77,11 @@ class StegoSendRequest(BaseModel):
     height: int = 480
 
 
-
 @router.get("/status")
 async def transport_status(u: User = Depends(get_current_user)):
     """List all available transports and their status."""
     from app.transport.pluggable import transport_manager
+
     return transport_manager.get_status()
 
 
@@ -91,6 +92,7 @@ async def stealth_status(u: User = Depends(get_current_user)):
     from app.transport.auto_stealth import get_stealth_status
     from app.transport.stealth_level3 import stealth_l3
     from app.transport.stealth_level4 import stealth_l4
+
     base = get_stealth_status()
     base["advanced"] = advanced_stealth.get_status()
     base["level3"] = stealth_l3.get_status()
@@ -105,6 +107,7 @@ async def censorship_report(request: Request):
     Без аутентификации (клиент может быть заблокирован).
     """
     from app.transport.stealth_level4 import stealth_l4
+
     try:
         body = await request.json()
         region = body.get("region", "unknown")
@@ -119,6 +122,7 @@ async def censorship_report(request: Request):
 async def censorship_map(u: User = Depends(get_current_user)):
     """Карта блокировок по регионам."""
     from app.transport.stealth_level4 import stealth_l4
+
     return stealth_l4.dashboard.get_all_regions()
 
 
@@ -126,6 +130,7 @@ async def censorship_map(u: User = Depends(get_current_user)):
 async def sw_config():
     """Конфигурация для Service Worker proxy (без авторизации)."""
     from app.transport.stealth_level4 import stealth_l4
+
     return stealth_l4.sw_config.generate_sw_config(
         transports=["websocket", "sse", "cdn_relay", "meek", "doh"],
     )
@@ -145,14 +150,15 @@ async def knock_hint():
     Без аутентификации (клиент ещё не авторизован).
     """
     from app.transport.auto_stealth import get_knock_hint
-    return get_knock_hint()
 
+    return get_knock_hint()
 
 
 @router.post("/bridge/add")
 async def add_bridge(body: BridgeAddRequest, u: User = Depends(get_current_user)):
     """Add a bridge by bridge line (shared privately by bridge operator)."""
     from app.transport.pluggable import bridge_registry
+
     parsed = bridge_registry.parse_bridge_line(body.bridge_line)
     if not parsed:
         raise HTTPException(400, "Invalid bridge line format. Expected: bridge <ip>:<port> <pubkey>")
@@ -164,6 +170,7 @@ async def add_bridge(body: BridgeAddRequest, u: User = Depends(get_current_user)
 async def register_bridge(body: BridgeRegisterRequest, u: User = Depends(get_current_user)):
     """Register this node or a known relay as a bridge."""
     from app.transport.pluggable import bridge_registry
+
     bid = bridge_registry.register_bridge(body.ip, body.port, body.pubkey_hex)
     line = bridge_registry.generate_bridge_line(body.ip, body.port, body.pubkey_hex)
     return {"ok": True, "bridge_id": bid, "bridge_line": line}
@@ -173,6 +180,7 @@ async def register_bridge(body: BridgeRegisterRequest, u: User = Depends(get_cur
 async def list_bridges(u: User = Depends(get_current_user)):
     """List all known bridge nodes."""
     from app.transport.pluggable import bridge_registry
+
     return {"bridges": bridge_registry.list_bridges()}
 
 
@@ -180,6 +188,7 @@ async def list_bridges(u: User = Depends(get_current_user)):
 async def remove_bridge(bridge_id: str, u: User = Depends(get_current_user)):
     """Remove a bridge."""
     from app.transport.pluggable import bridge_registry
+
     ok = bridge_registry.remove_bridge(bridge_id)
     if not ok:
         raise HTTPException(404, "Bridge not found")
@@ -190,15 +199,16 @@ async def remove_bridge(bridge_id: str, u: User = Depends(get_current_user)):
 async def enable_bridge_mode(u: User = Depends(get_current_user)):
     """Enable this node as a bridge relay for censored users."""
     from app.transport.pluggable import bridge_registry
+
     bridge_registry.enable_bridge_mode()
     return {"ok": True, "message": "This node is now a bridge relay"}
-
 
 
 @router.post("/tunnel/create")
 async def create_tunnel(u: User = Depends(get_current_user)):
     """Create a new TLS tunnel session (WebSocket alternative)."""
     from app.transport.pluggable import tunnel
+
     session_id = tunnel.create_session()
     return {"session_id": session_id}
 
@@ -207,6 +217,7 @@ async def create_tunnel(u: User = Depends(get_current_user)):
 async def tunnel_send(body: TunnelSendRequest, u: User = Depends(get_current_user)):
     """Send data through tunnel (client → server)."""
     from app.transport.pluggable import tunnel
+
     data = base64.b64decode(body.data_b64)
     # Process the data as if it came from WebSocket
     # Here we'd dispatch to chat handler, but for now just echo
@@ -220,6 +231,7 @@ async def tunnel_send(body: TunnelSendRequest, u: User = Depends(get_current_use
 async def tunnel_recv(session_id: str, u: User = Depends(get_current_user)):
     """Receive data from tunnel (server → client). Long-poll with 30s timeout."""
     from app.transport.pluggable import tunnel
+
     data = await tunnel.recv_from_session(session_id, timeout=30.0)
     if data is None:
         return Response(status_code=204)
@@ -233,9 +245,9 @@ async def tunnel_recv(session_id: str, u: User = Depends(get_current_user)):
 async def close_tunnel(session_id: str, u: User = Depends(get_current_user)):
     """Close a tunnel session."""
     from app.transport.pluggable import tunnel
+
     tunnel.close_session(session_id)
     return {"ok": True}
-
 
 
 @router.post("/stego/send")
@@ -283,19 +295,19 @@ async def stego_receive(request: Request, u: User = Depends(get_current_user)):
     )
 
 
-
 @router.get("/shadowsocks/config")
 async def shadowsocks_config(u: User = Depends(get_current_user)):
     """Get Shadowsocks client config for connecting through encrypted proxy."""
     from app.transport.pluggable import transport_manager
+
     if not transport_manager.shadowsocks:
         raise HTTPException(404, "Shadowsocks transport not configured")
     from app.config import Config
+
     return transport_manager.shadowsocks.generate_client_config(
         server_host=Config.HOST,
         server_port=Config.PORT,
     )
-
 
 
 @router.get("/level4/secrets")
@@ -316,8 +328,7 @@ async def level4_secrets(request: Request, u: User = Depends(get_current_user)):
 
     ip = raw_ip_for_ratelimit(request)
     limit = Config.TRANSPORT_SECRETS_RATE_LIMIT
-    if not _check_secrets_rate(f"ip:{ip}", limit) or \
-            not _check_secrets_rate(f"user:{u.id}", limit):
+    if not _check_secrets_rate(f"ip:{ip}", limit) or not _check_secrets_rate(f"user:{u.id}", limit):
         raise HTTPException(429, "Too many requests")
 
     if not _is_secure_request(request):
@@ -328,6 +339,7 @@ async def level4_secrets(request: Request, u: User = Depends(get_current_user)):
         raise HTTPException(404, "Not Found")
 
     from app.transport.stealth_level4 import stealth_l4
+
     return stealth_l4.get_client_secrets()
 
 
@@ -335,6 +347,7 @@ async def level4_secrets(request: Request, u: User = Depends(get_current_user)):
 async def domain_fronting_config(u: User = Depends(get_current_user)):
     """Get domain fronting config for client."""
     from app.transport.pluggable import transport_manager
+
     if not transport_manager.domain_fronting:
         raise HTTPException(404, "Domain fronting not configured (set CDN_RELAY_URL)")
     return transport_manager.domain_fronting.get_config()

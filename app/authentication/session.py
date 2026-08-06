@@ -1,4 +1,5 @@
 """Refresh-токены, logout и управление устройствами."""
+
 from __future__ import annotations
 
 import contextlib
@@ -22,15 +23,14 @@ async def refresh(request: Request, db: Session = Depends(get_db)):
     if not raw:
         raise HTTPException(401, "No refresh token")
     from app.security.crypto import hash_token
+
     old_hash = hash_token(raw)
     device = db.query(UserDevice).filter(UserDevice.refresh_token_hash == old_hash).first()
     user = verify_refresh_token(raw, db)
     response = JSONResponse(content={"ok": True})
     _set_auth_cookies(response, user, db, request)
     if device:
-        newest = db.query(UserDevice).filter(
-            UserDevice.user_id == user.id
-        ).order_by(UserDevice.id.desc()).first()
+        newest = db.query(UserDevice).filter(UserDevice.user_id == user.id).order_by(UserDevice.id.desc()).first()
         if newest and device.id != newest.id:
             newest.device_name = device.device_name
             newest.device_type = device.device_type
@@ -49,6 +49,7 @@ async def logout(request: Request, db: Session = Depends(get_db)):
     raw_refresh = request.cookies.get("refresh_token")
     if raw_refresh:
         from app.security.crypto import hash_token
+
         token_hash = hash_token(raw_refresh)
         db.query(UserDevice).filter(UserDevice.refresh_token_hash == token_hash).delete()
         rec = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
@@ -59,12 +60,12 @@ async def logout(request: Request, db: Session = Depends(get_db)):
     access = request.cookies.get("access_token")
     if access:
         from app.security.auth_jwt import revoke_access_token
+
         revoke_access_token(access)
     r = JSONResponse({"ok": True})
     r.delete_cookie("access_token", path="/")
     r.delete_cookie("refresh_token", path="/")
     return r
-
 
 
 _SESSION_MANAGE_MIN_AGE = timedelta(days=7)
@@ -73,14 +74,19 @@ _SESSION_MANAGE_MIN_AGE = timedelta(days=7)
 def _get_current_device(request: Request, user_id: int, db: Session):
     """Return (current_device, current_hash) for the requesting session."""
     from app.security.crypto import hash_token
+
     raw_refresh = request.cookies.get("refresh_token")
     current_hash = hash_token(raw_refresh) if raw_refresh else None
     current_device = None
     if current_hash:
-        current_device = db.query(UserDevice).filter(
-            UserDevice.user_id == user_id,
-            UserDevice.refresh_token_hash == current_hash,
-        ).first()
+        current_device = (
+            db.query(UserDevice)
+            .filter(
+                UserDevice.user_id == user_id,
+                UserDevice.refresh_token_hash == current_hash,
+            )
+            .first()
+        )
     return current_device, current_hash
 
 
@@ -89,9 +95,7 @@ def _can_manage_sessions(device, user_id: int, db: Session) -> bool:
     if not device or not device.created_at:
         return False
     # First session ever — always has full rights
-    oldest = db.query(UserDevice).filter(
-        UserDevice.user_id == user_id
-    ).order_by(UserDevice.created_at.asc()).first()
+    oldest = db.query(UserDevice).filter(UserDevice.user_id == user_id).order_by(UserDevice.created_at.asc()).first()
     if oldest and oldest.id == device.id:
         return True
     # Otherwise check age
@@ -103,8 +107,7 @@ def _can_manage_sessions(device, user_id: int, db: Session) -> bool:
 
 
 @router.get("/devices")
-async def list_devices(request: Request, u: User = Depends(get_current_user),
-                       db: Session = Depends(get_db)):
+async def list_devices(request: Request, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Список всех активных устройств пользователя."""
     devices = db.query(UserDevice).filter(UserDevice.user_id == u.id).order_by(UserDevice.last_active.desc()).all()
     current_device, current_hash = _get_current_device(request, u.id, db)
@@ -117,38 +120,42 @@ async def list_devices(request: Request, u: User = Depends(get_current_user),
             parts = ip_masked.split(".")
             if len(parts) == 4:
                 ip_masked = f"{parts[0]}.{parts[1]}.{parts[2]}.*"
-        result.append({
-            "id": d.id,
-            "device_name": d.device_name,
-            "device_type": d.device_type,
-            "ip_address": ip_masked,
-            "last_active": (d.last_active.isoformat() + "Z") if d.last_active else None,
-            "created_at": (d.created_at.isoformat() + "Z") if d.created_at else None,
-            "is_current": current_hash is not None and d.refresh_token_hash == current_hash,
-            "device_pub_key": d.device_pub_key,
-        })
+        result.append(
+            {
+                "id": d.id,
+                "device_name": d.device_name,
+                "device_type": d.device_type,
+                "ip_address": ip_masked,
+                "last_active": (d.last_active.isoformat() + "Z") if d.last_active else None,
+                "created_at": (d.created_at.isoformat() + "Z") if d.created_at else None,
+                "is_current": current_hash is not None and d.refresh_token_hash == current_hash,
+                "device_pub_key": d.device_pub_key,
+            }
+        )
     return {"devices": result, "can_manage": can_manage}
 
 
 @router.delete("/devices/{device_id}")
-async def logout_device(device_id: int, request: Request,
-                        u: User = Depends(get_current_user),
-                        db: Session = Depends(get_db)):
+async def logout_device(
+    device_id: int, request: Request, u: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """Удалённый выход — завершить сеанс конкретного устройства."""
     current_device, _ = _get_current_device(request, u.id, db)
     if not _can_manage_sessions(current_device, u.id, db):
         raise HTTPException(403, "Session must be active for at least 7 days to manage other sessions")
 
-    device = db.query(UserDevice).filter(
-        UserDevice.id == device_id, UserDevice.user_id == u.id
-    ).first()
+    device = db.query(UserDevice).filter(UserDevice.id == device_id, UserDevice.user_id == u.id).first()
     if not device:
         raise HTTPException(404, "Device not found")
     if device.refresh_token_hash:
-        rec = db.query(RefreshToken).filter(
-            RefreshToken.token_hash == device.refresh_token_hash,
-            RefreshToken.revoked_at.is_(None),
-        ).first()
+        rec = (
+            db.query(RefreshToken)
+            .filter(
+                RefreshToken.token_hash == device.refresh_token_hash,
+                RefreshToken.revoked_at.is_(None),
+            )
+            .first()
+        )
         if rec:
             rec.revoked_at = datetime.now(timezone.utc)
     # Отзыв v2 (A1): явно удаляем prekey-бандл + OPK устройства, чтобы сервер
@@ -164,35 +171,41 @@ async def logout_device(device_id: int, request: Request,
 
 
 @router.delete("/devices")
-async def logout_all_other_devices(request: Request,
-                                   u: User = Depends(get_current_user),
-                                   db: Session = Depends(get_db)):
+async def logout_all_other_devices(
+    request: Request, u: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """Завершить все сеансы кроме текущего."""
     current_device, current_hash = _get_current_device(request, u.id, db)
     if not _can_manage_sessions(current_device, u.id, db):
         raise HTTPException(403, "Session must be active for at least 7 days to manage other sessions")
 
     from app.security.crypto import hash_token
+
     raw_refresh = request.cookies.get("refresh_token")
     current_hash = hash_token(raw_refresh) if raw_refresh else None
-    devices = db.query(UserDevice).filter(
-        UserDevice.user_id == u.id,
-        UserDevice.refresh_token_hash != current_hash,
-    ).all()
+    devices = (
+        db.query(UserDevice)
+        .filter(
+            UserDevice.user_id == u.id,
+            UserDevice.refresh_token_hash != current_hash,
+        )
+        .all()
+    )
     for d in devices:
         if d.refresh_token_hash:
-            rec = db.query(RefreshToken).filter(
-                RefreshToken.token_hash == d.refresh_token_hash,
-                RefreshToken.revoked_at.is_(None),
-            ).first()
+            rec = (
+                db.query(RefreshToken)
+                .filter(
+                    RefreshToken.token_hash == d.refresh_token_hash,
+                    RefreshToken.revoked_at.is_(None),
+                )
+                .first()
+            )
             if rec:
                 rec.revoked_at = datetime.now(timezone.utc)
         db.delete(d)
     db.commit()
     return {"ok": True}
-
-
-
 
 
 class _VerifyPasswordRequest(_BaseModel):
@@ -217,10 +230,12 @@ async def verify_password(
     """Verify that the user knows their current password."""
     try:
         from app.security.crypto import verify_password
+
         valid = verify_password(body.password, u.password_hash)
     except Exception:
         try:
             from passlib.hash import argon2
+
             valid = argon2.verify(body.password, u.password_hash)
         except Exception:
             valid = False
@@ -237,7 +252,7 @@ async def change_password(
     """Change password. Session must be 7+ days old OR first session OR recovery session."""
     current_device, current_hash = _get_current_device(request, u.id, db)
     # Recovery sessions (created via security questions) have device_name starting with 'recovery:'
-    is_recovery = current_device and current_device.device_name and current_device.device_name.startswith('recovery:')
+    is_recovery = current_device and current_device.device_name and current_device.device_name.startswith("recovery:")
     if not is_recovery and not _can_manage_sessions(current_device, u.id, db):
         raise HTTPException(403, "Session must be active for at least 7 days to change password")
 
@@ -249,11 +264,13 @@ async def change_password(
         if not body.current_password:
             raise HTTPException(400, "Current password is required")
         from app.security.crypto import verify_password
+
         try:
             pw_ok = verify_password(body.current_password, u.password_hash)
         except Exception:
             try:
                 from passlib.hash import argon2
+
                 pw_ok = argon2.verify(body.current_password, u.password_hash)
             except Exception:
                 pw_ok = False
@@ -263,15 +280,18 @@ async def change_password(
     # enforce the full password policy (not just length>=8) and forbid
     # embedding the username, matching registration's strength requirements.
     from app.security.security_validate import validate_password_with_context
+
     ok, msg = validate_password_with_context(body.new_password, u.username or "")
     if not ok:
         raise HTTPException(422, msg)
 
     try:
         from app.security.crypto import hash_password
+
         u.password_hash = hash_password(body.new_password)
     except Exception:
         from passlib.hash import argon2
+
         u.password_hash = argon2.hash(body.new_password)
 
     db.commit()
@@ -280,16 +300,24 @@ async def change_password(
     # token / device session so a stolen session cannot survive the rotation.
     # The current session's refresh token is preserved so the user stays logged
     # in on this device.
-    other_devices = db.query(UserDevice).filter(
-        UserDevice.user_id == u.id,
-        UserDevice.refresh_token_hash != current_hash,
-    ).all()
+    other_devices = (
+        db.query(UserDevice)
+        .filter(
+            UserDevice.user_id == u.id,
+            UserDevice.refresh_token_hash != current_hash,
+        )
+        .all()
+    )
     for d in other_devices:
         if d.refresh_token_hash:
-            rec = db.query(RefreshToken).filter(
-                RefreshToken.token_hash == d.refresh_token_hash,
-                RefreshToken.revoked_at.is_(None),
-            ).first()
+            rec = (
+                db.query(RefreshToken)
+                .filter(
+                    RefreshToken.token_hash == d.refresh_token_hash,
+                    RefreshToken.revoked_at.is_(None),
+                )
+                .first()
+            )
             if rec:
                 rec.revoked_at = datetime.now(timezone.utc)
         db.delete(d)
@@ -299,8 +327,7 @@ async def change_password(
             RefreshToken.user_id == u.id,
             RefreshToken.token_hash != current_hash,
             RefreshToken.revoked_at.is_(None),
-        ).update({RefreshToken.revoked_at: datetime.now(timezone.utc)},
-                 synchronize_session=False)
+        ).update({RefreshToken.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False)
     db.commit()
 
     # Deny-list the current access token's jti so the old stateless access token
@@ -309,10 +336,10 @@ async def change_password(
     if access:
         with contextlib.suppress(Exception):
             from app.security.auth_jwt import revoke_access_token
+
             revoke_access_token(access)
 
     return {"ok": True}
-
 
 
 class _AccountTTLRequest(_BaseModel):
@@ -330,7 +357,7 @@ async def set_account_ttl(
     # Store in user metadata — use a simple column or JSON
     # For now, store in a well-known field
     try:
-        if hasattr(u, 'auto_delete_days'):
+        if hasattr(u, "auto_delete_days"):
             u.auto_delete_days = days
         else:
             # Fallback: store in custom_status as prefix (temporary)
@@ -340,7 +367,6 @@ async def set_account_ttl(
     except Exception:
         db.rollback()
     return {"ok": True, "ttl_days": days}
-
 
 
 class _SessionLimitRequest(_BaseModel):
@@ -378,9 +404,7 @@ async def set_session_limit(
     limit = max(1, min(limit, 20))
 
     # Count current sessions
-    devices = db.query(UserDevice).filter(
-        UserDevice.user_id == u.id
-    ).order_by(UserDevice.last_active.desc()).all()
+    devices = db.query(UserDevice).filter(UserDevice.user_id == u.id).order_by(UserDevice.last_active.desc()).all()
 
     terminated = 0
     if len(devices) > limit:
@@ -388,10 +412,14 @@ async def set_session_limit(
         to_remove = devices[limit:]
         for d in to_remove:
             if d.refresh_token_hash:
-                rec = db.query(RefreshToken).filter(
-                    RefreshToken.token_hash == d.refresh_token_hash,
-                    RefreshToken.revoked_at.is_(None),
-                ).first()
+                rec = (
+                    db.query(RefreshToken)
+                    .filter(
+                        RefreshToken.token_hash == d.refresh_token_hash,
+                        RefreshToken.revoked_at.is_(None),
+                    )
+                    .first()
+                )
                 if rec:
                     rec.revoked_at = datetime.now(timezone.utc)
             db.delete(d)

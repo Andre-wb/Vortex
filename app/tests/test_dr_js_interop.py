@@ -30,7 +30,10 @@ pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node не�
 def js_message():
     proc = subprocess.run(
         ["node", str(PRODUCER)],
-        capture_output=True, text=True, cwd=str(ROOT), timeout=60,
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+        timeout=60,
     )
     assert proc.returncode == 0, f"node producer failed: {proc.stderr}"
     return json.loads(proc.stdout)

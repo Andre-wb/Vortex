@@ -29,6 +29,7 @@ Covers:
     GET    /api/rooms/{room_id}/slowmode/users
     PUT    /api/rooms/{room_id}/slowmode/users
 """
+
 from __future__ import annotations
 
 import secrets
@@ -47,16 +48,19 @@ def _user_id(u: dict) -> int:
     return data.get("user_id") or data.get("id") or 0
 
 
-def _create_room(client, headers: dict, *, name: str | None = None,
-                 is_public: bool = True) -> dict:
-    r = client.post("/api/rooms", json={
-        "name": name or f"room_{random_str()}",
-        "is_public": is_public,
-        "encrypted_room_key": {
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext": secrets.token_hex(60),
+def _create_room(client, headers: dict, *, name: str | None = None, is_public: bool = True) -> dict:
+    r = client.post(
+        "/api/rooms",
+        json={
+            "name": name or f"room_{random_str()}",
+            "is_public": is_public,
+            "encrypted_room_key": {
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(60),
+            },
         },
-    }, headers=headers)
+        headers=headers,
+    )
     assert r.status_code in (200, 201), f"create room failed: {r.text}"
     return r.json()
 
@@ -70,8 +74,8 @@ def _join_room(client, room: dict, headers: dict) -> None:
 
 # Topics
 
-class TestTopics:
 
+class TestTopics:
     def test_list_topics_unauthenticated(self, anon_client):
         r = anon_client.get("/api/rooms/1/topics")
         assert r.status_code in (401, 403)
@@ -97,10 +101,14 @@ class TestTopics:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        r = client.post(f"/api/rooms/{room['id']}/topics", json={
-            "title": "General Discussion",
-            "icon_emoji": "💬",
-        }, headers=h)
+        r = client.post(
+            f"/api/rooms/{room['id']}/topics",
+            json={
+                "title": "General Discussion",
+                "icon_emoji": "💬",
+            },
+            headers=h,
+        )
         assert r.status_code == 201
         body = r.json()
         assert "id" in body
@@ -114,9 +122,13 @@ class TestTopics:
         _, h_member = _register_and_login(client)
         _join_room(client, room, h_member)
 
-        r = client.post(f"/api/rooms/{room['id']}/topics", json={
-            "title": "Member Topic",
-        }, headers=h_member)
+        r = client.post(
+            f"/api/rooms/{room['id']}/topics",
+            json={
+                "title": "Member Topic",
+            },
+            headers=h_member,
+        )
         assert r.status_code == 201
 
     def test_create_topic_unauthenticated(self, anon_client):
@@ -126,9 +138,13 @@ class TestTopics:
     def test_create_topic_missing_title_rejected(self, client):
         _, h = _register_and_login(client)
         room = _create_room(client, h)
-        r = client.post(f"/api/rooms/{room['id']}/topics", json={
-            "icon_emoji": "🔥",
-        }, headers=h)
+        r = client.post(
+            f"/api/rooms/{room['id']}/topics",
+            json={
+                "icon_emoji": "🔥",
+            },
+            headers=h,
+        )
         assert r.status_code in (400, 422)
 
     def test_created_topic_appears_in_list(self, client):
@@ -152,9 +168,7 @@ class TestTopics:
         _, h_member = _register_and_login(client)
         _join_room(client, room, h_member)
 
-        r = client.put(f"/api/rooms/{room['id']}/topics/{topic_id}", json={
-            "title": "Updated"
-        }, headers=h_member)
+        r = client.put(f"/api/rooms/{room['id']}/topics/{topic_id}", json={"title": "Updated"}, headers=h_member)
         assert r.status_code in (403, 404)
 
     def test_update_topic_by_owner_succeeds(self, client):
@@ -164,10 +178,14 @@ class TestTopics:
         create_r = client.post(f"/api/rooms/{room['id']}/topics", json={"title": "Old Title"}, headers=h)
         topic_id = create_r.json()["id"]
 
-        r = client.put(f"/api/rooms/{room['id']}/topics/{topic_id}", json={
-            "title": "New Title",
-            "is_pinned": True,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/topics/{topic_id}",
+            json={
+                "title": "New Title",
+                "is_pinned": True,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         assert r.json().get("ok") is True
 
@@ -204,10 +222,14 @@ class TestTopics:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        client.post(f"/api/rooms/{room['id']}/topics", json={
-            "title": "Structured Topic",
-            "icon_emoji": "📋",
-        }, headers=h)
+        client.post(
+            f"/api/rooms/{room['id']}/topics",
+            json={
+                "title": "Structured Topic",
+                "icon_emoji": "📋",
+            },
+            headers=h,
+        )
 
         r = client.get(f"/api/rooms/{room['id']}/topics", headers=h)
         topics = r.json()["topics"]
@@ -219,8 +241,8 @@ class TestTopics:
 
 # Forum Threads
 
-class TestForumThreads:
 
+class TestForumThreads:
     def test_list_forum_unauthenticated(self, anon_client):
         r = anon_client.get("/api/rooms/1/forum")
         assert r.status_code in (401, 403)
@@ -238,11 +260,15 @@ class TestForumThreads:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        r = client.post(f"/api/rooms/{room['id']}/forum", json={
-            "title": "How do I get started?",
-            "body": "Looking for help!",
-            "tags": ["help", "beginner"],
-        }, headers=h)
+        r = client.post(
+            f"/api/rooms/{room['id']}/forum",
+            json={
+                "title": "How do I get started?",
+                "body": "Looking for help!",
+                "tags": ["help", "beginner"],
+            },
+            headers=h,
+        )
         assert r.status_code == 201
         body = r.json()
         assert "id" in body
@@ -263,10 +289,14 @@ class TestForumThreads:
         room = _create_room(client, h_owner)
 
         _, h_other = _register_and_login(client)
-        r = client.post(f"/api/rooms/{room['id']}/forum", json={
-            "title": "Intrusion",
-            "body": "",
-        }, headers=h_other)
+        r = client.post(
+            f"/api/rooms/{room['id']}/forum",
+            json={
+                "title": "Intrusion",
+                "body": "",
+            },
+            headers=h_other,
+        )
         assert r.status_code in (403, 404)
 
     def test_created_thread_appears_in_list(self, client):
@@ -284,11 +314,15 @@ class TestForumThreads:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/forum", json={
-            "title": "Specific Thread",
-            "body": "Detailed content here",
-            "tags": ["specific"],
-        }, headers=h)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/forum",
+            json={
+                "title": "Specific Thread",
+                "body": "Detailed content here",
+                "tags": ["specific"],
+            },
+            headers=h,
+        )
         thread_id = create_r.json()["id"]
 
         r = client.get(f"/api/rooms/{room['id']}/forum/{thread_id}", headers=h)
@@ -308,49 +342,80 @@ class TestForumThreads:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/forum", json={
-            "title": "Full Fields Thread",
-            "body": "Content",
-        }, headers=h)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/forum",
+            json={
+                "title": "Full Fields Thread",
+                "body": "Content",
+            },
+            headers=h,
+        )
         thread_id = create_r.json()["id"]
 
         r = client.get(f"/api/rooms/{room['id']}/forum/{thread_id}", headers=h)
         body = r.json()
-        for field in ("id", "title", "body", "creator_id", "tags", "is_pinned",
-                      "is_locked", "is_solved", "reply_count", "upvotes", "created_at"):
+        for field in (
+            "id",
+            "title",
+            "body",
+            "creator_id",
+            "tags",
+            "is_pinned",
+            "is_locked",
+            "is_solved",
+            "reply_count",
+            "upvotes",
+            "created_at",
+        ):
             assert field in body, f"Missing field: {field}"
 
     def test_update_thread_requires_admin(self, client):
         _, h_owner = _register_and_login(client)
         room = _create_room(client, h_owner)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/forum", json={
-            "title": "Admin Only Update",
-            "body": "",
-        }, headers=h_owner)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/forum",
+            json={
+                "title": "Admin Only Update",
+                "body": "",
+            },
+            headers=h_owner,
+        )
         thread_id = create_r.json()["id"]
 
         _, h_member = _register_and_login(client)
         _join_room(client, room, h_member)
 
-        r = client.put(f"/api/rooms/{room['id']}/forum/{thread_id}", json={
-            "is_pinned": True,
-        }, headers=h_member)
+        r = client.put(
+            f"/api/rooms/{room['id']}/forum/{thread_id}",
+            json={
+                "is_pinned": True,
+            },
+            headers=h_member,
+        )
         assert r.status_code in (403, 404)
 
     def test_update_thread_pin_by_owner(self, client):
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/forum", json={
-            "title": "Pin Me",
-            "body": "",
-        }, headers=h)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/forum",
+            json={
+                "title": "Pin Me",
+                "body": "",
+            },
+            headers=h,
+        )
         thread_id = create_r.json()["id"]
 
-        r = client.put(f"/api/rooms/{room['id']}/forum/{thread_id}", json={
-            "is_pinned": True,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/forum/{thread_id}",
+            json={
+                "is_pinned": True,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         assert r.json().get("ok") is True
 
@@ -358,25 +423,37 @@ class TestForumThreads:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/forum", json={
-            "title": "Solvable Question",
-            "body": "How?",
-        }, headers=h)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/forum",
+            json={
+                "title": "Solvable Question",
+                "body": "How?",
+            },
+            headers=h,
+        )
         thread_id = create_r.json()["id"]
 
-        r = client.put(f"/api/rooms/{room['id']}/forum/{thread_id}", json={
-            "is_solved": True,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/forum/{thread_id}",
+            json={
+                "is_solved": True,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
 
     def test_upvote_thread_increases_count(self, client):
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/forum", json={
-            "title": "Upvote Me",
-            "body": "",
-        }, headers=h)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/forum",
+            json={
+                "title": "Upvote Me",
+                "body": "",
+            },
+            headers=h,
+        )
         thread_id = create_r.json()["id"]
 
         r = client.post(f"/api/rooms/{room['id']}/forum/{thread_id}/upvote", headers=h)
@@ -390,10 +467,14 @@ class TestForumThreads:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/forum", json={
-            "title": "Double Upvote",
-            "body": "",
-        }, headers=h)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/forum",
+            json={
+                "title": "Double Upvote",
+                "body": "",
+            },
+            headers=h,
+        )
         thread_id = create_r.json()["id"]
 
         r1 = client.post(f"/api/rooms/{room['id']}/forum/{thread_id}/upvote", headers=h)
@@ -415,8 +496,8 @@ class TestForumThreads:
 
 # Granular Permissions
 
-class TestPermissions:
 
+class TestPermissions:
     def test_get_permissions_unauthenticated(self, anon_client):
         r = anon_client.get("/api/rooms/1/permissions")
         assert r.status_code in (401, 403)
@@ -447,22 +528,30 @@ class TestPermissions:
         _, h_member = _register_and_login(client)
         _join_room(client, room, h_member)
 
-        r = client.put(f"/api/rooms/{room['id']}/permissions", json={
-            "role": "member",
-            "allow": 4,
-            "deny": 0,
-        }, headers=h_member)
+        r = client.put(
+            f"/api/rooms/{room['id']}/permissions",
+            json={
+                "role": "member",
+                "allow": 4,
+                "deny": 0,
+            },
+            headers=h_member,
+        )
         assert r.status_code in (403, 404)
 
     def test_set_permission_by_role(self, client):
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        r = client.put(f"/api/rooms/{room['id']}/permissions", json={
-            "role": "member",
-            "allow": 7,
-            "deny": 0,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/permissions",
+            json={
+                "role": "member",
+                "allow": 7,
+                "deny": 0,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         assert r.json().get("ok") is True
 
@@ -471,11 +560,15 @@ class TestPermissions:
         room = _create_room(client, h)
         u2 = make_user(client.make_anon_client())  # create user2 on separate client, cookie stays as owner
 
-        r = client.put(f"/api/rooms/{room['id']}/permissions", json={
-            "user_id": _user_id(u2),
-            "allow": 3,
-            "deny": 0,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/permissions",
+            json={
+                "user_id": _user_id(u2),
+                "allow": 3,
+                "deny": 0,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         assert r.json().get("ok") is True
 
@@ -483,10 +576,14 @@ class TestPermissions:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        r = client.put(f"/api/rooms/{room['id']}/permissions", json={
-            "allow": 7,
-            "deny": 0,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/permissions",
+            json={
+                "allow": 7,
+                "deny": 0,
+            },
+            headers=h,
+        )
         assert r.status_code in (400, 422)
 
     def test_permission_appears_after_set(self, client):
@@ -494,11 +591,15 @@ class TestPermissions:
         room = _create_room(client, h)
         room_id = room["id"]
 
-        client.put(f"/api/rooms/{room_id}/permissions", json={
-            "role": "member",
-            "allow": 15,
-            "deny": 0,
-        }, headers=h)
+        client.put(
+            f"/api/rooms/{room_id}/permissions",
+            json={
+                "role": "member",
+                "allow": 15,
+                "deny": 0,
+            },
+            headers=h,
+        )
 
         r = client.get(f"/api/rooms/{room_id}/permissions", headers=h)
         perms = r.json()["permissions"]
@@ -509,8 +610,8 @@ class TestPermissions:
 
 # Auto-Moderation
 
-class TestAutoMod:
 
+class TestAutoMod:
     def test_list_automod_unauthenticated(self, anon_client):
         r = anon_client.get("/api/rooms/1/automod")
         assert r.status_code in (401, 403)
@@ -539,12 +640,16 @@ class TestAutoMod:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        r = client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": "No Profanity",
-            "rule_type": "word_filter",
-            "pattern": "badword1, badword2",
-            "action": "delete",
-        }, headers=h)
+        r = client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": "No Profanity",
+                "rule_type": "word_filter",
+                "pattern": "badword1, badword2",
+                "action": "delete",
+            },
+            headers=h,
+        )
         assert r.status_code == 201
         body = r.json()
         assert "id" in body
@@ -554,24 +659,32 @@ class TestAutoMod:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        r = client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": "No Crypto Links",
-            "rule_type": "regex",
-            "pattern": r"https?://(?:pump\.fun|honeypot\.is)",
-            "action": "delete",
-        }, headers=h)
+        r = client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": "No Crypto Links",
+                "rule_type": "regex",
+                "pattern": r"https?://(?:pump\.fun|honeypot\.is)",
+                "action": "delete",
+            },
+            headers=h,
+        )
         assert r.status_code == 201
 
     def test_create_regex_rule_invalid_pattern_rejected(self, client):
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        r = client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": "Bad Regex",
-            "rule_type": "regex",
-            "pattern": "(?P<invalid",  # invalid regex
-            "action": "warn",
-        }, headers=h)
+        r = client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": "Bad Regex",
+                "rule_type": "regex",
+                "pattern": "(?P<invalid",  # invalid regex
+                "action": "warn",
+            },
+            headers=h,
+        )
         assert r.status_code in (400, 422)
 
     def test_create_automod_rule_non_member_forbidden(self, client):
@@ -579,12 +692,16 @@ class TestAutoMod:
         room = _create_room(client, h_owner)
 
         _, h_other = _register_and_login(client)
-        r = client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": "Intruder Rule",
-            "rule_type": "word_filter",
-            "pattern": "spam",
-            "action": "delete",
-        }, headers=h_other)
+        r = client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": "Intruder Rule",
+                "rule_type": "word_filter",
+                "pattern": "spam",
+                "action": "delete",
+            },
+            headers=h_other,
+        )
         assert r.status_code in (403, 404)
 
     def test_created_rule_appears_in_list(self, client):
@@ -592,12 +709,16 @@ class TestAutoMod:
         room = _create_room(client, h)
         rule_name = f"rule_{random_str(6)}"
 
-        client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": rule_name,
-            "rule_type": "word_filter",
-            "pattern": "test",
-            "action": "warn",
-        }, headers=h)
+        client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": rule_name,
+                "rule_type": "word_filter",
+                "pattern": "test",
+                "action": "warn",
+            },
+            headers=h,
+        )
 
         r = client.get(f"/api/rooms/{room['id']}/automod", headers=h)
         names = [r_["name"] for r_ in r.json()["rules"]]
@@ -607,37 +728,57 @@ class TestAutoMod:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": "Field Check",
-            "rule_type": "caps_filter",
-            "pattern": "0.8",
-            "action": "warn",
-            "mute_duration_seconds": 60,
-        }, headers=h)
+        client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": "Field Check",
+                "rule_type": "caps_filter",
+                "pattern": "0.8",
+                "action": "warn",
+                "mute_duration_seconds": 60,
+            },
+            headers=h,
+        )
 
         r = client.get(f"/api/rooms/{room['id']}/automod", headers=h)
         rules = r.json()["rules"]
         rule = next((r_ for r_ in rules if r_["name"] == "Field Check"), None)
         assert rule is not None
-        for field in ("id", "name", "rule_type", "pattern", "action",
-                      "is_enabled", "mute_duration_seconds", "trigger_count"):
+        for field in (
+            "id",
+            "name",
+            "rule_type",
+            "pattern",
+            "action",
+            "is_enabled",
+            "mute_duration_seconds",
+            "trigger_count",
+        ):
             assert field in rule, f"Missing field: {field}"
 
     def test_update_automod_rule_name(self, client):
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": "Old Name",
-            "rule_type": "word_filter",
-            "pattern": "spam",
-            "action": "delete",
-        }, headers=h)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": "Old Name",
+                "rule_type": "word_filter",
+                "pattern": "spam",
+                "action": "delete",
+            },
+            headers=h,
+        )
         rule_id = create_r.json()["id"]
 
-        r = client.put(f"/api/rooms/{room['id']}/automod/{rule_id}", json={
-            "name": "New Name",
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/automod/{rule_id}",
+            json={
+                "name": "New Name",
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         assert r.json().get("ok") is True
 
@@ -645,38 +786,48 @@ class TestAutoMod:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": "Disable Me",
-            "rule_type": "word_filter",
-            "pattern": "bad",
-            "action": "warn",
-        }, headers=h)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": "Disable Me",
+                "rule_type": "word_filter",
+                "pattern": "bad",
+                "action": "warn",
+            },
+            headers=h,
+        )
         rule_id = create_r.json()["id"]
 
-        r = client.put(f"/api/rooms/{room['id']}/automod/{rule_id}", json={
-            "is_enabled": False,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/automod/{rule_id}",
+            json={
+                "is_enabled": False,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
 
     def test_update_automod_rule_not_found(self, client):
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        r = client.put(f"/api/rooms/{room['id']}/automod/999999", json={
-            "name": "Ghost"
-        }, headers=h)
+        r = client.put(f"/api/rooms/{room['id']}/automod/999999", json={"name": "Ghost"}, headers=h)
         assert r.status_code == 404
 
     def test_delete_automod_rule(self, client):
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        create_r = client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": "Delete Me",
-            "rule_type": "word_filter",
-            "pattern": "bye",
-            "action": "delete",
-        }, headers=h)
+        create_r = client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": "Delete Me",
+                "rule_type": "word_filter",
+                "pattern": "bye",
+                "action": "delete",
+            },
+            headers=h,
+        )
         rule_id = create_r.json()["id"]
 
         del_r = client.delete(f"/api/rooms/{room['id']}/automod/{rule_id}", headers=h)
@@ -698,20 +849,24 @@ class TestAutoMod:
         _, h = _register_and_login(client)
         room = _create_room(client, h)
 
-        r = client.post(f"/api/rooms/{room['id']}/automod", json={
-            "name": "Mute Spammers",
-            "rule_type": "spam_detection",
-            "pattern": "same_message",
-            "action": "mute",
-            "mute_duration_seconds": 300,
-        }, headers=h)
+        r = client.post(
+            f"/api/rooms/{room['id']}/automod",
+            json={
+                "name": "Mute Spammers",
+                "rule_type": "spam_detection",
+                "pattern": "same_message",
+                "action": "mute",
+                "mute_duration_seconds": 300,
+            },
+            headers=h,
+        )
         assert r.status_code == 201
 
 
 # Per-User Slowmode
 
-class TestSlowmode:
 
+class TestSlowmode:
     def test_list_slowmode_unauthenticated(self, anon_client):
         r = anon_client.get("/api/rooms/1/slowmode/users")
         assert r.status_code in (401, 403)
@@ -741,10 +896,14 @@ class TestSlowmode:
         room = _create_room(client, h)
         u2 = make_user(client.make_anon_client())  # create on separate client, cookie stays as owner
 
-        r = client.put(f"/api/rooms/{room['id']}/slowmode/users", json={
-            "user_id": _user_id(u2),
-            "cooldown_seconds": 30,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/slowmode/users",
+            json={
+                "user_id": _user_id(u2),
+                "cooldown_seconds": 30,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         body = r.json()
         assert body.get("ok") is True
@@ -756,10 +915,14 @@ class TestSlowmode:
         u2 = make_user(client.make_anon_client())  # create on separate client, cookie stays as owner
         uid2 = _user_id(u2)
 
-        client.put(f"/api/rooms/{room['id']}/slowmode/users", json={
-            "user_id": uid2,
-            "cooldown_seconds": 60,
-        }, headers=h)
+        client.put(
+            f"/api/rooms/{room['id']}/slowmode/users",
+            json={
+                "user_id": uid2,
+                "cooldown_seconds": 60,
+            },
+            headers=h,
+        )
 
         r = client.get(f"/api/rooms/{room['id']}/slowmode/users", headers=h)
         entries = r.json()["slowmodes"]
@@ -774,16 +937,24 @@ class TestSlowmode:
         uid2 = _user_id(u2)
 
         # First set a slowmode
-        client.put(f"/api/rooms/{room['id']}/slowmode/users", json={
-            "user_id": uid2,
-            "cooldown_seconds": 30,
-        }, headers=h)
+        client.put(
+            f"/api/rooms/{room['id']}/slowmode/users",
+            json={
+                "user_id": uid2,
+                "cooldown_seconds": 30,
+            },
+            headers=h,
+        )
 
         # Then remove it with 0
-        r = client.put(f"/api/rooms/{room['id']}/slowmode/users", json={
-            "user_id": uid2,
-            "cooldown_seconds": 0,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/slowmode/users",
+            json={
+                "user_id": uid2,
+                "cooldown_seconds": 0,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         body = r.json()
         assert body.get("ok") is True
@@ -801,16 +972,24 @@ class TestSlowmode:
         uid2 = _user_id(u2)
 
         # Set initial slowmode
-        client.put(f"/api/rooms/{room['id']}/slowmode/users", json={
-            "user_id": uid2,
-            "cooldown_seconds": 30,
-        }, headers=h)
+        client.put(
+            f"/api/rooms/{room['id']}/slowmode/users",
+            json={
+                "user_id": uid2,
+                "cooldown_seconds": 30,
+            },
+            headers=h,
+        )
 
         # Update it
-        r = client.put(f"/api/rooms/{room['id']}/slowmode/users", json={
-            "user_id": uid2,
-            "cooldown_seconds": 120,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/slowmode/users",
+            json={
+                "user_id": uid2,
+                "cooldown_seconds": 120,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         assert r.json()["cooldown_seconds"] == 120
 
@@ -826,10 +1005,14 @@ class TestSlowmode:
         room = _create_room(client, h)
         u2 = make_user(client.make_anon_client())
 
-        r = client.put(f"/api/rooms/{room['id']}/slowmode/users", json={
-            "user_id": _user_id(u2),
-            "cooldown_seconds": 3600,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/slowmode/users",
+            json={
+                "user_id": _user_id(u2),
+                "cooldown_seconds": 3600,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
 
     def test_set_slowmode_exceeding_max_rejected(self, client):
@@ -838,10 +1021,14 @@ class TestSlowmode:
         room = _create_room(client, h)
         u2 = make_user(client.make_anon_client())
 
-        r = client.put(f"/api/rooms/{room['id']}/slowmode/users", json={
-            "user_id": _user_id(u2),
-            "cooldown_seconds": 9999,
-        }, headers=h)
+        r = client.put(
+            f"/api/rooms/{room['id']}/slowmode/users",
+            json={
+                "user_id": _user_id(u2),
+                "cooldown_seconds": 9999,
+            },
+            headers=h,
+        )
         assert r.status_code in (400, 422)
 
     def test_set_slowmode_requires_admin(self, client):
@@ -853,8 +1040,12 @@ class TestSlowmode:
 
         u3, _ = _register_and_login(client)
 
-        r = client.put(f"/api/rooms/{room['id']}/slowmode/users", json={
-            "user_id": _user_id(u3),
-            "cooldown_seconds": 30,
-        }, headers=h_member)
+        r = client.put(
+            f"/api/rooms/{room['id']}/slowmode/users",
+            json={
+                "user_id": _user_id(u3),
+                "cooldown_seconds": 30,
+            },
+            headers=h_member,
+        )
         assert r.status_code in (403, 404)

@@ -10,6 +10,7 @@ Cache eviction: LRU with configurable max size (default 500MB).
 Cache TTL: 24 hours (configurable).
 Peer query: parallel HTTP to N nearest peers, first-response wins.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -38,19 +39,19 @@ _cache_pool = httpx.AsyncClient(
 
 
 _MAX_CACHE_SIZE_MB = int(os.environ.get("EDGE_CACHE_MAX_MB", "500"))
-_MAX_CACHE_SIZE    = _MAX_CACHE_SIZE_MB * 1024 * 1024
-_CACHE_TTL         = float(os.environ.get("EDGE_CACHE_TTL", "86400"))  # 24h
-_MAX_SINGLE_FILE   = 50 * 1024 * 1024  # don't cache files > 50MB
-_FETCH_PEERS       = 3  # query up to N peers in parallel
+_MAX_CACHE_SIZE = _MAX_CACHE_SIZE_MB * 1024 * 1024
+_CACHE_TTL = float(os.environ.get("EDGE_CACHE_TTL", "86400"))  # 24h
+_MAX_SINGLE_FILE = 50 * 1024 * 1024  # don't cache files > 50MB
+_FETCH_PEERS = 3  # query up to N peers in parallel
 
 
 @dataclass
 class CacheEntry:
-    file_hash:  str
-    size:       int
-    stored_at:  float = field(default_factory=time.monotonic)
-    last_hit:   float = field(default_factory=time.monotonic)
-    hits:       int   = 0
+    file_hash: str
+    size: int
+    stored_at: float = field(default_factory=time.monotonic)
+    last_hit: float = field(default_factory=time.monotonic)
+    hits: int = 0
 
     def expired(self) -> bool:
         return (time.monotonic() - self.stored_at) > _CACHE_TTL
@@ -89,11 +90,11 @@ class EdgeCache:
             if f.is_file() and len(f.stem) == 64:  # sha256 hex
                 size = f.stat().st_size
                 self._entries[f.stem] = CacheEntry(
-                    file_hash=f.stem, size=size,
+                    file_hash=f.stem,
+                    size=size,
                     stored_at=f.stat().st_mtime,
                 )
                 self._total_size += size
-
 
     def get_local(self, file_hash: str) -> Optional[Path]:
         """Return cached file path if present and not expired."""
@@ -114,12 +115,11 @@ class EdgeCache:
         self._entries.move_to_end(file_hash)
         return path
 
-
     async def fetch_from_peers(
         self,
         file_hash: str,
-        file_id:   int,
-        peer_ips:  list[tuple[str, int]],
+        file_id: int,
+        peer_ips: list[tuple[str, int]],
     ) -> Optional[Path]:
         """
         Try to fetch a file from nearby peers in parallel.
@@ -153,7 +153,6 @@ class EdgeCache:
 
         return None
 
-
     async def store(self, file_hash: str, content: bytes) -> Optional[Path]:
         """Cache file content locally. Returns path or None if too large."""
         if not self._ready or len(content) > _MAX_SINGLE_FILE:
@@ -167,29 +166,32 @@ class EdgeCache:
             path = self._cache_dir / file_hash
             path.write_bytes(content)
             self._entries[file_hash] = CacheEntry(
-                file_hash=file_hash, size=len(content),
+                file_hash=file_hash,
+                size=len(content),
             )
             self._total_size += len(content)
             self._entries.move_to_end(file_hash)
 
         return path
 
-
     async def announce_file(
         self,
         file_hash: str,
-        file_id:   int,
-        peer_ips:  list[tuple[str, int]],
+        file_id: int,
+        peer_ips: list[tuple[str, int]],
     ) -> None:
         """Inform nearby peers about a newly uploaded file for pre-caching."""
         for ip, port in peer_ips[:5]:
             with contextlib.suppress(Exception):
                 await _cache_pool.post(
                     f"https://{ip}:{port}/api/edge-cache/announce",
-                    json={"file_hash": file_hash, "file_id": file_id,
-                          "origin_ip": Config.HOST, "origin_port": Config.PORT},
+                    json={
+                        "file_hash": file_hash,
+                        "file_id": file_id,
+                        "origin_ip": Config.HOST,
+                        "origin_port": Config.PORT,
+                    },
                 )
-
 
     def _evict(self, file_hash: str) -> None:
         entry = self._entries.pop(file_hash, None)
@@ -211,13 +213,12 @@ class EdgeCache:
                 self._evict(k)
             return len(expired)
 
-
     def stats(self) -> dict:
         total_hits = sum(e.hits for e in self._entries.values())
         return {
-            "files":      len(self._entries),
-            "size_mb":    round(self._total_size / 1024 / 1024, 1),
-            "max_mb":     _MAX_CACHE_SIZE_MB,
+            "files": len(self._entries),
+            "size_mb": round(self._total_size / 1024 / 1024, 1),
+            "max_mb": _MAX_CACHE_SIZE_MB,
             "total_hits": total_hits,
             "utilization": round(self._total_size / _MAX_CACHE_SIZE * 100, 1) if _MAX_CACHE_SIZE else 0,
         }

@@ -6,6 +6,7 @@
 Запуск (из корня репозитория):
     python scripts/gen_rust_parity_vectors.py
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -26,10 +27,7 @@ _spec.loader.exec_module(_reference)
 
 
 def build() -> dict:
-    return {
-        fn.name: [{"args": case, "expected": fn.python(case)} for case in fn.cases]
-        for fn in _reference.FUNCTIONS
-    }
+    return {fn.name: [{"args": case, "expected": fn.python(case)} for case in fn.cases] for fn in _reference.FUNCTIONS}
 
 
 def main() -> None:

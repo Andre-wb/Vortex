@@ -4,6 +4,7 @@ Tests for app/security/blockchain_verify.py
 Uses pytest-httpx to mock all HTTP calls — no real network, no real money.
 Run: pytest app/tests/test_blockchain_verify.py -v
 """
+
 from __future__ import annotations
 
 import re
@@ -19,6 +20,7 @@ from app.security.blockchain_verify import (
 )
 
 # _parse_amount
+
 
 class TestParseAmount:
     def test_usdt_string(self):
@@ -45,6 +47,7 @@ class TestParseAmount:
 
 # verify_transaction — input validation
 
+
 class TestInputValidation:
     @pytest.mark.asyncio
     async def test_empty_tx_hash(self):
@@ -60,9 +63,7 @@ class TestInputValidation:
 
     @pytest.mark.asyncio
     async def test_unsupported_network(self, httpx_mock: HTTPXMock):
-        result = await verify_transaction(
-            "a" * 64, "wallet", "5 USDT", "USDT", "xmr"
-        )
+        result = await verify_transaction("a" * 64, "wallet", "5 USDT", "USDT", "xmr")
         assert result.ok is False
         assert "unsupported" in result.error.lower()
 
@@ -70,32 +71,38 @@ class TestInputValidation:
 # TRON / TRC20
 
 TRON_TX_HASH = "a" * 64
-TRON_WALLET  = "TXYZwalletaddress123456789abcdef"
+TRON_WALLET = "TXYZwalletaddress123456789abcdef"
 
 # Minimal TRC20 transfer calldata: selector + padded address + amount (5 USDT = 5_000_000 sun)
 _TRON_TRANSFER_DATA = (
-    "a9059cbb"                                          # transfer(address,uint256) selector
-    + "000000000000000000000000" + "abcdef1234567890abcdef1234567890abcdef12"  # padded recipient
-    + f"{5_000_000:064x}"                               # amount: 5 USDT
+    "a9059cbb"  # transfer(address,uint256) selector
+    + "000000000000000000000000"
+    + "abcdef1234567890abcdef1234567890abcdef12"  # padded recipient
+    + f"{5_000_000:064x}"  # amount: 5 USDT
 )
 
 _TRON_SUCCESS_RESPONSE = {
-    "data": [{
-        "ret": [{"contractRet": "SUCCESS"}],
-        "confirmations": 25,
-        "raw_data": {
-            "contract": [{
-                "type": "TriggerSmartContract",
-                "parameter": {
-                    "value": {
-                        "to_address": TRON_WALLET,
-                        "data": _TRON_TRANSFER_DATA,
+    "data": [
+        {
+            "ret": [{"contractRet": "SUCCESS"}],
+            "confirmations": 25,
+            "raw_data": {
+                "contract": [
+                    {
+                        "type": "TriggerSmartContract",
+                        "parameter": {
+                            "value": {
+                                "to_address": TRON_WALLET,
+                                "data": _TRON_TRANSFER_DATA,
+                            }
+                        },
                     }
-                }
-            }]
+                ]
+            },
         }
-    }]
+    ]
 }
+
 
 class TestTronVerification:
     @pytest.mark.asyncio
@@ -121,11 +128,13 @@ class TestTronVerification:
     @pytest.mark.asyncio
     async def test_insufficient_confirmations(self, httpx_mock: HTTPXMock):
         response = {
-            "data": [{
-                "ret": [{"contractRet": "SUCCESS"}],
-                "confirmations": 5,   # less than required 19
-                "raw_data": {"contract": [{"type": "TriggerSmartContract", "parameter": {"value": {"data": ""}}}]}
-            }]
+            "data": [
+                {
+                    "ret": [{"contractRet": "SUCCESS"}],
+                    "confirmations": 5,  # less than required 19
+                    "raw_data": {"contract": [{"type": "TriggerSmartContract", "parameter": {"value": {"data": ""}}}]},
+                }
+            ]
         }
         httpx_mock.add_response(
             url=f"https://api.trongrid.io/v1/transactions/{TRON_TX_HASH}",
@@ -143,9 +152,7 @@ class TestTronVerification:
             url=f"https://api.trongrid.io/v1/transactions/{TRON_TX_HASH}",
             json=data,
         )
-        result = await verify_transaction(
-            TRON_TX_HASH, "TWRONGwallet999", "5 USDT", "USDT", "trc20"
-        )
+        result = await verify_transaction(TRON_TX_HASH, "TWRONGwallet999", "5 USDT", "USDT", "trc20")
         assert result.ok is False
         assert "wrong address" in result.error.lower()
 
@@ -154,20 +161,25 @@ class TestTronVerification:
         # Build calldata with only 1 USDT
         low_amount_data = (
             "a9059cbb"
-            + "000000000000000000000000" + "abcdef1234567890abcdef1234567890abcdef12"
+            + "000000000000000000000000"
+            + "abcdef1234567890abcdef1234567890abcdef12"
             + f"{1_000_000:064x}"  # 1 USDT
         )
         response = {
-            "data": [{
-                "ret": [{"contractRet": "SUCCESS"}],
-                "confirmations": 25,
-                "raw_data": {
-                    "contract": [{
-                        "type": "TriggerSmartContract",
-                        "parameter": {"value": {"to_address": TRON_WALLET, "data": low_amount_data}}
-                    }]
+            "data": [
+                {
+                    "ret": [{"contractRet": "SUCCESS"}],
+                    "confirmations": 25,
+                    "raw_data": {
+                        "contract": [
+                            {
+                                "type": "TriggerSmartContract",
+                                "parameter": {"value": {"to_address": TRON_WALLET, "data": low_amount_data}},
+                            }
+                        ]
+                    },
                 }
-            }]
+            ]
         }
         httpx_mock.add_response(
             url=f"https://api.trongrid.io/v1/transactions/{TRON_TX_HASH}",
@@ -200,12 +212,13 @@ class TestTronVerification:
 
 # Ethereum / ERC20
 
-ETH_TX_HASH  = "b" * 64
-ETH_WALLET   = "0xAbCdEf1234567890abcdef1234567890AbCdEf12"
+ETH_TX_HASH = "b" * 64
+ETH_WALLET = "0xAbCdEf1234567890abcdef1234567890AbCdEf12"
 
 _ETH_API = re.compile(r"https://api\.etherscan\.io/api")
 _BSC_API = re.compile(r"https://api\.bscscan\.com/api")
 _TON_API = re.compile(r"https://toncenter\.com/api")
+
 
 class TestEthereumVerification:
     @pytest.mark.asyncio
@@ -219,7 +232,14 @@ class TestEthereumVerification:
     async def test_pending_transaction(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
             url=_ETH_API,
-            json={"result": {"to": ETH_WALLET.lower(), "value": hex(int(0.01 * 10**18)), "blockNumber": None, "input": "0x"}},
+            json={
+                "result": {
+                    "to": ETH_WALLET.lower(),
+                    "value": hex(int(0.01 * 10**18)),
+                    "blockNumber": None,
+                    "input": "0x",
+                }
+            },
         )
         result = await verify_transaction(ETH_TX_HASH, ETH_WALLET, "0.01 ETH", "ETH", "erc20")
         assert result.ok is False
@@ -230,7 +250,14 @@ class TestEthereumVerification:
         # tx at block 100, current block 105 → 6 confirmations < 12 required
         httpx_mock.add_response(
             url=_ETH_API,
-            json={"result": {"to": ETH_WALLET.lower(), "value": hex(int(0.01 * 10**18)), "blockNumber": hex(100), "input": "0x"}},
+            json={
+                "result": {
+                    "to": ETH_WALLET.lower(),
+                    "value": hex(int(0.01 * 10**18)),
+                    "blockNumber": hex(100),
+                    "input": "0x",
+                }
+            },
         )
         httpx_mock.add_response(url=_ETH_API, json={"result": hex(105)})
         result = await verify_transaction(ETH_TX_HASH, ETH_WALLET, "0.01 ETH", "ETH", "erc20")
@@ -242,7 +269,14 @@ class TestEthereumVerification:
         # tx at block 100, current block 120 → 21 confirmations > 12
         httpx_mock.add_response(
             url=_ETH_API,
-            json={"result": {"to": ETH_WALLET.lower(), "value": hex(int(0.05 * 10**18)), "blockNumber": hex(100), "input": "0x"}},
+            json={
+                "result": {
+                    "to": ETH_WALLET.lower(),
+                    "value": hex(int(0.05 * 10**18)),
+                    "blockNumber": hex(100),
+                    "input": "0x",
+                }
+            },
         )
         httpx_mock.add_response(url=_ETH_API, json={"result": hex(120)})
         result = await verify_transaction(ETH_TX_HASH, ETH_WALLET, "0.01 ETH", "ETH", "erc20")
@@ -260,7 +294,8 @@ class TestEthereumVerification:
 # BSC / BEP20
 
 BSC_TX_HASH = "c" * 64
-BSC_WALLET  = "0xBSCwallet1234567890abcdef1234567890bscwlt"
+BSC_WALLET = "0xBSCwallet1234567890abcdef1234567890bscwlt"
+
 
 class TestBSCVerification:
     @pytest.mark.asyncio
@@ -273,7 +308,9 @@ class TestBSCVerification:
     async def test_success_confirmed(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
             url=_BSC_API,
-            json={"result": {"to": BSC_WALLET.lower(), "value": hex(10 * 10**18), "blockNumber": hex(200), "input": "0x"}},
+            json={
+                "result": {"to": BSC_WALLET.lower(), "value": hex(10 * 10**18), "blockNumber": hex(200), "input": "0x"}
+            },
         )
         httpx_mock.add_response(url=_BSC_API, json={"result": hex(220)})  # 21 confirmations > 15
         result = await verify_transaction(BSC_TX_HASH, BSC_WALLET, "0 USDT", "USDT", "bep20")
@@ -283,7 +320,8 @@ class TestBSCVerification:
 # TON
 
 TON_TX_HASH = "d" * 64
-TON_WALLET  = "EQDtTestWalletAddressTON1234567890abcdef"
+TON_WALLET = "EQDtTestWalletAddressTON1234567890abcdef"
+
 
 class TestTONVerification:
     @pytest.mark.asyncio
@@ -303,10 +341,14 @@ class TestTONVerification:
     @pytest.mark.asyncio
     async def test_success_by_hash(self, httpx_mock: HTTPXMock):
         import base64
+
         tx_hash_b64 = base64.b64encode(bytes.fromhex(TON_TX_HASH[:64])).decode()
         httpx_mock.add_response(
             url=_TON_API,
-            json={"ok": True, "result": [{"transaction_id": {"hash": tx_hash_b64}, "in_msg": {"value": str(2 * 10**9)}}]},
+            json={
+                "ok": True,
+                "result": [{"transaction_id": {"hash": tx_hash_b64}, "in_msg": {"value": str(2 * 10**9)}}],
+            },
         )
         result = await verify_transaction(TON_TX_HASH[:64], TON_WALLET, "1 TON", "TON", "ton")
         assert result.ok is True
@@ -315,10 +357,14 @@ class TestTONVerification:
     @pytest.mark.asyncio
     async def test_insufficient_amount(self, httpx_mock: HTTPXMock):
         import base64
+
         tx_hash_b64 = base64.b64encode(bytes.fromhex(TON_TX_HASH[:64])).decode()
         httpx_mock.add_response(
             url=_TON_API,
-            json={"ok": True, "result": [{"transaction_id": {"hash": tx_hash_b64}, "in_msg": {"value": str(int(0.5 * 10**9))}}]},
+            json={
+                "ok": True,
+                "result": [{"transaction_id": {"hash": tx_hash_b64}, "in_msg": {"value": str(int(0.5 * 10**9))}}],
+            },
         )
         result = await verify_transaction(TON_TX_HASH[:64], TON_WALLET, "1 TON", "TON", "ton")
         assert result.ok is False
@@ -328,7 +374,8 @@ class TestTONVerification:
 # Bitcoin
 
 BTC_TX_HASH = "e" * 64
-BTC_WALLET  = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+BTC_WALLET = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+
 
 class TestBitcoinVerification:
     @pytest.mark.asyncio
@@ -365,7 +412,7 @@ class TestBitcoinVerification:
         )
         httpx_mock.add_response(
             url="https://blockstream.info/api/blocks/tip/height",
-            text="800001",   # only 2 confirmations < 3 required
+            text="800001",  # only 2 confirmations < 3 required
         )
         result = await verify_transaction(BTC_TX_HASH, BTC_WALLET, "0.001 BTC", "BTC", "btc")
         assert result.ok is False
@@ -428,6 +475,7 @@ class TestBitcoinVerification:
 
 
 # VerificationResult dataclass
+
 
 class TestVerificationResult:
     def test_default_values(self):

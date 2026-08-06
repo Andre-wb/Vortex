@@ -9,6 +9,7 @@ Endpoints:
 Helper:
   send_push(user_id, payload) -- deliver push notification via pywebpush
 """
+
 from __future__ import annotations
 
 import json
@@ -31,6 +32,7 @@ router = APIRouter(prefix="/api/push", tags=["push"])
 
 # Request / response schemas
 
+
 class SubscribeRequest(BaseModel):
     endpoint: str
     p256dh: str
@@ -42,6 +44,7 @@ class UnsubscribeRequest(BaseModel):
 
 
 # Endpoints
+
 
 @router.get("/vapid-key")
 async def vapid_public_key(user: User = Depends(get_current_user)):
@@ -59,11 +62,7 @@ async def subscribe(
     db: Session = Depends(get_db),
 ):
     """Save or update a push subscription for the current user."""
-    existing = (
-        db.query(PushSubscription)
-        .filter(PushSubscription.endpoint == body.endpoint)
-        .first()
-    )
+    existing = db.query(PushSubscription).filter(PushSubscription.endpoint == body.endpoint).first()
     if existing:
         existing.user_id = user.id
         existing.p256dh = body.p256dh
@@ -100,6 +99,7 @@ async def unsubscribe(
 
 
 # send_push -- deliver Web Push notification to a user
+
 
 def _get_vapid_claims() -> dict:
     return {
@@ -146,15 +146,12 @@ def send_push(user_id: int, payload: dict, db: Optional[Session] = None) -> int:
     close_db = False
     if db is None:
         from app.database import SessionLocal
+
         db = SessionLocal()
         close_db = True
 
     try:
-        subs = (
-            db.query(PushSubscription)
-            .filter(PushSubscription.user_id == user_id)
-            .all()
-        )
+        subs = db.query(PushSubscription).filter(PushSubscription.user_id == user_id).all()
         if not subs:
             return 0
 
@@ -193,9 +190,7 @@ def send_push(user_id: int, payload: dict, db: Optional[Session] = None) -> int:
 
         # Cleanup stale subscriptions
         if stale_ids:
-            db.query(PushSubscription).filter(PushSubscription.id.in_(stale_ids)).delete(
-                synchronize_session=False
-            )
+            db.query(PushSubscription).filter(PushSubscription.id.in_(stale_ids)).delete(synchronize_session=False)
             db.commit()
 
         return sent

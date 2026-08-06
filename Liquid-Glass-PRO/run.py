@@ -26,15 +26,15 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
 EXTRA_MIME = {
-    '.js':    'application/javascript',
-    '.mjs':   'application/javascript',
-    '.jsx':   'application/javascript',
-    '.ts':    'application/typescript',
-    '.wasm':  'application/wasm',
-    '.json':  'application/json',
-    '.svg':   'image/svg+xml',
-    '.webp':  'image/webp',
-    '.avif':  'image/avif',
+    ".js": "application/javascript",
+    ".mjs": "application/javascript",
+    ".jsx": "application/javascript",
+    ".ts": "application/typescript",
+    ".wasm": "application/wasm",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
 }
 
 
@@ -49,12 +49,12 @@ class LGHandler(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         # CORS – allows html2canvas and WebGL to read same-origin canvases
-        self.send_header('Access-Control-Allow-Origin',  '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', '*')
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
         # Needed for SharedArrayBuffer / Atomics (optional, future-proof)
-        self.send_header('Cross-Origin-Opener-Policy',   'same-origin')
-        self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         super().end_headers()
 
     def guess_type(self, path):
@@ -69,28 +69,25 @@ class LGHandler(SimpleHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         # Suppress 304 "Not Modified" noise; show everything else
-        if args and str(args[1]) == '304':
+        if args and str(args[1]) == "304":
             return
-        status = args[1] if len(args) > 1 else '?'
-        colour = '\033[92m' if str(status).startswith('2') else \
-            '\033[93m' if str(status).startswith('3') else '\033[91m'
-        reset  = '\033[0m'
+        status = args[1] if len(args) > 1 else "?"
+        colour = (
+            "\033[92m" if str(status).startswith("2") else "\033[93m" if str(status).startswith("3") else "\033[91m"
+        )
+        reset = "\033[0m"
         print(f"  {colour}{status}{reset}  {args[0]}")
 
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description='Liquid Glass PRO — development server',
+        description="Liquid Glass PRO — development server",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument('--port', '-p', type=int, default=8080,
-                   help='Port to listen on (default: 8080)')
-    p.add_argument('--host', default='localhost',
-                   help='Bind address (default: localhost; use 0.0.0.0 for LAN)')
-    p.add_argument('--no-open', action='store_true',
-                   help='Do not auto-open browser on start')
-    p.add_argument('--dir', default=None,
-                   help='Directory to serve (default: directory of this script)')
+    p.add_argument("--port", "-p", type=int, default=8080, help="Port to listen on (default: 8080)")
+    p.add_argument("--host", default="localhost", help="Bind address (default: localhost; use 0.0.0.0 for LAN)")
+    p.add_argument("--no-open", action="store_true", help="Do not auto-open browser on start")
+    p.add_argument("--dir", default=None, help="Directory to serve (default: directory of this script)")
     return p.parse_args()
 
 
@@ -101,29 +98,29 @@ def main():
     serve_dir = args.dir or os.path.dirname(os.path.abspath(__file__))
     os.chdir(serve_dir)
 
-    url = f'http://{args.host}:{args.port}/demo.html'
+    url = f"http://{args.host}:{args.port}/demo.html"
 
     # Bind server
     handler = partial(LGHandler, directory=serve_dir)
     try:
         server = HTTPServer((args.host, args.port), handler)
     except OSError as e:
-        print(f'\n  \033[91m✗\033[0m  Cannot bind {args.host}:{args.port} — {e}')
-        print(f'       Try: python run.py --port {args.port + 1}')
+        print(f"\n  \033[91m✗\033[0m  Cannot bind {args.host}:{args.port} — {e}")
+        print(f"       Try: python run.py --port {args.port + 1}")
         sys.exit(1)
 
     print()
-    print('  \033[1m\033[95m◆ Liquid Glass PRO\033[0m  development server')
+    print("  \033[1m\033[95m◆ Liquid Glass PRO\033[0m  development server")
     print()
-    print(f'  \033[92m●\033[0m  Serving:  \033[4m{url}\033[0m')
-    print(f'     Root:     {serve_dir}')
+    print(f"  \033[92m●\033[0m  Serving:  \033[4m{url}\033[0m")
+    print(f"     Root:     {serve_dir}")
     print()
-    print('  Notes:')
-    print('   • html2canvas requires this server (ES modules + same-origin)')
-    print('   • Test on mobile:  python run.py --host 0.0.0.0')
-    print(f'     then open  http://<your-LAN-ip>:{args.port}/demo.html')
+    print("  Notes:")
+    print("   • html2canvas requires this server (ES modules + same-origin)")
+    print("   • Test on mobile:  python run.py --host 0.0.0.0")
+    print(f"     then open  http://<your-LAN-ip>:{args.port}/demo.html")
     print()
-    print('  Press  Ctrl+C  to stop.')
+    print("  Press  Ctrl+C  to stop.")
     print()
 
     if not args.no_open:
@@ -133,10 +130,10 @@ def main():
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print('\n\n  \033[93m◆\033[0m  Server stopped.\n')
+        print("\n\n  \033[93m◆\033[0m  Server stopped.\n")
         server.server_close()
         sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

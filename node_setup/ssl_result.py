@@ -20,6 +20,7 @@ class SSLResult(NamedTuple):
     message: текстовое сообщение для пользователя
     trusted: доверяет ли система этому сертификату (CA установлен)
     """
+
     ok: bool
     cert: str
     key: str
@@ -44,6 +45,7 @@ def _local_ips() -> list[str]:
         ips.add(socket.gethostbyname(hostname))
     try:
         import netifaces
+
         for iface in netifaces.interfaces():
             addrs = netifaces.ifaddresses(iface)
             for family in (netifaces.AF_INET, netifaces.AF_INET6):

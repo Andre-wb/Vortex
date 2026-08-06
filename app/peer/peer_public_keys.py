@@ -16,6 +16,7 @@ Non-goals:
       both idempotent).
     * Replicating private-room keys (never — those stay per-member ECIES).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -45,7 +46,7 @@ async def propagate_public_key(
     room_id: int,
     key_hex: str,
     algorithm: str,
-    action: str,   # "set" | "delete"
+    action: str,  # "set" | "delete"
 ) -> None:
     """Fan the change out to every active peer. Best-effort, fire-and-forget.
 
@@ -59,14 +60,14 @@ async def propagate_public_key(
 
     node_priv_raw, node_pub_raw = _get_node_keys()
     node_priv = bytes(node_priv_raw) if not isinstance(node_priv_raw, bytes) else node_priv_raw
-    node_pub  = bytes(node_pub_raw)  if not isinstance(node_pub_raw,  bytes) else node_pub_raw
+    node_pub = bytes(node_pub_raw) if not isinstance(node_pub_raw, bytes) else node_pub_raw
 
     payload = {
-        "action":    action,
-        "room_id":   room_id,
-        "key_hex":   key_hex,
+        "action": action,
+        "room_id": room_id,
+        "key_hex": key_hex,
         "algorithm": algorithm,
-        "ts":        datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(timezone.utc).isoformat(),
         # Origin pubkey lets the receiver skip re-propagating back to us.
         "source_pubkey": node_pub.hex(),
     }
@@ -75,16 +76,17 @@ async def propagate_public_key(
         try:
             if peer.has_encryption():
                 from app.security.key_exchange import encrypt_p2p_payload
+
                 enc = encrypt_p2p_payload(payload, node_priv, peer.node_pubkey_hex)
                 body = {
                     "ephemeral_pub": enc["ephemeral_pub"],
-                    "ciphertext":    enc["ciphertext"],
+                    "ciphertext": enc["ciphertext"],
                     "sender_pubkey": node_pub.hex(),
                 }
             else:
                 body = {
                     "plaintext_payload": payload,
-                    "sender_pubkey":     node_pub.hex(),
+                    "sender_pubkey": node_pub.hex(),
                 }
             async with httpx.AsyncClient(timeout=3.0, verify=_peer_ssl_ctx) as c:
                 await c.post(f"{peer.base_url}/api/peers/sync-public-key", json=body)
@@ -96,9 +98,9 @@ async def propagate_public_key(
 
 
 class SyncRequest(BaseModel):
-    ephemeral_pub:     Optional[str]  = Field(None, min_length=64, max_length=64)
-    ciphertext:        Optional[str]  = None
-    sender_pubkey:     Optional[str]  = None
+    ephemeral_pub: Optional[str] = Field(None, min_length=64, max_length=64)
+    ciphertext: Optional[str] = None
+    sender_pubkey: Optional[str] = None
     plaintext_payload: Optional[dict] = None
 
 
@@ -113,6 +115,7 @@ async def sync_public_key(body: SyncRequest, request: Request):
         node_priv = bytes(node_priv_raw) if not isinstance(node_priv_raw, bytes) else node_priv_raw
         try:
             from app.security.key_exchange import decrypt_p2p_payload
+
             msg = decrypt_p2p_payload(body.ephemeral_pub, body.ciphertext, node_priv)
         except Exception as e:
             logger.warning("sync-public-key decrypt failed from %s: %s", src_ip, e)
@@ -125,9 +128,9 @@ async def sync_public_key(body: SyncRequest, request: Request):
     else:
         return {"ok": False, "error": "missing_payload"}
 
-    action    = msg.get("action")
-    room_id   = msg.get("room_id")
-    key_hex   = (msg.get("key_hex") or "").lower()
+    action = msg.get("action")
+    room_id = msg.get("room_id")
+    key_hex = (msg.get("key_hex") or "").lower()
     algorithm = msg.get("algorithm") or "aes-256-gcm"
 
     if not isinstance(room_id, int) or action not in ("set", "delete"):
@@ -150,13 +153,16 @@ async def sync_public_key(body: SyncRequest, request: Request):
         if action == "set":
             if not key_hex or len(key_hex) != 64:
                 return {"ok": False, "error": "bad_key_hex"}
-            existing = db.query(PublicRoomKey).filter(
-                PublicRoomKey.room_id == room_id).first()
+            existing = db.query(PublicRoomKey).filter(PublicRoomKey.room_id == room_id).first()
             rotated = False
             if existing is None:
-                db.add(PublicRoomKey(
-                    room_id=room_id, key_hex=key_hex, algorithm=algorithm,
-                ))
+                db.add(
+                    PublicRoomKey(
+                        room_id=room_id,
+                        key_hex=key_hex,
+                        algorithm=algorithm,
+                    )
+                )
             elif existing.key_hex != key_hex:
                 existing.key_hex = key_hex
                 existing.algorithm = algorithm
@@ -169,27 +175,32 @@ async def sync_public_key(body: SyncRequest, request: Request):
             db.commit()
             # Tell locally-connected members to re-pull.
             try:
-                await ws_manager.broadcast_to_room(room_id, {
-                    "type": "public_room_key_updated",
-                    "room_id": room_id,
-                    "rotated": rotated,
-                    "from_peer": True,
-                })
+                await ws_manager.broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "public_room_key_updated",
+                        "room_id": room_id,
+                        "rotated": rotated,
+                        "from_peer": True,
+                    },
+                )
             except Exception as e:
                 logger.debug("local broadcast from peer sync failed: %s", e)
             return {"ok": True, "rotated": rotated}
 
         # action == "delete"
-        n = db.query(PublicRoomKey).filter(
-            PublicRoomKey.room_id == room_id).delete(synchronize_session=False)
+        n = db.query(PublicRoomKey).filter(PublicRoomKey.room_id == room_id).delete(synchronize_session=False)
         db.commit()
         if n:
             try:
-                await ws_manager.broadcast_to_room(room_id, {
-                    "type": "public_room_key_deleted",
-                    "room_id": room_id,
-                    "from_peer": True,
-                })
+                await ws_manager.broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "public_room_key_deleted",
+                        "room_id": room_id,
+                        "from_peer": True,
+                    },
+                )
             except Exception as e:
                 logger.debug("local broadcast delete-from-peer failed: %s", e)
         return {"ok": True, "wiped": bool(n)}

@@ -4,6 +4,7 @@ Supports: anonymous voting, multiple answers, quiz mode, revote lock,
 time limits, option suggestions, shuffle, descriptions.
 Called from the ws_chat message dispatch loop.
 """
+
 from __future__ import annotations
 
 import json
@@ -41,17 +42,21 @@ async def handle_create_poll(room_id: int, user: User, data: dict, db: Session) 
     opt_objects = []
     for _i, opt in enumerate(options):
         if isinstance(opt, dict):
-            opt_objects.append({
-                "text": str(opt.get("text", "")).strip()[:200],
-                "description": str(opt.get("description", "")).strip()[:300],
-                "media_url": str(opt.get("media_url", "")).strip() if opt.get("media_url") else None,
-            })
+            opt_objects.append(
+                {
+                    "text": str(opt.get("text", "")).strip()[:200],
+                    "description": str(opt.get("description", "")).strip()[:300],
+                    "media_url": str(opt.get("media_url", "")).strip() if opt.get("media_url") else None,
+                }
+            )
         else:
-            opt_objects.append({
-                "text": str(opt).strip()[:200],
-                "description": "",
-                "media_url": None,
-            })
+            opt_objects.append(
+                {
+                    "text": str(opt).strip()[:200],
+                    "description": "",
+                    "media_url": None,
+                }
+            )
 
     # Advanced settings
     anonymous = bool(data.get("anonymous", False))
@@ -77,8 +82,8 @@ async def handle_create_poll(room_id: int, user: User, data: dict, db: Session) 
         "question": question,
         "description": description,
         "options": opt_objects,
-        "votes": {},       # str(option_idx) -> count
-        "voters": {},      # str(user_id) -> option_idx or [option_idxs]
+        "votes": {},  # str(option_idx) -> count
+        "voters": {},  # str(user_id) -> option_idx or [option_idxs]
         "anonymous": anonymous,
         "multiple": multiple,
         "quiz": quiz,
@@ -212,8 +217,7 @@ async def handle_vote_poll(room_id: int, user: User, data: dict, db: Session) ->
             "explanation": poll_data.get("explanation", ""),
         }
 
-    await _broadcast_poll_update(room_id, msg_id, poll_data, quiz_result=quiz_result,
-                                  voter_id=user.id)
+    await _broadcast_poll_update(room_id, msg_id, poll_data, quiz_result=quiz_result, voter_id=user.id)
 
 
 async def handle_retract_vote(room_id: int, user: User, data: dict, db: Session) -> None:
@@ -297,28 +301,40 @@ async def handle_suggest_option(room_id: int, user: User, data: dict, db: Sessio
         return
 
     new_idx = len(poll_data["options"])
-    poll_data["options"].append({
-        "text": text[:200],
-        "description": "",
-        "media_url": None,
-    })
+    poll_data["options"].append(
+        {
+            "text": text[:200],
+            "description": "",
+            "media_url": None,
+        }
+    )
     poll_data.setdefault("suggested_by", {})[str(new_idx)] = user.id
 
     msg.content_encrypted = json.dumps(poll_data).encode()
     db.commit()
 
-    await _broadcast_poll_update(room_id, msg_id, poll_data, new_option={
-        "index": new_idx,
-        "text": text[:200],
-        "suggested_by": user.display_name or user.username,
-    })
+    await _broadcast_poll_update(
+        room_id,
+        msg_id,
+        poll_data,
+        new_option={
+            "index": new_idx,
+            "text": text[:200],
+            "suggested_by": user.display_name or user.username,
+        },
+    )
 
 
-async def _broadcast_poll_update(room_id: int, msg_id: int, poll_data: dict, *,
-                                  quiz_result: dict | None = None,
-                                  voter_id: int | None = None,
-                                  closed: bool = False,
-                                  new_option: dict | None = None) -> None:
+async def _broadcast_poll_update(
+    room_id: int,
+    msg_id: int,
+    poll_data: dict,
+    *,
+    quiz_result: dict | None = None,
+    voter_id: int | None = None,
+    closed: bool = False,
+    new_option: dict | None = None,
+) -> None:
     """Broadcast poll state update to room."""
     total = sum(poll_data.get("votes", {}).values())
     payload = {

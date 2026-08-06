@@ -3,9 +3,7 @@ Tests for contacts, blocking, DMs, and search.
 """
 
 
-
 class TestContacts:
-
     def test_contacts_list_empty(self, client, logged_user):
         resp = client.get("/api/contacts", headers=logged_user["headers"])
         assert resp.status_code == 200
@@ -19,7 +17,6 @@ class TestContacts:
 
 
 class TestBlocking:
-
     def test_block_user(self, client, two_users):
         u1, u2 = two_users
         user2_data = u2["data"]
@@ -33,7 +30,6 @@ class TestBlocking:
 
 
 class TestDirectMessages:
-
     def test_dm_create_and_list(self, client, two_users):
         u1, u2 = two_users
         user2_data = u2["data"]
@@ -44,7 +40,6 @@ class TestDirectMessages:
 
 
 class TestSearch:
-
     def test_search_empty_query(self, client, logged_user):
         resp = client.get("/api/search?q=", headers=logged_user["headers"])
         assert resp.status_code in (200, 400, 404, 422)

@@ -3,6 +3,7 @@
 Ответы хешируются через PBKDF2-SHA256 (600K итераций) и хранятся в БД.
 При восстановлении ответы верифицируются, и выдаётся JWT.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -26,16 +27,14 @@ logger = logging.getLogger(__name__)
 _PBKDF2_ITERATIONS = 600_000
 
 
-
 class SecurityQuestion(Base):
     __tablename__ = "security_questions"
 
-    id        = Column(Integer, primary_key=True, autoincrement=True)
-    user_id   = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    question  = Column(String(200), nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    question = Column(String(200), nullable=False)
     answer_hash = Column(String(256), nullable=False)  # salt:hash
     order_idx = Column(Integer, default=0)
-
 
 
 def _hash_answer(answer: str, salt: str | None = None) -> str:
@@ -58,10 +57,9 @@ def _verify_answer(answer: str, stored: str) -> bool:
     return h.hex() == expected_hash
 
 
-
 class SetupRequest(BaseModel):
     questions: list[str]  # 3 questions
-    answers: list[str]    # 3 answers
+    answers: list[str]  # 3 answers
 
 
 class LoadRequest(BaseModel):
@@ -71,7 +69,6 @@ class LoadRequest(BaseModel):
 class RecoverRequest(BaseModel):
     username: str
     answers: list[str]  # 3 answers
-
 
 
 DEFAULT_QUESTIONS = [
@@ -85,7 +82,6 @@ DEFAULT_QUESTIONS_EN = [
     "City where you were born?",
     "Favorite childhood movie?",
 ]
-
 
 
 @router.post("/security-questions/setup")
@@ -107,12 +103,14 @@ async def setup_security_questions(
 
     # Save new
     for i, (q, a) in enumerate(zip(body.questions, body.answers, strict=False)):
-        db.add(SecurityQuestion(
-            user_id=u.id,
-            question=q.strip(),
-            answer_hash=_hash_answer(a),
-            order_idx=i,
-        ))
+        db.add(
+            SecurityQuestion(
+                user_id=u.id,
+                question=q.strip(),
+                answer_hash=_hash_answer(a),
+                order_idx=i,
+            )
+        )
     db.commit()
     logger.info("Security questions set for user %s", u.username)
     return {"ok": True}
@@ -227,9 +225,8 @@ async def recover_with_security_questions(
 
     # Mark the newest device as recovery session
     from app.models import UserDevice
-    newest = db.query(UserDevice).filter(
-        UserDevice.user_id == user.id
-    ).order_by(UserDevice.id.desc()).first()
+
+    newest = db.query(UserDevice).filter(UserDevice.user_id == user.id).order_by(UserDevice.id.desc()).first()
     if newest:
         newest.device_name = f"recovery:{newest.device_name or 'unknown'}"
         db.commit()

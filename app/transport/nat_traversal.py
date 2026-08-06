@@ -24,6 +24,7 @@ app/transport/nat_traversal.py — NAT Traversal: STUN + UDP Hole Punching.
   - Restricted-cone NAT  ✅ через hole punch
   - Symmetric NAT        ⚠️  сложно, fallback на relay
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -41,65 +42,69 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # STUN Constants (RFC 5389)
-_STUN_MAGIC       = 0x2112A442
-_BINDING_REQUEST  = 0x0001
+_STUN_MAGIC = 0x2112A442
+_BINDING_REQUEST = 0x0001
 _BINDING_RESPONSE = 0x0101
-_ATTR_XOR_MAPPED  = 0x0020
-_ATTR_MAPPED      = 0x0001
+_ATTR_XOR_MAPPED = 0x0020
+_ATTR_MAPPED = 0x0001
 
 # Публичные STUN серверы (пробуем по порядку)
 STUN_SERVERS = [
-    ("stun.l.google.com",     19302),
-    ("stun1.l.google.com",    19302),
-    ("stun.cloudflare.com",   3478),
+    ("stun.l.google.com", 19302),
+    ("stun1.l.google.com", 19302),
+    ("stun.cloudflare.com", 3478),
     ("stun.stunprotocol.org", 3478),
 ]
 
 # Структуры данных
 
+
 @dataclass
 class IceCandidate:
     """ICE-like кандидат для соединения."""
-    ip:        str
-    port:      int
-    cand_type: str      # "host" | "srflx" (server reflexive) | "relay"
-    priority:  int = 0
+
+    ip: str
+    port: int
+    cand_type: str  # "host" | "srflx" (server reflexive) | "relay"
+    priority: int = 0
     foundation: str = ""
 
     def to_dict(self) -> dict:
         return {
-            "ip":        self.ip,
-            "port":      self.port,
-            "type":      self.cand_type,
-            "priority":  self.priority,
+            "ip": self.ip,
+            "port": self.port,
+            "type": self.cand_type,
+            "priority": self.priority,
             "foundation": self.foundation,
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> IceCandidate:
         return cls(
-            ip        = d["ip"],
-            port      = int(d["port"]),
-            cand_type = d.get("type", "host"),
-            priority  = int(d.get("priority", 0)),
-            foundation= d.get("foundation", ""),
+            ip=d["ip"],
+            port=int(d["port"]),
+            cand_type=d.get("type", "host"),
+            priority=int(d.get("priority", 0)),
+            foundation=d.get("foundation", ""),
         )
 
 
 @dataclass
 class HolePunchSession:
     """Состояние сессии UDP hole punching."""
-    session_id:    str
-    local_cands:   list[IceCandidate] = field(default_factory=list)
-    remote_cands:  list[IceCandidate] = field(default_factory=list)
-    punch_sock:    Optional[socket.socket] = None
-    connected:     bool  = False
-    remote_addr:   Optional[tuple[str, int]] = None
-    created_at:    float = field(default_factory=time.monotonic)
-    callback:      Optional[Callable] = None  # вызывается при получении сообщения
+
+    session_id: str
+    local_cands: list[IceCandidate] = field(default_factory=list)
+    remote_cands: list[IceCandidate] = field(default_factory=list)
+    punch_sock: Optional[socket.socket] = None
+    connected: bool = False
+    remote_addr: Optional[tuple[str, int]] = None
+    created_at: float = field(default_factory=time.monotonic)
+    callback: Optional[Callable] = None  # вызывается при получении сообщения
 
 
 # STUN Client (RFC 5389 — только Binding Request/Response)
+
 
 class StunClient:
     """
@@ -110,9 +115,9 @@ class StunClient:
     @staticmethod
     def _build_binding_request() -> tuple[bytes, bytes]:
         """Строит STUN Binding Request. Возвращает (пакет, transaction_id)."""
-        tid     = secrets.token_bytes(12)
+        tid = secrets.token_bytes(12)
         # Header: msg_type(2) + length(2) + magic(4) + tid(12) = 20 bytes
-        msg     = struct.pack(">HHI12s", _BINDING_REQUEST, 0, _STUN_MAGIC, tid)
+        msg = struct.pack(">HHI12s", _BINDING_REQUEST, 0, _STUN_MAGIC, tid)
         return msg, tid
 
     @staticmethod
@@ -126,7 +131,7 @@ class StunClient:
             return None
 
         offset = 20
-        end    = 20 + length
+        end = 20 + length
 
         while offset + 4 <= end:
             attr_type, attr_len = struct.unpack_from(">HH", data, offset)
@@ -136,7 +141,7 @@ class StunClient:
                 # family(1) + pad(1) + xport(2) + xaddr(4)
                 _, family, xport = struct.unpack_from(">BBH", data, offset)
                 if family == 0x01:  # IPv4
-                    xaddr, = struct.unpack_from(">I", data, offset + 4)
+                    (xaddr,) = struct.unpack_from(">I", data, offset + 4)
                     port = xport ^ (_STUN_MAGIC >> 16)
                     ip_int = xaddr ^ _STUN_MAGIC
                     ip = socket.inet_ntoa(struct.pack(">I", ip_int))
@@ -145,7 +150,7 @@ class StunClient:
             elif attr_type == _ATTR_MAPPED and attr_len >= 8:
                 _, family, port = struct.unpack_from(">BBH", data, offset)
                 if family == 0x01:
-                    ip_bytes = data[offset + 4: offset + 8]
+                    ip_bytes = data[offset + 4 : offset + 8]
                     ip = socket.inet_ntoa(ip_bytes)
                     return ip, port
 
@@ -156,10 +161,10 @@ class StunClient:
 
     @staticmethod
     async def query(
-            stun_host: str,
-            stun_port: int,
-            local_sock: Optional[socket.socket] = None,
-            timeout: float = 3.0,
+        stun_host: str,
+        stun_port: int,
+        local_sock: Optional[socket.socket] = None,
+        timeout: float = 3.0,
     ) -> Optional[tuple[str, int]]:
         """
         Отправляет STUN Binding Request и получает внешний IP:port.
@@ -167,7 +172,7 @@ class StunClient:
         Если local_sock передан — используем его (важно для hole punch,
         чтобы STUN знал именно тот порт, который будет использоваться).
         """
-        loop   = asyncio.get_event_loop()
+        loop = asyncio.get_event_loop()
         own_sock = local_sock
 
         try:
@@ -219,6 +224,7 @@ class StunClient:
 
 # UDP Hole Punching
 
+
 class UdpHolePuncher:
     """
     Реализует UDP Hole Punching для двух пиров за NAT.
@@ -231,9 +237,9 @@ class UdpHolePuncher:
     """
 
     # Magic bytes для идентификации наших punch пакетов
-    PUNCH_MAGIC   = b"VORTEX_PUNCH_V1\x00"
-    ACK_MAGIC     = b"VORTEX_PUNCH_ACK\x00"
-    DATA_MAGIC    = b"VORTEX_DATA_V1\x00\x00"
+    PUNCH_MAGIC = b"VORTEX_PUNCH_V1\x00"
+    ACK_MAGIC = b"VORTEX_PUNCH_ACK\x00"
+    DATA_MAGIC = b"VORTEX_DATA_V1\x00\x00"
 
     def __init__(self):
         self._sessions: dict[str, HolePunchSession] = {}
@@ -254,9 +260,9 @@ class UdpHolePuncher:
                 sess.punch_sock.close()
 
     async def gather_candidates(
-            self,
-            session: HolePunchSession,
-            local_ip: str,
+        self,
+        session: HolePunchSession,
+        local_ip: str,
     ) -> list[IceCandidate]:
         """
         Собирает ICE-кандидатов:
@@ -275,11 +281,11 @@ class UdpHolePuncher:
         # Host кандидат
         if local_ip and not local_ip.startswith("127."):
             host_cand = IceCandidate(
-                ip        = local_ip,
-                port      = local_port,
-                cand_type = "host",
-                priority  = 100,
-                foundation= hashlib.md5(f"host_{local_ip}".encode(), usedforsecurity=False).hexdigest()[:8],
+                ip=local_ip,
+                port=local_port,
+                cand_type="host",
+                priority=100,
+                foundation=hashlib.md5(f"host_{local_ip}".encode(), usedforsecurity=False).hexdigest()[:8],
             )
             candidates.append(host_cand)
 
@@ -287,28 +293,30 @@ class UdpHolePuncher:
         srflx = await StunClient.query(
             STUN_SERVERS[0][0],
             STUN_SERVERS[0][1],
-            local_sock = sock,
+            local_sock=sock,
         )
         if srflx:
             srflx_cand = IceCandidate(
-                ip        = srflx[0],
-                port      = srflx[1],
-                cand_type = "srflx",
-                priority  = 200,
-                foundation= hashlib.md5(f"srflx_{srflx[0]}".encode(), usedforsecurity=False).hexdigest()[:8],
+                ip=srflx[0],
+                port=srflx[1],
+                cand_type="srflx",
+                priority=200,
+                foundation=hashlib.md5(f"srflx_{srflx[0]}".encode(), usedforsecurity=False).hexdigest()[:8],
             )
             candidates.append(srflx_cand)
 
         session.local_cands = candidates
-        logger.info(f"🧊 ICE candidates for session {session.session_id}: "
-                    f"{[f'{c.cand_type}:{c.ip}:{c.port}' for c in candidates]}")
+        logger.info(
+            f"🧊 ICE candidates for session {session.session_id}: "
+            f"{[f'{c.cand_type}:{c.ip}:{c.port}' for c in candidates]}"
+        )
         return candidates
 
     async def punch(
-            self,
-            session: HolePunchSession,
-            remote_candidates: list[IceCandidate],
-            timeout: float = 10.0,
+        self,
+        session: HolePunchSession,
+        remote_candidates: list[IceCandidate],
+        timeout: float = 10.0,
     ) -> bool:
         """
         Выполняет hole punching к удалённым кандидатам.
@@ -331,7 +339,7 @@ class UdpHolePuncher:
         # Сортируем по приоритету (srflx > host)
         sorted_cands = sorted(remote_candidates, key=lambda c: c.priority, reverse=True)
 
-        loop    = asyncio.get_event_loop()
+        loop = asyncio.get_event_loop()
         ping_id = secrets.token_bytes(8)
 
         async def send_punches():
@@ -354,7 +362,7 @@ class UdpHolePuncher:
                     )
                     if data.startswith(self.PUNCH_MAGIC):
                         # Получили punch — отвечаем ACK
-                        remote_ping_id = data[len(self.PUNCH_MAGIC):]
+                        remote_ping_id = data[len(self.PUNCH_MAGIC) :]
                         ack = self.ACK_MAGIC + remote_ping_id
                         sock.sendto(ack, addr)
                         logger.info(f"🥊 Punch received from {addr}, sent ACK")
@@ -372,7 +380,7 @@ class UdpHolePuncher:
             return None
 
         # Запускаем одновременно отправку и прослушивание
-        punch_task  = asyncio.create_task(send_punches())
+        punch_task = asyncio.create_task(send_punches())
         listen_task = asyncio.create_task(listen_for_ack())
 
         try:
@@ -387,7 +395,7 @@ class UdpHolePuncher:
             if listen_task in done:
                 addr = listen_task.result()
                 if addr:
-                    session.connected   = True
+                    session.connected = True
                     session.remote_addr = addr
                     logger.info(f"✅ Hole punch complete: {addr}")
                     return True
@@ -398,9 +406,9 @@ class UdpHolePuncher:
         return False
 
     async def send_data(
-            self,
-            session: HolePunchSession,
-            data: bytes,
+        self,
+        session: HolePunchSession,
+        data: bytes,
     ) -> bool:
         """Отправляет данные через пробитый UDP туннель."""
         if not session.connected or not session.remote_addr or not session.punch_sock:
@@ -414,9 +422,9 @@ class UdpHolePuncher:
             return False
 
     async def receive_loop(
-            self,
-            session: HolePunchSession,
-            on_data: Callable[[bytes, tuple], None],
+        self,
+        session: HolePunchSession,
+        on_data: Callable[[bytes, tuple], None],
     ) -> None:
         """
         Цикл получения данных из UDP туннеля.
@@ -435,7 +443,7 @@ class UdpHolePuncher:
                     timeout=30.0,
                 )
                 if raw.startswith(self.DATA_MAGIC):
-                    payload = raw[len(self.DATA_MAGIC):]
+                    payload = raw[len(self.DATA_MAGIC) :]
                     try:
                         await on_data(payload, addr)
                     except Exception as e:
@@ -452,6 +460,7 @@ class UdpHolePuncher:
 
 # SignalingStore — временное хранилище кандидатов для обмена
 
+
 class SignalingStore:
     """
     In-memory хранилище ICE кандидатов для signaling.
@@ -462,7 +471,7 @@ class SignalingStore:
 
     def __init__(self):
         self._data: dict[str, dict] = {}
-        self._ttl:  dict[str, float] = {}
+        self._ttl: dict[str, float] = {}
 
     def store(self, session_id: str, role: str, candidates: list[dict]) -> None:
         self._data.setdefault(session_id, {})[role] = candidates
@@ -474,7 +483,7 @@ class SignalingStore:
         return self._data.get(session_id, {}).get(role)
 
     def _cleanup(self) -> None:
-        now  = time.monotonic()
+        now = time.monotonic()
         dead = [sid for sid, exp in self._ttl.items() if now > exp]
         for sid in dead:
             self._data.pop(sid, None)
@@ -482,6 +491,6 @@ class SignalingStore:
 
 
 # Глобальные экземпляры
-stun_client  = StunClient()
+stun_client = StunClient()
 hole_puncher = UdpHolePuncher()
-signaling    = SignalingStore()
+signaling = SignalingStore()

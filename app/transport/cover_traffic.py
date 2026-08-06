@@ -15,6 +15,7 @@ Cover traffic имитирует этот паттерн, отправляя р�
 типичных веб-ресурсов из _WEB_RESOURCE_SIZES: HTML 8-25K, CSS 3-15K, JS 10-80K,
 img 5-200K, шрифты 20-50K, API-ответы 0.1-2K.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -55,7 +56,6 @@ footer{background:#1a1a2e;color:#666;text-align:center;padding:24px;font-size:.8
 </div>
 <footer>&copy; 2024 CloudSync Solutions Ltd. All rights reserved. | <a href="/privacy" style="color:#888">Privacy</a> | <a href="/terms" style="color:#888">Terms</a></footer>
 </body></html>""",
-
     "/about": """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>About — CloudSync</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;color:#333;line-height:1.6}
@@ -70,7 +70,6 @@ p{margin-bottom:16px}footer{background:#1a1a2e;color:#666;text-align:center;padd
 <p>With offices in London, Berlin, and Singapore, we serve over 10,000 businesses across 40 countries.</p>
 <h2>Our Mission</h2><p>To make secure file collaboration accessible to every team, regardless of size or technical expertise.</p>
 </div><footer>&copy; 2024 CloudSync Solutions Ltd.</footer></body></html>""",
-
     "/pricing": """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Pricing — CloudSync</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;color:#333;line-height:1.6}
@@ -94,58 +93,87 @@ def _generate_fake_js() -> str:
     """Генерирует ~25-35KB реалистичного минифицированного JavaScript."""
     parts = [
         '!function(e,t){"use strict";',
-        'var n=Object.create,r=Object.defineProperty,i=Object.getOwnPropertyDescriptor;',
-        'var o=Object.getOwnPropertyNames,a=Object.getPrototypeOf,s=Object.prototype.hasOwnProperty;',
-        'function l(e,t){for(var n in t)r(e,n,{get:t[n],enumerable:!0})}',
+        "var n=Object.create,r=Object.defineProperty,i=Object.getOwnPropertyDescriptor;",
+        "var o=Object.getOwnPropertyNames,a=Object.getPrototypeOf,s=Object.prototype.hasOwnProperty;",
+        "function l(e,t){for(var n in t)r(e,n,{get:t[n],enumerable:!0})}",
         'function c(e,t,n,o){if(t&&"object"==typeof t||"function"==typeof t)',
-        'for(let a of o(t))s.call(e,a)||a===n||r(e,a,{get:()=>t[a],enumerable:!0});return e}',
+        "for(let a of o(t))s.call(e,a)||a===n||r(e,a,{get:()=>t[a],enumerable:!0});return e}",
         'function u(e){return c(r({},"__esModule",{value:!0}),e)}',
         'var d=e=>c(r({},"__esModule",{value:!0}),e);',
-        'var f={};l(f,{createElement:()=>h,Fragment:()=>p,render:()=>m});',
+        "var f={};l(f,{createElement:()=>h,Fragment:()=>p,render:()=>m});",
         'function h(e,t){var n=arguments,r,i,o,a={};for(o in t)"key"!==o&&"ref"!==o&&(a[o]=t[o]);',
-        'if(arguments.length>2)for(a.children=[],r=2;r<arguments.length;r++)a.children.push(n[r]);',
-        'return{type:e,props:a,key:null,ref:null}}',
+        "if(arguments.length>2)for(a.children=[],r=2;r<arguments.length;r++)a.children.push(n[r]);",
+        "return{type:e,props:a,key:null,ref:null}}",
         'var p=Symbol("Fragment");',
         'function m(e,t){t.textContent="";t.appendChild(g(e))}',
         'function g(e){if(null==e||"boolean"==typeof e)return document.createTextNode("");',
         'if("string"==typeof e||"number"==typeof e)return document.createTextNode(String(e));',
-        'if(Array.isArray(e)){var t=document.createDocumentFragment();',
-        'e.forEach(function(e){t.appendChild(g(e))});return t}',
-        'var t=document.createElement(e.type);for(var n in e.props){',
+        "if(Array.isArray(e)){var t=document.createDocumentFragment();",
+        "e.forEach(function(e){t.appendChild(g(e))});return t}",
+        "var t=document.createElement(e.type);for(var n in e.props){",
         'if("children"===n)continue;"className"===n?t.setAttribute("class",e.props[n]):',
-        't.setAttribute(n,e.props[n])}if(e.props.children)t.appendChild(g(e.props.children));return t}',
+        "t.setAttribute(n,e.props[n])}if(e.props.children)t.appendChild(g(e.props.children));return t}",
     ]
-    base = ''.join(parts)
+    base = "".join(parts)
     funcs = []
     for idx in range(200):
         name = f"_{chr(97 + idx % 26)}{idx}"
-        funcs.append(f'function {name}(a,b){{return a&&b?a+b:null}}')
-    return base + ';'.join(funcs) + '})();'
+        funcs.append(f"function {name}(a,b){{return a&&b?a+b:null}}")
+    return base + ";".join(funcs) + "})();"
 
 
 def _generate_fake_css() -> str:
     """Генерирует ~8-12KB реалистичного CSS."""
     selectors = [
-        '.container', '.header', '.nav', '.sidebar', '.content', '.footer',
-        '.btn', '.btn-primary', '.card', '.modal', '.form-group', '.input',
-        '.table', '.row', '.col', '.badge', '.alert', '.dropdown',
-        '.toolbar', '.panel', '.list-item', '.avatar', '.spinner',
+        ".container",
+        ".header",
+        ".nav",
+        ".sidebar",
+        ".content",
+        ".footer",
+        ".btn",
+        ".btn-primary",
+        ".card",
+        ".modal",
+        ".form-group",
+        ".input",
+        ".table",
+        ".row",
+        ".col",
+        ".badge",
+        ".alert",
+        ".dropdown",
+        ".toolbar",
+        ".panel",
+        ".list-item",
+        ".avatar",
+        ".spinner",
     ]
     properties = [
-        'display:flex', 'padding:16px', 'margin:0 auto', 'color:#333',
-        'background:#fff', 'border-radius:8px', 'font-size:14px',
-        'box-shadow:0 2px 8px rgba(0,0,0,.1)', 'transition:all .2s',
-        'line-height:1.5', 'font-weight:600', 'text-align:center',
-        'overflow:hidden', 'position:relative', 'width:100%',
+        "display:flex",
+        "padding:16px",
+        "margin:0 auto",
+        "color:#333",
+        "background:#fff",
+        "border-radius:8px",
+        "font-size:14px",
+        "box-shadow:0 2px 8px rgba(0,0,0,.1)",
+        "transition:all .2s",
+        "line-height:1.5",
+        "font-weight:600",
+        "text-align:center",
+        "overflow:hidden",
+        "position:relative",
+        "width:100%",
     ]
     rules = []
     for sel in selectors:
         n_props = random.randint(3, 8)  # noqa: S311
-        props = ';'.join(random.sample(properties, min(n_props, len(properties))))
-        rules.append(f'{sel}{{{props}}}')
-        rules.append(f'{sel}:hover{{opacity:.8;cursor:pointer}}')
-    rules.append('@media(max-width:768px){.container{padding:8px}.sidebar{display:none}}')
-    return '\n'.join(rules)
+        props = ";".join(random.sample(properties, min(n_props, len(properties))))
+        rules.append(f"{sel}{{{props}}}")
+        rules.append(f"{sel}:hover{{opacity:.8;cursor:pointer}}")
+    rules.append("@media(max-width:768px){.container{padding:8px}.sidebar{display:none}}")
+    return "\n".join(rules)
 
 
 @router.get("/cover/static/app.js", include_in_schema=False)
@@ -204,15 +232,20 @@ async def cover_page(path: str = "", request: Request = None):
     key = f"/{path}" if path else "/"
     html = COVER_PAGES.get(key, COVER_PAGES["/"])
 
-    response = HTMLResponse(html, headers={
-        "Server": "nginx/1.24.0",
-        "X-Powered-By": "Express",
-        "Cache-Control": "public, max-age=3600",
-    })
+    response = HTMLResponse(
+        html,
+        headers={
+            "Server": "nginx/1.24.0",
+            "X-Powered-By": "Express",
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
 
     from app.transport.knock import is_knock_required, record_page_visit
+
     if is_knock_required() and request:
         import secrets as _s
+
         session_id = request.cookies.get("_ks") or _s.token_urlsafe(16)
         full_path = f"/cover/{path}" if path else "/cover"
         token = record_page_visit(session_id, full_path)

@@ -45,25 +45,34 @@ def install_ca_to_trust_store(ca_path: Path, password: Optional[str] = None) -> 
 
 # sudo -S helper
 
+
 def _sudo_run(cmd: list[str], password: str) -> subprocess.CompletedProcess:
     """Запускает команду через sudo -S (пароль через stdin)."""
     return subprocess.run(
         ["sudo", "-S", *cmd],
         input=password + "\n",
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         timeout=30,
     )
 
 
 # macOS
 
+
 def _install_ca_macos(ca_path: Path, password: str) -> bool:
     """Установка CA на macOS через security add-trusted-cert."""
     result = _sudo_run(
-        ["security", "add-trusted-cert",
-         "-d", "-r", "trustRoot",
-         "-k", "/Library/Keychains/System.keychain",
-         str(ca_path)],
+        [
+            "security",
+            "add-trusted-cert",
+            "-d",
+            "-r",
+            "trustRoot",
+            "-k",
+            "/Library/Keychains/System.keychain",
+            str(ca_path),
+        ],
         password,
     )
     if result.returncode != 0:
@@ -73,6 +82,7 @@ def _install_ca_macos(ca_path: Path, password: str) -> bool:
 
 # Windows
 
+
 def _install_ca_windows(ca_path: Path) -> bool:
     """Установка CA на Windows через certutil (UAC prompt автоматически)."""
     flags = {}
@@ -80,13 +90,15 @@ def _install_ca_windows(ca_path: Path) -> bool:
         flags["creationflags"] = subprocess.CREATE_NO_WINDOW
     result = subprocess.run(
         ["certutil", "-addstore", "-f", "ROOT", str(ca_path)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         **flags,
     )
     return result.returncode == 0
 
 
 # Debian/Ubuntu
+
 
 def _install_ca_debian(ca_path: Path, password: str) -> bool:
     """Установка CA на Debian/Ubuntu."""
@@ -100,12 +112,13 @@ def _install_ca_debian(ca_path: Path, password: str) -> bool:
 
 # Generic Linux (RHEL, Arch, etc.)
 
+
 def _install_ca_linux_generic(ca_path: Path, password: str) -> bool:
     """Попытка установки CA на других Linux-системах."""
     for dest_dir, update_cmd in [
-        ("/etc/pki/ca-trust/source/anchors",  ["update-ca-trust", "extract"]),
-        ("/etc/ca-certificates/trust-source",  ["trust", "extract-compat"]),
-        ("/usr/local/share/ca-certificates",   ["update-ca-certificates"]),
+        ("/etc/pki/ca-trust/source/anchors", ["update-ca-trust", "extract"]),
+        ("/etc/ca-certificates/trust-source", ["trust", "extract-compat"]),
+        ("/usr/local/share/ca-certificates", ["update-ca-certificates"]),
     ]:
         if Path(dest_dir).exists():
             r1 = _sudo_run(["cp", str(ca_path), dest_dir], password)
@@ -118,6 +131,7 @@ def _install_ca_linux_generic(ca_path: Path, password: str) -> bool:
 
 # Manual instructions (fallback)
 
+
 def get_ca_install_instructions(ca_path: Path) -> str:
     """
     Возвращает текстовую инструкцию для ручной установки CA,
@@ -126,11 +140,11 @@ def get_ca_install_instructions(ca_path: Path) -> str:
     system = _get_system()
     p = str(ca_path.resolve())
     instructions = {
-        "macos":   f"sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain {p}",
+        "macos": f"sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain {p}",
         "windows": f"certutil -addstore -f ROOT {p}  (от имени администратора)",
-        "debian":  f"sudo cp {p} /usr/local/share/ca-certificates/ && sudo update-ca-certificates",
-        "rhel":    f"sudo cp {p} /etc/pki/ca-trust/source/anchors/ && sudo update-ca-trust extract",
-        "arch":    f"sudo trust anchor {p}",
-        "linux":   f"sudo cp {p} /usr/local/share/ca-certificates/ && sudo update-ca-certificates",
+        "debian": f"sudo cp {p} /usr/local/share/ca-certificates/ && sudo update-ca-certificates",
+        "rhel": f"sudo cp {p} /etc/pki/ca-trust/source/anchors/ && sudo update-ca-trust extract",
+        "arch": f"sudo trust anchor {p}",
+        "linux": f"sudo cp {p} /usr/local/share/ca-certificates/ && sudo update-ca-certificates",
     }
     return instructions.get(system, instructions["linux"])

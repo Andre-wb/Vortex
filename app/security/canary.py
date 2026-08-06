@@ -17,6 +17,7 @@ Update:
   The operator regenerates the canary periodically (e.g., monthly) by
   calling `sign_canary()` — typically automated in CI/deploy pipeline.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -61,6 +62,7 @@ def _get_node_key() -> bytes:
     """Load the node's private key for signing."""
     try:
         from app.security.crypto import load_or_create_node_keypair
+
         priv, _ = load_or_create_node_keypair(Config.KEYS_DIR)
         return priv
     except Exception:
@@ -71,6 +73,7 @@ def _get_node_pubkey_hex() -> str:
     """Get node public key in hex."""
     try:
         from app.security.crypto import get_node_public_key_hex
+
         return get_node_public_key_hex(Config.KEYS_DIR)
     except Exception:
         return ""
@@ -99,14 +102,19 @@ def sign_canary(
     now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
 
     # Canonical payload for signing (deterministic JSON)
-    canonical = json.dumps({
-        "type": "warrant_canary",
-        "version": 2,
-        "statements": stmts,
-        "extra": extra_text,
-        "signed_at": now_iso,
-        "signed_at_unix": int(now),
-    }, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
+    canonical = json.dumps(
+        {
+            "type": "warrant_canary",
+            "version": 2,
+            "statements": stmts,
+            "extra": extra_text,
+            "signed_at": now_iso,
+            "signed_at_unix": int(now),
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+        ensure_ascii=False,
+    )
 
     payload_hash = hashlib.sha256(canonical.encode()).hexdigest()
     node_key = _get_node_key()
@@ -126,7 +134,8 @@ def sign_canary(
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
         derived = HKDF(
-            algorithm=SHA256(), length=32,
+            algorithm=SHA256(),
+            length=32,
             salt=b"vortex-canary-signing-key",
             info=b"ed25519",
         ).derive(node_key)
@@ -136,10 +145,14 @@ def sign_canary(
         sig_ed25519 = sig_bytes.hex()
 
         # Also export the verification public key
-        verify_pub = ed_key.public_key().public_bytes(
-            serialization.Encoding.Raw,
-            serialization.PublicFormat.Raw,
-        ).hex()
+        verify_pub = (
+            ed_key.public_key()
+            .public_bytes(
+                serialization.Encoding.Raw,
+                serialization.PublicFormat.Raw,
+            )
+            .hex()
+        )
     except Exception:
         verify_pub = ""
 
@@ -192,7 +205,6 @@ def verify_canary_signature(canary: dict) -> bool:
     node_key = _get_node_key()
     expected = hmac.new(node_key, payload_hash.encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(sig, expected)
-
 
 
 @router.get("/api/privacy/canary")

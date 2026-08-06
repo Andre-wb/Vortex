@@ -24,6 +24,7 @@ Architecture:
   │ (25ms)   │
   └──────────┘
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -39,9 +40,10 @@ logger = logging.getLogger(__name__)
 
 class Priority(IntEnum):
     """Message priority levels."""
-    REALTIME = 0   # typing, presence, call signals
-    NORMAL = 1     # text messages, reactions
-    BULK = 2       # files, history, key sync
+
+    REALTIME = 0  # typing, presence, call signals
+    NORMAL = 1  # text messages, reactions
+    BULK = 2  # files, history, key sync
 
 
 # Map message types to priority lanes
@@ -61,7 +63,6 @@ _TYPE_PRIORITY: dict[str, Priority] = {
     "group_leave": Priority.REALTIME,
     "ping": Priority.REALTIME,
     "pong": Priority.REALTIME,
-
     # Normal (Lane 1)
     "message": Priority.NORMAL,
     "reaction": Priority.NORMAL,
@@ -70,7 +71,6 @@ _TYPE_PRIORITY: dict[str, Priority] = {
     "read": Priority.NORMAL,
     "pin": Priority.NORMAL,
     "poll_vote": Priority.NORMAL,
-
     # Bulk (Lane 2)
     "file": Priority.BULK,
     "file_chunk": Priority.BULK,
@@ -83,9 +83,9 @@ _TYPE_PRIORITY: dict[str, Priority] = {
 
 # Batch windows per lane (ms)
 _BATCH_WINDOW: dict[Priority, float] = {
-    Priority.REALTIME: 0,      # immediate
-    Priority.NORMAL: 0.010,    # 10ms
-    Priority.BULK: 0.025,      # 25ms
+    Priority.REALTIME: 0,  # immediate
+    Priority.NORMAL: 0.010,  # 10ms
+    Priority.BULK: 0.025,  # 25ms
 }
 
 # Compression threshold for BULK lane
@@ -100,8 +100,9 @@ def classify_message(msg_type: str) -> Priority:
 @dataclass
 class QueuedMessage:
     """A message waiting in a priority lane."""
+
     payload: bytes
-    destination: str        # "ip:port" or "room:id"
+    destination: str  # "ip:port" or "room:id"
     msg_type: str
     priority: Priority
     queued_at: float = field(default_factory=time.monotonic)
@@ -219,8 +220,7 @@ class PriorityDispatcher:
                         self._stats[priority]["sent"] += len(messages)
                         self._stats[priority]["batches"] += 1
                     except Exception as e:
-                        logger.debug("Lane %s send error to %s: %s",
-                                     priority.name, dest[:30], str(e)[:100])
+                        logger.debug("Lane %s send error to %s: %s", priority.name, dest[:30], str(e)[:100])
 
             except asyncio.CancelledError:
                 return

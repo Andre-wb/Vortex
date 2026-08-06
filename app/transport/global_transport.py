@@ -11,6 +11,7 @@ app/transport/global_transport.py — Глобальный P2P транспор�
   - Data validation: peer address validation, room data validation, deduplication
   - Peer age: peers not seen in 7 days are automatically removed
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -50,17 +51,19 @@ def _valid_pubkey_hex(s: str) -> bool:
 
 
 # Таймауты gossip-протокола
-_GOSSIP_INTERVAL = 30       # секунд между раундами gossip
-_HEALTH_INTERVAL = 30       # секунд между проверками здоровья
-_DEAD_PEER_TIMEOUT = 90     # секунд до удаления мёртвого пира
-_PEER_REQUEST_TIMEOUT = 8.0 # таймаут HTTP-запросов к пирам
+_GOSSIP_INTERVAL = 30  # секунд между раундами gossip
+_HEALTH_INTERVAL = 30  # секунд между проверками здоровья
+_DEAD_PEER_TIMEOUT = 90  # секунд до удаления мёртвого пира
+_PEER_REQUEST_TIMEOUT = 8.0  # таймаут HTTP-запросов к пирам
 
 
 # GlobalPeerInfo
 
+
 @dataclass
 class GlobalPeerInfo:
     """Информация о глобальном пире."""
+
     ip: str
     port: int
     node_pubkey_hex: str = ""
@@ -103,6 +106,7 @@ class GlobalPeerInfo:
 
 # GlobalTransport
 
+
 class GlobalTransport:
     """
     Глобальный транспорт: gossip-протокол для обнаружения пиров через интернет.
@@ -120,7 +124,6 @@ class GlobalTransport:
         self._running = False
         self._own_pubkey_hex: str = ""
         self.security: GossipSecurity = gossip_security
-
 
     def _get_peer_url(self, peer: GlobalPeerInfo, path: str) -> str:
         """Формирует URL для запроса к пиру, через CDN если включён."""
@@ -140,12 +143,12 @@ class GlobalTransport:
             f"http://{peer.ip}:{peer.port}{path}",
         ]
 
-
     async def start(self, bootstrap_peers: list[str]) -> None:
         """Запуск gossip-протокола и подключение к bootstrap-пирам."""
         # Загружаем наш публичный ключ
         try:
             from app.security.crypto import load_or_create_node_keypair
+
             _, pub = load_or_create_node_keypair(Config.KEYS_DIR)
             self._own_pubkey_hex = pub.hex() if isinstance(pub, bytes) else bytes(pub).hex()
         except Exception as e:
@@ -174,8 +177,7 @@ class GlobalTransport:
         spawn(self._health_loop())
         spawn(self._cleanup_loop())
         logger.info(
-            f"🌐 Global transport запущен: {len(self._peers)} пиров, "
-            f"bootstrap={len(bootstrap_peers)}, security=enabled"
+            f"🌐 Global transport запущен: {len(self._peers)} пиров, bootstrap={len(bootstrap_peers)}, security=enabled"
         )
 
     async def stop(self) -> None:
@@ -184,10 +186,10 @@ class GlobalTransport:
         self._save_peers()
         logger.info("🌐 Global transport остановлен")
 
-
     async def _gossip_loop(self) -> None:
         """Обмен списком пиров с 3 случайными узлами (рандомизированный интервал)."""
         from app.transport.obfuscation import TrafficObfuscator
+
         while self._running:
             await asyncio.sleep(TrafficObfuscator.randomize_interval(_GOSSIP_INTERVAL, 0.7))
             try:
@@ -224,8 +226,7 @@ class GlobalTransport:
 
         alive_peers = [p for p in self._peers.values() if p.alive()]
         our_peers = [
-            {"ip": p.ip, "port": p.port, "node_pubkey_hex": p.node_pubkey_hex}
-            for p in alive_peers[:MAX_GOSSIP_PEERS]
+            {"ip": p.ip, "port": p.port, "node_pubkey_hex": p.node_pubkey_hex} for p in alive_peers[:MAX_GOSSIP_PEERS]
         ]
 
         payload = {
@@ -239,9 +240,7 @@ class GlobalTransport:
 
         url = self._get_peer_url(peer, "/api/global/gossip")
         try:
-            async with StealthClient(
-                timeout=_PEER_REQUEST_TIMEOUT
-            ) as client:
+            async with StealthClient(timeout=_PEER_REQUEST_TIMEOUT) as client:
                 resp = await client.post(url, json=payload)
                 if resp.status_code == 200:
                     cdn_config.report_success()
@@ -252,7 +251,9 @@ class GlobalTransport:
                     incoming_rooms = data.get("rooms", [])
                     local_mode = Config.NETWORK_MODE == "local"
                     valid_peers, valid_rooms = self.security.filter_and_validate(
-                        incoming_peers, incoming_rooms, local_mode=local_mode,
+                        incoming_peers,
+                        incoming_rooms,
+                        local_mode=local_mode,
                     )
 
                     # Merge vector clock
@@ -302,14 +303,17 @@ class GlobalTransport:
         # Solve in executor to not block the event loop
         loop = asyncio.get_running_loop()
         solution = await loop.run_in_executor(
-            None, ProofOfWork.solve, own_addr, challenge, difficulty,
+            None,
+            ProofOfWork.solve,
+            own_addr,
+            challenge,
+            difficulty,
         )
 
         # Retry gossip with PoW solution
         alive_peers = [p for p in self._peers.values() if p.alive()]
         our_peers = [
-            {"ip": p.ip, "port": p.port, "node_pubkey_hex": p.node_pubkey_hex}
-            for p in alive_peers[:MAX_GOSSIP_PEERS]
+            {"ip": p.ip, "port": p.port, "node_pubkey_hex": p.node_pubkey_hex} for p in alive_peers[:MAX_GOSSIP_PEERS]
         ]
         payload = {
             "sender_ip": _get_external_ip(),
@@ -330,10 +334,10 @@ class GlobalTransport:
         except Exception as e:
             logger.debug("PoW retry gossip failed for %s: %s", peer.addr, e)
 
-
     async def _health_loop(self) -> None:
         """Пинг пиров, удаление мёртвых через 90 сек (рандомизированный интервал)."""
         from app.transport.obfuscation import TrafficObfuscator
+
         while self._running:
             await asyncio.sleep(TrafficObfuscator.randomize_interval(_HEALTH_INTERVAL, 0.7))
             try:
@@ -366,7 +370,7 @@ class GlobalTransport:
         while self._running:
             await asyncio.sleep(600)  # каждые 10 минут
             try:
-                if hasattr(self, 'security') and self.security:
+                if hasattr(self, "security") and self.security:
                     self.security.cleanup()
                 # Удаляем пиров не видимых > 7 дней
                 now = time.time()
@@ -394,7 +398,6 @@ class GlobalTransport:
                 cdn_config.report_failure()
             return False
 
-
     async def _connect_peer(self, addr: str) -> None:
         """Подключение к пиру по ip:port, получение его информации и списка пиров (с CDN failover)."""
         if ":" not in addr:
@@ -410,9 +413,7 @@ class GlobalTransport:
 
         for base_url, is_cdn in schemes_urls:
             try:
-                async with StealthClient(
-                    timeout=_PEER_REQUEST_TIMEOUT
-                ) as client:
+                async with StealthClient(timeout=_PEER_REQUEST_TIMEOUT) as client:
                     # Запрос bootstrap
                     payload = {
                         "sender_ip": _get_external_ip(),
@@ -444,8 +445,7 @@ class GlobalTransport:
                             self._merge_peer(rp)
 
                         logger.info(
-                            f"🌐 Bootstrap: подключён к {peer_key}, "
-                            f"получено {len(data.get('peers', []))} пиров"
+                            f"🌐 Bootstrap: подключён к {peer_key}, получено {len(data.get('peers', []))} пиров"
                         )
                         return
             except Exception as e:
@@ -455,7 +455,6 @@ class GlobalTransport:
 
         logger.warning(f"🌐 Не удалось подключиться к bootstrap-пиру {addr}")
 
-
     def _merge_peer(self, peer_data: dict) -> None:
         """Добавляем пира из gossip-данных, если он новый."""
         ip = peer_data.get("ip", "")
@@ -464,6 +463,7 @@ class GlobalTransport:
         # Validate IP format
         try:
             import ipaddress as _ip
+
             _ip.ip_address(ip)
         except ValueError:
             logger.debug("_merge_peer: invalid IP %r — skipped", ip)
@@ -502,7 +502,6 @@ class GlobalTransport:
             if new_pubkey and not existing.node_pubkey_hex:
                 existing.node_pubkey_hex = new_pubkey
 
-
     async def search_rooms(self, query: str) -> list[dict]:
         """Поиск публичных комнат по всем известным пирам."""
         results: list[dict] = []
@@ -511,9 +510,7 @@ class GlobalTransport:
         async def _search_one(peer: GlobalPeerInfo) -> list[dict]:
             url = self._get_peer_url(peer, "/api/global/search-rooms")
             try:
-                async with StealthClient(
-                    timeout=_PEER_REQUEST_TIMEOUT
-                ) as client:
+                async with StealthClient(timeout=_PEER_REQUEST_TIMEOUT) as client:
                     resp = await client.get(url, params={"q": query})
                     if resp.status_code == 200:
                         cdn_config.report_success()
@@ -538,7 +535,6 @@ class GlobalTransport:
 
         return results
 
-
     async def add_bootstrap_peer(self, ip: str, port: int) -> bool:
         """Вручную добавить пира (из QR-кода или ввода). Возвращает True при успехе."""
         addr = f"{ip}:{port}"
@@ -549,12 +545,12 @@ class GlobalTransport:
             logger.warning(f"Не удалось добавить пира {addr}: {e}")
             return False
 
-
     async def _get_our_public_rooms(self) -> list[dict]:
         """Возвращает список публичных комнат этого узла."""
         try:
             from app.database import SessionLocal
             from app.models_rooms import Room
+
             db = SessionLocal()
             try:
                 rooms = db.query(Room).filter(Room.is_private.is_(False)).all()
@@ -573,7 +569,6 @@ class GlobalTransport:
         except Exception as e:
             logger.debug(f"Ошибка получения публичных комнат: {e}")
             return []
-
 
     def _load_peers(self) -> None:
         """Загрузка пиров из JSON-файла."""
@@ -601,7 +596,6 @@ class GlobalTransport:
         except Exception as e:
             logger.warning(f"Ошибка сохранения global_peers.json: {e}")
 
-
     def get_peers(self) -> list[GlobalPeerInfo]:
         """Все живые пиры."""
         return [p for p in self._peers.values() if p.alive()]
@@ -618,9 +612,9 @@ class GlobalTransport:
         """Количество живых пиров."""
         return len([p for p in self._peers.values() if p.alive()])
 
-    def handle_gossip(self, sender_ip: str, sender_port: int,
-                      sender_pubkey: str, peers: list[dict],
-                      rooms: list[dict]) -> dict:
+    def handle_gossip(
+        self, sender_ip: str, sender_port: int, sender_pubkey: str, peers: list[dict], rooms: list[dict]
+    ) -> dict:
         """
         Обработка входящего gossip-запроса.
         Возвращает наш список пиров и комнат.
@@ -659,15 +653,15 @@ class GlobalTransport:
         # Возвращаем наш список
         our_peers = [
             {"ip": p.ip, "port": p.port, "node_pubkey_hex": p.node_pubkey_hex}
-            for p in self._peers.values() if p.alive()
+            for p in self._peers.values()
+            if p.alive()
         ]
         return {
             "peers": our_peers,
             "node_pubkey": self._own_pubkey_hex,
         }
 
-    def handle_bootstrap(self, sender_ip: str, sender_port: int,
-                         sender_pubkey: str) -> dict:
+    def handle_bootstrap(self, sender_ip: str, sender_port: int, sender_pubkey: str) -> dict:
         """
         Обработка bootstrap-запроса от нового пира.
         Возвращает информацию об узле + список пиров.
@@ -688,7 +682,8 @@ class GlobalTransport:
 
         our_peers = [
             {"ip": p.ip, "port": p.port, "node_pubkey_hex": p.node_pubkey_hex}
-            for p in self._peers.values() if p.alive()
+            for p in self._peers.values()
+            if p.alive()
         ]
         return {
             "node_pubkey": self._own_pubkey_hex,
@@ -705,6 +700,7 @@ global_transport = GlobalTransport()
 def _get_external_ip() -> str:
     """Получить внешний IP (или локальный если не определён)."""
     import socket
+
     for target in ("8.8.8.8", "1.1.1.1"):
         with contextlib.suppress(Exception):
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

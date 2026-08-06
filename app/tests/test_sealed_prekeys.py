@@ -11,6 +11,7 @@ Covers:
   - Bot marketplace (publish, detail, reviews, install)
   - Native bridge (push register/unregister, capabilities, biometric)
 """
+
 from __future__ import annotations
 
 from conftest import SyncASGIClient, make_user, random_str
@@ -30,10 +31,14 @@ def _create_room(client, headers, name=None):
 
 
 def _create_bot(client, headers):
-    r = client.post("/api/bots", json={
-        "username": f"bot_{random_str(6)}",
-        "display_name": "Test Bot",
-    }, headers=headers)
+    r = client.post(
+        "/api/bots",
+        json={
+            "username": f"bot_{random_str(6)}",
+            "display_name": "Test Bot",
+        },
+        headers=headers,
+    )
     if r.status_code in (200, 201):
         return r.json()
     return None
@@ -55,10 +60,8 @@ class TestSealedPrekeys:
         if not rid:
             return
         assert client.get(f"/api/rooms/{rid}/prekey-count", headers=h).status_code == 404
-        assert client.post(f"/api/rooms/{rid}/sealed-prekeys",
-                           json={"packages": []}, headers=h).status_code == 404
-        assert client.post(f"/api/rooms/{rid}/claim-prekey",
-                           json={"pubkey": "dd" * 32}, headers=h).status_code == 404
+        assert client.post(f"/api/rooms/{rid}/sealed-prekeys", json={"packages": []}, headers=h).status_code == 404
+        assert client.post(f"/api/rooms/{rid}/claim-prekey", json={"pubkey": "dd" * 32}, headers=h).status_code == 404
 
 
 # 6. BOT MESSAGING

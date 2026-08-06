@@ -1,4 +1,5 @@
 """QR Code Login — desktop показывает QR, телефон подтверждает вход."""
+
 from __future__ import annotations
 
 import hashlib
@@ -34,13 +35,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class _QRSession:
-    session_id:    str
-    challenge_id:  str
-    expires_at:    float
-    confirmed:     bool = False
-    user_id:       int = 0
-    access_token:  str = ""
+    session_id: str
+    challenge_id: str
+    expires_at: float
+    confirmed: bool = False
+    user_id: int = 0
+    access_token: str = ""
     refresh_token: str = ""
+
 
 _qr_sessions: dict[str, _QRSession] = {}
 _qr_lock = threading.Lock()
@@ -53,7 +55,6 @@ def _cleanup_qr_sessions() -> None:
         expired = [sid for sid, s in _qr_sessions.items() if now > s.expires_at]
         for sid in expired:
             _qr_sessions.pop(sid, None)
-
 
 
 @router.post("/qr-init")
@@ -86,6 +87,7 @@ async def qr_init(request: Request, db: Session = Depends(get_db)):
 
     import qrcode
     import qrcode.image.svg as qr_svg
+
     qr_data = f"vortex://qr-login?s={session_id}&c={challenge_id}&p={server_pub.hex()}"
     qr_obj = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=6, border=3)
     qr_obj.add_data(qr_data)
@@ -95,7 +97,7 @@ async def qr_init(request: Request, db: Session = Depends(get_db)):
     img.save(buf)
     svg_str = buf.getvalue().decode("utf-8")
     if svg_str.startswith("<?xml"):
-        svg_str = svg_str[svg_str.index("?>") + 2:].lstrip()
+        svg_str = svg_str[svg_str.index("?>") + 2 :].lstrip()
 
     return {
         "session_id": session_id,
@@ -108,8 +110,8 @@ async def qr_init(request: Request, db: Session = Depends(get_db)):
 
 class QRConfirmRequest(BaseModel):
     session_id: str
-    pubkey:     str
-    proof:      str
+    pubkey: str
+    proof: str
 
 
 @router.post("/qr-confirm")
@@ -152,9 +154,7 @@ async def qr_confirm(body: QRConfirmRequest, request: Request, db: Session = Dep
         raise HTTPException(401, "Invalid proof")
 
     access_token = create_access_token(user.id, user.phone, user.username)
-    raw_refresh, _exp = create_refresh_token(user.id, db,
-                                              sanitize_ip(request),
-                                              request.headers.get("user-agent"))
+    raw_refresh, _exp = create_refresh_token(user.id, db, sanitize_ip(request), request.headers.get("user-agent"))
 
     with _qr_lock:
         qs.confirmed = True
@@ -207,6 +207,10 @@ async def qr_check(session_id: str, request: Request, db: Session = Depends(get_
     # set Secure when the request is over HTTPS, not only in production.
     secure_cookie = Config.IS_PRODUCTION or request.url.scheme == "https"
     response = JSONResponse(content=data)
-    response.set_cookie("access_token",  qs.access_token,  httponly=True, secure=secure_cookie, samesite="Lax", max_age=3600)
-    response.set_cookie("refresh_token", qs.refresh_token, httponly=True, secure=secure_cookie, samesite="Lax", max_age=86400 * 30)
+    response.set_cookie(
+        "access_token", qs.access_token, httponly=True, secure=secure_cookie, samesite="Lax", max_age=3600
+    )
+    response.set_cookie(
+        "refresh_token", qs.refresh_token, httponly=True, secure=secure_cookie, samesite="Lax", max_age=86400 * 30
+    )
     return response

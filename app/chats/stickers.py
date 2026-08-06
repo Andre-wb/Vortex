@@ -19,6 +19,7 @@ Endpoints:
 Формат стикера в сообщениях:
   [STICKER] img:/uploads/stickers/{pack_id}/{filename}
 """
+
 from __future__ import annotations
 
 import io
@@ -46,6 +47,7 @@ _ALLOWED_FORMATS = {"PNG", "WEBP", "GIF", "JPEG"}
 
 # Schemas
 
+
 class PackCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
     description: str = Field("", max_length=200)
@@ -60,26 +62,27 @@ class PackUpdate(BaseModel):
 
 # Helpers
 
+
 def _sticker_dict(s: Sticker) -> dict:
     return {
-        "id":         s.id,
-        "pack_id":    s.pack_id,
-        "emoji":      s.emoji,
-        "image_url":  s.image_url,
-        "order_idx":  s.order_idx,
+        "id": s.id,
+        "pack_id": s.pack_id,
+        "emoji": s.emoji,
+        "image_url": s.image_url,
+        "order_idx": s.order_idx,
         "created_at": s.created_at.isoformat() if s.created_at else None,
     }
 
 
 def _pack_dict(p: StickerPack, *, include_stickers: bool = False) -> dict:
     d = {
-        "id":          p.id,
-        "name":        p.name,
+        "id": p.id,
+        "name": p.name,
         "description": p.description,
-        "creator_id":  p.creator_id,
-        "cover_url":   p.cover_url,
-        "is_public":   p.is_public,
-        "created_at":  p.created_at.isoformat() if p.created_at else None,
+        "creator_id": p.creator_id,
+        "cover_url": p.cover_url,
+        "is_public": p.is_public,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
         "sticker_count": len(p.stickers) if p.stickers else 0,
     }
     if include_stickers:
@@ -100,10 +103,11 @@ def _require_pack_owner(pack_id: int, user_id: int, db: Session) -> StickerPack:
 
 # Pack management
 
+
 @router.post("/packs")
 async def create_pack(
     body: PackCreate,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Создать новый стикер-пак."""
@@ -122,53 +126,30 @@ async def create_pack(
 
 @router.get("/packs")
 async def list_my_packs(
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Список собственных паков + избранных."""
-    own = (
-        db.query(StickerPack)
-        .filter(StickerPack.creator_id == u.id)
-        .order_by(StickerPack.created_at.desc())
-        .all()
-    )
-    fav_pack_ids = (
-        db.query(UserFavoritePack.pack_id)
-        .filter(UserFavoritePack.user_id == u.id)
-        .all()
-    )
+    own = db.query(StickerPack).filter(StickerPack.creator_id == u.id).order_by(StickerPack.created_at.desc()).all()
+    fav_pack_ids = db.query(UserFavoritePack.pack_id).filter(UserFavoritePack.user_id == u.id).all()
     fav_ids = [r[0] for r in fav_pack_ids]
     favorited = []
     if fav_ids:
-        favorited = (
-            db.query(StickerPack)
-            .filter(StickerPack.id.in_(fav_ids))
-            .all()
-        )
+        favorited = db.query(StickerPack).filter(StickerPack.id.in_(fav_ids)).all()
     return {
-        "own":       [_pack_dict(p, include_stickers=True) for p in own],
+        "own": [_pack_dict(p, include_stickers=True) for p in own],
         "favorited": [_pack_dict(p, include_stickers=True) for p in favorited],
     }
 
 
 @router.get("/packs/public")
 async def list_public_packs(
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Все публичные паки (для каталога / поиска)."""
-    packs = (
-        db.query(StickerPack)
-        .filter(StickerPack.is_public.is_(True))
-        .order_by(StickerPack.created_at.desc())
-        .all()
-    )
-    fav_ids = set(
-        r[0] for r in
-        db.query(UserFavoritePack.pack_id)
-        .filter(UserFavoritePack.user_id == u.id)
-        .all()
-    )
+    packs = db.query(StickerPack).filter(StickerPack.is_public.is_(True)).order_by(StickerPack.created_at.desc()).all()
+    fav_ids = set(r[0] for r in db.query(UserFavoritePack.pack_id).filter(UserFavoritePack.user_id == u.id).all())
     result = []
     for p in packs:
         d = _pack_dict(p)
@@ -180,7 +161,7 @@ async def list_public_packs(
 @router.get("/packs/{pack_id}")
 async def get_pack(
     pack_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Детали пака с полным списком стикеров."""
@@ -188,17 +169,26 @@ async def get_pack(
     if not pack:
         raise HTTPException(404, "Sticker pack not found")
     if not pack.is_public and pack.creator_id != u.id:
-        fav = db.query(UserFavoritePack).filter(
-            UserFavoritePack.user_id == u.id,
-            UserFavoritePack.pack_id == pack_id,
-        ).first()
+        fav = (
+            db.query(UserFavoritePack)
+            .filter(
+                UserFavoritePack.user_id == u.id,
+                UserFavoritePack.pack_id == pack_id,
+            )
+            .first()
+        )
         if not fav:
             raise HTTPException(403, "Pack is private")
     d = _pack_dict(pack, include_stickers=True)
-    d["is_favorited"] = db.query(UserFavoritePack).filter(
-        UserFavoritePack.user_id == u.id,
-        UserFavoritePack.pack_id == pack_id,
-    ).first() is not None
+    d["is_favorited"] = (
+        db.query(UserFavoritePack)
+        .filter(
+            UserFavoritePack.user_id == u.id,
+            UserFavoritePack.pack_id == pack_id,
+        )
+        .first()
+        is not None
+    )
     d["is_own"] = pack.creator_id == u.id
     return {"pack": d}
 
@@ -207,7 +197,7 @@ async def get_pack(
 async def update_pack(
     pack_id: int,
     body: PackUpdate,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Обновить информацию пака (только владелец)."""
@@ -226,7 +216,7 @@ async def update_pack(
 @router.delete("/packs/{pack_id}")
 async def delete_pack(
     pack_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Удалить пак и все стикеры (только владелец)."""
@@ -248,12 +238,13 @@ async def delete_pack(
 
 # Sticker upload / delete
 
+
 @router.post("/packs/{pack_id}/stickers")
 async def upload_sticker(
     pack_id: int,
-    file:  UploadFile = File(...),
+    file: UploadFile = File(...),
     emoji: str = "\U0001f600",
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -320,9 +311,14 @@ async def upload_sticker(
     image_url = f"/uploads/stickers/{pack_id}/{filename}"
 
     # Определяем order_idx как max+1
-    max_order = db.query(Sticker.order_idx).filter(
-        Sticker.pack_id == pack_id,
-    ).order_by(Sticker.order_idx.desc()).first()
+    max_order = (
+        db.query(Sticker.order_idx)
+        .filter(
+            Sticker.pack_id == pack_id,
+        )
+        .order_by(Sticker.order_idx.desc())
+        .first()
+    )
     next_order = (max_order[0] + 1) if max_order and max_order[0] is not None else 0
 
     sticker = Sticker(
@@ -348,16 +344,20 @@ async def upload_sticker(
 async def delete_sticker(
     pack_id: int,
     sticker_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Удалить стикер из пака (только владелец пака)."""
     _require_pack_owner(pack_id, u.id, db)
 
-    sticker = db.query(Sticker).filter(
-        Sticker.id == sticker_id,
-        Sticker.pack_id == pack_id,
-    ).first()
+    sticker = (
+        db.query(Sticker)
+        .filter(
+            Sticker.id == sticker_id,
+            Sticker.pack_id == pack_id,
+        )
+        .first()
+    )
     if not sticker:
         raise HTTPException(404, "Sticker not found")
 
@@ -376,10 +376,11 @@ async def delete_sticker(
 
 # Favorites
 
+
 @router.post("/packs/{pack_id}/favorite")
 async def add_favorite(
     pack_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Добавить пак в избранное."""
@@ -387,10 +388,14 @@ async def add_favorite(
     if not pack:
         raise HTTPException(404, "Sticker pack not found")
 
-    existing = db.query(UserFavoritePack).filter(
-        UserFavoritePack.user_id == u.id,
-        UserFavoritePack.pack_id == pack_id,
-    ).first()
+    existing = (
+        db.query(UserFavoritePack)
+        .filter(
+            UserFavoritePack.user_id == u.id,
+            UserFavoritePack.pack_id == pack_id,
+        )
+        .first()
+    )
     if existing:
         return {"ok": True, "already_favorited": True}
 
@@ -403,14 +408,18 @@ async def add_favorite(
 @router.delete("/packs/{pack_id}/favorite")
 async def remove_favorite(
     pack_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Убрать пак из избранного."""
-    fav = db.query(UserFavoritePack).filter(
-        UserFavoritePack.user_id == u.id,
-        UserFavoritePack.pack_id == pack_id,
-    ).first()
+    fav = (
+        db.query(UserFavoritePack)
+        .filter(
+            UserFavoritePack.user_id == u.id,
+            UserFavoritePack.pack_id == pack_id,
+        )
+        .first()
+    )
     if not fav:
         raise HTTPException(404, "Pack not in favorites")
     db.delete(fav)

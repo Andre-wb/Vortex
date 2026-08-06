@@ -3,6 +3,7 @@ app/chats/chat_messages.py — E2E message handlers: send, thread reply, edit, d
 
 Extracted from chat.py for maintainability.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -49,16 +50,19 @@ MAX_CIPHERTEXT_HEX_LEN = 65536  # 64 KB of hex chars
 async def _bmp_deposit(room_id: int, payload: dict):
     """Deposit message payload into BMP mailbox for the room (hybrid mode)."""
     from app.config import Config
+
     if not Config.BMP_DELIVERY_ENABLED:
         return
     try:
         import json
+
         await deposit_envelope(room_id, json.dumps(payload))
     except Exception as e:
         logger.debug("[BMP] Deposit failed for room %d: %s", room_id, e)
 
 
 # E2E message
+
 
 async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) -> None:
     if user.global_muted_until and user.global_muted_until > datetime.now(timezone.utc):
@@ -71,19 +75,27 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
             time_str = f"{hours}h {remaining.seconds % 3600 // 60}m"
         else:
             time_str = f"{remaining.seconds // 60}m"
-        await manager.send_to_user(room_id, user.id, {
-            "type":    "error",
-            "message": f"You are muted on the platform. Remaining: {time_str}",
-            "code":    "global_muted",
-        })
+        await manager.send_to_user(
+            room_id,
+            user.id,
+            {
+                "type": "error",
+                "message": f"You are muted on the platform. Remaining: {time_str}",
+                "code": "global_muted",
+            },
+        )
         return
 
     if not manager.check_rate_limit(room_id, user.id):
-        await manager.send_to_user(room_id, user.id, {
-            "type":    "error",
-            "message": "Too many messages. Please wait.",
-            "code":    "rate_limited",
-        })
+        await manager.send_to_user(
+            room_id,
+            user.id,
+            {
+                "type": "error",
+                "message": "Too many messages. Please wait.",
+                "code": "rate_limited",
+            },
+        )
         return
 
     room_obj = db.query(Room).filter(Room.id == room_id).first()
@@ -104,17 +116,25 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         _is_antispam_bot = _bot_uid and user.id == _bot_uid
 
         if not _is_antispam_bot:
-            member_flood = db.query(RoomMember).filter(
-                RoomMember.room_id == room_id,
-                RoomMember.user_id == user.id,
-            ).first()
+            member_flood = (
+                db.query(RoomMember)
+                .filter(
+                    RoomMember.room_id == room_id,
+                    RoomMember.user_id == user.id,
+                )
+                .first()
+            )
             if member_flood and member_flood.muted_until and member_flood.muted_until > datetime.now(timezone.utc):
                 remaining = int((member_flood.muted_until - datetime.now(timezone.utc)).total_seconds())
-                await manager.send_to_user(room_id, user.id, {
-                    "type":    "error",
-                    "message": f"You are muted. Remaining: {remaining} sec.",
-                    "code":    "flood_muted",
-                })
+                await manager.send_to_user(
+                    room_id,
+                    user.id,
+                    {
+                        "type": "error",
+                        "message": f"You are muted. Remaining: {remaining} sec.",
+                        "code": "flood_muted",
+                    },
+                )
                 return
 
             # Use configurable threshold from room settings
@@ -137,78 +157,93 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
                     return
 
     if room_obj and room_obj.is_channel:
-        member = db.query(RoomMember).filter(
-            RoomMember.room_id == room_id,
-            RoomMember.user_id == user.id,
-        ).first()
+        member = (
+            db.query(RoomMember)
+            .filter(
+                RoomMember.room_id == room_id,
+                RoomMember.user_id == user.id,
+            )
+            .first()
+        )
         if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
-            await manager.send_to_user(room_id, user.id, {
-                "type": "error", "message": "Only admins can post in channels"
-            })
+            await manager.send_to_user(
+                room_id, user.id, {"type": "error", "message": "Only admins can post in channels"}
+            )
             return
 
     if room_obj and room_obj.slow_mode_seconds and room_obj.slow_mode_seconds > 0 and not room_obj.is_dm:
-        member_sm = db.query(RoomMember).filter(
-            RoomMember.room_id == room_id,
-            RoomMember.user_id == user.id,
-        ).first()
+        member_sm = (
+            db.query(RoomMember)
+            .filter(
+                RoomMember.room_id == room_id,
+                RoomMember.user_id == user.id,
+            )
+            .first()
+        )
         if member_sm and member_sm.role == RoomRole.MEMBER:
             _user_pseudo = compute_sender_pseudo(room_id, user.id)
-            last_msg = db.query(Message).filter(
-                Message.room_id == room_id,
-                Message.sender_pseudo == _user_pseudo,
-            ).order_by(Message.created_at.desc()).first()
+            last_msg = (
+                db.query(Message)
+                .filter(
+                    Message.room_id == room_id,
+                    Message.sender_pseudo == _user_pseudo,
+                )
+                .order_by(Message.created_at.desc())
+                .first()
+            )
             if last_msg:
                 elapsed = (datetime.now(timezone.utc) - last_msg.created_at).total_seconds()
                 if elapsed < room_obj.slow_mode_seconds:
                     remaining = int(room_obj.slow_mode_seconds - elapsed)
-                    await manager.send_to_user(room_id, user.id, {
-                        "type": "error",
-                        "message": f"Please wait {remaining} sec (slow mode)",
-                        "code": "slow_mode",
-                    })
+                    await manager.send_to_user(
+                        room_id,
+                        user.id,
+                        {
+                            "type": "error",
+                            "message": f"Please wait {remaining} sec (slow mode)",
+                            "code": "slow_mode",
+                        },
+                    )
                     return
 
     ciphertext_hex = data.get("ciphertext", "").strip()
-    client_msg_id  = data.get("msg_id", "")   # идентификатор от клиента
+    client_msg_id = data.get("msg_id", "")  # идентификатор от клиента
 
     if not ciphertext_hex:
         return
 
     if len(ciphertext_hex) < 48:
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext too short"
-        })
+        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext too short"})
         return
 
     # reject oversized ciphertext before decode/store/broadcast.
     if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext too large"
-        })
+        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext too large"})
         return
 
     if client_msg_id:
         dedup_key = f"msg:{room_id}:{client_msg_id}"
         if await manager.is_duplicate_message(dedup_key):
             # Повторная отправка — шлём ACK без сохранения
-            await manager.send_to_user(room_id, user.id, {
-                "type":       "ack",
-                "msg_id":     client_msg_id,
-                "duplicate":  True,
-            })
+            await manager.send_to_user(
+                room_id,
+                user.id,
+                {
+                    "type": "ack",
+                    "msg_id": client_msg_id,
+                    "duplicate": True,
+                },
+            )
             return
 
     try:
         ciphertext_bytes = bytes.fromhex(ciphertext_hex)
     except ValueError:
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext is not valid hex"
-        })
+        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext is not valid hex"})
         return
 
     content_hash = None
-    hash_hex     = data.get("hash", "")
+    hash_hex = data.get("hash", "")
     if hash_hex:
         with contextlib.suppress(ValueError):
             content_hash = bytes.fromhex(hash_hex)
@@ -224,33 +259,39 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         except (ValueError, TypeError):
             reply_to_id = None
     if reply_to_id:
-        reply_exists = db.query(Message.id).filter(
-            Message.id      == reply_to_id,
-            Message.room_id == room_id,
-        ).first()
+        reply_exists = (
+            db.query(Message.id)
+            .filter(
+                Message.id == reply_to_id,
+                Message.room_id == room_id,
+            )
+            .first()
+        )
         if not reply_exists:
             reply_to_id = None
 
     mentioned_usernames: list[str] = data.get("mentioned_usernames") or []
     # Sanitize: keep only valid short strings
-    mentioned_usernames = [u.lower().strip() for u in mentioned_usernames[:20] if isinstance(u, str) and 3 <= len(u) <= 30]
+    mentioned_usernames = [
+        u.lower().strip() for u in mentioned_usernames[:20] if isinstance(u, str) and 3 <= len(u) <= 30
+    ]
 
     auto_expire = None
     if room_obj and room_obj.auto_delete_seconds and room_obj.auto_delete_seconds > 0:
         auto_expire = datetime.now(timezone.utc) + timedelta(seconds=room_obj.auto_delete_seconds)
 
     client_created_at = _parse_client_ts(data.get("client_ts"))
-    enc_v             = _parse_enc_v(data)
+    enc_v = _parse_enc_v(data)
 
     msg = Message(
-        room_id           = room_id,
-        sender_pseudo     = compute_sender_pseudo(room_id, user.id),
-        msg_type          = MessageType.TEXT,
-        content_encrypted = ciphertext_bytes,
-        content_hash      = content_hash,
-        enc_version       = enc_v,
-        reply_to_id       = reply_to_id,
-        expires_at        = auto_expire,
+        room_id=room_id,
+        sender_pseudo=compute_sender_pseudo(room_id, user.id),
+        msg_type=MessageType.TEXT,
+        content_encrypted=ciphertext_bytes,
+        content_hash=content_hash,
+        enc_version=enc_v,
+        reply_to_id=reply_to_id,
+        expires_at=auto_expire,
     )
     if client_created_at:
         msg.created_at = client_created_at
@@ -265,53 +306,70 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
     except Exception as e:
         db.rollback()
         logger.error("Failed to save message in room %s: %s", room_id, e)
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Failed to save message",
-        })
+        await manager.send_to_user(
+            room_id,
+            user.id,
+            {
+                "type": "error",
+                "message": "Failed to save message",
+            },
+        )
         return
 
-    await manager.send_to_user(room_id, user.id, {
-        "type":       "ack",
-        "msg_id":     client_msg_id,
-        "server_id":  msg.id,
-        "created_at": _utc_iso(msg.created_at),
-    })
+    await manager.send_to_user(
+        room_id,
+        user.id,
+        {
+            "type": "ack",
+            "msg_id": client_msg_id,
+            "server_id": msg.id,
+            "created_at": _utc_iso(msg.created_at),
+        },
+    )
 
     # Fetch sender's tag in this room
-    _sender_member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id, RoomMember.user_id == user.id,
-    ).first()
+    _sender_member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user.id,
+        )
+        .first()
+    )
 
     payload = {
-        "type":          "message",
-        "msg_id":        msg.id,
+        "type": "message",
+        "msg_id": msg.id,
         "client_msg_id": client_msg_id,
-        "sender_id":     user.id,
+        "sender_id": user.id,
         "sender_pseudo": msg.sender_pseudo,
-        "sender":        user.username,
-        "display_name":  user.display_name or user.username,
-        "avatar_emoji":  user.avatar_emoji,
-        "avatar_url":    user.avatar_url,
-        "is_bot":        bool(user.is_bot),
-        "tag":           getattr(_sender_member, 'tag', None) if _sender_member else None,
-        "tag_color":     getattr(_sender_member, 'tag_color', None) if _sender_member else None,
-        "reply_color":   user.reply_color,
-        "reply_icon":    user.reply_icon,
-        "ciphertext":    ciphertext_hex,
-        "hash":          hash_hex or (content_hash.hex() if content_hash else None),
-        "enc_v":         enc_v,
-        "reply_to_id":   reply_to_id,
-        "reply_quote":   data.get("reply_quote"),
-        "status":        "sent",
+        "sender": user.username,
+        "display_name": user.display_name or user.username,
+        "avatar_emoji": user.avatar_emoji,
+        "avatar_url": user.avatar_url,
+        "is_bot": bool(user.is_bot),
+        "tag": getattr(_sender_member, "tag", None) if _sender_member else None,
+        "tag_color": getattr(_sender_member, "tag_color", None) if _sender_member else None,
+        "reply_color": user.reply_color,
+        "reply_icon": user.reply_icon,
+        "ciphertext": ciphertext_hex,
+        "hash": hash_hex or (content_hash.hex() if content_hash else None),
+        "enc_v": enc_v,
+        "reply_to_id": reply_to_id,
+        "reply_quote": data.get("reply_quote"),
+        "status": "sent",
         "forwarded_from": msg.forwarded_from,
-        "expires_at":    _utc_iso(msg.expires_at),
-        "created_at":    _utc_iso(msg.created_at),
+        "expires_at": _utc_iso(msg.expires_at),
+        "created_at": _utc_iso(msg.created_at),
     }
     _room_member_ids = [
-        rm.user_id for rm in db.query(RoomMember.user_id).filter(
+        rm.user_id
+        for rm in db.query(RoomMember.user_id)
+        .filter(
             RoomMember.room_id == room_id,
             RoomMember.is_banned.is_(False),
-        ).all()
+        )
+        .all()
     ]
 
     # WS broadcast removed — server no longer reveals who receives what.
@@ -340,12 +398,14 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         if _cmd_lower in ("/antispam_status", "/antispam_help"):
             try:
                 from app.bots.antispam_bot import handle_antispam_command
+
                 await handle_antispam_command(room_id, _cmd_lower, db)
             except Exception as e:
                 logger.warning(f"Antispam command error: {e}")
 
         try:
             from app.bots.bot_api import notify_bots_in_room
+
             await notify_bots_in_room(
                 room_id=room_id,
                 sender_id=user.id,
@@ -369,27 +429,35 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
             if reply_msg.sender_id:
                 reply_to_user_id = reply_msg.sender_id
             elif reply_msg.sender_pseudo:
-                _rm_ids = [rm.user_id for rm in db.query(RoomMember).filter(
-                    RoomMember.room_id == room_id).with_entities(RoomMember.user_id).all()]
+                _rm_ids = [
+                    rm.user_id
+                    for rm in db.query(RoomMember)
+                    .filter(RoomMember.room_id == room_id)
+                    .with_entities(RoomMember.user_id)
+                    .all()
+                ]
                 reply_to_user_id = resolve_pseudo(room_id, _rm_ids, reply_msg.sender_pseudo, caller="reply_notify")
 
     # Build set of mentioned user ids (from @username list sent by client)
     _mentioned_user_ids: set[int] = set()
     if mentioned_usernames:
-        mentioned_users = db.query(User.id).filter(
-            sa_func.lower(User.username).in_(mentioned_usernames)
-        ).all()
+        mentioned_users = db.query(User.id).filter(sa_func.lower(User.username).in_(mentioned_usernames)).all()
         _mentioned_user_ids = {u.id for u in mentioned_users}
 
-    room_members_full = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.is_banned.is_(False),
-    ).all()
+    room_members_full = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.is_banned.is_(False),
+        )
+        .all()
+    )
     # BMP mode: notifications go through BMP deposit (already done above).
     # Anonymous push proxy handles wake signals (Phase 6).
     # No targeted notify_user — zero metadata leakage.
     # Web Push via anonymous push proxy category signal:
     from app.config import Config
+
     if Config.BMP_DELIVERY_ENABLED:
         pass  # BMP deposit already sends wake signal via _emit_wake_signal
     else:
@@ -401,52 +469,52 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
                 if rm.is_muted:
                     continue
                 is_mention = (reply_to_user_id == member_id) or (member_id in _mentioned_user_ids)
-                delivered = await manager.notify_user(member_id, {
-                    "type":             "notification",
-                    "room_id":          room_id,
-                    "room_name":        room_obj.name if room_obj else "",
-                    "is_dm":            is_dm,
-                    "sender_pseudo":    msg.sender_pseudo,
-                    "sender_username":  user.username,
-                    "sender_display_name": user.display_name or user.username,
-                    "sender_avatar":    user.avatar_emoji,
-                    "sender_avatar_url": user.avatar_url,
-                    "is_mention":       is_mention,
-                    "created_at":       _utc_iso(msg.created_at),
-                })
+                delivered = await manager.notify_user(
+                    member_id,
+                    {
+                        "type": "notification",
+                        "room_id": room_id,
+                        "room_name": room_obj.name if room_obj else "",
+                        "is_dm": is_dm,
+                        "sender_pseudo": msg.sender_pseudo,
+                        "sender_username": user.username,
+                        "sender_display_name": user.display_name or user.username,
+                        "sender_avatar": user.avatar_emoji,
+                        "sender_avatar_url": user.avatar_url,
+                        "is_mention": is_mention,
+                        "created_at": _utc_iso(msg.created_at),
+                    },
+                )
 
                 if not delivered:
                     await _send_web_push(
                         member_id,
                         user.display_name or user.username,
                         room_id,
-                    is_dm,
-                    db,
-                )
+                        is_dm,
+                        db,
+                    )
 
 
 # Thread reply
 
+
 async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session) -> None:
     """Обработка ответа в треде: создаёт сообщение с thread_id и обновляет thread_count."""
-    thread_id      = data.get("thread_id")
+    thread_id = data.get("thread_id")
     ciphertext_hex = data.get("ciphertext", "").strip()
-    client_msg_id  = data.get("msg_id", "")
+    client_msg_id = data.get("msg_id", "")
 
     if not thread_id or not ciphertext_hex:
         return
 
     if len(ciphertext_hex) < 48:
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext too short"
-        })
+        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext too short"})
         return
 
     # reject oversized ciphertext before decode/store/broadcast.
     if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext too large"
-        })
+        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext too large"})
         return
 
     if user.global_muted_until and user.global_muted_until > datetime.now(timezone.utc):
@@ -459,37 +527,61 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
             time_str = f"{hours}h {remaining.seconds % 3600 // 60}m"
         else:
             time_str = f"{remaining.seconds // 60}m"
-        await manager.send_to_user(room_id, user.id, {
-            "type":    "error",
-            "message": f"You are muted on the platform. Remaining: {time_str}",
-            "code":    "global_muted",
-        })
+        await manager.send_to_user(
+            room_id,
+            user.id,
+            {
+                "type": "error",
+                "message": f"You are muted on the platform. Remaining: {time_str}",
+                "code": "global_muted",
+            },
+        )
         return
 
     # Rate limiting
     if not manager.check_rate_limit(room_id, user.id):
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Too many messages. Please wait.", "code": "rate_limited",
-        })
+        await manager.send_to_user(
+            room_id,
+            user.id,
+            {
+                "type": "error",
+                "message": "Too many messages. Please wait.",
+                "code": "rate_limited",
+            },
+        )
         return
 
     # Flood auto-mute check (skipped for DMs and if antispam disabled)
     _room_for_flood = db.query(Room).filter(Room.id == room_id).first()
     _is_dm2 = _room_for_flood and _room_for_flood.is_dm
-    _antispam2 = _room_for_flood.antispam_enabled if (_room_for_flood and _room_for_flood.antispam_enabled is not None) else True
+    _antispam2 = (
+        _room_for_flood.antispam_enabled if (_room_for_flood and _room_for_flood.antispam_enabled is not None) else True
+    )
     if _antispam2 and not _is_dm2:
         from app.bots.antispam_bot import get_antispam_bot_user_id as _get_bot_uid2
         from app.bots.antispam_bot import get_antispam_config as _get_as_cfg2
+
         _bot_uid2 = _get_bot_uid2()
         if not (_bot_uid2 and user.id == _bot_uid2):
-            member_flood = db.query(RoomMember).filter(
-                RoomMember.room_id == room_id, RoomMember.user_id == user.id,
-            ).first()
+            member_flood = (
+                db.query(RoomMember)
+                .filter(
+                    RoomMember.room_id == room_id,
+                    RoomMember.user_id == user.id,
+                )
+                .first()
+            )
             if member_flood and member_flood.muted_until and member_flood.muted_until > datetime.now(timezone.utc):
                 remaining = int((member_flood.muted_until - datetime.now(timezone.utc)).total_seconds())
-                await manager.send_to_user(room_id, user.id, {
-                    "type": "error", "message": f"You are muted. Remaining: {remaining} sec.", "code": "flood_muted",
-                })
+                await manager.send_to_user(
+                    room_id,
+                    user.id,
+                    {
+                        "type": "error",
+                        "message": f"You are muted. Remaining: {remaining} sec.",
+                        "code": "flood_muted",
+                    },
+                )
                 return
             _cfg2 = _get_as_cfg2(_room_for_flood) if _room_for_flood else {}
             _thr2 = _cfg2.get("threshold", _FLOOD_THRESHOLD)
@@ -497,30 +589,37 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
                 return
 
     # Проверяем что корневое сообщение существует в этой комнате
-    root_msg = db.query(Message).filter(
-        Message.id == thread_id, Message.room_id == room_id,
-    ).first()
+    root_msg = (
+        db.query(Message)
+        .filter(
+            Message.id == thread_id,
+            Message.room_id == room_id,
+        )
+        .first()
+    )
     if not root_msg:
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Thread root message not found"
-        })
+        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Thread root message not found"})
         return
 
     # Дедупликация
     if client_msg_id:
         dedup_key = f"msg:{room_id}:{client_msg_id}"
         if await manager.is_duplicate_message(dedup_key):
-            await manager.send_to_user(room_id, user.id, {
-                "type": "ack", "msg_id": client_msg_id, "duplicate": True,
-            })
+            await manager.send_to_user(
+                room_id,
+                user.id,
+                {
+                    "type": "ack",
+                    "msg_id": client_msg_id,
+                    "duplicate": True,
+                },
+            )
             return
 
     try:
         ciphertext_bytes = bytes.fromhex(ciphertext_hex)
     except ValueError:
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Ciphertext is not valid hex"
-        })
+        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext is not valid hex"})
         return
 
     content_hash = None
@@ -534,26 +633,22 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
             content_hash = bytes(content_hash_result)
 
     reply_to_id = data.get("reply_to_id")
-    enc_v       = _parse_enc_v(data)
+    enc_v = _parse_enc_v(data)
 
     msg = Message(
-        room_id           = room_id,
-        sender_pseudo     = compute_sender_pseudo(room_id, user.id),
-        msg_type          = MessageType.TEXT,
-        content_encrypted = ciphertext_bytes,
-        content_hash      = content_hash,
-        enc_version       = enc_v,
-        reply_to_id       = reply_to_id,
-        thread_id         = thread_id,
+        room_id=room_id,
+        sender_pseudo=compute_sender_pseudo(room_id, user.id),
+        msg_type=MessageType.TEXT,
+        content_encrypted=ciphertext_bytes,
+        content_hash=content_hash,
+        enc_version=enc_v,
+        reply_to_id=reply_to_id,
+        thread_id=thread_id,
     )
     db.add(msg)
 
     # Атомарно инкрементируем thread_count на корневом сообщении (избегаем race condition)
-    db.execute(
-        sa_update(Message).where(Message.id == root_msg.id).values(
-            thread_count=Message.thread_count + 1
-        )
-    )
+    db.execute(sa_update(Message).where(Message.id == root_msg.id).values(thread_count=Message.thread_count + 1))
     try:
         db.commit()
         db.refresh(msg)
@@ -561,45 +656,57 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     except Exception as e:
         db.rollback()
         logger.error("Failed to save thread reply in room %s: %s", room_id, e)
-        await manager.send_to_user(room_id, user.id, {
-            "type": "error", "message": "Failed to save thread reply",
-        })
+        await manager.send_to_user(
+            room_id,
+            user.id,
+            {
+                "type": "error",
+                "message": "Failed to save thread reply",
+            },
+        )
         return
 
     # ACK отправителю
-    await manager.send_to_user(room_id, user.id, {
-        "type":       "ack",
-        "msg_id":     client_msg_id,
-        "server_id":  msg.id,
-        "created_at": _utc_iso(msg.created_at),
-    })
+    await manager.send_to_user(
+        room_id,
+        user.id,
+        {
+            "type": "ack",
+            "msg_id": client_msg_id,
+            "server_id": msg.id,
+            "created_at": _utc_iso(msg.created_at),
+        },
+    )
 
     # Собираем member_ids для pending delivery
     _thread_member_ids = [
-        rm.user_id for rm in db.query(RoomMember.user_id).filter(
+        rm.user_id
+        for rm in db.query(RoomMember.user_id)
+        .filter(
             RoomMember.room_id == room_id,
             RoomMember.is_banned.is_(False),
-        ).all()
+        )
+        .all()
     ]
 
     # Рассылаем сообщение в тред всем в комнате
     payload = {
-        "type":          "thread_message",
-        "msg_id":        msg.id,
+        "type": "thread_message",
+        "msg_id": msg.id,
         "client_msg_id": client_msg_id,
         "sender_pseudo": msg.sender_pseudo,
-        "sender":        user.username,
-        "display_name":  user.display_name or user.username,
-        "avatar_emoji":  user.avatar_emoji,
-        "avatar_url":    user.avatar_url,
-        "ciphertext":    ciphertext_hex,
-        "hash":          hash_hex or (content_hash.hex() if content_hash else None),
-        "enc_v":         enc_v,
-        "reply_to_id":   reply_to_id,
-        "reply_quote":   data.get("reply_quote"),
-        "thread_id":     thread_id,
-        "status":        "sent",
-        "created_at":    _utc_iso(msg.created_at),
+        "sender": user.username,
+        "display_name": user.display_name or user.username,
+        "avatar_emoji": user.avatar_emoji,
+        "avatar_url": user.avatar_url,
+        "ciphertext": ciphertext_hex,
+        "hash": hash_hex or (content_hash.hex() if content_hash else None),
+        "enc_v": enc_v,
+        "reply_to_id": reply_to_id,
+        "reply_quote": data.get("reply_quote"),
+        "thread_id": thread_id,
+        "status": "sent",
+        "created_at": _utc_iso(msg.created_at),
     }
     # BMP-only delivery (WS broadcast removed)
     await _bmp_deposit(room_id, payload)
@@ -615,17 +722,21 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         await _maybe_replicate(_room_obj2, payload, _sender_ts2)
 
     # Обновляем badge thread_count для всех
-    await manager.broadcast_to_room(room_id, {
-        "type":         "thread_update",
-        "msg_id":       thread_id,
-        "thread_count": root_msg.thread_count,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "thread_update",
+            "msg_id": thread_id,
+            "thread_count": root_msg.thread_count,
+        },
+    )
 
 
 # Edit message
 
+
 async def handle_edit_message(room_id: int, user: User, data: dict, db: Session) -> None:
-    msg_id         = data.get("msg_id")
+    msg_id = data.get("msg_id")
     ciphertext_hex = data.get("ciphertext", "").strip()
 
     if not msg_id or not ciphertext_hex or len(ciphertext_hex) < 48:
@@ -640,17 +751,20 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
     except ValueError:
         return
 
-    msg = db.query(Message).filter(
-        Message.id       == msg_id,
-        Message.room_id  == room_id,
-        Message.msg_type == MessageType.TEXT,
-    ).first()
+    msg = (
+        db.query(Message)
+        .filter(
+            Message.id == msg_id,
+            Message.room_id == room_id,
+            Message.msg_type == MessageType.TEXT,
+        )
+        .first()
+    )
     if not msg:
         return
     # Ownership check: prefer sender_pseudo (sealed sender), fall back to sender_id
-    _is_owner = (
-        (msg.sender_pseudo and verify_sender_pseudo(room_id, user.id, msg.sender_pseudo))
-        or (msg.sender_pseudo is None and msg.sender_id == user.id)
+    _is_owner = (msg.sender_pseudo and verify_sender_pseudo(room_id, user.id, msg.sender_pseudo)) or (
+        msg.sender_pseudo is None and msg.sender_id == user.id
     )
     if not _is_owner:
         return
@@ -662,19 +776,21 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
     if msg.content_encrypted:
         history_entry = MessageEditHistory(
             message_id=msg.id,
-            ciphertext_hex=msg.content_encrypted.hex() if isinstance(msg.content_encrypted, (bytes, bytearray)) else str(msg.content_encrypted),
+            ciphertext_hex=msg.content_encrypted.hex()
+            if isinstance(msg.content_encrypted, (bytes, bytearray))
+            else str(msg.content_encrypted),
             enc_version=msg.enc_version,
             edited_at=datetime.now(timezone.utc),
         )
         db.add(history_entry)
 
-    enc_v                 = _parse_enc_v(data)
-    content_hash_result   = hash_message(ciphertext_bytes)
+    enc_v = _parse_enc_v(data)
+    content_hash_result = hash_message(ciphertext_bytes)
     msg.content_encrypted = ciphertext_bytes
-    msg.content_hash      = bytes(content_hash_result) if isinstance(content_hash_result, (bytes, bytearray)) else None
-    msg.enc_version       = enc_v
-    msg.is_edited         = True
-    msg.edited_at         = datetime.now(timezone.utc)
+    msg.content_hash = bytes(content_hash_result) if isinstance(content_hash_result, (bytes, bytearray)) else None
+    msg.enc_version = enc_v
+    msg.is_edited = True
+    msg.edited_at = datetime.now(timezone.utc)
     try:
         db.commit()
     except Exception as e:
@@ -683,39 +799,48 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
         return
 
     _edit_payload = {
-        "type":       "message_edited",
-        "msg_id":     msg_id,
+        "type": "message_edited",
+        "msg_id": msg_id,
         "ciphertext": ciphertext_hex,
-        "enc_v":      enc_v,
-        "is_edited":  True,
+        "enc_v": enc_v,
+        "is_edited": True,
     }
     await manager.broadcast_to_room(room_id, _edit_payload)
 
 
 # Delete message
 
+
 async def handle_delete_message(room_id: int, user: User, data: dict, db: Session) -> None:
     msg_id = data.get("msg_id")
     if not msg_id:
         return
 
-    msg = db.query(Message).filter(
-        Message.id      == msg_id,
-        Message.room_id == room_id,
-    ).first()
+    msg = (
+        db.query(Message)
+        .filter(
+            Message.id == msg_id,
+            Message.room_id == room_id,
+        )
+        .first()
+    )
     if not msg:
         return
     # Ownership check OR admin/owner role in room
-    _is_owner = (
-        (msg.sender_pseudo and verify_sender_pseudo(room_id, user.id, msg.sender_pseudo))
-        or (msg.sender_pseudo is None and msg.sender_id == user.id)
+    _is_owner = (msg.sender_pseudo and verify_sender_pseudo(room_id, user.id, msg.sender_pseudo)) or (
+        msg.sender_pseudo is None and msg.sender_id == user.id
     )
     if not _is_owner:
         from app.models_rooms import RoomMember, RoomRole
-        member = db.query(RoomMember).filter(
-            RoomMember.room_id == room_id,
-            RoomMember.user_id == user.id,
-        ).first()
+
+        member = (
+            db.query(RoomMember)
+            .filter(
+                RoomMember.room_id == room_id,
+                RoomMember.user_id == user.id,
+            )
+            .first()
+        )
         if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
             return
 

@@ -1,6 +1,7 @@
 """
 app/bots/ide_shared.py — Shared constants, models, and helpers for IDE routes.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,7 +15,7 @@ from pydantic import BaseModel, Field
 
 _BASE = Path(__file__).resolve().parent.parent.parent
 
-_ID_RE = re.compile(r'^[a-zA-Z0-9_\-]+$')
+_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
 
 
 def _validate_id(pid: str) -> str:
@@ -93,16 +94,15 @@ def _project_owner(pid: str) -> Optional[int]:
         return _load_ownership().get(pid)
 
 
-
 class CompileRequest(BaseModel):
     project_id: str = Field(..., min_length=1, max_length=64)
-    code: str       = Field(..., max_length=500_000)
+    code: str = Field(..., max_length=500_000)
 
 
 class PublishRequest(BaseModel):
     project_id: str = Field(..., min_length=1, max_length=64)
-    code: str       = Field(..., max_length=500_000)
-    token: str      = Field(..., min_length=1, max_length=120)
+    code: str = Field(..., max_length=500_000)
+    token: str = Field(..., min_length=1, max_length=120)
 
 
 class BotCallRequest(BaseModel):

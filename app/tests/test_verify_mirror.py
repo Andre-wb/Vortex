@@ -42,13 +42,22 @@ def test_payload_and_signatures_match_cross_impl_vector():
     # certMessage = device_id(16) ‖ x3dh(32) ‖ sign_pub(32)
     cert_msg = bytes.fromhex(_DEVICE_ID) + bytes.fromhex(_X3DH) + bytes.fromhex(_DEV_PUB)
     # Обе подписи РЕАЛЬНО сходятся (то, что проверит JS-устройство-потребитель).
-    _ACCT.public_key().verify(bytes.fromhex(
-        "811510219d61f6af65bb3714e30a4f75a6605ce093a9b5f63a1ddad663effb164ca74fff1145fdf82de61078251ddcb85f693de76faa8ae09ff1e80dc6697205"), cert_msg)
-    _DEV.public_key().verify(bytes.fromhex(
-        "1e655a9648896fef959224953ce66de958c6bc62416b089ad78607046d64945b399b04c1195b229f7a12a19d18d0e397532ed80332859610759851c7a7b1d80c"), payload)
+    _ACCT.public_key().verify(
+        bytes.fromhex(
+            "811510219d61f6af65bb3714e30a4f75a6605ce093a9b5f63a1ddad663effb164ca74fff1145fdf82de61078251ddcb85f693de76faa8ae09ff1e80dc6697205"
+        ),
+        cert_msg,
+    )
+    _DEV.public_key().verify(
+        bytes.fromhex(
+            "1e655a9648896fef959224953ce66de958c6bc62416b089ad78607046d64945b399b04c1195b229f7a12a19d18d0e397532ed80332859610759851c7a7b1d80c"
+        ),
+        payload,
+    )
 
 
 # --- 2. Эндпоинт: хранилище, owner-scope, rollback-guard ------------------
+
 
 def _attestation(peer_id, ed=_ED, state="verified", signed_at=1700000000):
     return {

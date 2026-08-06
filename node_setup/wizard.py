@@ -31,11 +31,11 @@ def run_wizard(host: str = "127.0.0.1", port: int = 7979) -> None:
     from . import _app
 
     config = uvicorn.Config(
-        app      = wizard_app,
-        host     = host,
-        port     = port,
-        log_level= "warning",
-        access_log = False,
+        app=wizard_app,
+        host=host,
+        port=port,
+        log_level="warning",
+        access_log=False,
     )
     _app._server_instance = uvicorn.Server(config)
 

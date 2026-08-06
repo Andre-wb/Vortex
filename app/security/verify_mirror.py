@@ -32,7 +32,7 @@ _HEX32 = re.compile(r"^[0-9a-fA-F]{32}$")
 class AttestationIn(BaseModel):
     peer_user_id: int
     verified_ed: str
-    state: str                 # verified | revoked
+    state: str  # verified | revoked
     signed_at: int
     client_device_id: str
     device_x3dh_pub: str
@@ -43,9 +43,9 @@ class AttestationIn(BaseModel):
 
 @router.post("/attestations")
 async def put_attestation(
-        body: AttestationIn,
-        user: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    body: AttestationIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Сохранить подписанную атестацию верификации (latest-per-peer выигрывает).
 
@@ -55,8 +55,11 @@ async def put_attestation(
     """
     if body.state not in ("verified", "revoked"):
         raise HTTPException(400, "state must be verified|revoked")
-    if not _HEX64.match(body.verified_ed) or not _HEX64.match(body.device_x3dh_pub) \
-            or not _HEX64.match(body.device_sign_pub):
+    if (
+        not _HEX64.match(body.verified_ed)
+        or not _HEX64.match(body.device_x3dh_pub)
+        or not _HEX64.match(body.device_sign_pub)
+    ):
         raise HTTPException(400, "bad hex-64 field")
     if not _HEX128.match(body.device_cert_sig) or not _HEX128.match(body.attest_sig):
         raise HTTPException(400, "bad hex-128 signature")
@@ -85,33 +88,31 @@ async def put_attestation(
         existing.device_cert_sig = body.device_cert_sig.lower()
         existing.attest_sig = body.attest_sig.lower()
     else:
-        db.add(VerificationAttestation(
-            owner_user_id=user.id,
-            peer_user_id=body.peer_user_id,
-            verified_ed=body.verified_ed.lower(),
-            state=body.state,
-            signed_at=body.signed_at,
-            client_device_id=body.client_device_id.lower(),
-            device_x3dh_pub=body.device_x3dh_pub.lower(),
-            device_sign_pub=body.device_sign_pub.lower(),
-            device_cert_sig=body.device_cert_sig.lower(),
-            attest_sig=body.attest_sig.lower(),
-        ))
+        db.add(
+            VerificationAttestation(
+                owner_user_id=user.id,
+                peer_user_id=body.peer_user_id,
+                verified_ed=body.verified_ed.lower(),
+                state=body.state,
+                signed_at=body.signed_at,
+                client_device_id=body.client_device_id.lower(),
+                device_x3dh_pub=body.device_x3dh_pub.lower(),
+                device_sign_pub=body.device_sign_pub.lower(),
+                device_cert_sig=body.device_cert_sig.lower(),
+                attest_sig=body.attest_sig.lower(),
+            )
+        )
     db.commit()
     return {"ok": True, "applied": True}
 
 
 @router.get("/attestations")
 async def get_attestations(
-        user: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Отдать владельцу ЕГО ЖЕ атестации (latest-per-peer). Чужие недоступны."""
-    rows = (
-        db.query(VerificationAttestation)
-        .filter(VerificationAttestation.owner_user_id == user.id)
-        .all()
-    )
+    rows = db.query(VerificationAttestation).filter(VerificationAttestation.owner_user_id == user.id).all()
     return {
         "attestations": [
             {

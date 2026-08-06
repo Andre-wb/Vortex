@@ -18,6 +18,7 @@ Push payload содержит ТОЛЬКО encrypted_hint — даже серв�
   }
   → Нет plaintext sender, content, room name — ничего для метаданных.
 """
+
 from __future__ import annotations
 
 import base64
@@ -30,20 +31,20 @@ from dataclasses import dataclass, field
 logger = logging.getLogger(__name__)
 
 
-
 @dataclass
 class VapidConfig:
     """VAPID (Voluntary Application Server Identification) keys for Web Push."""
-    public_key:  str = ""
+
+    public_key: str = ""
     private_key: str = ""
-    subject:     str = ""
-    enabled:     bool = False
+    subject: str = ""
+    enabled: bool = False
 
     def load(self) -> None:
-        self.public_key  = os.environ.get("VAPID_PUBLIC_KEY", "")
+        self.public_key = os.environ.get("VAPID_PUBLIC_KEY", "")
         self.private_key = os.environ.get("VAPID_PRIVATE_KEY", "")
-        self.subject     = os.environ.get("VAPID_SUBJECT", "mailto:admin@vortex.local")
-        self.enabled     = bool(self.public_key and self.private_key)
+        self.subject = os.environ.get("VAPID_SUBJECT", "mailto:admin@vortex.local")
+        self.enabled = bool(self.public_key and self.private_key)
         if self.enabled:
             logger.info("📱 VAPID keys loaded — Web Push enabled")
         else:
@@ -53,13 +54,12 @@ class VapidConfig:
 vapid = VapidConfig()
 
 
-
 @dataclass
 class PushSubscription:
-    user_id:    int
-    endpoint:   str
-    p256dh:     str
-    auth:       str
+    user_id: int
+    endpoint: str
+    p256dh: str
+    auth: str
     created_at: float = field(default_factory=time.time)
 
 
@@ -74,24 +74,27 @@ def register_subscription(user_id: int, endpoint: str, p256dh: str, auth: str) -
     for sub in _subscriptions[user_id]:
         if sub.endpoint == endpoint:
             sub.p256dh = p256dh
-            sub.auth   = auth
+            sub.auth = auth
             return
-    _subscriptions[user_id].append(PushSubscription(
-        user_id=user_id, endpoint=endpoint, p256dh=p256dh, auth=auth,
-    ))
+    _subscriptions[user_id].append(
+        PushSubscription(
+            user_id=user_id,
+            endpoint=endpoint,
+            p256dh=p256dh,
+            auth=auth,
+        )
+    )
 
 
 def unregister_subscription(user_id: int, endpoint: str) -> None:
     if user_id in _subscriptions:
-        _subscriptions[user_id] = [
-            s for s in _subscriptions[user_id] if s.endpoint != endpoint
-        ]
-
+        _subscriptions[user_id] = [s for s in _subscriptions[user_id] if s.endpoint != endpoint]
 
 
 def _derive_push_key(user_id: int) -> bytes:
     """Derive per-user push encryption key from app secret + user_id."""
     import hashlib
+
     secret = os.environ.get("JWT_SECRET", "vortex-default-secret").encode()
     return hashlib.pbkdf2_hmac("sha256", secret, f"push:{user_id}".encode(), 10000)
 
@@ -99,23 +102,26 @@ def _derive_push_key(user_id: int) -> bytes:
 def encrypt_push_hint(user_id: int, room_id: int, sender_pseudo: str, msg_type: str) -> str:
     """Encrypt push hint so only the recipient can read it."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    key   = _derive_push_key(user_id)
+
+    key = _derive_push_key(user_id)
     nonce = os.urandom(12)
-    plaintext = json.dumps({
-        "r": room_id,
-        "s": sender_pseudo[:16],
-        "t": msg_type,
-    }, separators=(",", ":")).encode()
+    plaintext = json.dumps(
+        {
+            "r": room_id,
+            "s": sender_pseudo[:16],
+            "t": msg_type,
+        },
+        separators=(",", ":"),
+    ).encode()
     ct = AESGCM(key).encrypt(nonce, plaintext, None)
     return base64.urlsafe_b64encode(nonce + ct).decode()
 
 
-
 async def send_sealed_push(
-    user_id:       int,
-    room_id:       int,
+    user_id: int,
+    room_id: int,
     sender_pseudo: str,
-    msg_type:      str = "message",
+    msg_type: str = "message",
 ) -> bool:
     """
     Send a sealed push notification to a user.
@@ -131,7 +137,7 @@ async def send_sealed_push(
     hint = encrypt_push_hint(user_id, room_id, sender_pseudo, msg_type)
     payload = {
         "type": "sealed_push",
-        "ts":   int(time.time()),
+        "ts": int(time.time()),
         "hint": hint,
     }
 
@@ -167,6 +173,7 @@ async def _send_web_push(sub: PushSubscription, payload: dict) -> None:
     """Send Web Push via VAPID protocol."""
     try:
         from pywebpush import webpush
+
         webpush(
             subscription_info={
                 "endpoint": sub.endpoint,
@@ -182,11 +189,10 @@ async def _send_web_push(sub: PushSubscription, payload: dict) -> None:
         pass
 
 
-
 def push_stats() -> dict:
     total_subs = sum(len(v) for v in _subscriptions.values())
     return {
-        "vapid_enabled":       vapid.enabled,
-        "registered_users":    len(_subscriptions),
+        "vapid_enabled": vapid.enabled,
+        "registered_users": len(_subscriptions),
         "total_subscriptions": total_subs,
     }

@@ -10,6 +10,7 @@ Endpoints:
   PUT    /api/rooms/{room_id}/tasks/{task_id}    — toggle done, update text, assign
   DELETE /api/rooms/{room_id}/tasks/{task_id}    — delete task (creator or admin/owner)
 """
+
 from __future__ import annotations
 
 import logging
@@ -27,13 +28,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/rooms", tags=["tasks"])
 
 
-
 def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
-    m = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user_id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    m = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user_id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not m:
         raise HTTPException(403, "You are not a member of this room")
     return m
@@ -42,17 +46,16 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
 def _task_dict(t: RoomTask) -> dict:
     """Serialize a RoomTask to a JSON-friendly dict."""
     return {
-        "id":           t.id,
-        "room_id":      t.room_id,
-        "creator_id":   t.creator_id,
+        "id": t.id,
+        "room_id": t.room_id,
+        "creator_id": t.creator_id,
         "creator_name": (t.creator.display_name or t.creator.username) if t.creator else None,
-        "assignee_id":  t.assignee_id,
+        "assignee_id": t.assignee_id,
         "assignee_name": (t.assignee.display_name or t.assignee.username) if t.assignee else None,
-        "text":         t.text,
-        "is_done":      t.is_done,
-        "created_at":   t.created_at.isoformat() if t.created_at else None,
+        "text": t.text,
+        "is_done": t.is_done,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
     }
-
 
 
 class TaskCreate(BaseModel):
@@ -66,11 +69,10 @@ class TaskUpdate(BaseModel):
     assignee_id: int | None = None
 
 
-
 @router.get("/{room_id}/tasks")
 async def list_tasks(
     room_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """List all tasks for the room, ordered by creation time."""
@@ -88,7 +90,7 @@ async def list_tasks(
 async def create_task(
     room_id: int,
     body: TaskCreate,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Create a new task in the room."""
@@ -96,11 +98,15 @@ async def create_task(
 
     # Validate assignee is a room member (if provided)
     if body.assignee_id is not None:
-        assignee_member = db.query(RoomMember).filter(
-            RoomMember.room_id == room_id,
-            RoomMember.user_id == body.assignee_id,
-            RoomMember.is_banned.is_(False),
-        ).first()
+        assignee_member = (
+            db.query(RoomMember)
+            .filter(
+                RoomMember.room_id == room_id,
+                RoomMember.user_id == body.assignee_id,
+                RoomMember.is_banned.is_(False),
+            )
+            .first()
+        )
         if not assignee_member:
             raise HTTPException(400, "Assigned user is not a room member")
 
@@ -121,16 +127,20 @@ async def update_task(
     room_id: int,
     task_id: int,
     body: TaskUpdate,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Update a task: toggle done, change text, or reassign."""
     _require_member(room_id, u.id, db)
 
-    task = db.query(RoomTask).filter(
-        RoomTask.id == task_id,
-        RoomTask.room_id == room_id,
-    ).first()
+    task = (
+        db.query(RoomTask)
+        .filter(
+            RoomTask.id == task_id,
+            RoomTask.room_id == room_id,
+        )
+        .first()
+    )
     if not task:
         raise HTTPException(404, "Task not found")
 
@@ -141,11 +151,15 @@ async def update_task(
     if body.assignee_id is not None:
         # Validate assignee is a room member
         if body.assignee_id != 0:
-            assignee_member = db.query(RoomMember).filter(
-                RoomMember.room_id == room_id,
-                RoomMember.user_id == body.assignee_id,
-                RoomMember.is_banned.is_(False),
-            ).first()
+            assignee_member = (
+                db.query(RoomMember)
+                .filter(
+                    RoomMember.room_id == room_id,
+                    RoomMember.user_id == body.assignee_id,
+                    RoomMember.is_banned.is_(False),
+                )
+                .first()
+            )
             if not assignee_member:
                 raise HTTPException(400, "Assigned user is not a room member")
             task.assignee_id = body.assignee_id
@@ -161,16 +175,20 @@ async def update_task(
 async def delete_task(
     room_id: int,
     task_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Delete a task. Only the creator or an admin/owner can delete."""
     member = _require_member(room_id, u.id, db)
 
-    task = db.query(RoomTask).filter(
-        RoomTask.id == task_id,
-        RoomTask.room_id == room_id,
-    ).first()
+    task = (
+        db.query(RoomTask)
+        .filter(
+            RoomTask.id == task_id,
+            RoomTask.room_id == room_id,
+        )
+        .first()
+    )
     if not task:
         raise HTTPException(404, "Task not found")
 

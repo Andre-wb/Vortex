@@ -2,6 +2,7 @@
 app/chats/chat_moderation.py — Room moderation REST endpoints:
 auto-delete timer, slow mode, mute toggle, pin message, chat export.
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,7 +21,6 @@ from app.security.auth_jwt import get_current_user
 logger = logging.getLogger(__name__)
 
 
-
 class _AutoDeleteRequest(BaseModel):
     seconds: int = 0  # 0 = disabled
 
@@ -29,14 +29,18 @@ class _AutoDeleteRequest(BaseModel):
 async def set_auto_delete(
     room_id: int,
     body: _AutoDeleteRequest,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Устанавливает таймер автоудаления для всех новых сообщений в комнате."""
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
         raise HTTPException(403, "Insufficient permissions")
 
@@ -47,12 +51,14 @@ async def set_auto_delete(
     room.auto_delete_seconds = body.seconds if body.seconds > 0 else None
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type":    "auto_delete_changed",
-        "seconds": body.seconds,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "auto_delete_changed",
+            "seconds": body.seconds,
+        },
+    )
     return {"ok": True}
-
 
 
 class _SlowModeRequest(BaseModel):
@@ -63,14 +69,18 @@ class _SlowModeRequest(BaseModel):
 async def set_slow_mode(
     room_id: int,
     body: _SlowModeRequest,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Устанавливает медленный режим для комнаты."""
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
         raise HTTPException(403, "Insufficient permissions")
 
@@ -81,32 +91,37 @@ async def set_slow_mode(
     room.slow_mode_seconds = max(0, body.seconds)
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type":    "slow_mode_changed",
-        "seconds": room.slow_mode_seconds,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "slow_mode_changed",
+            "seconds": room.slow_mode_seconds,
+        },
+    )
     return {"ok": True}
-
 
 
 @router.post("/api/rooms/{room_id}/mute")
 async def toggle_mute(
     room_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Переключает мьют уведомлений для комнаты."""
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
     member.is_muted = not member.is_muted
     db.commit()
     return {"muted": member.is_muted}
-
 
 
 class _PinRequest(BaseModel):
@@ -117,14 +132,18 @@ class _PinRequest(BaseModel):
 async def pin_message_rest(
     room_id: int,
     body: _PinRequest,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Закрепляет/открепляет сообщение через REST."""
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member or member.role not in (RoomRole.ADMIN, RoomRole.OWNER):
         raise HTTPException(403, "Insufficient permissions")
 
@@ -133,33 +152,38 @@ async def pin_message_rest(
         raise HTTPException(404)
 
     if body.msg_id:
-        msg = db.query(Message.id).filter(
-            Message.id == body.msg_id, Message.room_id == room_id
-        ).first()
+        msg = db.query(Message.id).filter(Message.id == body.msg_id, Message.room_id == room_id).first()
         if not msg:
             raise HTTPException(404, "Message not found")
 
     room.pinned_message_id = body.msg_id
     db.commit()
 
-    await manager.broadcast_to_room(room_id, {
-        "type":   "message_pinned",
-        "msg_id": body.msg_id,
-    })
+    await manager.broadcast_to_room(
+        room_id,
+        {
+            "type": "message_pinned",
+            "msg_id": body.msg_id,
+        },
+    )
     return {"ok": True}
 
 
 @router.get("/api/rooms/{room_id}/pinned")
 async def get_pinned_messages(
     room_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Возвращает список закреплённых сообщений в комнате."""
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
@@ -169,21 +193,26 @@ async def get_pinned_messages(
 
     pinned = []
     if room.pinned_message_id:
-        msg = db.query(Message).filter(
-            Message.id == room.pinned_message_id,
-            Message.room_id == room_id,
-        ).first()
+        msg = (
+            db.query(Message)
+            .filter(
+                Message.id == room.pinned_message_id,
+                Message.room_id == room_id,
+            )
+            .first()
+        )
         if msg:
-            pinned.append({
-                "id":         msg.id,
-                "sender_id":  msg.sender_id,
-                "sender":     msg.sender.username if msg.sender else "—",
-                "msg_type":   msg.msg_type.value,
-                "created_at": utc_iso(msg.created_at),
-            })
+            pinned.append(
+                {
+                    "id": msg.id,
+                    "sender_id": msg.sender_id,
+                    "sender": msg.sender.username if msg.sender else "—",
+                    "msg_type": msg.msg_type.value,
+                    "created_at": utc_iso(msg.created_at),
+                }
+            )
 
     return {"room_id": room_id, "pinned": pinned}
-
 
 
 # In-memory draft storage (per user per room).
@@ -198,7 +227,7 @@ class _DraftRequest(BaseModel):
 async def save_draft(
     room_id: int,
     body: _DraftRequest,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Сохраняет черновик сообщения."""
@@ -209,7 +238,7 @@ async def save_draft(
 @router.get("/api/rooms/{room_id}/draft")
 async def get_draft(
     room_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Возвращает черновик сообщения."""
@@ -220,7 +249,7 @@ async def get_draft(
 @router.delete("/api/rooms/{room_id}/draft")
 async def clear_draft(
     room_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Удаляет черновик сообщения."""
@@ -228,36 +257,44 @@ async def clear_draft(
     return {"ok": True}
 
 
-
 @router.get("/api/rooms/{room_id}/export")
 async def export_chat(
     room_id: int,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Экспорт истории чата как JSON (зашифрованные сообщения — клиент расшифрует)."""
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == u.id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == u.id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Not a member")
 
-    messages = db.query(Message).filter(
-        Message.room_id == room_id,
-        Message.is_scheduled.is_(False),
-    ).order_by(Message.created_at).all()
+    messages = (
+        db.query(Message)
+        .filter(
+            Message.room_id == room_id,
+            Message.is_scheduled.is_(False),
+        )
+        .order_by(Message.created_at)
+        .all()
+    )
 
     export = [
         {
-            "id":         m.id,
-            "sender_id":  m.sender_id,
-            "sender":     m.sender.username if m.sender else "—",
-            "msg_type":   m.msg_type.value,
+            "id": m.id,
+            "sender_id": m.sender_id,
+            "sender": m.sender.username if m.sender else "—",
+            "msg_type": m.msg_type.value,
             "ciphertext": m.content_encrypted.hex() if m.content_encrypted else None,
-            "file_name":  m.file_name,
+            "file_name": m.file_name,
             "created_at": utc_iso(m.created_at),
-            "is_edited":  m.is_edited,
+            "is_edited": m.is_edited,
         }
         for m in messages
     ]

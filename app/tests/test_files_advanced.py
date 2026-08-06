@@ -14,6 +14,7 @@ Covers:
   - GET  /api/files/upload-status/{upload_id}
   - DELETE /api/files/upload-cancel/{upload_id}
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -29,14 +30,18 @@ def _register_and_login(client) -> dict:
 
 
 def _create_room(client, headers: dict, *, name: str | None = None) -> dict:
-    r = client.post("/api/rooms", json={
-        "name": name or f"room_{random_str()}",
-        "is_public": True,
-        "encrypted_room_key": {
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext": secrets.token_hex(60),
+    r = client.post(
+        "/api/rooms",
+        json={
+            "name": name or f"room_{random_str()}",
+            "is_public": True,
+            "encrypted_room_key": {
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(60),
+            },
         },
-    }, headers=headers)
+        headers=headers,
+    )
     assert r.status_code in (200, 201), f"create room failed: {r.text}"
     return r.json()
 
@@ -45,9 +50,7 @@ def _valid_sha256() -> str:
     return hashlib.sha256(b"test_file_content").hexdigest()
 
 
-
 class TestCompressionPresets:
-
     def test_compression_presets_unauthenticated(self, client):
         """Compression presets endpoint is publicly accessible."""
         r = client.get("/api/files/compression-presets")
@@ -92,9 +95,7 @@ class TestCompressionPresets:
         assert presets["data_saver"]["image_quality"] < presets["low"]["image_quality"]
 
 
-
 class TestGallery:
-
     def test_gallery_unauthenticated_returns_401(self, anon_client):
         r = anon_client.get("/api/files/gallery/999")
         assert r.status_code in (401, 403)
@@ -182,9 +183,7 @@ class TestGallery:
         assert r.status_code in (403, 404)
 
 
-
 class TestFileSearch:
-
     def test_search_unauthenticated_returns_401(self, anon_client):
         r = anon_client.get("/api/files/search/999")
         assert r.status_code in (401, 403)
@@ -244,9 +243,7 @@ class TestFileSearch:
             assert "pdf" in item.get("mime_type", "")
 
 
-
 class TestFileStats:
-
     def test_stats_unauthenticated_returns_401(self, anon_client):
         r = anon_client.get("/api/files/stats/999")
         assert r.status_code in (401, 403)
@@ -282,9 +279,7 @@ class TestFileStats:
         assert r.status_code in (403, 404)
 
 
-
 class TestDistributedFiles:
-
     def test_register_distributed_file_success(self, client):
         h = _register_and_login(client)
         file_hash = secrets.token_hex(32)
@@ -317,25 +312,32 @@ class TestDistributedFiles:
         assert body.get("file_hash") == file_hash
 
     def test_register_distributed_unauthenticated(self, anon_client):
-        r = anon_client.post("/api/files/distributed/register", json={
-            "file_hash": secrets.token_hex(32),
-            "filename": "x.bin",
-            "total_size": 100,
-            "chunk_count": 1,
-            "chunks": [],
-        })
+        r = anon_client.post(
+            "/api/files/distributed/register",
+            json={
+                "file_hash": secrets.token_hex(32),
+                "filename": "x.bin",
+                "total_size": 100,
+                "chunk_count": 1,
+                "chunks": [],
+            },
+        )
         assert r.status_code in (401, 403)
 
     def test_get_distributed_file_exists(self, client):
         h = _register_and_login(client)
         file_hash = secrets.token_hex(32)
-        client.post("/api/files/distributed/register", json={
-            "file_hash": file_hash,
-            "filename": "retrieve_me.bin",
-            "total_size": 512,
-            "chunk_count": 1,
-            "chunks": [],
-        }, headers=h)
+        client.post(
+            "/api/files/distributed/register",
+            json={
+                "file_hash": file_hash,
+                "filename": "retrieve_me.bin",
+                "total_size": 512,
+                "chunk_count": 1,
+                "chunks": [],
+            },
+            headers=h,
+        )
         r = client.get(f"/api/files/distributed/{file_hash}", headers=h)
         assert r.status_code == 200
         body = r.json()
@@ -363,29 +365,34 @@ class TestDistributedFiles:
         h = _register_and_login(client)
         file_hash = secrets.token_hex(32)
         fname = f"listed_{random_str(6)}.bin"
-        client.post("/api/files/distributed/register", json={
-            "file_hash": file_hash,
-            "filename": fname,
-            "total_size": 1024,
-            "chunk_count": 1,
-            "chunks": [],
-        }, headers=h)
+        client.post(
+            "/api/files/distributed/register",
+            json={
+                "file_hash": file_hash,
+                "filename": fname,
+                "total_size": 1024,
+                "chunk_count": 1,
+                "chunks": [],
+            },
+            headers=h,
+        )
         r = client.get("/api/files/distributed/list", headers=h)
         assert r.status_code == 200
         hashes = [f["file_hash"] for f in r.json()["files"]]
         assert file_hash in hashes
 
 
-
 class TestResumableUpload:
-
     def test_upload_init_unauthenticated(self, anon_client):
-        r = anon_client.post("/api/files/upload-init", data={
-            "room_id": "1",
-            "file_name": "test.txt",
-            "file_size": "1024",
-            "file_hash": _valid_sha256(),
-        })
+        r = anon_client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": "1",
+                "file_name": "test.txt",
+                "file_size": "1024",
+                "file_hash": _valid_sha256(),
+            },
+        )
         assert r.status_code in (401, 403)
 
     def test_upload_init_success(self, client):
@@ -396,12 +403,16 @@ class TestResumableUpload:
         content = b"hello world test data for upload"
         file_hash = hashlib.sha256(content).hexdigest()
 
-        r = client.post("/api/files/upload-init", data={
-            "room_id": str(room_id),
-            "file_name": "test.txt",
-            "file_size": str(len(content)),
-            "file_hash": file_hash,
-        }, headers=h)
+        r = client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": str(room_id),
+                "file_name": "test.txt",
+                "file_size": str(len(content)),
+                "file_hash": file_hash,
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         body = r.json()
         assert "upload_id" in body
@@ -420,13 +431,17 @@ class TestResumableUpload:
         chunk_size = 1 * 1024 * 1024
         file_hash = _valid_sha256()
 
-        r = client.post("/api/files/upload-init", data={
-            "room_id": str(room_id),
-            "file_name": "bigfile.bin",
-            "file_size": str(file_size),
-            "file_hash": file_hash,
-            "chunk_size": str(chunk_size),
-        }, headers=h)
+        r = client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": str(room_id),
+                "file_name": "bigfile.bin",
+                "file_size": str(file_size),
+                "file_hash": file_hash,
+                "chunk_size": str(chunk_size),
+            },
+            headers=h,
+        )
         assert r.status_code == 200
         body = r.json()
         assert body["total_chunks"] == 2
@@ -437,12 +452,16 @@ class TestResumableUpload:
         room_id = room["id"]
 
         h_other = _register_and_login(client)
-        r = client.post("/api/files/upload-init", data={
-            "room_id": str(room_id),
-            "file_name": "test.txt",
-            "file_size": "100",
-            "file_hash": _valid_sha256(),
-        }, headers=h_other)
+        r = client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": str(room_id),
+                "file_name": "test.txt",
+                "file_size": "100",
+                "file_hash": _valid_sha256(),
+            },
+            headers=h_other,
+        )
         assert r.status_code in (400, 403, 422)
 
     def test_upload_init_invalid_file_hash_length(self, client):
@@ -450,12 +469,16 @@ class TestResumableUpload:
         room = _create_room(client, h)
         room_id = room["id"]
 
-        r = client.post("/api/files/upload-init", data={
-            "room_id": str(room_id),
-            "file_name": "test.txt",
-            "file_size": "100",
-            "file_hash": "tooshort",
-        }, headers=h)
+        r = client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": str(room_id),
+                "file_name": "test.txt",
+                "file_size": "100",
+                "file_hash": "tooshort",
+            },
+            headers=h,
+        )
         assert r.status_code in (400, 422)
 
     def test_upload_status_unauthenticated(self, anon_client):
@@ -475,12 +498,16 @@ class TestResumableUpload:
         content = b"status check content"
         file_hash = hashlib.sha256(content).hexdigest()
 
-        init_r = client.post("/api/files/upload-init", data={
-            "room_id": str(room_id),
-            "file_name": "status_test.txt",
-            "file_size": str(len(content)),
-            "file_hash": file_hash,
-        }, headers=h)
+        init_r = client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": str(room_id),
+                "file_name": "status_test.txt",
+                "file_size": str(len(content)),
+                "file_hash": file_hash,
+            },
+            headers=h,
+        )
         assert init_r.status_code == 200
         upload_id = init_r.json()["upload_id"]
 
@@ -515,12 +542,16 @@ class TestResumableUpload:
         content = b"cancel me please"
         file_hash = hashlib.sha256(content).hexdigest()
 
-        init_r = client.post("/api/files/upload-init", data={
-            "room_id": str(room_id),
-            "file_name": "cancel_me.txt",
-            "file_size": str(len(content)),
-            "file_hash": file_hash,
-        }, headers=h)
+        init_r = client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": str(room_id),
+                "file_name": "cancel_me.txt",
+                "file_size": str(len(content)),
+                "file_hash": file_hash,
+            },
+            headers=h,
+        )
         assert init_r.status_code == 200
         upload_id = init_r.json()["upload_id"]
 
@@ -537,12 +568,16 @@ class TestResumableUpload:
         room = _create_room(client, h)
         room_id = room["id"]
 
-        r = client.post("/api/files/upload-init", data={
-            "room_id": str(room_id),
-            "file_name": "empty.txt",
-            "file_size": "0",
-            "file_hash": _valid_sha256(),
-        }, headers=h)
+        r = client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": str(room_id),
+                "file_name": "empty.txt",
+                "file_size": "0",
+                "file_hash": _valid_sha256(),
+            },
+            headers=h,
+        )
         assert r.status_code in (400, 422)
 
     def test_upload_complete_missing_chunks_rejected(self, client):
@@ -554,12 +589,16 @@ class TestResumableUpload:
         content = b"incomplete upload test data that is longer than usual"
         file_hash = hashlib.sha256(content).hexdigest()
 
-        init_r = client.post("/api/files/upload-init", data={
-            "room_id": str(room_id),
-            "file_name": "incomplete.txt",
-            "file_size": str(len(content)),
-            "file_hash": file_hash,
-        }, headers=h)
+        init_r = client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": str(room_id),
+                "file_name": "incomplete.txt",
+                "file_size": str(len(content)),
+                "file_hash": file_hash,
+            },
+            headers=h,
+        )
         assert init_r.status_code == 200
         upload_id = init_r.json()["upload_id"]
 

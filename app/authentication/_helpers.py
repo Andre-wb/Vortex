@@ -1,4 +1,5 @@
 """Общие хелперы, роутер и in-memory хранилища для аутентификации."""
+
 from __future__ import annotations
 
 import logging
@@ -50,10 +51,12 @@ except Exception:
 @dataclass
 class _Challenge:
     """Одноразовый challenge для X25519 аутентификации."""
-    challenge:  bytes
-    user_id:    int
+
+    challenge: bytes
+    user_id: int
     pubkey_hex: str
     expires_at: float
+
 
 _challenges: dict[str, _Challenge] = {}
 _challenges_lock = threading.Lock()
@@ -125,15 +128,21 @@ def _set_auth_cookies(response: Response, user: User, db: Session, request: Requ
     # (session.py тоже переиспользует и обновляет строку). Без заголовка
     # (старый клиент) — прежнее поведение: новая строка.
     client_device_id = request.headers.get("x-device-id")
-    if client_device_id and not (len(client_device_id) == 32 and all(c in "0123456789abcdef" for c in client_device_id)):
+    if client_device_id and not (
+        len(client_device_id) == 32 and all(c in "0123456789abcdef" for c in client_device_id)
+    ):
         client_device_id = None  # игнорируем мусорный заголовок
 
     device = None
     if client_device_id:
-        device = db.query(UserDevice).filter(
-            UserDevice.user_id == user.id,
-            UserDevice.client_device_id == client_device_id,
-        ).first()
+        device = (
+            db.query(UserDevice)
+            .filter(
+                UserDevice.user_id == user.id,
+                UserDevice.client_device_id == client_device_id,
+            )
+            .first()
+        )
 
     if device is not None:
         device.refresh_token_hash = hash_token(raw_refresh)
@@ -162,11 +171,12 @@ def _set_auth_cookies(response: Response, user: User, db: Session, request: Requ
     secure_cookie = Config.IS_PRODUCTION or request.url.scheme == "https"
 
     for name, val, max_age in [
-        ("access_token",  access_token, 3600),
-        ("refresh_token", raw_refresh,  86400 * 30),
+        ("access_token", access_token, 3600),
+        ("refresh_token", raw_refresh, 86400 * 30),
     ]:
         response.set_cookie(
-            name, val,
+            name,
+            val,
             httponly=True,
             secure=secure_cookie,
             samesite="Lax",

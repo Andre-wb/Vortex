@@ -12,6 +12,7 @@ app/transport/advanced_stealth.py — Продвинутые механизмы 
   7. TLS Record Padding    — padding на уровне TLS record layer
   8. QUIC/HTTP3 Transport  — UDP трафик как YouTube (aioquic)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 # 1. TRAFFIC MORPHING — имитация YouTube / Google Drive
 
+
 class TrafficMorpher:
     """
     Морфинг трафика: делает паттерн пакетов статистически идентичным
@@ -49,10 +51,26 @@ class TrafficMorpher:
             "description": "YouTube 720p видео стриминг",
             # Типичные размеры TCP сегментов при стриминге видео
             "packet_sizes": [
-                1460, 1460, 1460, 1460, 1460,  # MSS bursts
-                732, 1460, 1460, 1100, 1460,
-                580, 1460, 1460, 1460, 890,
-                1460, 1460, 340, 1460, 1460,
+                1460,
+                1460,
+                1460,
+                1460,
+                1460,  # MSS bursts
+                732,
+                1460,
+                1460,
+                1100,
+                1460,
+                580,
+                1460,
+                1460,
+                1460,
+                890,
+                1460,
+                1460,
+                340,
+                1460,
+                1460,
             ],
             # Интервалы между burst (мс)
             "burst_interval_ms": (50, 200),
@@ -64,10 +82,26 @@ class TrafficMorpher:
         "google_drive_sync": {
             "description": "Google Drive file sync",
             "packet_sizes": [
-                256, 512, 1024, 2048, 4096,
-                8192, 1460, 1460, 1460, 1460,
-                512, 256, 128, 64, 1024,
-                2048, 1460, 890, 450, 1200,
+                256,
+                512,
+                1024,
+                2048,
+                4096,
+                8192,
+                1460,
+                1460,
+                1460,
+                1460,
+                512,
+                256,
+                128,
+                64,
+                1024,
+                2048,
+                1460,
+                890,
+                450,
+                1200,
             ],
             "burst_interval_ms": (10, 100),
             "pause_ms": (2000, 10000),
@@ -76,10 +110,26 @@ class TrafficMorpher:
         "web_browsing": {
             "description": "Chrome web browsing (mixed sites)",
             "packet_sizes": [
-                1460, 1460, 1460, 580, 240,  # HTML
-                1460, 1460, 1460, 1460, 1100, # CSS/JS
-                1460, 1460, 730, 1460, 1460,  # images
-                320, 180, 90, 1460, 1460,     # API calls + images
+                1460,
+                1460,
+                1460,
+                580,
+                240,  # HTML
+                1460,
+                1460,
+                1460,
+                1460,
+                1100,  # CSS/JS
+                1460,
+                1460,
+                730,
+                1460,
+                1460,  # images
+                320,
+                180,
+                90,
+                1460,
+                1460,  # API calls + images
             ],
             "burst_interval_ms": (5, 50),
             "pause_ms": (3000, 15000),
@@ -136,10 +186,11 @@ class TrafficMorpher:
         real_len = struct.unpack(">I", padded[:4])[0]
         if 4 + real_len > len(padded):
             return padded
-        return padded[4:4 + real_len]
+        return padded[4 : 4 + real_len]
 
 
 # 2. MULTI-PATH SPLITTING — разбивка по нескольким транспортам
+
 
 class MultiPathSplitter:
     """
@@ -190,7 +241,7 @@ class MultiPathSplitter:
                 continue
             idx = part[17]
             part_len = struct.unpack(">H", part[18:20])[0]
-            parsed[idx] = part[20:20 + part_len]
+            parsed[idx] = part[20 : 20 + part_len]
 
         if len(parsed) < total:
             return None  # Не все части
@@ -215,7 +266,7 @@ class MultiPathSplitter:
         total = part[16]
         idx = part[17]
         part_len = struct.unpack(">H", part[18:20])[0]
-        chunk = part[20:20 + part_len]
+        chunk = part[20 : 20 + part_len]
 
         # Cleanup старых
         now = time.monotonic()
@@ -240,6 +291,7 @@ class MultiPathSplitter:
 
 
 # 3. WEBRTC DATACHANNEL TRANSPORT
+
 
 class WebRTCDataChannelTransport:
     """
@@ -302,9 +354,7 @@ class WebRTCDataChannelTransport:
         ssn = 0
         ppid = 0x35  # WebRTC String (53)
 
-        header = struct.pack(">BBHI HHI",
-                             chunk_type, flags, length, tsn,
-                             stream_id, ssn, ppid)
+        header = struct.pack(">BBHI HHI", chunk_type, flags, length, tsn, stream_id, ssn, ppid)
         return header + data
 
     @staticmethod
@@ -317,13 +367,13 @@ class WebRTCDataChannelTransport:
     def cleanup_stale(self, max_age: float = 3600):
         """Удаляет старые сессии."""
         now = time.monotonic()
-        stale = [sid for sid, info in self._channels.items()
-                 if now - info["created"] > max_age]
+        stale = [sid for sid, info in self._channels.items() if now - info["created"] > max_age]
         for sid in stale:
             del self._channels[sid]
 
 
 # 4. TCP FINGERPRINT RESISTANCE
+
 
 class TCPFingerprint:
     """
@@ -368,6 +418,7 @@ class TCPFingerprint:
         Применяет SO_* опции где возможно.
         """
         import socket
+
         fp = cls.CHROME_WIN11 if profile == "chrome_win11" else cls.CHROME_MACOS
 
         try:
@@ -403,6 +454,7 @@ class TCPFingerprint:
         Комбинирует TCP fingerprint + TLS cipher suites.
         """
         import ssl
+
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
@@ -431,6 +483,7 @@ class TCPFingerprint:
 
 
 # 5. DECOY CONNECTIONS — параллельные HTTPS к популярным сайтам
+
 
 class DecoyConnectionManager:
     """
@@ -464,8 +517,7 @@ class DecoyConnectionManager:
         """Запуск фоновой генерации decoy-соединений."""
         self._running = True
         self._task = asyncio.create_task(self._decoy_loop())
-        logger.info("Decoy connections started (%d targets, %.0fs interval)",
-                     self.num_decoys, self.interval)
+        logger.info("Decoy connections started (%d targets, %.0fs interval)", self.num_decoys, self.interval)
 
     def stop(self):
         self._running = False
@@ -483,14 +535,13 @@ class DecoyConnectionManager:
         while self._running:
             try:
                 # Выбираем случайные цели
-                targets = random.sample(
-                    self.DECOY_TARGETS,
-                    min(self.num_decoys, len(self.DECOY_TARGETS))
-                )
+                targets = random.sample(self.DECOY_TARGETS, min(self.num_decoys, len(self.DECOY_TARGETS)))
 
                 # Запускаем параллельно
                 async with httpx.AsyncClient(
-                    timeout=10.0, verify=False, follow_redirects=True  # noqa: S501
+                    timeout=10.0,
+                    verify=False,  # noqa: S501
+                    follow_redirects=True,
                 ) as client:
                     tasks = [self._do_decoy(client, url) for url in targets]
                     await asyncio.gather(*tasks, return_exceptions=True)
@@ -508,14 +559,17 @@ class DecoyConnectionManager:
     async def _do_decoy(self, client, url: str):
         """Один decoy-запрос."""
         try:
-            await client.get(url, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
-            })
+            await client.get(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+                    "Accept-Encoding": "gzip, deflate, br",
+                },
+            )
             self._stats["requests"] += 1
         except Exception:
             self._stats["errors"] += 1
@@ -525,6 +579,7 @@ class DecoyConnectionManager:
 
 
 # 6. CONSTANT-RATE CHANNEL — фиксированный поток (anti timing correlation)
+
 
 class ConstantRateChannel:
     """
@@ -560,8 +615,12 @@ class ConstantRateChannel:
         """
         self._running = True
         self._task = asyncio.create_task(self._rate_loop(send_fn))
-        logger.info("Constant-rate channel: %d bps, %d B chunks every %dms",
-                     self.rate_bps, self.chunk_size, int(self.chunk_interval * 1000))
+        logger.info(
+            "Constant-rate channel: %d bps, %d B chunks every %dms",
+            self.rate_bps,
+            self.chunk_size,
+            int(self.chunk_interval * 1000),
+        )
 
     def stop(self):
         self._running = False
@@ -594,8 +653,8 @@ class ConstantRateChannel:
 
                 # Формируем chunk фиксированного размера
                 if len(pending) >= self.chunk_size:
-                    chunk = pending[:self.chunk_size]
-                    pending = pending[self.chunk_size:]
+                    chunk = pending[: self.chunk_size]
+                    pending = pending[self.chunk_size :]
                 else:
                     # Дополняем padding до chunk_size
                     pad_needed = self.chunk_size - len(pending)
@@ -623,9 +682,9 @@ class ConstantRateChannel:
             if marker == 0x00:
                 break  # Остальное — padding
             if marker == 0x01 and offset + 3 <= len(chunk):
-                msg_len = struct.unpack(">H", chunk[offset + 1:offset + 3])[0]
+                msg_len = struct.unpack(">H", chunk[offset + 1 : offset + 3])[0]
                 if offset + 3 + msg_len <= len(chunk):
-                    messages.append(chunk[offset + 3:offset + 3 + msg_len])
+                    messages.append(chunk[offset + 3 : offset + 3 + msg_len])
                     offset += 3 + msg_len
                     continue
             break
@@ -644,6 +703,7 @@ class ConstantRateChannel:
 
 
 # 7. TLS RECORD LAYER PADDING
+
 
 class TLSRecordPadder:
     """
@@ -715,10 +775,11 @@ class TLSRecordPadder:
         if len(padded) < 4:
             return padded
         real_len = struct.unpack(">I", padded[:4])[0]
-        return padded[4:4 + real_len]
+        return padded[4 : 4 + real_len]
 
 
 # 8. QUIC / HTTP3 TRANSPORT
+
 
 class QUICTransport:
     """
@@ -745,6 +806,7 @@ class QUICTransport:
         # Проверяем наличие aioquic
         try:
             import aioquic  # noqa: F401
+
             QUICTransport._HAS_AIOQUIC = True
         except ImportError:
             pass
@@ -805,12 +867,12 @@ class QUICTransport:
             offset += 4  # version
             dcid_len = packet[offset]
             offset += 1
-            packet[offset:offset + dcid_len]
+            packet[offset : offset + dcid_len]
             offset += dcid_len
             scid_len = packet[offset]
             offset += 1
             offset += scid_len  # skip SCID
-            pn = struct.unpack(">I", packet[offset:offset + 4])[0]
+            pn = struct.unpack(">I", packet[offset : offset + 4])[0]
             offset += 4
 
             encrypted = packet[offset:]
@@ -834,6 +896,7 @@ class QUICTransport:
 
 
 # MANAGER — объединяет все механизмы
+
 
 class AdvancedStealthManager:
     """
@@ -862,14 +925,17 @@ class AdvancedStealthManager:
         logger.info(
             "Advanced stealth: started (morpher=%s, multipath=%d, "
             "webrtc_dc=%s, tcp_fp=%s, decoy=%s, quic=%s, tls_pad=%s, const_rate=%s)",
-            "youtube_720p", self.splitter.num_paths,
-            "ON", "chrome_win11",
-            "ON", "ON" if self.quic.available else "OFF",
-            "ON", "READY",
+            "youtube_720p",
+            self.splitter.num_paths,
+            "ON",
+            "chrome_win11",
+            "ON",
+            "ON" if self.quic.available else "OFF",
+            "ON",
+            "READY",
         )
 
-    async def start_constant_rate(self, send_fn: Callable[[bytes], Awaitable[None]],
-                                   rate_bps: int = 64000):
+    async def start_constant_rate(self, send_fn: Callable[[bytes], Awaitable[None]], rate_bps: int = 64000):
         """Запуск constant-rate канала для конкретного соединения."""
         self.constant_rate = ConstantRateChannel(rate_bps=rate_bps)
         await self.constant_rate.start(send_fn)

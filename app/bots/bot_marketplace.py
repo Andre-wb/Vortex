@@ -3,6 +3,7 @@ app/bots/bot_marketplace.py — Bot Marketplace endpoints (JWT auth).
 
 Publishing, browsing, searching, reviews, and installing public bots.
 """
+
 from __future__ import annotations
 
 import json
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Bot Marketplace: publish toggle (owner only)
 
+
 @router.post("/api/bots/{bot_id}/publish")
 async def publish_bot(
     bot_id: int,
@@ -53,6 +55,7 @@ async def publish_bot(
 
 
 # Bot Marketplace: browsing endpoints (JWT auth)
+
 
 def _serialize_bot_card(b: Bot) -> dict:
     """Serialize a Bot to a marketplace card dict."""
@@ -125,22 +128,22 @@ async def marketplace_bot_detail(
     db: Session = Depends(get_db),
 ):
     """Get full detail for a marketplace bot."""
-    bot = db.query(Bot).filter(
-        Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)
-    ).first()
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
 
     # Check if the current user already reviewed
-    existing_review = db.query(BotReview).filter(
-        BotReview.bot_id == bot_id, BotReview.user_id == user.id
-    ).first()
+    existing_review = db.query(BotReview).filter(BotReview.bot_id == bot_id, BotReview.user_id == user.id).first()
 
     card = _serialize_bot_card(bot)
-    card["user_review"] = {
-        "rating": existing_review.rating,
-        "text": existing_review.text or "",
-    } if existing_review else None
+    card["user_review"] = (
+        {
+            "rating": existing_review.rating,
+            "text": existing_review.text or "",
+        }
+        if existing_review
+        else None
+    )
 
     return card
 
@@ -181,6 +184,7 @@ async def marketplace_list(
 
 # Bot Marketplace: reviews
 
+
 @router.get("/api/marketplace/{bot_id}/reviews")
 async def marketplace_reviews(
     bot_id: int,
@@ -190,9 +194,7 @@ async def marketplace_reviews(
     db: Session = Depends(get_db),
 ):
     """List reviews for a bot."""
-    bot = db.query(Bot).filter(
-        Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)
-    ).first()
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
 
@@ -207,17 +209,19 @@ async def marketplace_reviews(
     result = []
     for r in reviews:
         reviewer = db.query(User).filter(User.id == r.user_id).first()
-        result.append({
-            "id": r.id,
-            "rating": r.rating,
-            "text": r.text or "",
-            "user_id": r.user_id,
-            "username": reviewer.username if reviewer else "",
-            "display_name": reviewer.display_name or reviewer.username if reviewer else "",
-            "avatar_emoji": reviewer.avatar_emoji if reviewer else "",
-            "avatar_url": reviewer.avatar_url if reviewer else None,
-            "created_at": r.created_at.isoformat() if r.created_at else "",
-        })
+        result.append(
+            {
+                "id": r.id,
+                "rating": r.rating,
+                "text": r.text or "",
+                "user_id": r.user_id,
+                "username": reviewer.username if reviewer else "",
+                "display_name": reviewer.display_name or reviewer.username if reviewer else "",
+                "avatar_emoji": reviewer.avatar_emoji if reviewer else "",
+                "avatar_url": reviewer.avatar_url if reviewer else None,
+                "created_at": r.created_at.isoformat() if r.created_at else "",
+            }
+        )
     return {"reviews": result}
 
 
@@ -229,9 +233,7 @@ async def submit_review(
     db: Session = Depends(get_db),
 ):
     """Submit or update a review for a marketplace bot."""
-    bot = db.query(Bot).filter(
-        Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)
-    ).first()
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
 
@@ -239,29 +241,33 @@ async def submit_review(
     if bot.owner_id == user.id:
         raise HTTPException(400, "Cannot review your own bot")
 
-    existing = db.query(BotReview).filter(
-        BotReview.bot_id == bot_id, BotReview.user_id == user.id
-    ).first()
+    existing = db.query(BotReview).filter(BotReview.bot_id == bot_id, BotReview.user_id == user.id).first()
 
     if existing:
         existing.rating = body.rating
         existing.text = body.text
         existing.created_at = datetime.now(timezone.utc)
     else:
-        db.add(BotReview(
-            bot_id=bot_id,
-            user_id=user.id,
-            rating=body.rating,
-            text=body.text,
-        ))
+        db.add(
+            BotReview(
+                bot_id=bot_id,
+                user_id=user.id,
+                rating=body.rating,
+                text=body.text,
+            )
+        )
 
     db.flush()
 
     # Recalculate bot rating
-    stats = db.query(
-        func.avg(BotReview.rating),
-        func.count(BotReview.id),
-    ).filter(BotReview.bot_id == bot_id).first()
+    stats = (
+        db.query(
+            func.avg(BotReview.rating),
+            func.count(BotReview.id),
+        )
+        .filter(BotReview.bot_id == bot_id)
+        .first()
+    )
 
     bot.rating = round(float(stats[0] or 0), 2)
     bot.rating_count = stats[1] or 0
@@ -276,6 +282,7 @@ async def submit_review(
 
 # Bot Marketplace: install (add public bot to room)
 
+
 @router.post("/api/marketplace/{bot_id}/install/{room_id}")
 async def marketplace_install(
     bot_id: int,
@@ -284,17 +291,19 @@ async def marketplace_install(
     db: Session = Depends(get_db),
 ):
     """Install a public marketplace bot into a user's room."""
-    bot = db.query(Bot).filter(
-        Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)
-    ).first()
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)).first()
     if not bot:
         raise HTTPException(404, "Bot not found in marketplace")
 
     # Check user is a member of the room
-    user_member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user.id,
-    ).first()
+    user_member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user.id,
+        )
+        .first()
+    )
     if not user_member:
         raise HTTPException(403, "You are not a member of this room")
 
@@ -303,18 +312,24 @@ async def marketplace_install(
         raise HTTPException(404, "Room not found")
 
     # Check bot is not already in the room
-    existing = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == bot.user_id,
-    ).first()
+    existing = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == bot.user_id,
+        )
+        .first()
+    )
     if existing:
         return {"ok": True, "message": "Bot is already in this room"}
 
-    db.add(RoomMember(
-        room_id=room_id,
-        user_id=bot.user_id,
-        role=RoomRole.MEMBER,
-    ))
+    db.add(
+        RoomMember(
+            room_id=room_id,
+            user_id=bot.user_id,
+            role=RoomRole.MEMBER,
+        )
+    )
     bot.installs = (bot.installs or 0) + 1
     db.commit()
 

@@ -20,7 +20,7 @@ class TestParseEncV:
     def test_valid_versions(self):
         assert parse_enc_v({"enc_v": 0}) == 0
         assert parse_enc_v({"enc_v": 1}) == 1
-        assert parse_enc_v({"enc_v": 7}) == 7      # неизвестная, но валидная
+        assert parse_enc_v({"enc_v": 7}) == 7  # неизвестная, но валидная
         assert parse_enc_v({"enc_v": 255}) == 255  # верхняя граница
 
     def test_missing_field_is_none(self):
@@ -28,11 +28,11 @@ class TestParseEncV:
         assert parse_enc_v({"enc_v": None}) is None
 
     def test_garbage_is_none(self):
-        assert parse_enc_v({"enc_v": "1"}) is None       # строка — не версия
+        assert parse_enc_v({"enc_v": "1"}) is None  # строка — не версия
         assert parse_enc_v({"enc_v": -1}) is None
         assert parse_enc_v({"enc_v": 256}) is None
         assert parse_enc_v({"enc_v": 1.5}) is None
-        assert parse_enc_v({"enc_v": True}) is None      # bool — не версия
+        assert parse_enc_v({"enc_v": True}) is None  # bool — не версия
         assert parse_enc_v({"enc_v": [1]}) is None
         assert parse_enc_v({"enc_v": {"v": 1}}) is None
 
@@ -47,33 +47,43 @@ def _recv_until(ws, msg_type, limit=15):
 
 
 class TestEncVersionOverWebSocket:
-
     @staticmethod
     def _setup(tc):
         """Регистрирует пользователя и комнату, возвращает (room_id, csrf)."""
-        tag   = random_str(8)
+        tag = random_str(8)
         phone = f"+3{int(_phone_prefix, 16):04d}{random_digits(7)}"
-        tc.post("/api/authentication/register", json={
-            "username":          f"encv_{tag}",
-            "password":          "Str0ng_abcd!@",
-            "display_name":      f"EncV {tag}",
-            "phone":             phone,
-            "avatar_emoji":      "\U0001f512",
-            "x25519_public_key": secrets.token_hex(32),
-        })
-        csrf = tc.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        tc.post("/api/authentication/login", json={
-            "phone_or_username": f"encv_{tag}",
-            "password":          "Str0ng_abcd!@",
-        }, headers={"X-CSRF-Token": csrf})
-        r = tc.post("/api/rooms", json={
-            "name":               f"encvroom_{tag}",
-            "is_public":          True,
-            "encrypted_room_key": {
-                "ephemeral_pub": secrets.token_hex(32),
-                "ciphertext":    secrets.token_hex(60),
+        tc.post(
+            "/api/authentication/register",
+            json={
+                "username": f"encv_{tag}",
+                "password": "Str0ng_abcd!@",
+                "display_name": f"EncV {tag}",
+                "phone": phone,
+                "avatar_emoji": "\U0001f512",
+                "x25519_public_key": secrets.token_hex(32),
             },
-        }, headers={"X-CSRF-Token": csrf})
+        )
+        csrf = tc.get("/api/authentication/csrf-token").json().get("csrf_token", "")
+        tc.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": f"encv_{tag}",
+                "password": "Str0ng_abcd!@",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
+        r = tc.post(
+            "/api/rooms",
+            json={
+                "name": f"encvroom_{tag}",
+                "is_public": True,
+                "encrypted_room_key": {
+                    "ephemeral_pub": secrets.token_hex(32),
+                    "ciphertext": secrets.token_hex(60),
+                },
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         return r.json().get("id"), csrf
 
     def _send_and_get_id(self, ws, payload):
@@ -96,11 +106,14 @@ class TestEncVersionOverWebSocket:
         with TestClient(app, raise_server_exceptions=False) as tc:
             room_id, _ = self._setup(tc)
             with tc.websocket_connect(f"/ws/{room_id}") as ws:
-                server_id = self._send_and_get_id(ws, {
-                    "action":     "message",
-                    "ciphertext": secrets.token_hex(32),
-                    "enc_v":      1,
-                })
+                server_id = self._send_and_get_id(
+                    ws,
+                    {
+                        "action": "message",
+                        "ciphertext": secrets.token_hex(32),
+                        "enc_v": 1,
+                    },
+                )
             entry = self._history_entry(tc, room_id, server_id)
             assert entry.get("enc_v") == 1
 
@@ -111,10 +124,13 @@ class TestEncVersionOverWebSocket:
         with TestClient(app, raise_server_exceptions=False) as tc:
             room_id, _ = self._setup(tc)
             with tc.websocket_connect(f"/ws/{room_id}") as ws:
-                server_id = self._send_and_get_id(ws, {
-                    "action":     "message",
-                    "ciphertext": secrets.token_hex(32),
-                })
+                server_id = self._send_and_get_id(
+                    ws,
+                    {
+                        "action": "message",
+                        "ciphertext": secrets.token_hex(32),
+                    },
+                )
             entry = self._history_entry(tc, room_id, server_id)
             assert entry.get("enc_v") is None
 
@@ -125,11 +141,14 @@ class TestEncVersionOverWebSocket:
         with TestClient(app, raise_server_exceptions=False) as tc:
             room_id, _ = self._setup(tc)
             with tc.websocket_connect(f"/ws/{room_id}") as ws:
-                server_id = self._send_and_get_id(ws, {
-                    "action":     "message",
-                    "ciphertext": secrets.token_hex(32),
-                    "enc_v":      7,
-                })
+                server_id = self._send_and_get_id(
+                    ws,
+                    {
+                        "action": "message",
+                        "ciphertext": secrets.token_hex(32),
+                        "enc_v": 7,
+                    },
+                )
             entry = self._history_entry(tc, room_id, server_id)
             assert entry.get("enc_v") == 7
 
@@ -140,11 +159,14 @@ class TestEncVersionOverWebSocket:
         with TestClient(app, raise_server_exceptions=False) as tc:
             room_id, _ = self._setup(tc)
             with tc.websocket_connect(f"/ws/{room_id}") as ws:
-                server_id = self._send_and_get_id(ws, {
-                    "action":     "message",
-                    "ciphertext": secrets.token_hex(32),
-                    "enc_v":      "definitely-not-a-version",
-                })
+                server_id = self._send_and_get_id(
+                    ws,
+                    {
+                        "action": "message",
+                        "ciphertext": secrets.token_hex(32),
+                        "enc_v": "definitely-not-a-version",
+                    },
+                )
             entry = self._history_entry(tc, room_id, server_id)
             assert entry.get("enc_v") is None
 
@@ -154,17 +176,23 @@ class TestEncVersionOverWebSocket:
         with TestClient(app, raise_server_exceptions=False) as tc:
             room_id, _ = self._setup(tc)
             with tc.websocket_connect(f"/ws/{room_id}") as ws:
-                root_id = self._send_and_get_id(ws, {
-                    "action":     "message",
-                    "ciphertext": secrets.token_hex(32),
-                    "enc_v":      1,
-                })
-                reply_id = self._send_and_get_id(ws, {
-                    "action":     "thread_reply",
-                    "thread_id":  root_id,
-                    "ciphertext": secrets.token_hex(32),
-                    "enc_v":      1,
-                })
+                root_id = self._send_and_get_id(
+                    ws,
+                    {
+                        "action": "message",
+                        "ciphertext": secrets.token_hex(32),
+                        "enc_v": 1,
+                    },
+                )
+                reply_id = self._send_and_get_id(
+                    ws,
+                    {
+                        "action": "thread_reply",
+                        "thread_id": root_id,
+                        "ciphertext": secrets.token_hex(32),
+                        "enc_v": 1,
+                    },
+                )
             # Тредовые ответы не попадают в основную history — читаем тред
             r = tc.get(f"/api/rooms/{room_id}/thread/{root_id}")
             assert r.status_code == 200
@@ -182,17 +210,22 @@ class TestEncVersionOverWebSocket:
         with TestClient(app, raise_server_exceptions=False) as tc:
             room_id, _ = self._setup(tc)
             with tc.websocket_connect(f"/ws/{room_id}") as ws:
-                server_id = self._send_and_get_id(ws, {
-                    "action":     "message",
-                    "ciphertext": secrets.token_hex(32),
-                    "enc_v":      1,
-                })
-                ws.send_json({
-                    "action":     "edit_message",
-                    "msg_id":     server_id,
-                    "ciphertext": secrets.token_hex(32),
-                    "enc_v":      1,
-                })
+                server_id = self._send_and_get_id(
+                    ws,
+                    {
+                        "action": "message",
+                        "ciphertext": secrets.token_hex(32),
+                        "enc_v": 1,
+                    },
+                )
+                ws.send_json(
+                    {
+                        "action": "edit_message",
+                        "msg_id": server_id,
+                        "ciphertext": secrets.token_hex(32),
+                        "enc_v": 1,
+                    }
+                )
                 edited = _recv_until(ws, "message_edited")
                 assert edited.get("enc_v") == 1
 
@@ -213,9 +246,12 @@ class TestEncVersionOverWebSocket:
             with tc.websocket_connect(f"/ws/{room_id}") as ws:
                 # 24 байта нулей — валидный hex ≥48 симв., но бессмысленный
                 # как шифртекст; сервер обязан принять (E2E-слепота)
-                server_id = self._send_and_get_id(ws, {
-                    "action":     "message",
-                    "ciphertext": "00" * 24,
-                    "enc_v":      1,
-                })
+                server_id = self._send_and_get_id(
+                    ws,
+                    {
+                        "action": "message",
+                        "ciphertext": "00" * 24,
+                        "enc_v": 1,
+                    },
+                )
             assert server_id

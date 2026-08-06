@@ -1,11 +1,11 @@
 """
 Tests for key management and distribution.
 """
+
 import pytest
 
 
 class TestKeyManagement:
-
     def test_get_node_pubkey(self, client):
         resp = client.get("/api/keys/node")
         assert resp.status_code in (200, 404)
@@ -23,7 +23,6 @@ class TestKeyManagement:
 
 @pytest.mark.crypto
 class TestX25519Operations:
-
     def test_x25519_key_generation(self):
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
@@ -61,7 +60,6 @@ class TestX25519Operations:
 
 @pytest.mark.crypto
 class TestArgon2:
-
     def test_argon2_hash_and_verify(self):
         from app.security.crypto import hash_password, verify_password
 
@@ -82,7 +80,6 @@ class TestArgon2:
 
 @pytest.mark.crypto
 class TestBLAKE3:
-
     def test_blake3_hash(self):
         import blake3
 

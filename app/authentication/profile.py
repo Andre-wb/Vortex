@@ -1,4 +1,5 @@
 """Профиль пользователя, статус, аватар и утилиты."""
+
 from __future__ import annotations
 
 import html
@@ -30,7 +31,7 @@ async def me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "x25519_public_key": current_user.x25519_public_key,
         "kyber_public_key": current_user.kyber_public_key,
-        "kyber_public_key_sig": current_user.kyber_public_key_sig,   # Ed25519-подпись (для проверки отправителем)
+        "kyber_public_key_sig": current_user.kyber_public_key_sig,  # Ed25519-подпись (для проверки отправителем)
         "network_mode": current_user.network_mode or "local",
         "custom_status": current_user.custom_status,
         "status_emoji": current_user.status_emoji,
@@ -46,17 +47,16 @@ async def me(current_user: User = Depends(get_current_user)):
     }
 
 
-
 class UpdateProfileBody(BaseModel):
     display_name: str | None = None
     avatar_emoji: str | None = None
-    email:        str | None = None
-    bio:          str | None = None
-    birth_date:   str | None = None
-    profile_bg:   str | None = None
+    email: str | None = None
+    bio: str | None = None
+    birth_date: str | None = None
+    profile_bg: str | None = None
     profile_icon: str | None = None
-    reply_color:  str | None = None
-    reply_icon:   str | None = None
+    reply_color: str | None = None
+    reply_icon: str | None = None
     # Solana wallet (base58) to link for Vortex Premium. Set to empty
     # string to unlink. No on-chain ownership check here — production
     # must require a signed challenge. See premium_check.link_wallet for
@@ -64,13 +64,12 @@ class UpdateProfileBody(BaseModel):
     wallet_pubkey: str | None = None
 
 
-_BIRTH_RE_NO_YEAR = re.compile(r'^--\d{2}-\d{2}$')
-_BIRTH_RE_YEAR = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+_BIRTH_RE_NO_YEAR = re.compile(r"^--\d{2}-\d{2}$")
+_BIRTH_RE_YEAR = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 @router.put("/profile")
-async def update_profile(body: UpdateProfileBody, u: User = Depends(get_current_user),
-                         db: Session = Depends(get_db)):
+async def update_profile(body: UpdateProfileBody, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if body.display_name is not None:
         # HTML-escape free-text profile fields on write as defense-in-depth
         # so a stored value can never break out into markup if a template/render
@@ -123,11 +122,10 @@ async def update_profile(body: UpdateProfileBody, u: User = Depends(get_current_
     }
 
 
-
 @router.put("/status")
-async def update_rich_status(body: UpdateRichStatusRequest,
-                             u: User = Depends(get_current_user),
-                             db: Session = Depends(get_db)):
+async def update_rich_status(
+    body: UpdateRichStatusRequest, u: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     if body.custom_status is not None:
         u.custom_status = body.custom_status.strip()[:100] or None
     if body.status_emoji is not None:
@@ -143,10 +141,10 @@ async def update_rich_status(body: UpdateRichStatusRequest,
     }
 
 
-
 @router.post("/avatar")
-async def upload_avatar(file: UploadFile = File(...), u: User = Depends(get_current_user),
-                        db: Session = Depends(get_db)):
+async def upload_avatar(
+    file: UploadFile = File(...), u: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     import io
 
     from PIL import Image
@@ -179,7 +177,6 @@ async def upload_avatar(file: UploadFile = File(...), u: User = Depends(get_curr
     u.avatar_url = f"/uploads/avatars/{filename}"
     db.commit()
     return {"ok": True, "avatar_url": u.avatar_url}
-
 
 
 @router.post("/password-strength")

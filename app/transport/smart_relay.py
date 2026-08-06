@@ -21,6 +21,7 @@ Architecture:
   └────────┘  └──────────────────┘  └────────┘
               relay C (80ms) ← chosen: 50ms wins
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -50,15 +51,24 @@ _probe_pool = httpx.AsyncClient(
 # Not for geolocation — only for relay scoring.
 _REGION_LATENCY_MATRIX: dict[tuple[str, str], float] = {
     # Same region: ~20ms
-    ("eu", "eu"): 20, ("us", "us"): 30, ("asia", "asia"): 40,
-    ("ru", "ru"): 30, ("other", "other"): 50,
+    ("eu", "eu"): 20,
+    ("us", "us"): 30,
+    ("asia", "asia"): 40,
+    ("ru", "ru"): 30,
+    ("other", "other"): 50,
     # Cross-region estimates
-    ("eu", "us"): 90, ("us", "eu"): 90,
-    ("eu", "asia"): 150, ("asia", "eu"): 150,
-    ("us", "asia"): 120, ("asia", "us"): 120,
-    ("eu", "ru"): 40, ("ru", "eu"): 40,
-    ("us", "ru"): 100, ("ru", "us"): 100,
-    ("asia", "ru"): 80, ("ru", "asia"): 80,
+    ("eu", "us"): 90,
+    ("us", "eu"): 90,
+    ("eu", "asia"): 150,
+    ("asia", "eu"): 150,
+    ("us", "asia"): 120,
+    ("asia", "us"): 120,
+    ("eu", "ru"): 40,
+    ("ru", "eu"): 40,
+    ("us", "ru"): 100,
+    ("ru", "us"): 100,
+    ("asia", "ru"): 80,
+    ("ru", "asia"): 80,
 }
 
 
@@ -97,15 +107,15 @@ def _inter_region_latency(region_a: str, region_b: str) -> float:
     return _REGION_LATENCY_MATRIX.get(key, _REGION_LATENCY_MATRIX.get((region_b, region_a), 100))
 
 
-
 @dataclass
 class PeerLatency:
     """Measured latency data for a peer."""
+
     ip: str
     port: int
     region: str = ""
-    latency_ms: float = 999.0       # Last measured RTT
-    last_probe: float = 0.0          # time.monotonic() of last probe
+    latency_ms: float = 999.0  # Last measured RTT
+    last_probe: float = 0.0  # time.monotonic() of last probe
     probe_failures: int = 0
     online: bool = True
 
@@ -126,11 +136,11 @@ class SmartRelayRouter:
             send_direct()
     """
 
-    PROBE_INTERVAL = 60.0     # seconds between probes
-    PROBE_TIMEOUT = 3.0       # seconds
-    CACHE_TTL = 60.0          # latency cache TTL
+    PROBE_INTERVAL = 60.0  # seconds between probes
+    PROBE_TIMEOUT = 3.0  # seconds
+    CACHE_TTL = 60.0  # latency cache TTL
     DIRECT_THRESHOLD = 200.0  # ms — if direct path faster, skip relay
-    TOP_K = 3                 # pick from top-K relays (load balance)
+    TOP_K = 3  # pick from top-K relays (load balance)
 
     def __init__(self):
         self._peers: dict[str, PeerLatency] = {}  # "ip:port" → PeerLatency
@@ -154,7 +164,8 @@ class SmartRelayRouter:
         key = f"{ip}:{port}"
         if key not in self._peers:
             self._peers[key] = PeerLatency(
-                ip=ip, port=port,
+                ip=ip,
+                port=port,
                 region=estimate_region(ip),
             )
 
@@ -249,7 +260,7 @@ class SmartRelayRouter:
 
         # Sort by total latency, pick randomly from top-K for load balancing
         scored.sort(key=lambda x: x[0])
-        top_k = scored[:self.TOP_K]
+        top_k = scored[: self.TOP_K]
 
         # Weighted random selection from top-K (lower latency = higher weight)
         if len(top_k) == 1:

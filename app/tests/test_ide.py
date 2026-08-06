@@ -11,6 +11,7 @@ Coverage:
   - Integration tests for all five API endpoints (auth, success, failure, edge cases)
   - Security / validation tests (invalid project_id, oversized payload, unauthenticated)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -40,6 +41,7 @@ def _isolate_ide_ownership(tmp_path_factory, monkeypatch):
 
 
 # Helpers
+
 
 def _auth_headers(client: SyncASGIClient, suffix: str | None = None) -> dict:
     """Register + login a fresh user, return fresh CSRF headers dict."""
@@ -71,11 +73,13 @@ VALID_PID = "test_project_01"
 
 # Unit tests — ide_runner helpers
 
+
 class TestGxAvailable:
     """Tests for _gx_available()."""
 
     def test_returns_false_when_binary_missing(self, tmp_path):
         import app.bots.ide_runner as runner
+
         orig = runner._GX_BIN
         try:
             runner._GX_BIN = tmp_path / "nonexistent_bin"
@@ -85,6 +89,7 @@ class TestGxAvailable:
 
     def test_returns_false_when_not_executable(self, tmp_path):
         import app.bots.ide_runner as runner
+
         bin_path = tmp_path / "gravitix"
         bin_path.write_bytes(b"\x7fELF")
         bin_path.chmod(0o644)  # no execute bit
@@ -97,6 +102,7 @@ class TestGxAvailable:
 
     def test_returns_true_when_executable(self, tmp_path):
         import app.bots.ide_runner as runner
+
         bin_path = tmp_path / "gravitix"
         bin_path.write_bytes(b"\x7fELF")
         bin_path.chmod(0o755)
@@ -113,15 +119,18 @@ class TestParseGxErrors:
 
     def test_empty_stderr_returns_empty(self):
         from app.bots.ide_runner import _parse_gx_errors
+
         assert _parse_gx_errors("") == []
 
     def test_blank_lines_ignored(self):
         from app.bots.ide_runner import _parse_gx_errors
+
         result = _parse_gx_errors("\n  \n\t\n")
         assert result == []
 
     def test_single_error_line(self):
         from app.bots.ide_runner import _parse_gx_errors
+
         result = _parse_gx_errors("error[E01] at line 5: undefined variable x")
         assert len(result) == 1
         assert result[0]["msg"] == "error[E01] at line 5: undefined variable x"
@@ -130,6 +139,7 @@ class TestParseGxErrors:
 
     def test_multiple_error_lines(self):
         from app.bots.ide_runner import _parse_gx_errors
+
         stderr = "error[E01] at line 3: foo\nerror[E02] at line 7: bar\n"
         result = _parse_gx_errors(stderr)
         assert len(result) == 2
@@ -138,6 +148,7 @@ class TestParseGxErrors:
 
     def test_strips_whitespace(self):
         from app.bots.ide_runner import _parse_gx_errors
+
         result = _parse_gx_errors("  warning: unused variable  ")
         assert result[0]["msg"] == "warning: unused variable"
 
@@ -147,6 +158,7 @@ class TestScriptPath:
 
     def test_returns_path_in_bots_dir(self, tmp_path):
         import app.bots.ide_runner as runner
+
         orig = runner._BOTS_DIR
         try:
             runner._BOTS_DIR = tmp_path / "bots"
@@ -158,6 +170,7 @@ class TestScriptPath:
 
 
 # Unit tests — compile_code
+
 
 class TestCompileCode:
     """Tests for async compile_code()."""
@@ -171,6 +184,7 @@ class TestCompileCode:
 
     def test_binary_not_found_returns_error(self):
         import app.bots.ide_runner as runner
+
         orig = runner._GX_BIN
         try:
             runner._GX_BIN = Path("/nonexistent/gravitix")
@@ -298,6 +312,7 @@ class TestCompileCode:
 
 # Unit tests — publish_bot / stop_bot / get_status / get_logs
 
+
 class TestPublishBot:
     """Tests for async publish_bot()."""
 
@@ -319,6 +334,7 @@ class TestPublishBot:
 
     def test_no_binary_returns_error(self):
         import app.bots.ide_runner as runner
+
         orig = runner._GX_BIN
         try:
             runner._GX_BIN = Path("/does/not/exist/gravitix")
@@ -330,6 +346,7 @@ class TestPublishBot:
 
     def test_empty_token_returns_error(self, tmp_path):
         import app.bots.ide_runner as runner
+
         bin_path = tmp_path / "gravitix"
         bin_path.write_bytes(b"x")
         bin_path.chmod(0o755)
@@ -406,10 +423,11 @@ class TestPublishBot:
             mock_asyncio.get_event_loop.return_value = MagicMock()
             loop = asyncio.new_event_loop()
             try:
-                with patch("subprocess.Popen", return_value=new_proc), patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                    result = loop.run_until_complete(
-                        runner.publish_bot("pub_replace", "code", "tok")
-                    )
+                with (
+                    patch("subprocess.Popen", return_value=new_proc),
+                    patch("app.bots.ide_runner.asyncio", mock_asyncio),
+                ):
+                    result = loop.run_until_complete(runner.publish_bot("pub_replace", "code", "tok"))
             finally:
                 loop.close()
 
@@ -442,10 +460,11 @@ class TestPublishBot:
             mock_asyncio.get_event_loop.return_value = MagicMock()
             loop = asyncio.new_event_loop()
             try:
-                with patch("subprocess.Popen", side_effect=OSError("no such file")), patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                    result = loop.run_until_complete(
-                        runner.publish_bot("pub_exc", "code", "tok")
-                    )
+                with (
+                    patch("subprocess.Popen", side_effect=OSError("no such file")),
+                    patch("app.bots.ide_runner.asyncio", mock_asyncio),
+                ):
+                    result = loop.run_until_complete(runner.publish_bot("pub_exc", "code", "tok"))
             finally:
                 loop.close()
 
@@ -476,6 +495,7 @@ class TestStopBot:
 
     def test_stop_nonexistent_returns_not_running(self):
         import app.bots.ide_runner as runner
+
         runner._procs.pop("no_such", None)
         result = self._run(runner.stop_bot("no_such"))
         assert result["ok"] is True
@@ -530,6 +550,7 @@ class TestGetStatus:
 
     def _make_bp(self, pid=777, running=True, returncode=0):
         from app.bots.ide_runner import _BotProcess
+
         proc = MagicMock(spec=subprocess.Popen)
         proc.pid = pid
         proc.poll.return_value = None if running else returncode
@@ -538,6 +559,7 @@ class TestGetStatus:
 
     def test_stopped_project(self):
         import app.bots.ide_runner as runner
+
         runner._procs.pop("gs_absent", None)
         result = runner.get_status("gs_absent")
         assert result["status"] == "stopped"
@@ -546,6 +568,7 @@ class TestGetStatus:
 
     def test_running_project(self):
         import app.bots.ide_runner as runner
+
         bp = self._make_bp(pid=888, running=True)
         runner._procs["gs_run"] = bp
         try:
@@ -559,6 +582,7 @@ class TestGetStatus:
 
     def test_crashed_project(self):
         import app.bots.ide_runner as runner
+
         bp = self._make_bp(pid=999, running=False, returncode=1)
         runner._procs["gs_crash"] = bp
         result = runner.get_status("gs_crash")
@@ -573,6 +597,7 @@ class TestGetLogs:
 
     def _make_bp(self, logs: list):
         from app.bots.ide_runner import _BotProcess
+
         proc = MagicMock(spec=subprocess.Popen)
         proc.pid = 1234
         proc.poll.return_value = None
@@ -582,11 +607,13 @@ class TestGetLogs:
 
     def test_no_process_returns_empty(self):
         import app.bots.ide_runner as runner
+
         runner._procs.pop("log_absent", None)
         assert runner.get_logs("log_absent") == []
 
     def test_returns_last_n_lines(self):
         import app.bots.ide_runner as runner
+
         logs = [f"line {i}" for i in range(200)]
         bp = self._make_bp(logs)
         runner._procs["log_proj"] = bp
@@ -599,6 +626,7 @@ class TestGetLogs:
 
     def test_returns_all_when_fewer_than_n(self):
         import app.bots.ide_runner as runner
+
         logs = ["a", "b", "c"]
         bp = self._make_bp(logs)
         runner._procs["log_proj2"] = bp
@@ -610,6 +638,7 @@ class TestGetLogs:
 
     def test_default_last_n(self):
         import app.bots.ide_runner as runner
+
         logs = [f"line {i}" for i in range(200)]
         bp = self._make_bp(logs)
         runner._procs["log_def"] = bp
@@ -661,28 +690,36 @@ class TestCollectLogs:
 
     def test_missing_project_does_not_crash(self):
         from app.bots.ide_runner import _collect_logs
+
         # Should silently return without error
         _collect_logs("nonexistent_proj_xyz")
 
 
 # Integration tests — API endpoints
 
+
 class TestIDEAuth:
     """All endpoints require authentication."""
 
     def test_compile_requires_auth(self, client: SyncASGIClient, anon_client: SyncASGIClient):
-        r = anon_client.post("/api/ide/compile", json={
-            "project_id": "proj1",
-            "code": "on /start do\nend\n",
-        })
+        r = anon_client.post(
+            "/api/ide/compile",
+            json={
+                "project_id": "proj1",
+                "code": "on /start do\nend\n",
+            },
+        )
         assert r.status_code in (401, 403)
 
     def test_publish_requires_auth(self, client: SyncASGIClient, anon_client: SyncASGIClient):
-        r = anon_client.post("/api/ide/publish", json={
-            "project_id": "proj1",
-            "code": "code",
-            "token": "tok",
-        })
+        r = anon_client.post(
+            "/api/ide/publish",
+            json={
+                "project_id": "proj1",
+                "code": "code",
+                "token": "tok",
+            },
+        )
         assert r.status_code in (401, 403)
 
     def test_status_requires_auth(self, client: SyncASGIClient, anon_client: SyncASGIClient):
@@ -704,13 +741,18 @@ class TestIDECompile:
     def test_compile_without_binary_returns_error(self, client: SyncASGIClient):
         headers = _auth_headers(client, "comp1")
         import app.bots.ide_runner as runner
+
         orig = runner._GX_BIN
         try:
             runner._GX_BIN = Path("/nonexistent/gravitix")
-            r = client.post("/api/ide/compile", json={
-                "project_id": VALID_PID,
-                "code": VALID_CODE,
-            }, headers=headers)
+            r = client.post(
+                "/api/ide/compile",
+                json={
+                    "project_id": VALID_PID,
+                    "code": VALID_CODE,
+                },
+                headers=headers,
+            )
             assert r.status_code == 200
             data = r.json()
             assert data["ok"] is False
@@ -732,10 +774,14 @@ class TestIDECompile:
             runner._GX_BIN = bin_path
             runner._BOTS_DIR = tmp_path / "bots"
 
-            r = client.post("/api/ide/compile", json={
-                "project_id": VALID_PID,
-                "code": VALID_CODE,
-            }, headers=headers)
+            r = client.post(
+                "/api/ide/compile",
+                json={
+                    "project_id": VALID_PID,
+                    "code": VALID_CODE,
+                },
+                headers=headers,
+            )
 
             assert r.status_code == 200
             data = r.json()
@@ -759,10 +805,14 @@ class TestIDECompile:
             runner._GX_BIN = bin_path
             runner._BOTS_DIR = tmp_path / "bots"
 
-            r = client.post("/api/ide/compile", json={
-                "project_id": VALID_PID,
-                "code": INVALID_CODE,
-            }, headers=headers)
+            r = client.post(
+                "/api/ide/compile",
+                json={
+                    "project_id": VALID_PID,
+                    "code": INVALID_CODE,
+                },
+                headers=headers,
+            )
 
             assert r.status_code == 200
             data = r.json()
@@ -776,34 +826,50 @@ class TestIDECompile:
         headers = _auth_headers(client, "comp4")
         # WAF may reject path-traversal sequences before the handler (→ 403),
         # or the handler itself rejects them (→ 400). Both mean "rejected".
-        r = client.post("/api/ide/compile", json={
-            "project_id": "bad@id",
-            "code": VALID_CODE,
-        }, headers=headers)
+        r = client.post(
+            "/api/ide/compile",
+            json={
+                "project_id": "bad@id",
+                "code": VALID_CODE,
+            },
+            headers=headers,
+        )
         assert r.status_code in (400, 403)
 
     def test_compile_empty_project_id_rejected(self, client: SyncASGIClient):
         headers = _auth_headers(client, "comp5")
-        r = client.post("/api/ide/compile", json={
-            "project_id": "",
-            "code": VALID_CODE,
-        }, headers=headers)
+        r = client.post(
+            "/api/ide/compile",
+            json={
+                "project_id": "",
+                "code": VALID_CODE,
+            },
+            headers=headers,
+        )
         assert r.status_code == 422  # Pydantic min_length validation
 
     def test_compile_oversized_code_rejected(self, client: SyncASGIClient):
         headers = _auth_headers(client, "comp6")
-        r = client.post("/api/ide/compile", json={
-            "project_id": VALID_PID,
-            "code": "x" * 600_000,  # exceeds 500k limit
-        }, headers=headers)
+        r = client.post(
+            "/api/ide/compile",
+            json={
+                "project_id": VALID_PID,
+                "code": "x" * 600_000,  # exceeds 500k limit
+            },
+            headers=headers,
+        )
         assert r.status_code == 422
 
     def test_compile_project_id_too_long_rejected(self, client: SyncASGIClient):
         headers = _auth_headers(client, "comp7")
-        r = client.post("/api/ide/compile", json={
-            "project_id": "a" * 65,
-            "code": VALID_CODE,
-        }, headers=headers)
+        r = client.post(
+            "/api/ide/compile",
+            json={
+                "project_id": "a" * 65,
+                "code": VALID_CODE,
+            },
+            headers=headers,
+        )
         assert r.status_code == 422
 
     def test_compile_special_chars_in_id_rejected(self, client: SyncASGIClient):
@@ -811,25 +877,33 @@ class TestIDECompile:
         # Characters outside [a-zA-Z0-9_-] must be rejected.
         # WAF may intercept some (→ 403) before _validate_id (→ 400).
         for bad_id in ["proj;cmd", "proj@foo", "proj|pipe", "proj space"]:
-            r = client.post("/api/ide/compile", json={
-                "project_id": bad_id,
-                "code": VALID_CODE,
-            }, headers=headers)
-            assert r.status_code in (400, 403), \
-                f"Expected 400/403 for id={bad_id!r}, got {r.status_code}"
+            r = client.post(
+                "/api/ide/compile",
+                json={
+                    "project_id": bad_id,
+                    "code": VALID_CODE,
+                },
+                headers=headers,
+            )
+            assert r.status_code in (400, 403), f"Expected 400/403 for id={bad_id!r}, got {r.status_code}"
 
     def test_compile_valid_id_formats(self, client: SyncASGIClient):
         """IDs with letters, digits, underscores, hyphens are all valid."""
         headers = _auth_headers(client, "comp9")
         import app.bots.ide_runner as runner
+
         orig = runner._GX_BIN
         try:
             runner._GX_BIN = Path("/nonexistent/gravitix")
             for good_id in ["proj1", "my-bot", "bot_v2", "ABC123", "a"]:
-                r = client.post("/api/ide/compile", json={
-                    "project_id": good_id,
-                    "code": VALID_CODE,
-                }, headers=headers)
+                r = client.post(
+                    "/api/ide/compile",
+                    json={
+                        "project_id": good_id,
+                        "code": VALID_CODE,
+                    },
+                    headers=headers,
+                )
                 # Should reach the handler (not 400/422)
                 assert r.status_code in (200, 422), f"id={good_id!r} got {r.status_code}"
         finally:
@@ -842,14 +916,19 @@ class TestIDEPublish:
     def test_publish_without_binary_returns_422(self, client: SyncASGIClient):
         headers = _auth_headers(client, "pub1")
         import app.bots.ide_runner as runner
+
         orig = runner._GX_BIN
         try:
             runner._GX_BIN = Path("/nonexistent/gravitix")
-            r = client.post("/api/ide/publish", json={
-                "project_id": VALID_PID,
-                "code": VALID_CODE,
-                "token": "my_bot_token_123",
-            }, headers=headers)
+            r = client.post(
+                "/api/ide/publish",
+                json={
+                    "project_id": VALID_PID,
+                    "code": VALID_CODE,
+                    "token": "my_bot_token_123",
+                },
+                headers=headers,
+            )
             assert r.status_code == 422
         finally:
             runner._GX_BIN = orig
@@ -878,11 +957,15 @@ class TestIDEPublish:
             mock_asyncio = MagicMock()
             mock_asyncio.get_event_loop.return_value = MagicMock()
             with patch("subprocess.Popen", return_value=fake_proc), patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                r = client.post("/api/ide/publish", json={
-                    "project_id": "pub_proj",
-                    "code": VALID_CODE,
-                    "token": "real_token_abc",
-                }, headers=headers)
+                r = client.post(
+                    "/api/ide/publish",
+                    json={
+                        "project_id": "pub_proj",
+                        "code": VALID_CODE,
+                        "token": "real_token_abc",
+                    },
+                    headers=headers,
+                )
 
             assert r.status_code == 200
             data = r.json()
@@ -896,48 +979,68 @@ class TestIDEPublish:
 
     def test_publish_invalid_project_id(self, client: SyncASGIClient):
         headers = _auth_headers(client, "pub3")
-        r = client.post("/api/ide/publish", json={
-            "project_id": "bad@path",
-            "code": VALID_CODE,
-            "token": "tok",
-        }, headers=headers)
+        r = client.post(
+            "/api/ide/publish",
+            json={
+                "project_id": "bad@path",
+                "code": VALID_CODE,
+                "token": "tok",
+            },
+            headers=headers,
+        )
         assert r.status_code in (400, 403)
 
     def test_publish_missing_token_field_rejected(self, client: SyncASGIClient):
         headers = _auth_headers(client, "pub4")
-        r = client.post("/api/ide/publish", json={
-            "project_id": VALID_PID,
-            "code": VALID_CODE,
-            # token missing
-        }, headers=headers)
+        r = client.post(
+            "/api/ide/publish",
+            json={
+                "project_id": VALID_PID,
+                "code": VALID_CODE,
+                # token missing
+            },
+            headers=headers,
+        )
         assert r.status_code == 422
 
     def test_publish_empty_token_rejected_by_pydantic(self, client: SyncASGIClient):
         """Pydantic min_length=1 rejects empty token before it even reaches runner."""
         headers = _auth_headers(client, "pub5")
-        r = client.post("/api/ide/publish", json={
-            "project_id": VALID_PID,
-            "code": VALID_CODE,
-            "token": "",
-        }, headers=headers)
+        r = client.post(
+            "/api/ide/publish",
+            json={
+                "project_id": VALID_PID,
+                "code": VALID_CODE,
+                "token": "",
+            },
+            headers=headers,
+        )
         assert r.status_code == 422
 
     def test_publish_oversized_code_rejected(self, client: SyncASGIClient):
         headers = _auth_headers(client, "pub6")
-        r = client.post("/api/ide/publish", json={
-            "project_id": VALID_PID,
-            "code": "x" * 600_000,
-            "token": "tok",
-        }, headers=headers)
+        r = client.post(
+            "/api/ide/publish",
+            json={
+                "project_id": VALID_PID,
+                "code": "x" * 600_000,
+                "token": "tok",
+            },
+            headers=headers,
+        )
         assert r.status_code == 422
 
     def test_publish_token_too_long_rejected(self, client: SyncASGIClient):
         headers = _auth_headers(client, "pub7")
-        r = client.post("/api/ide/publish", json={
-            "project_id": VALID_PID,
-            "code": VALID_CODE,
-            "token": "t" * 121,  # exceeds max_length=120
-        }, headers=headers)
+        r = client.post(
+            "/api/ide/publish",
+            json={
+                "project_id": VALID_PID,
+                "code": VALID_CODE,
+                "token": "t" * 121,  # exceeds max_length=120
+            },
+            headers=headers,
+        )
         assert r.status_code == 422
 
 
@@ -948,6 +1051,7 @@ class TestIDEStatus:
         headers = _auth_headers(client, "stat1")
         _claim_project(client, "status_test", headers)
         import app.bots.ide_runner as runner
+
         runner._procs.pop("status_test", None)
 
         r = client.get("/api/ide/status/status_test", headers=headers)
@@ -997,6 +1101,7 @@ class TestIDELogs:
         headers = _auth_headers(client, "log1")
         _claim_project(client, "log_test", headers)
         import app.bots.ide_runner as runner
+
         runner._procs.pop("log_test", None)
 
         r = client.get("/api/ide/logs/log_test", headers=headers)
@@ -1079,6 +1184,7 @@ class TestIDEStop:
         headers = _auth_headers(client, "stop1")
         _claim_project(client, "stop_absent", headers)
         import app.bots.ide_runner as runner
+
         runner._procs.pop("stop_absent", None)
 
         r = client.post("/api/ide/stop/stop_absent", headers=headers)
@@ -1114,19 +1220,24 @@ class TestIDEStop:
 
 # Edge cases and security
 
-class TestIDEEdgeCases:
 
+class TestIDEEdgeCases:
     def test_compile_empty_code_passes_pydantic(self, client: SyncASGIClient):
         """Empty string is valid from Pydantic (no min_length on code)."""
         headers = _auth_headers(client, "edge1")
         import app.bots.ide_runner as runner
+
         orig = runner._GX_BIN
         try:
             runner._GX_BIN = Path("/nonexistent/gravitix")
-            r = client.post("/api/ide/compile", json={
-                "project_id": VALID_PID,
-                "code": "",
-            }, headers=headers)
+            r = client.post(
+                "/api/ide/compile",
+                json={
+                    "project_id": VALID_PID,
+                    "code": "",
+                },
+                headers=headers,
+            )
             assert r.status_code == 200
             assert r.json()["ok"] is False
         finally:
@@ -1165,11 +1276,15 @@ class TestIDEEdgeCases:
             mock_asyncio = MagicMock()
             mock_asyncio.get_event_loop.return_value = MagicMock()
             with patch("subprocess.Popen", return_value=new_proc), patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                r = client.post("/api/ide/publish", json={
-                    "project_id": "conc_proj",
-                    "code": VALID_CODE,
-                    "token": "tok",
-                }, headers=headers)
+                r = client.post(
+                    "/api/ide/publish",
+                    json={
+                        "project_id": "conc_proj",
+                        "code": VALID_CODE,
+                        "token": "tok",
+                    },
+                    headers=headers,
+                )
 
             assert r.status_code == 200
             assert r.json()["pid"] == 1002
@@ -1252,10 +1367,11 @@ class TestIDEEdgeCases:
             mock_asyncio.get_event_loop.return_value = MagicMock()
             loop = asyncio.new_event_loop()
             try:
-                with patch("subprocess.Popen", return_value=fake_proc), patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                    loop.run_until_complete(
-                        runner.publish_bot("disk_test", code, "tok")
-                    )
+                with (
+                    patch("subprocess.Popen", return_value=fake_proc),
+                    patch("app.bots.ide_runner.asyncio", mock_asyncio),
+                ):
+                    loop.run_until_complete(runner.publish_bot("disk_test", code, "tok"))
             finally:
                 loop.close()
 
@@ -1297,11 +1413,13 @@ class TestIDEEdgeCases:
 
 # BotProcess dataclass tests
 
+
 class TestBotProcess:
     """Tests for _BotProcess internals."""
 
     def test_started_at_is_recent(self):
         from app.bots.ide_runner import _BotProcess
+
         before = time.time()
         proc = MagicMock(spec=subprocess.Popen)
         proc.pid = 1
@@ -1311,6 +1429,7 @@ class TestBotProcess:
 
     def test_logs_initially_empty(self):
         from app.bots.ide_runner import _BotProcess
+
         proc = MagicMock(spec=subprocess.Popen)
         proc.pid = 2
         bp = _BotProcess(2, proc, "proj2")
@@ -1318,6 +1437,7 @@ class TestBotProcess:
 
     def test_stores_project_id(self):
         from app.bots.ide_runner import _BotProcess
+
         proc = MagicMock(spec=subprocess.Popen)
         proc.pid = 3
         bp = _BotProcess(3, proc, "my_project")
@@ -1327,11 +1447,13 @@ class TestBotProcess:
 
 # Request model validation tests
 
+
 class TestRequestModels:
     """Pydantic model validation for CompileRequest and PublishRequest."""
 
     def test_compile_request_valid(self):
         from app.bots.ide_routes import CompileRequest
+
         req = CompileRequest(project_id="my_proj", code="some code")
         assert req.project_id == "my_proj"
         assert req.code == "some code"
@@ -1340,6 +1462,7 @@ class TestRequestModels:
         from pydantic import ValidationError
 
         from app.bots.ide_routes import CompileRequest
+
         with pytest.raises(ValidationError):
             CompileRequest(project_id="", code="code")
 
@@ -1347,6 +1470,7 @@ class TestRequestModels:
         from pydantic import ValidationError
 
         from app.bots.ide_routes import CompileRequest
+
         with pytest.raises(ValidationError):
             CompileRequest(project_id="a" * 65, code="code")
 
@@ -1354,11 +1478,13 @@ class TestRequestModels:
         from pydantic import ValidationError
 
         from app.bots.ide_routes import CompileRequest
+
         with pytest.raises(ValidationError):
             CompileRequest(project_id="proj", code="x" * 500_001)
 
     def test_publish_request_valid(self):
         from app.bots.ide_routes import PublishRequest
+
         req = PublishRequest(project_id="p", code="c", token="t")
         assert req.token == "t"  # noqa: S105
 
@@ -1366,6 +1492,7 @@ class TestRequestModels:
         from pydantic import ValidationError
 
         from app.bots.ide_routes import PublishRequest
+
         with pytest.raises(ValidationError):
             PublishRequest(project_id="proj", code="code", token="")
 
@@ -1373,11 +1500,13 @@ class TestRequestModels:
         from pydantic import ValidationError
 
         from app.bots.ide_routes import PublishRequest
+
         with pytest.raises(ValidationError):
             PublishRequest(project_id="proj", code="code", token="t" * 121)
 
     def test_validate_id_accepts_valid(self):
         from app.bots.ide_routes import _validate_id
+
         assert _validate_id("my_project-01") == "my_project-01"
         assert _validate_id("ABC") == "ABC"
         assert _validate_id("a1-b2_c3") == "a1-b2_c3"
@@ -1386,6 +1515,7 @@ class TestRequestModels:
         from fastapi import HTTPException
 
         from app.bots.ide_routes import _validate_id
+
         for bad in ["../etc", "proj;rm", "p q", "p@q", "p/q"]:
             with pytest.raises(HTTPException) as exc_info:
                 _validate_id(bad)

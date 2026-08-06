@@ -1,7 +1,7 @@
 {
   "payload": {
     "version": "0.1.0",
-    "built_at": 1786019084,
+    "built_at": 1786030156,
     "algorithm": "sha256",
     "root": "vortex_controller",
     "files": [
@@ -15,7 +15,7 @@
       },
       {
         "path": "controller_crypto.py",
-        "sha256": "c3a4867d47d0b62ac46cde0b16ce8af26c89ff5a1f6a3708ec9504c7cdbebfd1"
+        "sha256": "de1b51c51dc5aebd936afe635594059fca379b0c1338873f05d808f50d31f31b"
       },
       {
         "path": "docs/DEPLOY.md",
@@ -43,35 +43,35 @@
       },
       {
         "path": "endpoints/admin.py",
-        "sha256": "2736195dcff7ab919cc65de5cf9e558df6de9c323e0cee270852a6a785ac2a5e"
+        "sha256": "6fb0d51077b749c846e30eeb458ad722900fc051a9d1eb2e6d8a3f1e91ac3f3b"
       },
       {
         "path": "endpoints/backup.py",
-        "sha256": "cfb8a55d4bccfb341363bc5d0433aec639dfc49c70a2ee3e08eb4f49a6b9c129"
+        "sha256": "b143d77aaa88b79439cc164e810651dbf4075e85431c629c8cdb37cb4450504b"
       },
       {
         "path": "endpoints/entries.py",
-        "sha256": "1fe4dde1d0f6f7602f719776a005a09adb2b3d6c5431ce66b153fcd9104c6d26"
+        "sha256": "657e8eb86b32d6589d1a02949508ae7c320ddbe61c6cfb88a3af1f9ecafbd0c4"
       },
       {
         "path": "endpoints/health.py",
-        "sha256": "855554670c8ce13f2f0e2ca2d6290882dcd6ab34d9330255245223a9f6a5d5db"
+        "sha256": "8faf4f0597ffe83e8dd4afec4e66310dedddf6aea295ddfd9e35a55b658e3e0e"
       },
       {
         "path": "endpoints/integrity.py",
-        "sha256": "d40d52cbb49c8cedc116fe6d085b52dc2d03080358ac87c8e4275b28585bb556"
+        "sha256": "ee887d38ea57821959530be3dde4a43391fb0db29a23a822f7dec3e09fb2cdc1"
       },
       {
         "path": "endpoints/mirrors.py",
-        "sha256": "55dc66aa84e3365c5d871eaccbf341a41170a0feb98b23ce1ba205d8955b63d2"
+        "sha256": "7ec813d2bfed72db8648257e0ea32917c2c023e3cb584f0956a2dda9594c4be2"
       },
       {
         "path": "endpoints/nodes.py",
-        "sha256": "415487ab67828bbe65365e5484d0ebbdbb990ef87a28a4ae86869ba0b01c4503"
+        "sha256": "dbba2a93c9679f0f4d1d33da026aaf1e4547f8c26896748df995e7bdec00e988"
       },
       {
         "path": "endpoints/register.py",
-        "sha256": "032f500c2edded5b936a251c6ffb788d9656e8470cecc55e177748f66d554b2c"
+        "sha256": "d26bf92e6caab48f4f5712514bd455edbb3f3befb7fd83525405b4f99cfed1b9"
       },
       {
         "path": "integrity/README.md",
@@ -79,39 +79,39 @@
       },
       {
         "path": "integrity/__init__.py",
-        "sha256": "2c4dddd2e8ed500294b99431f8a4822f05721bc6613b060bb08be7bcc9008922"
+        "sha256": "dcaa1b9ef9468e7b0a0479c48f9ff9ca75f18eb45ea3a237525f3938da8ac997"
       },
       {
         "path": "integrity/manifest.py",
-        "sha256": "c9c62cc5664e4266f3d4ce818813f9b43f644398dbe84871b57d2e9e19e77586"
+        "sha256": "baefe8cb8284771c0022282f9e7108f2d57dd057e34d42f6b7a19ab5bd6c6608"
       },
       {
         "path": "integrity/sign_tool.py",
-        "sha256": "027e1e78a487f5cfd9cfa32a8b7b7323da71ad47ba2f94abdc0d325c9253ba13"
+        "sha256": "63757a22e56e7c9100d80c5b3c59b06828b8d4cd36de3542aa6ee37e20138702"
       },
       {
         "path": "integrity/verify.py",
-        "sha256": "c058badcfdb6b8330ceb340bcbb9d152c14251769dfb3ba52e7274701164d629"
+        "sha256": "b83d0e7823116a31f3e63a221d2ee782cddaebbd2807a01c9325b2bb38d98341"
       },
       {
         "path": "integrity_gate.py",
-        "sha256": "cbb8bc0010b6bbd912a963f8c855ee18047781b3d6a4b4c018efffda129ed56c"
+        "sha256": "54dd725954d2c1c4628611e88fa5b199e6ce6a376e1dcbbb75a6aa42aa3fe976"
       },
       {
         "path": "ipfs_publish.py",
-        "sha256": "6b3bae54caadb3b85f3b14f6f9beb7cab0066b7e3854b392adc4921fb4d70090"
+        "sha256": "119308839047f6dc19cf26f70507ed56aa63583c9ddc1d9bda58576c001e26ed"
       },
       {
         "path": "main.py",
-        "sha256": "7865a07d042576d4744e2f273192c8c060471fc53867990a9f67d47966b092c7"
+        "sha256": "3f7bff0efd6a0d40f9afab29e8747cfe973917a9af9f7cc84c7ff92ece406155"
       },
       {
         "path": "mirror_health.py",
-        "sha256": "e803de2e4fcc70102edf7321955f737d1a4a483490cf9108e23f8a8c054d1645"
+        "sha256": "ae958cf414a328dc25ad0c31df3e604103d3d845db584652d8b80b10ae826195"
       },
       {
         "path": "models.py",
-        "sha256": "199043fa40757d58fed1996622cf27639bceb2843d14a945446ad320ed73a4e1"
+        "sha256": "28d854735d1226a121c116b345c1c94b3f51355abb6f7ade43cc337b9ca18981"
       },
       {
         "path": "requirements.txt",
@@ -119,7 +119,7 @@
       },
       {
         "path": "storage.py",
-        "sha256": "cbe0a0494cbfb6b29a93c39b78d6bd4d283c795cf684344d2bc0f7afa0a9f26d"
+        "sha256": "5afbbf9fe2a160fe88dcecb10c764d8e45a1c796e0e67f42cb87509f95196b8b"
       },
       {
         "path": "web/README.md",
@@ -715,6 +715,6 @@
       }
     ]
   },
-  "signature": "d53507f121316f6477ef29c0f45891b204edc489a55270751e8bd4df54cac31cd9db95a98cc4185d04e70c1d999527d6b70260a45b60cf04bfa1bd0facf51e0b",
+  "signature": "93535ff9cdb7c43f211716787f32cc7ed2eeeedbe0d24a463fac893ea9c891d084d95cb3f5295e64f9fada2c4d73267280202c50d6fba216ec3bfb4d9ade7a0c",
   "signed_by": "f80c0fc173fac6ca7218a05245df8de97e1ed755853050da873bc1fdddce0198"
 }

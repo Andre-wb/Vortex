@@ -1,4 +1,5 @@
 """Tests for AI Assistant endpoints (/api/ai/*)."""
+
 from __future__ import annotations
 
 from conftest import SyncASGIClient, make_user

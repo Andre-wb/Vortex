@@ -20,6 +20,7 @@ Environment variables:
     POSTGRES_PASSWORD     PostgreSQL password
     CONTROLLER_DB         SQLite path if no PostgreSQL configured (default controller.db)
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -89,12 +90,14 @@ def create_app(
         #    key material, so the report is available even if a subsequent
         #    step fails.
         import os
+
         controller_root = Path(__file__).parent
         report = verify_at_startup(root=controller_root)
         app.state.integrity = report
         _log_integrity(report)
-        if report.status in ("tampered", "bad_signature", "wrong_key") and \
-                os.getenv("INTEGRITY_STRICT", "false").lower() in ("1", "true", "yes"):
+        if report.status in ("tampered", "bad_signature", "wrong_key") and os.getenv(
+            "INTEGRITY_STRICT", "false"
+        ).lower() in ("1", "true", "yes"):
             logger.error("INTEGRITY_STRICT is set and verification failed — refusing to start")
             raise SystemExit(2)
 
@@ -149,28 +152,32 @@ def create_app(
         # to index.html. Everything else under /static/* and /locales/* is
         # served as raw assets.
         pages = {
-            "/":         "index.html",
-            "/nodes":    "nodes.html",
-            "/entries":  "entries.html",
-            "/mirrors":  "mirrors.html",
+            "/": "index.html",
+            "/nodes": "nodes.html",
+            "/entries": "entries.html",
+            "/mirrors": "mirrors.html",
             "/security": "security.html",
             # Platform-owner revenue dashboard. The HTML is public (no
             # secrets in it) but every data fetch goes through a bearer-
             # token guarded endpoint; the page renders a token-prompt
             # when it isn't authenticated yet.
-            "/admin":    "admin.html",
+            "/admin": "admin.html",
         }
 
         def _make_page_handler(path_: str):
             file_name = pages[path_]
+
             async def _handler() -> FileResponse:
                 return FileResponse(web_dir / file_name)
+
             return _handler
 
         for path_, _ in pages.items():
             app.add_api_route(
-                path_, _make_page_handler(path_),
-                methods=["GET"], include_in_schema=False,
+                path_,
+                _make_page_handler(path_),
+                methods=["GET"],
+                include_in_schema=False,
             )
 
         @app.get("/favicon.ico", include_in_schema=False)
@@ -183,6 +190,7 @@ def create_app(
             manifest_path = Path(__file__).resolve().parent.parent / "INTEGRITY.sig.json"
             if not manifest_path.is_file():
                 from fastapi import HTTPException
+
                 raise HTTPException(404, "manifest not available")
             return FileResponse(
                 manifest_path,

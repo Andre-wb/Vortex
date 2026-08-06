@@ -1,6 +1,7 @@
 """
 Privacy API endpoints — Tor status, ephemeral identities, ZK membership, metadata padding.
 """
+
 from __future__ import annotations
 
 import base64
@@ -15,7 +16,6 @@ from app.security.auth_jwt import get_current_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/privacy", tags=["privacy"])
-
 
 
 class EphemeralRequest(BaseModel):
@@ -39,18 +39,17 @@ class PadRequest(BaseModel):
     target_size: int = 0  # 0 = auto
 
 
-
 @router.get("/tor/status")
 async def tor_status(u: User = Depends(get_current_user)):
     """Check Tor SOCKS5 proxy availability and get our Tor exit IP."""
     from app.security.privacy import tor_proxy
     from app.security.tor_hidden_service import tor_hidden_service
+
     status = tor_proxy.get_status()
     if status["available"]:
         status["exit_ip"] = await tor_proxy.check_ip()
     status["hidden_service"] = tor_hidden_service.get_status()
     return status
-
 
 
 @router.post("/ephemeral/generate")
@@ -61,6 +60,7 @@ async def generate_ephemeral(body: EphemeralRequest, u: User = Depends(get_curre
     but different rooms produce different names — unlinkable.
     """
     from app.security.privacy import EphemeralIdentity
+
     try:
         secret = bytes.fromhex(body.user_secret_hex)
     except ValueError:
@@ -81,15 +81,16 @@ async def generate_ephemeral(body: EphemeralRequest, u: User = Depends(get_curre
 async def new_ephemeral_secret(u: User = Depends(get_current_user)):
     """Generate a new ephemeral identity secret. Store this on device ONLY."""
     from app.security.privacy import EphemeralIdentity
+
     secret = EphemeralIdentity.generate_secret()
     return {"secret_hex": secret.hex()}
-
 
 
 @router.post("/pad")
 async def pad_data(body: PadRequest, u: User = Depends(get_current_user)):
     """Pad data to a standard size (prevents traffic analysis by message size)."""
     from app.security.privacy import MetadataPadding
+
     data = base64.b64decode(body.data_b64)
     padded = MetadataPadding.pad_to_fixed(data, body.target_size) if body.target_size > 0 else MetadataPadding.pad(data)
     return {
@@ -103,6 +104,7 @@ async def pad_data(body: PadRequest, u: User = Depends(get_current_user)):
 async def unpad_data(body: PadRequest, u: User = Depends(get_current_user)):
     """Remove padding from data."""
     from app.security.privacy import MetadataPadding
+
     padded = base64.b64decode(body.data_b64)
     data = MetadataPadding.unpad(padded)
     if data is None:
@@ -110,11 +112,11 @@ async def unpad_data(body: PadRequest, u: User = Depends(get_current_user)):
     return {"data_b64": base64.b64encode(data).decode(), "size": len(data)}
 
 
-
 @router.post("/zk/challenge")
 async def zk_challenge(body: ZKChallengeResponse, u: User = Depends(get_current_user)):
     """Get a challenge for zero-knowledge membership proof."""
     from app.security.privacy import ZKMembership
+
     challenge = ZKMembership.generate_challenge()
     return {
         "challenge_hex": challenge.hex(),
@@ -134,10 +136,14 @@ async def zk_verify(body: ZKProofRequest, u: User = Depends(get_current_user)):
 
     db = SessionLocal()
     try:
-        members = db.query(RoomMember.user_id).filter(
-            RoomMember.room_id == body.room_id,
-            RoomMember.is_banned.is_(False),
-        ).all()
+        members = (
+            db.query(RoomMember.user_id)
+            .filter(
+                RoomMember.room_id == body.room_id,
+                RoomMember.is_banned.is_(False),
+            )
+            .all()
+        )
         member_ids = [m[0] for m in members]
     finally:
         db.close()
@@ -148,6 +154,7 @@ async def zk_verify(body: ZKProofRequest, u: User = Depends(get_current_user)):
     # Room secret — in PoC we derive from room_id
     # In production, this would be stored securely per-room
     import hashlib
+
     room_secret = hashlib.sha256(f"room-secret-{body.room_id}".encode()).digest()
 
     challenge = bytes.fromhex(body.commitment[:64])  # reuse commitment as challenge marker
@@ -170,14 +177,15 @@ async def zk_verify(body: ZKProofRequest, u: User = Depends(get_current_user)):
 async def zk_info(u: User = Depends(get_current_user)):
     """Get info about zero-knowledge membership system."""
     from app.security.privacy import ZKMembership
-    return ZKMembership.get_info()
 
+    return ZKMembership.get_info()
 
 
 @router.get("/status")
 async def privacy_status(u: User = Depends(get_current_user)):
     """Get overall privacy feature status."""
     from app.security.privacy import MetadataPadding, ZKMembership, tor_proxy
+
     return {
         "tor": tor_proxy.get_status(),
         "metadata_padding": {
@@ -192,7 +200,6 @@ async def privacy_status(u: User = Depends(get_current_user)):
     }
 
 
-
 class _LastSeenRequest(BaseModel):
     show_last_seen: bool
 
@@ -200,7 +207,7 @@ class _LastSeenRequest(BaseModel):
 @router.get("/last-seen")
 async def get_last_seen_setting(u: User = Depends(get_current_user)):
     """Get show_last_seen setting."""
-    val = getattr(u, 'show_last_seen', True)
+    val = getattr(u, "show_last_seen", True)
     return {"show_last_seen": val if val is not None else True}
 
 
@@ -211,6 +218,7 @@ async def set_last_seen_setting(
 ):
     """Toggle show_last_seen."""
     from app.database import SessionLocal
+
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == u.id).first()

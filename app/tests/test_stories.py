@@ -11,6 +11,7 @@ Covers all 8 endpoints:
   POST   /api/stories/{id}/react   — react with emoji
   POST   /api/stories/{id}/reply   — reply with text
 """
+
 from __future__ import annotations
 
 import json
@@ -60,7 +61,6 @@ def _create_photo_story(client, headers, envelopes=None):
     return r
 
 
-
 class TestCreateStory:
     """POST /api/stories"""
 
@@ -84,19 +84,28 @@ class TestCreateStory:
 
     def test_create_story_invalid_type(self, client):
         _, h = _make_auth(client)
-        r = client.post("/api/stories", data={
-            "media_type": "hologram",
-            "duration": "5",
-            "key_envelopes": "[]",
-        }, files={"_": ("", b"")}, headers=h)
+        r = client.post(
+            "/api/stories",
+            data={
+                "media_type": "hologram",
+                "duration": "5",
+                "key_envelopes": "[]",
+            },
+            files={"_": ("", b"")},
+            headers=h,
+        )
         assert r.status_code in (400, 422)
 
     def test_create_story_requires_auth(self, client):
-        r = client.post("/api/stories", data={
-            "media_type": "text",
-            "duration": "5",
-            "key_envelopes": "[]",
-        }, files={"_": ("", b"")})
+        r = client.post(
+            "/api/stories",
+            data={
+                "media_type": "text",
+                "duration": "5",
+                "key_envelopes": "[]",
+            },
+            files={"_": ("", b"")},
+        )
         assert r.status_code in (401, 403, 422)
 
     def test_create_story_with_key_envelopes(self, client):
@@ -113,7 +122,9 @@ class TestCreateStory:
         files = {"music_file": ("music.enc", fake_music, "application/octet-stream")}
         data = {
             "media_type": "text",
-            "meta_ct": json.dumps({"text_color": "#fff", "bg_color": "#000", "music_title": "Test Song"}).encode().hex(),
+            "meta_ct": json.dumps({"text_color": "#fff", "bg_color": "#000", "music_title": "Test Song"})
+            .encode()
+            .hex(),
             "duration": "10",
             "key_envelopes": "[]",
         }
@@ -122,11 +133,16 @@ class TestCreateStory:
 
     def test_duration_clamped(self, client):
         _, h = _make_auth(client)
-        r = client.post("/api/stories", data={
-            "media_type": "text",
-            "duration": "999",
-            "key_envelopes": "[]",
-        }, files={"_": ("", b"")}, headers=h)
+        r = client.post(
+            "/api/stories",
+            data={
+                "media_type": "text",
+                "duration": "999",
+                "key_envelopes": "[]",
+            },
+            files={"_": ("", b"")},
+            headers=h,
+        )
         assert r.status_code == 201
         assert r.json()["duration"] == 60  # clamped to max
 
@@ -259,21 +275,31 @@ class TestReactToStory:
         u1, _ = _make_auth(client)
         u2, _ = _make_auth(client)
         h1 = login_user(client, u1["username"], u1["password"])
-        cr = _create_text_story(client, h1, envelopes=[{
-            "user_id": u2["data"]["user_id"],
-            "ephemeral_pub": "aa" * 32,
-            "ciphertext": "bb" * 60,
-        }])
+        cr = _create_text_story(
+            client,
+            h1,
+            envelopes=[
+                {
+                    "user_id": u2["data"]["user_id"],
+                    "ephemeral_pub": "aa" * 32,
+                    "ciphertext": "bb" * 60,
+                }
+            ],
+        )
         story_id = cr.json()["id"]
         h2 = login_user(client, u2["username"], u2["password"])
-        r = client.post(f"/api/stories/{story_id}/react", data={"emoji": "\u2764\uFE0F"}, files={"_": ("", b"")}, headers=h2)
+        r = client.post(
+            f"/api/stories/{story_id}/react", data={"emoji": "\u2764\ufe0f"}, files={"_": ("", b"")}, headers=h2
+        )
         assert r.status_code == 200
 
     def test_react_own_story_rejected(self, client):
         _, h = _make_auth(client)
         cr = _create_text_story(client, h)
         story_id = cr.json()["id"]
-        r = client.post(f"/api/stories/{story_id}/react", data={"emoji": "\U0001f44d"}, files={"_": ("", b"")}, headers=h)
+        r = client.post(
+            f"/api/stories/{story_id}/react", data={"emoji": "\U0001f44d"}, files={"_": ("", b"")}, headers=h
+        )
         assert r.status_code == 400
 
     def test_react_nonexistent(self, client):
@@ -289,21 +315,31 @@ class TestReplyToStory:
         u1, _ = _make_auth(client)
         u2, _ = _make_auth(client)
         h1 = login_user(client, u1["username"], u1["password"])
-        cr = _create_text_story(client, h1, envelopes=[{
-            "user_id": u2["data"]["user_id"],
-            "ephemeral_pub": "aa" * 32,
-            "ciphertext": "bb" * 60,
-        }])
+        cr = _create_text_story(
+            client,
+            h1,
+            envelopes=[
+                {
+                    "user_id": u2["data"]["user_id"],
+                    "ephemeral_pub": "aa" * 32,
+                    "ciphertext": "bb" * 60,
+                }
+            ],
+        )
         story_id = cr.json()["id"]
         h2 = login_user(client, u2["username"], u2["password"])
-        r = client.post(f"/api/stories/{story_id}/reply", data={"text": "Nice story!"}, files={"_": ("", b"")}, headers=h2)
+        r = client.post(
+            f"/api/stories/{story_id}/reply", data={"text": "Nice story!"}, files={"_": ("", b"")}, headers=h2
+        )
         assert r.status_code == 200
 
     def test_reply_own_story_rejected(self, client):
         _, h = _make_auth(client)
         cr = _create_text_story(client, h)
         story_id = cr.json()["id"]
-        r = client.post(f"/api/stories/{story_id}/reply", data={"text": "self-reply"}, files={"_": ("", b"")}, headers=h)
+        r = client.post(
+            f"/api/stories/{story_id}/reply", data={"text": "self-reply"}, files={"_": ("", b"")}, headers=h
+        )
         assert r.status_code == 400
 
     def test_reply_nonexistent(self, client):
@@ -373,7 +409,9 @@ class TestStoryLifecycle:
         client.post(f"/api/stories/{story_id}/view", headers=h2)
 
         # React (by other — may return 400 if shared cookie jar overrides user)
-        r = client.post(f"/api/stories/{story_id}/react", data={"emoji": "\U0001f525"}, files={"_": ("", b"")}, headers=h2)
+        r = client.post(
+            f"/api/stories/{story_id}/react", data={"emoji": "\U0001f525"}, files={"_": ("", b"")}, headers=h2
+        )
         assert r.status_code in (200, 400)
 
         # Reply (by other)

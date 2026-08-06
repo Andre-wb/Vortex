@@ -13,6 +13,7 @@ Covers:
 
 Pattern: def test_xxx(client) using session-scope SyncASGIClient.
 """
+
 import contextlib
 import os
 import time
@@ -25,6 +26,7 @@ _requires_real_pq = pytest.mark.skipif(_PQ_SIMULATED, reason="real Kyber-768 lib
 
 
 # HTTP endpoint
+
 
 @_requires_real_pq
 def test_pq_status_http(client):
@@ -56,9 +58,11 @@ def test_pq_status_http_performance_fields(client):
 
 # get_pq_status() — unit
 
+
 @_requires_real_pq
 def test_get_pq_status_shape(client):
     from app.security.post_quantum import get_pq_status
+
     status = get_pq_status()
     assert status["available"] is True
     assert status["algorithm"] == "Kyber-768 (ML-KEM)"
@@ -68,6 +72,7 @@ def test_get_pq_status_shape(client):
 @_requires_real_pq
 def test_get_pq_status_security_level(client):
     from app.security.post_quantum import get_pq_status
+
     status = get_pq_status()
     assert "NIST" in status["security_level"]
     assert "3" in status["security_level"]
@@ -75,19 +80,23 @@ def test_get_pq_status_security_level(client):
 
 def test_pq_available(client):
     from app.security.post_quantum import pq_available
+
     assert pq_available() is True
 
 
 def test_pq_backend_valid_value(client):
     from app.security.post_quantum import pq_backend
+
     backend = pq_backend()
     assert backend in ("rust", "pqcrypto", "liboqs", "simulated")
 
 
 # Kyber768.keygen()
 
+
 def test_kyber_keygen_returns_bytes(client):
     from app.security.post_quantum import Kyber768
+
     pk, sk = Kyber768.keygen()
     assert isinstance(pk, bytes)
     assert isinstance(sk, bytes)
@@ -95,18 +104,21 @@ def test_kyber_keygen_returns_bytes(client):
 
 def test_kyber_keygen_public_key_size(client):
     from app.security.post_quantum import Kyber768
+
     pk, _sk = Kyber768.keygen()
     assert len(pk) == 1184, f"Expected 1184, got {len(pk)}"
 
 
 def test_kyber_keygen_secret_key_size(client):
     from app.security.post_quantum import Kyber768
+
     _pk, sk = Kyber768.keygen()
     assert len(sk) == 2400, f"Expected 2400, got {len(sk)}"
 
 
 def test_kyber_keygen_different_each_call(client):
     from app.security.post_quantum import Kyber768
+
     pk1, sk1 = Kyber768.keygen()
     pk2, sk2 = Kyber768.keygen()
     assert pk1 != pk2, "Two keygens must produce different public keys"
@@ -115,6 +127,7 @@ def test_kyber_keygen_different_each_call(client):
 
 def test_kyber_keygen_multiple_times(client):
     from app.security.post_quantum import Kyber768
+
     for _ in range(5):
         pk, sk = Kyber768.keygen()
         assert len(pk) == 1184
@@ -123,8 +136,10 @@ def test_kyber_keygen_multiple_times(client):
 
 # Kyber768.encapsulate()
 
+
 def test_kyber_encapsulate_ciphertext_size(client):
     from app.security.post_quantum import Kyber768
+
     pk, _ = Kyber768.keygen()
     ct, _ss = Kyber768.encapsulate(pk)
     assert len(ct) == 1088, f"Expected 1088, got {len(ct)}"
@@ -132,6 +147,7 @@ def test_kyber_encapsulate_ciphertext_size(client):
 
 def test_kyber_encapsulate_shared_secret_size(client):
     from app.security.post_quantum import Kyber768
+
     pk, _ = Kyber768.keygen()
     _ct, ss = Kyber768.encapsulate(pk)
     assert len(ss) == 32, f"Expected 32, got {len(ss)}"
@@ -139,6 +155,7 @@ def test_kyber_encapsulate_shared_secret_size(client):
 
 def test_kyber_encapsulate_returns_bytes(client):
     from app.security.post_quantum import Kyber768
+
     pk, _ = Kyber768.keygen()
     ct, ss = Kyber768.encapsulate(pk)
     assert isinstance(ct, bytes)
@@ -147,6 +164,7 @@ def test_kyber_encapsulate_returns_bytes(client):
 
 def test_kyber_encapsulate_different_each_call(client):
     from app.security.post_quantum import Kyber768
+
     pk, _ = Kyber768.keygen()
     ct1, ss1 = Kyber768.encapsulate(pk)
     ct2, ss2 = Kyber768.encapsulate(pk)
@@ -157,8 +175,10 @@ def test_kyber_encapsulate_different_each_call(client):
 
 # Kyber768.decapsulate()
 
+
 def test_kyber_encaps_decaps_roundtrip(client):
     from app.security.post_quantum import Kyber768
+
     pk, sk = Kyber768.keygen()
     ct, ss_enc = Kyber768.encapsulate(pk)
     ss_dec = Kyber768.decapsulate(sk, ct)
@@ -167,6 +187,7 @@ def test_kyber_encaps_decaps_roundtrip(client):
 
 def test_kyber_decapsulate_returns_32_bytes(client):
     from app.security.post_quantum import Kyber768
+
     pk, sk = Kyber768.keygen()
     ct, _ = Kyber768.encapsulate(pk)
     ss = Kyber768.decapsulate(sk, ct)
@@ -177,6 +198,7 @@ def test_kyber_decapsulate_returns_32_bytes(client):
 def test_kyber_decapsulate_wrong_key_different_secret(client):
     """Decapsulating with a different secret key should yield a different shared secret."""
     from app.security.post_quantum import Kyber768
+
     pk1, _sk1 = Kyber768.keygen()
     _pk2, sk2 = Kyber768.keygen()
     ct, ss_correct = Kyber768.encapsulate(pk1)
@@ -186,6 +208,7 @@ def test_kyber_decapsulate_wrong_key_different_secret(client):
 
 def test_kyber_multiple_roundtrips(client):
     from app.security.post_quantum import Kyber768
+
     for _ in range(10):
         pk, sk = Kyber768.keygen()
         ct, ss1 = Kyber768.encapsulate(pk)
@@ -195,8 +218,10 @@ def test_kyber_multiple_roundtrips(client):
 
 # hybrid_keygen()
 
+
 def test_hybrid_keygen_returns_all_keys(client):
     from app.security.post_quantum import hybrid_keygen
+
     keys = hybrid_keygen()
     assert "x25519_private" in keys
     assert "x25519_public" in keys
@@ -206,6 +231,7 @@ def test_hybrid_keygen_returns_all_keys(client):
 
 def test_hybrid_keygen_x25519_sizes(client):
     from app.security.post_quantum import hybrid_keygen
+
     keys = hybrid_keygen()
     assert len(keys["x25519_private"]) == 32
     assert len(keys["x25519_public"]) == 32
@@ -213,6 +239,7 @@ def test_hybrid_keygen_x25519_sizes(client):
 
 def test_hybrid_keygen_kyber_sizes(client):
     from app.security.post_quantum import hybrid_keygen
+
     keys = hybrid_keygen()
     assert len(keys["kyber_public"]) == 1184
     assert len(keys["kyber_secret"]) == 2400
@@ -220,6 +247,7 @@ def test_hybrid_keygen_kyber_sizes(client):
 
 def test_hybrid_keygen_all_bytes(client):
     from app.security.post_quantum import hybrid_keygen
+
     keys = hybrid_keygen()
     for k, v in keys.items():
         assert isinstance(v, bytes), f"Key {k} must be bytes, got {type(v)}"
@@ -227,6 +255,7 @@ def test_hybrid_keygen_all_bytes(client):
 
 def test_hybrid_keygen_different_each_call(client):
     from app.security.post_quantum import hybrid_keygen
+
     k1 = hybrid_keygen()
     k2 = hybrid_keygen()
     assert k1["x25519_public"] != k2["x25519_public"]
@@ -235,8 +264,10 @@ def test_hybrid_keygen_different_each_call(client):
 
 # hybrid_encapsulate() / hybrid_decapsulate()
 
+
 def test_hybrid_encapsulate_fields(client):
     from app.security.post_quantum import hybrid_encapsulate, hybrid_keygen
+
     keys = hybrid_keygen()
     result = hybrid_encapsulate(keys["x25519_public"], keys["kyber_public"])
     assert "x25519_ephemeral_pub" in result
@@ -246,6 +277,7 @@ def test_hybrid_encapsulate_fields(client):
 
 def test_hybrid_encapsulate_shared_secret_size(client):
     from app.security.post_quantum import hybrid_encapsulate, hybrid_keygen
+
     keys = hybrid_keygen()
     result = hybrid_encapsulate(keys["x25519_public"], keys["kyber_public"])
     assert len(result["shared_secret"]) == 32
@@ -253,6 +285,7 @@ def test_hybrid_encapsulate_shared_secret_size(client):
 
 def test_hybrid_encapsulate_decapsulate_roundtrip(client):
     from app.security.post_quantum import hybrid_decapsulate, hybrid_encapsulate, hybrid_keygen
+
     keys = hybrid_keygen()
     enc = hybrid_encapsulate(keys["x25519_public"], keys["kyber_public"])
     recovered = hybrid_decapsulate(
@@ -266,6 +299,7 @@ def test_hybrid_encapsulate_decapsulate_roundtrip(client):
 
 def test_hybrid_encapsulate_produces_hex_strings(client):
     from app.security.post_quantum import hybrid_encapsulate, hybrid_keygen
+
     keys = hybrid_keygen()
     result = hybrid_encapsulate(keys["x25519_public"], keys["kyber_public"])
     # ephemeral pub and ciphertext are hex strings
@@ -275,6 +309,7 @@ def test_hybrid_encapsulate_produces_hex_strings(client):
 
 def test_hybrid_decapsulate_wrong_x25519_key(client):
     from app.security.post_quantum import hybrid_decapsulate, hybrid_encapsulate, hybrid_keygen
+
     keys = hybrid_keygen()
     other = hybrid_keygen()
     enc = hybrid_encapsulate(keys["x25519_public"], keys["kyber_public"])
@@ -289,8 +324,10 @@ def test_hybrid_decapsulate_wrong_x25519_key(client):
 
 # hybrid_encrypt() / hybrid_decrypt()
 
+
 def test_hybrid_encrypt_shape(client):
     from app.security.post_quantum import hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     plaintext = b"room key material 12345"
     result = hybrid_encrypt(
@@ -306,6 +343,7 @@ def test_hybrid_encrypt_shape(client):
 
 def test_hybrid_encrypt_ciphertext_is_hex(client):
     from app.security.post_quantum import hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     result = hybrid_encrypt(b"test", keys["x25519_public"].hex(), keys["kyber_public"].hex())
     bytes.fromhex(result["ciphertext"])  # must not raise
@@ -313,6 +351,7 @@ def test_hybrid_encrypt_ciphertext_is_hex(client):
 
 def test_hybrid_encrypt_decrypt_roundtrip(client):
     from app.security.post_quantum import hybrid_decrypt, hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     plaintext = b"post-quantum secure message"
     enc = hybrid_encrypt(
@@ -326,6 +365,7 @@ def test_hybrid_encrypt_decrypt_roundtrip(client):
 
 def test_hybrid_encrypt_decrypt_empty_plaintext(client):
     from app.security.post_quantum import hybrid_decrypt, hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     plaintext = b""
     enc = hybrid_encrypt(plaintext, keys["x25519_public"].hex(), keys["kyber_public"].hex())
@@ -335,6 +375,7 @@ def test_hybrid_encrypt_decrypt_empty_plaintext(client):
 
 def test_hybrid_encrypt_decrypt_large_payload(client):
     from app.security.post_quantum import hybrid_decrypt, hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     # Simulate 32 KB payload (large message body)
     plaintext = os.urandom(32_768)
@@ -345,6 +386,7 @@ def test_hybrid_encrypt_decrypt_large_payload(client):
 
 def test_hybrid_encrypt_produces_different_ciphertext_each_time(client):
     from app.security.post_quantum import hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     plaintext = b"same plaintext"
     enc1 = hybrid_encrypt(plaintext, keys["x25519_public"].hex(), keys["kyber_public"].hex())
@@ -356,6 +398,7 @@ def test_hybrid_encrypt_produces_different_ciphertext_each_time(client):
 
 def test_hybrid_decrypt_wrong_x25519_key_raises_or_wrong_plaintext(client):
     from app.security.post_quantum import hybrid_decrypt, hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     other = hybrid_keygen()
     plaintext = b"secret data"
@@ -367,6 +410,7 @@ def test_hybrid_decrypt_wrong_x25519_key_raises_or_wrong_plaintext(client):
 
 def test_hybrid_encrypt_decrypt_multiple_plaintexts(client):
     from app.security.post_quantum import hybrid_decrypt, hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     test_vectors = [
         b"short",
@@ -383,9 +427,11 @@ def test_hybrid_encrypt_decrypt_multiple_plaintexts(client):
 
 # Performance tests
 
+
 def test_kyber_keygen_performance(client):
     """100 keygens should complete in under 5 seconds."""
     from app.security.post_quantum import Kyber768
+
     start = time.monotonic()
     for _ in range(100):
         Kyber768.keygen()
@@ -396,6 +442,7 @@ def test_kyber_keygen_performance(client):
 def test_kyber_encaps_decaps_performance(client):
     """100 encapsulate+decapsulate cycles in under 5 seconds."""
     from app.security.post_quantum import Kyber768
+
     pk, sk = Kyber768.keygen()
     start = time.monotonic()
     for _ in range(100):
@@ -409,6 +456,7 @@ def test_kyber_encaps_decaps_performance(client):
 def test_hybrid_encrypt_decrypt_performance_1kb(client):
     """50 hybrid encrypt+decrypt of 1 KB payloads should be fast."""
     from app.security.post_quantum import hybrid_decrypt, hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     payload = os.urandom(1024)
     start = time.monotonic()
@@ -423,6 +471,7 @@ def test_hybrid_encrypt_decrypt_performance_1kb(client):
 def test_hybrid_encrypt_decrypt_performance_large_payload(client):
     """Encrypt+decrypt of a 1 MB payload in under 3 seconds."""
     from app.security.post_quantum import hybrid_decrypt, hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     payload = os.urandom(1024 * 1024)  # 1 MB
     start = time.monotonic()
@@ -435,8 +484,10 @@ def test_hybrid_encrypt_decrypt_performance_large_payload(client):
 
 # Edge / error cases
 
+
 def test_hybrid_encrypt_invalid_x25519_hex_raises(client):
     from app.security.post_quantum import hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     with pytest.raises(ValueError):
         hybrid_encrypt(b"data", "not_valid_hex!", keys["kyber_public"].hex())
@@ -444,6 +495,7 @@ def test_hybrid_encrypt_invalid_x25519_hex_raises(client):
 
 def test_hybrid_encrypt_invalid_kyber_hex_raises(client):
     from app.security.post_quantum import hybrid_encrypt, hybrid_keygen
+
     keys = hybrid_keygen()
     with pytest.raises(ValueError):
         hybrid_encrypt(b"data", keys["x25519_public"].hex(), "zzz_invalid")
@@ -451,6 +503,7 @@ def test_hybrid_encrypt_invalid_kyber_hex_raises(client):
 
 def test_kyber_decapsulate_returns_bytes_type(client):
     from app.security.post_quantum import Kyber768
+
     pk, sk = Kyber768.keygen()
     ct, _ss = Kyber768.encapsulate(pk)
     recovered = Kyber768.decapsulate(sk, ct)
@@ -459,6 +512,7 @@ def test_kyber_decapsulate_returns_bytes_type(client):
 
 def test_hybrid_keygen_all_keys_non_zero(client):
     from app.security.post_quantum import hybrid_keygen
+
     keys = hybrid_keygen()
     for name, value in keys.items():
         assert value != b"\x00" * len(value), f"Key {name} is all zeros — looks like uninitialized"
@@ -466,6 +520,7 @@ def test_hybrid_keygen_all_keys_non_zero(client):
 
 def test_kyber_shared_secret_non_zero(client):
     from app.security.post_quantum import Kyber768
+
     pk, _sk = Kyber768.keygen()
     _ct, ss = Kyber768.encapsulate(pk)
     assert ss != b"\x00" * 32, "Shared secret is all zeros — something is wrong"

@@ -13,6 +13,7 @@ Covers:
   - Body field verification
   - Edge cases: invalid call_id, wrong user, call types, statuses
 """
+
 from __future__ import annotations
 
 from conftest import login_user, make_user
@@ -30,8 +31,9 @@ def _user_id(u: dict) -> int:
     return data.get("user_id") or data.get("id") or 0
 
 
-def _start_call(client, headers: dict, *, callee_id: int | None = None,
-                room_id: int | None = None, call_type: str = "audio") -> dict:
+def _start_call(
+    client, headers: dict, *, callee_id: int | None = None, room_id: int | None = None, call_type: str = "audio"
+) -> dict:
     payload: dict = {"call_type": call_type}
     if callee_id is not None:
         payload["callee_id"] = callee_id
@@ -42,9 +44,7 @@ def _start_call(client, headers: dict, *, callee_id: int | None = None,
     return r.json()
 
 
-
 class TestCallsAuth:
-
     def test_recent_calls_unauthenticated(self, anon_client):
         r = anon_client.get("/api/calls/recent")
         assert r.status_code in (401, 403)
@@ -74,18 +74,20 @@ class TestCallsAuth:
         assert r.status_code in (401, 403)
 
 
-
 class TestStartCall:
-
     def test_start_audio_call_returns_call_id(self, client):
         _u1, h1 = _register_and_login(client)
         u2, _ = _register_and_login(client)
         uid2 = _user_id(u2)
 
-        r = client.post("/api/calls/start", json={
-            "callee_id": uid2,
-            "call_type": "audio",
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "callee_id": uid2,
+                "call_type": "audio",
+            },
+            headers=h1,
+        )
         assert r.status_code == 201
         body = r.json()
         assert "call_id" in body
@@ -97,10 +99,14 @@ class TestStartCall:
         u2, _ = _register_and_login(client)
         uid2 = _user_id(u2)
 
-        r = client.post("/api/calls/start", json={
-            "callee_id": uid2,
-            "call_type": "audio",
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "callee_id": uid2,
+                "call_type": "audio",
+            },
+            headers=h1,
+        )
         assert r.status_code == 201
         body = r.json()
         assert "started_at" in body
@@ -110,35 +116,51 @@ class TestStartCall:
         _, h1 = _register_and_login(client)
         u2, _ = _register_and_login(client)
 
-        r = client.post("/api/calls/start", json={
-            "callee_id": _user_id(u2),
-            "call_type": "video",
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "callee_id": _user_id(u2),
+                "call_type": "video",
+            },
+            headers=h1,
+        )
         assert r.status_code == 201
 
     def test_start_group_audio_call(self, client):
         _, h1 = _register_and_login(client)
 
-        r = client.post("/api/calls/start", json={
-            "call_type": "group_audio",
-            "room_id": None,
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "call_type": "group_audio",
+                "room_id": None,
+            },
+            headers=h1,
+        )
         assert r.status_code == 201
 
     def test_start_group_video_call(self, client):
         _, h1 = _register_and_login(client)
 
-        r = client.post("/api/calls/start", json={
-            "call_type": "group_video",
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "call_type": "group_video",
+            },
+            headers=h1,
+        )
         assert r.status_code == 201
 
     def test_start_call_invalid_type_rejected(self, client):
         _, h1 = _register_and_login(client)
 
-        r = client.post("/api/calls/start", json={
-            "call_type": "carrier_pigeon",
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "call_type": "carrier_pigeon",
+            },
+            headers=h1,
+        )
         assert r.status_code in (400, 422)
 
     def test_start_call_no_type_uses_default(self, client):
@@ -146,9 +168,13 @@ class TestStartCall:
         _, h1 = _register_and_login(client)
         u2, _ = _register_and_login(client)
 
-        r = client.post("/api/calls/start", json={
-            "callee_id": _user_id(u2),
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "callee_id": _user_id(u2),
+            },
+            headers=h1,
+        )
         assert r.status_code == 201
 
     def test_start_call_with_room_id(self, client):
@@ -158,16 +184,18 @@ class TestStartCall:
         room_resp = client.post("/api/rooms", json={"name": "call-test-room"}, headers=h1)
         room_id = room_resp.json().get("id") or room_resp.json().get("room", {}).get("id")
 
-        r = client.post("/api/calls/start", json={
-            "call_type": "group_audio",
-            "room_id": room_id,
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "call_type": "group_audio",
+                "room_id": room_id,
+            },
+            headers=h1,
+        )
         assert r.status_code == 201
 
 
-
 class TestEndCall:
-
     def test_end_call_answered(self, client):
         _, h1 = _register_and_login(client)
         u2, _ = _register_and_login(client)
@@ -175,11 +203,15 @@ class TestEndCall:
         call = _start_call(client, h1, callee_id=_user_id(u2))
         call_id = call["call_id"]
 
-        r = client.post("/api/calls/end", json={
-            "call_id": call_id,
-            "status": "answered",
-            "duration": 120,
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/end",
+            json={
+                "call_id": call_id,
+                "status": "answered",
+                "duration": 120,
+            },
+            headers=h1,
+        )
         assert r.status_code == 200
         body = r.json()
         assert body.get("ok") is True
@@ -193,11 +225,15 @@ class TestEndCall:
 
         call = _start_call(client, h1, callee_id=_user_id(u2))
 
-        r = client.post("/api/calls/end", json={
-            "call_id": call["call_id"],
-            "status": "missed",
-            "duration": 0,
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/end",
+            json={
+                "call_id": call["call_id"],
+                "status": "missed",
+                "duration": 0,
+            },
+            headers=h1,
+        )
         assert r.status_code == 200
         assert r.json()["status"] == "missed"
 
@@ -208,11 +244,15 @@ class TestEndCall:
         call = _start_call(client, h1, callee_id=_user_id(u2))
 
         # Callee declines
-        r = client.post("/api/calls/end", json={
-            "call_id": call["call_id"],
-            "status": "declined",
-            "duration": 0,
-        }, headers=h2)
+        r = client.post(
+            "/api/calls/end",
+            json={
+                "call_id": call["call_id"],
+                "status": "declined",
+                "duration": 0,
+            },
+            headers=h2,
+        )
         assert r.status_code == 200
         assert r.json()["status"] == "declined"
 
@@ -222,31 +262,43 @@ class TestEndCall:
 
         call = _start_call(client, h1, callee_id=_user_id(u2))
 
-        r = client.post("/api/calls/end", json={
-            "call_id": call["call_id"],
-            "status": "busy",
-            "duration": 0,
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/end",
+            json={
+                "call_id": call["call_id"],
+                "status": "busy",
+                "duration": 0,
+            },
+            headers=h1,
+        )
         assert r.status_code == 200
 
     def test_end_call_invalid_status_rejected(self, client):
         _, h1 = _register_and_login(client)
 
-        r = client.post("/api/calls/end", json={
-            "call_id": 1,
-            "status": "abducted_by_aliens",
-            "duration": 0,
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/end",
+            json={
+                "call_id": 1,
+                "status": "abducted_by_aliens",
+                "duration": 0,
+            },
+            headers=h1,
+        )
         assert r.status_code in (400, 422)
 
     def test_end_call_not_found(self, client):
         _, h1 = _register_and_login(client)
 
-        r = client.post("/api/calls/end", json={
-            "call_id": 999999,
-            "status": "answered",
-            "duration": 10,
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/end",
+            json={
+                "call_id": 999999,
+                "status": "answered",
+                "duration": 10,
+            },
+            headers=h1,
+        )
         assert r.status_code == 404
 
     def test_end_call_other_user_cannot_end_foreign_call(self, client):
@@ -256,11 +308,15 @@ class TestEndCall:
         call = _start_call(client, h1, callee_id=_user_id(u2))  # started as u1
         _, h3 = _register_and_login(client)  # u3 logs in after call started
 
-        r = client.post("/api/calls/end", json={
-            "call_id": call["call_id"],
-            "status": "answered",
-            "duration": 60,
-        }, headers=h3)
+        r = client.post(
+            "/api/calls/end",
+            json={
+                "call_id": call["call_id"],
+                "status": "answered",
+                "duration": 60,
+            },
+            headers=h3,
+        )
         assert r.status_code == 404
 
     def test_end_call_duration_zero_allowed(self, client):
@@ -269,18 +325,20 @@ class TestEndCall:
 
         call = _start_call(client, h1, callee_id=_user_id(u2))
 
-        r = client.post("/api/calls/end", json={
-            "call_id": call["call_id"],
-            "status": "answered",
-            "duration": 0,
-        }, headers=h1)
+        r = client.post(
+            "/api/calls/end",
+            json={
+                "call_id": call["call_id"],
+                "status": "answered",
+                "duration": 0,
+            },
+            headers=h1,
+        )
         assert r.status_code == 200
         assert r.json()["duration"] == 0
 
 
-
 class TestRecentCalls:
-
     def test_recent_calls_empty_for_new_user(self, client):
         _, h = _register_and_login(client)
         r = client.get("/api/calls/recent", headers=h)
@@ -299,10 +357,7 @@ class TestRecentCalls:
         assert r.status_code == 200
         body = r.json()
         assert body["total"] >= 1
-        call = next(
-            (c for c in body["calls"] if c.get("direction") == "outgoing"),
-            None
-        )
+        call = next((c for c in body["calls"] if c.get("direction") == "outgoing"), None)
         assert call is not None, "Expected an outgoing call entry"
 
     def test_recent_calls_shows_incoming(self, client):
@@ -315,10 +370,7 @@ class TestRecentCalls:
         assert r.status_code == 200
         body = r.json()
         assert body["total"] >= 1
-        call = next(
-            (c for c in body["calls"] if c.get("direction") == "incoming"),
-            None
-        )
+        call = next((c for c in body["calls"] if c.get("direction") == "incoming"), None)
         assert call is not None, "Expected an incoming call entry"
 
     def test_recent_calls_call_dict_structure(self, client):
@@ -354,9 +406,7 @@ class TestRecentCalls:
         assert isinstance(r.json()["calls"], list)
 
 
-
 class TestMissedCalls:
-
     def test_missed_calls_empty_initially(self, client):
         _, h = _register_and_login(client)
         r = client.get("/api/calls/missed", headers=h)
@@ -386,11 +436,15 @@ class TestMissedCalls:
         call = _start_call(client, h1, callee_id=_user_id(u2))
 
         # Answer the call
-        client.post("/api/calls/end", json={
-            "call_id": call["call_id"],
-            "status": "answered",
-            "duration": 30,
-        }, headers=h1)
+        client.post(
+            "/api/calls/end",
+            json={
+                "call_id": call["call_id"],
+                "status": "answered",
+                "duration": 30,
+            },
+            headers=h1,
+        )
 
         r = client.get("/api/calls/missed", headers=h2)
         assert r.status_code == 200
@@ -398,16 +452,20 @@ class TestMissedCalls:
         assert call["call_id"] not in ids
 
 
-
 class TestCallStats:
-
     def test_stats_returns_required_fields(self, client):
         _, h = _register_and_login(client)
         r = client.get("/api/calls/stats", headers=h)
         assert r.status_code == 200
         body = r.json()
-        for field in ("total_calls", "answered", "missed", "declined",
-                      "total_duration_seconds", "total_duration_human"):
+        for field in (
+            "total_calls",
+            "answered",
+            "missed",
+            "declined",
+            "total_duration_seconds",
+            "total_duration_human",
+        ):
             assert field in body, f"Missing field: {field}"
 
     def test_stats_total_increases_after_call(self, client):
@@ -426,11 +484,15 @@ class TestCallStats:
         u2, _ = _register_and_login(client)
 
         call = _start_call(client, h1, callee_id=_user_id(u2))
-        client.post("/api/calls/end", json={
-            "call_id": call["call_id"],
-            "status": "answered",
-            "duration": 90,
-        }, headers=h1)
+        client.post(
+            "/api/calls/end",
+            json={
+                "call_id": call["call_id"],
+                "status": "answered",
+                "duration": 90,
+            },
+            headers=h1,
+        )
 
         stats = client.get("/api/calls/stats", headers=h1).json()
         assert stats["answered"] >= 1
@@ -454,9 +516,7 @@ class TestCallStats:
         assert stats["total_duration_seconds"] >= 0
 
 
-
 class TestDeleteCalls:
-
     def test_delete_call_removes_from_history(self, client):
         _, h1 = _register_and_login(client)
         u2, _ = _register_and_login(client)

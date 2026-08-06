@@ -4,6 +4,7 @@ app/bots/bot_messaging.py — Bot HTTP API & WebSocket (for bots, authenticated 
 Send/reply messages, long-poll for updates, WebSocket streaming,
 and the notify_bots_in_room helper called from chat.py.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,8 +33,12 @@ logger = logging.getLogger(__name__)
 
 # Bot HTTP API (for bots, authenticated via api_token)
 
+
 def _store_bot_message(
-    bot: Bot, room_id: int, text: str, db: Session,
+    bot: Bot,
+    room_id: int,
+    text: str,
+    db: Session,
     reply_to_id: int | None = None,
 ) -> Message:
     """
@@ -45,18 +50,26 @@ def _store_bot_message(
     tells the client to render it as plaintext.
     """
     # Verify bot is a member of the room
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == bot.user_id,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == bot.user_id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Bot is not a member of this room")
 
     if reply_to_id:
-        reply_exists = db.query(Message.id).filter(
-            Message.id == reply_to_id,
-            Message.room_id == room_id,
-        ).first()
+        reply_exists = (
+            db.query(Message.id)
+            .filter(
+                Message.id == reply_to_id,
+                Message.room_id == room_id,
+            )
+            .first()
+        )
         if not reply_exists:
             reply_to_id = None
 
@@ -78,21 +91,21 @@ async def _broadcast_bot_message(bot: Bot, msg: Message, db: Session) -> None:
     bot_user = db.query(User).filter(User.id == bot.user_id).first()
 
     payload = {
-        "type":         "message",
-        "msg_id":       msg.id,
-        "sender_id":    bot.user_id,
-        "sender":       bot_user.username if bot_user else bot.name,
+        "type": "message",
+        "msg_id": msg.id,
+        "sender_id": bot.user_id,
+        "sender": bot_user.username if bot_user else bot.name,
         "display_name": bot.name,
         "avatar_emoji": "🤖",
-        "avatar_url":   bot.avatar_url,
-        "is_bot":       True,
-        "bot_id":       bot.id,
-        "bot_name":     bot.name,
-        "plaintext":    msg.content_encrypted.decode("utf-8"),
-        "msg_type":     "text",
-        "reply_to_id":  msg.reply_to_id,
-        "status":       "sent",
-        "created_at":   msg.created_at.isoformat(),
+        "avatar_url": bot.avatar_url,
+        "is_bot": True,
+        "bot_id": bot.id,
+        "bot_name": bot.name,
+        "plaintext": msg.content_encrypted.decode("utf-8"),
+        "msg_type": "text",
+        "reply_to_id": msg.reply_to_id,
+        "status": "sent",
+        "created_at": msg.created_at.isoformat(),
     }
     await manager.broadcast_to_room(msg.room_id, payload)
 
@@ -200,16 +213,19 @@ async def bot_list_rooms(
     for m in memberships:
         room = db.query(Room).filter(Room.id == m.room_id).first()
         if room:
-            rooms.append({
-                "room_id": room.id,
-                "name": room.name,
-                "description": room.description,
-                "member_count": room.member_count(),
-            })
+            rooms.append(
+                {
+                    "room_id": room.id,
+                    "name": room.name,
+                    "description": room.description,
+                    "member_count": room.member_count(),
+                }
+            )
     return {"rooms": rooms}
 
 
 # Bot WebSocket (alternative to HTTP long-polling)
+
 
 @router.websocket("/ws/bot")
 async def ws_bot(
@@ -239,6 +255,7 @@ async def ws_bot(
         return
 
     from app.bots.bot_shared import _hash_token
+
     token_hash = _hash_token(token)
     bot = db.query(Bot).filter(Bot.api_token == token_hash, Bot.is_active.is_(True)).first()
     if not bot:
@@ -260,12 +277,14 @@ async def ws_bot(
     q = await _get_or_create_queue(bot.user_id)
 
     # Send initial connected event
-    await websocket.send_json({
-        "type": "connected",
-        "bot_id": bot.id,
-        "bot_user_id": bot.user_id,
-        "name": bot.name,
-    })
+    await websocket.send_json(
+        {
+            "type": "connected",
+            "bot_id": bot.id,
+            "bot_user_id": bot.user_id,
+            "name": bot.name,
+        }
+    )
 
     async def _reader():
         """Read messages from bot and process them."""
@@ -286,16 +305,20 @@ async def ws_bot(
                     try:
                         msg = _store_bot_message(bot, room_id, text, db)
                         await _broadcast_bot_message(bot, msg, db)
-                        await websocket.send_json({
-                            "type": "ack",
-                            "msg_id": msg.id,
-                            "room_id": room_id,
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "ack",
+                                "msg_id": msg.id,
+                                "room_id": room_id,
+                            }
+                        )
                     except HTTPException as e:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": e.detail,
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "message": e.detail,
+                            }
+                        )
 
             elif action == "reply":
                 room_id = data.get("room_id")
@@ -305,16 +328,20 @@ async def ws_bot(
                     try:
                         msg = _store_bot_message(bot, room_id, text, db, reply_to_id=reply_to_id)
                         await _broadcast_bot_message(bot, msg, db)
-                        await websocket.send_json({
-                            "type": "ack",
-                            "msg_id": msg.id,
-                            "room_id": room_id,
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "ack",
+                                "msg_id": msg.id,
+                                "room_id": room_id,
+                            }
+                        )
                     except HTTPException as e:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": e.detail,
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "message": e.detail,
+                            }
+                        )
 
             elif action == "ping":
                 await websocket.send_json({"type": "pong"})
@@ -348,9 +375,14 @@ async def ws_bot(
 
 # Helper: route messages to bots in a room (called from chat.py)
 
+
 async def notify_bots_in_room(
-    room_id: int, sender_id: int, text: str,
-    msg_id: int, sender_username: str, sender_display_name: str,
+    room_id: int,
+    sender_id: int,
+    text: str,
+    msg_id: int,
+    sender_username: str,
+    sender_display_name: str,
     db: Session,
 ) -> None:
     """
@@ -388,13 +420,13 @@ async def notify_bots_in_room(
             continue  # Don't notify bot about its own messages
 
         update = {
-            "type":             "command" if is_command else "message",
-            "room_id":          room_id,
-            "msg_id":           msg_id,
-            "sender_id":        sender_id,
-            "sender":           sender_username,
+            "type": "command" if is_command else "message",
+            "room_id": room_id,
+            "msg_id": msg_id,
+            "sender_id": sender_id,
+            "sender": sender_username,
             "sender_display_name": sender_display_name,
-            "text":             text,
+            "text": text,
         }
         if is_command:
             update["command"] = command
@@ -458,15 +490,18 @@ async def _constructor_bot_respond(bot_user_id, room_id, command, sender_name, d
         db.commit()
         db.refresh(msg)
 
-        await manager.broadcast_to_room(room_id, {
-            "type": "message",
-            "msg_id": msg.id,
-            "sender_id": bot_user_id,
-            "sender": bot.name,
-            "display_name": bot.name,
-            "is_bot": True,
-            "plaintext": response,
-            "created_at": msg.created_at.isoformat() if msg.created_at else "",
-        })
+        await manager.broadcast_to_room(
+            room_id,
+            {
+                "type": "message",
+                "msg_id": msg.id,
+                "sender_id": bot_user_id,
+                "sender": bot.name,
+                "display_name": bot.name,
+                "is_bot": True,
+                "plaintext": response,
+                "created_at": msg.created_at.isoformat() if msg.created_at else "",
+            },
+        )
     except Exception as e:
         logger.warning(f"Constructor bot respond error: {e}")

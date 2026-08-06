@@ -4,6 +4,7 @@ X25519+AES-256-GCM, Argon2, WAF, CSRF, security headers.
 
 v5: Global mode, structured logging, Prometheus metrics, graceful shutdown.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -157,7 +158,6 @@ def _create_background_task(coro, name: str) -> asyncio.Task:
     return task
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _startup_time
@@ -186,6 +186,7 @@ async def lifespan(app: FastAPI):
     _pq_required = os.environ.get("VORTEX_PQ_REQUIRED", "true").lower() in ("1", "true", "yes")
     try:
         from app.security.post_quantum import get_pq_status
+
         _pq = get_pq_status()
         if _pq.get("secure"):
             logger.info(
@@ -235,35 +236,42 @@ async def lifespan(app: FastAPI):
         logger.warning("Could not determine PQ-crypto status: %s", _pq_err)
 
     from app.peer.redis_pubsub import init_redis, start_subscriber
+
     redis_ok = await init_redis()
     if redis_ok:
+
         async def _on_redis_room_msg(room_id, payload):
             try:
                 await manager.broadcast_to_room(room_id, payload)
             except Exception:
                 logger.exception("Redis room message broadcast failed (room=%s)", room_id)
+
         async def _on_redis_notification(user_id, payload):
             try:
                 await manager.notify_user(user_id, payload)
             except Exception:
                 logger.exception("Redis notification delivery failed (user=%s)", user_id)
+
         await start_subscriber(_on_redis_room_msg, _on_redis_notification)
         logger.info("Redis pub/sub enabled — horizontal scaling active")
 
     if rust_available():
         import vortex_chat
+
         logger.info("Rust crypto backend: vortex_chat %s", vortex_chat.VERSION)
     else:
         logger.warning("Python crypto fallback (compile Rust module for performance)")
 
     from app.security.waf import RULE_COUNT as _WAF_RULES
     from app.security.waf import VERSION as _WAF_VERSION
+
     logger.info("Rust WAF backend: vortex_waf %s (%d rules)", _WAF_VERSION, _WAF_RULES)
 
     name = Config.DEVICE_NAME or socket.gethostname()
 
     if Config.NETWORK_MODE == "global":
         from app.transport.global_transport import global_transport
+
         bootstrap = [p.strip() for p in Config.BOOTSTRAP_PEERS.split(",") if p.strip()]
         await global_transport.start(bootstrap)
         logger.info("Global mode: gossip started, bootstrap=%d", len(bootstrap))
@@ -271,10 +279,12 @@ async def lifespan(app: FastAPI):
         start_discovery(name)
 
     from app.keys.keys import start_coturn
+
     start_coturn()
 
     if Config.TOR_HIDDEN_SERVICE:
         from app.security.tor_hidden_service import tor_hidden_service
+
         onion = await tor_hidden_service.start(listen_port=Config.PORT)
         if onion:
             logger.info("Tor Hidden Service: http://%s", onion)
@@ -282,11 +292,13 @@ async def lifespan(app: FastAPI):
             logger.warning("TOR_HIDDEN_SERVICE=true but Tor HS could not start")
 
     from app.federation.federation import relay as _fed_relay
+
     _fed_restored = await _fed_relay.restore_from_db()
     if _fed_restored:
         logger.info("Federation: restored %d virtual room(s) from DB", _fed_restored)
 
     from app.federation.trusted_nodes import start_federation_monitor
+
     await start_federation_monitor()
     logger.info("Federation: trusted nodes monitor started")
 
@@ -294,6 +306,7 @@ async def lifespan(app: FastAPI):
 
     async def _expired_msg_loop():
         from app.chats.chat import cleanup_expired_messages
+
         while True:
             await asyncio.sleep(30)
             try:
@@ -307,6 +320,7 @@ async def lifespan(app: FastAPI):
 
     async def _expired_status_loop():
         from app.chats.statuses import cleanup_expired_statuses
+
         while True:
             await asyncio.sleep(300)
             try:
@@ -320,6 +334,7 @@ async def lifespan(app: FastAPI):
 
     async def _punishment_cleanup_loop():
         from app.chats.reports import cleanup_expired_punishments
+
         while True:
             await asyncio.sleep(300)
             try:
@@ -355,6 +370,7 @@ async def lifespan(app: FastAPI):
 
     async def _rss_poll_loop():
         from app.chats.channel_feeds import poll_rss_feeds
+
         while True:
             await asyncio.sleep(300)  # every 5 minutes
             try:
@@ -384,6 +400,7 @@ async def lifespan(app: FastAPI):
 
     try:
         from app.peer.edge_cache import edge_cache as _ec
+
         _ec.start()
 
         async def _edge_cache_cleanup():
@@ -402,24 +419,28 @@ async def lifespan(app: FastAPI):
 
     try:
         from app.services.sealed_push import vapid
+
         vapid.load()
     except Exception as e:
         logger.debug("Sealed push init: %s", e)
 
     try:
         from app.transport.smart_relay import smart_relay as _sr
+
         _create_background_task(_sr.start(), "smart-relay")
     except Exception as e:
         logger.debug("Smart relay init: %s", e)
 
     try:
         from app.transport.store_forward import store_forward as _sf
+
         _create_background_task(_sf.start(), "store-forward")
     except Exception as e:
         logger.debug("Store-forward init: %s", e)
 
     try:
         from app.transport.blind_mailbox import start_bmp
+
         await start_bmp()
     except Exception as e:
         logger.debug("BMP init: %s", e)
@@ -430,24 +451,28 @@ async def lifespan(app: FastAPI):
     # Start scheduled stream checker
     try:
         from app.chats.stream import start_schedule_checker
+
         start_schedule_checker()
     except Exception as e:
         logger.debug("Stream schedule checker init: %s", e)
 
     try:
         from app.transport.auto_stealth import start_auto_stealth
+
         await start_auto_stealth()
     except Exception as e:
         logger.debug("Auto-stealth init: %s", e)
 
     try:
         from app.transport.advanced_stealth import advanced_stealth
+
         await advanced_stealth.start()
     except Exception as e:
         logger.debug("Advanced stealth init: %s", e)
 
     try:
         from app.transport.stealth_level3 import stealth_l3
+
         site_url = f"https://{Config.HOST}:{Config.PORT}" if hasattr(Config, "HOST") else ""
         await stealth_l3.start(site_url=site_url)
     except Exception as e:
@@ -455,6 +480,7 @@ async def lifespan(app: FastAPI):
 
     try:
         from app.transport.stealth_level4 import stealth_l4
+
         await stealth_l4.start()
     except Exception as e:
         logger.debug("Stealth L4 init: %s", e)
@@ -462,6 +488,7 @@ async def lifespan(app: FastAPI):
     # Плановая ротация секретов протоколов и релеев level 4.
     try:
         from app.security.secret_rotation import rotator as _secret_rotator
+
         await _secret_rotator.start()
     except Exception as e:
         logger.debug("secret rotation start failed: %s", e)
@@ -470,26 +497,29 @@ async def lifespan(app: FastAPI):
     # proactively nudges connected users toward verified alternative nodes.
     try:
         from app.session.migration_pusher import pusher as _migration_pusher
+
         await _migration_pusher.start()
     except Exception as e:
         logger.debug("migration pusher start failed: %s", e)
 
     startup_duration = time.monotonic() - _startup_time
-    logger.info("Vortex started in %.2fs (mode=%s, peers=%d)",
-                startup_duration, Config.NETWORK_MODE, len(registry.active()))
+    logger.info(
+        "Vortex started in %.2fs (mode=%s, peers=%d)", startup_duration, Config.NETWORK_MODE, len(registry.active())
+    )
 
     yield
 
     try:
         from app.session.migration_pusher import pusher as _migration_pusher
+
         await _migration_pusher.stop()
     except Exception as e:
         logger.debug("migration pusher stop failed: %s", e)
 
-
     ws_count = manager.total_connections()
-    logger.info("Shutting down — closing %d WebSocket connections, cancelling %d tasks",
-                ws_count, len(_background_tasks))
+    logger.info(
+        "Shutting down — closing %d WebSocket connections, cancelling %d tasks", ws_count, len(_background_tasks)
+    )
 
     # Close all active WebSocket connections gracefully
     try:
@@ -508,43 +538,52 @@ async def lifespan(app: FastAPI):
 
     # Stop trusted nodes monitor
     from app.federation.trusted_nodes import stop_federation_monitor
+
     await stop_federation_monitor()
 
     if Config.NETWORK_MODE == "global":
         from app.transport.global_transport import global_transport
+
         await global_transport.stop()
 
     # Stop Tor Hidden Service
     if Config.TOR_HIDDEN_SERVICE:
         from app.security.tor_hidden_service import tor_hidden_service
+
         await tor_hidden_service.stop()
 
     # Stop stealth transports
     with contextlib.suppress(Exception):
         from app.transport.auto_stealth import stop_auto_stealth
+
         await stop_auto_stealth()
     with contextlib.suppress(Exception):
         from app.transport.advanced_stealth import advanced_stealth
+
         advanced_stealth.stop()
     with contextlib.suppress(Exception):
         from app.transport.stealth_level3 import stealth_l3
+
         stealth_l3.stop()
     with contextlib.suppress(Exception):
         from app.transport.stealth_level4 import stealth_l4
+
         stealth_l4.stop()
     with contextlib.suppress(Exception):
         from app.security.secret_rotation import rotator as _secret_rotator
+
         _secret_rotator.stop()
 
     # Close Redis
     from app.peer.redis_pubsub import close_redis
+
     await close_redis()
 
     from app.keys.keys import stop_coturn
+
     stop_coturn()
 
     logger.info("Vortex stopped")
-
 
 
 from app.docs.openapi_config import get_openapi_config
@@ -564,13 +603,15 @@ app = FastAPI(
 )
 
 
-
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """Structured HTTP error responses."""
     logger.warning(
         "HTTP %d: %s %s — %s",
-        exc.status_code, request.method, request.url.path, exc.detail,
+        exc.status_code,
+        request.method,
+        request.url.path,
+        exc.detail,
     )
     return JSONResponse(
         status_code=exc.status_code,
@@ -587,14 +628,18 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Structured validation error responses."""
     errors = []
     for err in exc.errors():
-        errors.append({
-            "field": ".".join(str(loc) for loc in err.get("loc", [])),
-            "message": err.get("msg", ""),
-            "type": err.get("type", ""),
-        })
+        errors.append(
+            {
+                "field": ".".join(str(loc) for loc in err.get("loc", [])),
+                "message": err.get("msg", ""),
+                "type": err.get("type", ""),
+            }
+        )
     logger.warning(
         "Validation error: %s %s — %d errors",
-        request.method, request.url.path, len(errors),
+        request.method,
+        request.url.path,
+        len(errors),
     )
     return JSONResponse(
         status_code=422,
@@ -611,8 +656,10 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     """Catch-all for unhandled exceptions — never expose internals."""
     logger.error(
         "Unhandled exception: %s %s — %s: %s",
-        request.method, request.url.path,
-        type(exc).__name__, exc,
+        request.method,
+        request.url.path,
+        type(exc).__name__,
+        exc,
         exc_info=True,
     )
     if _PROMETHEUS_AVAILABLE:
@@ -625,7 +672,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             "path": request.url.path,
         },
     )
-
 
 
 @app.middleware("http")
@@ -641,12 +687,11 @@ async def correlation_id_middleware(request: Request, call_next):
         correlation_id.reset(token)
 
 
-
 if _PROMETHEUS_AVAILABLE:
+
     @app.middleware("http")
     async def metrics_middleware(request: Request, call_next):
-        if request.url.path in ("/metrics", "/health", "/favicon.ico") \
-                or request.url.path.startswith("/static/"):
+        if request.url.path in ("/metrics", "/health", "/favicon.ico") or request.url.path.startswith("/static/"):
             return await call_next(request)
 
         start = time.perf_counter()
@@ -672,7 +717,6 @@ if _PROMETHEUS_AVAILABLE:
         return response
 
 
-
 waf_config = {
     "rate_limit_requests": Config.WAF_RATE_LIMIT_REQUESTS,
     "rate_limit_window": Config.WAF_RATE_LIMIT_WINDOW,
@@ -691,7 +735,6 @@ app.add_middleware(SecurityHeadersMiddleware)
 if is_stealth():
     app.add_middleware(StealthMiddleware)
     logger.info("🛡️ Stealth mode ENABLED — traffic camouflage active")
-
 
 
 app.include_router(keys_router)
@@ -828,6 +871,7 @@ async def pq_status():
     """Post-quantum cryptography subsystem status."""
     return get_pq_status()
 
+
 from app.security.privacy_routes import router as privacy_router
 
 app.include_router(privacy_router)
@@ -855,10 +899,12 @@ app.include_router(pluggable_router)
 # Configure transport manager
 from app.transport.pluggable import transport_manager
 
-transport_manager.configure({
-    "cdn_relay_url": Config.CDN_RELAY_URL,
-    "shadowsocks_password": os.getenv("SHADOWSOCKS_PASSWORD", ""),
-})
+transport_manager.configure(
+    {
+        "cdn_relay_url": Config.CDN_RELAY_URL,
+        "shadowsocks_password": os.getenv("SHADOWSOCKS_PASSWORD", ""),
+    }
+)
 
 # Global routes are always registered (regardless of NETWORK_MODE) so that
 # auth-protected endpoints (/api/global/peers, /api/global/cdn-status, etc.)
@@ -887,10 +933,12 @@ if Config.OBFUSCATION_ENABLED:
 
     class ObfuscationMiddleware(BaseHTTPMiddleware):
         """Добавляет cover HTTP-заголовки, padding, probe detection ко всем ответам."""
+
         async def dispatch(self, request: StarletteRequest, call_next):
             # Active probe detection: если зонд — отдаём cover site
             with contextlib.suppress(Exception):
                 from app.transport.stealth_level3 import stealth_l3
+
                 req_info = {
                     "ip": request.client.host if request.client else "",
                     "headers": dict(request.headers),
@@ -902,6 +950,7 @@ if Config.OBFUSCATION_ENABLED:
                     from fastapi.responses import HTMLResponse
 
                     from app.transport.cover_traffic import COVER_PAGES
+
                     html = COVER_PAGES.get(request.url.path, COVER_PAGES["/"])
                     return HTMLResponse(html, headers={"Server": "nginx/1.24.0"})
 
@@ -915,7 +964,6 @@ if Config.OBFUSCATION_ENABLED:
     logger.info("Obfuscation middleware enabled (all modes)")
 
 ## Stealth startup/shutdown moved to lifespan (above)
-
 
 
 if os.path.isdir("static"):
@@ -937,10 +985,35 @@ os.makedirs("uploads/saved_gifs", exist_ok=True)
 # css, source code, archives, …) is forced to download so a user-uploaded file
 # can never execute as a document on the app's own origin (stored XSS).
 _INLINE_SAFE_UPLOAD_EXT = {
-    ".jpg", ".jpeg", ".jfif", ".jpe", ".png", ".webp", ".gif", ".bmp",
-    ".tif", ".tiff", ".heic", ".heif", ".dng",
-    ".mp4", ".m4v", ".webm", ".mov", ".qt", ".avi", ".mkv", ".3gp",
-    ".mp3", ".ogg", ".oga", ".wav", ".weba", ".aac", ".m4a", ".flac",
+    ".jpg",
+    ".jpeg",
+    ".jfif",
+    ".jpe",
+    ".png",
+    ".webp",
+    ".gif",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".heic",
+    ".heif",
+    ".dng",
+    ".mp4",
+    ".m4v",
+    ".webm",
+    ".mov",
+    ".qt",
+    ".avi",
+    ".mkv",
+    ".3gp",
+    ".mp3",
+    ".ogg",
+    ".oga",
+    ".wav",
+    ".weba",
+    ".aac",
+    ".m4a",
+    ".flac",
 }
 
 
@@ -949,7 +1022,11 @@ _INLINE_SAFE_UPLOAD_EXT = {
 # stored directly at uploads/<random>.<ext> (chat ATTACHMENTS) are NOT public and
 # require a valid session + room membership.
 _PUBLIC_UPLOAD_DIRS = {
-    "avatars", "room_avatars", "space_avatars", "stickers", "saved_gifs",
+    "avatars",
+    "room_avatars",
+    "space_avatars",
+    "stickers",
+    "saved_gifs",
     # space_emojis are custom emoji image assets rendered inline via <img src>
     # (no FileTransfer row, no per-room auth) — same class as stickers, so they
     # stay public. Added beyond the task's list to avoid breaking emoji rendering.
@@ -987,14 +1064,12 @@ class SafeUploadStaticFiles(StaticFiles):
         from app.security.auth_jwt import decode_access_token
 
         # Parse cookies from the raw ASGI scope.
-        headers = {
-            k.decode("latin-1").lower(): v.decode("latin-1")
-            for k, v in scope.get("headers", [])
-        }
+        headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
         token = None
         cookie_header = headers.get("cookie", "")
         if cookie_header:
             from http.cookies import SimpleCookie
+
             jar = SimpleCookie()
             try:
                 jar.load(cookie_header)
@@ -1015,16 +1090,24 @@ class SafeUploadStaticFiles(StaticFiles):
         stored_name = os.path.basename(os.path.normpath(path))
         db = SessionLocal()
         try:
-            ft = db.query(FileTransfer).filter(
-                FileTransfer.stored_name == stored_name,
-            ).first()
+            ft = (
+                db.query(FileTransfer)
+                .filter(
+                    FileTransfer.stored_name == stored_name,
+                )
+                .first()
+            )
             if not ft:
                 return False
-            member = db.query(RoomMember).filter(
-                RoomMember.room_id   == ft.room_id,
-                RoomMember.user_id   == user_id,
-                RoomMember.is_banned.is_(False),
-            ).first()
+            member = (
+                db.query(RoomMember)
+                .filter(
+                    RoomMember.room_id == ft.room_id,
+                    RoomMember.user_id == user_id,
+                    RoomMember.is_banned.is_(False),
+                )
+                .first()
+            )
             return member is not None
         finally:
             db.close()
@@ -1047,18 +1130,22 @@ class SafeUploadStaticFiles(StaticFiles):
 app.mount("/uploads", SafeUploadStaticFiles(directory="uploads"), name="uploads")
 
 
-
 from fastapi.templating import Jinja2Templates
 
 _templates = Jinja2Templates(directory="templates")
 
+
 @app.get("/", include_in_schema=False)
 async def root(request: Request):
     csrf = request.cookies.get("csrf_token", "")
-    return _templates.TemplateResponse(request, "base.html", {
-        "csrf_token": csrf,
-        "registration_mode": Config.REGISTRATION_MODE,
-    })
+    return _templates.TemplateResponse(
+        request,
+        "base.html",
+        {
+            "csrf_token": csrf,
+            "registration_mode": Config.REGISTRATION_MODE,
+        },
+    )
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -1106,6 +1193,7 @@ async def health():
 
     from app.database import get_engine_info
     from app.peer.redis_pubsub import get_instance_id, is_redis_available
+
     result = {
         "status": "ok",
         "version": "1.0.0",
@@ -1125,11 +1213,12 @@ async def health():
         "ws_connections": manager.total_connections(),
         "own_ip": registry.own_ip,
         "uptime_seconds": round(time.monotonic() - _startup_time, 1) if _startup_time else 0,
-        "ephemeral":   bool(os.getenv("EPHEMERAL_MODE", "").lower() in ("1","true","yes")),
+        "ephemeral": bool(os.getenv("EPHEMERAL_MODE", "").lower() in ("1", "true", "yes")),
         "metadata_padding": bool(getattr(Config, "METADATA_PADDING", True)),
     }
     if Config.NETWORK_MODE == "global":
         from app.transport.global_transport import global_transport
+
         result["global_peers"] = global_transport.peer_count()
         result["obfuscation"] = Config.OBFUSCATION_ENABLED
     return result
@@ -1139,6 +1228,7 @@ async def health():
 async def readiness():
     """Readiness probe — checks all critical subsystems."""
     from app.database import SessionLocal
+
     checks = {}
     all_ok = True
 
@@ -1147,6 +1237,7 @@ async def readiness():
         db = SessionLocal()
         try:
             from sqlalchemy import text
+
             db.execute(text("SELECT 1"))
             checks["database"] = "ok"
         finally:
@@ -1188,7 +1279,6 @@ async def readiness():
     )
 
 
-
 if _PROMETHEUS_AVAILABLE:
     import ipaddress as _ipaddress
     import secrets
@@ -1223,7 +1313,7 @@ if _PROMETHEUS_AVAILABLE:
         if not authorized and _METRICS_TOKEN:
             auth = request.headers.get("authorization", "")
             if auth.startswith("Bearer "):
-                presented = auth[len("Bearer "):].strip()
+                presented = auth[len("Bearer ") :].strip()
                 if secrets.compare_digest(presented, _METRICS_TOKEN):
                     authorized = True
         if not authorized:
@@ -1236,6 +1326,7 @@ if _PROMETHEUS_AVAILABLE:
 
 if __name__ == "__main__":
     import uvicorn
+
     # don't trust X-Forwarded-* unless an explicit proxy allowlist is set
     # via TRUSTED_PROXY_IPS. By default request.client.host stays the real TCP
     # peer so forged XFF headers can't bypass per-IP rate limiting.

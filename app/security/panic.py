@@ -24,6 +24,7 @@ Memory shredding:
   5220.22-M fallback. После wipe: SQLAlchemy identity map очищается,
   GC собирает все поколения, malloc_trim возвращает арены ОС.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -59,7 +60,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["panic"])
 
 
-
 def _get_libc():
     """Load libc — cached."""
     if not hasattr(_get_libc, "_lib"):
@@ -78,7 +78,6 @@ def _has_explicit_bzero() -> bool:
         except (AttributeError, TypeError):
             _has_explicit_bzero._ok = False
     return _has_explicit_bzero._ok
-
 
 
 def _explicit_bzero(addr: int, size: int) -> bool:
@@ -132,7 +131,6 @@ def _secure_zero_region(addr: int, size: int) -> None:
     ctypes.memset(ptr, 0x00, sz)
 
 
-
 class SecurePage:
     """Anonymous mmap page for secret data — never touches pymalloc.
 
@@ -150,7 +148,7 @@ class SecurePage:
     def write(self, data: bytes | str) -> None:
         raw = data.encode("utf-8") if isinstance(data, str) else data
         self._buf.seek(0)
-        self._buf.write(raw[:self._size])
+        self._buf.write(raw[: self._size])
 
     def shred(self) -> None:
         """Multi-pass zero + unmap. After this, the memory is gone."""
@@ -166,7 +164,6 @@ class SecurePage:
 
     def __del__(self):
         self.shred()
-
 
 
 def _secure_zero_string(s: str) -> None:
@@ -223,7 +220,6 @@ def _secure_zero_bytes(b: bytes | bytearray) -> None:
             gc.enable()
 
 
-
 def _purge_pymalloc_residue(db: Session) -> None:
     """Flush SQLAlchemy caches and return freed pymalloc arenas to the OS.
 
@@ -245,7 +241,6 @@ def _purge_pymalloc_residue(db: Session) -> None:
     if libc and platform.system() == "Linux":
         with contextlib.suppress(AttributeError, OSError):
             libc.malloc_trim(ctypes.c_int(0))
-
 
 
 class PanicRequest(BaseModel):
@@ -281,6 +276,7 @@ async def panic_wipe(
 
     user_id = u.id
     from app.security.ip_privacy import raw_ip_for_ratelimit
+
     logger.warning(f"PANIC WIPE initiated for user_id={user_id} ip={raw_ip_for_ratelimit(request)}")
 
     # 2. Собираем комнаты пользователя ДО удаления (для broadcast)
@@ -290,6 +286,7 @@ async def panic_wipe(
     # 3. Рассылаем panic_wipe всем участникам комнат
     try:
         from app.peer.connection_manager import manager
+
         payload = {"type": "panic_wipe", "user_id": user_id}
         for room_id in room_ids:
             await manager.broadcast_to_room(room_id, payload)
@@ -327,6 +324,7 @@ async def panic_wipe(
         db.query(PendingKeyRequest).filter(PendingKeyRequest.user_id == user_id).delete(synchronize_session=False)
 
         from app.security.sealed_sender import compute_sender_pseudo as _csp
+
         for _rid in room_ids:
             _pseudo = _csp(_rid, user_id)
             db.query(Message).filter(
@@ -340,12 +338,17 @@ async def panic_wipe(
                 if len(all_members) <= 2:
                     db.query(Message).filter(Message.room_id == room_id).delete(synchronize_session=False)
                     db.query(RoomMember).filter(RoomMember.room_id == room_id).delete(synchronize_session=False)
-                    db.query(EncryptedRoomKey).filter(EncryptedRoomKey.room_id == room_id).delete(synchronize_session=False)
-                    db.query(PendingKeyRequest).filter(PendingKeyRequest.room_id == room_id).delete(synchronize_session=False)
+                    db.query(EncryptedRoomKey).filter(EncryptedRoomKey.room_id == room_id).delete(
+                        synchronize_session=False
+                    )
+                    db.query(PendingKeyRequest).filter(PendingKeyRequest.room_id == room_id).delete(
+                        synchronize_session=False
+                    )
                     db.delete(room)
 
         try:
             from app.models_rooms import RoomTask
+
             db.query(RoomTask).filter(RoomTask.assignee_id == user_id).update(
                 {RoomTask.assignee_id: None}, synchronize_session=False
             )
@@ -355,6 +358,7 @@ async def panic_wipe(
 
         with contextlib.suppress(Exception):
             from app.models import BotReview
+
             db.query(BotReview).filter(BotReview.user_id == user_id).delete(synchronize_session=False)
         db.query(Bot).filter(Bot.owner_id == user_id).delete(synchronize_session=False)
 
@@ -364,9 +368,9 @@ async def panic_wipe(
             db.delete(space)
 
         try:
-            db.query(Contact).filter(
-                (Contact.owner_id == user_id) | (Contact.contact_id == user_id)
-            ).delete(synchronize_session=False)
+            db.query(Contact).filter((Contact.owner_id == user_id) | (Contact.contact_id == user_id)).delete(
+                synchronize_session=False
+            )
         except Exception as ce:
             logger.warning(f"Contacts delete failed (table may not exist): {ce}")
 

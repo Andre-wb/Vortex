@@ -4,6 +4,7 @@ Provides both synchronous and asynchronous engines/sessions.
 Sync is used by existing endpoints; async is available for new code and
 scales better with PostgreSQL + asyncpg.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -67,7 +68,9 @@ if _is_postgres:
     )
     logger.info(
         "Database engine: PostgreSQL (pool_size=%d, max_overflow=%d, recycle=%ds)",
-        Config.DB_POOL_SIZE, Config.DB_MAX_OVERFLOW, Config.DB_POOL_RECYCLE,
+        Config.DB_POOL_SIZE,
+        Config.DB_MAX_OVERFLOW,
+        Config.DB_POOL_RECYCLE,
     )
 else:
     engine = create_engine(
@@ -79,6 +82,7 @@ else:
 
 # SQLite-specific pragmas (only for SQLite connections)
 if _is_sqlite:
+
     @event.listens_for(engine, "connect")
     def _set_pragmas(conn, _):
         cur = conn.cursor()
@@ -88,6 +92,7 @@ if _is_sqlite:
         cur.execute("PRAGMA temp_store=MEMORY")
         cur.execute("PRAGMA mmap_size=268435456")
         cur.close()
+
 
 # Synchronous session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -128,7 +133,8 @@ if _is_postgres and ASYNC_DATABASE_URL:
 
         logger.info(
             "Async engine: PostgreSQL+asyncpg (pool_size=%d, max_overflow=%d)",
-            Config.DB_POOL_SIZE, Config.DB_MAX_OVERFLOW,
+            Config.DB_POOL_SIZE,
+            Config.DB_MAX_OVERFLOW,
         )
     except ImportError:
         logger.warning("asyncpg or sqlalchemy[asyncio] not installed -- async engine disabled")
@@ -138,8 +144,7 @@ async def get_async_db():
     """FastAPI dependency -- yields an async DB session (PostgreSQL only)."""
     if AsyncSessionLocal is None:
         raise RuntimeError(
-            "Async database session not available. "
-            "Set DATABASE_URL to a PostgreSQL URL and install asyncpg."
+            "Async database session not available. Set DATABASE_URL to a PostgreSQL URL and install asyncpg."
         )
     async with AsyncSessionLocal() as session:
         try:
@@ -163,6 +168,7 @@ def _alembic_available() -> bool:
         return False
     # Check there are actual migration .py files (not just __pycache__)
     import glob
+
     migrations = glob.glob(os.path.join(versions_dir, "*.py"))
     return len(migrations) > 0
 
@@ -273,10 +279,22 @@ def _rebuild_prekey_bundles_if_legacy(conn) -> None:
     # it exists in the old table, so the rebuild tolerates any legacy schema
     # variant (columns added by earlier ALTERs may or may not be present).
     new_cols = [
-        "id", "user_id", "device_id", "identity_key", "signed_prekey", "signed_prekey_sig",
-        "signed_prekey_id", "identity_key_ed", "identity_key_sig", "supports_v2",
-        "device_x3dh_pub", "device_sign_pub", "device_cert_sig", "client_device_id",
-        "created_at", "updated_at",
+        "id",
+        "user_id",
+        "device_id",
+        "identity_key",
+        "signed_prekey",
+        "signed_prekey_sig",
+        "signed_prekey_id",
+        "identity_key_ed",
+        "identity_key_sig",
+        "supports_v2",
+        "device_x3dh_pub",
+        "device_sign_pub",
+        "device_cert_sig",
+        "client_device_id",
+        "created_at",
+        "updated_at",
     ]
     old = set(old_cols)
     select_exprs = ["NULL" if c == "device_id" else (c if c in old else "NULL") for c in new_cols]

@@ -3,6 +3,7 @@ Tests for search endpoints:
   GET /api/users/search       — user search by name, phone, email, IP
   GET /api/users/global-search — global search (users + channels + chats)
 """
+
 import secrets
 
 from conftest import login_user, make_user, random_str
@@ -16,10 +17,11 @@ def _headers(client, user):
 
 # /api/users/search
 
-class TestUserSearch:
 
+class TestUserSearch:
     def test_search_requires_auth(self, client):
         from conftest import SyncASGIClient
+
         bare = SyncASGIClient()
         r = bare.get("/api/users/search", params={"q": "test"})
         assert r.status_code in (401, 403, 422)
@@ -72,8 +74,7 @@ class TestUserSearch:
         target = make_user(client)
         t_h = login_user(client, target["username"], target["password"])
         pub, sig = secrets.token_hex(1184), secrets.token_hex(64)
-        r0 = client.post("/api/keys/kyber",
-                         json={"kyber_public_key": pub, "kyber_public_key_sig": sig}, headers=t_h)
+        r0 = client.post("/api/keys/kyber", json={"kyber_public_key": pub, "kyber_public_key_sig": sig}, headers=t_h)
         assert r0.status_code == 200, r0.text
 
         searcher = make_user(client)
@@ -123,9 +124,7 @@ class TestUserSearch:
         h = _headers(client, user)
         for special_q in ["user%", "user&", "user<>", "user;drop"]:
             r = client.get("/api/users/search", params={"q": special_q}, headers=h)
-            assert r.status_code in (200, 400, 422), (
-                f"Unexpected {r.status_code} for q={special_q!r}: {r.text}"
-            )
+            assert r.status_code in (200, 400, 422), f"Unexpected {r.status_code} for q={special_q!r}: {r.text}"
 
     def test_search_phone_like_query(self, client):
         """Query that looks like a phone number should not crash and return a list."""
@@ -214,10 +213,11 @@ class TestUserSearch:
 
 # /api/users/global-search
 
-class TestGlobalSearch:
 
+class TestGlobalSearch:
     def test_global_search_requires_auth(self, client):
         from conftest import SyncASGIClient
+
         bare = SyncASGIClient()
         r = bare.get("/api/users/global-search", params={"q": "test"})
         assert r.status_code in (401, 403, 422)
@@ -289,9 +289,7 @@ class TestGlobalSearch:
         h = _headers(client, user)
         for q in ["test%20name", "user+name", "abc def", "x'y"]:
             r = client.get("/api/users/global-search", params={"q": q}, headers=h)
-            assert r.status_code in (200, 400, 422), (
-                f"Unexpected {r.status_code} for q={q!r}"
-            )
+            assert r.status_code in (200, 400, 422), f"Unexpected {r.status_code} for q={q!r}"
 
     def test_global_search_long_query_no_crash(self, client):
         user = make_user(client)

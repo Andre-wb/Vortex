@@ -54,13 +54,16 @@ class TestMainPrometheusMetrics:
 
     def test_prometheus_flag_exists(self):
         from app.main import _PROMETHEUS_AVAILABLE
+
         # It's either True (prometheus_client installed) or False
         assert isinstance(_PROMETHEUS_AVAILABLE, bool)
 
     def test_prometheus_metrics_objects(self):
         from app.main import _PROMETHEUS_AVAILABLE
+
         if _PROMETHEUS_AVAILABLE:
             from app.main import ACTIVE_CONNECTIONS, ACTIVE_PEERS, DB_ERRORS, REQUEST_COUNT
+
             assert REQUEST_COUNT is not None
             assert ACTIVE_CONNECTIONS is not None
             assert ACTIVE_PEERS is not None
@@ -72,6 +75,7 @@ class TestMainBackgroundTasks:
 
     def test_background_tasks_list_exists(self):
         from app.main import _background_tasks
+
         # After startup, there should be background tasks
         assert isinstance(_background_tasks, list)
 
@@ -99,6 +103,7 @@ class TestAuthRateLimiting:
     def test_check_auth_rate_returns_true_in_testing(self):
         """In TESTING mode, rate limiter always returns True (line 95-96)."""
         from app.authentication import _check_auth_rate
+
         assert _check_auth_rate("1.2.3.4", 1) is True
         assert _check_auth_rate("1.2.3.4", 1) is True
         assert _check_auth_rate("1.2.3.4", 1) is True
@@ -106,6 +111,7 @@ class TestAuthRateLimiting:
     def test_dummy_hash_exists(self):
         """Covers lines 107-111 (dummy hash creation)."""
         from app.authentication import _DUMMY_HASH
+
         assert isinstance(_DUMMY_HASH, str)
         assert len(_DUMMY_HASH) > 10
 
@@ -120,6 +126,7 @@ class TestAuthCleanupChallenges:
             _challenges_lock,
             _cleanup_expired_challenges,
         )
+
         # Insert an expired challenge
         with _challenges_lock:
             _challenges["expired_test_1"] = _Challenge(
@@ -139,6 +146,7 @@ class TestAuthCleanupChallenges:
             _challenges_lock,
             _cleanup_expired_challenges,
         )
+
         with _challenges_lock:
             _challenges["valid_test_1"] = _Challenge(
                 challenge=b"test",
@@ -215,29 +223,41 @@ class TestAuthLogin:
     def test_login_wrong_credentials(self, client):
         """Covers lines 283-289 (user not found, dummy hash)."""
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/login", json={
-            "phone_or_username": f"nonexistent_{random_str()}",
-            "password": "WrongPass123!",
-        }, headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": f"nonexistent_{random_str()}",
+                "password": "WrongPass123!",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code == 401
 
     def test_login_wrong_password(self, client):
         """Covers lines 291-294 (password mismatch)."""
         user = make_user(client)
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/login", json={
-            "phone_or_username": user["username"],
-            "password": "CompletelyWrongPassword!1",
-        }, headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": user["username"],
+                "password": "CompletelyWrongPassword!1",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code == 401
 
     def test_login_success(self, client):
         user = make_user(client)
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/login", json={
-            "phone_or_username": user["username"],
-            "password": user["password"],
-        }, headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": user["username"],
+                "password": user["password"],
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data.get("ok") is True
@@ -248,8 +268,7 @@ class TestAuthChallengeResponse:
 
     def test_get_challenge_unknown_user(self, client):
         """Covers lines 364-371 (dummy response for unknown user)."""
-        resp = client.get("/api/authentication/challenge",
-                          params={"identifier": f"unknown_{random_str()}"})
+        resp = client.get("/api/authentication/challenge", params={"identifier": f"unknown_{random_str()}"})
         assert resp.status_code == 200
         data = resp.json()
         assert "challenge_id" in data
@@ -260,8 +279,7 @@ class TestAuthChallengeResponse:
     def test_get_challenge_known_user(self, client):
         """Covers lines 372-392 (real challenge for known user)."""
         user = make_user(client)
-        resp = client.get("/api/authentication/challenge",
-                          params={"identifier": user["username"]})
+        resp = client.get("/api/authentication/challenge", params={"identifier": user["username"]})
         assert resp.status_code == 200
         data = resp.json()
         assert "challenge_id" in data
@@ -271,16 +289,21 @@ class TestAuthChallengeResponse:
     def test_login_key_missing_challenge(self, client):
         """Covers line 417-418 (challenge not found)."""
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/login-key", json={
-            "challenge_id": "a" * 32,
-            "pubkey": "b" * 64,
-            "proof": "c" * 64,
-        }, headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/login-key",
+            json={
+                "challenge_id": "a" * 32,
+                "pubkey": "b" * 64,
+                "proof": "c" * 64,
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code == 401
 
     def test_login_key_expired_challenge(self, client):
         """Covers lines 419-420 (expired challenge)."""
         from app.authentication import _Challenge, _challenges, _challenges_lock
+
         cid = secrets.token_hex(16)
         with _challenges_lock:
             _challenges[cid] = _Challenge(
@@ -290,16 +313,21 @@ class TestAuthChallengeResponse:
                 expires_at=time.monotonic() - 10,  # expired
             )
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/login-key", json={
-            "challenge_id": cid,
-            "pubkey": "d" * 64,
-            "proof": "e" * 64,
-        }, headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/login-key",
+            json={
+                "challenge_id": cid,
+                "pubkey": "d" * 64,
+                "proof": "e" * 64,
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code == 401
 
     def test_login_key_wrong_pubkey(self, client):
         """Covers lines 421-422 (pubkey mismatch)."""
         from app.authentication import _Challenge, _challenges, _challenges_lock
+
         cid = secrets.token_hex(16)
         with _challenges_lock:
             _challenges[cid] = _Challenge(
@@ -309,11 +337,15 @@ class TestAuthChallengeResponse:
                 expires_at=time.monotonic() + 100,
             )
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/login-key", json={
-            "challenge_id": cid,
-            "pubkey": "bb" * 32,  # mismatch
-            "proof": "cc" * 32,
-        }, headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/login-key",
+            json={
+                "challenge_id": cid,
+                "pubkey": "bb" * 32,  # mismatch
+                "proof": "cc" * 32,
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code == 401
 
 
@@ -333,8 +365,7 @@ class TestAuth2FA:
         """Covers line 494-495 (no totp_secret)."""
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
-        resp = client.post("/api/authentication/2fa/enable",
-                           json={"code": "123456"}, headers=headers)
+        resp = client.post("/api/authentication/2fa/enable", json={"code": "123456"}, headers=headers)
         assert resp.status_code in (400, 500)
 
     def test_2fa_enable_wrong_code(self, client):
@@ -342,14 +373,14 @@ class TestAuth2FA:
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
         client.post("/api/authentication/2fa/setup", headers=headers)
-        resp = client.post("/api/authentication/2fa/enable",
-                           json={"code": "000000"}, headers=headers)
+        resp = client.post("/api/authentication/2fa/enable", json={"code": "000000"}, headers=headers)
         assert resp.status_code in (400, 401, 500)
 
     def test_2fa_enable_and_disable_flow(self, client):
         """Covers enable success (499-501), disable (504-517)."""
         pytest.importorskip("pyotp")
         import pyotp
+
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
         setup_resp = client.post("/api/authentication/2fa/setup", headers=headers)
@@ -359,41 +390,40 @@ class TestAuth2FA:
             pytest.skip("2FA setup did not return secret")
         totp = pyotp.TOTP(secret)
         code = totp.now()
-        resp = client.post("/api/authentication/2fa/enable",
-                           json={"code": code}, headers=headers)
+        resp = client.post("/api/authentication/2fa/enable", json={"code": code}, headers=headers)
         assert resp.status_code in (200, 400, 500)
         if resp.status_code != 200:
             pytest.skip("2FA enable failed")
         resp = client.get("/api/authentication/2fa/status", headers=headers)
         assert resp.status_code == 200
-        resp = client.post("/api/authentication/2fa/disable",
-                           json={"code": "000000"}, headers=headers)
+        resp = client.post("/api/authentication/2fa/disable", json={"code": "000000"}, headers=headers)
         assert resp.status_code in (400, 401, 500)
         code2 = totp.now()
-        resp = client.post("/api/authentication/2fa/disable",
-                           json={"code": code2}, headers=headers)
+        resp = client.post("/api/authentication/2fa/disable", json={"code": code2}, headers=headers)
         assert resp.status_code in (200, 400, 500)
 
     def test_2fa_disable_when_not_enabled(self, client):
         """Covers line 509-510 (2FA not enabled, returns ok)."""
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
-        resp = client.post("/api/authentication/2fa/disable",
-                           json={"code": "123456"}, headers=headers)
+        resp = client.post("/api/authentication/2fa/disable", json={"code": "123456"}, headers=headers)
         assert resp.status_code in (200, 400, 500)
 
     def test_2fa_verify_login_invalid_user(self, client):
         """Covers lines 525-527 (user not found for 2FA verify)."""
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/2fa/verify-login",
-                           json={"user_id": 999999, "code": "123456"},
-                           headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/2fa/verify-login",
+            json={"user_id": 999999, "code": "123456"},
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code in (400, 401, 404, 422, 500)
 
     def test_2fa_verify_login_wrong_code(self, client):
         """Covers lines 528-530 (wrong TOTP code during 2FA login)."""
         pytest.importorskip("pyotp")
         import pyotp
+
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
         setup_resp = client.post("/api/authentication/2fa/setup", headers=headers)
@@ -403,21 +433,23 @@ class TestAuth2FA:
             pytest.skip("No secret returned")
         totp = pyotp.TOTP(secret)
         code = totp.now()
-        enable_resp = client.post("/api/authentication/2fa/enable",
-                    json={"code": code}, headers=headers)
+        enable_resp = client.post("/api/authentication/2fa/enable", json={"code": code}, headers=headers)
         if enable_resp.status_code != 200:
             pytest.skip("2FA enable failed")
         user_id = user["data"].get("user_id") or user["data"].get("id")
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.post("/api/authentication/2fa/verify-login",
-                           json={"user_id": user_id, "code": "000000"},
-                           headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/2fa/verify-login",
+            json={"user_id": user_id, "code": "000000"},
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code in (400, 401, 500)
 
     def test_2fa_verify_login_success(self, client):
         """Covers lines 531-554 (successful 2FA verify-login with token issuance)."""
         pytest.importorskip("pyotp")
         import pyotp
+
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
         setup_resp = client.post("/api/authentication/2fa/setup", headers=headers)
@@ -427,8 +459,7 @@ class TestAuth2FA:
             pytest.skip("No secret returned")
         totp = pyotp.TOTP(secret)
         code = totp.now()
-        enable_resp = client.post("/api/authentication/2fa/enable",
-                    json={"code": code}, headers=headers)
+        enable_resp = client.post("/api/authentication/2fa/enable", json={"code": code}, headers=headers)
         if enable_resp.status_code != 200:
             pytest.skip("2FA enable failed")
         # verify-login требует свежую проверку пароля — логинимся заново,
@@ -437,9 +468,11 @@ class TestAuth2FA:
         user_id = user["data"].get("user_id") or user["data"].get("id")
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
         code2 = totp.now()
-        resp = client.post("/api/authentication/2fa/verify-login",
-                           json={"user_id": user_id, "code": code2},
-                           headers={"X-CSRF-Token": csrf})
+        resp = client.post(
+            "/api/authentication/2fa/verify-login",
+            json={"user_id": user_id, "code": code2},
+            headers={"X-CSRF-Token": csrf},
+        )
         assert resp.status_code in (200, 400, 500)
 
     def test_2fa_status_not_enabled(self, client):
@@ -477,18 +510,18 @@ class TestAuthAvatarUpload:
         headers = login_user(client, user["username"], user["password"])
         # Create a >5MB payload
         large_data = b"\x00" * (5 * 1024 * 1024 + 1)
-        resp = client.post("/api/authentication/avatar",
-                           files={"file": ("big.jpg", large_data, "image/jpeg")},
-                           headers=headers)
+        resp = client.post(
+            "/api/authentication/avatar", files={"file": ("big.jpg", large_data, "image/jpeg")}, headers=headers
+        )
         assert resp.status_code == 413
 
     def test_avatar_upload_invalid_image(self, client):
         """Covers lines 674-675 (invalid image format)."""
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
-        resp = client.post("/api/authentication/avatar",
-                           files={"file": ("bad.jpg", b"not-an-image", "image/jpeg")},
-                           headers=headers)
+        resp = client.post(
+            "/api/authentication/avatar", files={"file": ("bad.jpg", b"not-an-image", "image/jpeg")}, headers=headers
+        )
         assert resp.status_code == 400
 
     def test_avatar_upload_valid(self, client):
@@ -496,6 +529,7 @@ class TestAuthAvatarUpload:
         import io
 
         from PIL import Image
+
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
         # Create a small valid image
@@ -503,9 +537,9 @@ class TestAuthAvatarUpload:
         buf = io.BytesIO()
         img.save(buf, "JPEG")
         buf.seek(0)
-        resp = client.post("/api/authentication/avatar",
-                           files={"file": ("avatar.jpg", buf.getvalue(), "image/jpeg")},
-                           headers=headers)
+        resp = client.post(
+            "/api/authentication/avatar", files={"file": ("avatar.jpg", buf.getvalue(), "image/jpeg")}, headers=headers
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is True
@@ -518,11 +552,15 @@ class TestAuthRichStatus:
     def test_update_rich_status(self, client):
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
-        resp = client.put("/api/authentication/status", json={
-            "custom_status": "Working hard",
-            "status_emoji": "X",
-            "presence": "away",
-        }, headers=headers)
+        resp = client.put(
+            "/api/authentication/status",
+            json={
+                "custom_status": "Working hard",
+                "status_emoji": "X",
+                "presence": "away",
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is True
@@ -533,10 +571,14 @@ class TestAuthRichStatus:
         """Covers the branch where values are empty strings (cleared)."""
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
-        resp = client.put("/api/authentication/status", json={
-            "custom_status": "",
-            "status_emoji": "",
-        }, headers=headers)
+        resp = client.put(
+            "/api/authentication/status",
+            json={
+                "custom_status": "",
+                "status_emoji": "",
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is True
@@ -547,9 +589,13 @@ class TestAuthRichStatus:
         """Covers branch where only presence is updated."""
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
-        resp = client.put("/api/authentication/status", json={
-            "presence": "dnd",
-        }, headers=headers)
+        resp = client.put(
+            "/api/authentication/status",
+            json={
+                "presence": "dnd",
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["presence"] == "dnd"
@@ -561,11 +607,15 @@ class TestAuthProfile:
     def test_update_profile(self, client):
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
-        resp = client.put("/api/authentication/profile", json={
-            "display_name": "New Name",
-            "avatar_emoji": "🦊",
-            "email": f"test_{random_str(6)}@example.com",
-        }, headers=headers)
+        resp = client.put(
+            "/api/authentication/profile",
+            json={
+                "display_name": "New Name",
+                "avatar_emoji": "🦊",
+                "email": f"test_{random_str(6)}@example.com",
+            },
+            headers=headers,
+        )
         assert resp.status_code in (200, 400, 500)
 
 
@@ -593,11 +643,13 @@ class TestWAFEngine:
 
     def test_backend_is_rust(self):
         from app.security.waf import RULE_COUNT, VERSION
+
         assert VERSION
         assert RULE_COUNT == 74
 
     def test_init_default(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         assert waf.rate_limit_requests == 100
         assert waf.rate_limit_window == 60
@@ -606,12 +658,15 @@ class TestWAFEngine:
 
     def test_init_custom_config(self):
         from app.security.waf import WAFEngine
-        waf = WAFEngine({
-            "rate_limit_requests": 50,
-            "rate_limit_window": 30,
-            "block_duration": 1800,
-            "whitelist_ips": ["10.0.0.1"],
-        })
+
+        waf = WAFEngine(
+            {
+                "rate_limit_requests": 50,
+                "rate_limit_window": 30,
+                "block_duration": 1800,
+                "whitelist_ips": ["10.0.0.1"],
+            }
+        )
         assert waf.rate_limit_requests == 50
         assert waf.rate_limit_window == 30
         assert waf.block_duration == 1800
@@ -619,11 +674,13 @@ class TestWAFEngine:
 
     def test_is_ip_blocked_whitelisted(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         assert waf.is_ip_blocked("127.0.0.1") is False
 
     def test_is_ip_blocked_blacklisted(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         waf.add_blacklist_ip("6.6.6.6")
         assert waf.is_ip_blocked("6.6.6.6") is True
@@ -631,12 +688,14 @@ class TestWAFEngine:
 
     def test_is_ip_blocked_temporary(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         waf.block_ip("7.7.7.7", "test", 3600)
         assert waf.is_ip_blocked("7.7.7.7") is True
 
     def test_block_ip_normal(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         assert waf.block_ip("9.9.9.9", "test block") is True
         assert any(entry["ip"] == "9.9.9.9" for entry in waf.blocked_ips())
@@ -645,12 +704,14 @@ class TestWAFEngine:
     def test_block_ip_whitelisted(self):
         """Адрес из белого списка заблокировать нельзя."""
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         assert waf.block_ip("127.0.0.1", "test") is False
         assert waf.is_ip_blocked("127.0.0.1") is False
 
     def test_block_ip_custom_duration(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         assert waf.block_ip("11.11.11.11", "test", 600) is True
         entry = next(e for e in waf.blocked_ips() if e["ip"] == "11.11.11.11")
@@ -659,6 +720,7 @@ class TestWAFEngine:
 
     def test_unblock_ip(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         waf.block_ip("12.12.12.12", "test")
         assert waf.unblock_ip("12.12.12.12") is True
@@ -667,6 +729,7 @@ class TestWAFEngine:
 
     def test_rate_limit_allows_within_window(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine({"rate_limit_requests": 5, "rate_limit_window": 60})
         for _ in range(5):
             result = waf.analyze_request(_waf_request(client_ip="10.10.10.10"))
@@ -674,6 +737,7 @@ class TestWAFEngine:
 
     def test_rate_limit_exceeded(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine({"rate_limit_requests": 2, "rate_limit_window": 60})
         for _ in range(2):
             waf.analyze_request(_waf_request(client_ip="5.5.5.5"))
@@ -684,6 +748,7 @@ class TestWAFEngine:
 
     def test_rate_limit_skips_whitelist(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine({"rate_limit_requests": 1, "rate_limit_window": 60})
         for _ in range(5):
             result = waf.analyze_request(_waf_request(client_ip="127.0.0.1"))
@@ -691,15 +756,19 @@ class TestWAFEngine:
 
     def test_analyze_request_clean(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        result = waf.analyze_request(_waf_request(
-            headers={"user-agent": "Mozilla/5.0 Test Browser"},
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                headers={"user-agent": "Mozilla/5.0 Test Browser"},
+            )
+        )
         assert result["block"] is False
         assert result["client_ip"] == "203.0.113.1"
 
     def test_analyze_request_blocked_ip(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         waf.add_blacklist_ip("66.66.66.66")
         result = waf.analyze_request(_waf_request(client_ip="66.66.66.66"))
@@ -708,62 +777,78 @@ class TestWAFEngine:
 
     def test_analyze_request_invalid_method(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         result = waf.analyze_request(_waf_request(method="PURGE", path="/test"))
         assert any(f["rule_id"] == "INVALID-METHOD" for f in result["findings"])
 
     def test_analyze_request_long_url(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         result = waf.analyze_request(_waf_request(url="/test?" + "x" * 2100, path="/test"))
         assert any(f["rule_id"] == "LONG-URL" for f in result["findings"])
 
     def test_analyze_request_suspicious_ua(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         result = waf.analyze_request(_waf_request(headers={"user-agent": "ab"}))
         assert any(f["rule_id"] == "SUSPICIOUS-UA" for f in result["findings"])
 
     def test_analyze_request_xss_referer(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        result = waf.analyze_request(_waf_request(
-            headers={"referer": "javascript:alert(1)"},
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                headers={"referer": "javascript:alert(1)"},
+            )
+        )
         assert result["block"] is True
         assert any(f["rule_id"] == "XSS-REFERER" for f in result["findings"])
 
     def test_analyze_request_sql_injection_param(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        result = waf.analyze_request(_waf_request(
-            path="/api/search",
-            params={"q": ["1' OR 1=1 -- "]},
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                path="/api/search",
+                params={"q": ["1' OR 1=1 -- "]},
+            )
+        )
         assert result["block"] is True
         assert any(f["rule_id"].startswith("SQLI") for f in result["findings"])
 
     def test_analyze_request_xss_param(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        result = waf.analyze_request(_waf_request(
-            path="/api/search",
-            params={"q": ["<script>alert(1)</script>"]},
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                path="/api/search",
+                params={"q": ["<script>alert(1)</script>"]},
+            )
+        )
         assert result["block"] is True
 
     def test_analyze_request_safe_param_skipped(self):
         """csrf_token не проверяется правилами."""
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        result = waf.analyze_request(_waf_request(
-            params={"csrf_token": ["SELECT something FROM dual"]},
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                params={"csrf_token": ["SELECT something FROM dual"]},
+            )
+        )
         assert result["block"] is False
 
     def test_analyze_request_scalar_param_value(self):
         """Значение параметра может прийти не списком."""
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         result = waf.analyze_request(_waf_request(params={"q": "1' OR 1=1 -- "}))
         assert result["block"] is True
@@ -774,47 +859,68 @@ class TestWAFEngineBody:
 
     def test_json_body_clean(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        result = waf.analyze_request(_waf_request(
-            method="POST", body='{"name": "safe value"}', content_type="application/json",
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                method="POST",
+                body='{"name": "safe value"}',
+                content_type="application/json",
+            )
+        )
         assert result["block"] is False
 
     def test_json_body_injection(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        result = waf.analyze_request(_waf_request(
-            method="POST",
-            body='{"msg": {"parts": ["1 UNION ALL SELECT * FROM users"]}}',
-            content_type="application/json",
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                method="POST",
+                body='{"msg": {"parts": ["1 UNION ALL SELECT * FROM users"]}}',
+                content_type="application/json",
+            )
+        )
         assert result["block"] is True
 
     def test_invalid_json_body(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        result = waf.analyze_request(_waf_request(
-            method="POST", body="{invalid json", content_type="application/json",
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                method="POST",
+                body="{invalid json",
+                content_type="application/json",
+            )
+        )
         assert any(f["rule_id"] == "INVALID-JSON" for f in result["findings"])
 
     def test_form_urlencoded_body(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        clean = waf.analyze_request(_waf_request(
-            method="POST", body="name=test&value=hello",
-            content_type="application/x-www-form-urlencoded",
-        ))
+        clean = waf.analyze_request(
+            _waf_request(
+                method="POST",
+                body="name=test&value=hello",
+                content_type="application/x-www-form-urlencoded",
+            )
+        )
         assert clean["block"] is False
 
-        dirty = waf.analyze_request(_waf_request(
-            method="POST", body="comment=%3Cscript%3Ealert(1)%3C%2Fscript%3E",
-            content_type="application/x-www-form-urlencoded",
-        ))
+        dirty = waf.analyze_request(
+            _waf_request(
+                method="POST",
+                body="comment=%3Cscript%3Ealert(1)%3C%2Fscript%3E",
+                content_type="application/x-www-form-urlencoded",
+            )
+        )
         assert dirty["block"] is True
 
     def test_multipart_webshell_upload(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         body = (
             "------x\r\n"
@@ -822,15 +928,19 @@ class TestWAFEngineBody:
             "<?php system($_GET['c']); ?>\r\n"
             "------x--\r\n"
         )
-        result = waf.analyze_request(_waf_request(
-            method="POST", body=body,
-            content_type="multipart/form-data; boundary=----x",
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                method="POST",
+                body=body,
+                content_type="multipart/form-data; boundary=----x",
+            )
+        )
         assert result["block"] is True
         assert any(f["rule_id"] == "DANGEROUS-UPLOAD" for f in result["findings"])
 
     def test_multipart_allows_source_files(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         body = (
             "------x\r\n"
@@ -838,26 +948,39 @@ class TestWAFEngineBody:
             "print(1)\r\n"
             "------x--\r\n"
         )
-        result = waf.analyze_request(_waf_request(
-            method="POST", body=body,
-            content_type="multipart/form-data; boundary=----x",
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                method="POST",
+                body=body,
+                content_type="multipart/form-data; boundary=----x",
+            )
+        )
         assert result["block"] is False
 
     def test_plain_text_fallback(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        result = waf.analyze_request(_waf_request(
-            method="POST", body="SELECT password FROM users", content_type="text/plain",
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                method="POST",
+                body="SELECT password FROM users",
+                content_type="text/plain",
+            )
+        )
         assert len(result["findings"]) > 0
 
     def test_oversized_body(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine({"max_content_length": 64})
-        result = waf.analyze_request(_waf_request(
-            method="POST", body="a" * 200, content_type="text/plain",
-        ))
+        result = waf.analyze_request(
+            _waf_request(
+                method="POST",
+                body="a" * 200,
+                content_type="text/plain",
+            )
+        )
         assert result["block"] is True
         assert any(f["rule_id"] == "LARGE-BODY" for f in result["findings"])
 
@@ -867,6 +990,7 @@ class TestWAFEnginePath:
 
     def test_path_traversal(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         result = waf.analyze_request(_waf_request(path="/../../../etc/passwd"))
         assert any(f["rule_id"] == "PATH-TRAVERSAL" for f in result["findings"])
@@ -874,18 +998,21 @@ class TestWAFEnginePath:
 
     def test_dangerous_extension(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         result = waf.analyze_request(_waf_request(path="/admin/shell.php"))
         assert any(f["rule_id"] == "DANGEROUS-EXTENSION" for f in result["findings"])
 
     def test_long_path(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         result = waf.analyze_request(_waf_request(path="/a" * 300))
         assert any(f["rule_id"] == "LONG-PATH" for f in result["findings"])
 
     def test_signature_match_in_path(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         result = waf.analyze_request(_waf_request(path="/api/cat /etc/passwd|whoami"))
         assert len(result["findings"]) > 0
@@ -896,25 +1023,39 @@ class TestWAFEngineStats:
 
     def test_get_stats_empty(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         stats = waf.get_stats()
-        for key in ("total_requests", "blocked_requests", "block_rate",
-                    "rules_triggered", "ip_blocks", "blocked_ips_count", "active_rules"):
+        for key in (
+            "total_requests",
+            "blocked_requests",
+            "block_rate",
+            "rules_triggered",
+            "ip_blocks",
+            "blocked_ips_count",
+            "active_rules",
+        ):
             assert key in stats
         assert stats["block_rate"] == 0
 
     def test_block_rate_calculation(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         # Один вредоносный запрос из четырёх.
-        waf.analyze_request(_waf_request(
-            path="/api/search", params={"q": ["1' OR 1=1 -- "]},
-        ))
+        waf.analyze_request(
+            _waf_request(
+                path="/api/search",
+                params={"q": ["1' OR 1=1 -- "]},
+            )
+        )
         for index in range(3):
-            waf.analyze_request(_waf_request(
-                client_ip=f"203.0.113.{index + 10}",
-                headers={"user-agent": "Mozilla/5.0"},
-            ))
+            waf.analyze_request(
+                _waf_request(
+                    client_ip=f"203.0.113.{index + 10}",
+                    headers={"user-agent": "Mozilla/5.0"},
+                )
+            )
         stats = waf.get_stats()
         assert stats["total_requests"] == 4
         assert stats["blocked_requests"] == 1
@@ -924,6 +1065,7 @@ class TestWAFEngineStats:
 
     def test_rules_listing(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         rules = waf.rules()
         assert len(rules) == 74
@@ -932,16 +1074,21 @@ class TestWAFEngineStats:
 
     def test_rule_trigger_counters(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
-        waf.analyze_request(_waf_request(
-            path="/api/search", params={"q": ["1' OR 1=1 -- "]},
-        ))
+        waf.analyze_request(
+            _waf_request(
+                path="/api/search",
+                params={"q": ["1' OR 1=1 -- "]},
+            )
+        )
         triggered = [r for r in waf.rules() if r["trigger_count"] > 0]
         assert triggered
         assert all(r["last_triggered"] for r in triggered)
 
     def test_run_maintenance(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         waf.block_ip("13.13.13.13", "test", 3600)
         # Блокировка ещё активна — удалять нечего.
@@ -956,12 +1103,14 @@ class TestWAFCaptcha:
     def _solve(question: str) -> str:
         """Разбирает 'What is A op B?' и вычисляет ответ."""
         import operator
-        ops = {'+': operator.add, '-': operator.sub, '*': operator.mul}
+
+        ops = {"+": operator.add, "-": operator.sub, "*": operator.mul}
         parts = question.replace("What is ", "").rstrip("?").strip().split()
         return str(ops[parts[1]](int(parts[0]), int(parts[2])))
 
     def test_generate_challenge(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         challenge = waf.generate_captcha("1.1.1.1")
         assert "challenge_id" in challenge
@@ -970,19 +1119,21 @@ class TestWAFCaptcha:
 
     def test_verify_correct_answer(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         challenge = waf.generate_captcha("1.1.1.1")
-        assert waf.verify_captcha(challenge["challenge_id"],
-                                  self._solve(challenge["question"])) is True
+        assert waf.verify_captcha(challenge["challenge_id"], self._solve(challenge["question"])) is True
 
     def test_verify_wrong_answer(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         challenge = waf.generate_captcha("1.1.1.1")
         assert waf.verify_captcha(challenge["challenge_id"], "999999") is False
 
     def test_verify_unknown_challenge(self):
         from app.security.waf import WAFEngine
+
         waf = WAFEngine()
         assert waf.verify_captcha("nonexistent", "42") is False
         assert waf.verify_captcha("", "42") is False
@@ -990,6 +1141,7 @@ class TestWAFCaptcha:
     def test_challenge_from_another_engine_is_rejected(self):
         """Ключ подписи свой у каждого экземпляра без общего секрета."""
         from app.security.waf import WAFEngine
+
         issuer = WAFEngine()
         outsider = WAFEngine()
         challenge = issuer.generate_captcha("1.1.1.1")
@@ -1000,6 +1152,7 @@ class TestWAFCaptcha:
     def test_shared_secret_allows_cross_verification(self):
         """С общим секретом капчу проверит любой экземпляр."""
         from app.security.waf import WAFEngine
+
         config = {"captcha_secret": "shared-secret-for-all-instances"}
         issuer = WAFEngine(config)
         verifier = WAFEngine(config)
@@ -1013,6 +1166,7 @@ class TestWAFManager:
 
     def test_block_ip(self):
         from app.security.waf import WAFEngine, WAFManager
+
         mgr = WAFManager(WAFEngine())
         result = mgr.block_ip("1.2.3.4", "test", 600)
         assert result["success"] is True
@@ -1021,17 +1175,20 @@ class TestWAFManager:
 
     def test_unblock_ip_found(self):
         from app.security.waf import WAFEngine, WAFManager
+
         mgr = WAFManager(WAFEngine())
         mgr.block_ip("2.3.4.5", "test")
         assert mgr.unblock_ip("2.3.4.5")["success"] is True
 
     def test_unblock_ip_not_found(self):
         from app.security.waf import WAFEngine, WAFManager
+
         mgr = WAFManager(WAFEngine())
         assert mgr.unblock_ip("99.99.99.99")["success"] is False
 
     def test_get_blocked_ips(self):
         from app.security.waf import WAFEngine, WAFManager
+
         mgr = WAFManager(WAFEngine())
         mgr.block_ip("3.4.5.6", "test")
         entries = mgr.get_blocked_ips()
@@ -1041,6 +1198,7 @@ class TestWAFManager:
 
     def test_add_whitelist_valid(self):
         from app.security.waf import WAFEngine, WAFManager
+
         waf = WAFEngine()
         mgr = WAFManager(waf)
         assert mgr.add_whitelist_ip("192.168.1.1")["success"] is True
@@ -1048,11 +1206,13 @@ class TestWAFManager:
 
     def test_add_whitelist_invalid(self):
         from app.security.waf import WAFEngine, WAFManager
+
         mgr = WAFManager(WAFEngine())
         assert mgr.add_whitelist_ip("not-an-ip")["success"] is False
 
     def test_remove_whitelist_found(self):
         from app.security.waf import WAFEngine, WAFManager
+
         waf = WAFEngine()
         mgr = WAFManager(waf)
         mgr.add_whitelist_ip("10.0.0.1")
@@ -1061,11 +1221,13 @@ class TestWAFManager:
 
     def test_remove_whitelist_not_found(self):
         from app.security.waf import WAFEngine, WAFManager
+
         mgr = WAFManager(WAFEngine())
         assert mgr.remove_whitelist_ip("99.99.99.99")["success"] is False
 
     def test_get_whitelist(self):
         from app.security.waf import WAFEngine, WAFManager
+
         mgr = WAFManager(WAFEngine())
         whitelist = mgr.get_whitelist()
         assert isinstance(whitelist, list)
@@ -1077,15 +1239,18 @@ class TestWAFGlobalInit:
 
     def test_init_waf_engine(self):
         from app.security.waf import WAFEngine, init_waf_engine
+
         assert isinstance(init_waf_engine(), WAFEngine)
 
     def test_get_waf_engine_after_init(self):
         from app.security.waf import get_waf_engine, init_waf_engine
+
         init_waf_engine()
         assert get_waf_engine() is not None
 
     def test_get_waf_manager(self):
         from app.security.waf import get_waf_manager, init_waf_engine
+
         init_waf_engine()
         assert get_waf_manager().get_whitelist()
 
@@ -1173,6 +1338,7 @@ class TestWAFMiddlewareHelpers:
 
     def test_get_client_ip_from_trusted_proxy(self, monkeypatch):
         import app.security.waf.middleware as mw_mod
+
         # Список доверенных прокси читается из env при импорте — патчим глобал.
         monkeypatch.setattr(mw_mod, "_TRUSTED_PROXIES", ["127.0.0.0/8"])
         mw = self._middleware()
@@ -1201,6 +1367,7 @@ class TestWAFSetupFunction:
         from fastapi import FastAPI
 
         from app.security.waf import WAFEngine, setup_waf
+
         engine = setup_waf(FastAPI())
         assert isinstance(engine, WAFEngine)
 
@@ -1252,10 +1419,13 @@ class TestCSRFMiddleware:
 
     def test_csrf_skip_path(self, client):
         """Covers lines 147-158 (paths in _SKIP_PATHS bypass CSRF)."""
-        resp = client.post("/api/authentication/login", json={
-            "phone_or_username": "test",
-            "password": "test",
-        })
+        resp = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": "test",
+                "password": "test",
+            },
+        )
         # Doesn't get blocked by CSRF (it's in _SKIP_PATHS)
         assert resp.status_code in (200, 401)
 
@@ -1272,9 +1442,13 @@ class TestCSRFMiddleware:
         """Covers lines 216-221 (wrong CSRF token => 403)."""
         user = make_user(client)
         login_user(client, user["username"], user["password"])
-        resp = client.put("/api/authentication/status", json={
-            "presence": "online",
-        }, headers={"X-CSRF-Token": "totally_wrong_token"})
+        resp = client.put(
+            "/api/authentication/status",
+            json={
+                "presence": "online",
+            },
+            headers={"X-CSRF-Token": "totally_wrong_token"},
+        )
         # Wrong CSRF should be rejected
         assert resp.status_code in (200, 403)
 
@@ -1282,9 +1456,13 @@ class TestCSRFMiddleware:
         """Covers lines 216+223-227 (valid CSRF passes through)."""
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
-        resp = client.put("/api/authentication/status", json={
-            "presence": "online",
-        }, headers=headers)
+        resp = client.put(
+            "/api/authentication/status",
+            json={
+                "presence": "online",
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
 
     def test_csrf_json_body_token(self, client):
@@ -1292,10 +1470,14 @@ class TestCSRFMiddleware:
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        resp = client.put("/api/authentication/status", json={
-            "presence": "online",
-            "csrf_token": csrf,
-        }, headers=headers)
+        resp = client.put(
+            "/api/authentication/status",
+            json={
+                "presence": "online",
+                "csrf_token": csrf,
+            },
+            headers=headers,
+        )
         assert resp.status_code in (200, 403)
 
     def test_csrf_multipart_header(self, client):
@@ -1305,13 +1487,14 @@ class TestCSRFMiddleware:
         import io
 
         from PIL import Image
+
         img = Image.new("RGB", (10, 10), color="blue")
         buf = io.BytesIO()
         img.save(buf, "JPEG")
         buf.seek(0)
-        resp = client.post("/api/authentication/avatar",
-                           files={"file": ("test.jpg", buf.getvalue(), "image/jpeg")},
-                           headers=headers)
+        resp = client.post(
+            "/api/authentication/avatar", files={"file": ("test.jpg", buf.getvalue(), "image/jpeg")}, headers=headers
+        )
         assert resp.status_code in (200, 403)
 
 
@@ -1340,6 +1523,7 @@ class TestDatabase:
     def test_database_url_resolved(self):
         """Covers lines 24-55 (DATABASE_URL resolution)."""
         from app.database import DATABASE_URL, _is_sqlite
+
         assert DATABASE_URL is not None
         # Can be SQLite or PostgreSQL depending on environment
         assert isinstance(_is_sqlite, bool)
@@ -1347,11 +1531,13 @@ class TestDatabase:
     def test_sync_database_url(self):
         """Covers lines 47-55 (SYNC_DATABASE_URL for sqlite)."""
         from app.database import SYNC_DATABASE_URL
+
         assert SYNC_DATABASE_URL is not None
 
     def test_async_database_url_depends_on_backend(self):
         """Covers line 54 (async URL depends on backend)."""
         from app.database import ASYNC_DATABASE_URL, _is_sqlite
+
         if _is_sqlite:
             assert ASYNC_DATABASE_URL is None
         else:
@@ -1360,11 +1546,13 @@ class TestDatabase:
     def test_engine_exists(self):
         """Covers lines 60-77 (engine creation)."""
         from app.database import engine
+
         assert engine is not None
 
     def test_session_local(self):
         """Covers lines 80-90 (SessionLocal)."""
         from app.database import SessionLocal
+
         db = SessionLocal()
         assert db is not None
         db.close()
@@ -1372,12 +1560,14 @@ class TestDatabase:
     def test_init_db(self):
         """Covers lines 160-200 (init_db with SQLite migrations)."""
         from app.database import init_db
+
         # Should not raise
         init_db()
 
     def test_get_engine_info(self):
         """Covers lines 203-214 (get_engine_info)."""
         from app.database import get_engine_info
+
         info = get_engine_info()
         assert info["backend"] in ("sqlite", "postgresql")
         assert "url_scheme" in info
@@ -1385,12 +1575,15 @@ class TestDatabase:
     def test_get_async_db_depends_on_backend(self):
         """Covers lines 143-154 (get_async_db behavior depends on backend)."""
         from app.database import _is_sqlite, get_async_db
+
         gen = get_async_db()
 
         if _is_sqlite:
+
             async def _run():
                 with pytest.raises(RuntimeError, match="Async database session not available"):
                     await gen.__anext__()
+
             loop = asyncio.new_event_loop()
             loop.run_until_complete(_run())
             loop.close()
@@ -1401,6 +1594,7 @@ class TestDatabase:
     def test_async_session_depends_on_backend(self):
         """Covers lines 112-113 (AsyncSessionLocal depends on backend)."""
         from app.database import AsyncSessionLocal, _is_sqlite
+
         if _is_sqlite:
             assert AsyncSessionLocal is None
         else:
@@ -1413,11 +1607,13 @@ class TestWAFRuleCatalog:
     def test_all_patterns_compile(self):
         """Каталог собирается целиком — иначе конструктор поднял бы исключение."""
         from app.security.waf import RULE_COUNT, WAFEngine
+
         rules = WAFEngine().rules()
         assert len(rules) == RULE_COUNT
 
     def test_rule_metadata_is_complete(self):
         from app.security.waf import WAFEngine
+
         severities = {"low", "medium", "high", "critical"}
         actions = {"block", "alert", "log"}
         for rule in WAFEngine().rules():
@@ -1428,6 +1624,7 @@ class TestWAFRuleCatalog:
 
     def test_rule_ids_are_unique(self):
         from app.security.waf import WAFEngine
+
         ids = [rule["id"] for rule in WAFEngine().rules()]
         assert len(ids) == len(set(ids))
 

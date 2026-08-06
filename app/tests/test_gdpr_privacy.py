@@ -1,4 +1,5 @@
 """Tests for GDPR/Privacy endpoints (/api/privacy/*)."""
+
 from __future__ import annotations
 
 from conftest import SyncASGIClient, make_user

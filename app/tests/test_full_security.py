@@ -245,6 +245,7 @@ class TestLoadOrCreateNodeKeypair:
             keys_dir = Path(td) / "test_keys"
             # Reset cached keys
             import app.security.crypto as _cm
+
             _cm._node_priv = None
             _cm._node_pub = None
 
@@ -258,6 +259,7 @@ class TestLoadOrCreateNodeKeypair:
         with tempfile.TemporaryDirectory() as td:
             keys_dir = Path(td) / "test_keys2"
             import app.security.crypto as _cm
+
             _cm._node_priv = None
             _cm._node_pub = None
 
@@ -275,6 +277,7 @@ class TestGetNodePublicKeyHex:
         with tempfile.TemporaryDirectory() as td:
             keys_dir = Path(td) / "test_keys3"
             import app.security.crypto as _cm
+
             _cm._node_priv = None
             _cm._node_pub = None
 
@@ -285,7 +288,6 @@ class TestGetNodePublicKeyHex:
 
 
 # 2. key_exchange.py
-
 
 
 class TestEciesEncrypt:
@@ -348,9 +350,7 @@ class TestDecryptP2pPayload:
         peer_priv, peer_pub = generate_x25519_keypair()
         payload = {"room_id": "room1", "sender": "node1", "message": "hello"}
         encrypted = encrypt_p2p_payload(payload, our_priv, peer_pub.hex())
-        decrypted = decrypt_p2p_payload(
-            encrypted["ephemeral_pub"], encrypted["ciphertext"], peer_priv
-        )
+        decrypted = decrypt_p2p_payload(encrypted["ephemeral_pub"], encrypted["ciphertext"], peer_priv)
         assert decrypted == payload
 
     def test_wrong_key_raises_valueerror(self):
@@ -360,9 +360,7 @@ class TestDecryptP2pPayload:
         our_priv, _ = generate_x25519_keypair()
         encrypted = encrypt_p2p_payload(payload, our_priv, peer_pub.hex())
         with pytest.raises(ValueError, match="P2P"):
-            decrypt_p2p_payload(
-                encrypted["ephemeral_pub"], encrypted["ciphertext"], wrong_priv
-            )
+            decrypt_p2p_payload(encrypted["ephemeral_pub"], encrypted["ciphertext"], wrong_priv)
 
 
 class TestFormatEncryptedKey:
@@ -398,8 +396,6 @@ class TestValidateEciesPayload:
 # 3. auth_jwt.py
 
 
-
-
 class TestCreateAccessToken:
     def test_returns_jwt_string(self):
         token = create_access_token(user_id=1, phone="+79001234567", username="testuser")
@@ -429,6 +425,7 @@ class TestDecodeAccessToken:
         import jwt as pyjwt
 
         from app.config import Config
+
         now = datetime.now(timezone.utc)
         expired_payload = {
             "sub": "1",
@@ -454,9 +451,11 @@ class TestCreateRefreshToken:
     def test_returns_raw_and_expiry(self, client):
         user_info = make_user(client)
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             from app.models import User
+
             user = db.query(User).filter(User.username == user_info["username"]).first()
             assert user is not None
             raw, expiry = create_refresh_token(user.id, db)
@@ -472,9 +471,11 @@ class TestVerifyRefreshToken:
     def test_valid_returns_user(self, client):
         user_info = make_user(client)
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             from app.models import User
+
             user = db.query(User).filter(User.username == user_info["username"]).first()
             raw, _ = create_refresh_token(user.id, db)
             result_user = verify_refresh_token(raw, db)
@@ -484,6 +485,7 @@ class TestVerifyRefreshToken:
 
     def test_invalid_raises(self, client):
         from app.database import SessionLocal
+
         db = SessionLocal()
         try:
             with pytest.raises(HTTPException) as exc_info:
@@ -494,7 +496,6 @@ class TestVerifyRefreshToken:
 
 
 # 4. security_validate.py
-
 
 
 class TestValidatePassword:
@@ -551,22 +552,16 @@ class TestValidatePassword:
 
 class TestValidatePasswordWithContext:
     def test_username_in_password(self):
-        ok, msg = validate_password_with_context(
-            "johndoe_Secure1!", username="johndoe", phone="+79001234567"
-        )
+        ok, msg = validate_password_with_context("johndoe_Secure1!", username="johndoe", phone="+79001234567")
         assert ok is False
         assert "username" in msg.lower()
 
     def test_short_username_not_checked(self):
-        ok, _msg = validate_password_with_context(
-            "abG00dP@ss1!", username="ab", phone=""
-        )
+        ok, _msg = validate_password_with_context("abG00dP@ss1!", username="ab", phone="")
         assert ok is True
 
     def test_valid_with_context(self):
-        ok, _msg = validate_password_with_context(
-            "S3cur3P@ss!", username="alice", phone="+79001234567"
-        )
+        ok, _msg = validate_password_with_context("S3cur3P@ss!", username="alice", phone="+79001234567")
         assert ok is True
 
 
@@ -612,7 +607,6 @@ class TestGenerateSecurePassword:
 
 
 # 5. secure_upload.py
-
 
 
 class TestDetectDoubleExtension:
@@ -673,7 +667,7 @@ class TestCalculateFileComplexity:
         assert entropy == 0.0
 
     def test_single_byte_pattern(self):
-        data = b"\xAA" * 1000
+        data = b"\xaa" * 1000
         entropy = FileAnomalyDetector.calculate_file_complexity(data)
         assert entropy == 0.0
 
@@ -812,22 +806,28 @@ class TestCSRFMiddleware:
 
     def test_login_skips_csrf(self, client):
         # Login is in the CSRF skip list
-        r = client.post("/api/authentication/login", json={
-            "phone_or_username": "nonexistent_user",
-            "password": "Fake1234!",
-        })
+        r = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": "nonexistent_user",
+                "password": "Fake1234!",
+            },
+        )
         # Should not be 403 for CSRF (may be 401/404 for wrong creds)
         assert r.status_code != 403
 
     def test_register_skips_csrf(self, client):
-        r = client.post("/api/authentication/register", json={
-            "username": f"csrf_test_{random_str(6)}",
-            "password": "StrongPass99x!@",
-            "display_name": "CSRF Test",
-            "phone": f"+7900{random_digits(7)}",
-            "avatar_emoji": "X",
-            "x25519_public_key": secrets.token_hex(32),
-        })
+        r = client.post(
+            "/api/authentication/register",
+            json={
+                "username": f"csrf_test_{random_str(6)}",
+                "password": "StrongPass99x!@",
+                "display_name": "CSRF Test",
+                "phone": f"+7900{random_digits(7)}",
+                "avatar_emoji": "X",
+                "x25519_public_key": secrets.token_hex(32),
+            },
+        )
         # Should not be 403 for CSRF
         assert r.status_code != 403
 
@@ -869,7 +869,6 @@ class TestCorrelationID:
 # 7. waf.py (via HTTP)
 
 
-
 class TestWAFRuleUnit:
     def test_catalog_is_loaded(self):
         rules = WAFEngine().rules()
@@ -877,40 +876,48 @@ class TestWAFRuleUnit:
         assert all(r["id"] and r["description"] for r in rules)
 
     def test_sql_signature_matches(self):
-        result = WAFEngine().analyze_request({
-            "client_ip": "203.0.113.200",
-            "method": "GET",
-            "url": "/api/x",
-            "path": "/api/x",
-            "headers": {},
-            "params": {"q": ["SELECT * FROM users"]},
-            "body": "",
-            "content_type": "",
-        })
+        result = WAFEngine().analyze_request(
+            {
+                "client_ip": "203.0.113.200",
+                "method": "GET",
+                "url": "/api/x",
+                "path": "/api/x",
+                "headers": {},
+                "params": {"q": ["SELECT * FROM users"]},
+                "body": "",
+                "content_type": "",
+            }
+        )
         assert result["block"] is True
         assert any(f["rule_id"].startswith("SQLI") for f in result["findings"])
 
 
 class TestWAFSqlInjection:
     def test_sql_injection_blocked_in_login(self, client):
-        r = client.post("/api/authentication/login", json={
-            "phone_or_username": "' OR 1=1 --",
-            "password": "SELECT * FROM users WHERE 1=1",
-        })
+        r = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": "' OR 1=1 --",
+                "password": "SELECT * FROM users WHERE 1=1",
+            },
+        )
         # WAF should block (403) or the app rejects it (401/422)
         assert r.status_code in (403, 401, 422)
 
 
 class TestWAFXss:
     def test_xss_blocked_in_registration(self, client):
-        r = client.post("/api/authentication/register", json={
-            "username": "<script>alert('xss')</script>",
-            "password": "StrongPass99x!@",
-            "display_name": "XSS Test",
-            "phone": f"+7900{random_digits(7)}",
-            "avatar_emoji": "X",
-            "x25519_public_key": secrets.token_hex(32),
-        })
+        r = client.post(
+            "/api/authentication/register",
+            json={
+                "username": "<script>alert('xss')</script>",
+                "password": "StrongPass99x!@",
+                "display_name": "XSS Test",
+                "phone": f"+7900{random_digits(7)}",
+                "avatar_emoji": "X",
+                "x25519_public_key": secrets.token_hex(32),
+            },
+        )
         assert r.status_code in (403, 422, 400)
 
 
@@ -951,7 +958,6 @@ class TestWAFRulesEndpoint:
 # 8. logging_config.py
 
 
-
 class TestJSONFormatter:
     def test_produces_valid_json_with_required_fields(self):
         formatter = JSONFormatter()
@@ -974,14 +980,21 @@ class TestJSONFormatter:
 
     def test_includes_exception_info(self):
         formatter = JSONFormatter()
+        import sys
+
+        exc_info = None
         try:
             raise ValueError("test error")
         except ValueError:
-            import sys
             exc_info = sys.exc_info()
         record = logging.LogRecord(
-            name="test", level=logging.ERROR, pathname="t.py",
-            lineno=1, msg="err", args=(), exc_info=exc_info,
+            name="test",
+            level=logging.ERROR,
+            pathname="t.py",
+            lineno=1,
+            msg="err",
+            args=(),
+            exc_info=exc_info,
         )
         output = formatter.format(record)
         parsed = json.loads(output)

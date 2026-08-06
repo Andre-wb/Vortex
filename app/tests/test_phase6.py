@@ -7,6 +7,7 @@ Covers:
     - Handoff-accept on Vortex node returns 503 when overloaded.
     - MigrationPusher builds expected payload with only verified alternatives.
 """
+
 from __future__ import annotations
 
 import tempfile
@@ -42,15 +43,24 @@ async def test_integrity_gate_blocks_protected_endpoints_on_tampered():
     )
 
     @app.get("/v1/health")
-    async def _health(): return {"status": "ok"}
+    async def _health():
+        return {"status": "ok"}
+
     @app.get("/v1/integrity")
-    async def _integrity(): return {"status": "tampered"}
+    async def _integrity():
+        return {"status": "tampered"}
+
     @app.get("/v1/nodes/random")
-    async def _nodes(): return {"nodes": []}
+    async def _nodes():
+        return {"nodes": []}
+
     @app.get("/v1/entries")
-    async def _entries(): return {"entries": []}
+    async def _entries():
+        return {"entries": []}
+
     @app.get("/")
-    async def _root(): return {"page": "ok"}
+    async def _root():
+        return {"page": "ok"}
 
     app.add_middleware(IntegrityGateMiddleware)
 
@@ -80,11 +90,14 @@ async def test_integrity_gate_passes_when_verified():
 
     app = FastAPI()
     app.state.integrity = IntegrityReport(
-        status="verified", message="ok", matched=10,
+        status="verified",
+        message="ok",
+        matched=10,
     )
 
     @app.get("/v1/nodes/random")
-    async def _nodes(): return {"nodes": ["x"]}
+    async def _nodes():
+        return {"nodes": ["x"]}
 
     app.add_middleware(IntegrityGateMiddleware)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://x") as http:
@@ -103,8 +116,11 @@ async def test_integrity_gate_passes_when_no_manifest():
 
     app = FastAPI()
     app.state.integrity = IntegrityReport(status="no_manifest", message="dev")
+
     @app.get("/v1/nodes/random")
-    async def _nodes(): return {"nodes": []}
+    async def _nodes():
+        return {"nodes": []}
+
     app.add_middleware(IntegrityGateMiddleware)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://x") as http:
         assert (await http.get("/v1/nodes/random")).status_code == 200
@@ -152,9 +168,15 @@ async def test_controller_client_refuses_when_none_verified():
 
     async def fake_get(self, url, **kw):
         # Every candidate is tampered
-        return _mock_response("GET", str(url), json={
-            "status": "tampered", "signed_by": "ff" * 32, "message": "bad",
-        })
+        return _mock_response(
+            "GET",
+            str(url),
+            json={
+                "status": "tampered",
+                "signed_by": "ff" * 32,
+                "message": "bad",
+            },
+        )
 
     with tempfile.TemporaryDirectory() as d:
         sk = NodeSigningKey.load_or_create(Path(d))
@@ -176,10 +198,15 @@ async def test_controller_client_rejects_wrong_release_key():
     from app.peer.controller_client import ControllerClient, IntegrityRefusalError, NodeSigningKey
 
     async def fake_get(self, url, **kw):
-        return _mock_response("GET", str(url), json={
-            "status": "verified", "signed_by": "11" * 32,
-            "message": "verified but by impostor",
-        })
+        return _mock_response(
+            "GET",
+            str(url),
+            json={
+                "status": "verified",
+                "signed_by": "11" * 32,
+                "message": "verified but by impostor",
+            },
+        )
 
     with tempfile.TemporaryDirectory() as d:
         sk = NodeSigningKey.load_or_create(Path(d))
@@ -200,9 +227,15 @@ async def test_controller_client_skips_release_key_check_when_unset():
     from app.peer.controller_client import ControllerClient, NodeSigningKey
 
     async def fake_get(self, url, **kw):
-        return _mock_response("GET", str(url), json={
-            "status": "verified", "signed_by": "42" * 32, "message": "ok",
-        })
+        return _mock_response(
+            "GET",
+            str(url),
+            json={
+                "status": "verified",
+                "signed_by": "42" * 32,
+                "message": "ok",
+            },
+        )
 
     with tempfile.TemporaryDirectory() as d:
         sk = NodeSigningKey.load_or_create(Path(d))
@@ -243,6 +276,7 @@ async def test_handoff_accept_refuses_when_overloaded():
 
         # Build any valid token — the gate should reject before we even verify it
         from app.session.handoff_token import issue_handoff_token
+
         token = issue_handoff_token(
             signing_key=self_key,
             user_pubkey="aa" * 32,
@@ -253,10 +287,10 @@ async def test_handoff_accept_refuses_when_overloaded():
         async def fake_active_count():
             return _load.MAX_CONN  # 100% load
 
-        with patch("app.session.migration._active_ws_count",
-                   lambda: _load.MAX_CONN), \
-             patch("app.session.migration._collect_alternatives",
-                   return_value=[]):
+        with (
+            patch("app.session.migration._active_ws_count", lambda: _load.MAX_CONN),
+            patch("app.session.migration._collect_alternatives", return_value=[]),
+        ):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://me") as http:
                 r = await http.post("/api/session/handoff/accept", json={"token": token})
         assert r.status_code == 503
@@ -297,12 +331,16 @@ async def test_handoff_accept_passes_when_not_overloaded():
 
         # Resolver must trust src_key
         class _AlwaysTrust:
-            async def warm(self): pass
+            async def warm(self):
+                pass
+
             def __call__(self, pubkey_hex):
                 return pubkey_hex.lower() == src_key.pubkey_hex().lower()
 
-        with patch("app.session.migration._active_ws_count", lambda: 0), \
-             patch("app.session.migration._resolver", _AlwaysTrust()):
+        with (
+            patch("app.session.migration._active_ws_count", lambda: 0),
+            patch("app.session.migration._resolver", _AlwaysTrust()),
+        ):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://me") as http:
                 r = await http.post("/api/session/handoff/accept", json={"token": token})
         assert r.status_code == 200
@@ -337,27 +375,32 @@ async def test_migration_pusher_includes_only_verified_alternatives():
 
     class _FakeManager:
         _rooms = {1: {100: object(), 101: object()}}
+
         async def send_to_user(self, room, user, payload):
             pushed_payloads.append((room, user, payload))
             return True
 
     class _FakeLoad:
-        def snapshot(self): return {"load": 0.91, "accepts_new": False}
-        def should_suggest_migration(self): return True
+        def snapshot(self):
+            return {"load": 0.91, "accepts_new": False}
+
+        def should_suggest_migration(self):
+            return True
 
     class _FakeSigningKey:
-        def pubkey_hex(self): return "cc" * 32
+        def pubkey_hex(self):
+            return "cc" * 32
 
     # Run the tick logic directly
-    with patch("app.session.migration._load", _FakeLoad()), \
-         patch("app.session.migration._collect_alternatives",
-               return_value=fake_alts), \
-         patch("app.session.migration._require_signing_key",
-               return_value=_FakeSigningKey()), \
-         patch("app.peer.connection_manager.manager", _FakeManager()):
+    with (
+        patch("app.session.migration._load", _FakeLoad()),
+        patch("app.session.migration._collect_alternatives", return_value=fake_alts),
+        patch("app.session.migration._require_signing_key", return_value=_FakeSigningKey()),
+        patch("app.peer.connection_manager.manager", _FakeManager()),
+    ):
         pusher = mp.MigrationPusher()
-        pusher._over_since = time.time() - 60   # past sustained threshold
-        pusher._last_push = 0                   # cooldown not active
+        pusher._over_since = time.time() - 60  # past sustained threshold
+        pusher._last_push = 0  # cooldown not active
         await pusher._tick()
 
     assert len(pushed_payloads) == 2, pushed_payloads
@@ -379,22 +422,28 @@ async def test_migration_pusher_skips_if_no_alternatives():
 
     class _FakeManager:
         _rooms = {1: {100: object()}}
+
         async def send_to_user(self, r, u, p):
             pushed_payloads.append((r, u, p))
             return True
 
     class _FakeLoad:
-        def snapshot(self): return {"load": 0.95, "accepts_new": False}
-        def should_suggest_migration(self): return True
+        def snapshot(self):
+            return {"load": 0.95, "accepts_new": False}
+
+        def should_suggest_migration(self):
+            return True
 
     class _FakeSigningKey:
-        def pubkey_hex(self): return "cc" * 32
+        def pubkey_hex(self):
+            return "cc" * 32
 
-    with patch("app.session.migration._load", _FakeLoad()), \
-         patch("app.session.migration._collect_alternatives", return_value=[]), \
-         patch("app.session.migration._require_signing_key",
-               return_value=_FakeSigningKey()), \
-         patch("app.peer.connection_manager.manager", _FakeManager()):
+    with (
+        patch("app.session.migration._load", _FakeLoad()),
+        patch("app.session.migration._collect_alternatives", return_value=[]),
+        patch("app.session.migration._require_signing_key", return_value=_FakeSigningKey()),
+        patch("app.peer.connection_manager.manager", _FakeManager()),
+    ):
         pusher = mp.MigrationPusher()
         pusher._over_since = time.time() - 60
         pusher._last_push = 0

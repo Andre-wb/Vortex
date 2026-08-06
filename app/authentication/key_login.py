@@ -1,4 +1,5 @@
 """X25519 Challenge-Response — беспарольный вход."""
+
 from __future__ import annotations
 
 import hashlib
@@ -71,8 +72,7 @@ async def get_challenge(identifier: str, db: Session = Depends(get_db)):
 
 
 @router.post("/login-key")
-async def login_with_key(body: KeyLoginRequest, request: Request,
-                         db: Session = Depends(get_db)):
+async def login_with_key(body: KeyLoginRequest, request: Request, db: Session = Depends(get_db)):
     """Шаг 2 беспарольного X25519 входа — проверка HMAC proof."""
     ip = raw_ip_for_ratelimit(request)
     if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
@@ -104,9 +104,7 @@ async def login_with_key(body: KeyLoginRequest, request: Request,
     if not secrets.compare_digest(body.proof, expected_proof):
         raise HTTPException(401, "Invalid proof — possibly wrong private key")
 
-    user = db.query(User).filter(
-        User.id == ch.user_id, User.is_active.is_(True)
-    ).first()
+    user = db.query(User).filter(User.id == ch.user_id, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(401, "User not found or deactivated")
 

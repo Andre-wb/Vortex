@@ -1,4 +1,5 @@
 """Middleware tests — security headers, CSRF, token refresh, WAF, logging."""
+
 import secrets
 
 import pytest
@@ -65,32 +66,41 @@ class TestCSRFProtection:
 
     def test_mutation_without_csrf_rejected(self, client, logged_user):
         """POST to protected endpoint without CSRF token should fail."""
-        r = client.post("/api/rooms", json={
-            "name": "csrf_test",
-            "encrypted_room_key": {
-                "ephemeral_pub": secrets.token_hex(32),
-                "ciphertext": secrets.token_hex(60),
+        r = client.post(
+            "/api/rooms",
+            json={
+                "name": "csrf_test",
+                "encrypted_room_key": {
+                    "ephemeral_pub": secrets.token_hex(32),
+                    "ciphertext": secrets.token_hex(60),
+                },
             },
-        })
+        )
         # Without CSRF token, should be rejected
         assert r.status_code in (401, 403, 422)
 
     def test_csrf_skipped_for_login(self, client, fresh_user):
         """Login should work without CSRF token."""
-        r = client.post("/api/authentication/login", json={
-            "phone_or_username": fresh_user["username"],
-            "password": fresh_user["password"],
-        })
+        r = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": fresh_user["username"],
+                "password": fresh_user["password"],
+            },
+        )
         assert r.status_code == 200
 
     def test_csrf_skipped_for_register(self, client):
         """Registration should work without CSRF token."""
-        r = client.post("/api/authentication/register", json={
-            "username": f"user_{random_str()}",
-            "password": "StrongPass99!@",
-            "phone": _unique_phone(),
-            "x25519_public_key": secrets.token_hex(32),
-        })
+        r = client.post(
+            "/api/authentication/register",
+            json={
+                "username": f"user_{random_str()}",
+                "password": "StrongPass99!@",
+                "phone": _unique_phone(),
+                "x25519_public_key": secrets.token_hex(32),
+            },
+        )
         assert r.status_code in (201, 400, 409, 422)
 
     def test_csrf_skipped_for_health(self, client):
@@ -114,20 +124,27 @@ class TestWAFMiddleware:
 
     def test_sql_injection_blocked(self, client):
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
-        r = client.post("/api/authentication/login", json={
-            "phone_or_username": "admin' OR 1=1--",
-            "password": "test",
-        }, headers={"X-CSRF-Token": csrf})
+        r = client.post(
+            "/api/authentication/login",
+            json={
+                "phone_or_username": "admin' OR 1=1--",
+                "password": "test",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
         assert r.status_code != 200
 
     def test_xss_in_input_blocked(self, client):
-        r = client.post("/api/authentication/register", json={
-            "username": f"user_{random_str()}",
-            "password": "StrongPass99!@",
-            "phone": _unique_phone(),
-            "x25519_public_key": secrets.token_hex(32),
-            "display_name": "<script>alert('xss')</script>",
-        })
+        r = client.post(
+            "/api/authentication/register",
+            json={
+                "username": f"user_{random_str()}",
+                "password": "StrongPass99!@",
+                "phone": _unique_phone(),
+                "x25519_public_key": secrets.token_hex(32),
+                "display_name": "<script>alert('xss')</script>",
+            },
+        )
         # Should either sanitize or reject
         assert r.status_code in (201, 400, 403, 422)
 
@@ -138,9 +155,13 @@ class TestWAFMiddleware:
     def test_oversized_body_rejected(self, client, logged_user):
         """Request with body > max_content_length should be rejected."""
         huge = "x" * (11 * 1024 * 1024)  # 11 MB
-        r = client.post("/api/rooms", json={
-            "name": huge,
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/rooms",
+            json={
+                "name": huge,
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (400, 403, 413, 422)
 
 

@@ -17,6 +17,7 @@ The goal: when a privacy-conscious operator deploys Vortex with
 data in the database. Combined with Sealed Sender, the server
 stores no identifying information about users or their messages.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -27,7 +28,7 @@ from typing import Optional
 from starlette.requests import Request
 
 _STORE_IPS: bool = os.environ.get("STORE_IPS", "true").lower() != "false"
-_HASH_IPS:  bool = os.environ.get("HASH_IPS", "false").lower() == "true"
+_HASH_IPS: bool = os.environ.get("HASH_IPS", "false").lower() == "true"
 
 # HMAC key for IP hashing (derived from SECRET_KEY so hashes are stable
 # within a deployment but irrecoverable without the key).
@@ -38,10 +39,12 @@ _HASH_KEY: bytes = hashlib.blake2b(
 ).digest()
 
 # Known Tor-related header values
-_ONION_INDICATORS = frozenset({
-    ".onion",
-    "tor",
-})
+_ONION_INDICATORS = frozenset(
+    {
+        ".onion",
+        "tor",
+    }
+)
 
 
 def _is_onion_request(request: Request) -> bool:

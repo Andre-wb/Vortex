@@ -3,6 +3,7 @@ app/chats/statuses.py -- 24-hour ephemeral status/story API.
 
 Users can post short text statuses visible to their contacts for 24 hours.
 """
+
 from __future__ import annotations
 
 import logging
@@ -49,10 +50,7 @@ async def get_statuses(
     db: Session = Depends(get_db),
 ):
     """Get active statuses from contacts and self."""
-    contact_ids = [
-        c.contact_id
-        for c in db.query(Contact).filter(Contact.owner_id == u.id).all()
-    ]
+    contact_ids = [c.contact_id for c in db.query(Contact).filter(Contact.owner_id == u.id).all()]
     contact_ids.append(u.id)
 
     now = datetime.now(timezone.utc)
@@ -75,19 +73,21 @@ async def get_statuses(
                 "user_id": uid,
                 "username": user.username if user else "?",
                 "display_name": user.display_name if user else "?",
-                "avatar_emoji": user.avatar_emoji if user else "\U0001F464",
+                "avatar_emoji": user.avatar_emoji if user else "\U0001f464",
                 "avatar_url": getattr(user, "avatar_url", None),
                 "custom_status": getattr(user, "custom_status", None),
                 "status_emoji": getattr(user, "status_emoji", None),
                 "presence": getattr(user, "presence", "online") or "online",
                 "statuses": [],
             }
-        result[uid]["statuses"].append({
-            "id": s.id,
-            "text": s.text,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-            "expires_at": s.expires_at.isoformat() if s.expires_at else None,
-        })
+        result[uid]["statuses"].append(
+            {
+                "id": s.id,
+                "text": s.text,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "expires_at": s.expires_at.isoformat() if s.expires_at else None,
+            }
+        )
 
     return {"users": list(result.values())}
 

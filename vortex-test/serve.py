@@ -17,6 +17,7 @@ Run:
 
 No network calls are made, no secrets are saved, no config is required.
 """
+
 from __future__ import annotations
 
 import json
@@ -35,10 +36,14 @@ PUBLIC = ROOT / "public"
 
 
 _PRIV = Ed25519PrivateKey.generate()
-_PUB_HEX = _PRIV.public_key().public_bytes(
-    encoding=serialization.Encoding.Raw,
-    format=serialization.PublicFormat.Raw,
-).hex()
+_PUB_HEX = (
+    _PRIV.public_key()
+    .public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    .hex()
+)
 
 
 def canonical_json(obj) -> bytes:
@@ -50,117 +55,161 @@ def sign_envelope(payload: dict) -> dict:
     return {"payload": payload, "signature": sig, "signed_by": _PUB_HEX}
 
 
-
 NOW = int(time.time())
 START = NOW
 
 # Entry URLs shown in the "Entry URLs" card
 ENTRY_URLS = [
     {"url": "wss://smith-labs-darwin-nicole.trycloudflare.com", "type": "tunnel"},
-    {"url": "wss://quiet-fox-harbor-alpha.trycloudflare.com",   "type": "tunnel"},
-    {"url": "http://abcdef123ghijk789lmnopqr456stuvwx.onion",   "type": "tor"},
+    {"url": "wss://quiet-fox-harbor-alpha.trycloudflare.com", "type": "tunnel"},
+    {"url": "http://abcdef123ghijk789lmnopqr456stuvwx.onion", "type": "tor"},
     {"url": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", "type": "ipfs"},
-    {"url": "wss://controller-mirror.vortex.example",          "type": "direct"},
+    {"url": "wss://controller-mirror.vortex.example", "type": "direct"},
 ]
 
 # Mirrors with varied health — surface every badge state
 MIRRORS = [
-    {"url": "https://mirror-a.vortex.example",          "type": "web",
-     "healthy": True,  "latency_ms": 84,  "last_checked": NOW - 20, "error": None},
-    {"url": "https://mirror-b.vortex.example",          "type": "web",
-     "healthy": False, "latency_ms": None, "last_checked": NOW - 40,
-     "error": "ConnectError: connection refused"},
-    {"url": "ipfs://bafybei000mirror1pin",              "type": "ipfs",
-     "healthy": True,  "latency_ms": 312, "last_checked": NOW - 60, "error": None},
-    {"url": "ipfs://bafybei000mirror2stale",            "type": "ipfs",
-     "healthy": False, "latency_ms": None, "last_checked": NOW - 180,
-     "error": "HTTPStatusError: 504 Gateway Timeout"},
-    {"url": "http://m2vortex7example123onion567.onion", "type": "tor",
-     "healthy": False, "latency_ms": None, "last_checked": NOW,
-     "error": "no tor proxy configured"},
-    {"url": "https://another-mirror.vortex.sol.site",   "type": "web",
-     "healthy": None,  "latency_ms": None, "last_checked": 0, "error": None},
+    {
+        "url": "https://mirror-a.vortex.example",
+        "type": "web",
+        "healthy": True,
+        "latency_ms": 84,
+        "last_checked": NOW - 20,
+        "error": None,
+    },
+    {
+        "url": "https://mirror-b.vortex.example",
+        "type": "web",
+        "healthy": False,
+        "latency_ms": None,
+        "last_checked": NOW - 40,
+        "error": "ConnectError: connection refused",
+    },
+    {
+        "url": "ipfs://bafybei000mirror1pin",
+        "type": "ipfs",
+        "healthy": True,
+        "latency_ms": 312,
+        "last_checked": NOW - 60,
+        "error": None,
+    },
+    {
+        "url": "ipfs://bafybei000mirror2stale",
+        "type": "ipfs",
+        "healthy": False,
+        "latency_ms": None,
+        "last_checked": NOW - 180,
+        "error": "HTTPStatusError: 504 Gateway Timeout",
+    },
+    {
+        "url": "http://m2vortex7example123onion567.onion",
+        "type": "tor",
+        "healthy": False,
+        "latency_ms": None,
+        "last_checked": NOW,
+        "error": "no tor proxy configured",
+    },
+    {
+        "url": "https://another-mirror.vortex.sol.site",
+        "type": "web",
+        "healthy": None,
+        "latency_ms": None,
+        "last_checked": 0,
+        "error": None,
+    },
 ]
 
 # Peer registry — multiple node types + weight decay demonstration
 PEERS = [
     # Fully verified, sealed, fresh — weight 1.0
     {
-        "pubkey":   "aa" * 32,
+        "pubkey": "aa" * 32,
         "endpoints": ["wss://node-eu-west-1.vortex.sol:9000"],
         "metadata": {"name": "node-A (prod)", "region": "eu-west", "version": "1.0.2"},
         "last_seen": NOW - 12,
-        "sealed": True, "weight": 1.0,
+        "sealed": True,
+        "weight": 1.0,
     },
     # Sealed but missed a check-in — weight 0.8
     {
-        "pubkey":   "bb" * 32,
-        "endpoints": ["wss://node-us-east-1.vortex.sol:9000",
-                      "http://aaanodebb8ej2ka.onion"],
+        "pubkey": "bb" * 32,
+        "endpoints": ["wss://node-us-east-1.vortex.sol:9000", "http://aaanodebb8ej2ka.onion"],
         "metadata": {"name": "node-B", "region": "us-east", "version": "1.0.2"},
         "last_seen": NOW - 3600 * 20,
-        "sealed": True, "weight": 0.8,
+        "sealed": True,
+        "weight": 0.8,
     },
     # Sealed + Tor + IPFS endpoints
     {
-        "pubkey":   "cc" * 32,
-        "endpoints": ["wss://asia-southeast-1.vortex.sol:9000",
-                      "http://cc7vortex4asianode9.onion",
-                      "ipfs://bafybeinodeCC-static"],
+        "pubkey": "cc" * 32,
+        "endpoints": [
+            "wss://asia-southeast-1.vortex.sol:9000",
+            "http://cc7vortex4asianode9.onion",
+            "ipfs://bafybeinodeCC-static",
+        ],
         "metadata": {"name": "node-C (pan-continental)", "region": "asia-se", "version": "1.0.1"},
         "last_seen": NOW - 60 * 60 * 24 * 14,
-        "sealed": True, "weight": 0.5,
+        "sealed": True,
+        "weight": 0.5,
     },
     # Unsealed (never called seal()) — caps weight at 0.5
     {
-        "pubkey":   "dd" * 32,
+        "pubkey": "dd" * 32,
         "endpoints": ["wss://home-nat-jitter.trycloudflare.com"],
         "metadata": {"name": "home-pi", "region": "self", "version": "0.9-rc"},
         "last_seen": NOW - 60 * 10,
-        "sealed": False, "weight": 0.5,
+        "sealed": False,
+        "weight": 0.5,
     },
     # Stale on-chain sealed node — weight 0.2
     {
-        "pubkey":   "ee" * 32,
+        "pubkey": "ee" * 32,
         "endpoints": ["wss://dusty-corner.vortex.example:9000"],
         "metadata": {"name": "legacy-node", "region": "eu-central", "version": "0.8.4"},
         "last_seen": NOW - 60 * 60 * 24 * 120,
-        "sealed": True, "weight": 0.2,
+        "sealed": True,
+        "weight": 0.2,
     },
     # Solana-only (discovered on-chain, no controller record) — dual-verified
     {
-        "pubkey":   "11" * 32,
+        "pubkey": "11" * 32,
         "endpoints": ["wss://solana-only-demo.trycloudflare.com"],
-        "metadata": {"name": "solana-only", "region": "unknown", "sealed": True,
-                     "code_hash": "feedfacecafebeef" + "00" * 24},
+        "metadata": {
+            "name": "solana-only",
+            "region": "unknown",
+            "sealed": True,
+            "code_hash": "feedfacecafebeef" + "00" * 24,
+        },
         "last_seen": NOW - 90,
-        "sealed": True, "weight": 1.0,
+        "sealed": True,
+        "weight": 1.0,
         "code_hash": "feedfacecafebeef" + "00" * 24,
     },
     # Controller-only
     {
-        "pubkey":   "22" * 32,
+        "pubkey": "22" * 32,
         "endpoints": ["wss://controller-only.vortex.example"],
         "metadata": {"name": "ctrl-only", "version": "1.0.0"},
         "last_seen": NOW - 30,
-        "sealed": False, "weight": 0.9,
+        "sealed": False,
+        "weight": 0.9,
     },
     # Unverified bootstrap peer
     {
-        "pubkey":   "33" * 32,
+        "pubkey": "33" * 32,
         "endpoints": ["wss://bootstrap-seed.vortex.example"],
         "metadata": {"name": "bootstrap-seed"},
         "last_seen": NOW - 5,
-        "sealed": False, "weight": 0.7,
+        "sealed": False,
+        "weight": 0.7,
     },
 ]
 
 STATS = {
-    "total":    len(PEERS) + 12,   # + unlisted (stale) records on the fake registry
+    "total": len(PEERS) + 12,  # + unlisted (stale) records on the fake registry
     "approved": len(PEERS) + 4,
-    "online":   sum(1 for p in PEERS if NOW - p["last_seen"] < 300),
+    "online": sum(1 for p in PEERS if NOW - p["last_seen"] < 300),
 }
-
 
 
 app = FastAPI(title="vortex-test preview", docs_url=None, redoc_url=None, openapi_url=None)
@@ -176,10 +225,10 @@ app.mount("/locales", StaticFiles(directory=str(PUBLIC / "locales")), name="loca
 
 # Multi-page routing — each URL maps to its own HTML file.
 PAGES = {
-    "/":         "index.html",
-    "/nodes":    "nodes.html",
-    "/entries":  "entries.html",
-    "/mirrors":  "mirrors.html",
+    "/": "index.html",
+    "/nodes": "nodes.html",
+    "/entries": "entries.html",
+    "/mirrors": "mirrors.html",
     "/security": "security.html",
 }
 
@@ -187,13 +236,16 @@ PAGES = {
 def _make_page_handler(file_name: str):
     async def _handler():
         return FileResponse(PUBLIC / file_name)
+
     return _handler
 
 
 for _path, _file in PAGES.items():
     app.add_api_route(
-        _path, _make_page_handler(_file),
-        methods=["GET"], include_in_schema=False,
+        _path,
+        _make_page_handler(_file),
+        methods=["GET"],
+        include_in_schema=False,
     )
 
 
@@ -202,14 +254,13 @@ async def _favicon():
     return FileResponse(PUBLIC / "favicon.ico")
 
 
-
 @app.get("/v1/health")
 async def health():
     return {
-        "status":  "ok",
+        "status": "ok",
         "version": "0.1.0-preview",
-        "pubkey":  _PUB_HEX,
-        "stats":   STATS,
+        "pubkey": _PUB_HEX,
+        "stats": STATS,
     }
 
 
@@ -217,24 +268,24 @@ async def health():
 async def integrity():
     # Fake but structurally identical to real /v1/integrity response
     return {
-        "status":         "verified",
-        "signed_by":      _PUB_HEX,
+        "status": "verified",
+        "signed_by": _PUB_HEX,
         "trusted_pubkey": _PUB_HEX,
-        "version":        "0.1.0-preview",
-        "built_at":       START - 3600,
-        "matched":        158,
-        "mismatched":     [],
-        "missing":        [],
-        "extra":          [],
-        "message":        "All 158 files match manifest v0.1.0-preview (signed by preview key)",
+        "version": "0.1.0-preview",
+        "built_at": START - 3600,
+        "matched": 158,
+        "mismatched": [],
+        "missing": [],
+        "extra": [],
+        "message": "All 158 files match manifest v0.1.0-preview (signed by preview key)",
     }
 
 
 @app.get("/v1/entries")
 async def entries():
     payload = {
-        "entries":     ENTRY_URLS,
-        "issued_at":   NOW,
+        "entries": ENTRY_URLS,
+        "issued_at": NOW,
         "valid_until": NOW + 3600,
     }
     return sign_envelope(payload)
@@ -262,11 +313,11 @@ async def mirrors_health():
         "last_sweep": NOW - 5,
         "mirrors": [
             {
-                "url":          m["url"],
-                "ok":           bool(m.get("healthy")),
+                "url": m["url"],
+                "ok": bool(m.get("healthy")),
                 "last_checked": m.get("last_checked", 0),
-                "latency_ms":   m.get("latency_ms"),
-                "error":        m.get("error"),
+                "latency_ms": m.get("latency_ms"),
+                "error": m.get("error"),
             }
             for m in MIRRORS
         ],
@@ -287,7 +338,6 @@ async def nodes_lookup(pubkey: str):
         if p["pubkey"] == pubkey:
             return sign_envelope({"node": p})
     return JSONResponse({"detail": "node not found"}, status_code=404)
-
 
 
 def main() -> None:

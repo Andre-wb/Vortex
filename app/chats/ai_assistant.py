@@ -10,6 +10,7 @@ app/chats/ai_assistant.py — AI-ассистент внутри чата.
   - POST /api/ai/suggest       — предложить ответ на последнее сообщение
   - GET  /api/ai/status        — проверить доступность Ollama и список моделей
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -39,6 +40,7 @@ _OLLAMA_MODEL = getattr(Config, "OLLAMA_MODEL", None) or "llama3"
 _AI_ENABLED = getattr(Config, "AI_ENABLED", None)
 if _AI_ENABLED is None:
     import os
+
     _AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() != "false"
 
 _QWEN_MODEL_NAME = "qwen3:8b"
@@ -57,6 +59,7 @@ _SYSTEM_PROMPT = (
 _ai_rate: dict[int, list[float]] = {}
 _ai_rate_lock = threading.Lock()
 
+
 def _check_ai_rate(user_id: int) -> bool:
     now = time.monotonic()
     with _ai_rate_lock:
@@ -72,9 +75,18 @@ def _check_ai_rate(user_id: int) -> bool:
 async def _ollama_generate_stream(prompt: str, system: str = _SYSTEM_PROMPT):
     """Streaming запрос в Ollama /api/generate — async generator."""
     import json as _json
-    payload = {"model": _OLLAMA_MODEL, "prompt": prompt, "system": system, "stream": True,
-               "options": {"temperature": 0.7, "num_predict": 512}}
-    async with httpx.AsyncClient(timeout=60.0) as client, client.stream("POST", f"{_OLLAMA_URL}/api/generate", json=payload) as resp:
+
+    payload = {
+        "model": _OLLAMA_MODEL,
+        "prompt": prompt,
+        "system": system,
+        "stream": True,
+        "options": {"temperature": 0.7, "num_predict": 512},
+    }
+    async with (
+        httpx.AsyncClient(timeout=60.0) as client,
+        client.stream("POST", f"{_OLLAMA_URL}/api/generate", json=payload) as resp,
+    ):
         resp.raise_for_status()
         async for line in resp.aiter_lines():
             if line:
@@ -90,8 +102,14 @@ async def _ollama_generate_stream(prompt: str, system: str = _SYSTEM_PROMPT):
 async def _ollama_generate(prompt: str, system: str = _SYSTEM_PROMPT) -> str:
     """Non-streaming запрос в Ollama /api/generate."""
     import json as _json
-    payload = {"model": _OLLAMA_MODEL, "prompt": prompt, "system": system, "stream": False,
-               "options": {"temperature": 0.7, "num_predict": 512}}
+
+    payload = {
+        "model": _OLLAMA_MODEL,
+        "prompt": prompt,
+        "system": system,
+        "stream": False,
+        "options": {"temperature": 0.7, "num_predict": 512},
+    }
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(f"{_OLLAMA_URL}/api/generate", json=payload)
         resp.raise_for_status()
@@ -101,9 +119,17 @@ async def _ollama_generate(prompt: str, system: str = _SYSTEM_PROMPT) -> str:
 async def _ollama_chat_stream(messages: list[dict]):
     """Streaming запрос в Ollama /api/chat — async generator."""
     import json as _json
-    payload = {"model": _OLLAMA_MODEL, "messages": messages, "stream": True,
-               "options": {"temperature": 0.7, "num_predict": 1024}}
-    async with httpx.AsyncClient(timeout=60.0) as client, client.stream("POST", f"{_OLLAMA_URL}/api/chat", json=payload) as resp:
+
+    payload = {
+        "model": _OLLAMA_MODEL,
+        "messages": messages,
+        "stream": True,
+        "options": {"temperature": 0.7, "num_predict": 1024},
+    }
+    async with (
+        httpx.AsyncClient(timeout=60.0) as client,
+        client.stream("POST", f"{_OLLAMA_URL}/api/chat", json=payload) as resp,
+    ):
         resp.raise_for_status()
         async for line in resp.aiter_lines():
             if line:
@@ -119,8 +145,13 @@ async def _ollama_chat_stream(messages: list[dict]):
 async def _ollama_chat(messages: list[dict]) -> str:
     """Non-streaming запрос в Ollama /api/chat."""
     import json as _json
-    payload = {"model": _OLLAMA_MODEL, "messages": messages, "stream": False,
-               "options": {"temperature": 0.7, "num_predict": 1024}}
+
+    payload = {
+        "model": _OLLAMA_MODEL,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": 0.7, "num_predict": 1024},
+    }
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(f"{_OLLAMA_URL}/api/chat", json=payload)
         resp.raise_for_status()
@@ -154,16 +185,17 @@ def _get_room_history(room_id: int, limit: int, db: Session) -> list[str]:
 
 # Request models
 
+
 class AIChatRequest(BaseModel):
-    room_id:    int
-    message:    str
-    history_n:  int = 20   # сколько сообщений из чата включить в контекст
-    stream:     bool = False
+    room_id: int
+    message: str
+    history_n: int = 20  # сколько сообщений из чата включить в контекст
+    stream: bool = False
 
 
 class AISummarizeRequest(BaseModel):
-    room_id:  int
-    limit:    int = 50
+    room_id: int
+    limit: int = 50
 
 
 class AISuggestRequest(BaseModel):
@@ -181,10 +213,12 @@ class AIRephraseRequest(BaseModel):
 
 # Endpoints
 
+
 @router.get("/status")
 async def ai_status(u: User = Depends(get_current_user)):
     """Проверяет доступность Ollama и возвращает список установленных моделей."""
     import os
+
     ollama_url = os.getenv("OLLAMA_URL", _OLLAMA_URL)
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -195,22 +229,22 @@ async def ai_status(u: User = Depends(get_current_user)):
         return {"available": False, "error": str(e), "models": [], "current_model": _OLLAMA_MODEL}
 
     # Check local Qwen3-8B availability
-    qwen_local = _QWEN_LOCAL_PATH.exists() if hasattr(_QWEN_LOCAL_PATH, 'exists') else False
+    qwen_local = _QWEN_LOCAL_PATH.exists() if hasattr(_QWEN_LOCAL_PATH, "exists") else False
 
     return {
-        "available":     True,
-        "models":        models,
+        "available": True,
+        "models": models,
         "current_model": _OLLAMA_MODEL,
-        "ollama_url":    ollama_url,
-        "qwen_local":    qwen_local,
-        "qwen_model":    _QWEN_MODEL_NAME,
+        "ollama_url": ollama_url,
+        "qwen_local": qwen_local,
+        "qwen_model": _QWEN_MODEL_NAME,
     }
 
 
 @router.post("/chat")
 async def ai_chat(
     body: AIChatRequest,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -223,9 +257,7 @@ async def ai_chat(
     if not _check_ai_rate(u.id):
         raise HTTPException(429, "Too many AI requests. Please wait a minute.")
 
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == body.room_id, RoomMember.user_id == u.id
-    ).first()
+    member = db.query(RoomMember).filter(RoomMember.room_id == body.room_id, RoomMember.user_id == u.id).first()
     if not member:
         raise HTTPException(403, "No access to this room")
 
@@ -234,10 +266,11 @@ async def ai_chat(
     context = "\n".join(history) if history else "(история чата пуста)"
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
-        {"role": "user",   "content": f"История чата:\n{context}\n\nВопрос: {body.message}"},
+        {"role": "user", "content": f"История чата:\n{context}\n\nВопрос: {body.message}"},
     ]
 
     if body.stream:
+
         async def _stream():
             try:
                 async for token in _ollama_chat_stream(messages):
@@ -264,7 +297,7 @@ async def ai_chat(
 @router.post("/summarize")
 async def ai_summarize(
     body: AISummarizeRequest,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Суммаризация последних N сообщений комнаты."""
@@ -273,9 +306,7 @@ async def ai_summarize(
     if not _check_ai_rate(u.id):
         raise HTTPException(429, "Too many requests")
 
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == body.room_id, RoomMember.user_id == u.id
-    ).first()
+    member = db.query(RoomMember).filter(RoomMember.room_id == body.room_id, RoomMember.user_id == u.id).first()
     if not member:
         raise HTTPException(403, "No access to this room")
 
@@ -284,10 +315,7 @@ async def ai_summarize(
         return {"summary": "Chat history is empty.", "model": _OLLAMA_MODEL}
 
     context = "\n".join(history)
-    prompt = (
-        f"Сделай краткое резюме следующей переписки (3-5 предложений). "
-        f"Выдели главные темы и решения.\n\n{context}"
-    )
+    prompt = f"Сделай краткое резюме следующей переписки (3-5 предложений). Выдели главные темы и решения.\n\n{context}"
 
     try:
         result = await _ollama_generate(prompt, system=_SYSTEM_PROMPT)
@@ -302,7 +330,7 @@ async def ai_summarize(
 @router.post("/suggest")
 async def ai_suggest(
     body: AISuggestRequest,
-    u:  User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Предлагает 3 варианта ответа на последнее сообщение в чате."""
@@ -311,9 +339,7 @@ async def ai_suggest(
     if not _check_ai_rate(u.id):
         raise HTTPException(429, "Too many requests")
 
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == body.room_id, RoomMember.user_id == u.id
-    ).first()
+    member = db.query(RoomMember).filter(RoomMember.room_id == body.room_id, RoomMember.user_id == u.id).first()
     if not member:
         raise HTTPException(403, "No access to this room")
 
@@ -330,15 +356,19 @@ async def ai_suggest(
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(f"{_OLLAMA_URL}/api/generate", json={
-                "model": _OLLAMA_MODEL,
-                "prompt": prompt,
-                "system": _SYSTEM_PROMPT,
-                "stream": False,
-                "options": {"temperature": 0.8, "num_predict": 150},
-            })
+            resp = await client.post(
+                f"{_OLLAMA_URL}/api/generate",
+                json={
+                    "model": _OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "system": _SYSTEM_PROMPT,
+                    "stream": False,
+                    "options": {"temperature": 0.8, "num_predict": 150},
+                },
+            )
             resp.raise_for_status()
             import json as _json
+
             raw = _json.loads(resp.text).get("response", "")
     except httpx.ConnectError:
         raise HTTPException(503, "Ollama is unavailable. Run: ollama serve") from None
@@ -352,10 +382,10 @@ async def ai_suggest(
 # Text processing: fix errors & rephrase  (Qwen3-8B)
 
 _REPHRASE_STYLES = {
-    "formal":       "Перефразируй текст в официальном, деловом стиле. Сохрани смысл, используй вежливые конструкции.",
-    "casual":       "Перефразируй текст в дружеском, непринуждённом стиле. Сохрани смысл, сделай проще и легче.",
+    "formal": "Перефразируй текст в официальном, деловом стиле. Сохрани смысл, используй вежливые конструкции.",
+    "casual": "Перефразируй текст в дружеском, непринуждённом стиле. Сохрани смысл, сделай проще и легче.",
     "professional": "Перефразируй текст в профессионально-техническом стиле. Сохрани смысл, сделай чётко и лаконично.",
-    "creative":     "Перефразируй текст в творческом, выразительном стиле. Сохрани смысл, добавь образности.",
+    "creative": "Перефразируй текст в творческом, выразительном стиле. Сохрани смысл, добавь образности.",
 }
 
 
@@ -392,7 +422,9 @@ def _get_qwen_pipeline():
                 trust_remote_code=True,
             )
             _qwen_pipeline = hf_pipeline(
-                "text-generation", model=model, tokenizer=tokenizer,
+                "text-generation",
+                model=model,
+                tokenizer=tokenizer,
                 device=None,  # уже на нужном device
             )
             logger.info("Qwen3-8B loaded on %s (%s)", device, dtype)
@@ -411,7 +443,7 @@ def _qwen_local_generate(prompt: str, system: str, temperature: float = 0.4) -> 
 
     messages = [
         {"role": "system", "content": system},
-        {"role": "user",   "content": prompt},
+        {"role": "user", "content": prompt},
     ]
 
     # Qwen3 chat template
@@ -437,15 +469,17 @@ async def _qwen_generate(prompt: str, system: str, temperature: float = 0.4) -> 
     pipe = _get_qwen_pipeline()
     if pipe is not None:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, _qwen_local_generate, prompt, system, temperature
-        )
+        return await loop.run_in_executor(None, _qwen_local_generate, prompt, system, temperature)
 
     # 2) Fallback: Ollama
     import json as _json
+
     payload = {
-        "model": _QWEN_MODEL_NAME, "prompt": prompt, "system": system,
-        "stream": False, "options": {"temperature": temperature, "num_predict": 1024},
+        "model": _QWEN_MODEL_NAME,
+        "prompt": prompt,
+        "system": system,
+        "stream": False,
+        "options": {"temperature": temperature, "num_predict": 1024},
     }
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(f"{_OLLAMA_URL}/api/generate", json=payload)

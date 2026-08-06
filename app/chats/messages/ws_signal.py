@@ -2,6 +2,7 @@
 app/chats/chat_ws_signal.py — WebRTC signalling WebSocket and global notifications WS.
 Extracted from chat.py.
 """
+
 from __future__ import annotations
 
 import logging
@@ -31,9 +32,9 @@ SIGNAL_RATE_LIMIT = 100  # messages per second
 @router.websocket("/ws/signal/{room_id:int}")
 async def ws_signal(
     websocket: WebSocket,
-    room_id:   int,
-    token:     Optional[str] = None,
-    db:        Session = Depends(get_db),
+    room_id: int,
+    token: Optional[str] = None,
+    db: Session = Depends(get_db),
 ):
     """
     DEPRECATED: WebRTC signalling now goes through BMP for zero metadata leakage.
@@ -49,6 +50,7 @@ async def ws_signal(
         return
 
     from app.transport.knock import is_knock_required, verify_knock
+
     if is_knock_required():
         has_auth = bool(websocket.cookies.get("access_token"))
         if not has_auth:
@@ -72,11 +74,15 @@ async def ws_signal(
 
     # enforce room membership (mirrors core.py ws_chat gate).
     # Reject non-members / banned users on the signalling socket too.
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user.id,
-        RoomMember.is_banned.is_(False),
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user.id,
+            RoomMember.is_banned.is_(False),
+        )
+        .first()
+    )
     if not member:
         await websocket.accept()
         await websocket.close(code=4403)
@@ -86,6 +92,7 @@ async def ws_signal(
     _signal_rooms.setdefault(room_id, {})[user.id] = websocket
     # Compute sealed pseudo for this room (used in relay instead of user.id)
     from app.security.sealed_sender import compute_sender_pseudo
+
     _user_pseudo = compute_sender_pseudo(room_id, user.id)
     logger.debug("Signal WS+ (sanitized)")
 
@@ -110,12 +117,14 @@ async def ws_signal(
 
             # Use sealed sender pseudo instead of real user.id for privacy
             from app.security.sealed_sender import compute_sender_pseudo
-            msg["from"]         = compute_sender_pseudo(room_id, user.id)
+
+            msg["from"] = compute_sender_pseudo(room_id, user.id)
             msg["display_name"] = user.display_name or user.username
             msg["avatar_emoji"] = user.avatar_emoji or "\U0001f464"
 
             # Padding для anti-DPI (размер фрейма рандомизирован)
             import secrets as _sec
+
             msg["_p"] = _sec.token_urlsafe(32 + _sec.randbelow(225))
 
             target_uid = msg.get("to")
@@ -147,8 +156,8 @@ async def ws_signal(
 @router.websocket("/ws/notifications")
 async def ws_notifications(
     websocket: WebSocket,
-    token:     Optional[str] = None,
-    db:        Session       = Depends(get_db),
+    token: Optional[str] = None,
+    db: Session = Depends(get_db),
 ):
     """
     Глобальный WS для уведомлений.

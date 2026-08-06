@@ -16,6 +16,7 @@ Current limitations (documented so users know what to expect):
   - The node must be stopped before /restore (we overwrite the .db file).
   - Blob size capped at 64 MiB (matches controller MAX_BACKUP_BYTES).
 """
+
 from __future__ import annotations
 
 import base64
@@ -44,18 +45,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/admin/backup", tags=["backup"])
 
 
-
-_BLOB_MAGIC  = b"VTXBK1"     # 6-byte magic so we reject stray files
-_NONCE_LEN   = 12
-_KEY_LEN     = 32
-_HKDF_INFO   = b"vortex-backup-key-v1"
-_CLIENT_TIMEOUT = 60.0       # generous — uploads can take a while
+_BLOB_MAGIC = b"VTXBK1"  # 6-byte magic so we reject stray files
+_NONCE_LEN = 12
+_KEY_LEN = 32
+_HKDF_INFO = b"vortex-backup-key-v1"
+_CLIENT_TIMEOUT = 60.0  # generous — uploads can take a while
 
 
 def _canonical(data: Any) -> bytes:
     import json as _json
-    return _json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
+    return _json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def _env_path(request) -> Path:
@@ -100,21 +100,24 @@ def _signing_priv(env_file: Path) -> Ed25519PrivateKey:
 
 
 def _node_pubkey_hex(priv: Ed25519PrivateKey) -> str:
-    return priv.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    ).hex()
+    return (
+        priv.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        .hex()
+    )
 
 
 def _derive_blob_key(priv_bytes: bytes) -> bytes:
     """HKDF-SHA256 over the signing key. Same seed → same derived key."""
     return HKDF(
-        algorithm = hashes.SHA256(),
-        length    = _KEY_LEN,
-        salt      = None,
-        info      = _HKDF_INFO,
+        algorithm=hashes.SHA256(),
+        length=_KEY_LEN,
+        salt=None,
+        info=_HKDF_INFO,
     ).derive(priv_bytes)
-
 
 
 def _is_sqlite(env: dict, node_root: Optional[Path] = None) -> tuple[bool, Optional[Path]]:
@@ -130,9 +133,9 @@ def _is_sqlite(env: dict, node_root: Optional[Path] = None) -> tuple[bool, Optio
 
     path_str = ""
     if db_url.startswith("sqlite:///"):
-        path_str = db_url[len("sqlite:///"):]
+        path_str = db_url[len("sqlite:///") :]
     elif db_url.startswith("sqlite+aiosqlite:///"):
-        path_str = db_url[len("sqlite+aiosqlite:///"):]
+        path_str = db_url[len("sqlite+aiosqlite:///") :]
     if not path_str:
         # No URL set — fall back to the same default app/config.Config uses.
         path_str = env.get("DB_PATH", "").strip() or "vortex.db"
@@ -151,9 +154,7 @@ def _sqlite_snapshot(src: Path) -> bytes:
     """
     if not src.is_file():
         raise HTTPException(404, f"database file not found: {src}")
-    with tempfile.NamedTemporaryFile(
-        suffix=".db", delete=False, dir=str(src.parent)
-    ) as tmp_f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False, dir=str(src.parent)) as tmp_f:
         tmp_path = Path(tmp_f.name)
     try:
         src_conn = sqlite3.connect(str(src))
@@ -171,7 +172,6 @@ def _sqlite_snapshot(src: Path) -> bytes:
             tmp_path.unlink()
 
 
-
 def _encrypt_blob(plaintext: bytes, blob_key: bytes) -> bytes:
     gz = gzip.compress(plaintext, compresslevel=6)
     aes = AESGCM(blob_key)
@@ -186,8 +186,8 @@ def _decrypt_blob(blob: bytes, blob_key: bytes) -> bytes:
     if blob[: len(_BLOB_MAGIC)] != _BLOB_MAGIC:
         raise HTTPException(400, "wrong blob magic (not a vortex backup?)")
     nonce = blob[len(_BLOB_MAGIC) : len(_BLOB_MAGIC) + _NONCE_LEN]
-    ct    = blob[len(_BLOB_MAGIC) + _NONCE_LEN :]
-    aes   = AESGCM(blob_key)
+    ct = blob[len(_BLOB_MAGIC) + _NONCE_LEN :]
+    aes = AESGCM(blob_key)
     try:
         gz = aes.decrypt(nonce, ct, _BLOB_MAGIC)
     except Exception:
@@ -198,7 +198,6 @@ def _decrypt_blob(blob: bytes, blob_key: bytes) -> bytes:
         raise HTTPException(400, "decompression failed") from None
 
 
-
 def _controller_url(env: dict) -> str:
     url = env.get("CONTROLLER_URL", "").strip().rstrip("/")
     if not url:
@@ -206,8 +205,7 @@ def _controller_url(env: dict) -> str:
     return url
 
 
-async def _post_signed(controller_url: str, path: str, payload: dict,
-                        priv: Ed25519PrivateKey) -> dict:
+async def _post_signed(controller_url: str, path: str, payload: dict, priv: Ed25519PrivateKey) -> dict:
     sig = priv.sign(_canonical(payload)).hex()
     body = {"payload": payload, "signature": sig}
     url = f"{controller_url}{path}"
@@ -228,7 +226,7 @@ async def _post_signed(controller_url: str, path: str, payload: dict,
             404,
             f"controller at {controller_url} doesn't expose {path}. "
             "Either it's an older build (upgrade to one with vortex_controller/endpoints/backup.py), "
-            "or your CONTROLLER_URL in .env points to the wrong service."
+            "or your CONTROLLER_URL in .env points to the wrong service.",
         )
     if r.status_code >= 400:
         try:
@@ -237,7 +235,6 @@ async def _post_signed(controller_url: str, path: str, payload: dict,
             detail = r.text
         raise HTTPException(r.status_code, f"controller rejected: {detail}")
     return r.json()
-
 
 
 class RestoreBody(BaseModel):
@@ -252,17 +249,17 @@ async def backup_status(request: Request) -> dict:
     is_sq, db_path = _is_sqlite(env, _node_root(env_file))
     ctrl_url = env.get("CONTROLLER_URL", "").strip()
     out: dict[str, Any] = {
-        "supported":          is_sq,
-        "database_backend":   "sqlite" if is_sq else "postgres",
-        "database_path":      str(db_path) if db_path else None,
-        "database_exists":    bool(db_path and db_path.is_file()),
+        "supported": is_sq,
+        "database_backend": "sqlite" if is_sq else "postgres",
+        "database_path": str(db_path) if db_path else None,
+        "database_exists": bool(db_path and db_path.is_file()),
         "database_byte_size": db_path.stat().st_size if (db_path and db_path.is_file()) else 0,
-        "controller_url":     ctrl_url,
+        "controller_url": ctrl_url,
         "controller_reachable": False,
-        "remote_exists":      False,
-        "remote_updated_at":  None,
-        "remote_byte_size":   None,
-        "remote_sha256":      None,
+        "remote_exists": False,
+        "remote_updated_at": None,
+        "remote_byte_size": None,
+        "remote_sha256": None,
     }
     if not ctrl_url:
         return out
@@ -280,10 +277,10 @@ async def backup_status(request: Request) -> dict:
         res = await _post_signed(ctrl_url.rstrip("/"), "/v1/backup/meta", payload, priv)
         out["controller_reachable"] = True
         if res.get("exists"):
-            out["remote_exists"]     = True
+            out["remote_exists"] = True
             out["remote_updated_at"] = res.get("updated_at")
-            out["remote_byte_size"]  = res.get("byte_size")
-            out["remote_sha256"]     = res.get("sha256")
+            out["remote_byte_size"] = res.get("byte_size")
+            out["remote_sha256"] = res.get("sha256")
     except HTTPException as e:
         out["controller_error"] = e.detail
     except Exception as e:
@@ -303,22 +300,22 @@ async def backup_upload(request: Request) -> dict:
         raise HTTPException(404, f"database file missing: {db_path}")
 
     priv_bytes = _signing_key_bytes(env_file)
-    priv       = Ed25519PrivateKey.from_private_bytes(priv_bytes)
-    pub        = _node_pubkey_hex(priv)
-    blob_key   = _derive_blob_key(priv_bytes)
+    priv = Ed25519PrivateKey.from_private_bytes(priv_bytes)
+    pub = _node_pubkey_hex(priv)
+    blob_key = _derive_blob_key(priv_bytes)
 
-    plaintext  = _sqlite_snapshot(db_path)
-    blob       = _encrypt_blob(plaintext, blob_key)
+    plaintext = _sqlite_snapshot(db_path)
+    blob = _encrypt_blob(plaintext, blob_key)
     sha256_hex = hashlib.sha256(blob).hexdigest()
-    byte_size  = len(blob)
+    byte_size = len(blob)
 
     ctrl_url = _controller_url(env)
     payload = {
-        "action":    "put",
-        "pubkey":    pub,
-        "sha256":    sha256_hex,
+        "action": "put",
+        "pubkey": pub,
+        "sha256": sha256_hex,
         "byte_size": byte_size,
-        "blob_b64":  base64.b64encode(blob).decode("ascii"),
+        "blob_b64": base64.b64encode(blob).decode("ascii"),
         "timestamp": int(time.time()),
     }
     res = await _post_signed(ctrl_url, "/v1/backup", payload, priv)
@@ -327,17 +324,22 @@ async def backup_upload(request: Request) -> dict:
     # "last backup at T" without re-querying the controller.
     with contextlib.suppress(Exception):
         import json as _json
-        (env_file.parent / "backup_last.meta").write_text(_json.dumps({
-            "updated_at": res.get("updated_at") or int(time.time()),
-            "byte_size":  byte_size,
-            "sha256":     sha256_hex,
-        }))
+
+        (env_file.parent / "backup_last.meta").write_text(
+            _json.dumps(
+                {
+                    "updated_at": res.get("updated_at") or int(time.time()),
+                    "byte_size": byte_size,
+                    "sha256": sha256_hex,
+                }
+            )
+        )
 
     logger.info("backup uploaded: %d bytes, sha256=%s", byte_size, sha256_hex[:12])
     return {
-        "ok":         True,
-        "byte_size":  byte_size,
-        "sha256":     sha256_hex,
+        "ok": True,
+        "byte_size": byte_size,
+        "sha256": sha256_hex,
         "updated_at": res.get("updated_at"),
         "plaintext_byte_size": len(plaintext),
     }
@@ -362,15 +364,15 @@ async def backup_restore(body: RestoreBody, request: Request) -> dict:
         raise HTTPException(409, "stop the node before restoring (port still in use)")
 
     priv_bytes = _signing_key_bytes(env_file)
-    priv       = Ed25519PrivateKey.from_private_bytes(priv_bytes)
-    pub        = _node_pubkey_hex(priv)
-    blob_key   = _derive_blob_key(priv_bytes)
-    ctrl_url   = _controller_url(env)
+    priv = Ed25519PrivateKey.from_private_bytes(priv_bytes)
+    pub = _node_pubkey_hex(priv)
+    blob_key = _derive_blob_key(priv_bytes)
+    ctrl_url = _controller_url(env)
 
     payload = {"action": "fetch", "pubkey": pub, "timestamp": int(time.time())}
     res = await _post_signed(ctrl_url, "/v1/backup/fetch", payload, priv)
 
-    blob_b64   = res.get("blob_b64") or ""
+    blob_b64 = res.get("blob_b64") or ""
     sha256_hex = res.get("sha256") or ""
     try:
         blob = base64.b64decode(blob_b64, validate=True)
@@ -393,10 +395,10 @@ async def backup_restore(body: RestoreBody, request: Request) -> dict:
 
     logger.info("backup restored: %d bytes plaintext into %s", len(plaintext), db_path)
     return {
-        "ok":                True,
-        "restored_to":       str(db_path),
+        "ok": True,
+        "restored_to": str(db_path),
         "plaintext_byte_size": len(plaintext),
-        "blob_byte_size":    len(blob),
+        "blob_byte_size": len(blob),
     }
 
 
@@ -412,10 +414,10 @@ async def backup_delete(request: Request) -> dict:
     return res
 
 
-
 def _node_is_alive(env: dict) -> bool:
     """True iff something is listening on the node's configured port."""
     import socket
+
     host = env.get("HOST", "127.0.0.1")
     if host == "0.0.0.0":
         host = "127.0.0.1"

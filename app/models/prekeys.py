@@ -5,6 +5,7 @@ app/models/prekeys.py — Модели для хранения Pre-Key Bundle (X
   prekey_bundles  — Identity Key + Signed Pre-Key (одна запись на устройство: (user_id, device_id)).
   onetime_prekeys — Одноразовые Pre-Keys (пачка на устройство, каждый используется один раз).
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -45,10 +46,9 @@ class PreKeyBundle(Base):
         created_at:        время публикации.
         updated_at:        время последнего обновления SPK.
     """
+
     __tablename__ = "prekey_bundles"
-    __table_args__ = (
-        UniqueConstraint("user_id", "device_id", name="uq_prekey_bundle_user_device"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "device_id", name="uq_prekey_bundle_user_device"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(
@@ -84,17 +84,17 @@ class PreKeyBundle(Base):
     # опубликованные, но неиспользуемые данные. cert подписывает аккаунтный
     # Ed25519 (identity_key_ed) над (client_device_id ‖ device_x3dh_pub ‖
     # device_sign_pub) — верификатор восстанавливает это сообщение из полей ниже.
-    device_x3dh_pub = Column(LargeBinary(32), nullable=True)   # X25519 device X3DH pub (per-account)
-    device_sign_pub = Column(LargeBinary(32), nullable=True)   # Ed25519 device signing pub
-    device_cert_sig = Column(LargeBinary(64), nullable=True)   # Ed25519 подпись аккаунта над cert-сообщением
-    client_device_id = Column(String(32), nullable=True)       # стабильный id устройства, подписанный в cert
+    device_x3dh_pub = Column(LargeBinary(32), nullable=True)  # X25519 device X3DH pub (per-account)
+    device_sign_pub = Column(LargeBinary(32), nullable=True)  # Ed25519 device signing pub
+    device_cert_sig = Column(LargeBinary(64), nullable=True)  # Ed25519 подпись аккаунта над cert-сообщением
+    client_device_id = Column(String(32), nullable=True)  # стабильный id устройства, подписанный в cert
     # PQXDH per-device Kyber pre-key (ML-KEM-768). Публичный подписан device
     # signing-ключом (как SPK); отправитель проверяет против device_sign_pub на
     # fan-out (та же цепочка, что SPK). Приватный — только на устройстве.
     # Nullable: бандлы до PQXDH и клиенты без ML-KEM остаются на классике.
     device_kyber_pub = Column(LargeBinary(1184), nullable=True)  # ML-KEM-768 pub (1184 байта)
-    device_kyber_sig = Column(LargeBinary(64), nullable=True)    # Ed25519 подпись device-ключа над kyber pub
-    device_kyber_id = Column(Integer, nullable=True)             # id pre-key для ротации (пока фикс)
+    device_kyber_sig = Column(LargeBinary(64), nullable=True)  # Ed25519 подпись device-ключа над kyber pub
+    device_kyber_id = Column(Integer, nullable=True)  # id pre-key для ротации (пока фикс)
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),
@@ -108,10 +108,7 @@ class PreKeyBundle(Base):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<PreKeyBundle user_id={self.user_id} "
-            f"spk_id={self.signed_prekey_id}>"
-        )
+        return f"<PreKeyBundle user_id={self.user_id} spk_id={self.signed_prekey_id}>"
 
 
 class OneTimePreKey(Base):
@@ -130,6 +127,7 @@ class OneTimePreKey(Base):
         used:       True после выдачи в составе Pre-Key Bundle.
         created_at: время публикации.
     """
+
     __tablename__ = "onetime_prekeys"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -155,10 +153,7 @@ class OneTimePreKey(Base):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<OneTimePreKey user_id={self.user_id} "
-            f"key_id={self.key_id} used={self.used}>"
-        )
+        return f"<OneTimePreKey user_id={self.user_id} key_id={self.key_id} used={self.used}>"
 
 
 class OneTimeKyberPreKey(Base):
@@ -170,6 +165,7 @@ class OneTimeKyberPreKey(Base):
     устройство. Расходуется через /claim-opk (want_kyber=true) — только когда
     сессия реально идёт в PQ, иначе не-PQ трафик выжигал бы пул.
     """
+
     __tablename__ = "onetime_kyber_prekeys"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -186,7 +182,7 @@ class OneTimeKyberPreKey(Base):
         index=True,
     )
     key_id = Column(Integer, nullable=False)
-    public_key = Column(LargeBinary(1184), nullable=False)   # ML-KEM-768 pub
+    public_key = Column(LargeBinary(1184), nullable=False)  # ML-KEM-768 pub
     used = Column(Boolean, default=False, nullable=False)
     created_at = Column(
         DateTime,
@@ -195,7 +191,4 @@ class OneTimeKyberPreKey(Base):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<OneTimeKyberPreKey user_id={self.user_id} "
-            f"key_id={self.key_id} used={self.used}>"
-        )
+        return f"<OneTimeKyberPreKey user_id={self.user_id} key_id={self.key_id} used={self.used}>"

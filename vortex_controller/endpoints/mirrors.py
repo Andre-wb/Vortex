@@ -12,6 +12,7 @@ try: ..." — with a health indicator next to each.
 The signed payload now carries per-mirror health data produced by
 ``MirrorHealthChecker`` so clients don't need a separate call.
 """
+
 from __future__ import annotations
 
 import time

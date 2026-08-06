@@ -13,6 +13,7 @@ Config:
   TOR_CONTROL_PASSWORD=...     — Tor control auth password
   TOR_HS_PERSISTENT=false      — persist .onion across restarts
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -66,7 +67,8 @@ class TorHiddenService:
 
             logger.info(
                 "Tor Hidden Service active: http://%s → 127.0.0.1:%d",
-                self.onion_address, listen_port,
+                self.onion_address,
+                listen_port,
             )
             return self.onion_address
 

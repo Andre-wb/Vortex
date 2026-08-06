@@ -3,6 +3,7 @@
 Both accept a signed payload. Signature is verified against the pubkey inside
 the payload, proving the caller controls the private key.
 """
+
 from __future__ import annotations
 
 import time
@@ -94,6 +95,7 @@ async def heartbeat(req: HeartbeatRequest, request: Request) -> RegisterAck:
 
 try:
     import vortex_chat as _vc_rust
+
     _HAS_RUST_BATCH = hasattr(_vc_rust, "batch_verify")
 except ImportError:
     _HAS_RUST_BATCH = False
@@ -122,6 +124,7 @@ async def heartbeat_batch(req: BatchHeartbeat, request: Request) -> dict:
             pubkey_hex_list.append(p.pubkey)
             sigs.append(bytes.fromhex(it.signature))
             from ..controller_crypto import canonical_json as _cj
+
             msgs.append(_cj(p.model_dump()))
         except ValueError:
             raise HTTPException(400, "invalid hex in pubkey or signature") from None
@@ -138,13 +141,11 @@ async def heartbeat_batch(req: BatchHeartbeat, request: Request) -> dict:
         if ok is None:
             # Fall through to per-item verify
             for it, _m in zip(req.items, msgs, strict=False):
-                if not verify_signature(it.payload.pubkey, it.signature,
-                                        it.payload.model_dump()):
+                if not verify_signature(it.payload.pubkey, it.signature, it.payload.model_dump()):
                     raise HTTPException(401, "invalid signature")
     else:
         for it in req.items:
-            if not verify_signature(it.payload.pubkey, it.signature,
-                                    it.payload.model_dump()):
+            if not verify_signature(it.payload.pubkey, it.signature, it.payload.model_dump()):
                 raise HTTPException(401, "invalid signature")
 
     storage = request.app.state.storage
@@ -154,7 +155,7 @@ async def heartbeat_batch(req: BatchHeartbeat, request: Request) -> dict:
             missing.append(it.payload.pubkey)
 
     return {
-        "ok":       True,
+        "ok": True,
         "accepted": len(req.items) - len(missing),
-        "missing":  missing,
+        "missing": missing,
     }

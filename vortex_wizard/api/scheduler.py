@@ -9,6 +9,7 @@ cron-ish tasks).
 Every job is a plain ``async def job(env_file: Path) -> dict`` where the
 returned dict is stored as the "last result" for the UI.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -29,20 +30,20 @@ JobFn = Callable[[Path], Awaitable[dict]]
 
 # User-facing interval presets (seconds). "off" means job skipped.
 INTERVAL_PRESETS = {
-    "off":     0,
-    "hourly":  3600,
-    "daily":   86400,
-    "weekly":  7 * 86400,
+    "off": 0,
+    "hourly": 3600,
+    "daily": 86400,
+    "weekly": 7 * 86400,
 }
 
 
 @dataclass
 class Job:
-    name:     str
-    fn:       JobFn
+    name: str
+    fn: JobFn
     interval: str = "off"
     last_run: int = 0
-    last_ok:  bool = False
+    last_ok: bool = False
     last_msg: str = ""
     # When interval == "off" this job is not scheduled, but can still be
     # invoked manually via run_once().
@@ -61,14 +62,14 @@ class Scheduler:
     def register(self, name: str, fn: JobFn, default_interval: str = "off") -> None:
         existing = self._jobs.get(name)
         if existing:
-            existing.fn = fn                # allow re-registration
+            existing.fn = fn  # allow re-registration
             return
         j = Job(name=name, fn=fn, interval=default_interval)
         # Hydrate from persisted state if available
         saved = self._saved.get(name, {})
         j.interval = saved.get("interval", j.interval)
         j.last_run = int(saved.get("last_run", 0))
-        j.last_ok  = bool(saved.get("last_ok", False))
+        j.last_ok = bool(saved.get("last_ok", False))
         j.last_msg = saved.get("last_msg", "")
         self._jobs[name] = j
 
@@ -84,12 +85,12 @@ class Scheduler:
     def jobs(self) -> list[dict]:
         return [
             {
-                "name":       j.name,
-                "interval":   j.interval,
-                "last_run":   j.last_run,
-                "last_ok":    j.last_ok,
-                "last_msg":   j.last_msg,
-                "next_run":   _next_run_at(j),
+                "name": j.name,
+                "interval": j.interval,
+                "last_run": j.last_run,
+                "last_ok": j.last_ok,
+                "last_msg": j.last_msg,
+                "next_run": _next_run_at(j),
             }
             for j in self._jobs.values()
         ]
@@ -163,7 +164,7 @@ class Scheduler:
             j.name: {
                 "interval": j.interval,
                 "last_run": j.last_run,
-                "last_ok":  j.last_ok,
+                "last_ok": j.last_ok,
                 "last_msg": j.last_msg,
             }
             for j in self._jobs.values()

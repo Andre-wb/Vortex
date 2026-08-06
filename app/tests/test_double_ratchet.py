@@ -42,7 +42,6 @@ def _make_session():
 
 
 class TestSignedPreKey:
-
     def test_sign_and_verify(self):
         identity = Ed25519PrivateKey.generate()
         spk_pub = X25519PrivateKey.generate().public_key().public_bytes_raw()
@@ -65,19 +64,14 @@ class TestSignedPreKey:
 
 
 class TestX3DH:
-
     def test_shared_secret_agreement_with_opk(self):
         alice_ik = X25519PrivateKey.generate()
         bob_ik = X25519PrivateKey.generate()
         bob_spk = X25519PrivateKey.generate()
         bob_opk = X25519PrivateKey.generate()
 
-        shared_a, ek = dr.x3dh_initiate(
-            alice_ik, bob_ik.public_key(), bob_spk.public_key(), bob_opk.public_key()
-        )
-        shared_b = dr.x3dh_respond(
-            bob_ik, bob_spk, bob_opk, alice_ik.public_key(), ek.public_key()
-        )
+        shared_a, ek = dr.x3dh_initiate(alice_ik, bob_ik.public_key(), bob_spk.public_key(), bob_opk.public_key())
+        shared_b = dr.x3dh_respond(bob_ik, bob_spk, bob_opk, alice_ik.public_key(), ek.public_key())
         assert shared_a == shared_b
         assert len(shared_a) == 32
 
@@ -90,17 +84,12 @@ class TestX3DH:
 
         # Разные эфемерные ключи генерируются внутри, поэтому сравниваем
         # через респондера с одним и тем же ek.
-        shared_with, ek = dr.x3dh_initiate(
-            alice_ik, bob_ik.public_key(), bob_spk.public_key(), bob_opk.public_key()
-        )
-        shared_without = dr.x3dh_respond(
-            bob_ik, bob_spk, None, alice_ik.public_key(), ek.public_key()
-        )
+        shared_with, ek = dr.x3dh_initiate(alice_ik, bob_ik.public_key(), bob_spk.public_key(), bob_opk.public_key())
+        shared_without = dr.x3dh_respond(bob_ik, bob_spk, None, alice_ik.public_key(), ek.public_key())
         assert shared_with != shared_without
 
 
 class TestKDF:
-
     def test_kdf_ck_deterministic_and_separated(self):
         ck = b"\x11" * 32
         new_ck1, mk1 = dr.kdf_ck(ck)
@@ -119,7 +108,6 @@ class TestKDF:
 
 
 class TestHeader:
-
     def test_serialize_roundtrip(self):
         h = dr.Header(dh_public=b"\x42" * 32, prev_count=7, msg_number=13)
         data = h.serialize()
@@ -133,7 +121,6 @@ class TestHeader:
 
 
 class TestRatchetConversation:
-
     def test_basic_roundtrip(self):
         alice, bob = _make_session()
         header, ct = dr.ratchet_encrypt(alice, "Привет, Боб!".encode())
@@ -251,7 +238,6 @@ class TestBreakInRecovery:
 
 
 class TestStateSerialization:
-
     def test_roundtrip_mid_conversation_with_skipped_keys(self):
         alice, bob = _make_session()
         msgs = [dr.ratchet_encrypt(alice, f"m{i}".encode()) for i in range(3)]
@@ -283,9 +269,7 @@ class TestVectors:
 
     @pytest.fixture(scope="class")
     def vectors(self):
-        assert VECTORS_PATH.exists(), (
-            f"{VECTORS_PATH} отсутствует — сгенерируй: python scripts/gen_dr_test_vectors.py"
-        )
+        assert VECTORS_PATH.exists(), f"{VECTORS_PATH} отсутствует — сгенерируй: python scripts/gen_dr_test_vectors.py"
         return json.loads(VECTORS_PATH.read_text(encoding="utf-8"))
 
     def test_kdf_ck_vectors(self, vectors):
@@ -337,9 +321,7 @@ class TestVectors:
         alice_ik_pub = _pub(x["alice"]["ik_pub"])
 
         for name, opk in [("with_opk", _priv(x["bob"]["opk_priv"])), ("without_opk", None)]:
-            shared = dr.x3dh_respond(
-                bob_ik, bob_spk, opk, alice_ik_pub, _pub(x[name]["ek_pub"])
-            )
+            shared = dr.x3dh_respond(bob_ik, bob_spk, opk, alice_ik_pub, _pub(x[name]["ek_pub"]))
             assert shared.hex() == x[name]["shared_secret"], name
 
     def test_x3dh_pq_vectors(self, vectors):
@@ -355,8 +337,14 @@ class TestVectors:
 
         for name, opk in [("with_opk", _priv(x["bob"]["opk_priv"])), ("without_opk", None)]:
             shared = dr.x3dh_respond_pq(
-                bob_ik, bob_spk, opk, alice_ik_pub, _pub(x[name]["ek_pub"]),
-                pqpk, ct, ss,
+                bob_ik,
+                bob_spk,
+                opk,
+                alice_ik_pub,
+                _pub(x[name]["ek_pub"]),
+                pqpk,
+                ct,
+                ss,
             )
             assert shared.hex() == x[name]["shared_secret"], name
 
@@ -367,9 +355,7 @@ class TestVectors:
         bob_ik = _priv(x["bob"]["ik_priv"])
         bob_spk = _priv(x["bob"]["spk_priv"])
         alice_ik_pub = _pub(x["alice"]["ik_pub"])
-        classical = dr.x3dh_respond(
-            bob_ik, bob_spk, None, alice_ik_pub, _pub(x["without_opk"]["ek_pub"])
-        )
+        classical = dr.x3dh_respond(bob_ik, bob_spk, None, alice_ik_pub, _pub(x["without_opk"]["ek_pub"]))
         assert classical.hex() != x["without_opk"]["shared_secret"]
 
     def test_transcript_segments_decrypt(self, vectors):

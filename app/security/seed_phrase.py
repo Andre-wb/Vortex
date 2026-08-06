@@ -11,6 +11,7 @@ Flow:
   3. Server stores Argon2id(normalize(mnemonic)) — phrase itself NEVER stored
   4. Recovery login: username + seed phrase → verify hash → JWT tokens
 """
+
 from __future__ import annotations
 
 import logging
@@ -21,12 +22,14 @@ logger = logging.getLogger(__name__)
 def generate_mnemonic() -> str:
     """Generate a BIP39 24-word mnemonic (256-bit entropy)."""
     from mnemonic import Mnemonic
+
     return Mnemonic("english").generate(256)
 
 
 def validate_mnemonic(phrase: str) -> bool:
     """Check if a mnemonic is valid BIP39 English."""
     from mnemonic import Mnemonic
+
     return Mnemonic("english").check(phrase)
 
 

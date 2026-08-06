@@ -11,6 +11,7 @@ Architecture:
 
 Without Redis (REDIS_URL empty), everything works as before — single-instance.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,6 +31,7 @@ _instance_id: str = ""
 
 def _get_prefix() -> str:
     from app.config import Config
+
     return Config.REDIS_CHANNEL_PREFIX or "vortex"
 
 
@@ -44,6 +46,7 @@ async def init_redis() -> bool:
 
     try:
         import redis.asyncio as aioredis
+
         _redis_client = aioredis.from_url(
             Config.REDIS_URL,
             max_connections=Config.REDIS_POOL_SIZE,
@@ -87,11 +90,13 @@ async def publish_to_room(room_id: int, payload: dict, sender_instance: str = ""
     if not _redis_client:
         return
     channel = f"{_get_prefix()}:room:{room_id}"
-    message = json.dumps({
-        "instance_id": sender_instance or _instance_id,
-        "room_id": room_id,
-        "payload": payload,
-    })
+    message = json.dumps(
+        {
+            "instance_id": sender_instance or _instance_id,
+            "room_id": room_id,
+            "payload": payload,
+        }
+    )
     try:
         await _redis_client.publish(channel, message)
     except Exception as e:
@@ -103,11 +108,13 @@ async def publish_notification(user_id: int, payload: dict) -> None:
     if not _redis_client:
         return
     channel = f"{_get_prefix()}:notify:{user_id}"
-    message = json.dumps({
-        "instance_id": _instance_id,
-        "user_id": user_id,
-        "payload": payload,
-    })
+    message = json.dumps(
+        {
+            "instance_id": _instance_id,
+            "user_id": user_id,
+            "payload": payload,
+        }
+    )
     try:
         await _redis_client.publish(channel, message)
     except Exception as e:
@@ -178,13 +185,13 @@ async def start_subscriber(on_room_message, on_notification) -> None:
     _pubsub_task = asyncio.create_task(_listener(), name="redis-subscriber")
 
 
-
 async def check_rate_limit_distributed(key: str, limit: int, window: int) -> bool:
     """Check rate limit using Redis sliding window. Returns True if allowed."""
     if not _redis_client:
         return True  # No Redis = no distributed limiting
     try:
         import time
+
         now = time.time()
         pipe = _redis_client.pipeline()
         pipe.zremrangebyscore(key, 0, now - window)
@@ -197,7 +204,6 @@ async def check_rate_limit_distributed(key: str, limit: int, window: int) -> boo
     except Exception as e:
         logger.warning("Redis rate limit check failed (key=%s): %s", key, e)
         return True  # Fail open
-
 
 
 async def cache_set(key: str, value: str, ttl: int = 300) -> None:

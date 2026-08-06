@@ -11,6 +11,7 @@ Covers:
   - Bot marketplace (publish, detail, reviews, install)
   - Native bridge (push register/unregister, capabilities, biometric)
 """
+
 from __future__ import annotations
 
 from conftest import SyncASGIClient, make_user, random_str
@@ -30,10 +31,14 @@ def _create_room(client, headers, name=None):
 
 
 def _create_bot(client, headers):
-    r = client.post("/api/bots", json={
-        "username": f"bot_{random_str(6)}",
-        "display_name": "Test Bot",
-    }, headers=headers)
+    r = client.post(
+        "/api/bots",
+        json={
+            "username": f"bot_{random_str(6)}",
+            "display_name": "Test Bot",
+        },
+        headers=headers,
+    )
     if r.status_code in (200, 201):
         return r.json()
     return None
@@ -46,24 +51,37 @@ class TestContactSync:
     def test_sync_with_hashes(self, client):
         _, h = _auth(client)
         import hashlib
+
         fake_hash = hashlib.sha256(b"+1234567890").hexdigest()
-        r = client.post("/api/contacts/sync", json={
-            "phone_hashes": [fake_hash],
-        }, headers=h)
+        r = client.post(
+            "/api/contacts/sync",
+            json={
+                "phone_hashes": [fake_hash],
+            },
+            headers=h,
+        )
         assert r.status_code == 200
 
     def test_sync_empty_list(self, client):
         _, h = _auth(client)
-        r = client.post("/api/contacts/sync", json={
-            "phone_hashes": [],
-        }, headers=h)
+        r = client.post(
+            "/api/contacts/sync",
+            json={
+                "phone_hashes": [],
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 400, 422)
 
     def test_add_all_empty(self, client):
         _, h = _auth(client)
-        r = client.post("/api/contacts/sync/add-all", json={
-            "user_ids": [],
-        }, headers=h)
+        r = client.post(
+            "/api/contacts/sync/add-all",
+            json={
+                "user_ids": [],
+            },
+            headers=h,
+        )
         assert r.status_code in (200, 400, 422)
 
     def test_sync_requires_auth(self, client):

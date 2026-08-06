@@ -11,6 +11,7 @@ wallet, free-tier limits apply.
 Kept in sync with the pricing published on ``vortex_controller/web/`` —
 any change here should be mirrored there for user expectations to match.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -28,44 +29,43 @@ class TierLimits:
     is_premium: bool
 
     # Storage / bandwidth
-    max_file_mb:             int
-    saved_gb:                float   # "Saved Messages" quota (0 = unlimited)
+    max_file_mb: int
+    saved_gb: float  # "Saved Messages" quota (0 = unlimited)
 
     # Groups and channels
-    big_group_threshold:     int     # member count at which a group becomes "big"
-    max_big_groups:          int     # groups with > threshold members; 0 = unlimited
-    max_channels:            int     # 0 = unlimited
+    big_group_threshold: int  # member count at which a group becomes "big"
+    max_big_groups: int  # groups with > threshold members; 0 = unlimited
+    max_channels: int  # 0 = unlimited
 
     # Messaging dynamics
-    max_scheduled_messages:  int
-    max_sticker_packs:       int
-    messages_per_minute:     int
+    max_scheduled_messages: int
+    max_sticker_packs: int
+    messages_per_minute: int
     api_requests_per_minute: int
 
     # Media quality / cover traffic
-    max_group_call_size:     int
-    max_video_resolution:    str     # "720p" | "1080p"
+    max_group_call_size: int
+    max_video_resolution: str  # "720p" | "1080p"
     cover_traffic_multiplier: float  # Free=1.0, Premium=2.0
 
     # Economics (operator who is also premium)
-    rewards_multiplier:      float   # 1.0 free, 1.2 premium
+    rewards_multiplier: float  # 1.0 free, 1.2 premium
 
     # Cosmetic
-    animated_avatar:         bool
-    premium_badge:           bool
+    animated_avatar: bool
+    premium_badge: bool
 
     # Gifting
-    can_gift_premium:        bool
+    can_gift_premium: bool
 
     def to_dict(self) -> dict[str, Any]:
         return {k: getattr(self, k) for k in self.__annotations__}
 
 
-
 FREE = TierLimits(
     is_premium=False,
     max_file_mb=200,
-    saved_gb=0.0,                    # node-decides; no explicit app cap
+    saved_gb=0.0,  # node-decides; no explicit app cap
     big_group_threshold=100,
     max_big_groups=10,
     max_channels=10,
@@ -84,11 +84,11 @@ FREE = TierLimits(
 
 PREMIUM = TierLimits(
     is_premium=True,
-    max_file_mb=2048,                # 2 GB
-    saved_gb=0.0,                    # unlimited (node decides)
+    max_file_mb=2048,  # 2 GB
+    saved_gb=0.0,  # unlimited (node decides)
     big_group_threshold=100,
-    max_big_groups=0,                # unlimited
-    max_channels=0,                  # unlimited
+    max_big_groups=0,  # unlimited
+    max_channels=0,  # unlimited
     max_scheduled_messages=100,
     max_sticker_packs=100,
     messages_per_minute=300,
@@ -103,8 +103,6 @@ PREMIUM = TierLimits(
 )
 
 
-
-
 async def get_limits_for_wallet(wallet_pubkey: str) -> TierLimits:
     """Look up on-chain subscription and return the matching tier.
 
@@ -115,11 +113,11 @@ async def get_limits_for_wallet(wallet_pubkey: str) -> TierLimits:
         return FREE
     try:
         from app.security.premium_check import premium_checker
+
         status = await premium_checker.get_status(wallet_pubkey)
         return PREMIUM if status.is_premium else FREE
     except Exception as e:
-        logger.warning("limits lookup failed for %s: %s — defaulting to FREE",
-                       wallet_pubkey, e)
+        logger.warning("limits lookup failed for %s: %s — defaulting to FREE", wallet_pubkey, e)
         return FREE
 
 
@@ -131,8 +129,6 @@ async def get_limits_for_user(user: Any) -> TierLimits:
     """
     wallet = getattr(user, "wallet_pubkey", "") or ""
     return await get_limits_for_wallet(wallet)
-
-
 
 
 def peek_limits_for_wallet(wallet_pubkey: str) -> TierLimits:
@@ -147,6 +143,7 @@ def peek_limits_for_wallet(wallet_pubkey: str) -> TierLimits:
         return FREE
     with contextlib.suppress(Exception):
         from app.security.premium_check import premium_checker
+
         cached = premium_checker._cache.get(wallet_pubkey)
         if cached and cached.is_premium:
             return PREMIUM

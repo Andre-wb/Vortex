@@ -32,6 +32,7 @@ Sizes:
   - Kyber-768 shared secret: 32 bytes
   - Total overhead per key exchange: ~2.3 KB (negligible for messaging)
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -53,12 +54,10 @@ _is_prod = (
     or os.environ.get("IS_PROD", "").lower() in ("1", "true", "yes")
     or os.environ.get("IS_PRODUCTION", "").lower() in ("1", "true", "yes")
 )
-_SIMULATION_ALLOWED = (
-    os.environ.get("VORTEX_PQ_SIMULATE", "").lower() in ("1", "true", "yes")
-    and not _is_prod
-)
+_SIMULATION_ALLOWED = os.environ.get("VORTEX_PQ_SIMULATE", "").lower() in ("1", "true", "yes") and not _is_prod
 if _is_prod and os.environ.get("VORTEX_PQ_SIMULATE", "").lower() in ("1", "true", "yes"):
     import sys
+
     print(
         "FATAL: VORTEX_PQ_SIMULATE=1 is set in production environment. "
         "This disables real post-quantum security. Refusing to start.",
@@ -70,6 +69,7 @@ _RUST_PQ = False
 _vc_pq = None
 try:
     import vortex_chat as _vc_pq
+
     if not hasattr(_vc_pq, "mlkem768_keygen"):
         _vc_pq = None
     else:
@@ -79,6 +79,7 @@ except ImportError:
 
 try:
     import warnings as _warnings
+
     with _warnings.catch_warnings():
         _warnings.simplefilter("ignore", UserWarning)
         import oqs
@@ -95,6 +96,7 @@ except BaseException as _oqs_err:
         from pqcrypto.kem.kyber768 import decrypt as _kyber_decaps  # noqa: F401
         from pqcrypto.kem.kyber768 import encrypt as _kyber_encaps  # noqa: F401
         from pqcrypto.kem.kyber768 import generate_keypair as _kyber_keygen  # noqa: F401
+
         _PQ_AVAILABLE = True
         _PQ_BACKEND = "pqcrypto"
         logger.info("Post-quantum: pqcrypto (Kyber-768) loaded")
@@ -104,9 +106,10 @@ except BaseException as _oqs_err:
         # unless VORTEX_PQ_SIMULATE=1 is explicitly set (testing only).
         _PQ_SIMULATED = True
         if _SIMULATION_ALLOWED:
-            _PQ_AVAILABLE = True   # allow API to function (testing only)
+            _PQ_AVAILABLE = True  # allow API to function (testing only)
             _PQ_BACKEND = "simulated"
             import platform as _platform
+
             _system = _platform.system()
             if _system == "Darwin":
                 _install = "brew install liboqs && pip install --force-reinstall liboqs-python"
@@ -119,10 +122,7 @@ except BaseException as _oqs_err:
                     "|  then: pip install --force-reinstall liboqs-python"
                 )
             elif _system == "Windows":
-                _install = (
-                    "pip install pqcrypto  "
-                    "(Windows has no prebuilt liboqs — use the pqcrypto fallback)"
-                )
+                _install = "pip install pqcrypto  (Windows has no prebuilt liboqs — use the pqcrypto fallback)"
             else:
                 _install = "pip install pqcrypto"
             logger.warning(
@@ -172,6 +172,7 @@ def pq_backend() -> str:
 
 # Kyber-768 abstraction (works with any backend)
 
+
 class Kyber768:
     """Abstraction over Kyber-768 KEM (Key Encapsulation Mechanism)."""
 
@@ -190,6 +191,7 @@ class Kyber768:
 
         if _PQ_BACKEND == "liboqs":
             import oqs
+
             kem = oqs.KeyEncapsulation("ML-KEM-768")
             pk = kem.generate_keypair()
             sk = kem.export_secret_key()
@@ -197,6 +199,7 @@ class Kyber768:
 
         elif _PQ_BACKEND == "pqcrypto":
             from pqcrypto.kem.kyber768 import generate_keypair
+
             pk, sk = generate_keypair()
             return bytes(pk), bytes(sk)
 
@@ -225,12 +228,14 @@ class Kyber768:
 
         if _PQ_BACKEND == "liboqs":
             import oqs
+
             kem = oqs.KeyEncapsulation("ML-KEM-768")
             ct, ss = kem.encap_secret(public_key)
             return bytes(ct), bytes(ss)
 
         elif _PQ_BACKEND == "pqcrypto":
             from pqcrypto.kem.kyber768 import encrypt
+
             ct, ss = encrypt(public_key)
             return bytes(ct), bytes(ss)
 
@@ -262,12 +267,14 @@ class Kyber768:
 
         if _PQ_BACKEND == "liboqs":
             import oqs
+
             kem = oqs.KeyEncapsulation("ML-KEM-768", secret_key=secret_key)
             ss = kem.decap_secret(ciphertext)
             return bytes(ss)
 
         elif _PQ_BACKEND == "pqcrypto":
             from pqcrypto.kem.kyber768 import decrypt
+
             ss = decrypt(secret_key, ciphertext)
             return bytes(ss)
 
@@ -281,6 +288,7 @@ class Kyber768:
 
 # Hybrid X25519 + Kyber-768 Key Exchange
 
+
 def hybrid_keygen() -> dict:
     """Generate hybrid X25519 + Kyber-768 keypair.
 
@@ -293,6 +301,7 @@ def hybrid_keygen() -> dict:
         }
     """
     from app.security.crypto import generate_x25519_keypair
+
     x_priv, x_pub = generate_x25519_keypair()
     k_pub, k_sk = Kyber768.keygen()
 
@@ -335,9 +344,7 @@ def hybrid_encapsulate(recipient_x25519_pub: bytes, recipient_kyber_pub: bytes) 
     kyber_ct, kyber_shared = Kyber768.encapsulate(recipient_kyber_pub)
 
     if _RUST_PQ:
-        hybrid_key = bytes(
-            _vc_pq.pq_hybrid_combine(x25519_shared, kyber_shared, b"vortex-pq-session-v1")
-        )
+        hybrid_key = bytes(_vc_pq.pq_hybrid_combine(x25519_shared, kyber_shared, b"vortex-pq-session-v1"))
     else:
         hybrid_key = HKDF(
             algorithm=hashes.SHA256(),
@@ -385,9 +392,7 @@ def hybrid_decapsulate(
     kyber_shared = Kyber768.decapsulate(our_kyber_secret, kyber_ct)
 
     if _RUST_PQ:
-        return bytes(
-            _vc_pq.pq_hybrid_combine(x25519_shared, kyber_shared, b"vortex-pq-session-v1")
-        )
+        return bytes(_vc_pq.pq_hybrid_combine(x25519_shared, kyber_shared, b"vortex-pq-session-v1"))
 
     return HKDF(
         algorithm=hashes.SHA256(),
@@ -397,8 +402,7 @@ def hybrid_decapsulate(
     ).derive(x25519_shared + kyber_shared)
 
 
-def hybrid_encrypt(plaintext: bytes, recipient_x25519_pub_hex: str,
-                   recipient_kyber_pub_hex: str) -> dict:
+def hybrid_encrypt(plaintext: bytes, recipient_x25519_pub_hex: str, recipient_kyber_pub_hex: str) -> dict:
     """Encrypt plaintext using hybrid X25519 + Kyber-768.
 
     This is the top-level function for post-quantum ECIES encryption.
@@ -435,8 +439,7 @@ def hybrid_encrypt(plaintext: bytes, recipient_x25519_pub_hex: str,
     }
 
 
-def hybrid_decrypt(our_x25519_private: bytes, our_kyber_secret: bytes,
-                   encrypted: dict) -> bytes:
+def hybrid_decrypt(our_x25519_private: bytes, our_kyber_secret: bytes, encrypted: dict) -> bytes:
     """Decrypt data encrypted with hybrid_encrypt.
 
     Args:
@@ -475,9 +478,9 @@ def get_pq_status() -> dict:
         "algorithm": "Kyber-768 (ML-KEM)" if secure else "SHAKE-256 simulation (NOT Kyber)",
         "hybrid": "X25519 + Kyber-768",
         "warning": (
-            None if secure else
-            "SIMULATION MODE — no real post-quantum protection. "
-            "Install liboqs-python: pip install liboqs-python"
+            None
+            if secure
+            else "SIMULATION MODE — no real post-quantum protection. Install liboqs-python: pip install liboqs-python"
         ),
         "key_sizes": {
             "kyber_public_key": "1184 bytes",
@@ -486,9 +489,7 @@ def get_pq_status() -> dict:
             "x25519_public_key": "32 bytes",
             "combined_shared_secret": "32 bytes (HKDF)",
         },
-        "security_level": (
-            "NIST Level 3 (equivalent to AES-192)" if secure else "NONE (simulation)"
-        ),
+        "security_level": ("NIST Level 3 (equivalent to AES-192)" if secure else "NONE (simulation)"),
         "performance": {
             "keygen": "~0.03ms",
             "encaps": "~0.05ms",

@@ -15,6 +15,7 @@ Matrix:   парсит history.json / messages.json из Element export
     клиент должен расшифровать при показе или показывать как legacy plaintext.
   - Медиафайлы не импортируются (только текст).
 """
+
 from __future__ import annotations
 
 import json
@@ -38,17 +39,19 @@ _MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 # Helpers
 
+
 def _get_or_create_external_user(username: str, display_name: str, db: Session) -> User:
     """Находит или создаёт пользователя-заглушку для внешних контактов."""
     slug = f"ext_{username[:40]}"
     user = db.query(User).filter(User.username == slug).first()
     if not user:
         import secrets
+
         user = User(
             username=slug,
             display_name=display_name[:100] if display_name else username,
             phone=f"+0{secrets.token_hex(6)}",  # dummy phone
-            password_hash="!external",           # не может войти  # noqa: S106
+            password_hash="!external",  # не может войти  # noqa: S106
             avatar_emoji="👤",
             is_active=True,
         )
@@ -108,14 +111,16 @@ def _save_message(room: Room, sender: User, text: str, ts: datetime, source: str
     if not text or not text.strip():
         return
     content = text.encode("utf-8", errors="replace")
-    db.add(Message(
-        room_id=room.id,
-        sender_id=sender.id,
-        msg_type=MessageType.TEXT,
-        content_encrypted=content,
-        forwarded_from=f"[{source}]",
-        created_at=ts,
-    ))
+    db.add(
+        Message(
+            room_id=room.id,
+            sender_id=sender.id,
+            msg_type=MessageType.TEXT,
+            content_encrypted=content,
+            forwarded_from=f"[{source}]",
+            created_at=ts,
+        )
+    )
 
 
 def _parse_tg_timestamp(ts: Any) -> datetime:
@@ -129,6 +134,7 @@ def _parse_tg_timestamp(ts: Any) -> datetime:
 
 
 # Telegram import
+
 
 def _import_telegram(data: dict, user: User, db: Session) -> dict:
     """
@@ -144,7 +150,7 @@ def _import_telegram(data: dict, user: User, db: Session) -> dict:
     for chat in chats:
         chat_type = chat.get("type", "")
         chat_name = chat.get("name", "Unknown")
-        messages  = chat.get("messages", [])
+        messages = chat.get("messages", [])
 
         if chat_type in ("personal_chat", "saved_messages"):
             # DM или избранное
@@ -158,7 +164,13 @@ def _import_telegram(data: dict, user: User, db: Session) -> dict:
                 )
                 other = ext
             room = _get_or_create_dm_room(user, other, db)
-        elif chat_type in ("private_group", "private_supergroup", "public_supergroup", "public_channel", "private_channel"):
+        elif chat_type in (
+            "private_group",
+            "private_supergroup",
+            "public_supergroup",
+            "public_channel",
+            "private_channel",
+        ):
             room = _get_or_create_group_room(chat_name, user, db)
         else:
             room = _get_or_create_group_room(chat_name or "Imported", user, db)
@@ -184,7 +196,7 @@ def _import_telegram(data: dict, user: User, db: Session) -> dict:
 
             ts = _parse_tg_timestamp(msg.get("date", ""))
             from_name = msg.get("from", user.display_name or user.username)
-            from_id   = msg.get("from_id", "")
+            from_id = msg.get("from_id", "")
 
             # Определяем отправителя
             if str(from_id) == str(user.id) or not from_id:
@@ -208,6 +220,7 @@ def _import_telegram(data: dict, user: User, db: Session) -> dict:
 
 # Matrix import
 
+
 def _import_matrix(data: dict | list, user: User, db: Session) -> dict:
     """
     Парсит Matrix export (Element/FluffyChat).
@@ -227,7 +240,7 @@ def _import_matrix(data: dict | list, user: User, db: Session) -> dict:
 
     for room_data in rooms_data:
         room_name = room_data.get("name") or room_data.get("room_id", "Matrix Room")
-        events    = room_data.get("events", room_data.get("messages", []))
+        events = room_data.get("events", room_data.get("messages", []))
 
         room = _get_or_create_group_room(room_name, user, db)
         stats["chats"] += 1
@@ -248,11 +261,15 @@ def _import_matrix(data: dict | list, user: User, db: Session) -> dict:
 
             sender_mxid = event.get("sender", "")
             localpart = sender_mxid.split(":")[0].lstrip("@")[:40] or "matrix_user"
-            sender = _get_or_create_external_user(
-                username=localpart,
-                display_name=localpart,
-                db=db,
-            ) if sender_mxid != f"@{user.username}:{localpart}" else user
+            sender = (
+                _get_or_create_external_user(
+                    username=localpart,
+                    display_name=localpart,
+                    db=db,
+                )
+                if sender_mxid != f"@{user.username}:{localpart}"
+                else user
+            )
 
             _save_message(room, sender, text, ts, "Matrix", db)
             stats["messages"] += 1
@@ -266,10 +283,11 @@ def _import_matrix(data: dict | list, user: User, db: Session) -> dict:
 
 # Endpoints
 
+
 @router.post("/telegram")
 async def import_telegram(
     file: UploadFile = File(...),
-    u: User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -296,7 +314,7 @@ async def import_telegram(
 
     return {
         "ok": True,
-        "imported_chats":    stats["chats"],
+        "imported_chats": stats["chats"],
         "imported_messages": stats["messages"],
         "note": "Сообщения импортированы как plaintext и помечены [TG]. Медиафайлы не импортируются.",
     }
@@ -305,7 +323,7 @@ async def import_telegram(
 @router.post("/matrix")
 async def import_matrix(
     file: UploadFile = File(...),
-    u: User    = Depends(get_current_user),
+    u: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -332,7 +350,7 @@ async def import_matrix(
 
     return {
         "ok": True,
-        "imported_chats":    stats["chats"],
+        "imported_chats": stats["chats"],
         "imported_messages": stats["messages"],
         "note": "Сообщения импортированы как plaintext и помечены [Matrix]. Зашифрованные события пропущены.",
     }

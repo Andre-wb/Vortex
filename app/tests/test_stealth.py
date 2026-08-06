@@ -29,6 +29,7 @@ from app.transport.stealth import (
 
 # WebSocket Path Obfuscation
 
+
 class TestWSPathObfuscation:
     def test_obfuscate_returns_api_path(self):
         result = obfuscate_ws_path("/ws/chat/123")
@@ -56,6 +57,7 @@ class TestWSPathObfuscation:
 
 
 # Header Sanitization
+
 
 class TestHeaderSanitization:
     def test_removes_banned_headers(self):
@@ -85,6 +87,7 @@ class TestHeaderSanitization:
 
 # Traffic Camouflage
 
+
 class TestTrafficCamouflage:
     def test_camouflage_roundtrip(self):
         original = b"Hello, this is a secret message!"
@@ -110,6 +113,7 @@ class TestTrafficCamouflage:
 
 
 # UDP Encryption
+
 
 class TestUDPEncryption:
     def test_encrypt_decrypt_roundtrip(self):
@@ -142,6 +146,7 @@ class TestUDPEncryption:
 
 # Port Randomization
 
+
 class TestPortRandomization:
     def test_default_port(self):
         """Without stealth, returns configured port."""
@@ -157,6 +162,7 @@ class TestPortRandomization:
 
 
 # ICE Servers
+
 
 class TestICEServers:
     def test_normal_mode_returns_google_stun(self):
@@ -174,6 +180,7 @@ class TestICEServers:
 
 # Fake Site
 
+
 class TestFakeSite:
     def test_returns_html(self):
         html = get_fake_index()
@@ -190,6 +197,7 @@ class TestFakeSite:
 
 # Status
 
+
 class TestStealthStatus:
     def test_status_returns_dict(self):
         status = get_stealth_status()
@@ -201,6 +209,13 @@ class TestStealthStatus:
     def test_all_features_consistent(self):
         status = get_stealth_status()
         enabled = status["stealth_enabled"]
-        for key in ("ws_obfuscation", "header_sanitization", "udp_encryption",
-                     "port_randomization", "stun_fallback", "fake_site", "traffic_camouflage"):
+        for key in (
+            "ws_obfuscation",
+            "header_sanitization",
+            "udp_encryption",
+            "port_randomization",
+            "stun_fallback",
+            "fake_site",
+            "traffic_camouflage",
+        ):
             assert status[key] == enabled

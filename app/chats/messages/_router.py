@@ -4,6 +4,7 @@ app/chats/_chat_router.py — Shared router instance and chat utility helpers.
 All chat sub-modules import the router from here so registrations land
 on the same APIRouter that main.py includes.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -13,13 +14,34 @@ from fastapi import APIRouter
 
 router = APIRouter(tags=["chat"])
 
-DANGEROUS_EXTS = frozenset({
-    '.php', '.php3', '.php4', '.php5', '.phtml',
-    '.asp', '.aspx', '.ascx', '.ashx',
-    '.jsp', '.jspx', '.jws',
-    '.cgi', '.pl', '.py', '.rb', '.sh', '.bash',
-    '.exe', '.dll', '.bat', '.cmd', '.ps1', '.vbs',
-})
+DANGEROUS_EXTS = frozenset(
+    {
+        ".php",
+        ".php3",
+        ".php4",
+        ".php5",
+        ".phtml",
+        ".asp",
+        ".aspx",
+        ".ascx",
+        ".ashx",
+        ".jsp",
+        ".jspx",
+        ".jws",
+        ".cgi",
+        ".pl",
+        ".py",
+        ".rb",
+        ".sh",
+        ".bash",
+        ".exe",
+        ".dll",
+        ".bat",
+        ".cmd",
+        ".ps1",
+        ".vbs",
+    }
+)
 
 
 def utc_iso(dt: datetime | None) -> str | None:
@@ -30,7 +52,7 @@ def utc_iso(dt: datetime | None) -> str | None:
     # If somehow aware, convert to UTC first.
     if dt.tzinfo is not None:
         dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def parse_client_ts(raw: str | None) -> datetime | None:
@@ -38,7 +60,7 @@ def parse_client_ts(raw: str | None) -> datetime | None:
     if not raw or not isinstance(raw, str):
         return None
     try:
-        ts = datetime.fromisoformat(raw.replace('Z', '+00:00'))
+        ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         ts_naive = ts.replace(tzinfo=None)
         diff = abs((datetime.now(timezone.utc).replace(tzinfo=None) - ts_naive).total_seconds())
         return ts_naive if diff <= 300 else None
@@ -64,9 +86,9 @@ def parse_enc_v(data: dict) -> int | None:
 
 def check_double_extension(filename: str) -> bool:
     """Return True if filename has a dangerous intermediate extension (e.g. file.php.jpg)."""
-    name  = Path(filename).name
-    parts = name.split('.')
+    name = Path(filename).name
+    parts = name.split(".")
     if len(parts) <= 2:
         return False
-    intermediate = {'.' + p.lower() for p in parts[1:-1]}
+    intermediate = {"." + p.lower() for p in parts[1:-1]}
     return bool(intermediate & DANGEROUS_EXTS)

@@ -3,6 +3,7 @@ Tests for Advanced Spaces features:
 nested spaces (sub-spaces), templates, discovery, audit logs, onboarding,
 custom emojis, vanity URLs, and permission overrides.
 """
+
 import io
 
 import pytest
@@ -11,11 +12,15 @@ from conftest import login_user, make_user, random_str
 
 def _create_space(client, headers, *, name=None, is_public=False):
     """Create a space and return its full JSON response."""
-    r = client.post("/api/spaces", json={
-        "name": name or f"space_{random_str()}",
-        "description": "Test space",
-        "is_public": is_public,
-    }, headers=headers)
+    r = client.post(
+        "/api/spaces",
+        json={
+            "name": name or f"space_{random_str()}",
+            "description": "Test space",
+            "is_public": is_public,
+        },
+        headers=headers,
+    )
     assert r.status_code in (200, 201), f"create space failed: {r.text}"
     return r.json()
 
@@ -31,8 +36,8 @@ def _make_owner(client):
 
 # Templates
 
-class TestSpaceTemplates:
 
+class TestSpaceTemplates:
     def test_list_templates_returns_known_ids(self, client):
         r = client.get("/api/spaces/templates")
         assert r.status_code == 200
@@ -121,8 +126,8 @@ class TestSpaceTemplates:
 
 # Nested Spaces (Sub-Spaces)
 
-class TestNestedSpaces:
 
+class TestNestedSpaces:
     def test_create_sub_space_returns_201(self, client):
         user, space = _make_owner(client)
         r = client.post(
@@ -183,8 +188,8 @@ class TestNestedSpaces:
 
 # Onboarding
 
-class TestOnboarding:
 
+class TestOnboarding:
     def test_get_onboarding_public(self, client):
         _, space = _make_owner(client)
         r = client.get(f"/api/spaces/{space['id']}/onboarding")
@@ -254,8 +259,8 @@ class TestOnboarding:
 
 # Space Discovery
 
-class TestSpaceDiscovery:
 
+class TestSpaceDiscovery:
     def test_discover_returns_list(self, client):
         r = client.get("/api/spaces/discover")
         assert r.status_code == 200
@@ -309,8 +314,8 @@ class TestSpaceDiscovery:
 
 # Audit Log
 
-class TestAuditLog:
 
+class TestAuditLog:
     def test_audit_log_requires_auth(self, anon_client):
         r = anon_client.get("/api/spaces/1/audit-log")
         assert r.status_code in (401, 403, 422)
@@ -374,8 +379,8 @@ class TestAuditLog:
 
 # Vanity URL
 
-class TestVanityURL:
 
+class TestVanityURL:
     def test_set_vanity_url(self, client):
         user, space = _make_owner(client)
         slug = f"vanity-{random_str(6)}"
@@ -437,8 +442,8 @@ class TestVanityURL:
 
 # Custom Emoji
 
-class TestCustomEmoji:
 
+class TestCustomEmoji:
     def test_list_emojis_empty(self, client):
         user, space = _make_owner(client)
         r = client.get(f"/api/spaces/{space['id']}/emojis", headers=user["headers"])
@@ -502,8 +507,8 @@ class TestCustomEmoji:
 
 # Permission Overrides
 
-class TestPermissions:
 
+class TestPermissions:
     def _get_first_room_id(self, client, user, space_id):
         r = client.get(f"/api/spaces/{space_id}", headers=user["headers"])
         if r.status_code == 200:

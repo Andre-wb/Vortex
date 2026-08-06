@@ -23,6 +23,7 @@ app/transport/ble_transport.py — BLE (Bluetooth Low Energy) транспорт
 
 Установка: pip install bleak
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -40,12 +41,14 @@ logger = logging.getLogger(__name__)
 
 _BLE_AVAILABLE: bool | None = None
 
+
 def is_ble_available() -> bool:
     """Check if BLE (bleak) is importable and platform is supported."""
     global _BLE_AVAILABLE
     if _BLE_AVAILABLE is None:
         try:
             import bleak  # noqa: F401
+
             _BLE_AVAILABLE = True
         except ImportError:
             logger.info("BLE unavailable: bleak not installed")
@@ -57,42 +60,45 @@ def is_ble_available() -> bool:
 
 
 # Vortex BLE Service & Characteristics UUIDs
-VORTEX_SERVICE_UUID  = "a1b2c3d4-0000-4e00-8000-56789abcdef0"
-ANNOUNCE_CHAR_UUID   = "a1b2c3d4-0001-4e00-8000-56789abcdef0"  # Notify: объявление ноды
-MESSAGE_CHAR_UUID    = "a1b2c3d4-0002-4e00-8000-56789abcdef0"  # Write: сообщение
-STATUS_CHAR_UUID     = "a1b2c3d4-0003-4e00-8000-56789abcdef0"  # Read: статус ноды
+VORTEX_SERVICE_UUID = "a1b2c3d4-0000-4e00-8000-56789abcdef0"
+ANNOUNCE_CHAR_UUID = "a1b2c3d4-0001-4e00-8000-56789abcdef0"  # Notify: объявление ноды
+MESSAGE_CHAR_UUID = "a1b2c3d4-0002-4e00-8000-56789abcdef0"  # Write: сообщение
+STATUS_CHAR_UUID = "a1b2c3d4-0003-4e00-8000-56789abcdef0"  # Read: статус ноды
 
 # Максимальный размер одного BLE пакета (стандарт ATT MTU - 3)
 BLE_MTU = 244
 
 # Структуры данных
 
+
 @dataclass
 class BlePeer:
     """Обнаруженный BLE-пир."""
-    address:      str
-    name:         str
-    node_name:    str
-    http_port:    int
-    rssi:         int
-    last_seen:    float = field(default_factory=time.monotonic)
-    is_vortex:    bool = False
+
+    address: str
+    name: str
+    node_name: str
+    http_port: int
+    rssi: int
+    last_seen: float = field(default_factory=time.monotonic)
+    is_vortex: bool = False
 
     def alive(self, ttl: float = 30.0) -> bool:
         return (time.monotonic() - self.last_seen) < ttl
 
     def to_dict(self) -> dict:
         return {
-            "address":   self.address,
-            "name":      self.name,
+            "address": self.address,
+            "name": self.name,
             "node_name": self.node_name,
             "http_port": self.http_port,
-            "rssi":      self.rssi,
+            "rssi": self.rssi,
             "transport": "ble",
         }
 
 
 # Фрагментация (BLE не поддерживает большие пакеты)
+
 
 class BleFragmenter:
     """
@@ -113,12 +119,12 @@ class BleFragmenter:
 
     def fragment(self, data: bytes) -> list[bytes]:
         """Разбивает данные на BLE-фрагменты."""
-        seq_id    = self._seq % 256
+        seq_id = self._seq % 256
         self._seq += 1
 
         chunk_size = BLE_MTU - self._HEADER_SIZE
-        chunks     = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
-        total      = len(chunks)
+        chunks = [data[i : i + chunk_size] for i in range(0, len(data), chunk_size)]
+        total = len(chunks)
 
         result = []
         for idx, chunk in enumerate(chunks):
@@ -136,7 +142,7 @@ class BleFragmenter:
             return None
 
         seq_id, total, idx, _ = struct.unpack_from("BBBB", fragment)
-        payload = fragment[self._HEADER_SIZE:]
+        payload = fragment[self._HEADER_SIZE :]
 
         # Cleanup expired incomplete sequences (TTL-based)
         now = time.monotonic()
@@ -157,9 +163,7 @@ class BleFragmenter:
         self._recv_buf[seq_id][idx] = payload
 
         if len(self._recv_buf[seq_id]) == total:
-            complete = b"".join(
-                self._recv_buf[seq_id][i] for i in range(total)
-            )
+            complete = b"".join(self._recv_buf[seq_id][i] for i in range(total))
             del self._recv_buf[seq_id]
             self._recv_buf_ts.pop(seq_id, None)
             return complete
@@ -168,6 +172,7 @@ class BleFragmenter:
 
 
 # BLE Transport Manager
+
 
 class BleTransportManager:
     """
@@ -181,23 +186,22 @@ class BleTransportManager:
     """
 
     def __init__(self):
-        self._peers:      dict[str, BlePeer] = {}          # address → BlePeer
-        self._fragmenter: BleFragmenter      = BleFragmenter()
-        self._scan_task:  Optional[asyncio.Task] = None
-        self._gatt_server = None                            # bless.BlessServer
-        self._available:  bool = False
-        self._node_name:  str  = ""
-        self._http_port:  int  = 8000
-        self._on_peer_cb: Optional[Callable] = None        # вызывается при новом пире
-        self._on_msg_cb:  Optional[Callable] = None        # вызывается при сообщении
-
+        self._peers: dict[str, BlePeer] = {}  # address → BlePeer
+        self._fragmenter: BleFragmenter = BleFragmenter()
+        self._scan_task: Optional[asyncio.Task] = None
+        self._gatt_server = None  # bless.BlessServer
+        self._available: bool = False
+        self._node_name: str = ""
+        self._http_port: int = 8000
+        self._on_peer_cb: Optional[Callable] = None  # вызывается при новом пире
+        self._on_msg_cb: Optional[Callable] = None  # вызывается при сообщении
 
     async def start(
-            self,
-            node_name: str,
-            http_port: int,
-            on_peer_discovered: Optional[Callable] = None,
-            on_message_received: Optional[Callable] = None,
+        self,
+        node_name: str,
+        http_port: int,
+        on_peer_discovered: Optional[Callable] = None,
+        on_message_received: Optional[Callable] = None,
     ) -> bool:
         """
         Запускает BLE транспорт.
@@ -206,10 +210,11 @@ class BleTransportManager:
         self._node_name = node_name
         self._http_port = http_port
         self._on_peer_cb = on_peer_discovered
-        self._on_msg_cb  = on_message_received
+        self._on_msg_cb = on_message_received
 
         try:
             from bleak import BleakScanner
+
             self._available = True
         except ImportError:
             logger.warning("BLE недоступен: установите 'bleak' (pip install bleak)")
@@ -221,6 +226,7 @@ class BleTransportManager:
         # Проверяем доступность Bluetooth адаптера
         try:
             from bleak import BleakScanner
+
             # Короткий тест-скан
             async with BleakScanner():
                 pass
@@ -254,7 +260,6 @@ class BleTransportManager:
     @property
     def available(self) -> bool:
         return self._available
-
 
     async def _scan_loop(self) -> None:
         """Периодически сканирует BLE устройства."""
@@ -298,7 +303,7 @@ class BleTransportManager:
             http_port = 8000
 
             service_data = adv_data.service_data or {}
-            vortex_data  = service_data.get(VORTEX_SERVICE_UUID.lower(), b"")
+            vortex_data = service_data.get(VORTEX_SERVICE_UUID.lower(), b"")
             if vortex_data and len(vortex_data) >= 2:
                 http_port = struct.unpack_from(">H", vortex_data)[0]
                 if len(vortex_data) > 2:
@@ -311,12 +316,12 @@ class BleTransportManager:
             is_new = addr not in self._peers
 
             self._peers[addr] = BlePeer(
-                address   = addr,
-                name      = device.name or addr,
-                node_name = node_name,
-                http_port = http_port,
-                rssi      = adv_data.rssi or -100,
-                is_vortex = True,
+                address=addr,
+                name=device.name or addr,
+                node_name=node_name,
+                http_port=http_port,
+                rssi=adv_data.rssi or -100,
+                is_vortex=True,
             )
 
             if is_new:
@@ -335,12 +340,11 @@ class BleTransportManager:
             except Exception as e:
                 logger.debug(f"on_peer_cb error: {e}")
 
-
     async def send_message(
-            self,
-            peer_address: str,
-            payload: dict,
-            timeout: float = 10.0,
+        self,
+        peer_address: str,
+        payload: dict,
+        timeout: float = 10.0,
     ) -> bool:
         """
         Отправляет JSON сообщение BLE пиру.
@@ -354,7 +358,7 @@ class BleTransportManager:
         try:
             from bleak import BleakClient
 
-            data      = json.dumps(payload).encode("utf-8")
+            data = json.dumps(payload).encode("utf-8")
             fragments = self._fragmenter.fragment(data)
 
             async with BleakClient(peer_address, timeout=timeout) as client:
@@ -389,7 +393,6 @@ class BleTransportManager:
             logger.debug(f"BLE send to {peer_address} failed: {e}")
             return False
 
-
     async def start_gatt_server(self) -> None:
         """
         Запускает GATT сервер для приёма BLE соединений.
@@ -407,8 +410,7 @@ class BleTransportManager:
             await self._start_bless_gatt_server()
         except ImportError:
             logger.warning(
-                "bless не установлен (pip install bless) — "
-                "BLE работает только в scan-режиме (peer discovery)."
+                "bless не установлен (pip install bless) — BLE работает только в scan-режиме (peer discovery)."
             )
         except Exception as e:
             logger.warning("GATT сервер не запущен: %s — scan-only режим.", e)
@@ -433,10 +435,7 @@ class BleTransportManager:
 
         await server.add_new_service(VORTEX_SERVICE_UUID)
 
-        announce_flags = (
-            GATTCharacteristicProperties.read
-            | GATTCharacteristicProperties.notify
-        )
+        announce_flags = GATTCharacteristicProperties.read | GATTCharacteristicProperties.notify
         announce_perms = GATTAttributePermissions.readable
         await server.add_new_characteristic(
             VORTEX_SERVICE_UUID,
@@ -446,10 +445,7 @@ class BleTransportManager:
             announce_perms,
         )
 
-        msg_flags = (
-            GATTCharacteristicProperties.write
-            | GATTCharacteristicProperties.write_without_response
-        )
+        msg_flags = GATTCharacteristicProperties.write | GATTCharacteristicProperties.write_without_response
         msg_perms = GATTAttributePermissions.writeable
         await server.add_new_characteristic(
             VORTEX_SERVICE_UUID,
@@ -461,11 +457,13 @@ class BleTransportManager:
 
         status_flags = GATTCharacteristicProperties.read
         status_perms = GATTAttributePermissions.readable
-        status_value = json.dumps({
-            "node": self._node_name,
-            "port": self._http_port,
-            "v":    1,
-        }).encode("utf-8")
+        status_value = json.dumps(
+            {
+                "node": self._node_name,
+                "port": self._http_port,
+                "v": 1,
+            }
+        ).encode("utf-8")
         await server.add_new_characteristic(
             VORTEX_SERVICE_UUID,
             STATUS_CHAR_UUID,
@@ -501,9 +499,10 @@ class BleTransportManager:
         self._gatt_server = server
         logger.info(
             "BLE GATT peripheral started: advertising %s (node=%s, port=%d)",
-            VORTEX_SERVICE_UUID, self._node_name, self._http_port,
+            VORTEX_SERVICE_UUID,
+            self._node_name,
+            self._http_port,
         )
-
 
     def get_peers(self) -> list[BlePeer]:
         """Возвращает список живых BLE пиров."""
@@ -516,7 +515,7 @@ class BleTransportManager:
 
     async def broadcast(self, payload: dict) -> int:
         """Отправляет сообщение всем известным BLE пирам. Возвращает кол-во успешных."""
-        peers   = self.get_peers()
+        peers = self.get_peers()
         results = await asyncio.gather(
             *[self.send_message(p.address, payload) for p in peers],
             return_exceptions=True,
@@ -525,10 +524,10 @@ class BleTransportManager:
 
     def status(self) -> dict:
         return {
-            "available":   self._available,
+            "available": self._available,
             "advertising": self._gatt_server is not None,
-            "peers":       len(self.get_peers()),
-            "peers_list":  [p.to_dict() for p in self.get_peers()],
+            "peers": len(self.get_peers()),
+            "peers_list": [p.to_dict() for p in self.get_peers()],
         }
 
 

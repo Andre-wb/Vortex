@@ -4,6 +4,7 @@ app/peer/peer_federation.py — Federated join & Multihop join routes.
 Uses a shared HTTP connection pool for all federation requests
 to avoid per-request SSL handshake overhead (saves ~200-500ms per call).
 """
+
 from __future__ import annotations
 
 import logging
@@ -33,10 +34,11 @@ _JWT_CACHE_TTL = 240  # 4 minutes (tokens usually last 5+ min)
 
 # Federated join
 
+
 class FederatedJoinRequest(BaseModel):
     invite_code: str
-    peer_ip:     str
-    peer_port:   int
+    peer_ip: str
+    peer_port: int
 
 
 @router.post("/federated-join")
@@ -44,9 +46,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
     remote_base = None
     for scheme in ("https", "http"):
         try:
-            r = await _federation_pool.get(
-                f"{scheme}://{body.peer_ip}:{body.peer_port}/api/peers/status"
-            )
+            r = await _federation_pool.get(f"{scheme}://{body.peer_ip}:{body.peer_port}/api/peers/status")
             if r.status_code == 200:
                 remote_base = f"{scheme}://{body.peer_ip}:{body.peer_port}"
                 break
@@ -65,11 +65,11 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
             resp = await _federation_pool.post(
                 f"{remote_base}/api/federation/guest-login",
                 json={
-                    "username":      u.username,
-                    "display_name":  u.display_name,
-                    "avatar_emoji":  u.avatar_emoji,
+                    "username": u.username,
+                    "display_name": u.display_name,
+                    "avatar_emoji": u.avatar_emoji,
                     "x25519_pubkey": u.x25519_public_key or "",
-                    "peer_port":     Config.PORT,
+                    "peer_port": Config.PORT,
                 },
             )
         except Exception as e:
@@ -77,9 +77,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
 
         if resp.status_code == 403:
             raise HTTPException(
-                403,
-                "Удалённый узел не распознал этот узел. "
-                "Подождите ~10 секунд (UDP discovery) и попробуйте снова."
+                403, "Удалённый узел не распознал этот узел. Подождите ~10 секунд (UDP discovery) и попробуйте снова."
             )
         if resp.status_code != 200:
             raise HTTPException(502, f"guest-login: {resp.status_code} {resp.text[:200]}")
@@ -92,14 +90,14 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
             f"{remote_base}/api/rooms/join/{body.invite_code.upper()}",
             headers={"Authorization": f"Bearer {remote_jwt}"},
             json={},
-            )
+        )
     except Exception as e:
         raise HTTPException(502, f"Join error: {e}") from None
 
     if join_resp.status_code not in (200, 201):
         raise HTTPException(join_resp.status_code, join_resp.text[:200])
 
-    room_info      = join_resp.json().get("room", {})
+    room_info = join_resp.json().get("room", {})
     remote_room_id = room_info.get("id")
     if not remote_room_id:
         raise HTTPException(502, "Remote node did not return room_id")
@@ -107,15 +105,15 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
     from app.federation.federation import relay
 
     virtual_room = await relay.join(
-        peer_ip        = body.peer_ip,
-        peer_port      = body.peer_port,
-        remote_room_id = remote_room_id,
-        remote_jwt     = remote_jwt,
-        room_name      = room_info.get("name", "Remote Room"),
-        invite_code    = body.invite_code.upper(),
-        is_private     = room_info.get("is_private", False),
-        member_count   = room_info.get("member_count", 0),
-        user_id        = u.id,
+        peer_ip=body.peer_ip,
+        peer_port=body.peer_port,
+        remote_room_id=remote_room_id,
+        remote_jwt=remote_jwt,
+        room_name=room_info.get("name", "Remote Room"),
+        invite_code=body.invite_code.upper(),
+        is_private=room_info.get("is_private", False),
+        member_count=room_info.get("member_count", 0),
+        user_id=u.id,
     )
 
     logger.info(
@@ -124,39 +122,40 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
     )
 
     return {
-        "joined":       True,
+        "joined": True,
         "is_federated": True,
-        "ws_path":      f"/ws/fed/{virtual_room.virtual_id}",
+        "ws_path": f"/ws/fed/{virtual_room.virtual_id}",
         "room": {
-            "id":           virtual_room.virtual_id,
-            "name":         virtual_room.room_name,
-            "description":  f"🌐 {body.peer_ip}:{body.peer_port}",
-            "is_private":   virtual_room.is_private,
-            "invite_code":  virtual_room.invite_code,
+            "id": virtual_room.virtual_id,
+            "name": virtual_room.room_name,
+            "description": f"🌐 {body.peer_ip}:{body.peer_port}",
+            "is_private": virtual_room.is_private,
+            "invite_code": virtual_room.invite_code,
             "member_count": virtual_room.member_count,
             "online_count": 0,
-            "created_at":   "",
+            "created_at": "",
             "is_federated": True,
-            "peer_ip":      body.peer_ip,
-            "peer_port":    body.peer_port,
+            "peer_ip": body.peer_ip,
+            "peer_port": body.peer_port,
         },
     }
 
 
 # Multihop join (A → B → C)
 
+
 class MultihopJoinRequest(BaseModel):
     invite_code: str
-    target_ip:   str
+    target_ip: str
     target_port: int
-    via_ip:      str
-    via_port:    int
+    via_ip: str
+    via_port: int
 
 
 @router.post("/multihop-join")
 async def multihop_join(
-        body:    MultihopJoinRequest,
-        u:       User    = Depends(get_current_user),
+    body: MultihopJoinRequest,
+    u: User = Depends(get_current_user),
 ):
     """
     Мультихоп A → B → C.
@@ -167,9 +166,7 @@ async def multihop_join(
     via_base = None
     for scheme in ("https", "http"):
         try:
-            r = await _federation_pool.get(
-                f"{scheme}://{body.via_ip}:{body.via_port}/api/peers/status"
-            )
+            r = await _federation_pool.get(f"{scheme}://{body.via_ip}:{body.via_port}/api/peers/status")
             if r.status_code == 200:
                 via_base = f"{scheme}://{body.via_ip}:{body.via_port}"
                 break
@@ -188,11 +185,11 @@ async def multihop_join(
             gr = await _federation_pool.post(
                 f"{via_base}/api/federation/guest-login",
                 json={
-                    "username":      u.username,
-                    "display_name":  u.display_name,
-                    "avatar_emoji":  u.avatar_emoji,
+                    "username": u.username,
+                    "display_name": u.display_name,
+                    "avatar_emoji": u.avatar_emoji,
                     "x25519_pubkey": u.x25519_public_key or "",
-                    "peer_port":     Config.PORT,
+                    "peer_port": Config.PORT,
                 },
             )
         except Exception as e:
@@ -210,8 +207,8 @@ async def multihop_join(
             headers={"Authorization": f"Bearer {via_jwt}"},
             json={
                 "invite_code": body.invite_code,
-                "peer_ip":     body.target_ip,
-                "peer_port":   body.target_port,
+                "peer_ip": body.target_ip,
+                "peer_port": body.target_port,
             },
         )
     except Exception as e:
@@ -220,21 +217,21 @@ async def multihop_join(
     if hr.status_code != 200:
         raise HTTPException(502, f"B→C join: {hr.status_code} {hr.text[:200]}")
 
-    hop_data    = hr.json()
+    hop_data = hr.json()
     via_room_id = hop_data["room"]["id"]
 
     from app.federation.federation import relay
 
     virtual_room = await relay.join(
-        peer_ip        = body.via_ip,
-        peer_port      = body.via_port,
-        remote_room_id = via_room_id,
-        remote_jwt     = via_jwt,
-        room_name      = hop_data["room"].get("name", f"Room@{body.target_ip}"),
-        invite_code    = body.invite_code.upper(),
-        is_private     = hop_data["room"].get("is_private", True),
-        member_count   = hop_data["room"].get("member_count", 1),
-        user_id        = u.id,
+        peer_ip=body.via_ip,
+        peer_port=body.via_port,
+        remote_room_id=via_room_id,
+        remote_jwt=via_jwt,
+        room_name=hop_data["room"].get("name", f"Room@{body.target_ip}"),
+        invite_code=body.invite_code.upper(),
+        is_private=hop_data["room"].get("is_private", True),
+        member_count=hop_data["room"].get("member_count", 1),
+        user_id=u.id,
     )
 
     logger.info(
@@ -243,23 +240,23 @@ async def multihop_join(
     )
 
     return {
-        "joined":       True,
+        "joined": True,
         "is_federated": True,
-        "hops":         2,
-        "ws_path":      f"/ws/fed/{virtual_room.virtual_id}",
+        "hops": 2,
+        "ws_path": f"/ws/fed/{virtual_room.virtual_id}",
         "room": {
-            "id":           virtual_room.virtual_id,
-            "name":         virtual_room.room_name,
-            "description":  f"🌐 {body.target_ip} via {body.via_ip}",
-            "is_private":   virtual_room.is_private,
-            "invite_code":  virtual_room.invite_code,
+            "id": virtual_room.virtual_id,
+            "name": virtual_room.room_name,
+            "description": f"🌐 {body.target_ip} via {body.via_ip}",
+            "is_private": virtual_room.is_private,
+            "invite_code": virtual_room.invite_code,
             "member_count": virtual_room.member_count,
             "online_count": 0,
-            "created_at":   "",
+            "created_at": "",
             "is_federated": True,
-            "peer_ip":      body.target_ip,
-            "peer_port":    body.target_port,
-            "hop_via":      body.via_ip,
-            "hop_count":    2,
+            "peer_ip": body.target_ip,
+            "peer_port": body.target_port,
+            "hop_via": body.via_ip,
+            "hop_count": 2,
         },
     }

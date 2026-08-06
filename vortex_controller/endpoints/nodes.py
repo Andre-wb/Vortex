@@ -3,6 +3,7 @@
 Both responses are wrapped in a controller-signed envelope so clients can
 verify authenticity even if the transport is compromised.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request

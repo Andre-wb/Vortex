@@ -1,4 +1,5 @@
 """Регистрация и парольный вход."""
+
 from __future__ import annotations
 
 import contextlib
@@ -45,7 +46,7 @@ logger = logging.getLogger(__name__)
 _PW_MARKER_PREFIX = "2fa:pwok:"
 _PW_MARKER_TTL = 300  # seconds (~5 min) — long enough for the user to enter the code
 
-_pw_verified: dict[int, float] = {}      # user_id -> expiry epoch (in-memory fallback)
+_pw_verified: dict[int, float] = {}  # user_id -> expiry epoch (in-memory fallback)
 _pw_verified_lock = threading.Lock()
 
 
@@ -112,12 +113,12 @@ def consume_password_verified(user_id: int) -> None:
 # Reuse the project's Redis client/init pattern from auth_jwt for the marker store.
 def _get_2fa_redis():
     from app.security.auth_jwt import _get_redis
+
     return _get_redis()
 
 
 @router.post("/register", status_code=201)
-async def register(body: RegisterRequest, request: Request,
-                   db: Session = Depends(get_db)):
+async def register(body: RegisterRequest, request: Request, db: Session = Depends(get_db)):
     import asyncio
 
     ip = raw_ip_for_ratelimit(request)
@@ -191,6 +192,7 @@ async def register(body: RegisterRequest, request: Request,
     # Auto-log X25519 key to transparency log
     with contextlib.suppress(Exception):
         from app.security.key_backup import _kt_auto_log
+
         _kt_auto_log(user.id, "x25519", user.x25519_public_key, None, db)
 
     # ADR-004 K2: Kyber (ML-KEM-768) keypair генерится КЛИЕНТОМ (E2E — сервер не
@@ -229,8 +231,7 @@ async def register(body: RegisterRequest, request: Request,
 
 
 @router.post("/login")
-async def login(body: LoginRequest, request: Request,
-                db: Session = Depends(get_db)):
+async def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Классический вход по паролю."""
     ip = raw_ip_for_ratelimit(request)
     if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
@@ -246,12 +247,10 @@ async def login(body: LoginRequest, request: Request,
 
     if not user:
         with contextlib.suppress(Exception):
-            await _aio.get_event_loop().run_in_executor(
-                None, verify_password, body.password, _DUMMY_HASH)
+            await _aio.get_event_loop().run_in_executor(None, verify_password, body.password, _DUMMY_HASH)
         raise HTTPException(401, "Invalid phone/username or password")
 
-    pw_ok = await _aio.get_event_loop().run_in_executor(
-        None, user.check_password, body.password)
+    pw_ok = await _aio.get_event_loop().run_in_executor(None, user.check_password, body.password)
     if not pw_ok:
         raise HTTPException(401, "Invalid phone/username or password")
     if not user.is_active:
@@ -260,8 +259,7 @@ async def login(body: LoginRequest, request: Request,
             user.banned_until = None
             db.commit()
         elif user.banned_until:
-            raise HTTPException(
-                403, f"Account banned until {user.banned_until.strftime('%Y-%m-%d')}")
+            raise HTTPException(403, f"Account banned until {user.banned_until.strftime('%Y-%m-%d')}")
         elif (user.strike_count or 0) >= 5:
             raise HTTPException(403, "Account permanently banned")
         else:
@@ -300,8 +298,7 @@ async def login(body: LoginRequest, request: Request,
 
 
 @router.post("/login-seed")
-async def login_with_seed(body: SeedLoginRequest, request: Request,
-                          db: Session = Depends(get_db)):
+async def login_with_seed(body: SeedLoginRequest, request: Request, db: Session = Depends(get_db)):
     """Вход по username + seed phrase (для анонимных аккаунтов без телефона)."""
     ip = raw_ip_for_ratelimit(request)
     if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
@@ -314,16 +311,14 @@ async def login_with_seed(body: SeedLoginRequest, request: Request,
     if not user or not user.seed_phrase_hash:
         # Constant-time dummy to prevent timing oracle
         with contextlib.suppress(Exception):
-            await _aio.get_event_loop().run_in_executor(
-                None, verify_password, "dummy", _DUMMY_HASH)
+            await _aio.get_event_loop().run_in_executor(None, verify_password, "dummy", _DUMMY_HASH)
         raise HTTPException(401, "Invalid username or seed phrase")
 
     if not validate_mnemonic(body.seed_phrase):
         raise HTTPException(422, "Invalid seed phrase (expected 24 BIP39 words)")
 
     normalized = normalize_mnemonic(body.seed_phrase)
-    ok = await _aio.get_event_loop().run_in_executor(
-        None, verify_password, normalized, user.seed_phrase_hash)
+    ok = await _aio.get_event_loop().run_in_executor(None, verify_password, normalized, user.seed_phrase_hash)
     if not ok:
         raise HTTPException(401, "Invalid username or seed phrase")
 

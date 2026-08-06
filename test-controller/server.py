@@ -16,6 +16,7 @@ Or from source:
 No external network calls, no database, no config file — everything
 lives in memory for the life of the process.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -57,10 +58,14 @@ VERSION = "test-0.1.0"
 
 
 _PRIV = Ed25519PrivateKey.generate()
-_PUB_HEX = _PRIV.public_key().public_bytes(
-    encoding=serialization.Encoding.Raw,
-    format=serialization.PublicFormat.Raw,
-).hex()
+_PUB_HEX = (
+    _PRIV.public_key()
+    .public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    .hex()
+)
 
 
 def _canonical_json(obj) -> bytes:
@@ -72,86 +77,158 @@ def sign_envelope(payload: dict) -> dict:
     return {"payload": payload, "signature": sig, "signed_by": _PUB_HEX}
 
 
-
 NOW = int(time.time())
 
 ENTRY_URLS = [
     {"url": "wss://smith-labs-darwin-nicole.trycloudflare.com", "type": "tunnel"},
-    {"url": "wss://quiet-fox-harbor-alpha.trycloudflare.com",   "type": "tunnel"},
-    {"url": "http://abcdef123ghijk789lmnopqr456stuvwx.onion",   "type": "tor"},
+    {"url": "wss://quiet-fox-harbor-alpha.trycloudflare.com", "type": "tunnel"},
+    {"url": "http://abcdef123ghijk789lmnopqr456stuvwx.onion", "type": "tor"},
     {"url": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", "type": "ipfs"},
-    {"url": "wss://controller-mirror.vortex.example",          "type": "direct"},
+    {"url": "wss://controller-mirror.vortex.example", "type": "direct"},
 ]
 
 MIRRORS = [
-    {"url": "https://mirror-a.vortex.example",          "type": "web",
-     "healthy": True,  "latency_ms": 84,  "last_checked": NOW - 20, "error": None},
-    {"url": "https://mirror-b.vortex.example",          "type": "web",
-     "healthy": False, "latency_ms": None, "last_checked": NOW - 40,
-     "error": "ConnectError: connection refused"},
-    {"url": "ipfs://bafybei000mirror1pin",              "type": "ipfs",
-     "healthy": True,  "latency_ms": 312, "last_checked": NOW - 60, "error": None},
-    {"url": "ipfs://bafybei000mirror2stale",            "type": "ipfs",
-     "healthy": False, "latency_ms": None, "last_checked": NOW - 180,
-     "error": "HTTPStatusError: 504 Gateway Timeout"},
-    {"url": "http://m2vortex7example123onion567.onion", "type": "tor",
-     "healthy": False, "latency_ms": None, "last_checked": NOW,
-     "error": "no tor proxy configured"},
-    {"url": "https://another-mirror.vortex.sol.site",   "type": "web",
-     "healthy": None,  "latency_ms": None, "last_checked": 0, "error": None},
+    {
+        "url": "https://mirror-a.vortex.example",
+        "type": "web",
+        "healthy": True,
+        "latency_ms": 84,
+        "last_checked": NOW - 20,
+        "error": None,
+    },
+    {
+        "url": "https://mirror-b.vortex.example",
+        "type": "web",
+        "healthy": False,
+        "latency_ms": None,
+        "last_checked": NOW - 40,
+        "error": "ConnectError: connection refused",
+    },
+    {
+        "url": "ipfs://bafybei000mirror1pin",
+        "type": "ipfs",
+        "healthy": True,
+        "latency_ms": 312,
+        "last_checked": NOW - 60,
+        "error": None,
+    },
+    {
+        "url": "ipfs://bafybei000mirror2stale",
+        "type": "ipfs",
+        "healthy": False,
+        "latency_ms": None,
+        "last_checked": NOW - 180,
+        "error": "HTTPStatusError: 504 Gateway Timeout",
+    },
+    {
+        "url": "http://m2vortex7example123onion567.onion",
+        "type": "tor",
+        "healthy": False,
+        "latency_ms": None,
+        "last_checked": NOW,
+        "error": "no tor proxy configured",
+    },
+    {
+        "url": "https://another-mirror.vortex.sol.site",
+        "type": "web",
+        "healthy": None,
+        "latency_ms": None,
+        "last_checked": 0,
+        "error": None,
+    },
 ]
 
 PEERS = [
-    {"pubkey": "aa"*32,
-     "endpoints": ["wss://node-eu-west-1.vortex.sol:9000"],
-     "metadata": {"name":"node-A (prod)","region":"eu-west","version":"1.0.2"},
-     "last_seen": NOW - 12, "sealed": True, "weight": 1.0},
-    {"pubkey": "bb"*32,
-     "endpoints": ["wss://node-us-east-1.vortex.sol:9000","http://aaanodebb8ej2ka.onion"],
-     "metadata": {"name":"node-B","region":"us-east","version":"1.0.2"},
-     "last_seen": NOW - 3600*20, "sealed": True, "weight": 0.8},
-    {"pubkey": "cc"*32,
-     "endpoints": ["wss://asia-southeast-1.vortex.sol:9000",
-                   "http://cc7vortex4asianode9.onion","ipfs://bafybeinodeCC-static"],
-     "metadata": {"name":"node-C (pan-continental)","region":"asia-se","version":"1.0.1"},
-     "last_seen": NOW - 60*60*24*14, "sealed": True, "weight": 0.5},
-    {"pubkey": "dd"*32,
-     "endpoints": ["wss://home-nat-jitter.trycloudflare.com"],
-     "metadata": {"name":"home-pi","region":"self","version":"0.9-rc"},
-     "last_seen": NOW - 60*10, "sealed": False, "weight": 0.5},
-    {"pubkey": "ee"*32,
-     "endpoints": ["wss://dusty-corner.vortex.example:9000"],
-     "metadata": {"name":"legacy-node","region":"eu-central","version":"0.8.4"},
-     "last_seen": NOW - 60*60*24*120, "sealed": True, "weight": 0.2},
-    {"pubkey": "11"*32,
-     "endpoints": ["wss://solana-only-demo.trycloudflare.com"],
-     "metadata": {"name":"solana-only","region":"unknown","sealed":True,
-                  "code_hash":"feedfacecafebeef"+"00"*24},
-     "last_seen": NOW - 90, "sealed": True, "weight": 1.0,
-     "code_hash": "feedfacecafebeef"+"00"*24},
-    {"pubkey": "22"*32,
-     "endpoints": ["wss://controller-only.vortex.example"],
-     "metadata": {"name":"ctrl-only","version":"1.0.0"},
-     "last_seen": NOW - 30, "sealed": False, "weight": 0.9},
-    {"pubkey": "33"*32,
-     "endpoints": ["wss://bootstrap-seed.vortex.example"],
-     "metadata": {"name":"bootstrap-seed"},
-     "last_seen": NOW - 5, "sealed": False, "weight": 0.7},
+    {
+        "pubkey": "aa" * 32,
+        "endpoints": ["wss://node-eu-west-1.vortex.sol:9000"],
+        "metadata": {"name": "node-A (prod)", "region": "eu-west", "version": "1.0.2"},
+        "last_seen": NOW - 12,
+        "sealed": True,
+        "weight": 1.0,
+    },
+    {
+        "pubkey": "bb" * 32,
+        "endpoints": ["wss://node-us-east-1.vortex.sol:9000", "http://aaanodebb8ej2ka.onion"],
+        "metadata": {"name": "node-B", "region": "us-east", "version": "1.0.2"},
+        "last_seen": NOW - 3600 * 20,
+        "sealed": True,
+        "weight": 0.8,
+    },
+    {
+        "pubkey": "cc" * 32,
+        "endpoints": [
+            "wss://asia-southeast-1.vortex.sol:9000",
+            "http://cc7vortex4asianode9.onion",
+            "ipfs://bafybeinodeCC-static",
+        ],
+        "metadata": {"name": "node-C (pan-continental)", "region": "asia-se", "version": "1.0.1"},
+        "last_seen": NOW - 60 * 60 * 24 * 14,
+        "sealed": True,
+        "weight": 0.5,
+    },
+    {
+        "pubkey": "dd" * 32,
+        "endpoints": ["wss://home-nat-jitter.trycloudflare.com"],
+        "metadata": {"name": "home-pi", "region": "self", "version": "0.9-rc"},
+        "last_seen": NOW - 60 * 10,
+        "sealed": False,
+        "weight": 0.5,
+    },
+    {
+        "pubkey": "ee" * 32,
+        "endpoints": ["wss://dusty-corner.vortex.example:9000"],
+        "metadata": {"name": "legacy-node", "region": "eu-central", "version": "0.8.4"},
+        "last_seen": NOW - 60 * 60 * 24 * 120,
+        "sealed": True,
+        "weight": 0.2,
+    },
+    {
+        "pubkey": "11" * 32,
+        "endpoints": ["wss://solana-only-demo.trycloudflare.com"],
+        "metadata": {
+            "name": "solana-only",
+            "region": "unknown",
+            "sealed": True,
+            "code_hash": "feedfacecafebeef" + "00" * 24,
+        },
+        "last_seen": NOW - 90,
+        "sealed": True,
+        "weight": 1.0,
+        "code_hash": "feedfacecafebeef" + "00" * 24,
+    },
+    {
+        "pubkey": "22" * 32,
+        "endpoints": ["wss://controller-only.vortex.example"],
+        "metadata": {"name": "ctrl-only", "version": "1.0.0"},
+        "last_seen": NOW - 30,
+        "sealed": False,
+        "weight": 0.9,
+    },
+    {
+        "pubkey": "33" * 32,
+        "endpoints": ["wss://bootstrap-seed.vortex.example"],
+        "metadata": {"name": "bootstrap-seed"},
+        "last_seen": NOW - 5,
+        "sealed": False,
+        "weight": 0.7,
+    },
 ]
 
 STATS = {
-    "total":    len(PEERS) + 12,
+    "total": len(PEERS) + 12,
     "approved": len(PEERS) + 4,
-    "online":   sum(1 for p in PEERS if NOW - p["last_seen"] < 300),
+    "online": sum(1 for p in PEERS if NOW - p["last_seen"] < 300),
 }
-
 
 
 app = FastAPI(
     title="vortex-test-controller",
     version=VERSION,
     description="Mock Vortex controller for wizard / client testing.",
-    docs_url=None, redoc_url=None, openapi_url=None,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 
@@ -162,12 +239,12 @@ app = FastAPI(
 # its runtime path is resolved through ``_resource_path()`` above.
 
 PAGES = {
-    "/":         "index.html",
-    "/nodes":    "nodes.html",
-    "/entries":  "entries.html",
-    "/mirrors":  "mirrors.html",
+    "/": "index.html",
+    "/nodes": "nodes.html",
+    "/entries": "entries.html",
+    "/mirrors": "mirrors.html",
     "/security": "security.html",
-    "/admin":    "admin.html",
+    "/admin": "admin.html",
 }
 
 
@@ -178,17 +255,15 @@ def _make_page(file_name: str):
         if path.is_file():
             return FileResponse(path)
         return PlainTextResponse(
-            f"Vortex test controller {VERSION}\n\n"
-            f"pubkey: {_PUB_HEX}\n\n"
-            f"(bundle missing {file_name})\n",
+            f"Vortex test controller {VERSION}\n\npubkey: {_PUB_HEX}\n\n(bundle missing {file_name})\n",
         )
+
     return _handler
 
 
 # Register the HTML pages.
 for _path, _file in PAGES.items():
-    app.add_api_route(_path, _make_page(_file), methods=["GET"],
-                      include_in_schema=False)
+    app.add_api_route(_path, _make_page(_file), methods=["GET"], include_in_schema=False)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -214,37 +289,37 @@ if _locales_dir.is_dir():
 @app.get("/v1/health")
 async def health():
     return {
-        "status":  "ok",
+        "status": "ok",
         "version": VERSION,
-        "pubkey":  _PUB_HEX,
-        "stats":   STATS,
+        "pubkey": _PUB_HEX,
+        "stats": STATS,
     }
 
 
 @app.get("/v1/integrity")
 async def integrity():
     return {
-        "status":         "verified",
-        "signed_by":      _PUB_HEX,
+        "status": "verified",
+        "signed_by": _PUB_HEX,
         "trusted_pubkey": _PUB_HEX,
-        "version":        VERSION,
-        "built_at":       NOW - 3600,
-        "matched":        42,
-        "mismatched":     [],
-        "missing":        [],
-        "extra":          [],
-        "message":        f"All 42 files match manifest {VERSION} (test key)",
+        "version": VERSION,
+        "built_at": NOW - 3600,
+        "matched": 42,
+        "mismatched": [],
+        "missing": [],
+        "extra": [],
+        "message": f"All 42 files match manifest {VERSION} (test key)",
     }
 
 
 @app.get("/v1/treasury")
 async def treasury():
     return {
-        "pubkey":       "5ABkkipTZZEEPNR3cP4MCzftpAhqv6jvM4UTSLPGt5Qq",
-        "chain":        "solana",
-        "sns_domain":   "vortexx.sol",
+        "pubkey": "5ABkkipTZZEEPNR3cP4MCzftpAhqv6jvM4UTSLPGt5Qq",
+        "chain": "solana",
+        "sns_domain": "vortexx.sol",
         "fee_schedule": {
-            "register_fee_sol":    1.0,
+            "register_fee_sol": 1.0,
             "premium_protocol_pct": 20,
         },
     }
@@ -252,11 +327,13 @@ async def treasury():
 
 @app.get("/v1/entries")
 async def entries():
-    return sign_envelope({
-        "entries":     ENTRY_URLS,
-        "issued_at":   NOW,
-        "valid_until": NOW + 3600,
-    })
+    return sign_envelope(
+        {
+            "entries": ENTRY_URLS,
+            "issued_at": NOW,
+            "valid_until": NOW + 3600,
+        }
+    )
 
 
 @app.get("/v1/mirrors")
@@ -271,11 +348,13 @@ async def mirrors():
             if m.get("error"):
                 e["error"] = m["error"]
         items.append(e)
-    return sign_envelope({
-        "mirrors":     items,
-        "issued_at":   NOW,
-        "valid_until": NOW + 86400,
-    })
+    return sign_envelope(
+        {
+            "mirrors": items,
+            "issued_at": NOW,
+            "valid_until": NOW + 86400,
+        }
+    )
 
 
 @app.get("/v1/mirrors/health")
@@ -284,11 +363,11 @@ async def mirrors_health():
         "last_sweep": NOW - 5,
         "mirrors": [
             {
-                "url":          m["url"],
-                "ok":           bool(m.get("healthy")),
+                "url": m["url"],
+                "ok": bool(m.get("healthy")),
                 "last_checked": m.get("last_checked", 0),
-                "latency_ms":   m.get("latency_ms"),
-                "error":        m.get("error"),
+                "latency_ms": m.get("latency_ms"),
+                "error": m.get("error"),
             }
             for m in MIRRORS
         ],
@@ -333,8 +412,6 @@ _TUNNEL_URL: str | None = None
 _TUNNEL_PROC: subprocess.Popen | None = None
 
 
-
-
 def _find_cloudflared() -> str | None:
     """Locate cloudflared even when PATH is trimmed (e.g. Finder-launched)."""
     hit = shutil.which("cloudflared")
@@ -377,12 +454,17 @@ def _start_tunnel_blocking(port: int, timeout: float = 45.0) -> str:
     print(f"[tunnel] starting cloudflared via {bin_path} …", flush=True)
     proc = subprocess.Popen(
         [
-            bin_path, "tunnel",
-            "--url", f"http://localhost:{port}",
-            "--protocol", "http2",
+            bin_path,
+            "tunnel",
+            "--url",
+            f"http://localhost:{port}",
+            "--protocol",
+            "http2",
             "--no-autoupdate",
         ],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
     )
     _TUNNEL_PROC = proc
 
@@ -444,15 +526,14 @@ def main() -> None:
         prog="test-controller",
         description="Standalone mock Vortex controller (signed envelopes).",
     )
-    ap.add_argument("--host", default="127.0.0.1",
-                    help="bind host (default: 127.0.0.1)")
-    ap.add_argument("--port", type=int, default=8800,
-                    help="bind port (default: 8800)")
-    ap.add_argument("--tunnel", action="store_true",
-                    help="open a cloudflared tunnel and print the public "
-                         "trycloudflare URL (requires cloudflared installed)")
-    ap.add_argument("--print-key", action="store_true",
-                    help="print the generated signing pubkey and exit")
+    ap.add_argument("--host", default="127.0.0.1", help="bind host (default: 127.0.0.1)")
+    ap.add_argument("--port", type=int, default=8800, help="bind port (default: 8800)")
+    ap.add_argument(
+        "--tunnel",
+        action="store_true",
+        help="open a cloudflared tunnel and print the public trycloudflare URL (requires cloudflared installed)",
+    )
+    ap.add_argument("--print-key", action="store_true", help="print the generated signing pubkey and exit")
     args = ap.parse_args()
 
     if args.print_key:
@@ -467,8 +548,11 @@ def main() -> None:
     server_thread = threading.Thread(
         target=uvicorn.run,
         kwargs={
-            "app": app, "host": args.host, "port": args.port,
-            "log_level": "warning", "access_log": False,
+            "app": app,
+            "host": args.host,
+            "port": args.port,
+            "log_level": "warning",
+            "access_log": False,
         },
         daemon=True,
     )
@@ -476,6 +560,7 @@ def main() -> None:
 
     # Wait for the HTTP port to be listening before touching the tunnel.
     import socket as _socket
+
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
         try:
@@ -494,10 +579,7 @@ def main() -> None:
         _TUNNEL_URL = _start_tunnel_blocking(args.port)
         _pump_tunnel_logs_to_stderr()
 
-    public_line = (
-        f"  public URL:      {_TUNNEL_URL}\n"
-        if _TUNNEL_URL else ""
-    )
+    public_line = f"  public URL:      {_TUNNEL_URL}\n" if _TUNNEL_URL else ""
     banner = (
         f"\n─── vortex test-controller {VERSION} ───\n"
         f"  signing pubkey:  {_PUB_HEX}\n"

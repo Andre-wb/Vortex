@@ -10,6 +10,7 @@ app/security/secret_rotation.py — плановая ротация секрет
 Значения, заданные оператором в окружении процесса (Docker, systemd, shell),
 считаются управляемыми извне и не ротируются.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -171,9 +172,7 @@ class SecretRotator:
             "running": bool(self._task and not self._task.done()),
             "last_rotation": int(last) if last else None,
             "next_rotation": int(last + self.interval_seconds) if last else None,
-            "rotatable_keys": sorted(
-                k for k in ROTATABLE if not is_externally_set(k)
-            ),
+            "rotatable_keys": sorted(k for k in ROTATABLE if not is_externally_set(k)),
         }
 
 

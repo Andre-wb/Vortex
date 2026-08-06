@@ -10,6 +10,7 @@ app/bots/antispam_bot.py — Встроенный системный антис�
   - Спам ссылками (3+ сообщений с URL за 60 сек, для не-админов)
   - Caps Lock спам (>80% заглавных и >20 символов)
 """
+
 from __future__ import annotations
 
 import json
@@ -64,6 +65,7 @@ def get_antispam_config(room: Room) -> dict:
 
 # System bot creation / lookup
 
+
 def ensure_antispam_bot(db: Session) -> int:
     """
     Ensure the system antispam bot exists. Returns its user_id.
@@ -96,6 +98,7 @@ def ensure_antispam_bot(db: Session) -> int:
 
     # Create bot record (owner_id = bot itself for system bots)
     from app.bots.bot_shared import _hash_token
+
     api_token = secrets.token_hex(32)
     bot_record = Bot(
         user_id=bot_user.id,
@@ -104,10 +107,12 @@ def ensure_antispam_bot(db: Session) -> int:
         name="Antispam",
         description="Built-in spam protection bot",
         is_active=True,
-        commands=json.dumps([
-            {"command": "/antispam_status", "description": "Show antispam settings"},
-            {"command": "/antispam_help", "description": "Antispam bot help"},
-        ]),
+        commands=json.dumps(
+            [
+                {"command": "/antispam_status", "description": "Show antispam settings"},
+                {"command": "/antispam_help", "description": "Antispam bot help"},
+            ]
+        ),
     )
     db.add(bot_record)
     db.commit()
@@ -117,9 +122,7 @@ def ensure_antispam_bot(db: Session) -> int:
     _antispam_bot_user_id = bot_user.id
     _antispam_bot_id = bot_record.id
 
-    logger.info(
-        f"Antispam bot CREATED: user_id={bot_user.id}, bot_id={bot_record.id}"
-    )
+    logger.info(f"Antispam bot CREATED: user_id={bot_user.id}, bot_id={bot_record.id}")
     return bot_user.id
 
 
@@ -135,16 +138,21 @@ def get_antispam_bot_id() -> int | None:
 
 # Room membership management
 
+
 def add_antispam_bot_to_room(room_id: int, db: Session) -> bool:
     """Add antispam bot as a member of the room. Returns True if added."""
     bot_uid = get_antispam_bot_user_id()
     if not bot_uid:
         return False
 
-    existing = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == bot_uid,
-    ).first()
+    existing = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == bot_uid,
+        )
+        .first()
+    )
 
     if existing:
         # Un-ban if previously banned
@@ -153,11 +161,13 @@ def add_antispam_bot_to_room(room_id: int, db: Session) -> bool:
             db.commit()
         return False
 
-    db.add(RoomMember(
-        room_id=room_id,
-        user_id=bot_uid,
-        role=RoomRole.MEMBER,
-    ))
+    db.add(
+        RoomMember(
+            room_id=room_id,
+            user_id=bot_uid,
+            role=RoomRole.MEMBER,
+        )
+    )
     db.commit()
     logger.info(f"Antispam bot added to room {room_id}")
     return True
@@ -169,10 +179,14 @@ def remove_antispam_bot_from_room(room_id: int, db: Session) -> bool:
     if not bot_uid:
         return False
 
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == bot_uid,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == bot_uid,
+        )
+        .first()
+    )
 
     if not member:
         return False
@@ -185,6 +199,7 @@ def remove_antispam_bot_from_room(room_id: int, db: Session) -> bool:
 
 # Bot message sending (internal, no API token needed)
 
+
 async def antispam_bot_message(room_id: int, text: str, db: Session) -> Message | None:
     """
     Send a message from the antispam bot to the room.
@@ -196,10 +211,14 @@ async def antispam_bot_message(room_id: int, text: str, db: Session) -> Message 
         return None
 
     # Make sure bot is actually in the room
-    member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == bot_uid,
-    ).first()
+    member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == bot_uid,
+        )
+        .first()
+    )
     if not member:
         return None
 
@@ -218,21 +237,21 @@ async def antispam_bot_message(room_id: int, text: str, db: Session) -> Message 
     db.refresh(msg)
 
     payload = {
-        "type":         "message",
-        "msg_id":       msg.id,
-        "sender_id":    bot_uid,
-        "sender":       bot_user.username,
+        "type": "message",
+        "msg_id": msg.id,
+        "sender_id": bot_uid,
+        "sender": bot_user.username,
         "display_name": bot_user.display_name or "Antispam",
         "avatar_emoji": bot_user.avatar_emoji or "\U0001f6e1\ufe0f",
-        "avatar_url":   bot_user.avatar_url,
-        "is_bot":       True,
-        "bot_id":       bot_id,
-        "bot_name":     "Antispam",
-        "plaintext":    text,
-        "msg_type":     "text",
-        "reply_to_id":  None,
-        "status":       "sent",
-        "created_at":   msg.created_at.isoformat(),
+        "avatar_url": bot_user.avatar_url,
+        "is_bot": True,
+        "bot_id": bot_id,
+        "bot_name": "Antispam",
+        "plaintext": text,
+        "msg_type": "text",
+        "reply_to_id": None,
+        "status": "sent",
+        "created_at": msg.created_at.isoformat(),
     }
     await manager.broadcast_to_room(room_id, payload)
 
@@ -247,16 +266,16 @@ _repeat_tracker: dict[str, list[tuple[float, str]]] = {}
 # "room:user" -> list of timestamps for link spam detection
 _link_tracker: dict[str, list[float]] = {}
 
-_REPEAT_WINDOW = 30      # seconds
-_REPEAT_THRESHOLD = 3    # same message N times
-_LINK_WINDOW = 60         # seconds
-_LINK_THRESHOLD = 3       # messages with URLs
-_CAPS_MIN_LENGTH = 20     # minimum message length for caps check
-_CAPS_RATIO = 0.8         # 80% uppercase
+_REPEAT_WINDOW = 30  # seconds
+_REPEAT_THRESHOLD = 3  # same message N times
+_LINK_WINDOW = 60  # seconds
+_LINK_THRESHOLD = 3  # messages with URLs
+_CAPS_MIN_LENGTH = 20  # minimum message length for caps check
+_CAPS_RATIO = 0.8  # 80% uppercase
 
 _URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 
-_TRACKER_TTL = 300.0      # 5 minutes — evict stale entries
+_TRACKER_TTL = 300.0  # 5 minutes — evict stale entries
 _last_cleanup: float = 0.0
 
 
@@ -264,7 +283,7 @@ def _cleanup_trackers() -> None:
     """Remove tracker entries older than _TRACKER_TTL to prevent unbounded growth."""
     global _last_cleanup
     now = time.monotonic()
-    if now - _last_cleanup < 60.0:      # run at most once per minute
+    if now - _last_cleanup < 60.0:  # run at most once per minute
         return
     _last_cleanup = now
 
@@ -290,7 +309,10 @@ def _cleanup_trackers() -> None:
 
 
 async def check_repeat_spam(
-    room_id: int, user: User, plaintext: str, db: Session,
+    room_id: int,
+    user: User,
+    plaintext: str,
+    db: Session,
 ) -> bool:
     """
     Check for repeated messages. Returns True if spam detected (message should be dropped).
@@ -320,7 +342,11 @@ async def check_repeat_spam(
 
 
 async def check_link_spam(
-    room_id: int, user: User, plaintext: str, member_role: RoomRole, db: Session,
+    room_id: int,
+    user: User,
+    plaintext: str,
+    member_role: RoomRole,
+    db: Session,
 ) -> bool:
     """
     Check for link spam (non-admin users only). Returns True if spam detected.
@@ -353,7 +379,10 @@ async def check_link_spam(
 
 
 async def check_caps_spam(
-    room_id: int, user: User, plaintext: str, db: Session,
+    room_id: int,
+    user: User,
+    plaintext: str,
+    db: Session,
 ) -> bool:
     """
     Check for caps lock spam. Returns True if spam detected.
@@ -368,8 +397,7 @@ async def check_caps_spam(
     if ratio > _CAPS_RATIO:
         await antispam_bot_message(
             room_id,
-            f"\u26a0\ufe0f {user.display_name or user.username}: "
-            f"please do not write in ALL CAPS.",
+            f"\u26a0\ufe0f {user.display_name or user.username}: please do not write in ALL CAPS.",
             db,
         )
         return True
@@ -382,18 +410,20 @@ _ACTION_LABELS = {
     "warn": "Warning",
     "mute": "Mute for 5 min",
     "kick": "Kick from room",
-    "ban":  "Ban",
+    "ban": "Ban",
 }
 
 _THRESHOLD_LABELS = {
-    5:  "Strict (5)",
+    5: "Strict (5)",
     10: "Medium (10)",
     15: "Gentle (15)",
 }
 
 
 async def handle_antispam_command(
-    room_id: int, command: str, db: Session,
+    room_id: int,
+    command: str,
+    db: Session,
 ) -> None:
     """Handle /antispam_status and /antispam_help commands."""
     room = db.query(Room).filter(Room.id == room_id).first()

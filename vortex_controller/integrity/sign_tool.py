@@ -18,6 +18,7 @@ Release pubkey storage:
     the controller). The PUBLIC key must be pinned in the Vortex client so
     that users can verify any controller they connect to. Rotate rarely.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -55,10 +56,14 @@ def _load_or_create_key(path: Path) -> Ed25519PrivateKey:
 
 
 def _pubkey_hex(priv: Ed25519PrivateKey) -> str:
-    return priv.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    ).hex()
+    return (
+        priv.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        .hex()
+    )
 
 
 def _sign(priv: Ed25519PrivateKey, manifest: dict) -> dict:
@@ -73,15 +78,18 @@ def _sign(priv: Ed25519PrivateKey, manifest: dict) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--key", type=Path, default=DEFAULT_KEY_PATH,
-                    help=f"Ed25519 private key path (default: {DEFAULT_KEY_PATH})")
-    ap.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent,
-                    help="Root directory to hash (default: vortex_controller/)")
-    ap.add_argument("--out", type=Path, default=None,
-                    help=f"Output signed manifest (default: <root>/../{DEFAULT_OUT})")
+    ap.add_argument(
+        "--key", type=Path, default=DEFAULT_KEY_PATH, help=f"Ed25519 private key path (default: {DEFAULT_KEY_PATH})"
+    )
+    ap.add_argument(
+        "--root",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent,
+        help="Root directory to hash (default: vortex_controller/)",
+    )
+    ap.add_argument("--out", type=Path, default=None, help=f"Output signed manifest (default: <root>/../{DEFAULT_OUT})")
     ap.add_argument("--version", default=VERSION, help=f"Manifest version (default: {VERSION})")
-    ap.add_argument("--show-pubkey", action="store_true",
-                    help="Print the release pubkey and exit")
+    ap.add_argument("--show-pubkey", action="store_true", help="Print the release pubkey and exit")
     args = ap.parse_args()
 
     priv = _load_or_create_key(args.key)

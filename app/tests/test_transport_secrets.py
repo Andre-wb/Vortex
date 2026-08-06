@@ -8,6 +8,7 @@ test_transport_secrets.py — выдача протокольных пароле
   - секреты релеев наружу не уходят
   - отдельный rate-limit и отказ на открытом HTTP
 """
+
 from __future__ import annotations
 
 import pytest
@@ -95,38 +96,35 @@ class TestPayload:
     def test_no_default_literals(self, client, logged_user, token_enabled):
         """В ответе не должно быть предсказуемых значений из репозитория."""
         raw = client.get(URL, headers=_auth(logged_user)).text
-        for literal in ("vortex-stls", "vortex-trojan", "\"vortex\"", "unsplash.com"):
+        for literal in ("vortex-stls", "vortex-trojan", '"vortex"', "unsplash.com"):
             assert literal not in raw
 
     def test_relay_secrets_not_exposed(self, client, logged_user, token_enabled):
         """К релеям ходит сервер — клиенту их секреты не нужны."""
         raw = client.get(URL, headers=_auth(logged_user)).text
-        for secret in (Config.CDN_WORKER_KV_SECRET, Config.AWS_RELAY_SECRET,
-                       Config.AZURE_RELAY_SECRET):
+        for secret in (Config.CDN_WORKER_KV_SECRET, Config.AWS_RELAY_SECRET, Config.AZURE_RELAY_SECRET):
             assert secret not in raw
 
     def test_next_rotation_present(self, client, logged_user, token_enabled):
         body = client.get(URL, headers=_auth(logged_user)).json()
         assert body["next_rotation"] == sr.rotation_status()["next_rotation"]
 
-    def test_previous_values_after_rotation(self, client, logged_user, token_enabled,
-                                            monkeypatch):
+    def test_previous_values_after_rotation(self, client, logged_user, token_enabled, monkeypatch):
         """После ротации клиент видит и новое значение, и прежнее (grace)."""
         import os
+
         monkeypatch.setattr(Config, "SHADOWTLS_PASSWORD", "shadow-new")
         monkeypatch.setattr(Config, "TROJAN_PASSWORD", "trojan-new")
         monkeypatch.setitem(os.environ, "SHADOWTLS_PASSWORD_PREV", "shadow-old")
         monkeypatch.setitem(os.environ, "TROJAN_PASSWORD_PREV", "trojan-old")
 
         body = client.get(URL, headers=_auth(logged_user)).json()
-        assert body["shadowtls"] == {"password": "shadow-new",
-                                     "previous_password": "shadow-old"}
-        assert body["trojan"] == {"password": "trojan-new",
-                                  "previous_password": "trojan-old"}
+        assert body["shadowtls"] == {"password": "shadow-new", "previous_password": "shadow-old"}
+        assert body["trojan"] == {"password": "trojan-new", "previous_password": "trojan-old"}
 
-    def test_previous_is_null_before_first_rotation(self, client, logged_user,
-                                                    token_enabled, monkeypatch):
+    def test_previous_is_null_before_first_rotation(self, client, logged_user, token_enabled, monkeypatch):
         import os
+
         monkeypatch.delitem(os.environ, "SHADOWTLS_PASSWORD_PREV", raising=False)
         body = client.get(URL, headers=_auth(logged_user)).json()
         assert body["shadowtls"]["previous_password"] is None
@@ -164,8 +162,7 @@ class TestRotationGrace:
         finally:
             for key, value in saved.items():
                 setattr(Config, key, value)
-            for key, value in {**saved_env, **{k + sr.PREV_SUFFIX: v
-                                               for k, v in saved_prev.items()}}.items():
+            for key, value in {**saved_env, **{k + sr.PREV_SUFFIX: v for k, v in saved_prev.items()}}.items():
                 if value is None:
                     os.environ.pop(key, None)
                 else:
@@ -181,33 +178,30 @@ class TestRotationGrace:
 class TestHardening:
     def test_rate_limited(self, client, logged_user, token_enabled, monkeypatch):
         from app.transport import pluggable_routes as pr
+
         monkeypatch.setattr(Config, "TRANSPORT_SECRETS_RATE_LIMIT", 3)
         monkeypatch.setattr(pr, "_secrets_rate", {})
-        codes = [client.get(URL, headers=_auth(logged_user)).status_code
-                 for _ in range(5)]
+        codes = [client.get(URL, headers=_auth(logged_user)).status_code for _ in range(5)]
         assert codes[:3] == [200, 200, 200]
         assert codes[3:] == [429, 429]
 
     def test_plain_http_rejected(self, monkeypatch):
         """Вне тестового режима пароли по открытому HTTP не отдаются."""
         from app.transport.pluggable_routes import _is_secure_request
+
         monkeypatch.setattr(Config, "TESTING", False)
         assert _is_secure_request(_FakeRequest("http", "203.0.113.7")) is False
         assert _is_secure_request(_FakeRequest("https", "203.0.113.7")) is True
         # Локальные вызовы (клиент на той же машине) остаются разрешёнными.
         assert _is_secure_request(_FakeRequest("http", "127.0.0.1")) is True
         # Заголовок от TLS-терминатора важнее схемы внутреннего запроса.
-        assert _is_secure_request(
-            _FakeRequest("http", "203.0.113.7",
-                         {"x-forwarded-proto": "https,http"})) is True
-        assert _is_secure_request(
-            _FakeRequest("https", "203.0.113.7",
-                         {"x-forwarded-proto": "http"})) is False
+        assert _is_secure_request(_FakeRequest("http", "203.0.113.7", {"x-forwarded-proto": "https,http"})) is True
+        assert _is_secure_request(_FakeRequest("https", "203.0.113.7", {"x-forwarded-proto": "http"})) is False
 
-    def test_https_via_forwarded_proto(self, client, logged_user, token_enabled,
-                                       monkeypatch):
+    def test_https_via_forwarded_proto(self, client, logged_user, token_enabled, monkeypatch):
         """За TLS-терминатором признаётся X-Forwarded-Proto."""
         from app.transport import pluggable_routes as pr
+
         monkeypatch.setattr(Config, "TESTING", False)
         monkeypatch.setattr(pr, "_secrets_rate", {})
         headers = _auth(logged_user)

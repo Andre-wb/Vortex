@@ -25,35 +25,47 @@ def _publish_identity_chain(client, headers, x25519_hex, account_ed):
     spk = X25519PrivateKey.generate()
     spk_pub = _raw(spk.public_key())
 
-    r = client.post("/api/keys/prekeys/publish", json={
-        "identity_key":      x25519_hex,
-        "signed_prekey":     spk_pub.hex(),
-        "signed_prekey_sig": account_ed.sign(spk_pub).hex(),
-        "signed_prekey_id":  1,
-        "identity_key_ed":   ed_pub_hex,
-        "identity_key_sig":  account_ed.sign(ik_bytes).hex(),   # account Ed подписал X25519
-        "supports_v2":       True,
-        "one_time_prekeys":  [],
-    }, headers=headers)
+    r = client.post(
+        "/api/keys/prekeys/publish",
+        json={
+            "identity_key": x25519_hex,
+            "signed_prekey": spk_pub.hex(),
+            "signed_prekey_sig": account_ed.sign(spk_pub).hex(),
+            "signed_prekey_id": 1,
+            "identity_key_ed": ed_pub_hex,
+            "identity_key_sig": account_ed.sign(ik_bytes).hex(),  # account Ed подписал X25519
+            "supports_v2": True,
+            "one_time_prekeys": [],
+        },
+        headers=headers,
+    )
     assert r.status_code == 200, r.text
 
-    kyber_pub = secrets.token_bytes(1184)                       # синтетический ML-KEM pub
-    r = client.post("/api/keys/kyber", json={
-        "kyber_public_key":     kyber_pub.hex(),
-        "kyber_public_key_sig": account_ed.sign(kyber_pub).hex(),
-    }, headers=headers)
+    kyber_pub = secrets.token_bytes(1184)  # синтетический ML-KEM pub
+    r = client.post(
+        "/api/keys/kyber",
+        json={
+            "kyber_public_key": kyber_pub.hex(),
+            "kyber_public_key_sig": account_ed.sign(kyber_pub).hex(),
+        },
+        headers=headers,
+    )
     assert r.status_code == 200, r.text
     return ed_pub_hex, kyber_pub.hex()
 
 
 def _create_room(client, headers):
-    r = client.post("/api/rooms", json={
-        "name": f"g1_{random_str()}",
-        "encrypted_room_key": {
-            "ephemeral_pub": secrets.token_hex(32),
-            "ciphertext":    secrets.token_hex(60),
+    r = client.post(
+        "/api/rooms",
+        json={
+            "name": f"g1_{random_str()}",
+            "encrypted_room_key": {
+                "ephemeral_pub": secrets.token_hex(32),
+                "ciphertext": secrets.token_hex(60),
+            },
         },
-    }, headers=headers)
+        headers=headers,
+    )
     assert r.status_code in (200, 201), r.text
     body = r.json()
     return body.get("id") or body.get("room", {}).get("id")
@@ -61,6 +73,7 @@ def _create_room(client, headers):
 
 def test_member_keys_chain_verifies(client, monkeypatch):
     from app.config import Config
+
     monkeypatch.setattr(Config, "PREKEY_SIG_ENFORCE", False)
 
     member = make_user(client)

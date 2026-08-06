@@ -3,6 +3,7 @@
 Векторы: `app/tests/vectors/rust_parity.json` (генератор
 `scripts/gen_rust_parity_vectors.py`), эталоны — `app/tests/rust_parity_reference.py`.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,7 +38,6 @@ ALL_CASES = list(_cases())
 
 
 class TestVectorFile:
-
     def test_covers_every_function(self):
         assert set(_vectors()) == {fn.name for fn in FUNCTIONS}
 
@@ -144,9 +144,7 @@ class TestSigningCanonicalizerIsShared:
             username="Алиса Петровна",
             rooms=[1, 2],
         )
-        payload = ht.verify_handoff_token(
-            envelope, lambda pubkey: pubkey == key.pubkey_hex()
-        )
+        payload = ht.verify_handoff_token(envelope, lambda pubkey: pubkey == key.pubkey_hex())
         assert payload["username"] == "Алиса Петровна"
 
 

@@ -10,6 +10,7 @@ Rules:
     - Payload includes **only verified alternatives** so clients never
       receive a suggestion they can't safely use.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -100,7 +101,8 @@ class MigrationPusher:
         self._last_push = now
         logger.info(
             "MigrationPusher: pushed migrate_suggest to %d WS clients (load=%.2f)",
-            sent, payload["load"],
+            sent,
+            payload["load"],
         )
 
 

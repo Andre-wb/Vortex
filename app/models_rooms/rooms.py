@@ -24,35 +24,33 @@ from app.models_rooms.enums import RoomRole
 class Room(Base):
     __tablename__ = "rooms"
 
-    id          = Column(Integer,     primary_key=True, index=True)
-    name        = Column(String(100), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
     description = Column(String(500), default="")
-    creator_id  = Column(Integer,     ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    is_private  = Column(Boolean,     default=False)
-    invite_code = Column(String(16),  unique=True, nullable=False, index=True)
-    max_members = Column(Integer,     default=100000)
-    is_dm       = Column(Boolean,     default=False)
-    is_channel  = Column(Boolean,     default=False)
-    is_voice    = Column(Boolean,     default=False)
-    is_forum    = Column(Boolean,     default=False)   # Forum mode (Reddit-like threads)
+    creator_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    is_private = Column(Boolean, default=False)
+    invite_code = Column(String(16), unique=True, nullable=False, index=True)
+    max_members = Column(Integer, default=100000)
+    is_dm = Column(Boolean, default=False)
+    is_channel = Column(Boolean, default=False)
+    is_voice = Column(Boolean, default=False)
+    is_forum = Column(Boolean, default=False)  # Forum mode (Reddit-like threads)
     subscriber_count = Column(Integer, default=0)
     discussion_enabled = Column(Boolean, default=False)  # Enable comments under channel posts
 
     # Channel-specific settings
-    reactions_type      = Column(String(20), default="all")    # "all", "selected", "off"
-    allowed_reactions   = Column(Text, default="")             # comma-separated emojis if reactions_type=selected
-    admin_signatures    = Column(Boolean, default=False)       # Show admin name under posts
-    copy_protection     = Column(Boolean, default=False)       # Disable copy/forward/screenshots
-    silent_default      = Column(Boolean, default=False)       # Posts are silent by default (no notification sound)
-    join_approval       = Column(Boolean, default=False)       # Require admin approval for join requests
-    hashtags_enabled    = Column(Boolean, default=True)        # Enable clickable hashtags in channel
+    reactions_type = Column(String(20), default="all")  # "all", "selected", "off"
+    allowed_reactions = Column(Text, default="")  # comma-separated emojis if reactions_type=selected
+    admin_signatures = Column(Boolean, default=False)  # Show admin name under posts
+    copy_protection = Column(Boolean, default=False)  # Disable copy/forward/screenshots
+    silent_default = Column(Boolean, default=False)  # Posts are silent by default (no notification sound)
+    join_approval = Column(Boolean, default=False)  # Require admin approval for join requests
+    hashtags_enabled = Column(Boolean, default=True)  # Enable clickable hashtags in channel
 
     # Привязка к пространству (Space)
-    space_id    = Column(Integer, ForeignKey("spaces.id", ondelete="SET NULL"),
-                         nullable=True, index=True)
-    category_id = Column(Integer, ForeignKey("space_categories.id", ondelete="SET NULL"),
-                         nullable=True)
-    order_idx   = Column(Integer, default=0)
+    space_id = Column(Integer, ForeignKey("spaces.id", ondelete="SET NULL"), nullable=True, index=True)
+    category_id = Column(Integer, ForeignKey("space_categories.id", ondelete="SET NULL"), nullable=True)
+    order_idx = Column(Integer, default=0)
 
     # Закреплённое сообщение
     pinned_message_id = Column(Integer, ForeignKey("messages.id", ondelete="SET NULL"), nullable=True)
@@ -65,13 +63,13 @@ class Room(Base):
 
     # Аватар комнаты
     avatar_emoji = Column(String(10), default="\U0001f4ac")
-    avatar_url   = Column(String(255), nullable=True)
+    avatar_url = Column(String(255), nullable=True)
 
     # Антиспам (flood detection) — можно отключить для конкретной комнаты
     antispam_enabled = Column(Boolean, default=True)
 
     # JSON-конфиг антиспам-бота: {threshold, action, block_repeats, block_links}
-    antispam_config = Column(Text, default='{}')
+    antispam_config = Column(Text, default="{}")
 
     # Per-room theme: JSON {"wallpaper": "stars|aurora|...", "accent": "#hex", "dark_mode": bool}
     theme_json = Column(Text, nullable=True)
@@ -84,20 +82,19 @@ class Room(Base):
     # entry.
     #   'none'      — local storage only (default)
     #   'federated' — replicated across the network (owner opt-in)
-    replication_mode = Column(String(16), default='none', nullable=False, server_default='none')
+    replication_mode = Column(String(16), default="none", nullable=False, server_default="none")
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
-    members      = relationship("RoomMember",       back_populates="room",
-                                cascade="all, delete-orphan", lazy="dynamic")
-    messages     = relationship("Message",          back_populates="room",
-                                cascade="all, delete-orphan", lazy="dynamic",
-                                foreign_keys="[Message.room_id]")
-    enc_keys     = relationship("EncryptedRoomKey", back_populates="room",
-                                cascade="all, delete-orphan")
-    pending_keys = relationship("PendingKeyRequest", back_populates="room",
-                                cascade="all, delete-orphan")
+    members = relationship("RoomMember", back_populates="room", cascade="all, delete-orphan", lazy="dynamic")
+    messages = relationship(
+        "Message", back_populates="room", cascade="all, delete-orphan", lazy="dynamic", foreign_keys="[Message.room_id]"
+    )
+    enc_keys = relationship("EncryptedRoomKey", back_populates="room", cascade="all, delete-orphan")
+    pending_keys = relationship("PendingKeyRequest", back_populates="room", cascade="all, delete-orphan")
 
     def member_count(self) -> int:
         cached = getattr(self, "_cached_member_count", None)
@@ -106,11 +103,10 @@ class Room(Base):
         try:
             from sqlalchemy import func
             from sqlalchemy.orm import Session, object_session
+
             sess: Session | None = object_session(self)
             if sess is not None:
-                count = sess.query(func.count(RoomMember.id)).filter(
-                    RoomMember.room_id == self.id
-                ).scalar() or 0
+                count = sess.query(func.count(RoomMember.id)).filter(RoomMember.room_id == self.id).scalar() or 0
             else:
                 count = 0
         except Exception:
@@ -122,11 +118,10 @@ class Room(Base):
         """Return set of user IDs who are members of this room."""
         with contextlib.suppress(Exception):
             from sqlalchemy.orm import Session, object_session
+
             sess: Session | None = object_session(self)
             if sess is not None:
-                rows = sess.query(RoomMember.user_id).filter(
-                    RoomMember.room_id == self.id
-                ).all()
+                rows = sess.query(RoomMember.user_id).filter(RoomMember.room_id == self.id).all()
                 return {r[0] for r in rows}
         return set()
 
@@ -137,24 +132,24 @@ class Room(Base):
 class RoomMember(Base):
     __tablename__ = "room_members"
 
-    id        = Column(Integer,         primary_key=True, index=True)
-    room_id   = Column(Integer,         ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
-    user_id   = Column(Integer,         ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    role      = Column(Enum(RoomRole),  default=RoomRole.MEMBER, nullable=False)
-    joined_at = Column(DateTime,        default=lambda: datetime.now(timezone.utc))
-    is_muted  = Column(Boolean,         default=False)
-    is_banned = Column(Boolean,         default=False)
-    muted_until = Column(DateTime,     nullable=True)   # flood auto-mute expiry
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(Enum(RoomRole), default=RoomRole.MEMBER, nullable=False)
+    joined_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_muted = Column(Boolean, default=False)
+    is_banned = Column(Boolean, default=False)
+    muted_until = Column(DateTime, nullable=True)  # flood auto-mute expiry
 
     # ID последнего прочитанного сообщения (для серверного подсчёта непрочитанных)
     last_read_message_id = Column(Integer, nullable=True)
 
     # Custom tag assigned by owner/admin (e.g. "VIP", "Developer", "Moderator")
-    tag       = Column(String(30),     nullable=True)
-    tag_color = Column(String(7),      nullable=True)   # hex color e.g. "#ff3b30"
+    tag = Column(String(30), nullable=True)
+    tag_color = Column(String(7), nullable=True)  # hex color e.g. "#ff3b30"
 
     # Granular permissions JSON: {"can_send": true, "can_pin": false, ...}
-    custom_permissions = Column(Text,  nullable=True)
+    custom_permissions = Column(Text, nullable=True)
 
     room = relationship("Room", back_populates="members")
     user = relationship("User", back_populates="room_memberships")
@@ -172,14 +167,13 @@ class JoinRequest(Base):
     возвращают 403 для заявителя, пока админ не одобрит). approve-join создаёт
     RoomMember + pre-wrap ключа и удаляет заявку; reject-join просто удаляет.
     """
+
     __tablename__ = "room_join_requests"
 
-    id         = Column(Integer,  primary_key=True, index=True)
-    room_id    = Column(Integer,  ForeignKey("rooms.id", ondelete="CASCADE"),
-                        nullable=False, index=True)
-    user_id    = Column(Integer,  ForeignKey("users.id", ondelete="CASCADE"),
-                        nullable=False, index=True)
-    x25519_pub = Column(String(64), nullable=True)   # pubkey заявителя для pre-wrap
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    x25519_pub = Column(String(64), nullable=True)  # pubkey заявителя для pre-wrap
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (

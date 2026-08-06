@@ -19,6 +19,7 @@ Output: a root CID that you can:
     2. Pin with Pinata / Web3.Storage / Filebase
     3. Point a DNSLink TXT record at (``_dnslink.vortexx.sol``)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -100,9 +101,7 @@ def publish_to_ipfs(
         root = entries[-1]
 
     files_out = [
-        {"name": e.get("Name"), "cid": e.get("Hash"), "size": int(e.get("Size") or 0)}
-        for e in entries
-        if e is not root
+        {"name": e.get("Name"), "cid": e.get("Hash"), "size": int(e.get("Size") or 0)} for e in entries if e is not root
     ]
     return {"root_cid": root["Hash"], "files": files_out}
 
@@ -110,12 +109,12 @@ def publish_to_ipfs(
 def _mime_for(ext: str) -> str:
     return {
         ".html": "text/html",
-        ".css":  "text/css",
-        ".js":   "application/javascript",
+        ".css": "text/css",
+        ".js": "application/javascript",
         ".json": "application/json",
-        ".svg":  "image/svg+xml",
-        ".png":  "image/png",
-        ".ico":  "image/x-icon",
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".ico": "image/x-icon",
     }.get(ext.lower(), "application/octet-stream")
 
 
@@ -136,7 +135,7 @@ def _format_report(result: dict, api_url: str) -> str:
         f'  MIRROR_URLS="ipfs://{root}"',
         "",
         "For a persistent name, set a DNSLink record on your domain:",
-        f"  _dnslink.vortexx.sol  TXT  \"dnslink=/ipfs/{root}\"",
+        f'  _dnslink.vortexx.sol  TXT  "dnslink=/ipfs/{root}"',
     ]
     return "\n".join(lines)
 
@@ -148,15 +147,19 @@ def main() -> int:
     )
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--api", default=os.getenv("IPFS_API", "http://127.0.0.1:5001"),
+        "--api",
+        default=os.getenv("IPFS_API", "http://127.0.0.1:5001"),
         help="IPFS HTTP API endpoint (env: IPFS_API)",
     )
     parser.add_argument(
-        "--auth", default=os.getenv("IPFS_AUTH", ""),
+        "--auth",
+        default=os.getenv("IPFS_AUTH", ""),
         help="Authorization header value, e.g. 'Bearer <jwt>' (env: IPFS_AUTH)",
     )
     parser.add_argument(
-        "--src", type=Path, default=WEB_DIR,
+        "--src",
+        type=Path,
+        default=WEB_DIR,
         help="Source directory (default: vortex_controller/web)",
     )
     parser.add_argument("--json", action="store_true", help="Output JSON instead of text")
