@@ -13,17 +13,16 @@ from fastapi import Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import Bot, BotReview, User
-from app.models_rooms import RoomMember, Room, RoomRole
-from app.security.auth_jwt import get_current_user
-
 from app.bots.bot_shared import (
-    router,
+    MARKETPLACE_CATEGORIES,
     PublishBotRequest,
     SubmitReviewRequest,
-    MARKETPLACE_CATEGORIES,
+    router,
 )
+from app.database import get_db
+from app.models import Bot, BotReview, User
+from app.models_rooms import Room, RoomMember, RoomRole
+from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +81,7 @@ async def marketplace_categories(
     """List categories with bot counts."""
     counts_raw = (
         db.query(Bot.category, func.count(Bot.id))
-        .filter(Bot.is_public == True, Bot.is_active == True)
+        .filter(Bot.is_public.is_(True), Bot.is_active.is_(True))
         .group_by(Bot.category)
         .all()
     )
@@ -108,8 +107,8 @@ async def marketplace_search(
     bots = (
         db.query(Bot)
         .filter(
-            Bot.is_public == True,
-            Bot.is_active == True,
+            Bot.is_public.is_(True),
+            Bot.is_active.is_(True),
             (Bot.name.ilike(pattern) | Bot.description.ilike(pattern)),
         )
         .order_by(Bot.rating.desc(), Bot.installs.desc())
@@ -127,7 +126,7 @@ async def marketplace_bot_detail(
 ):
     """Get full detail for a marketplace bot."""
     bot = db.query(Bot).filter(
-        Bot.id == bot_id, Bot.is_public == True, Bot.is_active == True
+        Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)
     ).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
@@ -156,7 +155,7 @@ async def marketplace_list(
     db: Session = Depends(get_db),
 ):
     """List public bots, filterable by category, sortable."""
-    q = db.query(Bot).filter(Bot.is_public == True, Bot.is_active == True)
+    q = db.query(Bot).filter(Bot.is_public.is_(True), Bot.is_active.is_(True))
 
     cat = category.strip().lower()
     if cat and cat in MARKETPLACE_CATEGORIES:
@@ -192,7 +191,7 @@ async def marketplace_reviews(
 ):
     """List reviews for a bot."""
     bot = db.query(Bot).filter(
-        Bot.id == bot_id, Bot.is_public == True, Bot.is_active == True
+        Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)
     ).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
@@ -231,7 +230,7 @@ async def submit_review(
 ):
     """Submit or update a review for a marketplace bot."""
     bot = db.query(Bot).filter(
-        Bot.id == bot_id, Bot.is_public == True, Bot.is_active == True
+        Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)
     ).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
@@ -286,7 +285,7 @@ async def marketplace_install(
 ):
     """Install a public marketplace bot into a user's room."""
     bot = db.query(Bot).filter(
-        Bot.id == bot_id, Bot.is_public == True, Bot.is_active == True
+        Bot.id == bot_id, Bot.is_public.is_(True), Bot.is_active.is_(True)
     ).first()
     if not bot:
         raise HTTPException(404, "Bot not found in marketplace")

@@ -1,4 +1,4 @@
-from typing import List
+
 from pydantic import BaseModel
 
 
@@ -15,7 +15,7 @@ class SSOProviderConfig(BaseModel):
 
 class SSOConfig(BaseModel):
     passkeys_enabled: bool = True
-    providers: List[SSOProviderConfig] = []
+    providers: list[SSOProviderConfig] = []
 
 
 class SelfSignedRequest(BaseModel):

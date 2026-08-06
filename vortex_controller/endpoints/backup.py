@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import base64
 import time
-from typing import Literal, Optional
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -78,7 +78,7 @@ async def put_backup(req: SignedPutBackup, request: Request) -> dict:
     try:
         blob = base64.b64decode(req.payload.blob_b64, validate=True)
     except Exception:
-        raise HTTPException(400, "blob_b64 is not valid base64")
+        raise HTTPException(400, "blob_b64 is not valid base64") from None
 
     if len(blob) != req.payload.byte_size:
         raise HTTPException(400, "byte_size mismatch")
@@ -92,7 +92,7 @@ async def put_backup(req: SignedPutBackup, request: Request) -> dict:
     try:
         info = await storage.put_backup(req.payload.pubkey, blob, req.payload.sha256)
     except ValueError as e:
-        raise HTTPException(413, str(e))
+        raise HTTPException(413, str(e)) from None
     return {"ok": True, **info}
 
 

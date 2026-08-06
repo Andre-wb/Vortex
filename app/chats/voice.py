@@ -87,7 +87,7 @@ def _require_room_member(room_id: int, user_id: int, db: Session) -> RoomMember:
     m = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not m:
         raise HTTPException(403, "Not a member of this room")
@@ -143,7 +143,7 @@ async def voice_join(
     and broadcasts voice_join to the room.
     Returns the current participants list.
     """
-    room = _require_voice_room(room_id, db)
+    _require_voice_room(room_id, db)
     _require_room_member(room_id, u.id, db)
 
     # Already in voice? Return current state
@@ -607,7 +607,7 @@ async def ws_voice_signal(
         return
 
     # Anti-probing: knock sequence in global mode
-    from app.transport.knock import verify_knock, is_knock_required
+    from app.transport.knock import is_knock_required, verify_knock
     if is_knock_required():
         has_auth = bool(websocket.cookies.get("access_token"))
         if not has_auth:
@@ -640,7 +640,7 @@ async def ws_voice_signal(
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not member:
         await websocket.accept()
@@ -661,7 +661,7 @@ async def ws_voice_signal(
     try:
         # Send the list of already-connected signal peers to the new joiner
         existing_peers = []
-        for uid, ws in _voice_signal_rooms.get(room_id, {}).items():
+        for uid, _ws in _voice_signal_rooms.get(room_id, {}).items():
             if uid != user.id:
                 p = _voice_participants.get(room_id, {}).get(uid)
                 if p:

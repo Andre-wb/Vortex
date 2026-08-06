@@ -15,11 +15,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.bots.ide_runner import _BOTS_DIR
+from app.bots.ide_shared import SaveVersionRequest, _require_project
 from app.models import User
 from app.security.auth_jwt import get_current_user
-from app.bots.ide_runner import _BOTS_DIR
-from app.bots.ide_shared import SaveVersionRequest, _require_project, _validate_id
-
 
 router = APIRouter(prefix="/api/ide", tags=["ide"])
 

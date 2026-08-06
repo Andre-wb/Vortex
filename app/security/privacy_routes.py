@@ -9,8 +9,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.security.auth_jwt import get_current_user
 from app.models import User
+from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ async def generate_ephemeral(body: EphemeralRequest, u: User = Depends(get_curre
     try:
         secret = bytes.fromhex(body.user_secret_hex)
     except ValueError:
-        raise HTTPException(400, "Invalid hex secret")
+        raise HTTPException(400, "Invalid hex secret") from None
     if len(secret) != 32:
         raise HTTPException(400, "Secret must be 32 bytes (64 hex chars)")
 
@@ -91,10 +91,7 @@ async def pad_data(body: PadRequest, u: User = Depends(get_current_user)):
     """Pad data to a standard size (prevents traffic analysis by message size)."""
     from app.security.privacy import MetadataPadding
     data = base64.b64decode(body.data_b64)
-    if body.target_size > 0:
-        padded = MetadataPadding.pad_to_fixed(data, body.target_size)
-    else:
-        padded = MetadataPadding.pad(data)
+    padded = MetadataPadding.pad_to_fixed(data, body.target_size) if body.target_size > 0 else MetadataPadding.pad(data)
     return {
         "padded_b64": base64.b64encode(padded).decode(),
         "original_size": len(data),
@@ -131,15 +128,15 @@ async def zk_verify(body: ZKProofRequest, u: User = Depends(get_current_user)):
 
     The server verifies the user is a member WITHOUT learning which user.
     """
-    from app.security.privacy import ZKMembership
     from app.database import SessionLocal
     from app.models_rooms import RoomMember
+    from app.security.privacy import ZKMembership
 
     db = SessionLocal()
     try:
         members = db.query(RoomMember.user_id).filter(
             RoomMember.room_id == body.room_id,
-            RoomMember.is_banned == False,
+            RoomMember.is_banned.is_(False),
         ).all()
         member_ids = [m[0] for m in members]
     finally:
@@ -180,7 +177,7 @@ async def zk_info(u: User = Depends(get_current_user)):
 @router.get("/status")
 async def privacy_status(u: User = Depends(get_current_user)):
     """Get overall privacy feature status."""
-    from app.security.privacy import tor_proxy, MetadataPadding, EphemeralIdentity, ZKMembership
+    from app.security.privacy import MetadataPadding, ZKMembership, tor_proxy
     return {
         "tor": tor_proxy.get_status(),
         "metadata_padding": {

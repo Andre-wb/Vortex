@@ -1,7 +1,6 @@
 """
 Tests for saved messages.
 """
-import pytest
 
 
 class TestSavedMessages:

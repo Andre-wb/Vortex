@@ -10,8 +10,7 @@
 import secrets
 
 import pytest
-
-from conftest import make_user, login_user, random_str
+from conftest import login_user, make_user, random_str
 
 
 def _target_id(u: dict) -> int:

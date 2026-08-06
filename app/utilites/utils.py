@@ -1,5 +1,8 @@
 from __future__ import annotations
-import re, secrets, string
+
+import re
+import secrets
+import string
 
 
 def generative_invite_code(length: int = 8) -> str:

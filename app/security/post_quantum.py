@@ -37,8 +37,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import secrets
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -68,15 +66,24 @@ if _is_prod and os.environ.get("VORTEX_PQ_SIMULATE", "").lower() in ("1", "true"
     )
     sys.exit(1)
 
+_RUST_PQ = False
+_vc_pq = None
 try:
-    # Primary: liboqs-python — Open Quantum Safe, includes ML-KEM / Kyber-768
-    # Ships pre-compiled wheels for Linux/macOS/Windows (pip install liboqs-python)
+    import vortex_chat as _vc_pq
+    if not hasattr(_vc_pq, "mlkem768_keygen"):
+        _vc_pq = None
+    else:
+        _RUST_PQ = True
+except ImportError:
+    _vc_pq = None
+
+try:
     import warnings as _warnings
     with _warnings.catch_warnings():
         _warnings.simplefilter("ignore", UserWarning)
-        import oqs  # noqa: F401
+        import oqs
     # Verify oqs is actually functional (shared lib loaded)
-    _test_kem = oqs.KeyEncapsulation("Kyber768")
+    _test_kem = oqs.KeyEncapsulation("ML-KEM-768")
     del _test_kem
     _PQ_AVAILABLE = True
     _PQ_BACKEND = "liboqs"
@@ -85,9 +92,9 @@ except BaseException as _oqs_err:
     logger.debug("liboqs not usable: %s", _oqs_err)
     try:
         # Fallback: pqcrypto (pip install pqcrypto)
-        from pqcrypto.kem.kyber768 import generate_keypair as _kyber_keygen  # noqa: F401
-        from pqcrypto.kem.kyber768 import encrypt as _kyber_encaps  # noqa: F401
         from pqcrypto.kem.kyber768 import decrypt as _kyber_decaps  # noqa: F401
+        from pqcrypto.kem.kyber768 import encrypt as _kyber_encaps  # noqa: F401
+        from pqcrypto.kem.kyber768 import generate_keypair as _kyber_keygen  # noqa: F401
         _PQ_AVAILABLE = True
         _PQ_BACKEND = "pqcrypto"
         logger.info("Post-quantum: pqcrypto (Kyber-768) loaded")
@@ -133,6 +140,12 @@ except BaseException as _oqs_err:
                 "To allow insecure simulation in tests: set VORTEX_PQ_SIMULATE=1"
             )
 
+if _RUST_PQ:
+    _PQ_AVAILABLE = True
+    _PQ_BACKEND = "rust"
+    _PQ_SIMULATED = False
+    logger.info("Post-quantum: vortex_chat (Rust ML-KEM-768 / FIPS 203) loaded")
+
 
 def _require_real_pq() -> None:
     """Raise if no real PQ backend is available and simulation is not opted-in."""
@@ -163,7 +176,7 @@ class Kyber768:
     """Abstraction over Kyber-768 KEM (Key Encapsulation Mechanism)."""
 
     @staticmethod
-    def keygen() -> Tuple[bytes, bytes]:
+    def keygen() -> tuple[bytes, bytes]:
         """Generate Kyber-768 keypair.
 
         Returns:
@@ -171,9 +184,13 @@ class Kyber768:
         """
         _require_real_pq()
 
+        if _PQ_BACKEND == "rust":
+            pk, sk = _vc_pq.mlkem768_keygen()
+            return bytes(pk), bytes(sk)
+
         if _PQ_BACKEND == "liboqs":
             import oqs
-            kem = oqs.KeyEncapsulation("Kyber768")
+            kem = oqs.KeyEncapsulation("ML-KEM-768")
             pk = kem.generate_keypair()
             sk = kem.export_secret_key()
             return bytes(pk), bytes(sk)
@@ -191,7 +208,7 @@ class Kyber768:
             return pk, sk
 
     @staticmethod
-    def encapsulate(public_key: bytes) -> Tuple[bytes, bytes]:
+    def encapsulate(public_key: bytes) -> tuple[bytes, bytes]:
         """Encapsulate: generate shared secret + ciphertext from public key.
 
         Args:
@@ -202,9 +219,13 @@ class Kyber768:
         """
         _require_real_pq()
 
+        if _PQ_BACKEND == "rust":
+            ct, ss = _vc_pq.mlkem768_encapsulate(bytes(public_key))
+            return bytes(ct), bytes(ss)
+
         if _PQ_BACKEND == "liboqs":
             import oqs
-            kem = oqs.KeyEncapsulation("Kyber768")
+            kem = oqs.KeyEncapsulation("ML-KEM-768")
             ct, ss = kem.encap_secret(public_key)
             return bytes(ct), bytes(ss)
 
@@ -235,9 +256,13 @@ class Kyber768:
         """
         _require_real_pq()
 
+        if _PQ_BACKEND == "rust":
+            ss = _vc_pq.mlkem768_decapsulate(bytes(secret_key), bytes(ciphertext))
+            return bytes(ss)
+
         if _PQ_BACKEND == "liboqs":
             import oqs
-            kem = oqs.KeyEncapsulation("Kyber768", secret_key=secret_key)
+            kem = oqs.KeyEncapsulation("ML-KEM-768", secret_key=secret_key)
             ss = kem.decap_secret(ciphertext)
             return bytes(ss)
 
@@ -297,9 +322,10 @@ def hybrid_encapsulate(recipient_x25519_pub: bytes, recipient_kyber_pub: bytes) 
             "shared_secret": bytes(32),  ← combined key for AES-256-GCM
         }
     """
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     from cryptography.hazmat.primitives import hashes
-    from app.security.crypto import generate_x25519_keypair, derive_x25519_session_key
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+    from app.security.crypto import derive_x25519_session_key, generate_x25519_keypair
 
     # Classical: X25519 ephemeral DH
     eph_priv, eph_pub = generate_x25519_keypair()
@@ -308,14 +334,17 @@ def hybrid_encapsulate(recipient_x25519_pub: bytes, recipient_kyber_pub: bytes) 
     # Post-quantum: Kyber-768 KEM
     kyber_ct, kyber_shared = Kyber768.encapsulate(recipient_kyber_pub)
 
-    # Combine both shared secrets via HKDF
-    combined = x25519_shared + kyber_shared  # 32 + 32 = 64 bytes
-    hybrid_key = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=None,
-        info=b"vortex-pq-session-v1",
-    ).derive(combined)
+    if _RUST_PQ:
+        hybrid_key = bytes(
+            _vc_pq.pq_hybrid_combine(x25519_shared, kyber_shared, b"vortex-pq-session-v1")
+        )
+    else:
+        hybrid_key = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=b"vortex-pq-session-v1",
+        ).derive(x25519_shared + kyber_shared)
 
     return {
         "x25519_ephemeral_pub": eph_pub.hex(),
@@ -341,8 +370,9 @@ def hybrid_decapsulate(
     Returns:
         shared_secret (32 bytes) — same as sender computed
     """
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
     from app.security.crypto import derive_x25519_session_key
 
     eph_pub = bytes.fromhex(x25519_ephemeral_pub_hex)
@@ -354,16 +384,17 @@ def hybrid_decapsulate(
     # Post-quantum: Kyber-768 decapsulation
     kyber_shared = Kyber768.decapsulate(our_kyber_secret, kyber_ct)
 
-    # Combine via HKDF (same as encapsulation)
-    combined = x25519_shared + kyber_shared
-    hybrid_key = HKDF(
+    if _RUST_PQ:
+        return bytes(
+            _vc_pq.pq_hybrid_combine(x25519_shared, kyber_shared, b"vortex-pq-session-v1")
+        )
+
+    return HKDF(
         algorithm=hashes.SHA256(),
         length=32,
         salt=None,
         info=b"vortex-pq-session-v1",
-    ).derive(combined)
-
-    return hybrid_key
+    ).derive(x25519_shared + kyber_shared)
 
 
 def hybrid_encrypt(plaintext: bytes, recipient_x25519_pub_hex: str,

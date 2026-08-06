@@ -13,12 +13,9 @@ test_privacy_resilience.py — Тесты устойчивости всех фи
 """
 import secrets
 
-import pytest
-
-from conftest import make_user, login_user, random_str
+from conftest import login_user, make_user, random_str
 
 from app.security.key_backup import make_shard_proof
-
 
 # 1. БЭКАП КЛЮЧЕЙ — ПОЛНЫЙ ЦИКЛ
 
@@ -440,7 +437,7 @@ class TestConcurrentPrivacy:
         h = login_user(client, u['username'], u['password'])
 
         last_data = None
-        for i in range(5):
+        for _i in range(5):
             data = secrets.token_hex(32)
             client.post('/api/keys/backup', json={
                 'vault_data': data,
@@ -456,7 +453,7 @@ class TestConcurrentPrivacy:
         u = make_user(client, f'csp_{random_str(4)}')
         h = login_user(client, u['username'], u['password'])
 
-        for i in range(10):
+        for _i in range(10):
             r = client.post('/api/keys/sync/push', json={
                 'device_id': 1,
                 'event_type': 'key_update',

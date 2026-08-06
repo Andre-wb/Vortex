@@ -22,13 +22,14 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import struct
 from dataclasses import dataclass, field
 from typing import Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -36,6 +37,7 @@ from app.chats.messages.core import ws_origin_ok  # shared CSWSH guard
 from app.database import get_db
 from app.models import User
 from app.security.auth_jwt import get_current_user, get_user_ws
+from app.utilites.background import spawn
 
 logger = logging.getLogger("vortex.sfu")
 router = APIRouter(tags=["sfu"])
@@ -61,7 +63,7 @@ SPEAKER_DETECT_INTERVAL = 0.3
 
 
 try:
-    from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate  # type: ignore
+    from aiortc import RTCIceCandidate, RTCPeerConnection, RTCSessionDescription  # type: ignore
     _SFU_AVAILABLE = True
 except ImportError:
     _SFU_AVAILABLE = False
@@ -98,17 +100,13 @@ def _parse_pt_kinds(sdp: str) -> dict[int, str]:
         if line.startswith("m=audio"):
             current_kind = "audio"
             for tok in line.split()[3:]:
-                try:
+                with contextlib.suppress(ValueError):
                     result[int(tok)] = "audio"
-                except ValueError:
-                    pass
         elif line.startswith("m=video"):
             current_kind = "video"
             for tok in line.split()[3:]:
-                try:
+                with contextlib.suppress(ValueError):
                     result[int(tok)] = "video"
-                except ValueError:
-                    pass
         elif line.startswith("a=rtpmap:") and current_kind:
             try:
                 pt = int(line.split(":")[1].split()[0])
@@ -208,7 +206,7 @@ class SFURoom:
                 state = pc.connectionState
                 logger.debug("[SFU] user %s state: %s", user.id, state)
                 if state in ("failed", "closed"):
-                    asyncio.ensure_future(self.leave(user.id))
+                    spawn(self.leave(user.id))
 
             await pc.setRemoteDescription(
                 RTCSessionDescription(sdp=offer_sdp, type="offer")
@@ -236,7 +234,7 @@ class SFURoom:
                     continue
                 self._add_send_transceivers(other.pc, target_uid=other_uid, source_uid=user.id)
                 other.pending_sources.append(user.id)
-                asyncio.ensure_future(self._try_renegotiate(other))
+                spawn(self._try_renegotiate(other))
 
             plist = [
                 {
@@ -255,7 +253,7 @@ class SFURoom:
             # Notify existing participants about the new joiner
             for uid, p in self.participants.items():
                 if uid != user.id and p.ws:
-                    try:
+                    with contextlib.suppress(Exception):
                         await p.ws.send_json({
                             "type": "sfu_participant_joined",
                             "user_id": user.id,
@@ -264,8 +262,6 @@ class SFURoom:
                             "avatar_emoji": user.avatar_emoji or "",
                             "avatar_url": user.avatar_url or "",
                         })
-                    except Exception:
-                        pass
 
             return pc.localDescription.sdp, plist
 
@@ -294,10 +290,8 @@ class SFURoom:
             # Forward RTP opaquely (preserves E2E encrypted payloads)
             await room._forward_rtp(uid, data)
             # Let aiortc process for RTCP stats (decode may fail — harmless)
-            try:
+            with contextlib.suppress(Exception):
                 await original_handle(data, arrival_time_ms)
-            except Exception:
-                pass
 
         transport._handle_rtp_data = _forwarding_handle
         transport._vortex_patched = True  # type: ignore[attr-defined]
@@ -352,13 +346,11 @@ class SFURoom:
             rewritten = bytearray(rtp_data)
             struct.pack_into(">I", rewritten, 8, ssrc)
 
-            try:
+            with contextlib.suppress(Exception):
                 target_transport = self._get_transport(peer.pc)
                 if target_transport:
                     await target_transport._send_rtp(bytes(rewritten))
                     self._total_rtp_forwarded += 1
-            except Exception:
-                pass
 
     @staticmethod
     def _layer_matches(source_layer: str, wanted_layer: str) -> bool:
@@ -441,21 +433,19 @@ class SFURoom:
             for k in stale_keys:
                 del self._send_ssrc_table[k]
 
-            for uid, other in self.participants.items():
+            for _uid, other in self.participants.items():
                 other.ready_sources.discard(user_id)
 
             logger.info("[SFU] user %s left. remaining=%s", user_id, self.participant_count)
 
-            for uid, other in self.participants.items():
+            for _uid, other in self.participants.items():
                 if other.ws:
-                    try:
+                    with contextlib.suppress(Exception):
                         await other.ws.send_json({
                             "type": "sfu_participant_left",
                             "user_id": user_id,
                             "username": p.username,
                         })
-                    except Exception:
-                        pass
 
             if not self.participants:
                 _sfu_rooms.pop(self.call_id, None)
@@ -519,16 +509,14 @@ class SFURoom:
                 if best_uid != self._dominant_speaker_id:
                     self._dominant_speaker_id = best_uid
                     # Broadcast to all participants
-                    for uid, p in self.participants.items():
+                    for _uid, p in self.participants.items():
                         if p.ws:
-                            try:
+                            with contextlib.suppress(Exception):
                                 await p.ws.send_json({
                                     "type": "sfu_dominant_speaker",
                                     "user_id": best_uid,
                                     "level": round(best_level, 3),
                                 })
-                            except Exception:
-                                pass
             except Exception as e:
                 logger.debug("[SFU] Speaker detection error: %s", e)
 
@@ -555,9 +543,9 @@ class SFURoom:
         if p:
             p.ws = ws
             if p.pending_sources:
-                asyncio.ensure_future(self._try_renegotiate(p))
+                spawn(self._try_renegotiate(p))
             # Start speaker detection on first WS
-            asyncio.ensure_future(self._start_speaker_detection())
+            spawn(self._start_speaker_detection())
 
     async def close(self) -> None:
         async with self._lock:
@@ -571,7 +559,7 @@ class SFURoom:
     @staticmethod
     def _get_transport(pc):
         """Return the shared DTLS transport for a PeerConnection (BUNDLE)."""
-        try:
+        with contextlib.suppress(Exception):
             for t in pc.getTransceivers():
                 transport = getattr(t.receiver, "transport", None)
                 if transport:
@@ -579,8 +567,6 @@ class SFURoom:
                 transport = getattr(t.sender, "transport", None)
                 if transport:
                     return transport
-        except Exception:
-            pass
         return None
 
 
@@ -636,7 +622,7 @@ async def sfu_join(
         answer_sdp, participants = await room.join(user, req.sdp)
     except Exception as e:
         logger.error("[SFU] join failed for %s: %s", user.id, e)
-        raise HTTPException(500, detail="SFU join failed")
+        raise HTTPException(500, detail="SFU join failed") from None
 
     return SFUAnswerResponse(sdp=answer_sdp, participants=participants)
 

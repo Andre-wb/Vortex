@@ -8,11 +8,11 @@ import secrets
 from datetime import timedelta
 
 import pytest
+from conftest import _phone_prefix, random_digits, random_str
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from starlette.testclient import TestClient
 
-from conftest import random_str, random_digits, _phone_prefix
 from app.config import Config
 from app.main import app
 

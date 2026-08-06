@@ -9,9 +9,7 @@ Pattern: def test_xxx(client) — uses the session-scope SyncASGIClient from con
 import json
 import secrets
 
-import pytest
-from conftest import make_user, login_user, random_str
-
+from conftest import login_user, make_user, random_str
 
 # Helpers
 
@@ -850,7 +848,8 @@ def test_bot_get_updates_timeout_bounds(client):
 def test_deliver_webhook_no_webhook_configured(client):
     """deliver_webhook returns False when no webhook is set for that bot."""
     import asyncio
-    from app.bots.bot_advanced import deliver_webhook, _webhooks
+
+    from app.bots.bot_advanced import _webhooks, deliver_webhook
     bot_id = 999888777  # fictitious, no webhook registered
     _webhooks.pop(bot_id, None)
     loop = asyncio.new_event_loop()
@@ -862,7 +861,8 @@ def test_deliver_webhook_no_webhook_configured(client):
 def test_deliver_webhook_event_not_in_events_list(client):
     """deliver_webhook returns False if the event is not subscribed."""
     import asyncio
-    from app.bots.bot_advanced import deliver_webhook, _webhooks
+
+    from app.bots.bot_advanced import _webhooks, deliver_webhook
     bot_id = 999888776
     _webhooks[bot_id] = {
         "url": "https://example.com/hook",

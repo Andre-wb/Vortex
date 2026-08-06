@@ -23,8 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -180,7 +179,7 @@ async def connectivity_test(body: TestBody) -> dict:
         path = f"{url}/health"
         t0 = time.perf_counter()
         try:
-            async with httpx.AsyncClient(timeout=body.timeout_sec, verify=False) as c:
+            async with httpx.AsyncClient(timeout=body.timeout_sec, verify=False) as c:  # noqa: S501
                 r = await c.get(path)
                 return {
                     "url":       url,

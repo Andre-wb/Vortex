@@ -9,8 +9,8 @@ Usage:
 
 import secrets
 import string
-import json
-from locust import HttpUser, task, between, events
+
+from locust import HttpUser, between, task
 
 
 def _random_str(n=10):
@@ -26,7 +26,7 @@ class VortexUser(HttpUser):
 
     wait_time = between(1, 5)
     username = None
-    password = "LocustTest99!@"
+    password = "LocustTest99!@"  # noqa: S105
     csrf_token = ""
     room_id = None
 

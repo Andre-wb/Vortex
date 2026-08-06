@@ -4,7 +4,6 @@ app/chats/channels.py — Broadcast Channels with analytics, comments, schedulin
 """
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -13,15 +12,23 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.chats.rooms.helpers import _approval_enforced
 from app.database import get_db
 from app.models import User
 from app.models_rooms import (
-    ChannelDonation, ChannelMonetization, ChannelSubscription,
-    Message, MessageType, PostReaction, PostView,
-    Room, RoomMember, RoomRole, EncryptedRoomKey, JoinRequest,
+    ChannelDonation,
+    ChannelMonetization,
+    ChannelSubscription,
+    EncryptedRoomKey,
+    JoinRequest,
+    Message,
+    MessageType,
+    PostReaction,
+    PostView,
+    Room,
+    RoomMember,
+    RoomRole,
 )
-from app.chats.rooms.helpers import _approval_enforced
-from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 from app.security.blockchain_verify import verify_transaction
 from app.security.ecies_schema import EciesKeyFields
@@ -76,7 +83,7 @@ class ReactRequest(BaseModel):
 # RoomMember row for the caller. Always validates that the channel exists and is
 # actually a channel, and is used by callers to bind message_id -> channel_id.
 def _resolve_channel(channel_id: int, db: Session) -> Room:
-    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404, "Channel not found")
     return channel
@@ -155,10 +162,10 @@ async def create_channel(body: CreateChannelRequest, u: User = Depends(get_curre
 
 @router.get("/my")
 async def my_channels(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    rows = db.query(RoomMember).filter(RoomMember.user_id == u.id, RoomMember.is_banned == False).all()
+    rows = db.query(RoomMember).filter(RoomMember.user_id == u.id, RoomMember.is_banned.is_(False)).all()
     ids = [m.room_id for m in rows]
     role_map = {m.room_id: m.role for m in rows}
-    channels = db.query(Room).filter(Room.id.in_(ids), Room.is_channel == True).all()
+    channels = db.query(Room).filter(Room.id.in_(ids), Room.is_channel.is_(True)).all()
     result = []
     for c in channels:
         d = _channel_dict(c, db, u.id)
@@ -172,7 +179,7 @@ async def my_channels(u: User = Depends(get_current_user), db: Session = Depends
 async def join_channel(invite_code: str, u: User = Depends(get_current_user),
                        db: Session = Depends(get_db)):
     channel = db.query(Room).filter(
-        Room.invite_code == invite_code.upper(), Room.is_channel == True
+        Room.invite_code == invite_code.upper(), Room.is_channel.is_(True)
     ).first()
     if not channel:
         raise HTTPException(404, "Channel not found")
@@ -185,7 +192,7 @@ async def join_channel(invite_code: str, u: User = Depends(get_current_user),
         return {"joined": False, "channel": _channel_dict(channel, db, u.id)}
     # Check paywall
     mon = db.query(ChannelMonetization).filter(
-        ChannelMonetization.room_id == channel.id, ChannelMonetization.is_paid == True
+        ChannelMonetization.room_id == channel.id, ChannelMonetization.is_paid.is_(True)
     ).first()
     if mon:
         sub = db.query(ChannelSubscription).filter(
@@ -225,7 +232,7 @@ async def join_channel(invite_code: str, u: User = Depends(get_current_user),
 async def channel_stats(channel_id: int, u: User = Depends(get_current_user),
                         db: Session = Depends(get_db)):
     """Analytics for channel owner/admin."""
-    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404, "Channel not found")
     member = db.query(RoomMember).filter(
@@ -354,7 +361,7 @@ async def schedule_post(channel_id: int, body: SchedulePostRequest,
     try:
         sched_time = datetime.fromisoformat(body.scheduled_at.replace("Z", "+00:00"))
     except ValueError:
-        raise HTTPException(400, "Invalid datetime format")
+        raise HTTPException(400, "Invalid datetime format") from None
     msg = Message(
         room_id=channel_id,
         sender_pseudo=compute_sender_pseudo(channel_id, u.id),
@@ -378,7 +385,7 @@ async def list_scheduled(channel_id: int, u: User = Depends(get_current_user),
     if not member or member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
         raise HTTPException(403, "Admin access required")
     msgs = db.query(Message).filter(
-        Message.room_id == channel_id, Message.is_scheduled == True,
+        Message.room_id == channel_id, Message.is_scheduled.is_(True),
     ).order_by(Message.scheduled_at).all()
     return {"scheduled": [
         {"id": m.id, "scheduled_at": m.scheduled_at.isoformat() if m.scheduled_at else ""}
@@ -391,7 +398,7 @@ async def list_scheduled(channel_id: int, u: User = Depends(get_current_user),
 @router.get("/popular")
 async def popular_channels(db: Session = Depends(get_db)):
     """Public channels sorted by subscriber count."""
-    channels = db.query(Room).filter(Room.is_channel == True, Room.is_private == False).all()
+    channels = db.query(Room).filter(Room.is_channel.is_(True), Room.is_private.is_(False)).all()
     result = []
     for c in channels:
         count = c.members.count()
@@ -412,7 +419,7 @@ async def discover_channels(q: str = Query(default="", max_length=100),
                             category: str = Query(default=""),
                             db: Session = Depends(get_db)):
     """Search and discover public channels."""
-    query = db.query(Room).filter(Room.is_channel == True, Room.is_private == False)
+    query = db.query(Room).filter(Room.is_channel.is_(True), Room.is_private.is_(False))
     if q:
         query = query.filter(Room.name.ilike(f"%{q}%") | Room.description.ilike(f"%{q}%"))
     channels = query.limit(50).all()
@@ -487,7 +494,7 @@ async def get_monetization(channel_id: int, db: Session = Depends(get_db)):
 async def set_monetization(channel_id: int, body: SetMonetizationRequest,
                            u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Configure monetization (owner only). 0% platform fee — all money goes to author."""
-    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel.is_(True)).first()
     if not channel or channel.creator_id != u.id:
         raise HTTPException(403, "Only channel owner can set monetization")
     existing = db.query(ChannelMonetization).filter(ChannelMonetization.room_id == channel_id).first()
@@ -523,7 +530,7 @@ async def subscribe_to_paid(channel_id: int, body: SubscribeRequest,
       5. User gets access for 30 days
     """
     mon = db.query(ChannelMonetization).filter(
-        ChannelMonetization.room_id == channel_id, ChannelMonetization.is_paid == True
+        ChannelMonetization.room_id == channel_id, ChannelMonetization.is_paid.is_(True)
     ).first()
     if not mon:
         raise HTTPException(400, "Channel is not paid")
@@ -567,7 +574,7 @@ async def donate_to_channel(channel_id: int, body: DonateRequest,
                             u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Send donation to channel author. All money goes to author's wallet (0% fee)."""
     mon = db.query(ChannelMonetization).filter(
-        ChannelMonetization.room_id == channel_id, ChannelMonetization.donations_enabled == True
+        ChannelMonetization.room_id == channel_id, ChannelMonetization.donations_enabled.is_(True)
     ).first()
     if not mon:
         raise HTTPException(400, "Donations not enabled for this channel")
@@ -627,7 +634,7 @@ async def list_subscribers(
     db: Session = Depends(get_db),
 ):
     """List channel subscribers with ban/remove capability (admin/owner)."""
-    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404, "Channel not found")
     actor = db.query(RoomMember).filter(
@@ -674,7 +681,7 @@ async def ban_subscriber(
     db: Session = Depends(get_db),
 ):
     """Ban a subscriber from channel."""
-    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404)
     actor = db.query(RoomMember).filter(
@@ -701,7 +708,7 @@ async def unban_subscriber(
     db: Session = Depends(get_db),
 ):
     """Unban a subscriber."""
-    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404)
     actor = db.query(RoomMember).filter(
@@ -726,7 +733,7 @@ async def remove_subscriber(
     db: Session = Depends(get_db),
 ):
     """Remove a subscriber from channel."""
-    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404)
     actor = db.query(RoomMember).filter(
@@ -758,7 +765,7 @@ async def list_banned(
     db: Session = Depends(get_db),
 ):
     """List banned subscribers."""
-    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404)
     actor = db.query(RoomMember).filter(
@@ -767,7 +774,7 @@ async def list_banned(
     if not actor or actor.role not in (RoomRole.OWNER, RoomRole.ADMIN):
         raise HTTPException(403)
     banned = db.query(RoomMember).filter(
-        RoomMember.room_id == channel_id, RoomMember.is_banned == True,
+        RoomMember.room_id == channel_id, RoomMember.is_banned.is_(True),
     ).all()
     result = []
     for m in banned:
@@ -789,7 +796,7 @@ async def recent_actions(
     db: Session = Depends(get_db),
 ):
     """Recent admin actions in the last 48 hours (from message log)."""
-    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == channel_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404)
     actor = db.query(RoomMember).filter(
@@ -809,7 +816,7 @@ async def recent_actions(
     # Recent messages (posts) — edited or deleted
     recent_edits = db.query(Message).filter(
         Message.room_id == channel_id,
-        Message.is_edited == True,
+        Message.is_edited.is_(True),
         Message.edited_at >= since,
     ).all()
 

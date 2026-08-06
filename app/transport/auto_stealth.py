@@ -12,11 +12,10 @@ app/transport/auto_stealth.py — Автоматическая активаци�
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
-import os
 import secrets
-import struct
 import time
 from typing import Optional
 
@@ -138,10 +137,8 @@ def add_response_padding(headers: dict) -> dict:
     # already overwrite "server" via assignment, but uvicorn/gunicorn may inject their own
     # Server later in the ASGI send phase; explicitly deleting any existing value first
     # (and tolerating a plain dict) guarantees we don't emit two contradictory Server lines.
-    try:
+    with contextlib.suppress(KeyError):
         del headers["Server"]
-    except KeyError:
-        pass
     # Фейковые заголовки как у реального nginx + CDN
     headers["Server"] = "nginx/1.24.0"
     headers["X-Powered-By"] = "Express"

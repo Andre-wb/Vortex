@@ -18,13 +18,13 @@ from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-
-# Separate reference so tests can patch this without affecting httpx globally
-_AsyncClient = httpx.AsyncClient
 from fastapi.responses import JSONResponse
 
 from app.models import User
 from app.security.auth_jwt import get_current_user
+
+# Separate reference so tests can patch this without affecting httpx globally
+_AsyncClient = httpx.AsyncClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["link-preview"])
@@ -143,9 +143,7 @@ def _ip_is_blocked(addr: ipaddress._BaseAddress) -> bool:
         return True
     # IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) — unwrap and re-check
     mapped = getattr(addr, "ipv4_mapped", None)
-    if mapped is not None and _ip_is_blocked(mapped):
-        return True
-    return False
+    return bool(mapped is not None and _ip_is_blocked(mapped))
 
 
 def _is_internal_host(host: str) -> bool:

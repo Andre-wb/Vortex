@@ -8,13 +8,10 @@ test_group_calls_scale.py — Тесты групповых звонков на 
 - SFU load: 1 upstream + N-1 downstream на участника
 - Предполагаемое качество видео/аудио
 """
-import math
 import secrets
 
 import pytest
-
-from conftest import make_user, login_user, random_str
-
+from conftest import login_user, make_user, random_str
 
 # Bandwidth/quality profiles (из webrtc.js и group_call.js)
 
@@ -387,7 +384,7 @@ class TestQualitySummary:
         sizes = [2, 3, 5, 6, 7, 10, 15, 20, 30, 50, 70, 100, 150]
 
         print(f"\n{'='*110}")
-        print(f"  СВОДНАЯ ТАБЛИЦА КАЧЕСТВА ГРУППОВЫХ ЗВОНКОВ VORTEX")
+        print("  СВОДНАЯ ТАБЛИЦА КАЧЕСТВА ГРУППОВЫХ ЗВОНКОВ VORTEX")
         print(f"{'='*110}")
         print(f"  {'N':>4} | {'Topology':>5} | {'Video':>8} | {'Res':>5} | {'FPS':>3} | "
               f"{'Up(Mbps)':>8} | {'Down(Mbps)':>10} | {'Total':>7} | {'BW OK':>5} | "

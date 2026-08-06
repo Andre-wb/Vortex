@@ -11,20 +11,21 @@
 Vortex/app/security/secure_upload.py
 """
 
-import os
 import hashlib
-import secrets
+import io
 import logging
+import os
+import secrets
 import tempfile
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Tuple
 from pathlib import Path
-from fastapi import UploadFile, HTTPException, Request
-from PIL import Image
+from typing import Optional
+
 import PIL
-import io
-from sqlalchemy.orm import Session
+from fastapi import HTTPException, UploadFile
+from PIL import Image
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 try:
@@ -199,7 +200,7 @@ def _strip_mp4_atoms(content: bytes) -> bytes:
     """
     import struct
 
-    METADATA_ATOMS = {b"udta", b"meta", b"XMP_", b"uuid"}
+    metadata_atoms = {b"udta", b"meta", b"XMP_", b"uuid"}
 
     def parse_atoms(data: bytes, offset: int = 0, end: int | None = None) -> list:
         """Parse top-level atoms, return list of (offset, size, type, has_children)."""
@@ -226,7 +227,7 @@ def _strip_mp4_atoms(content: bytes) -> bytes:
         parts = []
         removed = 0
         for coff, csize, ctype in children:
-            if ctype in METADATA_ATOMS:
+            if ctype in metadata_atoms:
                 removed += csize
                 continue
             parts.append(data[coff:coff + csize])
@@ -246,7 +247,7 @@ def _strip_mp4_atoms(content: bytes) -> bytes:
                 if len(new_moov) != asize:
                     changed = True
                 parts.append(new_moov)
-            elif atype in METADATA_ATOMS:
+            elif atype in metadata_atoms:
                 changed = True
                 continue
             else:
@@ -392,7 +393,7 @@ def strip_audio_metadata(content: bytes, mime_type: str) -> bytes:
                 inp_path = inp.name
             out_path = inp_path + ".clean" + ext
             result = subprocess.run(
-                [ffmpeg, "-i", inp_path, "-map_metadata", "-1"] + codec_args + ["-y", out_path],
+                [ffmpeg, "-i", inp_path, "-map_metadata", "-1", *codec_args, "-y", out_path],
                 capture_output=True, timeout=60,
             )
             if result.returncode == 0:
@@ -409,8 +410,9 @@ def strip_audio_metadata(content: bytes, mime_type: str) -> bytes:
     else:
         # Fallback 1: try mutagen for tag removal
         try:
-            import mutagen
             import tempfile as _tf
+
+            import mutagen
             with _tf.NamedTemporaryFile(suffix=".tmp", delete=False) as tmp:
                 tmp.write(content)
                 tmp_path = tmp.name
@@ -486,7 +488,7 @@ def strip_pdf_metadata(content: bytes) -> bytes:
         buf = io.BytesIO()
         writer.write(buf)
         result = buf.getvalue()
-        logger.debug(f"PDF metadata stripped via pypdf")
+        logger.debug("PDF metadata stripped via pypdf")
         return result
     except ImportError:
         pass
@@ -555,7 +557,7 @@ class FileAnomalyDetector:
         Флагирует: shell.php.jpg, virus.exe.png
         НЕ флагирует: photo.vacation.jpg, my.photo.png, photo 2024-01-01 12.34.jpg
         """
-        _DANGEROUS_EXTS = frozenset({
+        _dangerous_exts = frozenset({
             '.php', '.php3', '.php4', '.php5', '.phtml',
             '.asp', '.aspx', '.ascx', '.ashx',
             '.jsp', '.jspx', '.jws',
@@ -568,7 +570,7 @@ class FileAnomalyDetector:
             return False
         # Только промежуточные части (исключаем первую часть и последнее расширение)
         intermediate = {'.' + p.lower() for p in parts[1:-1]}
-        return bool(intermediate & _DANGEROUS_EXTS)
+        return bool(intermediate & _dangerous_exts)
 
     @staticmethod
     def detect_null_bytes(filename: str) -> bool:
@@ -589,7 +591,7 @@ class FileAnomalyDetector:
         return any(pattern in filename for pattern in dangerous_patterns)
 
     @staticmethod
-    async def validate_image_content(content: bytes) -> Tuple[bool, Optional[str]]:
+    async def validate_image_content(content: bytes) -> tuple[bool, Optional[str]]:
         """
         Проверяет, что содержимое является корректным изображением,
         не превышает допустимые размеры и имеет нормальное соотношение сторон.
@@ -601,9 +603,8 @@ class FileAnomalyDetector:
             img = Image.open(io.BytesIO(content))
 
             # Конвертируем в RGB, если нужно (удаляем альфа-канал и т.п.)
-            if hasattr(img, 'mode'):
-                if img.mode in ['RGBA', 'CMYK', 'YCbCr', 'LAB', 'HSV']:
-                    img = img.convert('RGB')
+            if hasattr(img, 'mode') and img.mode in ['RGBA', 'CMYK', 'YCbCr', 'LAB', 'HSV']:
+                img = img.convert('RGB')
 
             width, height = img.size
             if width > FileUploadConfig.MAX_IMAGE_DIMENSION or height > FileUploadConfig.MAX_IMAGE_DIMENSION:
@@ -622,7 +623,7 @@ class FileAnomalyDetector:
         except PIL.UnidentifiedImageError:
             return False, "Cannot identify image"
         except Exception as e:
-            logger.warning(f"Ошибка валидации изображения: {str(e)}")
+            logger.warning(f"Ошибка валидации изображения: {e!s}")
             return False, f"Image processing error: {str(e)[:100]}"
 
     @staticmethod
@@ -683,7 +684,7 @@ class UploadQuotaManager:
     def __init__(self, db: Session):
         self.db = db
 
-    async def check_user_quota(self, user_id: Optional[int], client_ip: str) -> Tuple[bool, Optional[str]]:
+    async def check_user_quota(self, user_id: Optional[int], client_ip: str) -> tuple[bool, Optional[str]]:
         """
         Проверяет, не превысил ли пользователь или IP лимиты загрузок.
         Возвращает (True, None) если лимиты не превышены, иначе (False, сообщение).
@@ -763,7 +764,7 @@ def calculate_file_hash(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Optional[str]]:
+def validate_file_mime_type(content: bytes, filename: str) -> tuple[bool, Optional[str]]:
     """
     Проверяет MIME-тип файла по первым байтам и соответствие расширения.
     Возвращает (успех, MIME-тип или сообщение об ошибке).
@@ -828,7 +829,7 @@ def validate_file_mime_type(content: bytes, filename: str) -> Tuple[bool, Option
     return True, mime
 
 
-def save_temp_file(content: bytes, extension: str) -> Tuple[Path, Path]:
+def save_temp_file(content: bytes, extension: str) -> tuple[Path, Path]:
     """
     Сохраняет содержимое во временный файл с безопасным именем.
     Возвращает кортеж (путь к временной директории, путь к файлу).
@@ -856,14 +857,13 @@ def cleanup_temp_files(temp_dir: Path, temp_file_path: Path):
     try:
         if temp_file_path.exists() and temp_file_path.parent == temp_dir:
             os.remove(temp_file_path)
-        if temp_dir.exists():
-            if not any(temp_dir.iterdir()):
-                os.rmdir(temp_dir)
+        if temp_dir.exists() and not any(temp_dir.iterdir()):
+            os.rmdir(temp_dir)
     except Exception as e:
-        logger.warning(f"Ошибка при очистке временных файлов: {str(e)}")
+        logger.warning(f"Ошибка при очистке временных файлов: {e!s}")
 
 
-async def read_file_chunked(file: UploadFile, max_size: int = FileUploadConfig.MAX_FILE_SIZE) -> Tuple[bytes, int]:
+async def read_file_chunked(file: UploadFile, max_size: int = FileUploadConfig.MAX_FILE_SIZE) -> tuple[bytes, int]:
     """
     Читает файл по частям (chunked), контролируя общий размер.
     Возвращает кортеж (содержимое, размер в байтах).

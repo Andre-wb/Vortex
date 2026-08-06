@@ -18,7 +18,37 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import VERSION
-from .api import setup_api, admin_api, db_api, backup_api, audit, metrics, profiler, logs_tools, ops_jobs, security_api, seed_tools, peer_tools, advanced_net, db_tools, multidevice, onboarding, operator, settings_api, ai_setup, deploy_gen, alerts, monitoring, db_ops, peer_advanced, secrets_mgr, backup_plus, devex, supervisor, hardware
+from .api import (
+    admin_api,
+    advanced_net,
+    ai_setup,
+    alerts,
+    audit,
+    backup_api,
+    backup_plus,
+    db_api,
+    db_ops,
+    db_tools,
+    deploy_gen,
+    devex,
+    hardware,
+    logs_tools,
+    metrics,
+    monitoring,
+    multidevice,
+    onboarding,
+    operator,
+    ops_jobs,
+    peer_advanced,
+    peer_tools,
+    profiler,
+    secrets_mgr,
+    security_api,
+    seed_tools,
+    settings_api,
+    setup_api,
+    supervisor,
+)
 from .api.audit import AuditMiddleware
 from .api.profiler import ProfilerMiddleware
 from .api.security_api import TOTPMiddleware
@@ -28,7 +58,7 @@ logger = logging.getLogger(__name__)
 WEB_DIR = Path(__file__).parent / "web"
 
 
-def build_app(mode: str, env_file: "Path | None" = None) -> FastAPI:
+def build_app(mode: str, env_file: Path | None = None) -> FastAPI:
     if mode not in ("setup", "admin"):
         raise ValueError(f"invalid mode: {mode!r}")
 
@@ -89,11 +119,9 @@ def build_app(mode: str, env_file: "Path | None" = None) -> FastAPI:
 
     @app.on_event("shutdown")
     async def _stop_scheduler():
-        try:
+        with contextlib.suppress(Exception):
             from .api.scheduler import get as _getsched
             await _getsched(app.state.env_file).stop()
-        except Exception:
-            pass
 
     # Audit middleware runs after routers are registered so it sees every
     # admin call (including the ones the wizard itself triggers from the
@@ -159,7 +187,7 @@ def build_app(mode: str, env_file: "Path | None" = None) -> FastAPI:
     # Index pages must never be cached — if the browser holds onto the
     # old setup/index.html after setup completes, the user sees the
     # wizard welcome again even though NODE_INITIALIZED=true is set.
-    _NO_CACHE_HEADERS = {
+    _no_cache_headers = {
         "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
         "Pragma":        "no-cache",
         "Expires":       "0",
@@ -177,6 +205,6 @@ def build_app(mode: str, env_file: "Path | None" = None) -> FastAPI:
             # they're versioned by filename when they need to change.
             return FileResponse(target)
         # Index HTML: never cache, so mode flips become visible immediately.
-        return FileResponse(index_path, headers=_NO_CACHE_HEADERS)
+        return FileResponse(index_path, headers=_no_cache_headers)
 
     return app

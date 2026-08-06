@@ -14,10 +14,8 @@
   - Unauthorized access protection
 """
 import secrets
-import pytest
 
-from conftest import make_user, login_user, random_str, SyncASGIClient
-
+from conftest import SyncASGIClient, login_user, make_user, random_str
 
 # Helpers
 

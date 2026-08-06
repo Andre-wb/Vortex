@@ -148,7 +148,7 @@ def create_app(
         # Each top-level page is its own HTML file; the root "/" redirects
         # to index.html. Everything else under /static/* and /locales/* is
         # served as raw assets.
-        PAGES = {
+        pages = {
             "/":         "index.html",
             "/nodes":    "nodes.html",
             "/entries":  "entries.html",
@@ -162,12 +162,12 @@ def create_app(
         }
 
         def _make_page_handler(path_: str):
-            file_name = PAGES[path_]
+            file_name = pages[path_]
             async def _handler() -> FileResponse:
                 return FileResponse(web_dir / file_name)
             return _handler
 
-        for path_, _ in PAGES.items():
+        for path_, _ in pages.items():
             app.add_api_route(
                 path_, _make_page_handler(path_),
                 methods=["GET"], include_in_schema=False,

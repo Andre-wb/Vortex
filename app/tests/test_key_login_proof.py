@@ -7,16 +7,16 @@ HMAC(derive_x25519_session_key(...)=HKDF(salt=sorted)) → 401, фича тих�
 + key-login-proof-cross-impl.test.js (клиент-конец, тот же вектор транзитивно).
 """
 
-import hmac
 import hashlib
+import hmac
 
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+from conftest import _phone_prefix, random_digits, random_str
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from starlette.testclient import TestClient
 
-from conftest import random_str, random_digits, _phone_prefix
-from app.security.crypto import derive_x25519_session_key
 from app.main import app
+from app.security.crypto import derive_x25519_session_key
 
 _PW = "Str0ng_abcd!@"
 

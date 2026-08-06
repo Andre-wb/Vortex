@@ -1,7 +1,7 @@
 """Peer registry and federation tests."""
 import secrets
-import pytest
-from conftest import make_user, login_user, random_str
+
+from conftest import random_str
 
 
 class TestPeerRegistry:
@@ -70,6 +70,7 @@ class TestPeerRegistry:
 
     def test_registry_cleanup(self):
         import time
+
         from app.peer.peer_registry import PeerRegistry
         reg = PeerRegistry()
         reg.update("10.0.0.1", "old", 9000)

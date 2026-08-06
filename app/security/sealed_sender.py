@@ -42,14 +42,13 @@ Threat model:
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac as _hmac
 import logging
 import os
 import threading
 import time
-import warnings
-
 
 _SECRET: bytes | None = None
 _audit_logger = logging.getLogger("vortex.sealed_sender.audit")
@@ -87,10 +86,8 @@ def _get_secret() -> bytes:
     if _SECRET is None:
         raw = os.environ.get("SEALED_SENDER_SECRET", "")
         if len(raw) >= 64:
-            try:
+            with contextlib.suppress(ValueError):
                 _SECRET = bytes.fromhex(raw[:64])
-            except ValueError:
-                pass
         if _SECRET is None:
             sk = os.environ.get("SECRET_KEY", "")
             if sk:

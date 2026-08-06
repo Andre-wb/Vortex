@@ -2,8 +2,7 @@
 
 import secrets
 
-from conftest import SyncASGIClient, random_str, random_digits, make_user, login_user, _phone_prefix
-
+from conftest import SyncASGIClient, _phone_prefix, login_user, make_user, random_digits, random_str
 
 _test_phone_pfx = _phone_prefix
 

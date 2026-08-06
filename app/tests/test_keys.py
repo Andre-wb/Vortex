@@ -1,10 +1,7 @@
 """
 Tests for key management and distribution.
 """
-import secrets
 import pytest
-
-from conftest import make_user, login_user, random_str
 
 
 class TestKeyManagement:
@@ -68,7 +65,7 @@ class TestArgon2:
     def test_argon2_hash_and_verify(self):
         from app.security.crypto import hash_password, verify_password
 
-        password = "TestPassword99!@"
+        password = "TestPassword99!@"  # noqa: S105
         hashed = hash_password(password)
 
         assert hashed != password

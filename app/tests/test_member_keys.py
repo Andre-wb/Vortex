@@ -7,12 +7,11 @@ edVerify(identity_key_ed, x25519, identity_key_sig) и edVerify(ed, kyber, kyber
 
 import secrets
 
+from conftest import login_user, make_user, random_str
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from cryptography.hazmat.primitives import serialization
-
-from conftest import make_user, login_user, random_str
 
 
 def _raw(pub) -> bytes:
@@ -68,7 +67,7 @@ def test_member_keys_chain_verifies(client, monkeypatch):
     h = login_user(client, member["username"], member["password"])
     x25519_hex = member["x25519_pub"]
     account_ed = Ed25519PrivateKey.generate()
-    ed_pub_hex, kyber_hex = _publish_identity_chain(client, h, x25519_hex, account_ed)
+    ed_pub_hex, _kyber_hex = _publish_identity_chain(client, h, x25519_hex, account_ed)
 
     room_id = _create_room(client, h)
     r = client.get(f"/api/rooms/{room_id}/member-keys", headers=h)
@@ -88,7 +87,7 @@ def test_member_keys_chain_verifies(client, monkeypatch):
     other = Ed25519PrivateKey.generate().public_key()
     try:
         other.verify(bytes.fromhex(entry["identity_key_sig"]), bytes.fromhex(entry["x25519_public_key"]))
-        assert False, "sig verified against wrong Ed — binding broken"
+        raise AssertionError("sig verified against wrong Ed — binding broken")
     except InvalidSignature:
         pass
 

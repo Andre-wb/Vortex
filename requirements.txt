@@ -59,6 +59,7 @@ base58>=2.1.1                    # TRON address base58check encoding
 solders>=0.21.0                  # Solana PDA derivation + base58 pubkey helpers
 
 # ── Files & Media ─────────────────────────────────────────────────────────────
+defusedxml>=0.7.1
 python-magic>=0.4.27
 Pillow>=10.0.0
 

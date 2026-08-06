@@ -1,9 +1,7 @@
 """
 Tests for moderation/reporting system.
 """
-import pytest
 
-from conftest import make_user, login_user, random_str
 
 
 class TestReports:

@@ -17,9 +17,8 @@ structure in `vortex-introduce-page` so rendering stays consistent.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
-
 
 
 def section(title: str, subtitle: str, **items: str) -> dict:
@@ -468,7 +467,7 @@ MOBILE = section(
 )
 
 
-WEBCLIENT = section(
+WEBCLIENT = section(  # noqa: S604
     "Web client",
     "PWA with offline support, service worker, and liquid-glass UI.",
     intro="The web client is a vanilla-JS PWA. No React, no Vue, no build step beyond a simple bundler. Total JS shipped: ~400 KB gzipped.",

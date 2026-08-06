@@ -7,7 +7,6 @@ false-positive, независимо от recipient_pub/escrow). Легит-кл
 """
 from sqlalchemy import create_engine, text
 
-
 # Точная SQL heal-миграции (app/database.py) — фиксируем поведение.
 _HEAL = (
     "DELETE FROM encrypted_room_keys WHERE id IN ("

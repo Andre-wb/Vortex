@@ -12,7 +12,6 @@ from typing import Optional
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
-
 _BASE = Path(__file__).resolve().parent.parent.parent
 
 _ID_RE = re.compile(r'^[a-zA-Z0-9_\-]+$')

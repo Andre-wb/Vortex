@@ -1,11 +1,8 @@
 """Общие хелперы, роутер и in-memory хранилища для аутентификации."""
 from __future__ import annotations
 
-import hashlib
-import hmac
 import logging
 import os
-import secrets
 import threading
 import time
 from dataclasses import dataclass
@@ -17,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.config import Config
 from app.models import User, UserDevice
 from app.security.auth_jwt import create_access_token, create_refresh_token
-from app.security.crypto import hash_password as _hp, verify_password
+from app.security.crypto import hash_password as _hp
 from app.security.ip_privacy import sanitize_ip
 
 logger = logging.getLogger(__name__)

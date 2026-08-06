@@ -30,7 +30,7 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.chats.rooms.helpers import router, _require_member
+from app.chats.rooms.helpers import _require_member, router
 from app.database import get_db
 from app.models import User
 from app.models_rooms import PublicRoomKey, Room, RoomRole

@@ -30,4 +30,4 @@ resolve_client_ip = _rust.resolve_client_ip
 
 logger.info("✅ vortex_waf %s (Rust) загружен — правил: %d", VERSION, RULE_COUNT)
 
-__all__ = ["VERSION", "RULE_COUNT", "WAFEngine", "resolve_client_ip"]
+__all__ = ["RULE_COUNT", "VERSION", "WAFEngine", "resolve_client_ip"]

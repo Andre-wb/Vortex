@@ -8,16 +8,15 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.authentication._helpers import _set_auth_cookies, router
+from app.authentication.password import (
+    consume_password_verified,
+    has_password_verified,
+)
 from app.database import get_db
 from app.models import TwoFALoginRequest, TwoFAVerifyRequest, User
 from app.security.auth_jwt import get_current_user
-
 from app.security.ip_privacy import sanitize_ip
-
-from app.authentication._helpers import _set_auth_cookies, router
-from app.authentication.password import (
-    consume_password_verified, has_password_verified,
-)
 
 _totp_attempts: dict[int, list] = {}  # user_id -> [timestamps]
 _TOTP_MAX_ATTEMPTS = 5
@@ -84,7 +83,7 @@ async def verify_2fa_login(body: TwoFALoginRequest, request: Request,
                            db: Session = Depends(get_db)):
     """Подтверждение 2FA-кода при логине."""
     import pyotp
-    user = db.query(User).filter(User.id == body.user_id, User.is_active == True).first()
+    user = db.query(User).filter(User.id == body.user_id, User.is_active.is_(True)).first()
     if not user or not user.totp_enabled or not user.totp_secret:
         raise HTTPException(401, "User not found or 2FA not enabled")
 

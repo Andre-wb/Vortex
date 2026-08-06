@@ -7,7 +7,6 @@ published) и пустые не трогаем.
 """
 from sqlalchemy import create_engine, text
 
-
 # Точная SQL K5-миграции (app/database.py).
 _NULL_LEGACY = (
     "UPDATE users SET kyber_public_key = NULL "

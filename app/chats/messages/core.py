@@ -34,6 +34,7 @@ from app.models_rooms import (
 
 from app.peer.connection_manager import manager
 from app.transport.blind_mailbox import deposit_envelope
+import contextlib
 
 
 # Shared Origin validation for ALL WebSocket endpoints (anti-CSWSH).
@@ -93,10 +94,8 @@ async def _bmp(room_id, payload):
     from app.config import Config
     if not Config.BMP_DELIVERY_ENABLED:
         return
-    try:
+    with contextlib.suppress(Exception):
         await deposit_envelope(room_id, json.dumps(payload))
-    except Exception:
-        pass
 from app.security.auth_jwt import get_current_user, get_user_ws
 
 from app.chats.messages._router import router, utc_iso, parse_client_ts, check_double_extension, DANGEROUS_EXTS  # noqa: F401
@@ -133,6 +132,7 @@ from app.chats.messages.actions import (
     handle_pin_message as _handle_pin_message,
 )
 from app.chats.messages.history import send_history as _send_history
+import contextlib
 
 # Aliases used in ws_chat dispatch and legacy callers
 _handle_create_poll      = handle_create_poll
@@ -317,7 +317,7 @@ async def ws_chat(
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
         ).first()
     if not member:
         await websocket.accept()
@@ -420,16 +420,12 @@ async def ws_chat(
 
             except Exception as _action_err:
                 logger.warning("WS action=%s error user=%s room=%s: %s", action, user.username, room_id, _action_err)
-                try:
+                with contextlib.suppress(Exception):
                     db.rollback()
-                except Exception:
-                    pass
-                try:
+                with contextlib.suppress(Exception):
                     await manager.send_to_user(room_id, user.id, {
                         "type": "error", "message": "Action processing error",
                     })
-                except Exception:
-                    pass
 
     except WebSocketDisconnect:
         logger.debug("WS disconnect user=%s room=%s", user.username, room_id)

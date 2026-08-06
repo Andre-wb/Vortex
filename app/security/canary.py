@@ -25,10 +25,9 @@ import json
 import logging
 import os
 import time
-from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
 from app.config import Config
 
@@ -119,12 +118,12 @@ def sign_canary(
     # Try Ed25519 signature (stronger, non-repudiable)
     sig_ed25519 = ""
     try:
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives.hashes import SHA256
 
         # Derive an Ed25519 signing key from the X25519 private key via HKDF
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-        from cryptography.hazmat.primitives.hashes import SHA256
 
         derived = HKDF(
             algorithm=SHA256(), length=32,

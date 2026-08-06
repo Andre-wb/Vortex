@@ -30,31 +30,31 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import hashlib
 import hmac
-import json
 import logging
 import math
 import os
 import random
 import secrets
 import socket
-import ssl
 import struct
 import time
 import zlib
-from typing import Optional, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Optional
 
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PrivateKey,
     X25519PublicKey,
 )
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-from cryptography.hazmat.backends import default_backend
 
 from app.config import Config
 from app.security.secret_rotation import (
@@ -62,6 +62,8 @@ from app.security.secret_rotation import (
     register_reload_hook,
     rotation_status,
 )
+
+_sysrand = random.SystemRandom()
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +89,7 @@ def _jittered_delay(base: float, *, low: float = 0.5, high: float = 2.0) -> floa
     """
     s_lo = math.exp(-low)
     s_hi = math.exp(-high)
-    return -base * math.log(s_lo - random.random() * (s_lo - s_hi))
+    return -base * math.log(s_lo - _sysrand.random() * (s_lo - s_hi))
 
 
 # 1. V2RAY / VMESS PROTOCOL
@@ -147,7 +149,7 @@ class VMessProtocol:
         self._request_body_key = os.urandom(16)
         self._request_body_iv = os.urandom(16)
         self._response_header = os.urandom(1)[0]
-        self._cmd_key = hashlib.md5(self._uuid + _VMESS_CMD_KEY_MAGIC).digest()
+        self._cmd_key = hashlib.md5(self._uuid + _VMESS_CMD_KEY_MAGIC).digest()  # noqa: S324
 
     @property
     def uuid(self) -> str:
@@ -159,13 +161,13 @@ class VMessProtocol:
         payload = struct.pack(">q", ts) + os.urandom(4)
         payload += struct.pack(">I", zlib.crc32(payload) & 0xFFFFFFFF)
         key = _vmess_kdf(self._cmd_key, b"AES Auth ID Encryption")[:16]
-        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())
+        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())  # noqa: S305
         encryptor = cipher.encryptor()
         return encryptor.update(payload) + encryptor.finalize()
 
     def _verify_auth_id(self, auth_id: bytes) -> bool:
         key = _vmess_kdf(self._cmd_key, b"AES Auth ID Encryption")[:16]
-        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())
+        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())  # noqa: S305
         decryptor = cipher.decryptor()
         decoded = decryptor.update(auth_id) + decryptor.finalize()
         if zlib.crc32(decoded[:12]) & 0xFFFFFFFF != struct.unpack(">I", decoded[12:16])[0]:
@@ -242,7 +244,7 @@ class VMessProtocol:
         header += struct.pack(">B", self._response_header)
 
         # Option: 0x01 = standard, padding & security
-        padding_len = random.randint(0, 15)
+        padding_len = _sysrand.randint(0, 15)
         option = 0x01  # standard
         header += struct.pack(">B", option)
 
@@ -398,7 +400,7 @@ class ShadowTLS:
 
     def get_handshake_target(self) -> tuple[str, int]:
         """Выбирает случайный сервер для TLS handshake."""
-        return random.choice(self.HANDSHAKE_TARGETS)
+        return _sysrand.choice(self.HANDSHAKE_TARGETS)
 
     def generate_switch_marker(self, session_id: bytes) -> bytes:
         """
@@ -557,7 +559,7 @@ class ShadowTLS:
             algorithm=hashes.SHA256(), length=32, salt=session_id, info=label,
         ).derive(self._hmac_key)
 
-    def new_session(self, session_id: bytes, *, server: bool) -> "ShadowTLSSession":
+    def new_session(self, session_id: bytes, *, server: bool) -> ShadowTLSSession:
         """
         Создаёт защищённую сессию поверх switched-потока. Ключи направлений
         разделены (c2s/s2c), поэтому детерминированный счётчик-nonce безопасен;
@@ -1117,7 +1119,6 @@ class NaiveProxyConfig:
             async with httpx.AsyncClient(
                 proxy=proxy_url,
                 timeout=timeout,
-                verify=False,
             ) as client:
                 resp = await client.get("https://www.google.com/generate_204")
                 return resp.status_code in (200, 204)
@@ -1143,7 +1144,6 @@ class NaiveProxyConfig:
             async with httpx.AsyncClient(
                 proxy=proxy_url,
                 timeout=15.0,
-                verify=False,
             ) as client:
                 if method.upper() == "POST":
                     resp = await client.post(target_url, content=data)
@@ -1631,7 +1631,7 @@ class CensorshipAutoProbe:
         start = time.monotonic()
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as c:
+            async with httpx.AsyncClient(timeout=timeout, verify=False) as c:  # noqa: S501
                 resp = await c.get(f"{url}/api/health")
                 elapsed = time.monotonic() - start
                 return {
@@ -1644,10 +1644,10 @@ class CensorshipAutoProbe:
 
     async def _probe_websocket(self, url: str, timeout: float) -> dict:
         start = time.monotonic()
-        ws_url = url.replace("https://", "wss://").replace("http://", "ws://")
+        url.replace("https://", "wss://").replace("http://", "ws://")
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as c:
+            async with httpx.AsyncClient(timeout=timeout, verify=False) as c:  # noqa: S501
                 # Проверяем что WS endpoint отвечает (даже 401 = доступен)
                 resp = await c.get(f"{url}/ws/chat/0")
                 elapsed = time.monotonic() - start
@@ -1663,7 +1663,7 @@ class CensorshipAutoProbe:
         start = time.monotonic()
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=3.0, verify=False) as c:
+            async with httpx.AsyncClient(timeout=3.0, verify=False) as c:  # noqa: S501
                 resp = await c.get(f"{url}/api/transport/sse/stream",
                                     headers={"Accept": "text/event-stream"})
                 elapsed = time.monotonic() - start
@@ -1678,7 +1678,7 @@ class CensorshipAutoProbe:
         start = time.monotonic()
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as c:
+            async with httpx.AsyncClient(timeout=timeout, verify=False) as c:  # noqa: S501
                 resp = await c.get(f"{url}{path}")
                 elapsed = time.monotonic() - start
                 return {
@@ -2565,7 +2565,7 @@ class ObliviousHTTP:
         if not self._relay_urls:
             return None
 
-        relay_url = random.choice(self._relay_urls)
+        relay_url = _sysrand.choice(self._relay_urls)
         encapsulated, enc, shared = self._client_seal(request_data)
 
         try:
@@ -2728,7 +2728,7 @@ class LatencyProbeSystem:
                         self._latencies[transport] = self._latencies[transport][-self._max_history:]
 
                     recent = self._latencies[transport][-3:]
-                    if len(recent) >= 3 and all(l < 0 for l in recent):
+                    if len(recent) >= 3 and all(lat < 0 for lat in recent):
                         alert = {
                             "transport": transport,
                             "type": "blocked",
@@ -2739,14 +2739,12 @@ class LatencyProbeSystem:
                                        transport)
 
                         if self._callback:
-                            try:
+                            with contextlib.suppress(Exception):
                                 await self._callback(transport)
-                            except Exception:
-                                pass
 
                     elif latency > 0 and len(self._latencies[transport]) > 5:
-                        avg = sum(l for l in self._latencies[transport][:-1] if l > 0) / \
-                              max(1, sum(1 for l in self._latencies[transport][:-1] if l > 0))
+                        avg = sum(lat for lat in self._latencies[transport][:-1] if lat > 0) / \
+                              max(1, sum(1 for lat in self._latencies[transport][:-1] if lat > 0))
                         if avg > 0 and latency > avg * 3:
                             self._alerts.append({
                                 "transport": transport,
@@ -2768,13 +2766,13 @@ class LatencyProbeSystem:
         """Статистика задержек по транспортам."""
         stats = {}
         for transport, history in self._latencies.items():
-            valid = [l for l in history if l > 0]
+            valid = [lat for lat in history if lat > 0]
             stats[transport] = {
                 "current": history[-1] if history else -1,
                 "avg": round(sum(valid) / max(1, len(valid))) if valid else -1,
                 "min": round(min(valid)) if valid else -1,
                 "max": round(max(valid)) if valid else -1,
-                "failures": sum(1 for l in history if l < 0),
+                "failures": sum(1 for lat in history if lat < 0),
                 "total_probes": len(history),
             }
         return stats

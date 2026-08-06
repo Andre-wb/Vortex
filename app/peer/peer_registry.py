@@ -13,16 +13,16 @@ This file preserves backward-compatible imports:
 """
 
 # Re-export the shared router (routes are registered via side-effect imports below)
-from app.peer._router import router  # noqa: F401
+import app.peer.peer_federation
+import app.peer.peer_p2p
+import app.peer.peer_public_keys
 
-# Core models & singleton
-from app.peer.peer_models import PeerInfo, PeerRegistry, registry  # noqa: F401
+# Side-effect imports: importing these modules registers their @router routes
+import app.peer.peer_routes  # noqa: F401
+from app.peer._router import router  # noqa: F401
 
 # Discovery entry-point
 from app.peer.peer_discovery import start_discovery  # noqa: F401
 
-# Side-effect imports: importing these modules registers their @router routes
-import app.peer.peer_routes       # noqa: F401
-import app.peer.peer_p2p          # noqa: F401
-import app.peer.peer_federation   # noqa: F401
-import app.peer.peer_public_keys  # noqa: F401
+# Core models & singleton
+from app.peer.peer_models import PeerInfo, PeerRegistry, registry  # noqa: F401

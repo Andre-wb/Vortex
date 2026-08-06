@@ -14,6 +14,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.chats.rooms.helpers import (
+    RoomCreate,
+    RoomUpdate,
+    _invalidate_room_escrows,
+    _require_member,
+    _room_dict,
+    router,
+)
 from app.database import get_db
 from app.models import User
 from app.models_rooms import EncryptedRoomKey, Message, Room, RoomMember, RoomRole
@@ -21,15 +29,6 @@ from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 from app.security.key_exchange import validate_ecies_payload
 from app.utilites.utils import generative_invite_code
-
-from app.chats.rooms.helpers import (
-    router,
-    RoomCreate,
-    RoomUpdate,
-    _room_dict,
-    _require_member,
-    _invalidate_room_escrows,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -159,10 +158,10 @@ async def create_room(
 @router.get("/my")
 async def my_rooms(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     members = db.query(RoomMember).filter(
-        RoomMember.user_id == u.id, RoomMember.is_banned == False).all()
+        RoomMember.user_id == u.id, RoomMember.is_banned.is_(False)).all()
     member_map = {m.room_id: m for m in members}
     ids = list(member_map.keys())
-    rooms = db.query(Room).filter(Room.id.in_(ids), Room.is_dm == False, Room.is_channel == False).all()
+    rooms = db.query(Room).filter(Room.id.in_(ids), Room.is_dm.is_(False), Room.is_channel.is_(False)).all()
 
     # Check key availability for each room
     key_set = {
@@ -201,14 +200,14 @@ async def public_rooms(
     db: Session = Depends(get_db),
 ):
     """Catalog of public rooms with filtering and pagination."""
-    qs = db.query(Room).filter(Room.is_private == False)
+    qs = db.query(Room).filter(Room.is_private.is_(False))
 
     if type == "group":
-        qs = qs.filter(Room.is_channel == False, Room.is_voice == False)
+        qs = qs.filter(Room.is_channel.is_(False), Room.is_voice.is_(False))
     elif type == "channel":
-        qs = qs.filter(Room.is_channel == True)
+        qs = qs.filter(Room.is_channel.is_(True))
     elif type == "voice":
-        qs = qs.filter(Room.is_voice == True)
+        qs = qs.filter(Room.is_voice.is_(True))
 
     if q:
         pattern = f"%{q}%"
@@ -451,7 +450,7 @@ async def upload_room_avatar(
         img = img.convert("RGB")
         img.thumbnail((256, 256))
     except Exception:
-        raise HTTPException(400, "Invalid image format")
+        raise HTTPException(400, "Invalid image format") from None
 
     os.makedirs("uploads/room_avatars", exist_ok=True)
     filename = f"{_secrets.token_hex(16)}.jpg"

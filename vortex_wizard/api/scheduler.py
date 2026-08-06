@@ -12,12 +12,14 @@ returned dict is stored as the "last result" for the UI.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
-from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -107,10 +109,8 @@ class Scheduler:
     async def stop(self) -> None:
         self._stop.set()
         if self._task:
-            try:
+            with contextlib.suppress(Exception):
                 await self._task
-            except Exception:
-                pass
             self._task = None
 
     async def _loop(self) -> None:
@@ -127,10 +127,8 @@ class Scheduler:
                     await self._run(j)
                 except Exception as e:
                     logger.warning("scheduler job %s failed: %s", j.name, e)
-            try:
+            with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self._stop.wait(), timeout=self._tick_sec)
-            except asyncio.TimeoutError:
-                pass
 
     async def _run(self, j: Job) -> dict:
         logger.info("scheduler: firing job %s", j.name)

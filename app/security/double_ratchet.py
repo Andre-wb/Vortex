@@ -16,24 +16,24 @@ app/security/double_ratchet.py — Реализация протокола Doubl
 """
 from __future__ import annotations
 
-import hmac
 import hashlib
+import hmac
 import logging
 import struct
 from dataclasses import dataclass, field
-from typing import Optional, Tuple
+from typing import Optional
 
-from cryptography.hazmat.primitives.asymmetric.x25519 import (
-    X25519PrivateKey,
-    X25519PublicKey,
-)
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
+from cryptography.hazmat.primitives.asymmetric.x25519 import (
+    X25519PrivateKey,
+    X25519PublicKey,
+)
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes, serialization
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ def x3dh_initiate(
     ik_peer_public: X25519PublicKey,
     spk_peer_public: X25519PublicKey,
     opk_peer_public: Optional[X25519PublicKey] = None,
-) -> Tuple[bytes, X25519PrivateKey]:
+) -> tuple[bytes, X25519PrivateKey]:
     """Инициирует X3DH обмен ключами (сторона Alice).
 
     Вычисляет shared secret из 3 или 4 DH-операций:
@@ -225,7 +225,7 @@ def x3dh_initiate_pq(
     pqpk_peer_public: bytes,
     kem_ciphertext: bytes,
     kem_shared: bytes,
-) -> Tuple[bytes, X25519PrivateKey]:
+) -> tuple[bytes, X25519PrivateKey]:
     """PQXDH initiate (сторона Alice) — классический X3DH km + привязка KEM.
 
     KEM (ML-KEM-768, FIPS 203) выполняется на клиенте (JS): liboqs Kyber768
@@ -311,7 +311,7 @@ except ImportError:
     _HAS_RUST_RATCHET = False
 
 
-def kdf_rk(rk: bytes, dh_out: bytes) -> Tuple[bytes, bytes]:
+def kdf_rk(rk: bytes, dh_out: bytes) -> tuple[bytes, bytes]:
     """Root Key KDF — HKDF-SHA256(salt=rk, IKM=dh_out, info="vortex-double-ratchet").
 
     Hot path — called on every DH ratchet step. Rust version ~3 µs vs
@@ -328,7 +328,7 @@ def kdf_rk(rk: bytes, dh_out: bytes) -> Tuple[bytes, bytes]:
     return okm[:32], okm[32:]
 
 
-def kdf_ck(ck: bytes) -> Tuple[bytes, bytes]:
+def kdf_ck(ck: bytes) -> tuple[bytes, bytes]:
     """Chain Key KDF — Signal-standard:
         new_chain_key = HMAC-SHA256(ck, 0x02)
         message_key   = HMAC-SHA256(ck, 0x01)
@@ -370,7 +370,7 @@ class Header:
         return self.dh_public + struct.pack(">II", self.prev_count, self.msg_number)
 
     @classmethod
-    def deserialize(cls, data: bytes) -> "Header":
+    def deserialize(cls, data: bytes) -> Header:
         """Десериализует заголовок из байт.
 
         Args:
@@ -516,7 +516,7 @@ def _decrypt_aes_gcm(message_key: bytes, data: bytes, aad: bytes) -> bytes:
     return AESGCM(message_key).decrypt(nonce, ct, aad)
 
 
-def ratchet_encrypt(state: RatchetState, plaintext: bytes) -> Tuple[Header, bytes]:
+def ratchet_encrypt(state: RatchetState, plaintext: bytes) -> tuple[Header, bytes]:
     """Шифрует сообщение с помощью Double Ratchet.
 
     Выполняет symmetric ratchet шаг (chain key → message key + next chain key),

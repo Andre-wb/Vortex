@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import socket
 
 from app.transport.stealth_level4 import ShadowTLS
@@ -67,10 +68,8 @@ class _Harness:
         self.client_writer.close()
         self._srv.close()
         await self._srv.wait_closed()
-        try:
+        with contextlib.suppress(OSError):
             self.csock.close()
-        except OSError:
-            pass
 
 
 async def _sink(harness, reader, writer):

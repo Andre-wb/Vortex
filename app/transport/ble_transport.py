@@ -30,9 +30,11 @@ import json
 import logging
 import struct
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Optional
-from uuid import UUID
+from typing import Optional
+
+from app.utilites.background import spawn
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +209,6 @@ class BleTransportManager:
         self._on_msg_cb  = on_message_received
 
         try:
-            import bleak  # проверяем доступность
             from bleak import BleakScanner
             self._available = True
         except ImportError:
@@ -221,7 +222,7 @@ class BleTransportManager:
         try:
             from bleak import BleakScanner
             # Короткий тест-скан
-            async with BleakScanner() as scanner:
+            async with BleakScanner():
                 pass
             self._available = True
         except Exception as e:
@@ -271,7 +272,7 @@ class BleTransportManager:
         def detection_callback(device, advertisement_data):
             self._handle_advertisement(device, advertisement_data)
 
-        async with BleakScanner(detection_callback=detection_callback) as scanner:
+        async with BleakScanner(detection_callback=detection_callback):
             await asyncio.sleep(5.0)  # сканируем 5 секунд
 
     def _handle_advertisement(self, device, adv_data) -> None:
@@ -321,7 +322,7 @@ class BleTransportManager:
             if is_new:
                 logger.info(f"📡 BLE peer discovered: {node_name} @ {addr} (RSSI: {adv_data.rssi})")
                 if self._on_peer_cb:
-                    asyncio.create_task(self._notify_peer(addr))
+                    spawn(self._notify_peer(addr))
 
         except Exception as e:
             logger.debug(f"BLE advertisement parse: {e}")
@@ -421,11 +422,11 @@ class BleTransportManager:
           - MESSAGE_CHAR   (write)   — принимает входящие фрагменты сообщений
           - STATUS_CHAR    (read)    — текущий статус ноды (JSON)
         """
-        from bless import (                   # type: ignore[import-untyped]
-            BlessServer,
+        from bless import (  # type: ignore[import-untyped]
             BlessGATTCharacteristic,
-            GATTCharacteristicProperties,
+            BlessServer,
             GATTAttributePermissions,
+            GATTCharacteristicProperties,
         )
 
         server = BlessServer(name=f"Vortex-{self._node_name[:8]}")

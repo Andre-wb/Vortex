@@ -18,13 +18,12 @@ from sqlalchemy import engine_from_config, pool
 # Ensure project root is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from app.base import Base  # noqa: E402
-from app.config import Config  # noqa: E402
-
 # Import all models so Base.metadata is fully populated
-import app.models  # noqa: E402, F401
-import app.models_rooms  # noqa: E402, F401
-from app.models import contact as _contact  # noqa: E402, F401
+import app.models
+import app.models_rooms  # noqa: F401
+from app.base import Base
+from app.config import Config
+from app.models import contact as _contact  # noqa: F401
 
 # Alembic Config object
 config = context.config

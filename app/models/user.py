@@ -383,7 +383,7 @@ class KeyLoginRequest(BaseModel):
         try:
             bytes.fromhex(v)
         except ValueError:
-            raise ValueError("Field must be a hex string")
+            raise ValueError("Field must be a hex string") from None
         return v.lower()
 
 

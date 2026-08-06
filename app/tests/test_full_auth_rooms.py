@@ -6,8 +6,7 @@ Uses session-scoped sync client that retains cookies between requests.
 
 import secrets
 
-from conftest import login_user, make_user, random_digits, random_str, _unique_phone
-
+from conftest import _unique_phone, login_user, make_user, random_str
 
 # helpers
 
@@ -361,7 +360,7 @@ class TestRefresh:
 
 class TestLogout:
     def test_logout_authenticated(self, client):
-        u = _register_and_login(client)
+        _register_and_login(client)
         csrf = _csrf(client)
         r = client.post("/api/authentication/logout",
                          headers={"X-CSRF-Token": csrf})
@@ -495,6 +494,7 @@ class TestAvatar:
         u = _register_and_login(client)
         # Create a minimal valid PNG (1x1 pixel)
         import io
+
         from PIL import Image
         buf = io.BytesIO()
         Image.new("RGB", (10, 10), "red").save(buf, "PNG")
@@ -706,7 +706,7 @@ class TestProvideKey:
     def test_provide_key_not_member(self, client):
         owner = _register_and_login(client)
         room = _make_room(client, owner["headers"])
-        outsider = _register_and_login(client)
+        _register_and_login(client)
         csrf = _csrf(client)
         r = client.post(f"/api/rooms/{room['id']}/provide-key", json={
             "for_user_id": owner["data"]["user_id"],
@@ -822,6 +822,7 @@ class TestUpdateRoom:
 class TestRoomAvatar:
     def test_upload_room_avatar(self, client):
         import io
+
         from PIL import Image
         owner = _register_and_login(client)
         room = _make_room(client, owner["headers"])
@@ -1108,7 +1109,7 @@ class TestMuteNotifications:
     def test_mute_non_member(self, client):
         owner = _register_and_login(client)
         room = _make_room(client, owner["headers"])
-        outsider = _register_and_login(client)
+        _register_and_login(client)
         csrf = _csrf(client)
         r = client.post(f"/api/rooms/{room['id']}/mute",
                          headers={"X-CSRF-Token": csrf})

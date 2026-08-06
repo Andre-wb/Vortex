@@ -12,19 +12,18 @@ Both sides MUST use this form to produce identical bytes.
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import os
 from pathlib import Path
 from typing import Any
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
-from cryptography.exceptions import InvalidSignature
-
-
 
 try:
     import vortex_chat as _vc_rust
@@ -54,7 +53,7 @@ class ControllerKey:
         self._priv = priv
 
     @classmethod
-    def load_or_create(cls, keys_dir: Path) -> "ControllerKey":
+    def load_or_create(cls, keys_dir: Path) -> ControllerKey:
         keys_dir.mkdir(parents=True, exist_ok=True)
         key_path = keys_dir / "controller.key"
         if key_path.exists():
@@ -69,10 +68,8 @@ class ControllerKey:
             encryption_algorithm=serialization.NoEncryption(),
         )
         key_path.write_bytes(raw)
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(key_path, 0o600)
-        except OSError:
-            pass
         return cls(priv)
 
     def pubkey_hex(self) -> str:

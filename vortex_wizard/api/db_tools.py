@@ -13,17 +13,13 @@ where possible). Five features:
 """
 from __future__ import annotations
 
-import json
 import logging
-import os
 import re
 import sqlite3
 import time
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from . import backup_api as _b
@@ -84,7 +80,7 @@ async def sql_console(body: SqlBody, request: Request) -> dict:
         # big table would happily send 10M rows.
         q = body.query.strip().rstrip(";")
         if " limit " not in q.lower():
-            q = f"SELECT * FROM ({q}) LIMIT {body.limit}"
+            q = f"SELECT * FROM ({q}) LIMIT {body.limit}"  # noqa: S608
         t0 = time.perf_counter()
         cur = conn.execute(q)
         rows = cur.fetchmany(body.limit)
@@ -98,7 +94,7 @@ async def sql_console(body: SqlBody, request: Request) -> dict:
             "truncated": len(rows) == body.limit,
         }
     except sqlite3.Error as e:
-        raise HTTPException(400, f"sqlite: {e}")
+        raise HTTPException(400, f"sqlite: {e}") from None
     finally:
         conn.close()
 
@@ -130,7 +126,7 @@ async def room_graph(request: Request, limit_rooms: int = 200) -> dict:
 
         placeholders = ",".join("?" * len(room_ids))
         members = conn.execute(
-            f"SELECT room_id, user_id, role FROM room_members WHERE room_id IN ({placeholders})",
+            f"SELECT room_id, user_id, role FROM room_members WHERE room_id IN ({placeholders})",  # noqa: S608
             room_ids,
         ).fetchall()
         user_ids = sorted({m["user_id"] for m in members})
@@ -138,7 +134,7 @@ async def room_graph(request: Request, limit_rooms: int = 200) -> dict:
         if user_ids:
             ph2 = ",".join("?" * len(user_ids))
             users = conn.execute(
-                f"SELECT id, username, display_name FROM users WHERE id IN ({ph2})",
+                f"SELECT id, username, display_name FROM users WHERE id IN ({ph2})",  # noqa: S608
                 user_ids,
             ).fetchall()
             users_by_id = {u["id"]: dict(u) for u in users}
@@ -168,7 +164,7 @@ async def room_graph(request: Request, limit_rooms: int = 200) -> dict:
             "counts": {"rooms": len(rooms), "users": len(user_ids), "memberships": len(members)},
         }
     except sqlite3.Error as e:
-        raise HTTPException(500, f"sqlite: {e}")
+        raise HTTPException(500, f"sqlite: {e}") from None
     finally:
         conn.close()
 
@@ -202,7 +198,7 @@ async def storage_stats(request: Request, top: int = 50) -> dict:
             ]
         }
     except sqlite3.Error as e:
-        raise HTTPException(500, f"sqlite: {e}")
+        raise HTTPException(500, f"sqlite: {e}") from None
     finally:
         conn.close()
 
@@ -263,8 +259,8 @@ async def fts_enable(request: Request) -> dict:
         return {"ok": True}
     except sqlite3.OperationalError as e:
         if "FTS5" in str(e).upper() or "fts5" in str(e):
-            raise HTTPException(400, "this SQLite build has no FTS5 support")
-        raise HTTPException(500, f"sqlite: {e}")
+            raise HTTPException(400, "this SQLite build has no FTS5 support") from None
+        raise HTTPException(500, f"sqlite: {e}") from None
     finally:
         conn.close()
 
@@ -343,7 +339,7 @@ async def export_room(
             "exported_at": int(time.time()),
         }
     except sqlite3.Error as e:
-        raise HTTPException(500, f"sqlite: {e}")
+        raise HTTPException(500, f"sqlite: {e}") from None
     finally:
         conn.close()
 

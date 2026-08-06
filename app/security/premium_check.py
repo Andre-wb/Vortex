@@ -18,10 +18,17 @@ import base64
 import hashlib
 import logging
 import os
+import secrets
 import struct
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.database import get_db
+from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +265,7 @@ def _parse_subscription(raw: bytes, expected_wallet: str) -> PremiumStatus:
         raise ValueError("discriminator mismatch — not a Subscription account")
 
     from solders.pubkey import Pubkey  # deferred import
-    beneficiary = str(Pubkey(raw[8:40]))
+    str(Pubkey(raw[8:40]))
     (end_timestamp,) = struct.unpack("<q", raw[40:48])
     (months_total_paid,) = struct.unpack("<I", raw[48:52])
     (lifetime_lamports,) = struct.unpack("<Q", raw[52:60])
@@ -313,13 +320,10 @@ async def require_premium_wallet(wallet_pubkey: str) -> PremiumStatus:
 
 
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 # FIX F14: import get_current_user / get_db at module level so the wallet-linking
 # endpoints can use the standard Depends(...) injection instead of the fragile
 # manual _resolve_current_user(request) path.
-from app.database import get_db
-from app.security.auth_jwt import get_current_user
 
 router = APIRouter(prefix="/api/premium", tags=["premium"])
 
@@ -363,9 +367,6 @@ async def refresh_premium_status(
 # The challenge is keyed by the authenticated user id so a bystander
 # can't race ahead by grabbing someone else's challenge string.
 
-import base64
-import secrets
-from datetime import datetime, timezone
 
 # In-memory challenge map. Cleaned lazily on new issuance so the app
 # doesn't need a background job. Key → (nonce_bytes, expires_at).
@@ -468,7 +469,7 @@ async def link_wallet_signed(
     try:
         supplied_challenge = base64.b64decode(challenge_b64)
     except Exception:
-        raise HTTPException(400, "challenge is not valid base64")
+        raise HTTPException(400, "challenge is not valid base64") from None
     if supplied_challenge != expected_message:
         raise HTTPException(400, "challenge mismatch")
 
@@ -478,14 +479,14 @@ async def link_wallet_signed(
         pk = Pubkey.from_string(wallet)
         pubkey_bytes = bytes(pk)
     except Exception:
-        raise HTTPException(400, "invalid wallet pubkey")
+        raise HTTPException(400, "invalid wallet pubkey") from None
 
     # Decode signature.
     try:
         import base58
         signature = base58.b58decode(signature_b58)
     except Exception:
-        raise HTTPException(400, "signature_b58 is not valid base58")
+        raise HTTPException(400, "signature_b58 is not valid base58") from None
     if len(signature) != 64:
         raise HTTPException(400, "signature must be 64 bytes")
 
@@ -493,15 +494,15 @@ async def link_wallet_signed(
     # signature means the caller controls the private key for ``wallet`` AND was
     # signing specifically to link it to THIS user on Vortex.
     try:
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
         from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
         Ed25519PublicKey.from_public_bytes(pubkey_bytes).verify(
             signature, expected_message,
         )
     except InvalidSignature:
-        raise HTTPException(403, "signature does not match wallet pubkey")
+        raise HTTPException(403, "signature does not match wallet pubkey") from None
     except Exception as e:
-        raise HTTPException(400, f"signature verification failed: {e}")
+        raise HTTPException(400, f"signature verification failed: {e}") from None
 
     from app.models.user import User
 

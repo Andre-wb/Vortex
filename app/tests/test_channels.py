@@ -1,10 +1,8 @@
 """
 Tests for broadcast channels.
 """
-import secrets
-import pytest
 
-from conftest import make_user, login_user, random_str
+from conftest import random_str
 
 
 class TestChannels:

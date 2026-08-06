@@ -37,9 +37,9 @@ class TestMetrics:
 
     def test_ecies_full_cycle_latency(self):
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-        from cryptography.hazmat.primitives.hashes import SHA256
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.hashes import SHA256
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         timings = []
         for _ in range(50):
             bob_priv      = X25519PrivateKey.generate()

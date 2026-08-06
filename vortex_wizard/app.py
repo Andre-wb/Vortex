@@ -11,6 +11,7 @@ Mode selection:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import logging
 import os
 import socket
@@ -21,7 +22,6 @@ from pathlib import Path
 from typing import Optional
 
 from . import VERSION
-
 
 logger = logging.getLogger("vortex_wizard")
 
@@ -85,6 +85,7 @@ def _default_env_file() -> Path:
 def _start_server(mode: str, host: str, port: int, env_file: Path) -> None:
     """Uvicorn in the main thread, blocks until shutdown."""
     import uvicorn
+
     from .server import build_app
 
     app = build_app(mode=mode, env_file=env_file)
@@ -219,10 +220,8 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.no_window:
         logger.info("Running headless — visit %s manually", url)
-        try:
+        with contextlib.suppress(KeyboardInterrupt):
             server_thread.join()
-        except KeyboardInterrupt:
-            pass
         return 0
 
     _open_window(url, title)

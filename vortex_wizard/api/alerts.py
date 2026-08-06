@@ -13,6 +13,7 @@ channels that match the severity/filters.
 
 Config is persisted in `<env-dir>/alert_channels.json`.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -23,7 +24,7 @@ import ssl
 import time
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Any, Iterable, Literal, Optional
+from typing import Literal, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
@@ -32,7 +33,6 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/wiz/admin/alerts", tags=["alerts"])
-
 
 
 def _env_file(request: Request) -> Path:
@@ -62,23 +62,19 @@ def _save(env_file: Path, data: dict) -> None:
     p.write_text(json.dumps(data, indent=2))
 
 
-
-ChannelType = Literal[
-    "email", "slack", "discord", "telegram", "matrix", "webhook", "pagerduty"
-]
+ChannelType = Literal["email", "slack", "discord", "telegram", "matrix", "webhook", "pagerduty"]
 Severity = Literal["info", "warning", "error", "critical"]
 
 _SEVERITY_LEVEL = {"info": 0, "warning": 1, "error": 2, "critical": 3}
 
 
 class ChannelBody(BaseModel):
-    id:       Optional[str] = None
-    type:     ChannelType
-    name:     str = Field(..., min_length=1, max_length=60)
-    config:   dict = Field(default_factory=dict)
+    id: Optional[str] = None
+    type: ChannelType
+    name: str = Field(..., min_length=1, max_length=60)
+    config: dict = Field(default_factory=dict)
     min_severity: Severity = "warning"
-    enabled:  bool = True
-
+    enabled: bool = True
 
 
 async def dispatch(
@@ -99,14 +95,13 @@ async def dispatch(
 
     tasks = []
     for ch in state.get("channels", []):
-        if not ch.get("enabled"): continue
+        if not ch.get("enabled"):
+            continue
         min_lvl = _SEVERITY_LEVEL.get(ch.get("min_severity", "warning"), 1)
         if threshold < min_lvl:
             report[ch["id"]] = "skipped:below_threshold"
             continue
-        tasks.append((ch, asyncio.create_task(
-            _send_to_channel(ch, severity, title, body, tags or [])
-        )))
+        tasks.append((ch, asyncio.create_task(_send_to_channel(ch, severity, title, body, tags or []))))
 
     for ch, t in tasks:
         try:
@@ -117,11 +112,11 @@ async def dispatch(
 
     # Record last-N in history
     entry = {
-        "ts":       int(time.time()),
+        "ts": int(time.time()),
         "severity": severity,
-        "title":    title,
-        "tags":     tags or [],
-        "report":   report,
+        "title": title,
+        "tags": tags or [],
+        "report": report,
     }
     hist = state.get("history", [])
     hist.append(entry)
@@ -130,10 +125,7 @@ async def dispatch(
     return report
 
 
-
-async def _send_to_channel(
-    ch: dict, severity: str, title: str, body: str, tags: list[str]
-) -> tuple[bool, str]:
+async def _send_to_channel(ch: dict, severity: str, title: str, body: str, tags: list[str]) -> tuple[bool, str]:
     t = ch["type"]
     cfg = ch.get("config", {})
     try:
@@ -187,25 +179,30 @@ async def _send_email(cfg: dict, severity: str, title: str, body: str, tags: lis
         else:
             with smtplib.SMTP(cfg["smtp_host"], port, timeout=10) as s:
                 s.ehlo()
-                if port == 587: s.starttls(context=ctx)
+                if port == 587:
+                    s.starttls(context=ctx)
                 s.login(cfg["smtp_user"], cfg["smtp_password"])
                 s.send_message(msg)
+
     await asyncio.to_thread(_blocking_send)
     return True, ""
 
 
 async def _send_slack(cfg: dict, severity: str, title: str, body: str, tags: list[str]):
     url = cfg.get("webhook_url")
-    if not url: return False, "missing:webhook_url"
-    color = {"info":"#4b9eff","warning":"#f59e0b","error":"#ef4444","critical":"#b91c1c"}[severity]
+    if not url:
+        return False, "missing:webhook_url"
+    color = {"info": "#4b9eff", "warning": "#f59e0b", "error": "#ef4444", "critical": "#b91c1c"}[severity]
     payload = {
-        "attachments": [{
-            "color": color,
-            "title": f"[{severity.upper()}] {title}",
-            "text":  body or "",
-            "fields": [{"title": "tags", "value": ", ".join(tags) or "-", "short": True}],
-            "ts":    int(time.time()),
-        }]
+        "attachments": [
+            {
+                "color": color,
+                "title": f"[{severity.upper()}] {title}",
+                "text": body or "",
+                "fields": [{"title": "tags", "value": ", ".join(tags) or "-", "short": True}],
+                "ts": int(time.time()),
+            }
+        ]
     }
     async with httpx.AsyncClient(timeout=5.0, verify=True) as c:
         r = await c.post(url, json=payload)
@@ -214,8 +211,9 @@ async def _send_slack(cfg: dict, severity: str, title: str, body: str, tags: lis
 
 async def _send_discord(cfg: dict, severity: str, title: str, body: str, tags: list[str]):
     url = cfg.get("webhook_url")
-    if not url: return False, "missing:webhook_url"
-    color_map = {"info":0x4b9eff,"warning":0xf59e0b,"error":0xef4444,"critical":0xb91c1c}
+    if not url:
+        return False, "missing:webhook_url"
+    color_map = {"info": 0x4B9EFF, "warning": 0xF59E0B, "error": 0xEF4444, "critical": 0xB91C1C}
     embed = {
         "title": f"[{severity.upper()}] {title}"[:250],
         "description": body[:4000] if body else "",
@@ -229,8 +227,9 @@ async def _send_discord(cfg: dict, severity: str, title: str, body: str, tags: l
 
 async def _send_telegram(cfg: dict, severity: str, title: str, body: str, tags: list[str]):
     token = cfg.get("bot_token")
-    chat  = cfg.get("chat_id")
-    if not (token and chat): return False, "missing:bot_token_or_chat_id"
+    chat = cfg.get("chat_id")
+    if not (token and chat):
+        return False, "missing:bot_token_or_chat_id"
     text = _format_plain(severity, title, body, tags)
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     async with httpx.AsyncClient(timeout=5.0, verify=True) as c:
@@ -243,8 +242,9 @@ async def _send_matrix(cfg: dict, severity: str, title: str, body: str, tags: li
     base = (cfg.get("homeserver") or "").rstrip("/")
     room = cfg.get("room_id", "").strip()
     token = cfg.get("access_token", "").strip()
-    if not (base and room and token): return False, "missing:homeserver_room_token"
-    url = f"{base}/_matrix/client/v3/rooms/{room}/send/m.room.message/{int(time.time()*1000)}"
+    if not (base and room and token):
+        return False, "missing:homeserver_room_token"
+    url = f"{base}/_matrix/client/v3/rooms/{room}/send/m.room.message/{int(time.time() * 1000)}"
     payload = {"msgtype": "m.notice", "body": _format_plain(severity, title, body, tags)}
     async with httpx.AsyncClient(timeout=5.0, verify=True) as c:
         r = await c.put(url, json=payload, headers={"Authorization": f"Bearer {token}"})
@@ -253,10 +253,14 @@ async def _send_matrix(cfg: dict, severity: str, title: str, body: str, tags: li
 
 async def _send_webhook(cfg: dict, severity: str, title: str, body: str, tags: list[str]):
     url = cfg.get("url")
-    if not url: return False, "missing:url"
+    if not url:
+        return False, "missing:url"
     payload = {
-        "severity": severity, "title": title, "body": body,
-        "tags": tags, "ts": int(time.time()),
+        "severity": severity,
+        "title": title,
+        "body": body,
+        "tags": tags,
+        "ts": int(time.time()),
         "source": "vortex-wizard",
     }
     headers = {}
@@ -270,15 +274,16 @@ async def _send_webhook(cfg: dict, severity: str, title: str, body: str, tags: l
 async def _send_pagerduty(cfg: dict, severity: str, title: str, body: str, tags: list[str]):
     # PagerDuty Events API v2.
     routing = cfg.get("routing_key")
-    if not routing: return False, "missing:routing_key"
-    sev_map = {"info":"info","warning":"warning","error":"error","critical":"critical"}
+    if not routing:
+        return False, "missing:routing_key"
+    sev_map = {"info": "info", "warning": "warning", "error": "error", "critical": "critical"}
     payload = {
         "routing_key": routing,
         "event_action": "trigger",
         "payload": {
-            "summary":  title,
+            "summary": title,
             "severity": sev_map[severity],
-            "source":   "vortex-node",
+            "source": "vortex-node",
             "custom_details": {"body": body, "tags": tags},
         },
     }
@@ -287,17 +292,17 @@ async def _send_pagerduty(cfg: dict, severity: str, title: str, body: str, tags:
     return r.status_code < 400, f"http_{r.status_code}"
 
 
-
 @router.get("")
 async def list_channels(request: Request) -> dict:
     state = _load(_env_file(request))
     # Mask secrets on output
     safe = []
     for ch in state.get("channels", []):
-        copy = dict(ch); cfg = dict(copy.get("config", {}))
+        copy = dict(ch)
+        cfg = dict(copy.get("config", {}))
         for k in list(cfg.keys()):
             lk = k.lower()
-            if any(s in lk for s in ("password","token","key","secret","routing")):
+            if any(s in lk for s in ("password", "token", "key", "secret", "routing")):
                 cfg[k] = "•" * 10 if cfg[k] else ""
         copy["config"] = cfg
         safe.append(copy)
@@ -309,12 +314,14 @@ async def add_or_update(body: ChannelBody, request: Request) -> dict:
     env_file = _env_file(request)
     state = _load(env_file)
     import secrets as _s
+
     if body.id:
         found = None
         for ch in state["channels"]:
             if ch["id"] == body.id:
                 ch.update(body.model_dump(exclude_none=True))
-                found = ch; break
+                found = ch
+                break
         if not found:
             raise HTTPException(404, "channel id not found")
     else:
@@ -338,9 +345,9 @@ async def delete_channel(channel_id: str, request: Request) -> dict:
 
 class TestBody(BaseModel):
     channel_id: Optional[str] = None
-    severity:   Severity = "info"
-    title:      str = "Vortex alert test"
-    body:       str = "This is a test alert dispatched from the wizard."
+    severity: Severity = "info"
+    title: str = "Vortex alert test"
+    body: str = "This is a test alert dispatched from the wizard."
 
 
 @router.post("/test")

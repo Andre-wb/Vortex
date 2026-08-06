@@ -1,7 +1,6 @@
 """
 Tests for ephemeral user statuses (stories).
 """
-import pytest
 
 from conftest import random_str
 

@@ -41,12 +41,7 @@ _HTML_RESPONSE_RE = re.compile(r"""HTMLResponse\(|media_type\s*=\s*['"]text/html
 # that surface. This freezes the count so additions are caught; migrating a
 # handler to addEventListener (in an external/nonce'd script) lets you lower it.
 _INLINE_HANDLER_BASELINE = 819
-_EVENTS = (
-    "abort blur change click contextmenu copy cut dblclick drag drop error focus "
-    "input keydown keypress keyup load mousedown mouseenter mouseleave mousemove "
-    "mouseout mouseover mouseup paste scroll submit toggle touchend touchmove "
-    "touchstart wheel animationend transitionend"
-).split()
+_EVENTS = ["abort", "blur", "change", "click", "contextmenu", "copy", "cut", "dblclick", "drag", "drop", "error", "focus", "input", "keydown", "keypress", "keyup", "load", "mousedown", "mouseenter", "mouseleave", "mousemove", "mouseout", "mouseover", "mouseup", "paste", "scroll", "submit", "toggle", "touchend", "touchmove", "touchstart", "wheel", "animationend", "transitionend"]
 _ON_ATTR_RE = re.compile(r"\son(?:" + "|".join(_EVENTS) + r")\s*=", re.IGNORECASE)
 
 

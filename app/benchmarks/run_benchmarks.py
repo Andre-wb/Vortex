@@ -23,15 +23,15 @@ import json
 import os
 import statistics
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, List, Optional
-
+from typing import Optional
 
 # Вспомогательный класс измерения
 
 class BenchResult:
-    def __init__(self, name: str, unit: str, values: List[float]):
+    def __init__(self, name: str, unit: str, values: list[float]):
         self.name   = name
         self.unit   = unit
         self.values = values
@@ -72,7 +72,7 @@ class BenchResult:
         )
 
 
-def _timeit(fn: Callable, runs: int) -> List[float]:
+def _timeit(fn: Callable, runs: int) -> list[float]:
     """Запускает fn() runs раз и возвращает список времён в мс."""
     times = []
     for _ in range(runs):
@@ -167,8 +167,9 @@ def bench_sha256_throughput() -> BenchResult:
 async def bench_http_latency(runs: int = 50) -> BenchResult:
     """Измеряет задержку ASGI-приложения напрямую (без реальной сети)."""
     try:
-        import httpx
         import sys
+
+        import httpx
         sys.path.insert(0, str(Path(__file__).parent.parent))
         from app.main import app as _app
 
@@ -180,7 +181,7 @@ async def bench_http_latency(runs: int = 50) -> BenchResult:
                 await client.get("/api/authentication/csrf-token")
                 times.append((time.perf_counter() - t0) * 1000)
         return BenchResult("HTTP API latency (CSRF, in-process)", "ms", times)
-    except Exception as exc:
+    except Exception:
         return BenchResult("HTTP API latency (SKIPPED)", "ms", [0.0])
 
 
@@ -196,7 +197,7 @@ def bench_message_processing(runs: int = 5000) -> BenchResult:
     """
     import uuid
     seen = {}
-    key  = os.urandom(32)
+    os.urandom(32)
 
     def _process():
         msg_id     = str(uuid.uuid4())
@@ -211,7 +212,7 @@ def bench_message_processing(runs: int = 5000) -> BenchResult:
 
 # 6. Chunked file upload simulation
 
-def bench_chunk_hashing(runs: int = 50) -> List[BenchResult]:
+def bench_chunk_hashing(runs: int = 50) -> list[BenchResult]:
     """Измеряет скорость хеширования чанков разного размера."""
     results = []
     for size_mb in (1, 5, 10):
@@ -272,7 +273,7 @@ async def main(runs: int = 100, output: Optional[str] = None):
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  |  runs={runs}")
     print("=" * 80)
 
-    all_results: List[BenchResult] = []
+    all_results: list[BenchResult] = []
 
     # Crypto benchmarks
     print("\n[1/5] Крипто-ядро (AES-256-GCM + X25519) …")

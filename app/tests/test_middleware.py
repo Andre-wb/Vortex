@@ -1,7 +1,8 @@
 """Middleware tests — security headers, CSRF, token refresh, WAF, logging."""
 import secrets
+
 import pytest
-from conftest import make_user, login_user, random_str, _unique_phone
+from conftest import _unique_phone, random_str
 
 
 class TestSecurityHeaders:

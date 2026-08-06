@@ -24,16 +24,17 @@ app/transport/wifi_direct.py — Wi-Fi Direct (P2P) транспорт.
 from __future__ import annotations
 
 import asyncio
-import json
+import contextlib
 import logging
-import os
 import re
-import socket
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Optional, Callable
+from typing import Optional
+
+from app.utilites.background import spawn
 
 logger = logging.getLogger(__name__)
 
@@ -106,14 +107,14 @@ class WpaCliInterface:
 
     async def _run(self, *args: str, timeout: float = 5.0) -> Optional[str]:
         """Выполняет wpa_cli команду, возвращает вывод или None."""
-        cmd = ["wpa_cli", "-i", self.interface] + list(args)
+        cmd = ["wpa_cli", "-i", self.interface, *list(args)]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(
+            stdout, _stderr = await asyncio.wait_for(
                 proc.communicate(), timeout=timeout
             )
             out = stdout.decode("utf-8", errors="ignore").strip()
@@ -257,7 +258,7 @@ class WinRTWifiDirect:
         if sys.platform != "win32":
             return False
         try:
-            import winrt.windows.devices.wifidirect as wfd
+            import winrt.windows.devices.wifidirect as wfd  # noqa: F401
             self._available = True
             return True
         except ImportError:
@@ -269,8 +270,8 @@ class WinRTWifiDirect:
         if not self._available:
             return []
         try:
-            import winrt.windows.devices.wifidirect as wfd
             import winrt.windows.devices.enumeration as de
+            import winrt.windows.devices.wifidirect as wfd
 
             # Запрашиваем список WiFi Direct устройств
             selector = wfd.WiFiDirectDevice.get_device_selector()
@@ -391,10 +392,8 @@ class WifiDirectManager:
         for task in (self._scan_task, self._reconnect_task):
             if task:
                 task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await task
-                except asyncio.CancelledError:
-                    pass
 
         if self._wpa and self._linux_iface:
             await self._wpa.p2p_stop_find()
@@ -420,7 +419,7 @@ class WifiDirectManager:
                         if is_new:
                             logger.info(f"📶 Wi-Fi Direct peer: {name} ({mac})")
                             if self._on_peer_cb:
-                                asyncio.create_task(
+                                spawn(
                                     self._on_peer_cb(self._peers[mac])
                                 )
             except Exception as e:
@@ -439,7 +438,7 @@ class WifiDirectManager:
                         is_new = mac not in self._peers
                         self._peers[mac] = WifiDirectPeer(mac=mac, name=name)
                         if is_new and self._on_peer_cb:
-                            asyncio.create_task(self._on_peer_cb(self._peers[mac]))
+                            spawn(self._on_peer_cb(self._peers[mac]))
             except Exception as e:
                 logger.debug(f"WinRT scan error: {e}")
             await asyncio.sleep(15.0)
@@ -478,7 +477,7 @@ class WifiDirectManager:
             ok = await self._wpa.p2p_connect_pbc(peer_mac)
             if ok:
                 # Ждём получения IP через DHCP
-                for attempt in range(20):
+                for _attempt in range(20):
                     await asyncio.sleep(1.0)
                     if self._linux_iface:
                         ip = await self._wpa.get_p2p_ip(self._linux_iface)
@@ -512,7 +511,7 @@ class WifiDirectManager:
         """Возвращает IP нашего P2P интерфейса (если мы GO)."""
         if self._linux_iface and self._wpa:
             # Синхронный вариант для quick check
-            try:
+            with contextlib.suppress(Exception):
                 import subprocess as sp
                 result = sp.run(
                     ["ip", "addr", "show", self._linux_iface],
@@ -521,8 +520,6 @@ class WifiDirectManager:
                 m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", result.stdout)
                 if m:
                     return m.group(1)
-            except Exception:
-                pass
         return None
 
     def status(self) -> dict:

@@ -14,7 +14,6 @@ import json
 import os
 import sys
 import time
-import re
 
 import requests
 
@@ -90,8 +89,8 @@ def collect_fallbacks(en_data, locale_data):
     for section, keys in en_data.items():
         if isinstance(keys, dict):
             for k, v in keys.items():
-                if isinstance(v, str) and v and k not in SKIP_KEYS and v not in SKIP_VALUES:
-                    if locale_data.get(section, {}).get(k) == v:
+                if (isinstance(v, str) and v and k not in SKIP_KEYS and v not in SKIP_VALUES
+                            and locale_data.get(section, {}).get(k) == v):
                         fallbacks.append((section, k, v))
     return fallbacks
 
@@ -103,7 +102,7 @@ def process_locale(code, en_data):
         print(f'  {code}: file not found, skipping', flush=True)
         return 0
 
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         loc = json.load(f)
 
     fallbacks = collect_fallbacks(en_data, loc)
@@ -128,11 +127,10 @@ def process_locale(code, en_data):
 
     # Apply translations
     changed = 0
-    for (section, key, orig), trans in zip(fallbacks, translated):
-        if trans and trans != orig:
-            if section in loc and isinstance(loc[section], dict):
-                loc[section][key] = trans
-                changed += 1
+    for (section, key, orig), trans in zip(fallbacks, translated, strict=False):
+        if trans and trans != orig and section in loc and isinstance(loc[section], dict):
+            loc[section][key] = trans
+            changed += 1
 
     if changed > 0:
         with open(path, 'w', encoding='utf-8') as f:
@@ -149,7 +147,8 @@ def main():
         print('  export GOOGLE_TRANSLATE_API_KEY="AIza..."')
         sys.exit(1)
 
-    en_data = json.load(open(os.path.join(LOCALE_DIR, 'en.json'), encoding='utf-8'))
+    with open(os.path.join(LOCALE_DIR, 'en.json'), encoding='utf-8') as f:
+        en_data = json.load(f)
 
     targets = sys.argv[1:] if len(sys.argv) > 1 else CLOUD_LANGS
 
@@ -159,14 +158,15 @@ def main():
         path = os.path.join(LOCALE_DIR, code + '.json')
         if not os.path.exists(path):
             continue
-        loc = json.load(open(path, encoding='utf-8'))
+        with open(path, encoding='utf-8') as f:
+            loc = json.load(f)
         fallbacks = collect_fallbacks(en_data, loc)
         total_chars += sum(len(fb[2]) for fb in fallbacks)
 
     print(f'Estimated: {total_chars:,d} characters ({len(targets)} languages)')
-    print(f'Free limit: 500,000/month')
+    print('Free limit: 500,000/month')
     if total_chars > 450000:
-        print(f'WARNING: close to limit!')
+        print('WARNING: close to limit!')
     print()
 
     total_changed = 0

@@ -20,11 +20,10 @@ from __future__ import annotations
 
 import argparse
 import atexit
-import hashlib
+import contextlib
 import json
 import os
 import re
-import secrets
 import shutil
 import signal
 import subprocess
@@ -34,11 +33,11 @@ import time
 from pathlib import Path
 
 import uvicorn
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 def _resource_path(rel: str) -> Path:
@@ -490,10 +489,8 @@ def main() -> None:
     if args.tunnel:
         atexit.register(_terminate_tunnel)
         for sig in (signal.SIGINT, signal.SIGTERM):
-            try:
+            with contextlib.suppress(ValueError, OSError):
                 signal.signal(sig, lambda *a: (_terminate_tunnel(), sys.exit(0)))
-            except (ValueError, OSError):
-                pass  # main thread only — best-effort
         _TUNNEL_URL = _start_tunnel_blocking(args.port)
         _pump_tunnel_logs_to_stderr()
 

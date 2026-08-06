@@ -46,8 +46,8 @@ class TranslateRequest(BaseModel):
 
 
 class TranslateResponse(BaseModel):
-    translatedText: str
-    detectedLanguage: Optional[str] = None
+    translatedText: str  # noqa: N815
+    detectedLanguage: Optional[str] = None  # noqa: N815
 
 
 
@@ -77,10 +77,10 @@ async def translate_text(
             data = resp.json()
     except httpx.HTTPStatusError as exc:
         logger.warning("LibreTranslate HTTP error: %s", exc)
-        raise HTTPException(502, "Translation service returned an error")
+        raise HTTPException(502, "Translation service returned an error") from None
     except Exception as exc:
         logger.warning("LibreTranslate connection error: %s", exc)
-        raise HTTPException(502, "Translation service unavailable")
+        raise HTTPException(502, "Translation service unavailable") from None
 
     detected = None
     if isinstance(data.get("detectedLanguage"), dict):
@@ -111,4 +111,4 @@ async def translate_languages(
             return resp.json()
     except Exception as exc:
         logger.warning("LibreTranslate /languages error: %s", exc)
-        raise HTTPException(502, "Translation service unavailable")
+        raise HTTPException(502, "Translation service unavailable") from None

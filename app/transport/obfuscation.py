@@ -12,12 +12,14 @@ app/transport/obfuscation.py — Anti-DPI обфускация трафика.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import random
 import struct
 import time
-from typing import Optional
+
+_sysrand = random.SystemRandom()
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,7 @@ class TrafficObfuscator:
         """Извлечение оригинального сообщения."""
         if len(padded) < 4:
             return padded
-        real_len, pad_len = struct.unpack(">HH", padded[:4])
+        real_len, _pad_len = struct.unpack(">HH", padded[:4])
         if 4 + real_len > len(padded):
             return padded  # не запаковано
         return padded[4:4 + real_len]
@@ -108,7 +110,7 @@ class TrafficObfuscator:
         """
         min_val = base_seconds * (1 - jitter_ratio)
         max_val = base_seconds * (1 + jitter_ratio)
-        return random.uniform(min_val, max_val)
+        return _sysrand.uniform(min_val, max_val)
 
 
 class TrafficNormalizer:
@@ -159,14 +161,12 @@ class TrafficNormalizer:
         self._running = True
         while self._running:
             await asyncio.sleep(0.1)  # 100мс интервал
-            try:
+            with contextlib.suppress(Exception):
                 needed = self.get_padding_needed()
                 if needed > 64:  # минимум 64 байта чтобы не спамить
                     padding = b"\x00" + os.urandom(min(needed, 4096))
                     await send_fn(padding)
                     self.record_sent(len(padding))
-            except Exception:
-                pass
 
     def stop(self):
         self._running = False

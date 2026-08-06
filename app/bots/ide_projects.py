@@ -12,14 +12,12 @@ POST /api/ide/ai/proxy     proxy AI requests to Ollama/OpenAI
 from __future__ import annotations
 
 import asyncio
-import os
 import logging
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.models import User
-from app.security.auth_jwt import get_current_user
 from app.bots.ide_runner import (
     compile_code,
     get_logs,
@@ -27,8 +25,9 @@ from app.bots.ide_runner import (
     publish_bot,
     stop_bot,
 )
-from app.bots.ide_shared import CompileRequest, PublishRequest, _require_project, _validate_id
-
+from app.bots.ide_shared import CompileRequest, PublishRequest, _require_project
+from app.models import User
+from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +106,7 @@ async def test_bot(
         return JSONResponse({"ok": False, "error": "No code provided"}, status_code=400)
 
     import tempfile
+
     from app.bots.ide_runner import _GX_BIN, _gx_available
 
     if not _gx_available():
@@ -124,7 +124,7 @@ async def test_bot(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+        _stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
 
         if proc.returncode != 0:
             return JSONResponse({
@@ -137,7 +137,7 @@ async def test_bot(
         return JSONResponse({
             "ok": True,
             "syntax_valid": True,
-            "message": f"Code compiled successfully. Deploy with 'Publish' to test with real messages.",
+            "message": "Code compiled successfully. Deploy with 'Publish' to test with real messages.",
             "test_input": test_message,
             "update_type": update_type,
         })
@@ -163,7 +163,7 @@ async def ai_proxy(
     try:
         if history:
             # OpenAI-compatible chat completions
-            messages = history + [{"role": "user", "content": prompt}]
+            messages = [*history, {"role": "user", "content": prompt}]
             async with httpx.AsyncClient(timeout=30) as client:
                 r = await client.post(
                     f"{ollama_url}/v1/chat/completions",

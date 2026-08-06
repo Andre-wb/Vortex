@@ -1,28 +1,29 @@
 """Wave 2 — Monitoring extensions.
 
-  1. Grafana dashboard JSON export      — /monitoring/grafana/dashboard.json
-  2. Custom alert rule engine           — rules stored in rules.json, evaluated
-                                          by a scheduler job every minute
-  3. Slow query log                     — captures queries >N ms to a JSONL
-  4. Message table partitioning wizard  — Postgres: declarative partition-by-
-                                          month; SQLite: manual archive roll-over
+1. Grafana dashboard JSON export      — /monitoring/grafana/dashboard.json
+2. Custom alert rule engine           — rules stored in rules.json, evaluated
+                                        by a scheduler job every minute
+3. Slow query log                     — captures queries >N ms to a JSONL
+4. Message table partitioning wizard  — Postgres: declarative partition-by-
+                                        month; SQLite: manual archive roll-over
 """
+
 from __future__ import annotations
 
-import asyncio
+import contextlib
 import json
 import logging
 import re
 import time
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from . import backup_api as _b
 from . import alerts as _alerts
+from . import backup_api as _b
 from . import scheduler as _sched
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ def _env_file(request: Request) -> Path:
 
 # 1. Grafana dashboard JSON
 
+
 @router.get("/grafana/dashboard.json")
 async def grafana_dashboard(request: Request) -> dict:
     """Ready-to-import Grafana dashboard with 8 panels covering every
@@ -49,51 +51,58 @@ async def grafana_dashboard(request: Request) -> dict:
     panels: list[dict] = []
     pid = 1
 
-    def _panel(title: str, expr: str, unit: str, x: int, y: int,
-               w: int = 12, h: int = 8, type_: str = "timeseries") -> dict:
+    def _panel(
+        title: str, expr: str, unit: str, x: int, y: int, w: int = 12, h: int = 8, type_: str = "timeseries"
+    ) -> dict:
         nonlocal pid
         pid += 1
         return {
-            "id": pid, "title": title, "type": type_,
+            "id": pid,
+            "title": title,
+            "type": type_,
             "gridPos": {"x": x, "y": y, "w": w, "h": h},
             "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
             "fieldConfig": {"defaults": {"unit": unit}},
             "targets": [{"refId": "A", "expr": expr}],
         }
 
-    panels.append(_panel("Up", "vortex_wizard_up",                   "none", 0,  0, 6, 4, "stat"))
-    panels.append(_panel("Node up", "vortex_node_up",                "none", 6,  0, 6, 4, "stat"))
-    panels.append(_panel("CPU seconds (rate)", 'rate(vortex_process_cpu_seconds_total[5m])',
-                                                                     "cps",  0,  4))
-    panels.append(_panel("RSS (MB)", 'vortex_process_resident_memory_bytes / 1024 / 1024',
-                                                                     "decmbytes", 12, 4))
-    panels.append(_panel("Active WS", "vortex_ws_active_total",      "none", 0, 12))
-    panels.append(_panel("Active rooms", "vortex_rooms_active_total","none", 12, 12))
-    panels.append(_panel("Active peers", "vortex_peers_active_total","none", 0, 20))
-    panels.append(_panel("Audit alerts", "vortex_audit_alerts_total","none", 12, 20))
-    panels.append(_panel("P99 latency by path (s)",
-                         'vortex_http_request_duration_seconds{quantile="0.99"}',
-                                                                     "s", 0, 28, 24, 8))
-    panels.append(_panel("Requests / sec by status",
-                         'sum(rate(vortex_http_requests_total[5m])) by (status)',
-                                                                     "reqps", 0, 36, 24, 8))
+    panels.append(_panel("Up", "vortex_wizard_up", "none", 0, 0, 6, 4, "stat"))
+    panels.append(_panel("Node up", "vortex_node_up", "none", 6, 0, 6, 4, "stat"))
+    panels.append(_panel("CPU seconds (rate)", "rate(vortex_process_cpu_seconds_total[5m])", "cps", 0, 4))
+    panels.append(_panel("RSS (MB)", "vortex_process_resident_memory_bytes / 1024 / 1024", "decmbytes", 12, 4))
+    panels.append(_panel("Active WS", "vortex_ws_active_total", "none", 0, 12))
+    panels.append(_panel("Active rooms", "vortex_rooms_active_total", "none", 12, 12))
+    panels.append(_panel("Active peers", "vortex_peers_active_total", "none", 0, 20))
+    panels.append(_panel("Audit alerts", "vortex_audit_alerts_total", "none", 12, 20))
+    panels.append(
+        _panel("P99 latency by path (s)", 'vortex_http_request_duration_seconds{quantile="0.99"}', "s", 0, 28, 24, 8)
+    )
+    panels.append(
+        _panel(
+            "Requests / sec by status", "sum(rate(vortex_http_requests_total[5m])) by (status)", "reqps", 0, 36, 24, 8
+        )
+    )
 
     return {
-        "title":      f"Vortex node — {device}",
-        "uid":        f"vortex-{device}"[:40],
+        "title": f"Vortex node — {device}",
+        "uid": f"vortex-{device}"[:40],
         "schemaVersion": 39,
-        "version":    1,
-        "timezone":   "browser",
-        "refresh":    "30s",
-        "time":       {"from": "now-6h", "to": "now"},
-        "tags":       ["vortex"],
-        "panels":     panels,
-        "__inputs": [{
-            "name": "DS_PROMETHEUS", "label": "Prometheus",
-            "description": f"Scrape target: http://HOST:{port}/api/wiz/admin/metrics",
-            "type": "datasource", "pluginId": "prometheus",
-            "pluginName": "Prometheus",
-        }],
+        "version": 1,
+        "timezone": "browser",
+        "refresh": "30s",
+        "time": {"from": "now-6h", "to": "now"},
+        "tags": ["vortex"],
+        "panels": panels,
+        "__inputs": [
+            {
+                "name": "DS_PROMETHEUS",
+                "label": "Prometheus",
+                "description": f"Scrape target: http://HOST:{port}/api/wiz/admin/metrics",
+                "type": "datasource",
+                "pluginId": "prometheus",
+                "pluginName": "Prometheus",
+            }
+        ],
     }
 
 
@@ -107,11 +116,13 @@ async def grafana_dashboard(request: Request) -> dict:
 # we emit an alert via the dispatcher. When it recovers we send an
 # info-level "resolved" message.
 
-_OPS = {">": lambda a, b: a > b,
-        "<": lambda a, b: a < b,
-        ">=": lambda a, b: a >= b,
-        "<=": lambda a, b: a <= b,
-        "==": lambda a, b: a == b}
+_OPS = {
+    ">": lambda a, b: a > b,
+    "<": lambda a, b: a < b,
+    ">=": lambda a, b: a >= b,
+    "<=": lambda a, b: a <= b,
+    "==": lambda a, b: a == b,
+}
 
 
 def _rules_path(env_file: Path) -> Path:
@@ -120,9 +131,12 @@ def _rules_path(env_file: Path) -> Path:
 
 def _load_rules(env_file: Path) -> dict:
     p = _rules_path(env_file)
-    if not p.is_file(): return {"rules": []}
-    try: return json.loads(p.read_text())
-    except Exception: return {"rules": []}
+    if not p.is_file():
+        return {"rules": []}
+    try:
+        return json.loads(p.read_text())
+    except Exception:
+        return {"rules": []}
 
 
 def _save_rules(env_file: Path, state: dict) -> None:
@@ -130,15 +144,14 @@ def _save_rules(env_file: Path, state: dict) -> None:
 
 
 class RuleBody(BaseModel):
-    id:          Optional[str] = None
-    name:        str = Field(..., min_length=1, max_length=80)
-    metric:      str = Field(..., min_length=1, max_length=120)
-    op:          Literal[">", "<", ">=", "<=", "=="]
-    threshold:   float
-    severity:    _alerts.Severity = "warning"
-    for_seconds: int = Field(60, ge=0, le=3600,
-                              description="Condition must hold this long before firing")
-    enabled:     bool = True
+    id: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=80)
+    metric: str = Field(..., min_length=1, max_length=120)
+    op: Literal[">", "<", ">=", "<=", "=="]
+    threshold: float
+    severity: _alerts.Severity = "warning"
+    for_seconds: int = Field(60, ge=0, le=3600, description="Condition must hold this long before firing")
+    enabled: bool = True
 
 
 @router.get("/rules")
@@ -151,17 +164,22 @@ async def put_rule(body: RuleBody, request: Request) -> dict:
     env_file = _env_file(request)
     state = _load_rules(env_file)
     import secrets as _s
+
     if body.id:
         found = None
         for r in state["rules"]:
             if r["id"] == body.id:
                 r.update(body.model_dump(exclude_none=True))
-                found = r; break
-        if not found: raise HTTPException(404, "rule not found")
+                found = r
+                break
+        if not found:
+            raise HTTPException(404, "rule not found")
     else:
-        r = body.model_dump(); r["id"] = _s.token_urlsafe(8)
+        r = body.model_dump()
+        r["id"] = _s.token_urlsafe(8)
         r["firing_since"] = 0
-        state["rules"].append(r); found = r
+        state["rules"].append(r)
+        found = r
     _save_rules(env_file, state)
     return {"ok": True, "id": found["id"]}
 
@@ -183,13 +201,17 @@ def _parse_metrics(text: str) -> dict[str, float]:
     out: dict[str, float] = {}
     for line in text.splitlines():
         line = line.strip()
-        if not line or line.startswith("#"): continue
+        if not line or line.startswith("#"):
+            continue
         # Metric can have labels in braces. Split off the trailing value.
-        m = re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*)(?:\{([^}]*)\})?\s+([-+0-9eE.nan]+)$', line)
-        if not m: continue
+        m = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)(?:\{([^}]*)\})?\s+([-+0-9eE.nan]+)$", line)
+        if not m:
+            continue
         name, labels, val = m.groups()
-        try: out[name if not labels else f"{name}{{{labels}}}"] = float(val)
-        except ValueError: continue
+        try:
+            out[name if not labels else f"{name}{{{labels}}}"] = float(val)
+        except ValueError:
+            continue
     return out
 
 
@@ -198,7 +220,8 @@ async def job_alert_rules(env_file: Path) -> dict:
     rules, fire / resolve as state transitions."""
     env = _b._read_env(env_file)
     host = env.get("HOST", "127.0.0.1")
-    if host == "0.0.0.0": host = "127.0.0.1"
+    if host == "0.0.0.0":
+        host = "127.0.0.1"
     port = int(env.get("PORT", "9000"))
     proto = "https" if (env_file.parent / "certs" / "vortex.crt").is_file() else "http"
 
@@ -207,7 +230,7 @@ async def job_alert_rules(env_file: Path) -> dict:
         return {"message": "no rules"}
 
     try:
-        async with httpx.AsyncClient(timeout=5.0, verify=False) as c:
+        async with httpx.AsyncClient(timeout=5.0, verify=False) as c:  # noqa: S501
             r = await c.get(f"{proto}://{host}:{port}/api/wiz/admin/metrics")
         metrics = _parse_metrics(r.text)
     except Exception as e:
@@ -216,11 +239,14 @@ async def job_alert_rules(env_file: Path) -> dict:
     now = int(time.time())
     fired = resolved = 0
     for rule in state["rules"]:
-        if not rule.get("enabled"): continue
+        if not rule.get("enabled"):
+            continue
         val = metrics.get(rule["metric"])
-        if val is None: continue
+        if val is None:
+            continue
         op = _OPS.get(rule["op"])
-        if op is None: continue
+        if op is None:
+            continue
         condition = op(val, float(rule["threshold"]))
 
         since = int(rule.get("firing_since", 0) or 0)
@@ -263,6 +289,7 @@ def install_monitoring_jobs(env_file: Path) -> None:
 
 # 3. Slow query log
 
+
 def _slow_log_path(env_file: Path) -> Path:
     return env_file.parent / "slow_queries.ndjson"
 
@@ -281,9 +308,12 @@ async def slow_queries(request: Request, limit: int = 100) -> dict:
         f.seek(size - chunk)
         data = f.read()
     for line in data.splitlines()[::-1]:
-        if len(rows) >= limit: break
-        try: rows.append(json.loads(line))
-        except Exception: continue
+        if len(rows) >= limit:
+            break
+        try:
+            rows.append(json.loads(line))
+        except Exception:  # noqa: S112
+            continue
     return {"rows": rows, "limit": limit}
 
 
@@ -295,6 +325,7 @@ class SlowThresholdBody(BaseModel):
 async def set_slow_threshold(body: SlowThresholdBody, request: Request) -> dict:
     env_file = _env_file(request)
     from . import security_api as _sec
+
     _sec._write_env_keys(env_file, {"SLOW_QUERY_THRESHOLD_MS": str(body.threshold_ms)})
     return {"ok": True, "threshold_ms": body.threshold_ms}
 
@@ -307,22 +338,19 @@ async def clear_slow_queries(request: Request) -> dict:
     return {"ok": True}
 
 
-def record_slow_query(env_file: Path, sql: str, duration_ms: float,
-                      extra: Optional[dict] = None) -> None:
+def record_slow_query(env_file: Path, sql: str, duration_ms: float, extra: Optional[dict] = None) -> None:
     """Called by the node-side SQLAlchemy event listener when a query
     takes longer than the configured threshold. Safe to call from any
     thread — we just append-only."""
     rec = {
-        "ts":          int(time.time()),
+        "ts": int(time.time()),
         "duration_ms": round(duration_ms, 2),
-        "sql":         (sql or "")[:4000],
+        "sql": (sql or "")[:4000],
     }
-    if extra: rec.update(extra)
-    try:
-        with _slow_log_path(env_file).open("a") as f:
-            f.write(json.dumps(rec) + "\n")
-    except Exception:
-        pass
+    if extra:
+        rec.update(extra)
+    with contextlib.suppress(Exception), _slow_log_path(env_file).open("a") as f:
+        f.write(json.dumps(rec) + "\n")
 
 
 # 4. Table partitioning wizard
@@ -332,14 +360,15 @@ def record_slow_query(env_file: Path, sql: str, duration_ms: float,
 # SQLite: we create monthly archive files and move rows older than N
 # months into them. ATTACH DATABASE for queries.
 
+
 @router.get("/partitioning/status")
 async def partition_status(request: Request) -> dict:
     env = _b._read_env(_env_file(request))
     is_sq, db_path = _b._is_sqlite(env, _env_file(request).parent)
     return {
-        "backend":      "sqlite" if is_sq else "postgres",
-        "db_path":      str(db_path) if db_path else None,
-        "supported":    True,
+        "backend": "sqlite" if is_sq else "postgres",
+        "db_path": str(db_path) if db_path else None,
+        "supported": True,
     }
 
 
@@ -407,7 +436,7 @@ COMMIT;
 --                   to_char(next_month,'YYYY'), to_char(next_month,'MM'),
 --                   next_month, (next_month + interval '1 month')::date);
 -- END$$ LANGUAGE plpgsql;
-"""
+"""  # noqa: S608
 
 
 def _sqlite_archive_script(db_path: Optional[Path], months_keep_hot: int) -> str:
@@ -434,4 +463,4 @@ SELECT * FROM main.messages WHERE created_at < date('now', '-{months_keep_hot} m
 DELETE FROM main.messages WHERE created_at < date('now', '-{months_keep_hot} months');
 DETACH DATABASE arc;
 VACUUM;
-"""
+"""  # noqa: S608

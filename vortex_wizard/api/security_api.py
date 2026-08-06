@@ -9,13 +9,13 @@ top-level API list. Each sub-section is independent; see headers.
 4. Keys-at-rest — passphrase-wrap the node signing key.
 5. CSP/HSTS     — edit header policy via UI.
 """
+
 from __future__ import annotations
 
-import asyncio
 import base64
+import contextlib
 import hashlib
 import hmac
-import io
 import json
 import logging
 import os
@@ -23,13 +23,14 @@ import secrets as _secrets
 import shutil
 import struct
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Awaitable, Callable, Optional
+from typing import Optional
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from fastapi import APIRouter, Cookie, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -37,7 +38,6 @@ from starlette.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/wiz/admin/sec", tags=["security"])
-
 
 
 def _env_file(request: Request) -> Path:
@@ -98,8 +98,8 @@ def _save_sec_state(env_file: Path, state: dict) -> None:
 
 _TOTP_COOKIE = "vx_wiz_2fa"
 _TOTP_DIGITS = 6
-_TOTP_STEP   = 30
-_SESSION_TTL = 12 * 3600   # 12 h
+_TOTP_STEP = 30
+_SESSION_TTL = 12 * 3600  # 12 h
 
 
 def _totp_code(secret_b32: str, now: Optional[int] = None) -> str:
@@ -108,8 +108,8 @@ def _totp_code(secret_b32: str, now: Optional[int] = None) -> str:
     msg = struct.pack(">Q", t)
     mac = hmac.new(key, msg, hashlib.sha1).digest()
     offset = mac[-1] & 0x0F
-    val = struct.unpack(">I", mac[offset:offset + 4])[0] & 0x7FFFFFFF
-    return f"{val % (10 ** _TOTP_DIGITS):0{_TOTP_DIGITS}d}"
+    val = struct.unpack(">I", mac[offset : offset + 4])[0] & 0x7FFFFFFF
+    return f"{val % (10**_TOTP_DIGITS):0{_TOTP_DIGITS}d}"
 
 
 def _totp_verify(secret_b32: str, code: str) -> bool:
@@ -119,10 +119,7 @@ def _totp_verify(secret_b32: str, code: str) -> bool:
     now = int(time.time())
     # Allow one step of drift on either side — saves users from clock
     # skew angst.
-    for delta in (-1, 0, 1):
-        if hmac.compare_digest(_totp_code(secret_b32, now + delta * _TOTP_STEP), code):
-            return True
-    return False
+    return any(hmac.compare_digest(_totp_code(secret_b32, now + delta * _TOTP_STEP), code) for delta in (-1, 0, 1))
 
 
 def _issue_session(env_file: Path) -> str:
@@ -161,9 +158,10 @@ class TOTPMiddleware(BaseHTTPMiddleware):
     """
 
     BYPASS_PREFIXES = (
-        "/api/wiz/admin/sec",     # this module itself
-        "/api/wiz/setup",          # setup flow is pre-auth
-        "/static", "/locales",
+        "/api/wiz/admin/sec",  # this module itself
+        "/api/wiz/setup",  # setup flow is pre-auth
+        "/static",
+        "/locales",
     )
     BYPASS_EXACT = {"/mode", "/favicon.ico"}
 
@@ -173,9 +171,11 @@ class TOTPMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable],
     ):
         path = request.url.path
-        if (path in self.BYPASS_EXACT or
-            any(path.startswith(p) for p in self.BYPASS_PREFIXES) or
-            not path.startswith("/api/wiz/admin")):
+        if (
+            path in self.BYPASS_EXACT
+            or any(path.startswith(p) for p in self.BYPASS_PREFIXES)
+            or not path.startswith("/api/wiz/admin")
+        ):
             return await call_next(request)
 
         env_file = getattr(request.app.state, "env_file", None)
@@ -205,8 +205,8 @@ async def totp_status(request: Request) -> dict:
     enabled = _totp_enabled(env_file)
     token = request.cookies.get(_TOTP_COOKIE, "")
     return {
-        "enabled":     enabled,
-        "session_ok":  _session_valid(env_file, token),
+        "enabled": enabled,
+        "session_ok": _session_valid(env_file, token),
     }
 
 
@@ -225,9 +225,11 @@ async def totp_init(request: Request) -> dict:
     state["totp_pending"] = secret
     _save_sec_state(env_file, state)
     issuer = "VortexWizard"
-    label  = f"{issuer}:node"
-    uri = (f"otpauth://totp/{label}?secret={secret}"
-           f"&issuer={issuer}&algorithm=SHA1&digits={_TOTP_DIGITS}&period={_TOTP_STEP}")
+    label = f"{issuer}:node"
+    uri = (
+        f"otpauth://totp/{label}?secret={secret}"
+        f"&issuer={issuer}&algorithm=SHA1&digits={_TOTP_DIGITS}&period={_TOTP_STEP}"
+    )
     return {"secret": secret, "uri": uri}
 
 
@@ -245,8 +247,7 @@ async def totp_confirm(body: TOTPSetupBody, request: Request, response: Response
     _save_sec_state(env_file, state)
     # Immediately issue a session so the user isn't locked out.
     token = _issue_session(env_file)
-    response.set_cookie(_TOTP_COOKIE, token, httponly=True, samesite="strict",
-                         max_age=_SESSION_TTL, path="/")
+    response.set_cookie(_TOTP_COOKIE, token, httponly=True, samesite="strict", max_age=_SESSION_TTL, path="/")
     return {"ok": True}
 
 
@@ -260,8 +261,7 @@ async def totp_verify(body: TOTPVerifyBody, request: Request, response: Response
     if not _totp_verify(secret, body.code):
         raise HTTPException(401, "code invalid")
     token = _issue_session(env_file)
-    response.set_cookie(_TOTP_COOKIE, token, httponly=True, samesite="strict",
-                         max_age=_SESSION_TTL, path="/")
+    response.set_cookie(_TOTP_COOKIE, token, httponly=True, samesite="strict", max_age=_SESSION_TTL, path="/")
     return {"ok": True}
 
 
@@ -282,6 +282,7 @@ async def totp_disable(body: TOTPVerifyBody, request: Request, response: Respons
 
 
 # 2. Panic button — wipe keys + stop
+
 
 class PanicBody(BaseModel):
     confirm: str = Field(..., description='Must equal "WIPE AND STOP"')
@@ -306,6 +307,7 @@ async def panic(body: PanicBody, request: Request) -> dict:
 
     # 1) Best-effort node stop
     from . import admin_api as _admin_api
+
     try:
         await _admin_api.node_stop(request)  # type: ignore[arg-type]
     except Exception as e:
@@ -336,6 +338,7 @@ async def panic(body: PanicBody, request: Request) -> dict:
 
 # 3. JWT rotation scheduler job (registered externally)
 
+
 async def job_jwt_rotate(env_file: Path) -> dict:
     """Rotate the node's JWT_SECRET. The node reads this at every boot;
     in-flight sessions will need to re-auth after the next restart.
@@ -362,7 +365,7 @@ _signing_cache: dict[str, bytes] = {}
 
 _MAGIC = b"VTXWRAP1"
 _KDF_ITERS = 200_000
-_SALT_LEN  = 16
+_SALT_LEN = 16
 _NONCE_LEN = 12
 
 
@@ -373,10 +376,10 @@ def _signing_path(env_file: Path) -> Path:
 
 def _derive_wrap_key(passphrase: str, salt: bytes) -> bytes:
     return PBKDF2HMAC(
-        algorithm  = hashes.SHA256(),
-        length     = 32,
-        salt       = salt,
-        iterations = _KDF_ITERS,
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=_KDF_ITERS,
     ).derive(passphrase.encode("utf-8"))
 
 
@@ -401,7 +404,7 @@ async def passphrase_status(request: Request) -> dict:
         return {"enabled": False, "locked": False, "missing": True}
     data = p.read_bytes()
     enabled = _is_wrapped(data)
-    locked  = enabled and (str(p) not in _signing_cache)
+    locked = enabled and (str(p) not in _signing_cache)
     return {"enabled": enabled, "locked": locked, "missing": False}
 
 
@@ -426,8 +429,8 @@ async def passphrase_enable(body: PassphraseBody, request: Request) -> dict:
     tmp = p.with_suffix(".wrap.tmp")
     tmp.write_bytes(wrapped)
     os.replace(tmp, p)
-    try: os.chmod(p, 0o600)
-    except OSError: pass
+    with contextlib.suppress(OSError):
+        os.chmod(p, 0o600)
 
     # Keep plaintext in memory for the current process so the node
     # relaunch still works without prompting.
@@ -447,14 +450,14 @@ async def passphrase_unlock(body: PassphraseBody, request: Request) -> dict:
         _signing_cache[str(p)] = data
         return {"ok": True, "note": "key was not wrapped"}
 
-    salt  = data[len(_MAGIC):len(_MAGIC) + _SALT_LEN]
-    nonce = data[len(_MAGIC) + _SALT_LEN: len(_MAGIC) + _SALT_LEN + _NONCE_LEN]
-    ct    = data[len(_MAGIC) + _SALT_LEN + _NONCE_LEN:]
+    salt = data[len(_MAGIC) : len(_MAGIC) + _SALT_LEN]
+    nonce = data[len(_MAGIC) + _SALT_LEN : len(_MAGIC) + _SALT_LEN + _NONCE_LEN]
+    ct = data[len(_MAGIC) + _SALT_LEN + _NONCE_LEN :]
     try:
         wrap_key = _derive_wrap_key(body.passphrase, salt)
         plain = AESGCM(wrap_key).decrypt(nonce, ct, _MAGIC)
     except Exception:
-        raise HTTPException(401, "wrong passphrase")
+        raise HTTPException(401, "wrong passphrase") from None
 
     _signing_cache[str(p)] = plain
     return {"ok": True}
@@ -470,18 +473,18 @@ async def passphrase_disable(body: PassphraseBody, request: Request) -> dict:
     if not _is_wrapped(data):
         return {"ok": True, "already": "plaintext"}
 
-    salt  = data[len(_MAGIC):len(_MAGIC) + _SALT_LEN]
-    nonce = data[len(_MAGIC) + _SALT_LEN: len(_MAGIC) + _SALT_LEN + _NONCE_LEN]
-    ct    = data[len(_MAGIC) + _SALT_LEN + _NONCE_LEN:]
+    salt = data[len(_MAGIC) : len(_MAGIC) + _SALT_LEN]
+    nonce = data[len(_MAGIC) + _SALT_LEN : len(_MAGIC) + _SALT_LEN + _NONCE_LEN]
+    ct = data[len(_MAGIC) + _SALT_LEN + _NONCE_LEN :]
     try:
         wrap_key = _derive_wrap_key(body.passphrase, salt)
         plain = AESGCM(wrap_key).decrypt(nonce, ct, _MAGIC)
     except Exception:
-        raise HTTPException(401, "wrong passphrase")
+        raise HTTPException(401, "wrong passphrase") from None
 
     p.write_bytes(plain)
-    try: os.chmod(p, 0o600)
-    except OSError: pass
+    with contextlib.suppress(OSError):
+        os.chmod(p, 0o600)
     _signing_cache[str(p)] = plain
     return {"ok": True}
 
@@ -519,15 +522,15 @@ _CSP_PROFILES = {
 }
 
 _HSTS_PROFILES = {
-    "off":     "",
-    "on":      "max-age=15552000; includeSubDomains",
+    "off": "",
+    "on": "max-age=15552000; includeSubDomains",
     "preload": "max-age=31536000; includeSubDomains; preload",
 }
 
 
 class HeaderPolicyBody(BaseModel):
-    csp_profile:  str = Field(..., pattern=r"^(strict|relaxed|off|custom)$")
-    csp_custom:   Optional[str] = Field(None, max_length=2048)
+    csp_profile: str = Field(..., pattern=r"^(strict|relaxed|off|custom)$")
+    csp_custom: Optional[str] = Field(None, max_length=2048)
     hsts_profile: str = Field(..., pattern=r"^(off|on|preload)$")
 
 
@@ -535,13 +538,12 @@ class HeaderPolicyBody(BaseModel):
 async def headers_get(request: Request) -> dict:
     env = _read_env(_env_file(request))
     return {
-        "csp_profile":  env.get("CSP_PROFILE", "strict"),
-        "csp_custom":   env.get("CSP_CUSTOM", ""),
+        "csp_profile": env.get("CSP_PROFILE", "strict"),
+        "csp_custom": env.get("CSP_CUSTOM", ""),
         "hsts_profile": env.get("HSTS_PROFILE", "off"),
-        "profiles":     {"csp": list(_CSP_PROFILES.keys()) + ["custom"],
-                         "hsts": list(_HSTS_PROFILES.keys())},
+        "profiles": {"csp": [*list(_CSP_PROFILES.keys()), "custom"], "hsts": list(_HSTS_PROFILES.keys())},
         "preview": {
-            "csp":  _render_csp(env),
+            "csp": _render_csp(env),
             "hsts": _HSTS_PROFILES.get(env.get("HSTS_PROFILE", "off"), ""),
         },
     }
@@ -558,7 +560,7 @@ def _render_csp(env: dict) -> str:
 async def headers_set(body: HeaderPolicyBody, request: Request) -> dict:
     env_file = _env_file(request)
     updates: dict[str, str] = {
-        "CSP_PROFILE":  body.csp_profile,
+        "CSP_PROFILE": body.csp_profile,
         "HSTS_PROFILE": body.hsts_profile,
     }
     if body.csp_profile == "custom":
@@ -568,7 +570,7 @@ async def headers_set(body: HeaderPolicyBody, request: Request) -> dict:
     return {
         "ok": True,
         "applied": {
-            "csp":  _render_csp(env),
+            "csp": _render_csp(env),
             "hsts": _HSTS_PROFILES.get(body.hsts_profile, ""),
         },
         "note": "Restart the node to apply on its HTTP responses.",

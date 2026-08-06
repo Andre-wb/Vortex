@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import base64
 import logging
 import os
@@ -353,8 +354,8 @@ def _ensure_vapid_keys() -> None:
     if os.getenv("VAPID_PUBLIC_KEY"):
         return
     try:
-        from cryptography.hazmat.primitives.asymmetric import ec
         from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
 
         private_key = ec.generate_private_key(ec.SECP256R1())
 

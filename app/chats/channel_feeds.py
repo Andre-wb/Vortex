@@ -16,10 +16,10 @@ import ipaddress
 import logging
 import secrets
 import socket
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
+import defusedxml.ElementTree as ET  # noqa: N817
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -43,7 +43,7 @@ class AddFeedRequest(BaseModel):
 
 
 def _require_admin(room_id: int, user: User, db: Session) -> None:
-    channel = db.query(Room).filter(Room.id == room_id, Room.is_channel == True).first()
+    channel = db.query(Room).filter(Room.id == room_id, Room.is_channel.is_(True)).first()
     if not channel:
         raise HTTPException(404, "Channel not found")
     member = db.query(RoomMember).filter(
@@ -190,7 +190,7 @@ async def receive_webhook(room_id: int, request: Request, db: Session = Depends(
         ChannelFeed.room_id == room_id,
         ChannelFeed.feed_type == "webhook",
         ChannelFeed.url == secret,
-        ChannelFeed.is_active == True,
+        ChannelFeed.is_active.is_(True),
     ).first()
     if not feed:
         raise HTTPException(403, "Invalid webhook secret")
@@ -198,7 +198,7 @@ async def receive_webhook(room_id: int, request: Request, db: Session = Depends(
     try:
         body = await request.json()
     except Exception:
-        raise HTTPException(400, "Request body must be valid JSON")
+        raise HTTPException(400, "Request body must be valid JSON") from None
 
     text = body.get("text") or body.get("message") or body.get("content") or ""
     if not text:
@@ -269,7 +269,7 @@ async def poll_rss_feeds(db: Session) -> None:
     """
     feeds = db.query(ChannelFeed).filter(
         ChannelFeed.feed_type == "rss",
-        ChannelFeed.is_active == True,
+        ChannelFeed.is_active.is_(True),
     ).all()
 
     if not feeds:

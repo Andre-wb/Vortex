@@ -27,7 +27,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ROOT = Path("/Users/borismaltsev/RustroverProjects")
 IOS_EN = ROOT / "Vortex/ios/Modules/Sources/I18N/Resources/locales/en.json"
 WEB_LOCALES = sorted((ROOT / "vortex-introduce-page/locales").glob("*.json"))

@@ -5,12 +5,9 @@ test_resilience.py — Тесты устойчивости Vortex.
 файлы, аутентификация, федерация, звонки.
 """
 import secrets
-import time
 
 import pytest
-
-from conftest import make_user, login_user, random_str
-
+from conftest import login_user, make_user, random_str
 
 # 1. КЛЮЧИ И ШИФРОВАНИЕ
 

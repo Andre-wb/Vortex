@@ -15,6 +15,7 @@ Config:
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 
@@ -85,10 +86,8 @@ class TorHiddenService:
             except Exception as e:
                 logger.warning("Failed to remove Tor HS: %s", e)
             finally:
-                try:
+                with contextlib.suppress(Exception):
                     self._controller.close()
-                except Exception:
-                    pass
                 self._controller = None
                 self._service_id = None
 

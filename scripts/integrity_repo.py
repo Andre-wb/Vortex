@@ -27,20 +27,22 @@ coexist and are signed by different Ed25519 keypairs.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 try:
+    from cryptography.exceptions import InvalidSignature
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-        Ed25519PrivateKey, Ed25519PublicKey,
+        Ed25519PrivateKey,
+        Ed25519PublicKey,
     )
-    from cryptography.exceptions import InvalidSignature
 except ImportError:
     sys.stderr.write("cryptography not installed; run: pip install cryptography\n")
     sys.exit(1)
@@ -133,8 +135,7 @@ def _walk(root: Path) -> Iterator[Path]:
             if _should_include(rel):
                 collected.append(rel)
     # Deterministic order — two independent builds produce byte-identical manifests.
-    for p in sorted(collected, key=lambda q: q.as_posix()):
-        yield p
+    yield from sorted(collected, key=lambda q: q.as_posix())
 
 
 # Rust acceleration (same pattern as vortex_controller/integrity/manifest.py):
@@ -187,10 +188,8 @@ def _load_or_create_key(path: Path) -> Ed25519PrivateKey:
         encryption_algorithm=serialization.NoEncryption(),
     )
     path.write_bytes(raw)
-    try:
+    with contextlib.suppress(OSError):
         os.chmod(path, 0o600)
-    except OSError:
-        pass
     return priv
 
 
@@ -314,10 +313,8 @@ def cmd_list(args) -> int:
     n = 0
     total_bytes = 0
     for rel in _walk(REPO_ROOT):
-        try:
+        with contextlib.suppress(OSError):
             total_bytes += (REPO_ROOT / rel).stat().st_size
-        except OSError:
-            pass
         n += 1
         if args.paths:
             print(rel.as_posix())

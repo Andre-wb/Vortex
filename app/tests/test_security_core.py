@@ -4,9 +4,7 @@ import os
 import secrets
 
 import pytest
-
-from conftest import SyncASGIClient, random_str, random_digits, _phone_prefix
-
+from conftest import SyncASGIClient, _phone_prefix, random_digits, random_str
 
 _test_phone_pfx = _phone_prefix
 
@@ -78,10 +76,7 @@ class TestSecurity:
     def test_protected_routes_require_auth(self, client: SyncASGIClient):
         bare = SyncASGIClient()
         for method, url in [('GET', '/api/rooms/my'), ('GET', '/api/peers'), ('POST', '/api/rooms')]:
-            if method == 'GET':
-                r = bare.get(url)
-            else:
-                r = bare.post(url, json={})
+            r = bare.get(url) if method == 'GET' else bare.post(url, json={})
             assert r.status_code in (401, 403, 422), \
                 f'{method} {url} должен требовать авторизацию, получено {r.status_code}'
 
@@ -97,8 +92,8 @@ class TestSecurity:
 
     def test_jwt_secret_length(self):
         try:
-            from app.config import Config as settings
-            secret = getattr(settings, 'JWT_SECRET', '') or os.environ.get('JWT_SECRET', '')
+            from app.config import Config
+            secret = getattr(Config, 'JWT_SECRET', '') or os.environ.get('JWT_SECRET', '')
             assert len(secret) >= 32, f'JWT_SECRET слишком короткий: {len(secret)} символов'
         except ImportError:
             pytest.skip('config не импортируется')

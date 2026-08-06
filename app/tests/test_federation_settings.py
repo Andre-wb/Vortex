@@ -11,12 +11,11 @@
   - Edge cases: дубликаты, невалидные данные, SSRF
 """
 
+import contextlib
 import secrets
 import time
 
-import pytest
-
-from conftest import SyncASGIClient, make_user, login_user, random_str, fed_proof_headers
+from conftest import SyncASGIClient, fed_proof_headers, random_str
 
 from app.federation.federation import make_guest_proof
 from app.federation.trusted_nodes import make_federation_proof
@@ -25,18 +24,14 @@ from app.federation.trusted_nodes import make_federation_proof
 # Auto-bypass PoW for test client IP (127.0.0.1 / testclient)
 def _bypass_gossip_security():
     """Mark test client IPs as PoW-verified and disable rate limiting for tests."""
-    try:
+    with contextlib.suppress(Exception):
         from app.transport.gossip_security import ProofOfWork
         for addr in ('127.0.0.1', 'testclient', 'testserver', 'localhost'):
             ProofOfWork._verified[addr] = time.monotonic()
-    except Exception:
-        pass
     # Disable gossip rate limiter cooldown for tests
-    try:
+    with contextlib.suppress(Exception):
         from app.federation.trusted_nodes import _gossip_rate_limiter
         _gossip_rate_limiter._cooldown = 0.0  # no cooldown in tests
-    except Exception:
-        pass
 
 _bypass_gossip_security()
 
@@ -90,7 +85,7 @@ class TestMultiNodeConnection:
         """Подключение 3 узлов через handshake — все появляются в списке."""
         h = logged_user['headers']
         nodes = []
-        for i in range(3):
+        for _i in range(3):
             n = _register_node_via_handshake(client, h)
             assert n['response']['accepted'] is True
             nodes.append(n)
@@ -121,7 +116,7 @@ class TestMultiNodeConnection:
         tag = random_str()
         url = f'https://dup-node-{tag}.example.com:8443'
         n1 = _register_node_via_handshake(client, h, url=url)
-        n2 = _register_node_via_handshake(client, h, url=url)
+        _register_node_via_handshake(client, h, url=url)
         # Оба должны вернуть 200 (accepted или уже known)
         assert n1['response']['accepted'] is True
 

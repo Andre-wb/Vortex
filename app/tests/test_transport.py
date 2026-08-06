@@ -16,14 +16,12 @@ Covers:
 from __future__ import annotations
 
 import base64
+import contextlib
 import secrets
-import struct
 import time
 
 import pytest
-
-from conftest import make_user, login_user, random_str
-
+from conftest import login_user, make_user, random_str
 
 # Helpers
 
@@ -653,8 +651,9 @@ def test_normalizer_record_and_padding():
 # Pure-Python unit tests: CDNRelayConfig
 
 def test_cdn_config_disabled_by_default():
-    from app.transport.cdn_relay import CDNRelayConfig
     import os
+
+    from app.transport.cdn_relay import CDNRelayConfig
 
     # Temporarily remove CDN env vars
     old_urls = os.environ.pop("CDN_RELAY_URLS", None)
@@ -671,8 +670,9 @@ def test_cdn_config_disabled_by_default():
 
 
 def test_cdn_config_multi_url():
-    from app.transport.cdn_relay import CDNRelayConfig
     import os
+
+    from app.transport.cdn_relay import CDNRelayConfig
 
     os.environ["CDN_RELAY_URLS"] = "https://cdn1.example.com,https://cdn2.example.com"
     try:
@@ -686,8 +686,9 @@ def test_cdn_config_multi_url():
 
 
 def test_cdn_config_failover():
-    from app.transport.cdn_relay import CDNRelayConfig
     import os
+
+    from app.transport.cdn_relay import CDNRelayConfig
 
     os.environ["CDN_RELAY_URLS"] = "https://cdn1.example.com,https://cdn2.example.com"
     try:
@@ -700,8 +701,9 @@ def test_cdn_config_failover():
 
 
 def test_cdn_config_report_success():
-    from app.transport.cdn_relay import CDNRelayConfig
     import os
+
+    from app.transport.cdn_relay import CDNRelayConfig
 
     os.environ["CDN_RELAY_URLS"] = "https://cdn1.example.com"
     try:
@@ -715,11 +717,12 @@ def test_cdn_config_report_success():
 
 
 def test_cdn_config_get_headers_with_secret():
-    from app.transport.cdn_relay import CDNRelayConfig
     import os
 
+    from app.transport.cdn_relay import CDNRelayConfig
+
     os.environ["CDN_RELAY_URLS"] = "https://cdn.example.com"
-    os.environ["CDN_RELAY_SECRET"] = "my-secret"
+    os.environ["CDN_RELAY_SECRET"] = "my-secret"  # noqa: S105
     try:
         cfg = CDNRelayConfig()
         headers = cfg.get_headers()
@@ -739,7 +742,7 @@ def test_cdn_config_get_headers_with_secret():
 # Pure-Python unit tests: knock.py
 
 def test_knock_sequence_completion():
-    from app.transport.knock import record_page_visit, verify_knock, get_current_knock_sequence
+    from app.transport.knock import get_current_knock_sequence, record_page_visit, verify_knock
 
     session_id = f"test_sess_{random_str(10)}"
     seq = get_current_knock_sequence()
@@ -767,7 +770,7 @@ def test_knock_verify_invalid_token():
 
 
 def test_knock_wrong_sequence_order():
-    from app.transport.knock import record_page_visit, get_current_knock_sequence
+    from app.transport.knock import get_current_knock_sequence, record_page_visit
 
     session_id = f"wrong_order_{random_str(8)}"
     seq = get_current_knock_sequence()
@@ -907,7 +910,7 @@ def test_steganography_can_use():
 
 
 def test_steganography_embed_and_extract():
-    from app.transport.steganography import can_use_steganography, generate_cover_image, embed_data, extract_data
+    from app.transport.steganography import can_use_steganography, embed_data, extract_data, generate_cover_image
 
     if not can_use_steganography():
         pytest.skip("PIL not available — skipping steganography tests")
@@ -925,7 +928,7 @@ def test_steganography_embed_and_extract():
 
 
 def test_steganography_extract_plain_image_returns_none():
-    from app.transport.steganography import can_use_steganography, generate_cover_image, extract_data
+    from app.transport.steganography import can_use_steganography, extract_data, generate_cover_image
 
     if not can_use_steganography():
         pytest.skip("PIL not available")
@@ -944,19 +947,17 @@ def test_steganography_extract_non_image_returns_none():
 
 
 def test_steganography_data_too_large_raises():
-    from app.transport.steganography import can_use_steganography, generate_cover_image, embed_data
+    from app.transport.steganography import can_use_steganography, embed_data, generate_cover_image
 
     if not can_use_steganography():
         pytest.skip("PIL not available")
 
     cover = generate_cover_image(8, 8)  # tiny image
     huge_data = b"x" * 100000
-    try:
-        result = embed_data(cover, huge_data)
+    with contextlib.suppress((ValueError, Exception)):
+        embed_data(cover, huge_data)
         # Some implementations return None instead of raising
-        assert result is None or True
-    except (ValueError, Exception):
-        pass  # expected
+        assert True
 
 
 # Pure-Python unit tests: GlobalPeerInfo (global_transport.py)
@@ -1077,8 +1078,9 @@ def test_cover_traffic_empty_not_cover():
 # Pure-Python unit tests: StealthResponse (stealth_http.py)
 
 def test_stealth_response_json():
-    from app.transport.stealth_http import StealthResponse
     import json
+
+    from app.transport.stealth_http import StealthResponse
 
     payload = {"key": "value", "num": 42}
     resp = StealthResponse(200, json.dumps(payload).encode(), {})

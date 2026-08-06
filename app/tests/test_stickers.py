@@ -1,7 +1,6 @@
 """
 Tests for sticker packs.
 """
-import pytest
 
 from conftest import random_str
 

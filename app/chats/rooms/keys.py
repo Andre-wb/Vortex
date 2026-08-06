@@ -10,26 +10,34 @@ from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.chats.rooms.helpers import (
+    EncryptedKeyPayload,
+    ProvideKeyRequest,
+    _approval_enforced,
+    _broadcast_key_request,
+    _can_admit,
+    _invalidate_room_escrows,
+    _require_member,
+    _room_dict,
+    router,
+)
 from app.config import Config
 from app.database import get_db
 from app.models import User
-from app.models_rooms import EncryptedRoomKey, PendingKeyRequest, Room, RoomMember, RoomRole, JoinRequest, RoomInvite, RoomInviteEscrow
+from app.models_rooms import (
+    EncryptedRoomKey,
+    JoinRequest,
+    PendingKeyRequest,
+    Room,
+    RoomInvite,
+    RoomInviteEscrow,
+    RoomMember,
+    RoomRole,
+)
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
-from app.security.key_exchange import validate_ecies_payload
 from app.security.ecies_schema import EciesKeyFields
-
-from app.chats.rooms.helpers import (
-    router,
-    ProvideKeyRequest,
-    EncryptedKeyPayload,
-    _room_dict,
-    _require_member,
-    _broadcast_key_request,
-    _approval_enforced,
-    _can_admit,
-    _invalidate_room_escrows,
-)
+from app.security.key_exchange import validate_ecies_payload
 
 
 class ProvisionKeyRequest(EciesKeyFields):
@@ -155,7 +163,7 @@ async def provide_key(
     target_member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == body.for_user_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
         ).first()
     if not target_member:
         raise HTTPException(404, "Recipient is not a room member")
@@ -246,7 +254,7 @@ async def provision_key(
         raise HTTPException(403, "No room key — cannot provision for others")
 
     target = db.query(User).filter(
-        User.id == body.for_user_id, User.is_active == True,
+        User.id == body.for_user_id, User.is_active.is_(True),
     ).first()
     if not target or not target.x25519_public_key:
         raise HTTPException(400, "Recipient not found or has no X25519 key")
@@ -425,7 +433,7 @@ async def approve_join(
     if not req:
         raise HTTPException(404, "No pending join request for this user")
 
-    target = db.query(User).filter(User.id == body.user_id, User.is_active == True).first()
+    target = db.query(User).filter(User.id == body.user_id, User.is_active.is_(True)).first()
     if not target or not target.x25519_public_key:
         db.delete(req)
         db.commit()
@@ -585,7 +593,7 @@ async def rotate_room_key(
     # Создаём PendingKeyRequest для всех участников
     members = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).all()
 
     for m in members:

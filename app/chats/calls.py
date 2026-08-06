@@ -7,11 +7,11 @@ Provides a "recent calls" view for the Calls tab.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -109,7 +109,7 @@ async def unseen_missed_calls(u: User = Depends(get_current_user), db: Session =
     calls = db.query(CallHistory).filter(
         CallHistory.callee_id == u.id,
         CallHistory.status == "missed",
-        CallHistory.seen == False,
+        CallHistory.seen.is_(False),
     ).order_by(CallHistory.started_at.desc()).limit(20).all()
 
     return {
@@ -124,7 +124,7 @@ async def mark_missed_seen(u: User = Depends(get_current_user), db: Session = De
     db.query(CallHistory).filter(
         CallHistory.callee_id == u.id,
         CallHistory.status == "missed",
-        CallHistory.seen == False,
+        CallHistory.seen.is_(False),
     ).update({"seen": True}, synchronize_session=False)
     db.commit()
     return {"ok": True}

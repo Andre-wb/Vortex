@@ -54,7 +54,7 @@ def _find_dm_room(owner_id: int, contact_id: int, db: Session) -> int | None:
     rooms_owner = (
         db.query(RoomMember.room_id)
         .join(Room, Room.id == RoomMember.room_id)
-        .filter(Room.is_dm == True, RoomMember.user_id == owner_id)
+        .filter(Room.is_dm.is_(True), RoomMember.user_id == owner_id)
         .subquery()
     )
     dm_member = (
@@ -117,13 +117,13 @@ async def list_contacts(
     my_dm_room_ids = (
         db.query(RoomMember.room_id)
         .join(Room, Room.id == RoomMember.room_id)
-        .filter(Room.is_dm == True, RoomMember.user_id == u.id)
+        .filter(Room.is_dm.is_(True), RoomMember.user_id == u.id)
         .scalar_subquery()
     )
     my_dm_rooms = (
         db.query(RoomMember.room_id, RoomMember.user_id)
         .join(Room, Room.id == RoomMember.room_id)
-        .filter(Room.is_dm == True, RoomMember.room_id.in_(my_dm_room_ids),
+        .filter(Room.is_dm.is_(True), RoomMember.room_id.in_(my_dm_room_ids),
                 RoomMember.user_id.in_(contact_ids))
         .all()
     )
@@ -174,7 +174,7 @@ async def add_contact(
     if body.user_id == u.id:
         raise HTTPException(400, "Cannot add yourself to contacts")
 
-    target = db.query(User).filter(User.id == body.user_id, User.is_active == True).first()
+    target = db.query(User).filter(User.id == body.user_id, User.is_active.is_(True)).first()
     if not target:
         raise HTTPException(404, "User not found")
 
@@ -310,7 +310,7 @@ async def get_user_profile(
     """Полный профиль пользователя: данные, DM-комната, общие группы и медиа."""
     from app.models_rooms import FileTransfer
 
-    target = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    target = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
     if not target:
         raise HTTPException(404, "User not found")
 
@@ -328,7 +328,7 @@ async def get_user_profile(
         .filter(
             Room.id.in_(db.query(my_rooms.c.room_id)),
             Room.id.in_(db.query(their_rooms.c.room_id)),
-            Room.is_dm == False,
+            Room.is_dm.is_(False),
         )
         .all()
     )
@@ -345,7 +345,7 @@ async def get_user_profile(
             db.query(FileTransfer)
             .filter(
                 FileTransfer.room_id.in_(all_room_ids),
-                FileTransfer.is_available == True,
+                FileTransfer.is_available.is_(True),
                 FileTransfer.mime_type.like("image/%"),
             )
             .order_by(FileTransfer.created_at.desc())

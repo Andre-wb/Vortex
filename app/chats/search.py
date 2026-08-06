@@ -119,7 +119,7 @@ async def search_users(
     users = (
         db.query(User)
         .filter(
-            User.is_active == True,
+            User.is_active.is_(True),
             or_(*filters),
         )
         .limit(50)
@@ -155,7 +155,7 @@ async def search_users(
     scored.sort(key=lambda x: x[0], reverse=True)
 
     results = []
-    for sim, user in scored[:20]:
+    for _sim, user in scored[:20]:
         results.append({
             "user_id":               user.id,
             "username":              user.username,
@@ -194,7 +194,7 @@ async def global_search(
         user_filters.append(User.username.ilike(like_q))
 
     users = db.query(User).filter(
-        User.is_active == True,
+        User.is_active.is_(True),
         or_(*user_filters),
     ).limit(30).all()
 
@@ -224,9 +224,9 @@ async def global_search(
     like_q = f"%{q}%"
     my_room_ids_set = {m.room_id for m in db.query(RoomMember.room_id).filter(RoomMember.user_id == u.id).all()}
     public_rooms = db.query(Room).filter(
-        Room.is_dm == False,
+        Room.is_dm.is_(False),
         Room.name.ilike(like_q),
-        or_(Room.is_private == False, Room.id.in_(my_room_ids_set)),
+        or_(Room.is_private.is_(False), Room.id.in_(my_room_ids_set)),
     ).all()
 
     channel_results = []
@@ -258,8 +258,8 @@ async def global_search(
 
     # Bots matching name or display_name
     bots = db.query(User).filter(
-        User.is_bot == True,
-        User.is_active == True,
+        User.is_bot.is_(True),
+        User.is_active.is_(True),
         or_(
             User.username.ilike(f"%{q}%"),
             User.display_name.ilike(f"%{q}%"),
@@ -310,7 +310,7 @@ async def search_messages(
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == u.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not member:
         raise HTTPException(403, "You are not a member of this room")
@@ -331,21 +331,21 @@ async def search_messages(
         try:
             msg_type = MessageType(type)
         except ValueError:
-            raise HTTPException(400, f"Unknown message type: {type}")
+            raise HTTPException(400, f"Unknown message type: {type}") from None
         query = query.filter(Message.msg_type == msg_type)
 
     if date_from is not None:
         try:
             dt_from = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
         except ValueError:
-            raise HTTPException(400, "Invalid date_from format (ISO expected)")
+            raise HTTPException(400, "Invalid date_from format (ISO expected)") from None
         query = query.filter(Message.created_at >= dt_from)
 
     if date_to is not None:
         try:
             dt_to = datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
         except ValueError:
-            raise HTTPException(400, "Invalid date_to format (ISO expected)")
+            raise HTTPException(400, "Invalid date_to format (ISO expected)") from None
         query = query.filter(Message.created_at <= dt_to)
 
     total = query.count()

@@ -3,11 +3,11 @@
 Энфорс за Config.JOIN_APPROVAL_ENFORCED (дефолт OFF — дормантно). Ключевой тест —
 негатив-реконсиляция: обычный член НЕ может обойти апрув через provision-key.
 """
+
 import secrets
 
 import pytest
-
-from conftest import make_user, login_user, random_str
+from conftest import login_user, make_user, random_str
 
 
 def _classical_key() -> dict:
@@ -23,10 +23,15 @@ def _uid(u: dict) -> int:
 
 
 def _create_room(client, headers):
-    r = client.post("/api/rooms", json={
-        "name": f"room_{random_str(6)}", "is_private": True,
-        "encrypted_room_key": _classical_key(),
-    }, headers=headers)
+    r = client.post(
+        "/api/rooms",
+        json={
+            "name": f"room_{random_str(6)}",
+            "is_private": True,
+            "encrypted_room_key": _classical_key(),
+        },
+        headers=headers,
+    )
     assert r.status_code in (200, 201), r.text
     b = r.json()
     room = b.get("room", b)
@@ -69,18 +74,20 @@ def test_negative_reconciliation_member_cannot_bypass_approval(client, enforce):
     member_id, stranger_id = _uid(member), _uid(stranger)
 
     o_h = login_user(client, owner["username"], owner["password"])
-    room_id, invite = _create_room(client, o_h)
+    room_id, _invite = _create_room(client, o_h)
     _set_approval(client, o_h, room_id, True)
     # owner (OWNER → _can_admit=True) провижнит ключ для member → member станет членом с ключом
-    r0 = client.post(f"/api/rooms/{room_id}/provision-key",
-                     json={"for_user_id": member_id, **_classical_key()}, headers=o_h)
+    r0 = client.post(
+        f"/api/rooms/{room_id}/provision-key", json={"for_user_id": member_id, **_classical_key()}, headers=o_h
+    )
     assert r0.status_code == 200, r0.text
 
     # member (роль MEMBER, есть ключ) пробует провижнить незнакомца → 403 (_can_admit=False)
     m_h = login_user(client, member["username"], member["password"])
     assert client.get(f"/api/rooms/{room_id}/key-bundle", headers=m_h).json()["has_key"] is True
-    r = client.post(f"/api/rooms/{room_id}/provision-key",
-                    json={"for_user_id": stranger_id, **_classical_key()}, headers=m_h)
+    r = client.post(
+        f"/api/rooms/{room_id}/provision-key", json={"for_user_id": stranger_id, **_classical_key()}, headers=m_h
+    )
     assert r.status_code == 403, r.text
 
     # незнакомец НЕ член
@@ -106,8 +113,9 @@ def test_admin_approve_join_admits_and_stores_key(client, enforce):
     lst = client.get(f"/api/rooms/{room_id}/join-requests", headers=o_h).json()["requests"]
     assert any(q["user_id"] == stranger_id for q in lst)
     key = _classical_key()
-    ap = client.post(f"/api/rooms/{room_id}/approve-join",
-                     json={"user_id": stranger_id, "encrypted_room_key": key}, headers=o_h)
+    ap = client.post(
+        f"/api/rooms/{room_id}/approve-join", json={"user_id": stranger_id, "encrypted_room_key": key}, headers=o_h
+    )
     assert ap.status_code == 200, ap.text
     assert ap.json()["added"] is True and ap.json()["key_stored"] is True
 
@@ -142,12 +150,18 @@ def test_channel_join_also_gated(client, enforce):
     pending, не член (иначе апрув канала обходится через /channels/join)."""
     owner = make_user(client, suffix=f"o{random_str(6)}")
     o_h = login_user(client, owner["username"], owner["password"])
-    r = client.post("/api/channels", json={
-        "name": f"ch_{random_str(6)}", "encrypted_room_key": _classical_key(),
-    }, headers=o_h)
+    r = client.post(
+        "/api/channels",
+        json={
+            "name": f"ch_{random_str(6)}",
+            "encrypted_room_key": _classical_key(),
+        },
+        headers=o_h,
+    )
     if r.status_code not in (200, 201):
         pytest.skip(f"channel create unavailable: {r.status_code}")
-    ch = r.json(); ch = ch.get("room", ch)
+    ch = r.json()
+    ch = ch.get("room", ch)
     channel_id = ch.get("id")
     invite = ch.get("invite_code")
     if not (channel_id and invite):
@@ -169,10 +183,10 @@ def test_dormant_when_flag_off_join_adds_member_directly(client):
     stranger = make_user(client, suffix=f"s{random_str(6)}")
     o_h = login_user(client, owner["username"], owner["password"])
     room_id, invite = _create_room(client, o_h)
-    _set_approval(client, o_h, room_id, True)   # флаг комнаты ВКЛ, но Config OFF
+    _set_approval(client, o_h, room_id, True)  # флаг комнаты ВКЛ, но Config OFF
 
     st_h = login_user(client, stranger["username"], stranger["password"])
     r = client.post(f"/api/rooms/join/{invite}", headers=st_h)
     assert r.status_code == 200, r.text
-    assert r.json().get("joined") is True          # добавлен сразу, не pending
+    assert r.json().get("joined") is True  # добавлен сразу, не pending
     assert r.json().get("pending") is not True

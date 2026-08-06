@@ -20,10 +20,10 @@ plaintext verbatim (no prefix) so legacy deploys stay compatible.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import struct
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +89,7 @@ def unpad(padded: bytes) -> bytes:
 def bucket_for(plaintext_len: int) -> int:
     """Expose bucket calculation for analytics / UI."""
     if _HAS_RUST_PAD:
-        try:
+        with contextlib.suppress(Exception):
             return _vc_rust.pad_bucket_for(plaintext_len)
-        except Exception:
-            pass
     needed = plaintext_len + 2
     return next((b for b in BUCKETS if b >= needed), 65536)

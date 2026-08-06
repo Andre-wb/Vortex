@@ -1,16 +1,16 @@
 """Интеграционные сценарии: discovery, сообщения, multihop, файлы, latency, relay."""
 
 import asyncio
+import contextlib
 import hashlib
 import os
 import secrets
 import time
 
 import pytest
+from conftest import SyncASGIClient, _phone_prefix, random_digits, random_str
 
-from conftest import SyncASGIClient, random_str, random_digits, _phone_prefix
 from app.main import app
-
 
 _test_phone_pfx = _phone_prefix
 
@@ -168,10 +168,8 @@ class TestIntegrationScenarios:
 
         assert test_relay._outqueue[vid].qsize() == 1
         test_relay._tasks[vid].cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await test_relay._tasks[vid]
-        except asyncio.CancelledError:
-            pass
 
         msg2 = {"type": "message", "text": "world"}
         await test_relay.send_to_remote(vid, msg2)
@@ -183,7 +181,5 @@ class TestIntegrationScenarios:
         await asyncio.sleep(0.5)
         assert test_relay._outqueue[vid].qsize() == 0
         new_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await new_task
-        except asyncio.CancelledError:
-            pass

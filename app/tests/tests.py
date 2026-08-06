@@ -15,14 +15,14 @@ app/tests/tests.py — тонкий хаб, ре-экспортирует все
   test_integration.py      — интеграционные сценарии
 """
 
+from app.tests.test_auth_core import TestLogin, TestRegistration, TestSession  # noqa: F401
 from app.tests.test_crypto_core import TestAESGCM, TestSHA256Integrity, TestX25519PubkeyFromJWK  # noqa: F401
-from app.tests.test_auth_core import TestRegistration, TestLogin, TestSession  # noqa: F401
-from app.tests.test_rooms_core import TestRooms  # noqa: F401
-from app.tests.test_files_core import TestFiles  # noqa: F401
-from app.tests.test_websocket_core import TestWebSocket  # noqa: F401
 from app.tests.test_e2e_encryption import TestE2EEncryption  # noqa: F401
+from app.tests.test_files_core import TestFiles  # noqa: F401
+from app.tests.test_integration import TestIntegrationScenarios  # noqa: F401
+from app.tests.test_metrics import TestMetrics  # noqa: F401
 from app.tests.test_peers_core import TestPeers  # noqa: F401
 from app.tests.test_reliability import TestReliability  # noqa: F401
+from app.tests.test_rooms_core import TestRooms  # noqa: F401
 from app.tests.test_security_core import TestSecurity  # noqa: F401
-from app.tests.test_metrics import TestMetrics  # noqa: F401
-from app.tests.test_integration import TestIntegrationScenarios  # noqa: F401
+from app.tests.test_websocket_core import TestWebSocket  # noqa: F401

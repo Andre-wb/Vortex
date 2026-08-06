@@ -53,14 +53,13 @@ async def _build_stack(tmp: Path):
         key_a, key_b: each node's Ed25519 NodeSigningKey
         httpx_patcher: context manager that routes requests by hostname
     """
-    from fastapi import FastAPI
-    from asgi_lifespan import LifespanManager
     import httpx
+    from fastapi import FastAPI
     from httpx import ASGITransport
-
     from vortex_controller.main import create_app as create_controller_app
-    from app.peer._router import router as peers_router
+
     from app.peer import controller_proxy  # noqa: F401 — registers endpoint
+    from app.peer._router import router as peers_router
     from app.peer.controller_client import NodeSigningKey
     from app.session.migration import router as session_router
     from app.transport.blind_mailbox import router as bmp_router
@@ -89,7 +88,7 @@ async def _build_stack(tmp: Path):
     node_a = _make_node("A", key_a)
     node_b = _make_node("B", key_b)
 
-    ctrl_pub = ctrl_app.state.controller_key.pubkey_hex() if hasattr(
+    ctrl_app.state.controller_key.pubkey_hex() if hasattr(
         ctrl_app, "state") and hasattr(ctrl_app.state, "controller_key") else None
 
     # Route requests based on hostname.
@@ -238,7 +237,6 @@ async def test_full_mobile_migration():
     import httpx
     from asgi_lifespan import LifespanManager
 
-    from app.peer.controller_client import ControllerClient, NodeSigningKey
     from app.session.handoff_token import _reset_replay_cache_for_tests
 
     _reset_replay_cache_for_tests()
@@ -366,7 +364,7 @@ async def test_handoff_rejects_unknown_source():
     from asgi_lifespan import LifespanManager
 
     from app.peer.controller_client import NodeSigningKey
-    from app.session.handoff_token import issue_handoff_token, _reset_replay_cache_for_tests
+    from app.session.handoff_token import _reset_replay_cache_for_tests, issue_handoff_token
 
     _reset_replay_cache_for_tests()
 

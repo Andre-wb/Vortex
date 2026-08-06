@@ -3,28 +3,26 @@ rooms_members — Управление участниками комнаты: с
 """
 from __future__ import annotations
 
+import json as _json
 import logging
+from typing import Optional
 
 from fastapi import Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.chats.rooms.helpers import (
+    ChangeRoleRequest,
+    _invalidate_room_escrows,
+    _require_member,
+    router,
+)
 from app.database import get_db
 from app.models import User
 from app.models.prekeys import PreKeyBundle
 from app.models_rooms import EncryptedRoomKey, PendingKeyRequest, RoomMember, RoomRole
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
-
-from app.chats.rooms.helpers import (
-    router,
-    ChangeRoleRequest,
-    _require_member,
-    _invalidate_room_escrows,
-)
-
-import json as _json
-from typing import Optional
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -392,6 +390,7 @@ async def get_room_bot_commands(
 ):
     """Return all bot commands available in this room."""
     import json as _json
+
     from app.bots.bot_crud import Bot
 
     # Get bot user_ids in this room

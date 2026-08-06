@@ -17,16 +17,14 @@ SECURITY: all argv is constructed as a list (no shell), with Pydantic-
 validated model/email/domain strings and an explicit argv-alphanumeric
 check to reject anything funny before it reaches the child process.
 """
+
 from __future__ import annotations
 
 import asyncio
-from asyncio import subprocess as _asp
-import json
 import logging
-import os
 import platform
 import shutil
-import time
+from asyncio import subprocess as _asp
 from pathlib import Path
 from typing import Optional
 
@@ -41,9 +39,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/wiz/admin/ai", tags=["ai-setup"])
 
+_bg_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> asyncio.Task:
+    task = asyncio.ensure_future(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+    return task
+
 
 DEFAULT_MODEL = "qwen3:8b"
-OLLAMA_URL    = "http://127.0.0.1:11434"
+OLLAMA_URL = "http://127.0.0.1:11434"
 
 
 def _env_file(request: Request) -> Path:
@@ -55,9 +62,7 @@ def _find_ollama() -> Optional[str]:
     p = shutil.which("ollama")
     if p:
         return p
-    for c in ("/opt/homebrew/bin/ollama",
-              "/usr/local/bin/ollama",
-              "/usr/bin/ollama"):
+    for c in ("/opt/homebrew/bin/ollama", "/usr/local/bin/ollama", "/usr/bin/ollama"):
         if Path(c).is_file():
             return c
     return None
@@ -85,9 +90,11 @@ async def _run(argv: list[str], timeout: int = 600) -> tuple[int, str, str]:
         except asyncio.TimeoutError:
             proc.kill()
             return (-1, "", "timeout")
-        return (proc.returncode or 0,
-                (out or b"").decode("utf-8", errors="replace"),
-                (err or b"").decode("utf-8", errors="replace"))
+        return (
+            proc.returncode or 0,
+            (out or b"").decode("utf-8", errors="replace"),
+            (err or b"").decode("utf-8", errors="replace"),
+        )
     except FileNotFoundError:
         return (-2, "", f"not found: {argv[0]}")
     except Exception as e:
@@ -96,7 +103,7 @@ async def _run(argv: list[str], timeout: int = 600) -> tuple[int, str, str]:
 
 async def _ollama_reachable(base: str = OLLAMA_URL) -> bool:
     try:
-        async with httpx.AsyncClient(timeout=1.5, verify=False) as c:
+        async with httpx.AsyncClient(timeout=1.5, verify=False) as c:  # noqa: S501
             r = await c.get(base + "/api/tags")
             return r.status_code == 200
     except Exception:
@@ -105,11 +112,11 @@ async def _ollama_reachable(base: str = OLLAMA_URL) -> bool:
 
 async def _list_models(base: str = OLLAMA_URL) -> list[dict]:
     try:
-        async with httpx.AsyncClient(timeout=3.0, verify=False) as c:
+        async with httpx.AsyncClient(timeout=3.0, verify=False) as c:  # noqa: S501
             r = await c.get(base + "/api/tags")
             if r.status_code != 200:
                 return []
-            return (r.json().get("models") or [])
+            return r.json().get("models") or []
     except Exception:
         return []
 
@@ -119,19 +126,19 @@ async def ai_status(request: Request) -> dict:
     env = _b._read_env(_env_file(request))
     installed = _find_ollama()
     reachable = await _ollama_reachable()
-    models    = await _list_models() if reachable else []
-    enabled   = env.get("AI_ENABLED", "true").lower() not in ("0", "false", "no")
+    models = await _list_models() if reachable else []
+    enabled = env.get("AI_ENABLED", "true").lower() not in ("0", "false", "no")
     configured_model = env.get("OLLAMA_MODEL", DEFAULT_MODEL)
     return {
-        "installed":        bool(installed),
-        "ollama_path":      installed,
-        "running":          reachable,
-        "models":           [m.get("name") or "" for m in models],
-        "ai_enabled":       enabled,
+        "installed": bool(installed),
+        "ollama_path": installed,
+        "running": reachable,
+        "models": [m.get("name") or "" for m in models],
+        "ai_enabled": enabled,
         "configured_model": configured_model,
         "weight_penalty_if_disabled": 0.15,
-        "platform":         platform.system().lower(),
-        "default_model":    DEFAULT_MODEL,
+        "platform": platform.system().lower(),
+        "default_model": DEFAULT_MODEL,
     }
 
 
@@ -156,10 +163,10 @@ async def ai_install(body: InstallBody) -> dict:
 
     if sys_name == "linux":
         return {
-            "ok":     False,
+            "ok": False,
             "manual": True,
             "command": "curl -fsSL https://ollama.com/install.sh | sh",
-            "hint":   "Review the script and run it manually in a terminal.",
+            "hint": "Review the script and run it manually in a terminal.",
         }
     raise HTTPException(400, f"unsupported platform: {sys_name}")
 
@@ -178,10 +185,11 @@ async def ai_pull(body: PullBody, request: Request) -> dict:
         raise HTTPException(400, "bad model name")
 
     if not await _ollama_reachable():
-        asyncio.create_task(_run([ol, "serve"], timeout=3600 * 24))
+        _spawn(_run([ol, "serve"], timeout=3600 * 24))
         for _ in range(30):
             await asyncio.sleep(0.5)
-            if await _ollama_reachable(): break
+            if await _ollama_reachable():
+                break
 
     code, out, err = await _run([ol, "pull", m], timeout=3600)
     if code != 0:
@@ -198,7 +206,7 @@ async def ai_start() -> dict:
         raise HTTPException(400, "ollama not installed")
     if await _ollama_reachable():
         return {"ok": True, "already_running": True}
-    asyncio.create_task(_run([ol, "serve"], timeout=3600 * 24))
+    _spawn(_run([ol, "serve"], timeout=3600 * 24))
     for _ in range(20):
         await asyncio.sleep(0.3)
         if await _ollama_reachable():
@@ -218,9 +226,12 @@ class ToggleBody(BaseModel):
 
 @router.post("/toggle")
 async def ai_toggle(body: ToggleBody, request: Request) -> dict:
-    _sec._write_env_keys(_env_file(request), {
-        "AI_ENABLED": "true" if body.enabled else "false",
-    })
+    _sec._write_env_keys(
+        _env_file(request),
+        {
+            "AI_ENABLED": "true" if body.enabled else "false",
+        },
+    )
     return {"ok": True, "ai_enabled": body.enabled}
 
 
@@ -232,7 +243,7 @@ async def ai_uninstall(request: Request) -> dict:
     brew = _find_brew()
     if not brew:
         raise HTTPException(400, "Homebrew not found")
-    code, out, err = await _run([brew, "uninstall", "ollama"], timeout=120)
+    code, _out, err = await _run([brew, "uninstall", "ollama"], timeout=120)
     if code != 0:
         raise HTTPException(500, f"brew uninstall failed: {err[:400]}")
     _sec._write_env_keys(_env_file(request), {"AI_ENABLED": "false"})

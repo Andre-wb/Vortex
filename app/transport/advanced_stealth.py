@@ -15,6 +15,7 @@ app/transport/advanced_stealth.py — Продвинутые механизмы 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 import os
@@ -22,7 +23,10 @@ import random
 import secrets
 import struct
 import time
-from typing import Optional, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Optional
+
+_sysrand = random.SystemRandom()
 
 logger = logging.getLogger(__name__)
 
@@ -379,8 +383,8 @@ class TCPFingerprint:
 
             # MSS (если поддерживается ОС)
             try:
-                TCP_MAXSEG = getattr(socket, "TCP_MAXSEG", 2)
-                sock.setsockopt(socket.IPPROTO_TCP, TCP_MAXSEG, fp["mss"])
+                tcp_maxseg = getattr(socket, "TCP_MAXSEG", 2)
+                sock.setsockopt(socket.IPPROTO_TCP, tcp_maxseg, fp["mss"])
             except (OSError, AttributeError):
                 pass
 
@@ -404,7 +408,7 @@ class TCPFingerprint:
         ctx.verify_mode = ssl.CERT_NONE
 
         # Chrome TLS 1.3 cipher suites (в правильном порядке)
-        try:
+        with contextlib.suppress(ssl.SSLError):
             ctx.set_ciphers(
                 "TLS_AES_128_GCM_SHA256:"
                 "TLS_AES_256_GCM_SHA384:"
@@ -416,8 +420,6 @@ class TCPFingerprint:
                 "ECDHE-ECDSA-CHACHA20-POLY1305:"
                 "ECDHE-RSA-CHACHA20-POLY1305"
             )
-        except ssl.SSLError:
-            pass  # Некоторые ciphers могут не поддерживаться
 
         # ALPN (Chrome порядок)
         ctx.set_alpn_protocols(["h2", "http/1.1"])
@@ -488,13 +490,13 @@ class DecoyConnectionManager:
 
                 # Запускаем параллельно
                 async with httpx.AsyncClient(
-                    timeout=10.0, verify=False, follow_redirects=True
+                    timeout=10.0, verify=False, follow_redirects=True  # noqa: S501
                 ) as client:
                     tasks = [self._do_decoy(client, url) for url in targets]
                     await asyncio.gather(*tasks, return_exceptions=True)
 
                 # Рандомный интервал (anti-pattern)
-                jitter = self.interval * (0.5 + random.random())
+                jitter = self.interval * (0.5 + _sysrand.random())
                 await asyncio.sleep(jitter)
 
             except asyncio.CancelledError:
@@ -506,7 +508,7 @@ class DecoyConnectionManager:
     async def _do_decoy(self, client, url: str):
         """Один decoy-запрос."""
         try:
-            resp = await client.get(url, headers={
+            await client.get(url, headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                               "AppleWebKit/537.36 (KHTML, like Gecko) "
                               "Chrome/120.0.0.0 Safari/537.36",
@@ -568,10 +570,8 @@ class ConstantRateChannel:
 
     async def enqueue(self, data: bytes):
         """Ставит реальные данные в очередь для отправки."""
-        try:
+        with contextlib.suppress(asyncio.QueueFull):
             self._queue.put_nowait(data)
-        except asyncio.QueueFull:
-            pass
 
     async def _rate_loop(self, send_fn: Callable[[bytes], Awaitable[None]]):
         """
@@ -679,7 +679,7 @@ class TLSRecordPadder:
             ctx.maximum_version = ssl.TLSVersion.MAXIMUM_SUPPORTED
 
             # Предпочитаем TLS 1.3 cipher suites (поддерживают padding)
-            try:
+            with contextlib.suppress(ssl.SSLError):
                 ctx.set_ciphers(
                     "TLS_AES_256_GCM_SHA384:"
                     "TLS_CHACHA20_POLY1305_SHA256:"
@@ -687,8 +687,6 @@ class TLSRecordPadder:
                     "ECDHE-ECDSA-AES256-GCM-SHA384:"
                     "ECDHE-RSA-AES256-GCM-SHA384"
                 )
-            except ssl.SSLError:
-                pass
 
             # ALPN negotiation (h2 + http/1.1)
             ctx.set_alpn_protocols(["h2", "http/1.1"])
@@ -807,7 +805,7 @@ class QUICTransport:
             offset += 4  # version
             dcid_len = packet[offset]
             offset += 1
-            dcid = packet[offset:offset + dcid_len]
+            packet[offset:offset + dcid_len]
             offset += dcid_len
             scid_len = packet[offset]
             offset += 1

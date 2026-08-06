@@ -140,7 +140,7 @@ def _generate_fake_css() -> str:
     ]
     rules = []
     for sel in selectors:
-        n_props = random.randint(3, 8)
+        n_props = random.randint(3, 8)  # noqa: S311
         props = ';'.join(random.sample(properties, min(n_props, len(properties))))
         rules.append(f'{sel}{{{props}}}')
         rules.append(f'{sel}:hover{{opacity:.8;cursor:pointer}}')
@@ -177,9 +177,9 @@ async def cover_api_data():
         "status": "ok",
         "timestamp": int(time.time()),
         "metrics": {
-            "users": random.randint(100, 5000),
-            "storage_gb": round(random.uniform(10, 500), 1),
-            "sync_ops": random.randint(1000, 50000),
+            "users": random.randint(100, 5000),  # noqa: S311
+            "storage_gb": round(random.uniform(10, 500), 1),  # noqa: S311
+            "sync_ops": random.randint(1000, 50000),  # noqa: S311
             "uptime": "99.97%",
         },
         "notifications": [],
@@ -210,7 +210,7 @@ async def cover_page(path: str = "", request: Request = None):
         "Cache-Control": "public, max-age=3600",
     })
 
-    from app.transport.knock import record_page_visit, is_knock_required
+    from app.transport.knock import is_knock_required, record_page_visit
     if is_knock_required() and request:
         import secrets as _s
         session_id = request.cookies.get("_ks") or _s.token_urlsafe(16)

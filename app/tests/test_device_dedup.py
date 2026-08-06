@@ -6,9 +6,8 @@
 
 import secrets
 
-import pytest
+from conftest import _phone_prefix, random_digits, random_str
 
-from conftest import random_str, random_digits, _phone_prefix
 from app.main import app
 
 

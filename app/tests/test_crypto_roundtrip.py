@@ -1,7 +1,9 @@
 """Full cryptographic roundtrip tests — ECIES, AES-GCM, X25519, BLAKE3, Argon2."""
 import os
 import secrets
+
 import pytest
+from cryptography.exceptions import InvalidTag
 
 
 class TestECIESFullCycle:
@@ -11,16 +13,16 @@ class TestECIESFullCycle:
         # NODE-диалект: ecies_encrypt = HKDF(salt=sorted(pubs)); ручной decrypt ниже
         # это зеркалит. CLIENT-диалект (salt=None, browser-facing) пинит отдельный
         # test_ecies_for_client_matches_browser_dialect.
-        from app.security.key_exchange import ecies_encrypt
-        from app.security.crypto import generate_x25519_keypair, derive_x25519_session_key
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+        from app.security.key_exchange import ecies_encrypt
 
         # Generate recipient keypair
         priv_key = X25519PrivateKey.generate()
-        priv_bytes = priv_key.private_bytes(
+        priv_key.private_bytes(
             serialization.Encoding.Raw,
             serialization.PrivateFormat.Raw,
             serialization.NoEncryption(),
@@ -66,11 +68,12 @@ class TestECIESFullCycle:
         """CLIENT-диалект: ecies_encrypt_for_client расшифровывается как БРАУЗЕР
         (salt=None==пусто, info="vortex-session") — путь /api/zk/blind-key. Плюс
         регрессия: node-диалект (ecies_encrypt, salt=sorted) даёт ДРУГОЙ ключ."""
-        from app.security.key_exchange import ecies_encrypt_for_client, ecies_encrypt
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+        from app.security.key_exchange import ecies_encrypt_for_client
 
         priv_key = X25519PrivateKey.generate()
         pub_bytes = priv_key.public_key().public_bytes(
@@ -93,13 +96,14 @@ class TestECIESFullCycle:
                         salt=b"".join(sorted([eph_pub, pub_bytes])),
                         info=b"vortex-session").derive(shared)
         assert node_key != browser_key                       # два несовместимых диалекта
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             AESGCM(node_key).decrypt(ct[:12], ct[12:], None)  # node-ключ не расшифрует client-конверт
 
     def test_ecies_different_plaintexts(self):
-        from app.security.key_exchange import ecies_encrypt
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
         from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+
+        from app.security.key_exchange import ecies_encrypt
 
         priv = X25519PrivateKey.generate()
         pub_hex = priv.public_key().public_bytes(
@@ -113,9 +117,10 @@ class TestECIESFullCycle:
         assert r1["ciphertext"] != r2["ciphertext"]
 
     def test_ecies_empty_plaintext(self):
-        from app.security.key_exchange import ecies_encrypt
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
         from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+
+        from app.security.key_exchange import ecies_encrypt
 
         priv = X25519PrivateKey.generate()
         pub_hex = priv.public_key().public_bytes(
@@ -127,9 +132,10 @@ class TestECIESFullCycle:
         assert "ciphertext" in result
 
     def test_ecies_large_plaintext(self):
-        from app.security.key_exchange import ecies_encrypt
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
         from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+
+        from app.security.key_exchange import ecies_encrypt
 
         priv = X25519PrivateKey.generate()
         pub_hex = priv.public_key().public_bytes(
@@ -141,11 +147,12 @@ class TestECIESFullCycle:
         assert len(result["ciphertext"]) > len(big_data) * 2
 
     def test_ecies_wrong_private_key_fails(self):
-        from app.security.key_exchange import ecies_encrypt
+        from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-        from cryptography.hazmat.primitives import serialization, hashes
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+        from app.security.key_exchange import ecies_encrypt
 
         # Generate two different keypairs
         priv1 = X25519PrivateKey.generate()
@@ -172,7 +179,7 @@ class TestECIESFullCycle:
         encrypted = ct_bytes[12:]
         aesgcm = AESGCM(wrong_key)
 
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             aesgcm.decrypt(nonce, encrypted, None)
 
 
@@ -180,7 +187,7 @@ class TestAESGCMOperations:
     """AES-256-GCM encrypt/decrypt operations."""
 
     def test_aes_roundtrip(self):
-        from app.security.crypto import generate_key, encrypt_message, decrypt_message
+        from app.security.crypto import decrypt_message, encrypt_message, generate_key
         key = generate_key()
         assert len(key) == 32
         plaintext = b"AES-GCM roundtrip test!"
@@ -190,37 +197,37 @@ class TestAESGCMOperations:
         assert pt == plaintext
 
     def test_aes_different_nonces(self):
-        from app.security.crypto import generate_key, encrypt_message
+        from app.security.crypto import encrypt_message, generate_key
         key = generate_key()
         ct1 = encrypt_message(b"same data", key)
         ct2 = encrypt_message(b"same data", key)
         assert ct1 != ct2  # Random nonces
 
     def test_aes_tamper_detected(self):
-        from app.security.crypto import generate_key, encrypt_message, decrypt_message
+        from app.security.crypto import decrypt_message, encrypt_message, generate_key
         key = generate_key()
         ct = bytearray(encrypt_message(b"test", key))
         ct[-1] ^= 0xFF  # Flip last byte
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             decrypt_message(bytes(ct), key)
 
     def test_aes_wrong_key(self):
-        from app.security.crypto import generate_key, encrypt_message, decrypt_message
+        from app.security.crypto import decrypt_message, encrypt_message, generate_key
         key1 = generate_key()
         key2 = generate_key()
         ct = encrypt_message(b"secret", key1)
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             decrypt_message(ct, key2)
 
     def test_aes_empty_plaintext(self):
-        from app.security.crypto import generate_key, encrypt_message, decrypt_message
+        from app.security.crypto import decrypt_message, encrypt_message, generate_key
         key = generate_key()
         ct = encrypt_message(b"", key)
         pt = decrypt_message(ct, key)
         assert pt == b""
 
     def test_aes_binary_data(self):
-        from app.security.crypto import generate_key, encrypt_message, decrypt_message
+        from app.security.crypto import decrypt_message, encrypt_message, generate_key
         key = generate_key()
         binary_data = os.urandom(4096)
         ct = encrypt_message(binary_data, key)
@@ -244,7 +251,7 @@ class TestX25519KeyExchange:
         assert pub1 != pub2
 
     def test_dh_shared_secret_agreement(self):
-        from app.security.crypto import generate_x25519_keypair, derive_x25519_session_key
+        from app.security.crypto import derive_x25519_session_key, generate_x25519_keypair
         priv_a, pub_a = generate_x25519_keypair()
         priv_b, pub_b = generate_x25519_keypair()
         shared_ab = derive_x25519_session_key(priv_a, pub_b)
@@ -253,7 +260,7 @@ class TestX25519KeyExchange:
         assert len(shared_ab) == 32
 
     def test_dh_different_peers_different_secrets(self):
-        from app.security.crypto import generate_x25519_keypair, derive_x25519_session_key
+        from app.security.crypto import derive_x25519_session_key, generate_x25519_keypair
         priv_a, _ = generate_x25519_keypair()
         _, pub_b = generate_x25519_keypair()
         _, pub_c = generate_x25519_keypair()
@@ -336,11 +343,11 @@ class TestP2PEncryption:
     """P2P payload encryption/decryption."""
 
     def test_encrypt_decrypt_p2p_payload(self):
-        from app.security.key_exchange import encrypt_p2p_payload, decrypt_p2p_payload
         from app.security.crypto import generate_x25519_keypair
+        from app.security.key_exchange import encrypt_p2p_payload
 
-        priv_a, pub_a = generate_x25519_keypair()
-        priv_b, pub_b = generate_x25519_keypair()
+        priv_a, _pub_a = generate_x25519_keypair()
+        _priv_b, pub_b = generate_x25519_keypair()
 
         payload = {"room_id": 1, "sender": "alice", "message": "hello"}
         result = encrypt_p2p_payload(payload, priv_a, pub_b.hex())
@@ -349,8 +356,8 @@ class TestP2PEncryption:
         assert "ciphertext" in result
 
     def test_ecies_node_decrypt(self):
-        from app.security.key_exchange import ecies_encrypt, ecies_decrypt_node
         from app.security.crypto import generate_x25519_keypair
+        from app.security.key_exchange import ecies_decrypt_node, ecies_encrypt
 
         priv, pub = generate_x25519_keypair()
         plaintext = b"node-to-node secret"

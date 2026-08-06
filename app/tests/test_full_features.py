@@ -8,14 +8,13 @@ federation.
 """
 from __future__ import annotations
 
-import asyncio
+import contextlib
 import secrets
 import time
 
 import pytest
-
-from conftest import make_user, login_user, random_str, random_digits
-
+from conftest import login_user, make_user, random_str
+from pydantic import ValidationError
 
 # Helpers
 
@@ -467,8 +466,8 @@ class TestStatuses:
 
     @pytest.mark.asyncio
     async def test_cleanup_expired_statuses(self):
-        from app.database import SessionLocal
         from app.chats.statuses import cleanup_expired_statuses
+        from app.database import SessionLocal
 
         db = SessionLocal()
         try:
@@ -1006,7 +1005,8 @@ class TestStickers:
             pytest.skip("No pack_id")
 
         # Tiny valid PNG
-        import struct, zlib
+        import struct
+        import zlib
         w, ht = 2, 2
         raw = b""
         for _ in range(ht):
@@ -1317,10 +1317,8 @@ class TestDatabase:
         gen = get_db()
         db = next(gen)
         assert db is not None
-        try:
+        with contextlib.suppress(StopIteration):
             next(gen)
-        except StopIteration:
-            pass
 
 
 # Models validation (app/models.py)
@@ -1340,7 +1338,7 @@ class TestModelsValidation:
 
     def test_register_invalid_phone(self):
         from app.models import RegisterRequest
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             RegisterRequest(
                 phone="bad",
                 username="test_user2",
@@ -1350,7 +1348,7 @@ class TestModelsValidation:
 
     def test_register_invalid_username(self):
         from app.models import RegisterRequest
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             RegisterRequest(
                 phone="+79001234567",
                 username="ab",  # too short
@@ -1360,7 +1358,7 @@ class TestModelsValidation:
 
     def test_register_invalid_pubkey(self):
         from app.models import RegisterRequest
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             RegisterRequest(
                 phone="+79001234567",
                 username="test_user3",
@@ -1378,7 +1376,7 @@ class TestModelsValidation:
 
     def test_login_empty_password(self):
         from app.models import LoginRequest
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             LoginRequest(
                 phone_or_username="test_user",
                 password="",
@@ -1395,7 +1393,7 @@ class TestModelsValidation:
 
     def test_key_login_invalid_hex(self):
         from app.models import KeyLoginRequest
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             KeyLoginRequest(
                 challenge_id=secrets.token_hex(16),
                 pubkey="not_a_valid_hex_string_of_64_chars_long_enough_to_pass_minlength",
@@ -1451,8 +1449,8 @@ class TestAntispamBot:
     """ensure_antispam_bot, add_antispam_bot_to_room, check_*_spam"""
 
     def test_ensure_antispam_bot(self):
-        from app.database import SessionLocal
         from app.bots.antispam_bot import ensure_antispam_bot
+        from app.database import SessionLocal
 
         db = SessionLocal()
         try:
@@ -1463,8 +1461,8 @@ class TestAntispamBot:
             db.close()
 
     def test_ensure_antispam_bot_idempotent(self):
-        from app.database import SessionLocal
         from app.bots.antispam_bot import ensure_antispam_bot
+        from app.database import SessionLocal
 
         db = SessionLocal()
         try:
@@ -1475,8 +1473,8 @@ class TestAntispamBot:
             db.close()
 
     def test_add_antispam_bot_to_room(self, client):
-        from app.database import SessionLocal
         from app.bots.antispam_bot import add_antispam_bot_to_room, ensure_antispam_bot
+        from app.database import SessionLocal
 
         u = make_user(client)
         h = _login_and_get_headers(client, u)
@@ -1495,14 +1493,14 @@ class TestAntispamBot:
 
     @pytest.mark.asyncio
     async def test_check_repeat_spam(self):
-        from app.database import SessionLocal
         from app.bots.antispam_bot import check_repeat_spam, ensure_antispam_bot
+        from app.database import SessionLocal
         from app.models import User
 
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
-            user = db.query(User).filter(User.is_bot == False).first()
+            user = db.query(User).filter(User.is_bot.is_(False)).first()
             if not user:
                 pytest.skip("No user")
 
@@ -1513,15 +1511,15 @@ class TestAntispamBot:
 
     @pytest.mark.asyncio
     async def test_check_link_spam(self):
-        from app.database import SessionLocal
         from app.bots.antispam_bot import check_link_spam, ensure_antispam_bot
+        from app.database import SessionLocal
         from app.models import User
         from app.models_rooms import RoomRole
 
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
-            user = db.query(User).filter(User.is_bot == False).first()
+            user = db.query(User).filter(User.is_bot.is_(False)).first()
             if not user:
                 pytest.skip("No user")
 
@@ -1534,14 +1532,14 @@ class TestAntispamBot:
 
     @pytest.mark.asyncio
     async def test_check_caps_spam(self):
-        from app.database import SessionLocal
         from app.bots.antispam_bot import check_caps_spam, ensure_antispam_bot
+        from app.database import SessionLocal
         from app.models import User
 
         db = SessionLocal()
         try:
             ensure_antispam_bot(db)
-            user = db.query(User).filter(User.is_bot == False).first()
+            user = db.query(User).filter(User.is_bot.is_(False)).first()
             if not user:
                 pytest.skip("No user")
 

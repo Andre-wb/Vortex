@@ -26,7 +26,6 @@ from typing import Optional
 
 from starlette.requests import Request
 
-
 _STORE_IPS: bool = os.environ.get("STORE_IPS", "true").lower() != "false"
 _HASH_IPS:  bool = os.environ.get("HASH_IPS", "false").lower() == "true"
 
@@ -57,10 +56,7 @@ def _is_onion_request(request: Request) -> bool:
         return True
 
     # 3. Onion-Location header present (server advertises .onion)
-    if request.headers.get("onion-location"):
-        return True
-
-    return False
+    return bool(request.headers.get("onion-location"))
 
 
 def _hash_ip(ip: str) -> str:

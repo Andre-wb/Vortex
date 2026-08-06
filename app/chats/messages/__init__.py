@@ -16,19 +16,19 @@ app/chats/messages/ — WebSocket чат и обработка сообщени�
   ws_signal.py  — WebRTC сигнальные события
   files.py      — Загрузка файлов через чат
 """
-from app.chats.messages._router import router  # noqa: F401
-from app.chats.messages.core import cleanup_expired_messages  # noqa: F401
+import app.chats.messages.actions
 
 # Регистрируем все sub-роутеры на общем router
-import app.chats.messages.core        # noqa: F401
-import app.chats.messages.messages    # noqa: F401
-import app.chats.messages.actions     # noqa: F401
-import app.chats.messages.history     # noqa: F401
-import app.chats.messages.keys        # noqa: F401
-import app.chats.messages.moderation  # noqa: F401
-import app.chats.messages.polls       # noqa: F401
-import app.chats.messages.push        # noqa: F401
-import app.chats.messages.schedule    # noqa: F401
-import app.chats.messages.ws_signal   # noqa: F401
-import app.chats.messages.files       # noqa: F401
-import app.chats.messages.rest        # noqa: F401
+import app.chats.messages.core
+import app.chats.messages.files
+import app.chats.messages.history
+import app.chats.messages.keys
+import app.chats.messages.messages
+import app.chats.messages.moderation
+import app.chats.messages.polls
+import app.chats.messages.push
+import app.chats.messages.rest
+import app.chats.messages.schedule
+import app.chats.messages.ws_signal  # noqa: F401
+from app.chats.messages._router import router  # noqa: F401
+from app.chats.messages.core import cleanup_expired_messages  # noqa: F401

@@ -14,28 +14,26 @@ app/transport/global_transport.py — Глобальный P2P транспор�
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
 import random
 import time
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 from app.config import Config
 from app.transport.cdn_relay import cdn_config
 from app.transport.gossip_security import (
+    MAX_GOSSIP_PEERS,
     GossipSecurity,
-    GossipValidator,
     ProofOfWork,
     gossip_security,
-    MAX_GOSSIP_PEERS,
-    MAX_GOSSIP_ROOMS,
-    PEER_MAX_AGE_SEC,
 )
 from app.transport.stealth_http import StealthClient
+from app.utilites.background import spawn
 
 logger = logging.getLogger(__name__)
 
@@ -172,9 +170,9 @@ class GlobalTransport:
         self.security = GossipSecurity(node_id=node_id)
 
         self._running = True
-        asyncio.create_task(self._gossip_loop())
-        asyncio.create_task(self._health_loop())
-        asyncio.create_task(self._cleanup_loop())
+        spawn(self._gossip_loop())
+        spawn(self._health_loop())
+        spawn(self._cleanup_loop())
         logger.info(
             f"🌐 Global transport запущен: {len(self._peers)} пиров, "
             f"bootstrap={len(bootstrap_peers)}, security=enabled"
@@ -346,7 +344,7 @@ class GlobalTransport:
                 tasks = [self._ping_peer(p) for p in alive_peers]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                for peer, ok in zip(alive_peers, results):
+                for peer, ok in zip(alive_peers, results, strict=False):
                     if ok is True:
                         peer.last_seen = time.time()
                     elif not peer.alive():
@@ -559,7 +557,7 @@ class GlobalTransport:
             from app.models_rooms import Room
             db = SessionLocal()
             try:
-                rooms = db.query(Room).filter(Room.is_private == False).all()
+                rooms = db.query(Room).filter(Room.is_private.is_(False)).all()
                 return [
                     {
                         "id": r.id,
@@ -598,10 +596,8 @@ class GlobalTransport:
                 json.dumps(data, indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
-            try:
+            with contextlib.suppress(OSError):
                 os.chmod(self._peers_file, 0o600)
-            except OSError:
-                pass
         except Exception as e:
             logger.warning(f"Ошибка сохранения global_peers.json: {e}")
 
@@ -630,10 +626,10 @@ class GlobalTransport:
         Возвращает наш список пиров и комнат.
         """
         # Cap incoming lists to prevent memory exhaustion
-        MAX_GOSSIP_PEERS = 500
-        MAX_GOSSIP_ROOMS = 1000
-        peers = peers[:MAX_GOSSIP_PEERS]
-        rooms = rooms[:MAX_GOSSIP_ROOMS]
+        max_gossip_peers = 500
+        max_gossip_rooms = 1000
+        peers = peers[:max_gossip_peers]
+        rooms = rooms[:max_gossip_rooms]
 
         # Обновляем / добавляем отправителя
         sender_key = f"{sender_ip}:{sender_port}"
@@ -710,7 +706,7 @@ def _get_external_ip() -> str:
     """Получить внешний IP (или локальный если не определён)."""
     import socket
     for target in ("8.8.8.8", "1.1.1.1"):
-        try:
+        with contextlib.suppress(Exception):
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.settimeout(0.5)
             s.connect((target, 80))
@@ -718,6 +714,4 @@ def _get_external_ip() -> str:
             s.close()
             if not ip.startswith("127."):
                 return ip
-        except Exception:
-            pass
     return "127.0.0.1"

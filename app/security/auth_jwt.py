@@ -16,9 +16,9 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.config import Config
-from app.security.crypto import hash_token, verify_token_hash
 from app.database import get_db
 from app.models import RefreshToken, User
+from app.security.crypto import hash_token
 
 logger = logging.getLogger(__name__)
 
@@ -161,9 +161,9 @@ def decode_access_token(token: str) -> dict[str, Any]:
             leeway=30,
         )
     except jwt.ExpiredSignatureError:
-        raise HTTPException(401, "Token expired")
+        raise HTTPException(401, "Token expired") from None
     except jwt.InvalidTokenError as e:
-        raise HTTPException(401, f"Invalid token: {e}")
+        raise HTTPException(401, f"Invalid token: {e}") from None
     # FIX F4: only true access tokens may authenticate a session. Other tokens
     # signed with the same secret (e.g. mini-app typ="miniapp") must NOT be
     # accepted as a full access token. create_access_token sets typ="access",
@@ -213,7 +213,7 @@ def verify_refresh_token(raw: str, db: Session) -> User:
         ).first()
     if not rec:
         raise HTTPException(401, "Refresh token is invalid or expired")
-    user = db.query(User).filter(User.id == rec.user_id, User.is_active == True).first()
+    user = db.query(User).filter(User.id == rec.user_id, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(401, "User not found")
     rec.revoked_at = datetime.now(timezone.utc)
@@ -240,7 +240,7 @@ async def get_current_user(
     payload = decode_access_token(token)
     user = db.query(User).filter(
         User.id == int(payload["sub"]),
-        User.is_active == True,
+        User.is_active.is_(True),
         ).first()
     if not user:
         raise HTTPException(401, "User not found")
@@ -252,7 +252,7 @@ async def get_user_ws(token: str, db: Session) -> User:
     payload = decode_access_token(token)
     user = db.query(User).filter(
         User.id == int(payload["sub"]),
-        User.is_active == True,
+        User.is_active.is_(True),
         ).first()
     if not user:
         raise HTTPException(401, "User not found")

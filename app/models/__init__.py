@@ -8,49 +8,72 @@ app/models/ — Доменные модели SQLAlchemy и Pydantic-схемы.
   media.py       — CallHistory, UploadQuota, PushSubscription
   contact.py     — Contact
 """
+from app.models.bot import Bot, BotReview
+from app.models.contact import Contact
+from app.models.media import CallHistory, PushSubscription, UploadQuota
+from app.models.moderation import UserReport, UserStrike
+from app.models.prekeys import OneTimeKyberPreKey, OneTimePreKey, PreKeyBundle
 from app.models.user import (
-    User,
-    UserDevice,
-    RefreshToken,
-    UserStatus,
-    KeyBackup,
-    DeviceLinkRequest,
-    SyncEvent,
     DeviceCrossSign,
-    SecretShare,
+    DeviceLinkRequest,
     FederatedBackupShard,
-    KeyTransparencyEntry,
-    VerificationAttestation,
-    RegisterRequest,
-    LoginRequest,
+    KeyBackup,
     KeyLoginRequest,
+    KeyTransparencyEntry,
+    LoginRequest,
+    PasswordStrengthRequest,
+    RefreshToken,
+    RegisterRequest,
+    SecretShare,
     SeedLoginRequest,
+    SyncEvent,
+    TwoFALoginRequest,
+    TwoFAVerifyRequest,
     UpdateProfileRequest,
     UpdateRichStatusRequest,
-    PasswordStrengthRequest,
-    TwoFAVerifyRequest,
-    TwoFALoginRequest,
+    User,
+    UserDevice,
+    UserStatus,
+    VerificationAttestation,
 )
-from app.models.bot import Bot, BotReview
-from app.models.moderation import UserReport, UserStrike
-from app.models.media import CallHistory, UploadQuota, PushSubscription
-from app.models.contact import Contact
-from app.models.prekeys import PreKeyBundle, OneTimePreKey, OneTimeKyberPreKey
 
 __all__ = [
-    # user
-    "User", "UserDevice", "RefreshToken", "UserStatus", "KeyBackup", "DeviceLinkRequest", "SyncEvent", "DeviceCrossSign", "SecretShare", "FederatedBackupShard", "KeyTransparencyEntry", "VerificationAttestation",
-    "RegisterRequest", "LoginRequest", "KeyLoginRequest", "SeedLoginRequest",
-    "UpdateProfileRequest", "UpdateRichStatusRequest",
-    "PasswordStrengthRequest", "TwoFAVerifyRequest", "TwoFALoginRequest",
     # bot
-    "Bot", "BotReview",
-    # moderation
-    "UserReport", "UserStrike",
+    "Bot",
+    "BotReview",
     # media
-    "CallHistory", "UploadQuota", "PushSubscription",
+    "CallHistory",
     # contact
     "Contact",
+    "DeviceCrossSign",
+    "DeviceLinkRequest",
+    "FederatedBackupShard",
+    "KeyBackup",
+    "KeyLoginRequest",
+    "KeyTransparencyEntry",
+    "LoginRequest",
+    "OneTimeKyberPreKey",
+    "OneTimePreKey",
+    "PasswordStrengthRequest",
     # prekeys (Double Ratchet / X3DH)
-    "PreKeyBundle", "OneTimePreKey", "OneTimeKyberPreKey",
+    "PreKeyBundle",
+    "PushSubscription",
+    "RefreshToken",
+    "RegisterRequest",
+    "SecretShare",
+    "SeedLoginRequest",
+    "SyncEvent",
+    "TwoFALoginRequest",
+    "TwoFAVerifyRequest",
+    "UpdateProfileRequest",
+    "UpdateRichStatusRequest",
+    "UploadQuota",
+    # user
+    "User",
+    "UserDevice",
+    # moderation
+    "UserReport",
+    "UserStatus",
+    "UserStrike",
+    "VerificationAttestation",
 ]

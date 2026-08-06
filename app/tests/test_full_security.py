@@ -7,34 +7,61 @@ Covers: crypto.py, key_exchange.py, auth_jwt.py, security_validate.py,
 
 import json
 import logging
-import os
 import secrets
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from conftest import make_user, random_digits, random_str
+from cryptography.exceptions import InvalidTag
+from fastapi import HTTPException
 
-from conftest import make_user, login_user, random_str, random_digits
-
+from app.logging_config import ConsoleFormatter, JSONFormatter, new_correlation_id
+from app.security.auth_jwt import (
+    create_access_token,
+    create_refresh_token,
+    decode_access_token,
+    verify_refresh_token,
+)
 
 # 1. crypto.py
-
 from app.security.crypto import (
-    generate_key,
-    encrypt_message,
     decrypt_message,
+    derive_x25519_session_key,
+    encrypt_message,
+    generate_key,
+    generate_x25519_keypair,
+    get_node_public_key_hex,
     hash_message,
     hash_password,
-    verify_password,
     hash_token,
-    verify_token_hash,
-    generate_x25519_keypair,
-    derive_x25519_session_key,
-    rust_available,
     load_or_create_node_keypair,
-    get_node_public_key_hex,
+    rust_available,
+    verify_password,
+    verify_token_hash,
 )
+from app.security.key_exchange import (
+    decrypt_p2p_payload,
+    ecies_decrypt_node,
+    ecies_encrypt,
+    encrypt_p2p_payload,
+    format_encrypted_key,
+    validate_ecies_payload,
+)
+from app.security.secure_upload import (
+    FileAnomalyDetector,
+    calculate_file_hash,
+    generate_secure_filename,
+    validate_file_mime_type,
+)
+from app.security.security_validate import (
+    calculate_password_strength,
+    generate_secure_password,
+    validate_password,
+    validate_password_with_context,
+)
+from app.security.waf import WAFEngine
 
 
 class TestGenerateKey:
@@ -82,14 +109,14 @@ class TestDecryptMessage:
         ct = encrypt_message(b"ok", key)
         tampered = bytearray(ct)
         tampered[-1] ^= 0xFF
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             decrypt_message(bytes(tampered), key)
 
     def test_wrong_key_fails(self):
         key1 = generate_key()
         key2 = generate_key()
         ct = encrypt_message(b"secret", key1)
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             decrypt_message(ct, key2)
 
 
@@ -151,7 +178,7 @@ class TestHashToken:
         assert len(t) > 0
 
     def test_deterministic(self):
-        token = "deterministic-token-123"
+        token = "deterministic-token-123"  # noqa: S105
         assert hash_token(token) == hash_token(token)
 
     def test_different_tokens_different_hashes(self):
@@ -160,7 +187,7 @@ class TestHashToken:
 
 class TestVerifyTokenHash:
     def test_correct_token(self):
-        token = "my-secure-token"
+        token = "my-secure-token"  # noqa: S105
         h = hash_token(token)
         assert verify_token_hash(token, h) is True
 
@@ -192,9 +219,9 @@ class TestDeriveX25519SessionKey:
         assert key_ab == key_ba
 
     def test_different_peers_different_keys(self):
-        alice_priv, alice_pub = generate_x25519_keypair()
-        bob_priv, bob_pub = generate_x25519_keypair()
-        carol_priv, carol_pub = generate_x25519_keypair()
+        alice_priv, _alice_pub = generate_x25519_keypair()
+        _bob_priv, bob_pub = generate_x25519_keypair()
+        _carol_priv, carol_pub = generate_x25519_keypair()
         key_ab = derive_x25519_session_key(alice_priv, bob_pub)
         key_ac = derive_x25519_session_key(alice_priv, carol_pub)
         assert key_ab != key_ac
@@ -259,14 +286,6 @@ class TestGetNodePublicKeyHex:
 
 # 2. key_exchange.py
 
-from app.security.key_exchange import (
-    ecies_encrypt,
-    ecies_decrypt_node,
-    encrypt_p2p_payload,
-    decrypt_p2p_payload,
-    format_encrypted_key,
-    validate_ecies_payload,
-)
 
 
 class TestEciesEncrypt:
@@ -302,7 +321,7 @@ class TestEciesDecryptNode:
         _, pub = generate_x25519_keypair()
         wrong_priv, _ = generate_x25519_keypair()
         enc = ecies_encrypt(b"data", pub.hex())
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             ecies_decrypt_node(enc["ephemeral_pub"], enc["ciphertext"], wrong_priv)
 
     def test_binary_roundtrip(self):
@@ -315,8 +334,8 @@ class TestEciesDecryptNode:
 
 class TestEncryptP2pPayload:
     def test_returns_encrypted_dict(self):
-        our_priv, our_pub = generate_x25519_keypair()
-        peer_priv, peer_pub = generate_x25519_keypair()
+        our_priv, _our_pub = generate_x25519_keypair()
+        _peer_priv, peer_pub = generate_x25519_keypair()
         payload = {"room_id": "abc123", "sender": "alice"}
         result = encrypt_p2p_payload(payload, our_priv, peer_pub.hex())
         assert "ephemeral_pub" in result
@@ -325,7 +344,7 @@ class TestEncryptP2pPayload:
 
 class TestDecryptP2pPayload:
     def test_roundtrip_success(self):
-        our_priv, our_pub = generate_x25519_keypair()
+        our_priv, _our_pub = generate_x25519_keypair()
         peer_priv, peer_pub = generate_x25519_keypair()
         payload = {"room_id": "room1", "sender": "node1", "message": "hello"}
         encrypted = encrypt_p2p_payload(payload, our_priv, peer_pub.hex())
@@ -378,13 +397,7 @@ class TestValidateEciesPayload:
 
 # 3. auth_jwt.py
 
-from app.security.auth_jwt import (
-    create_access_token,
-    decode_access_token,
-    create_refresh_token,
-    verify_refresh_token,
-)
-from fastapi import HTTPException
+
 
 
 class TestCreateAccessToken:
@@ -414,6 +427,7 @@ class TestDecodeAccessToken:
 
     def test_expired_token_raises(self):
         import jwt as pyjwt
+
         from app.config import Config
         now = datetime.now(timezone.utc)
         expired_payload = {
@@ -481,12 +495,6 @@ class TestVerifyRefreshToken:
 
 # 4. security_validate.py
 
-from app.security.security_validate import (
-    validate_password,
-    validate_password_with_context,
-    calculate_password_strength,
-    generate_secure_password,
-)
 
 
 class TestValidatePassword:
@@ -501,19 +509,19 @@ class TestValidatePassword:
         assert "8" in msg
 
     def test_no_uppercase(self):
-        ok, msg = validate_password("nouppercase1!")
+        ok, _msg = validate_password("nouppercase1!")
         assert ok is False
 
     def test_no_lowercase(self):
-        ok, msg = validate_password("NOLOWERCASE1!")
+        ok, _msg = validate_password("NOLOWERCASE1!")
         assert ok is False
 
     def test_no_digit(self):
-        ok, msg = validate_password("NoDigitHere!")
+        ok, _msg = validate_password("NoDigitHere!")
         assert ok is False
 
     def test_no_special(self):
-        ok, msg = validate_password("NoSpecial1aa")
+        ok, _msg = validate_password("NoSpecial1aa")
         assert ok is False
 
     def test_common_password(self):
@@ -528,7 +536,7 @@ class TestValidatePassword:
         assert ok is False
 
     def test_repeated_chars(self):
-        ok, msg = validate_password("Aaaa1111!!!!")
+        ok, _msg = validate_password("Aaaa1111!!!!")
         assert ok is False
 
     def test_sequences(self):
@@ -537,7 +545,7 @@ class TestValidatePassword:
         assert "sequence" in msg.lower()
 
     def test_keyboard_sequences(self):
-        ok, msg = validate_password("Asdfgh99!!xx")
+        ok, _msg = validate_password("Asdfgh99!!xx")
         assert ok is False
 
 
@@ -550,13 +558,13 @@ class TestValidatePasswordWithContext:
         assert "username" in msg.lower()
 
     def test_short_username_not_checked(self):
-        ok, msg = validate_password_with_context(
+        ok, _msg = validate_password_with_context(
             "abG00dP@ss1!", username="ab", phone=""
         )
         assert ok is True
 
     def test_valid_with_context(self):
-        ok, msg = validate_password_with_context(
+        ok, _msg = validate_password_with_context(
             "S3cur3P@ss!", username="alice", phone="+79001234567"
         )
         assert ok is True
@@ -605,12 +613,6 @@ class TestGenerateSecurePassword:
 
 # 5. secure_upload.py
 
-from app.security.secure_upload import (
-    FileAnomalyDetector,
-    validate_file_mime_type,
-    generate_secure_filename,
-    calculate_file_hash,
-)
 
 
 class TestDetectDoubleExtension:
@@ -699,22 +701,22 @@ class TestDetectZipBombIndicators:
 class TestValidateFileMimeType:
     def test_valid_text_file(self):
         content = b"Hello, this is a text file."
-        ok, mime_or_err = validate_file_mime_type(content, "test.txt")
+        ok, _mime_or_err = validate_file_mime_type(content, "test.txt")
         assert ok is True
 
     def test_exe_extension_rejected(self):
         content = b"MZ" + b"\x00" * 100
-        ok, msg = validate_file_mime_type(content, "malware.exe")
+        ok, _msg = validate_file_mime_type(content, "malware.exe")
         assert ok is False
 
     def test_csv_file(self):
         content = b"col1,col2\nval1,val2\n"
-        ok, mime_or_err = validate_file_mime_type(content, "data.csv")
+        ok, _mime_or_err = validate_file_mime_type(content, "data.csv")
         assert ok is True
 
     def test_unknown_extension(self):
         content = b"something"
-        ok, msg = validate_file_mime_type(content, "file.xyz123")
+        ok, _msg = validate_file_mime_type(content, "file.xyz123")
         assert ok is False
 
 
@@ -866,7 +868,6 @@ class TestCorrelationID:
 
 # 7. waf.py (via HTTP)
 
-from app.security.waf import WAFEngine
 
 
 class TestWAFRuleUnit:
@@ -949,7 +950,6 @@ class TestWAFRulesEndpoint:
 
 # 8. logging_config.py
 
-from app.logging_config import JSONFormatter, ConsoleFormatter, new_correlation_id
 
 
 class TestJSONFormatter:

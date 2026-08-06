@@ -13,15 +13,13 @@ migrations, troubleshooting, and FAQ.
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import Iterable
-
 
 # Base content from v2 — we re-import it rather than duplicate.
 import sys as _sys
+from pathlib import Path
+
 _sys.path.insert(0, str(Path(__file__).parent))
 from build_vortex_docs_v2 import VORTEX_DOCS as BASE_DOCS  # type: ignore
-
 
 
 def deep(title: str, subtitle: str, what: str, why: str, where: str,
@@ -623,47 +621,47 @@ for key in SHORT_DEEP:
         title=key.replace("_", " ").replace("-", " ").title() + " — reference",
         subtitle="Subsystem summary.",
         what=f"{key} is a Vortex subsystem. It participates in the messenger's end-to-end protocol and is documented alongside the other subsystems in this reference.",
-        why=f"The subsystem exists because the protocol has a well-defined slot for it. Removing it would leave a functional gap that users rely on.",
+        why="The subsystem exists because the protocol has a well-defined slot for it. Removing it would leave a functional gap that users rely on.",
         where="See the Vortex source tree. The naming convention is `app/<feature>/` on the node, `static/js/<feature>/` on the web client, `ios/Modules/Sources/<Feature>/` on iOS, `android/app/src/main/java/sol/vortexx/android/<feature>/` on Android.",
         how="Clients invoke the subsystem through its API surface; the node routes, stores, and fans out as appropriate. Implementation details live in the module's README where present.",
         when=f"Whenever {key} is relevant — see the code for invocation sites.",
         config=[
-            f"Default config works for the common case.",
+            "Default config works for the common case.",
             f"Feature flag available in `.env.example` — look for `{key.upper()}_ENABLED`.",
-            f"Tuning knobs documented in the module's README.",
+            "Tuning knobs documented in the module's README.",
         ],
         failures=[
-            f"Degraded service rather than hard failure.",
-            f"Metrics increment; alerts fire if threshold exceeded.",
-            f"Retries are bounded; no infinite loops.",
+            "Degraded service rather than hard failure.",
+            "Metrics increment; alerts fire if threshold exceeded.",
+            "Retries are bounded; no infinite loops.",
         ],
         monitor=[
             f"Counter `vortex_{key}_events_total{{type}}`.",
             f"Histogram `vortex_{key}_duration_seconds`.",
-            f"Log at INFO for successful paths, WARN for recoverable errors.",
+            "Log at INFO for successful paths, WARN for recoverable errors.",
         ],
         tune=[
-            f"Start at defaults.",
-            f"Observe metrics for a week before changing.",
-            f"Document the reason for every tuning change.",
+            "Start at defaults.",
+            "Observe metrics for a week before changing.",
+            "Document the reason for every tuning change.",
         ],
         edge=[
-            f"Handles the expected edge cases per the protocol spec.",
-            f"Unknown edge cases are logged for operator review.",
+            "Handles the expected edge cases per the protocol spec.",
+            "Unknown edge cases are logged for operator review.",
         ],
         migrate=[
-            f"Alembic revision covers any schema change.",
-            f"Rollback supported for one minor version.",
+            "Alembic revision covers any schema change.",
+            "Rollback supported for one minor version.",
         ],
         troubleshoot=[
-            f"Check metrics first.",
-            f"Filter logs by correlation id.",
-            f"Consult the module's README troubleshooting section.",
+            "Check metrics first.",
+            "Filter logs by correlation id.",
+            "Consult the module's README troubleshooting section.",
         ],
         faq=[
-            f"Q: Is this feature stable? A: Yes, minor-version stable. Major versions may break compatibility.",
-            f"Q: Can I disable it? A: Yes via feature flag.",
-            f"Q: Is it enabled by default? A: Depends; check `.env.example`.",
+            "Q: Is this feature stable? A: Yes, minor-version stable. Major versions may break compatibility.",
+            "Q: Can I disable it? A: Yes via feature flag.",
+            "Q: Is it enabled by default? A: Depends; check `.env.example`.",
         ],
     )
 

@@ -5,17 +5,24 @@ Extracted from chat.py for maintainability.
 """
 from __future__ import annotations
 
+import contextlib
 import unicodedata
 from datetime import datetime, timezone
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.chats.messages._router import utc_iso as _utc_iso
 from app.models import User
 from app.models_rooms import (
-    Message, MessageReaction, Room, RoomMember, RoomRole,
+    Message,
+    MessageReaction,
+    Room,
+    RoomMember,
+    RoomRole,
 )
 from app.peer.connection_manager import manager
+from app.security.sealed_sender import compute_sender_pseudo
 from app.transport.blind_mailbox import deposit_envelope
 
 
@@ -23,14 +30,9 @@ async def _bmp_deposit(room_id: int, payload: dict):
     from app.config import Config
     if not Config.BMP_DELIVERY_ENABLED:
         return
-    try:
+    with contextlib.suppress(Exception):
         import json
         await deposit_envelope(room_id, json.dumps(payload))
-    except Exception:
-        pass
-
-from app.chats.messages._router import utc_iso as _utc_iso
-from app.security.sealed_sender import compute_sender_pseudo
 
 
 # Валидация эмодзи-реакций
@@ -68,15 +70,13 @@ def _is_emoji_codepoint(ch: str) -> bool:
     if unicodedata.category(ch) == "So":
         return True
     # Дополнительные пиктографические/символьные блоки
-    if (
-        0x1F000 <= cp <= 0x1FAFF      # Misc symbols & pictographs, emoticons, supplemental, symbols-and-pictographs-extended-a
-        or 0x2600 <= cp <= 0x27BF     # Misc symbols + Dingbats
-        or 0x2190 <= cp <= 0x21FF     # Arrows
-        or 0x2B00 <= cp <= 0x2BFF     # Misc symbols and arrows
-        or 0x1F004 == cp or 0x1F0CF == cp  # Mahjong tile, playing card
-    ):
-        return True
-    return False
+    return (
+        0x1F000 <= cp <= 0x1FAFF
+        or 0x2600 <= cp <= 0x27BF
+        or 0x2190 <= cp <= 0x21FF
+        or 0x2B00 <= cp <= 0x2BFF
+        or cp == 0x1F004 or cp == 0x1F0CF
+    )
 
 
 def is_valid_reaction_emoji(raw: str | None) -> bool:
@@ -212,7 +212,7 @@ async def handle_forward(room_id: int, user: User, data: dict, db: Session) -> N
     src_member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not src_member:
         return
@@ -220,7 +220,7 @@ async def handle_forward(room_id: int, user: User, data: dict, db: Session) -> N
     dst_member = db.query(RoomMember).filter(
         RoomMember.room_id == target_room_id,
         RoomMember.user_id == user.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not dst_member:
         await manager.send_to_user(room_id, user.id, {
@@ -269,7 +269,7 @@ async def handle_forward(room_id: int, user: User, data: dict, db: Session) -> N
     # Подтверждение отправителю
     await manager.send_to_user(room_id, user.id, {
         "type":    "system",
-        "message": f"\u0421\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u043f\u0435\u0440\u0435\u0441\u043b\u0430\u043d\u043e",
+        "message": "\u0421\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u043f\u0435\u0440\u0435\u0441\u043b\u0430\u043d\u043e",
     })
 
 

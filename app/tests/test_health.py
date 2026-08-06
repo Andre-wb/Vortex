@@ -1,7 +1,6 @@
 """
 Tests for health check and metrics endpoints.
 """
-import pytest
 
 
 class TestHealthEndpoints:
@@ -22,7 +21,7 @@ class TestHealthEndpoints:
         assert data["crypto_backend"] in ("rust", "python")
         assert "X25519" in data["key_exchange"] and "HKDF-SHA256" in data["key_exchange"]
         assert data["encryption"] == "AES-256-GCM"
-        assert data["password_hash"] == "Argon2id"
+        assert data["password_hash"] == "Argon2id"  # noqa: S105
         assert data["authentication"] == "JWT-HS256"
 
     def test_health_contains_network_info(self, client):

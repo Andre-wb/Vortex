@@ -2,9 +2,7 @@
 
 import secrets
 
-import pytest
-
-from conftest import SyncASGIClient, make_user, login_user, random_str, fed_proof_headers
+from conftest import SyncASGIClient, fed_proof_headers, random_str
 
 from app.federation.trusted_nodes import make_federation_proof
 

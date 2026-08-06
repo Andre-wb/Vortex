@@ -2,6 +2,7 @@
 Security tests — WAF, CSRF, headers, injection prevention.
 """
 import secrets
+
 import pytest
 
 
@@ -34,9 +35,9 @@ class TestSecurityHeaders:
         assert "max-age=" in hsts
 
     def test_correlation_id_in_response(self, client):
-        resp = client.get("/health")
+        client.get("/health")
         # Correlation ID should be present in X-Request-ID
-        assert "x-request-id" in resp.headers or True  # May not be set in test mode
+        assert True  # May not be set in test mode
 
 
 @pytest.mark.security
@@ -53,10 +54,10 @@ class TestCSRF:
         resp = client.get("/api/authentication/csrf-token")
         assert resp.status_code == 200
         # Cookie should be set in response
-        cookies = resp.cookies if hasattr(resp, 'cookies') else {}
+        resp.cookies if hasattr(resp, 'cookies') else {}
         # Check via headers
-        set_cookie = resp.headers.get("set-cookie", "")
-        assert "csrf_token" in set_cookie or True  # May use client cookies
+        resp.headers.get("set-cookie", "")
+        assert True  # May use client cookies
 
 
 @pytest.mark.security
@@ -107,7 +108,7 @@ class TestXSS:
         # Should either sanitize or accept (server doesn't render HTML)
         # But XSS payload should not be reflected in headers
         if resp.status_code == 201:
-            data = resp.json()
+            resp.json()
             # The display name is stored as-is (E2E encrypted on client)
             # Server doesn't render it, so this is acceptable
 

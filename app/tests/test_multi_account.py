@@ -10,9 +10,7 @@ test_multi_account.py — Тесты устойчивости мультиакк
 """
 import secrets
 
-import pytest
-
-from conftest import make_user, login_user, random_str
+from conftest import login_user, make_user, random_str
 
 
 class TestMultiAccountRegistration:
@@ -150,7 +148,7 @@ class TestMultiAccountLogin:
         users = [make_user(client, f'cycle_{i}_{random_str(4)}') for i in range(4)]
 
         # Цикл: логин → проверка → логин в следующий
-        for cycle in range(2):  # 2 полных цикла
+        for _cycle in range(2):  # 2 полных цикла
             for u in users:
                 h = login_user(client, u['username'], u['password'])
 

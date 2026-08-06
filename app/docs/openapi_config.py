@@ -10,7 +10,6 @@ Organized by tags matching the Vortex module structure.
 """
 from __future__ import annotations
 
-
 OPENAPI_TAGS = [
     {
         "name": "authentication",

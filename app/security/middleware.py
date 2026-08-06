@@ -21,8 +21,9 @@ from typing import Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.database import SessionLocal
-from app.security.auth_jwt import verify_refresh_token, create_access_token
+from app.security.auth_jwt import create_access_token, verify_refresh_token
 
 logger = logging.getLogger(__name__)
 _IS_PROD = os.getenv("ENVIRONMENT", "development") == "production"

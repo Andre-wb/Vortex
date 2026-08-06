@@ -6,7 +6,7 @@ StoryKeyEnvelope.kyber_ciphertext переживает store→fetch; _story_dic
 import json
 import secrets
 
-from conftest import make_user, login_user
+from conftest import login_user, make_user
 
 
 def _hybrid_env(uid: int) -> dict:

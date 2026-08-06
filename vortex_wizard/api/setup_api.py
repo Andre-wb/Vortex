@@ -1,11 +1,15 @@
 """Setup mode API — first-run node configuration."""
+
 from __future__ import annotations
 
+import asyncio as _asyncio
+import contextlib
 import logging
 import os
+import re as _re
 import secrets
+import shutil as _shutil
 import socket
-import traceback
 from pathlib import Path
 from typing import Optional
 
@@ -56,6 +60,7 @@ class SystemInfo(BaseModel):
 async def system_info(request: Request) -> SystemInfo:
     """OS info for pre-populating fields."""
     import platform
+
     ips = _detect_local_ips()
     return SystemInfo(
         hostname=socket.gethostname(),
@@ -63,8 +68,6 @@ async def system_info(request: Request) -> SystemInfo:
         local_ips=ips,
         env_exists=_env_path(request).is_file(),
     )
-
-
 
 
 @router.get("/generate-seed")
@@ -77,13 +80,14 @@ async def generate_seed() -> dict:
     derived private key to ``keys/ed25519_signing.bin``.
     """
     from . import seed_derive
+
     phrase = seed_derive.generate_mnemonic()
     ident = seed_derive.derive_identity(phrase)
     return {
-        "mnemonic":        phrase,
-        "words":           phrase.split(),
-        "node_pubkey":     ident.node_pubkey_hex,
-        "wallet_pubkey":   ident.wallet_pubkey_base58,
+        "mnemonic": phrase,
+        "words": phrase.split(),
+        "node_pubkey": ident.node_pubkey_hex,
+        "wallet_pubkey": ident.wallet_pubkey_base58,
     }
 
 
@@ -95,6 +99,7 @@ async def validate_seed(body: MnemonicBody) -> dict:
     address they're recovering before committing.
     """
     from . import seed_derive
+
     phrase = seed_derive.normalize_mnemonic(body.mnemonic)
     if len(phrase.split()) != 24:
         return {"ok": False, "error": "must be 24 words"}
@@ -102,9 +107,9 @@ async def validate_seed(body: MnemonicBody) -> dict:
         return {"ok": False, "error": "checksum fails — words are wrong or mis-spelled"}
     ident = seed_derive.derive_identity(phrase)
     return {
-        "ok":              True,
-        "node_pubkey":     ident.node_pubkey_hex,
-        "wallet_pubkey":   ident.wallet_pubkey_base58,
+        "ok": True,
+        "node_pubkey": ident.node_pubkey_hex,
+        "wallet_pubkey": ident.wallet_pubkey_base58,
     }
 
 
@@ -122,6 +127,7 @@ async def save_config(cfg: SetupConfig, request: Request) -> dict:
     # Seed phrase is required — it drives both the node identity and the
     # operator's reward wallet. Without it we cannot persist a signing key.
     from . import seed_derive
+
     phrase = seed_derive.normalize_mnemonic(cfg.mnemonic)
     if len(phrase.split()) != 24 or not seed_derive.validate_mnemonic(phrase):
         raise HTTPException(400, "valid 24-word mnemonic required")
@@ -145,10 +151,8 @@ async def save_config(cfg: SetupConfig, request: Request) -> dict:
         keys_dir.mkdir(parents=True, exist_ok=True)
         sig_path = keys_dir / "ed25519_signing.bin"
         sig_path.write_bytes(ident.node_priv_raw)
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(sig_path, 0o600)
-        except OSError:
-            pass
 
         announce = _normalize_endpoints(cfg.announce_endpoints)
 
@@ -208,12 +212,10 @@ async def save_config(cfg: SetupConfig, request: Request) -> dict:
         with open(env_file, "w", encoding="utf-8") as f:
             f.write(payload)
             f.flush()
-            try: os.fsync(f.fileno())
-            except OSError: pass
-        try:
+            with contextlib.suppress(OSError):
+                os.fsync(f.fileno())
+        with contextlib.suppress(OSError):
             os.chmod(env_file, 0o600)
-        except OSError:
-            pass
         # Sanity — re-read and confirm the marker made it. If not, fail
         # loudly so the caller knows the mode won't flip.
         try:
@@ -222,16 +224,16 @@ async def save_config(cfg: SetupConfig, request: Request) -> dict:
                 raise RuntimeError("NODE_INITIALIZED=true not found in .env after write")
         except Exception as e:
             logger.exception("save: post-write verification failed")
-            raise HTTPException(500, f"env write verification failed: {e}")
-    except PermissionError as e:
+            raise HTTPException(500, f"env write verification failed: {e}") from None
+    except PermissionError:
         logger.exception("save: permission denied at %s", env_file)
-        raise HTTPException(500, f"cannot write to {env_file}: permission denied")
+        raise HTTPException(500, f"cannot write to {env_file}: permission denied") from None
     except OSError as e:
         logger.exception("save: OS error at %s", env_file)
-        raise HTTPException(500, f"cannot write to {env_file}: {e.__class__.__name__}: {e}")
+        raise HTTPException(500, f"cannot write to {env_file}: {e.__class__.__name__}: {e}") from None
     except Exception as e:
         logger.exception("save: unexpected failure")
-        raise HTTPException(500, f"internal error: {e.__class__.__name__}: {e}")
+        raise HTTPException(500, f"internal error: {e.__class__.__name__}: {e}") from None
 
     # Auto-start the node right after save so the operator never has to
     # open a second terminal. Delegates to the admin_api lifecycle
@@ -241,6 +243,7 @@ async def save_config(cfg: SetupConfig, request: Request) -> dict:
     node_error: Optional[str] = None
     try:
         from . import admin_api
+
         resp = await admin_api.node_start(request)
         node_started = bool(resp.get("ok"))
     except HTTPException as e:
@@ -250,10 +253,10 @@ async def save_config(cfg: SetupConfig, request: Request) -> dict:
         logger.exception("save: autostart failed")
 
     return {
-        "ok":           True,
-        "path":         str(env_file),
+        "ok": True,
+        "path": str(env_file),
         "node_started": node_started,
-        "node_error":   node_error,
+        "node_error": node_error,
     }
 
 
@@ -290,6 +293,7 @@ async def resolve_sns(domain: str = "vortexx.sol") -> dict:
             return (val or "").strip() if isinstance(val, str) else ""
 
         import asyncio
+
         url_val, txt_val = await asyncio.gather(_fetch("URL"), _fetch("TXT"))
     except Exception as e:
         return {"ok": False, "domain": domain, "error": str(e)}
@@ -327,11 +331,8 @@ async def resolve_sns(domain: str = "vortexx.sol") -> dict:
 # URL. All args are literals or numeric, so subprocess is launched with
 # `create_subprocess_exec` (no shell invocation, no injection surface).
 
-import asyncio as _asyncio
-import re as _re
-import shutil as _shutil
 
-_tunnel_proc: Optional["_asyncio.subprocess.Process"] = None
+_tunnel_proc: Optional[_asyncio.subprocess.Process] = None
 _tunnel_url: Optional[str] = None
 _tunnel_lock: Optional[_asyncio.Lock] = None
 
@@ -359,11 +360,11 @@ def _find_cloudflared() -> Optional[str]:
     if hit:
         return hit
     candidates = [
-        "/opt/homebrew/bin/cloudflared",      # Homebrew on Apple Silicon
-        "/usr/local/bin/cloudflared",         # Homebrew on Intel, generic /usr/local
-        "/opt/local/bin/cloudflared",         # MacPorts
-        "/snap/bin/cloudflared",              # Linux snap
-        "/usr/bin/cloudflared",               # apt / dnf / pacman
+        "/opt/homebrew/bin/cloudflared",  # Homebrew on Apple Silicon
+        "/usr/local/bin/cloudflared",  # Homebrew on Intel, generic /usr/local
+        "/opt/local/bin/cloudflared",  # MacPorts
+        "/snap/bin/cloudflared",  # Linux snap
+        "/usr/bin/cloudflared",  # apt / dnf / pacman
         # Windows winget default — also handled by shutil.which normally but
         # a stripped-cmd environment can miss it.
         r"C:\Program Files (x86)\cloudflared\cloudflared.exe",
@@ -424,10 +425,13 @@ async def start_tunnel(body: dict) -> dict:
         # drops the connection and we get a 502 at the edge.
         origin_scheme = "https" if (Path("certs") / "vortex.crt").is_file() else "http"
         cloudflared_args = [
-            bin_path, "tunnel",
-            "--url", f"{origin_scheme}://localhost:{port}",
+            bin_path,
+            "tunnel",
+            "--url",
+            f"{origin_scheme}://localhost:{port}",
             # http2 avoids QUIC — more robust through NAT/firewall
-            "--protocol", "http2",
+            "--protocol",
+            "http2",
             "--no-autoupdate",
         ]
         if origin_scheme == "https":
@@ -489,11 +493,9 @@ async def check_port(port: int) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-
-
 def _detect_local_ips() -> list[str]:
     ips: list[str] = []
-    try:
+    with contextlib.suppress(Exception):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         for target in ("192.168.1.1", "10.0.0.1", "8.8.8.8"):
             try:
@@ -502,11 +504,9 @@ def _detect_local_ips() -> list[str]:
                 if not ip.startswith("127."):
                     ips.append(ip)
                     break
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
         s.close()
-    except Exception:
-        pass
     return ips
 
 

@@ -25,10 +25,11 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-    Ed25519PrivateKey, Ed25519PublicKey,
-)
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -215,7 +216,7 @@ async def import_config(body: ImportConfigBody, request: Request) -> dict:
     try:
         env_body = _from_qr_string(body.uri)
     except Exception as e:
-        raise HTTPException(400, f"cannot parse QR: {e}")
+        raise HTTPException(400, f"cannot parse QR: {e}") from None
     payload = env_body.get("payload") or {}
     sig     = env_body.get("signature") or ""
     src = payload.get("source_pubkey", "")
@@ -227,7 +228,7 @@ async def import_config(body: ImportConfigBody, request: Request) -> dict:
         pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(src))
         pub.verify(bytes.fromhex(sig), _canonical(payload))
     except (ValueError, InvalidSignature):
-        raise HTTPException(401, "signature invalid")
+        raise HTTPException(401, "signature invalid") from None
 
     cfg = payload.get("config") or {}
     if not cfg:
@@ -260,7 +261,7 @@ class FirstScreenDiscoverBody(BaseModel):
 @router.post("/firstscreen/discover")
 async def firstscreen_discover(body: FirstScreenDiscoverBody, request: Request) -> dict:
     # Thin wrapper so the admin + setup SPAs share one endpoint namespace.
-    from .seed_tools import backup_discover, BackupDiscoverBody
+    from .seed_tools import BackupDiscoverBody, backup_discover
     return await backup_discover(BackupDiscoverBody(
         controller_url=body.controller_url,
         mnemonic=body.mnemonic,

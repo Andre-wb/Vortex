@@ -21,7 +21,8 @@ import abc
 import json
 import logging
 import os
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
+from typing import Optional
 
 import httpx
 
@@ -125,17 +126,16 @@ class OllamaProvider(AIProvider):
             "model": self.model, "prompt": prompt, "system": system,
             "stream": True, "options": {"temperature": temperature, "num_predict": max_tokens},
         }
-        async with httpx.AsyncClient(timeout=60.0) as c:
-            async with c.stream("POST", f"{self.url}/api/generate", json=payload) as r:
-                r.raise_for_status()
-                async for line in r.aiter_lines():
-                    if line:
-                        chunk = json.loads(line)
-                        token = chunk.get("response", "")
-                        if token:
-                            yield token
-                        if chunk.get("done"):
-                            break
+        async with httpx.AsyncClient(timeout=60.0) as c, c.stream("POST", f"{self.url}/api/generate", json=payload) as r:
+            r.raise_for_status()
+            async for line in r.aiter_lines():
+                if line:
+                    chunk = json.loads(line)
+                    token = chunk.get("response", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        break
 
     async def chat(self, messages, *, temperature=0.7, max_tokens=1024) -> str:
         payload = {
@@ -152,17 +152,16 @@ class OllamaProvider(AIProvider):
             "model": self.model, "messages": messages, "stream": True,
             "options": {"temperature": temperature, "num_predict": max_tokens},
         }
-        async with httpx.AsyncClient(timeout=60.0) as c:
-            async with c.stream("POST", f"{self.url}/api/chat", json=payload) as r:
-                r.raise_for_status()
-                async for line in r.aiter_lines():
-                    if line:
-                        chunk = json.loads(line)
-                        token = chunk.get("message", {}).get("content", "")
-                        if token:
-                            yield token
-                        if chunk.get("done"):
-                            break
+        async with httpx.AsyncClient(timeout=60.0) as c, c.stream("POST", f"{self.url}/api/chat", json=payload) as r:
+            r.raise_for_status()
+            async for line in r.aiter_lines():
+                if line:
+                    chunk = json.loads(line)
+                    token = chunk.get("message", {}).get("content", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        break
 
 
 # OpenAI-compatible API
@@ -244,28 +243,27 @@ class OpenAIProvider(AIProvider):
             "max_tokens": max_tokens,
             "stream": True,
         }
-        async with httpx.AsyncClient(timeout=60.0) as c:
-            async with c.stream(
-                "POST",
-                f"{self.api_url}/chat/completions",
-                json=payload,
-                headers=self._headers(),
-            ) as r:
-                r.raise_for_status()
-                async for line in r.aiter_lines():
-                    if not line or not line.startswith("data: "):
-                        continue
-                    chunk_str = line[6:]
-                    if chunk_str.strip() == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(chunk_str)
-                        delta = chunk["choices"][0].get("delta", {})
-                        token = delta.get("content", "")
-                        if token:
-                            yield token
-                    except (json.JSONDecodeError, KeyError, IndexError):
-                        pass
+        async with httpx.AsyncClient(timeout=60.0) as c, c.stream(
+            "POST",
+            f"{self.api_url}/chat/completions",
+            json=payload,
+            headers=self._headers(),
+        ) as r:
+            r.raise_for_status()
+            async for line in r.aiter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                chunk_str = line[6:]
+                if chunk_str.strip() == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(chunk_str)
+                    delta = chunk["choices"][0].get("delta", {})
+                    token = delta.get("content", "")
+                    if token:
+                        yield token
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    pass
 
 
 # Anthropic API
@@ -338,26 +336,25 @@ class AnthropicProvider(AIProvider):
         }
         if _system:
             payload["system"] = _system
-        async with httpx.AsyncClient(timeout=60.0) as c:
-            async with c.stream(
-                "POST",
-                f"{self.api_url}/v1/messages",
-                json=payload,
-                headers=self._headers(),
-            ) as r:
-                r.raise_for_status()
-                async for line in r.aiter_lines():
-                    if not line or not line.startswith("data: "):
-                        continue
-                    chunk_str = line[6:]
-                    try:
-                        chunk = json.loads(chunk_str)
-                        if chunk.get("type") == "content_block_delta":
-                            token = chunk.get("delta", {}).get("text", "")
-                            if token:
-                                yield token
-                    except (json.JSONDecodeError, KeyError):
-                        pass
+        async with httpx.AsyncClient(timeout=60.0) as c, c.stream(
+            "POST",
+            f"{self.api_url}/v1/messages",
+            json=payload,
+            headers=self._headers(),
+        ) as r:
+            r.raise_for_status()
+            async for line in r.aiter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                chunk_str = line[6:]
+                try:
+                    chunk = json.loads(chunk_str)
+                    if chunk.get("type") == "content_block_delta":
+                        token = chunk.get("delta", {}).get("text", "")
+                        if token:
+                            yield token
+                except (json.JSONDecodeError, KeyError):
+                    pass
 
 
 # Provider factory with auto-detection

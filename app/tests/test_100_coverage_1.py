@@ -7,10 +7,12 @@ Comprehensive coverage tests for:
   - app/database.py (URL resolution, init_db, get_engine_info, get_async_db)
 """
 
-import os, secrets, json, time, asyncio
-import pytest
-from conftest import make_user, login_user, random_str, _unique_phone, random_digits, _unique_phone
+import asyncio
+import secrets
+import time
 
+import pytest
+from conftest import _unique_phone, login_user, make_user, random_str
 
 # 1. app/main.py — health, readiness, exception handlers, Prometheus
 
@@ -58,7 +60,7 @@ class TestMainPrometheusMetrics:
     def test_prometheus_metrics_objects(self):
         from app.main import _PROMETHEUS_AVAILABLE
         if _PROMETHEUS_AVAILABLE:
-            from app.main import REQUEST_COUNT, ACTIVE_CONNECTIONS, ACTIVE_PEERS, DB_ERRORS
+            from app.main import ACTIVE_CONNECTIONS, ACTIVE_PEERS, DB_ERRORS, REQUEST_COUNT
             assert REQUEST_COUNT is not None
             assert ACTIVE_CONNECTIONS is not None
             assert ACTIVE_PEERS is not None
@@ -74,14 +76,14 @@ class TestMainBackgroundTasks:
         assert isinstance(_background_tasks, list)
 
     def test_create_background_task(self):
-        from app.main import _create_background_task, _background_tasks
+        from app.main import _background_tasks, _create_background_task
 
         async def _noop():
             pass
 
         loop = asyncio.new_event_loop()
-        initial = len(_background_tasks)
-        task = loop.run_until_complete(asyncio.ensure_future(_noop(), loop=loop))
+        len(_background_tasks)
+        loop.run_until_complete(asyncio.ensure_future(_noop(), loop=loop))
         loop.close()
         # The function is synchronous from the caller's perspective but creates a task
         # Just verify it exists and is callable
@@ -113,7 +115,10 @@ class TestAuthCleanupChallenges:
 
     def test_cleanup_expired_challenges(self):
         from app.authentication import (
-            _challenges, _challenges_lock, _cleanup_expired_challenges, _Challenge,
+            _Challenge,
+            _challenges,
+            _challenges_lock,
+            _cleanup_expired_challenges,
         )
         # Insert an expired challenge
         with _challenges_lock:
@@ -129,7 +134,10 @@ class TestAuthCleanupChallenges:
 
     def test_cleanup_keeps_valid_challenges(self):
         from app.authentication import (
-            _challenges, _challenges_lock, _cleanup_expired_challenges, _Challenge,
+            _Challenge,
+            _challenges,
+            _challenges_lock,
+            _cleanup_expired_challenges,
         )
         with _challenges_lock:
             _challenges["valid_test_1"] = _Challenge(
@@ -272,7 +280,7 @@ class TestAuthChallengeResponse:
 
     def test_login_key_expired_challenge(self, client):
         """Covers lines 419-420 (expired challenge)."""
-        from app.authentication import _challenges, _challenges_lock, _Challenge
+        from app.authentication import _Challenge, _challenges, _challenges_lock
         cid = secrets.token_hex(16)
         with _challenges_lock:
             _challenges[cid] = _Challenge(
@@ -291,7 +299,7 @@ class TestAuthChallengeResponse:
 
     def test_login_key_wrong_pubkey(self, client):
         """Covers lines 421-422 (pubkey mismatch)."""
-        from app.authentication import _challenges, _challenges_lock, _Challenge
+        from app.authentication import _Challenge, _challenges, _challenges_lock
         cid = secrets.token_hex(16)
         with _challenges_lock:
             _challenges[cid] = _Challenge(
@@ -485,8 +493,9 @@ class TestAuthAvatarUpload:
 
     def test_avatar_upload_valid(self, client):
         """Covers lines 670-684 (successful avatar upload)."""
-        from PIL import Image
         import io
+
+        from PIL import Image
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
         # Create a small valid image
@@ -1067,16 +1076,16 @@ class TestWAFGlobalInit:
     """Глобальный экземпляр движка."""
 
     def test_init_waf_engine(self):
-        from app.security.waf import init_waf_engine, WAFEngine
+        from app.security.waf import WAFEngine, init_waf_engine
         assert isinstance(init_waf_engine(), WAFEngine)
 
     def test_get_waf_engine_after_init(self):
-        from app.security.waf import init_waf_engine, get_waf_engine
+        from app.security.waf import get_waf_engine, init_waf_engine
         init_waf_engine()
         assert get_waf_engine() is not None
 
     def test_get_waf_manager(self):
-        from app.security.waf import init_waf_engine, get_waf_manager
+        from app.security.waf import get_waf_manager, init_waf_engine
         init_waf_engine()
         assert get_waf_manager().get_whitelist()
 
@@ -1123,7 +1132,7 @@ class TestWAFMiddlewareHelpers:
 
     @staticmethod
     def _middleware():
-        from app.security.waf import WAFMiddleware, WAFEngine
+        from app.security.waf import WAFEngine, WAFMiddleware
 
         async def dummy_app(scope, receive, send):
             pass
@@ -1190,7 +1199,8 @@ class TestWAFSetupFunction:
 
     def test_setup_waf(self):
         from fastapi import FastAPI
-        from app.security.waf import setup_waf, WAFEngine
+
+        from app.security.waf import WAFEngine, setup_waf
         engine = setup_waf(FastAPI())
         assert isinstance(engine, WAFEngine)
 
@@ -1292,8 +1302,9 @@ class TestCSRFMiddleware:
         """Covers lines 188-189 (multipart/form-data uses header)."""
         user = make_user(client)
         headers = login_user(client, user["username"], user["password"])
-        from PIL import Image
         import io
+
+        from PIL import Image
         img = Image.new("RGB", (10, 10), color="blue")
         buf = io.BytesIO()
         img.save(buf, "JPEG")
@@ -1373,7 +1384,7 @@ class TestDatabase:
 
     def test_get_async_db_depends_on_backend(self):
         """Covers lines 143-154 (get_async_db behavior depends on backend)."""
-        from app.database import get_async_db, _is_sqlite
+        from app.database import _is_sqlite, get_async_db
         gen = get_async_db()
 
         if _is_sqlite:
@@ -1401,7 +1412,7 @@ class TestWAFRuleCatalog:
 
     def test_all_patterns_compile(self):
         """Каталог собирается целиком — иначе конструктор поднял бы исключение."""
-        from app.security.waf import WAFEngine, RULE_COUNT
+        from app.security.waf import RULE_COUNT, WAFEngine
         rules = WAFEngine().rules()
         assert len(rules) == RULE_COUNT
 

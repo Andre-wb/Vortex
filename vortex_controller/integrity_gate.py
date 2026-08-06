@@ -27,12 +27,11 @@ that would be trusted in a regular flow.
 """
 from __future__ import annotations
 
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-
 
 # Prefixes that remain accessible even on a tampered build.
 # Keep this list tight — every item here is a potential info-leak surface.
@@ -56,10 +55,7 @@ _SAFE_EXACT = {
 def _path_is_safe(path: str) -> bool:
     if path in _SAFE_EXACT:
         return True
-    for p in _SAFE_PREFIXES:
-        if path.startswith(p):
-            return True
-    return False
+    return any(path.startswith(p) for p in _SAFE_PREFIXES)
 
 
 _FAILING_STATUSES = frozenset({"tampered", "bad_signature", "wrong_key"})
@@ -74,19 +70,18 @@ class IntegrityGateMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable],
     ):
         report = getattr(request.app.state, "integrity", None)
-        if report is not None and report.status in _FAILING_STATUSES:
-            if not _path_is_safe(request.url.path):
-                return JSONResponse(
-                    status_code=503,
-                    headers={
-                        "X-Vortex-Integrity": report.status,
-                        "Retry-After": "0",
-                    },
-                    content={
-                        "error": "integrity_failed",
-                        "status": report.status,
-                        "message": report.message,
-                        "integrity_url": "/v1/integrity",
-                    },
-                )
+        if report is not None and report.status in _FAILING_STATUSES and not _path_is_safe(request.url.path):
+            return JSONResponse(
+                status_code=503,
+                headers={
+                    "X-Vortex-Integrity": report.status,
+                    "Retry-After": "0",
+                },
+                content={
+                    "error": "integrity_failed",
+                    "status": report.status,
+                    "message": report.message,
+                    "integrity_url": "/v1/integrity",
+                },
+            )
         return await call_next(request)

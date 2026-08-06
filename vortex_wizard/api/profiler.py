@@ -10,12 +10,11 @@ diagnosing wizard-side bottlenecks, not a full-blown APM.
 """
 from __future__ import annotations
 
-import bisect
 import logging
 import threading
 import time
 from collections import defaultdict, deque
-from typing import Awaitable, Callable, Deque, Dict, Iterable, Tuple
+from collections.abc import Awaitable, Callable, Iterable
 
 from fastapi import APIRouter, Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -30,12 +29,12 @@ _STATUS_COUNTER_CAP = 10_000
 
 class _PerEndpointStats:
     """Rolling samples + counters for one (method, path) tuple."""
-    __slots__ = ("samples", "count", "status_counts")
+    __slots__ = ("count", "samples", "status_counts")
 
     def __init__(self):
-        self.samples: Deque[float] = deque(maxlen=_BUCKET_MAX_SAMPLES)
+        self.samples: deque[float] = deque(maxlen=_BUCKET_MAX_SAMPLES)
         self.count: int = 0
-        self.status_counts: Dict[int, int] = {}
+        self.status_counts: dict[int, int] = {}
 
     def add(self, duration_ms: float, status: int) -> None:
         self.samples.append(duration_ms)
@@ -47,11 +46,11 @@ class _PerEndpointStats:
             return 0.0
         sorted_samples = sorted(self.samples)
         idx = max(0, min(len(sorted_samples) - 1,
-                         int(round((p / 100.0) * (len(sorted_samples) - 1)))))
+                         round((p / 100.0) * (len(sorted_samples) - 1))))
         return sorted_samples[idx]
 
 
-_stats: Dict[Tuple[str, str], _PerEndpointStats] = defaultdict(_PerEndpointStats)
+_stats: dict[tuple[str, str], _PerEndpointStats] = defaultdict(_PerEndpointStats)
 _lock = threading.Lock()
 
 

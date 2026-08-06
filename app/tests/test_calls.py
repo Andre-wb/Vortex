@@ -15,10 +15,7 @@ Covers:
 """
 from __future__ import annotations
 
-import pytest
-
-from conftest import make_user, login_user, random_str, SyncASGIClient
-
+from conftest import login_user, make_user
 
 
 def _register_and_login(client) -> tuple[dict, dict]:
@@ -81,7 +78,7 @@ class TestCallsAuth:
 class TestStartCall:
 
     def test_start_audio_call_returns_call_id(self, client):
-        u1, h1 = _register_and_login(client)
+        _u1, h1 = _register_and_login(client)
         u2, _ = _register_and_login(client)
         uid2 = _user_id(u2)
 
@@ -293,7 +290,7 @@ class TestRecentCalls:
         assert "total" in body
 
     def test_recent_calls_shows_outgoing(self, client):
-        u1, h1 = _register_and_login(client)
+        _u1, h1 = _register_and_login(client)
         u2, _ = _register_and_login(client)
 
         _start_call(client, h1, callee_id=_user_id(u2))
@@ -325,7 +322,7 @@ class TestRecentCalls:
         assert call is not None, "Expected an incoming call entry"
 
     def test_recent_calls_call_dict_structure(self, client):
-        u1, h1 = _register_and_login(client)
+        _u1, h1 = _register_and_login(client)
         u2, _ = _register_and_login(client)
 
         _start_call(client, h1, callee_id=_user_id(u2))
@@ -369,7 +366,7 @@ class TestMissedCalls:
         assert isinstance(body["calls"], list)
 
     def test_missed_call_appears_in_missed(self, client):
-        u1, h1 = _register_and_login(client)
+        _u1, h1 = _register_and_login(client)
         u2, h2 = _register_and_login(client)
 
         # Start call, don't answer — default status is 'missed'
@@ -383,7 +380,7 @@ class TestMissedCalls:
         assert call["call_id"] in ids
 
     def test_answered_call_not_in_missed(self, client):
-        u1, h1 = _register_and_login(client)
+        _u1, h1 = _register_and_login(client)
         u2, h2 = _register_and_login(client)
 
         call = _start_call(client, h1, callee_id=_user_id(u2))
@@ -483,8 +480,8 @@ class TestDeleteCalls:
 
     def test_delete_other_users_call_returns_404(self, client):
         _, h1 = _register_and_login(client)
-        u2, h2 = _register_and_login(client)
-        u3, _ = _register_and_login(client)
+        u2, _h2 = _register_and_login(client)
+        _u3, _ = _register_and_login(client)
 
         call = _start_call(client, h1, callee_id=_user_id(u2))
 
@@ -508,10 +505,10 @@ class TestDeleteCalls:
         assert recent["total"] == 0
 
     def test_clear_history_does_not_affect_other_users(self, client):
-        u1, h1 = _register_and_login(client)
+        _u1, h1 = _register_and_login(client)
         u2, h2 = _register_and_login(client)
 
-        call = _start_call(client, h1, callee_id=_user_id(u2))
+        _start_call(client, h1, callee_id=_user_id(u2))
 
         # User1 clears their history
         client.delete("/api/calls/clear", headers=h1)

@@ -21,6 +21,7 @@ Release pubkey storage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -32,7 +33,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from . import VERSION
 from .manifest import build_manifest, canonical_json
-
 
 DEFAULT_KEY_PATH = Path("keys/release.key")
 DEFAULT_OUT = Path("INTEGRITY.sig.json")
@@ -49,10 +49,8 @@ def _load_or_create_key(path: Path) -> Ed25519PrivateKey:
         encryption_algorithm=serialization.NoEncryption(),
     )
     path.write_bytes(raw)
-    try:
+    with contextlib.suppress(OSError):
         os.chmod(path, 0o600)
-    except OSError:
-        pass
     return priv
 
 

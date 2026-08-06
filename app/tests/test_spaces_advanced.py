@@ -4,12 +4,9 @@ nested spaces (sub-spaces), templates, discovery, audit logs, onboarding,
 custom emojis, vanity URLs, and permission overrides.
 """
 import io
-import secrets
 
 import pytest
-
-from conftest import make_user, login_user, random_str
-
+from conftest import login_user, make_user, random_str
 
 
 def _create_space(client, headers, *, name=None, is_public=False):

@@ -16,7 +16,6 @@ from pydantic import BaseModel
 from app.config import Config
 from app.models import User
 from app.peer._router import router
-from app.peer.peer_models import registry
 from app.security.auth_jwt import get_current_user
 from app.security.ssl_context import make_peer_ssl_context
 
@@ -51,7 +50,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
             if r.status_code == 200:
                 remote_base = f"{scheme}://{body.peer_ip}:{body.peer_port}"
                 break
-        except Exception:
+        except Exception:  # noqa: S112
             continue
 
     if not remote_base:
@@ -74,7 +73,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
                 },
             )
         except Exception as e:
-            raise HTTPException(502, f"Node connection error: {e}")
+            raise HTTPException(502, f"Node connection error: {e}") from None
 
         if resp.status_code == 403:
             raise HTTPException(
@@ -95,7 +94,7 @@ async def federated_join(body: FederatedJoinRequest, u: User = Depends(get_curre
             json={},
             )
     except Exception as e:
-        raise HTTPException(502, f"Join error: {e}")
+        raise HTTPException(502, f"Join error: {e}") from None
 
     if join_resp.status_code not in (200, 201):
         raise HTTPException(join_resp.status_code, join_resp.text[:200])
@@ -174,7 +173,7 @@ async def multihop_join(
             if r.status_code == 200:
                 via_base = f"{scheme}://{body.via_ip}:{body.via_port}"
                 break
-        except Exception:
+        except Exception:  # noqa: S112
             continue
 
     if not via_base:
@@ -197,7 +196,7 @@ async def multihop_join(
                 },
             )
         except Exception as e:
-            raise HTTPException(502, f"guest-login on B ({body.via_ip}) failed: {e}")
+            raise HTTPException(502, f"guest-login on B ({body.via_ip}) failed: {e}") from None
 
         if gr.status_code != 200:
             raise HTTPException(502, f"guest-login on B: {gr.status_code}")
@@ -216,7 +215,7 @@ async def multihop_join(
             },
         )
     except Exception as e:
-        raise HTTPException(502, f"federated-join B→C failed: {e}")
+        raise HTTPException(502, f"federated-join B→C failed: {e}") from None
 
     if hr.status_code != 200:
         raise HTTPException(502, f"B→C join: {hr.status_code} {hr.text[:200]}")

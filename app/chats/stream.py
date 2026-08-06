@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import json as _json
 import logging
-import time
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
@@ -32,10 +32,20 @@ class StreamRole(str, Enum):
 
 class StreamParticipant:
     __slots__ = (
-        "user_id", "username", "display_name", "avatar_emoji", "avatar_url",
-        "role", "can_speak", "can_video", "can_screen_share",
-        "is_muted", "is_video_on", "is_screen_sharing",
-        "hand_raised", "joined_at",
+        "avatar_emoji",
+        "avatar_url",
+        "can_screen_share",
+        "can_speak",
+        "can_video",
+        "display_name",
+        "hand_raised",
+        "is_muted",
+        "is_screen_sharing",
+        "is_video_on",
+        "joined_at",
+        "role",
+        "user_id",
+        "username",
     )
 
     def __init__(self, user: User, role: StreamRole):
@@ -146,7 +156,7 @@ async def _check_scheduled_streams():
                     sdt = datetime.fromisoformat(scheduled_at_str.replace("Z", "+00:00"))
                     if sdt.tzinfo is None:
                         sdt = sdt.replace(tzinfo=timezone.utc)
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
                 if now >= sdt and room_id not in _active_streams:
                     to_fire.append((room_id, sched))
@@ -232,7 +242,7 @@ def _require_admin(room_id: int, user_id: int, db: Session) -> RoomMember:
     m = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not m or m.role not in (RoomRole.OWNER, RoomRole.ADMIN):
         raise HTTPException(403, "Only channel owner or admin can manage streams")
@@ -243,7 +253,7 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
     m = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not m:
         raise HTTPException(403, "You are not a member of this channel")
@@ -322,7 +332,7 @@ async def schedule_stream(
 
     # Also notify via global WS so users not in the room see browser notifications
     members = db.query(RoomMember.user_id).filter(
-        RoomMember.room_id == room_id, RoomMember.is_banned == False,
+        RoomMember.room_id == room_id, RoomMember.is_banned.is_(False),
     ).all()
     for (uid,) in members:
         if uid != u.id:
@@ -413,10 +423,7 @@ async def join_stream(
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == u.id,
     ).first()
-    if member and member.role in (RoomRole.OWNER, RoomRole.ADMIN):
-        role = StreamRole.CO_HOST
-    else:
-        role = StreamRole.VIEWER
+    role = StreamRole.CO_HOST if member and member.role in (RoomRole.OWNER, RoomRole.ADMIN) else StreamRole.VIEWER
 
     p = StreamParticipant(u, role)
     stream.participants[u.id] = p
@@ -664,10 +671,8 @@ async def kick_from_stream(
     ws_room = _stream_ws.get(room_id, {})
     kicked_ws = ws_room.pop(target_id, None)
     if kicked_ws:
-        try:
+        with contextlib.suppress(Exception):
             await kicked_ws.send_text(_json.dumps({"type": "stream_kicked", "by": u.username}))
-        except Exception:
-            pass
 
     await _broadcast_stream(room_id, {
         "type": "stream_viewer_left",
@@ -840,7 +845,7 @@ async def ws_stream(
         await websocket.close(code=4403)
         return
 
-    from app.transport.knock import verify_knock, is_knock_required
+    from app.transport.knock import is_knock_required, verify_knock
     if is_knock_required():
         has_auth = bool(websocket.cookies.get("access_token"))
         if not has_auth:
@@ -906,7 +911,7 @@ async def ws_stream(
             raw = await websocket.receive_text()
             try:
                 msg = _json.loads(raw)
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
 
             msg_type = msg.get("type", "")

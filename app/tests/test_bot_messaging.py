@@ -13,11 +13,7 @@ Covers:
 """
 from __future__ import annotations
 
-import json
-import pytest
-
-from conftest import make_user, random_str, SyncASGIClient
-
+from conftest import SyncASGIClient, make_user, random_str
 
 
 def _auth(client: SyncASGIClient):

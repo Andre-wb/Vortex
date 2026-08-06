@@ -23,7 +23,7 @@ import logging
 import os
 import secrets
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -93,12 +93,12 @@ def _py_verify_token(token: str, expected_hash: str) -> bool:
     return secrets.compare_digest(computed, expected_hash)
 
 
-def _py_generate_keypair() -> Tuple[bytes, bytes]:
+def _py_generate_keypair() -> tuple[bytes, bytes]:
     """X25519 ключевая пара через cryptography."""
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
     priv = X25519PrivateKey.generate()
     pub  = priv.public_key()
-    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, PrivateFormat, NoEncryption
+    from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
     priv_bytes = priv.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
     pub_bytes  = pub.public_bytes(Encoding.Raw, PublicFormat.Raw)
     return priv_bytes, pub_bytes
@@ -110,9 +110,9 @@ def _py_derive_session_key(private_bytes: bytes, peer_public_bytes: bytes) -> by
     Salt = sorted concatenation of both public keys (NIST SP 800-56C style).
     Both peers derive the same 64-byte salt regardless of initiator/responder role.
     """
+    from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-    from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
     priv      = X25519PrivateKey.from_private_bytes(private_bytes)
     peer_pub  = X25519PublicKey.from_public_bytes(peer_public_bytes)
@@ -189,7 +189,7 @@ def verify_token_hash(token: str, expected_hash: str) -> bool:
     return _py_verify_token(token, expected_hash)
 
 
-def generate_x25519_keypair() -> Tuple[bytes, bytes]:
+def generate_x25519_keypair() -> tuple[bytes, bytes]:
     """Генерирует X25519 ключевую пару (private, public), 32 байта каждый."""
     if _RUST:
         priv, pub = _vc.generate_keypair()
@@ -214,7 +214,7 @@ _node_priv: Optional[bytes] = None
 _node_pub:  Optional[bytes] = None
 
 
-def load_or_create_node_keypair(keys_dir: Path) -> Tuple[bytes, bytes]:
+def load_or_create_node_keypair(keys_dir: Path) -> tuple[bytes, bytes]:
     """
     Загружает или создаёт X25519 ключевую пару этого узла.
     Приватный ключ хранится в keys/x25519_private.bin (бинарный, 32 байта)
@@ -234,7 +234,6 @@ def load_or_create_node_keypair(keys_dir: Path) -> Tuple[bytes, bytes]:
         _node_priv = priv_path.read_bytes()
         _node_pub  = pub_path.read_bytes()
         # Исправляем права если они слишком открыты
-        import stat
         current_mode = priv_path.stat().st_mode & 0o777
         if current_mode != 0o600:
             os.chmod(priv_path, 0o600)

@@ -10,13 +10,13 @@
 детекцию (fork vs reset) даёт только Фаза 3 (STH+gossip). Тест проверяет субстрат.
 """
 
-import secrets
 
+import contextlib
+
+from conftest import login_user, make_user
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from cryptography.hazmat.primitives import serialization
-
-from conftest import make_user, login_user, random_str
 
 
 def _raw(pub) -> bytes:
@@ -87,12 +87,10 @@ def test_publish_logs_account_ed_with_verifiable_node_sig(client, monkeypatch):
 
     # Негатив: против ЧУЖОГО ключа не сходится (подпись привязана к ноде).
     other = Ed25519PrivateKey.generate().public_key()
-    try:
+    with contextlib.suppress(Exception):
         other.verify(bytes.fromhex(e["node_sig"]),
                      kt_entry_message(uid, "account_ed", e["pub_key_hash"], e["prev_hash"], e["seq"]))
-        assert False, "verified against wrong node key"
-    except Exception:
-        pass
+        raise AssertionError("verified against wrong node key")
 
 
 def test_account_ed_dedup_no_duplicate_on_republish(client, monkeypatch):

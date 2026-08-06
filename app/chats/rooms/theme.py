@@ -9,18 +9,17 @@ import logging
 from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.chats.rooms.helpers import (
+    RoomThemeBody,
+    _require_member,
+    _validate_theme,
+    router,
+)
 from app.database import get_db
 from app.models import User
 from app.models_rooms import Room, RoomRole
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
-
-from app.chats.rooms.helpers import (
-    router,
-    RoomThemeBody,
-    _require_member,
-    _validate_theme,
-)
 
 logger = logging.getLogger(__name__)
 

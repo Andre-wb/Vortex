@@ -13,14 +13,14 @@ import threading
 
 import uvicorn
 
-# Импортируем приложение и разделяемое состояние из _app
-from ._app import wizard_app, _setup_done
-
 # Регистрация маршрутов — побочный эффект импорта (декораторы @wizard_app)
 from . import wizard_routes  # noqa: F401
 
+# Импортируем приложение и разделяемое состояние из _app
+from ._app import _setup_done, wizard_app
+
 # Реэкспорт для обратной совместимости (from node_setup.wizard import run_wizard)
-__all__ = ["wizard_app", "run_wizard"]
+__all__ = ["run_wizard", "wizard_app"]
 
 
 def run_wizard(host: str = "127.0.0.1", port: int = 7979) -> None:

@@ -16,6 +16,7 @@ results live in ``app.state.mirror_health``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import time
@@ -81,10 +82,8 @@ class MirrorHealthChecker:
         self._stop.set()
         if self._task is not None:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._task
-            except (asyncio.CancelledError, Exception):
-                pass
             self._task = None
 
     async def _loop(self) -> None:

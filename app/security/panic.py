@@ -26,6 +26,7 @@ Memory shredding:
 """
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import ctypes.util
 import gc
@@ -39,14 +40,19 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.security.auth_jwt import get_current_user
 from app.database import get_db
 from app.models import Bot, RefreshToken, User, UserDevice
 from app.models.contact import Contact
 from app.models_rooms import (
-    EncryptedRoomKey, Message, PendingKeyRequest, Room, RoomMember,
-    Space, SpaceMember,
+    EncryptedRoomKey,
+    Message,
+    PendingKeyRequest,
+    Room,
+    RoomMember,
+    Space,
+    SpaceMember,
 )
+from app.security.auth_jwt import get_current_user
 from app.security.crypto import verify_password
 
 logger = logging.getLogger(__name__)
@@ -67,7 +73,7 @@ def _has_explicit_bzero() -> bool:
     if not hasattr(_has_explicit_bzero, "_ok"):
         libc = _get_libc()
         try:
-            libc.explicit_bzero
+            _ = libc.explicit_bzero
             _has_explicit_bzero._ok = True
         except (AttributeError, TypeError):
             _has_explicit_bzero._ok = False
@@ -101,10 +107,8 @@ def _munlock(addr: int, size: int) -> None:
     libc = _get_libc()
     if libc is None:
         return
-    try:
+    with contextlib.suppress(Exception):
         libc.munlock(ctypes.c_void_p(addr), ctypes.c_size_t(size))
-    except Exception:
-        pass
 
 
 def _secure_zero_region(addr: int, size: int) -> None:
@@ -152,16 +156,12 @@ class SecurePage:
         """Multi-pass zero + unmap. After this, the memory is gone."""
         if self._buf is None:
             return
-        try:
+        with contextlib.suppress(Exception):
             addr = ctypes.addressof(ctypes.c_char.from_buffer(self._buf))
             _secure_zero_region(addr, self._size)
             _munlock(addr, self._size)
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             self._buf.close()
-        except Exception:
-            pass
         self._buf = None
 
     def __del__(self):
@@ -184,20 +184,18 @@ def _secure_zero_string(s: str) -> None:
     gc_was_enabled = gc.isenabled()
     gc.disable()
     try:
-        header = sys.getsizeof("") - 1
-        data_addr = id(s) + header
-        data_len = len(s)
+        with contextlib.suppress(Exception):
+            header = sys.getsizeof("") - 1
+            data_addr = id(s) + header
+            data_len = len(s)
 
-        _mlock(data_addr, data_len)
-        _secure_zero_region(data_addr, data_len)
-        _munlock(data_addr, data_len)
+            _mlock(data_addr, data_len)
+            _secure_zero_region(data_addr, data_len)
+            _munlock(data_addr, data_len)
 
-        # Mirror into mmap page and shred — catches pymalloc free-list residue
-        page = SecurePage(data_len)
-        page.write(b"\x00" * data_len)
-        page.shred()
-    except Exception:
-        pass
+            page = SecurePage(data_len)
+            page.write(b"\x00" * data_len)
+            page.shred()
     finally:
         if gc_was_enabled:
             gc.enable()
@@ -210,17 +208,16 @@ def _secure_zero_bytes(b: bytes | bytearray) -> None:
     gc_was_enabled = gc.isenabled()
     gc.disable()
     try:
-        if isinstance(b, bytearray):
-            addr = ctypes.addressof((ctypes.c_char * len(b)).from_buffer(b))
-            _secure_zero_region(addr, len(b))
-        else:
-            header = sys.getsizeof(b"") - 1
-            data_addr = id(b) + header
-            _mlock(data_addr, len(b))
-            _secure_zero_region(data_addr, len(b))
-            _munlock(data_addr, len(b))
-    except Exception:
-        pass
+        with contextlib.suppress(Exception):
+            if isinstance(b, bytearray):
+                addr = ctypes.addressof((ctypes.c_char * len(b)).from_buffer(b))
+                _secure_zero_region(addr, len(b))
+            else:
+                header = sys.getsizeof(b"") - 1
+                data_addr = id(b) + header
+                _mlock(data_addr, len(b))
+                _secure_zero_region(data_addr, len(b))
+                _munlock(data_addr, len(b))
     finally:
         if gc_was_enabled:
             gc.enable()
@@ -237,10 +234,8 @@ def _purge_pymalloc_residue(db: Session) -> None:
     3. malloc_trim(0) on Linux — returns free pymalloc arenas to the OS,
        so even a memory dump after this point won't find them.
     """
-    try:
+    with contextlib.suppress(Exception):
         db.expunge_all()
-    except Exception:
-        pass
 
     gc.collect(0)
     gc.collect(1)
@@ -248,10 +243,8 @@ def _purge_pymalloc_residue(db: Session) -> None:
 
     libc = _get_libc()
     if libc and platform.system() == "Linux":
-        try:
+        with contextlib.suppress(AttributeError, OSError):
             libc.malloc_trim(ctypes.c_int(0))
-        except (AttributeError, OSError):
-            pass
 
 
 
@@ -312,7 +305,7 @@ async def panic_wipe(
     #    Эти записи ОБЯЗАТЕЛЬНО нужно удалить/обнулить ДО удаления User,
     #    иначе БД откажет с IntegrityError.
     try:
-        from sqlalchemy import text as _sql_text, delete as _sql_delete
+        from sqlalchemy import delete as _sql_delete
 
         db.query(RefreshToken).filter(RefreshToken.user_id == user_id).delete(synchronize_session=False)
 
@@ -360,11 +353,9 @@ async def panic_wipe(
         except Exception as te:
             logger.warning(f"RoomTask cleanup failed: {te}")
 
-        try:
+        with contextlib.suppress(Exception):
             from app.models import BotReview
             db.query(BotReview).filter(BotReview.user_id == user_id).delete(synchronize_session=False)
-        except Exception:
-            pass
         db.query(Bot).filter(Bot.owner_id == user_id).delete(synchronize_session=False)
 
         owned_spaces = db.query(Space).filter(Space.creator_id == user_id).all()
@@ -394,7 +385,7 @@ async def panic_wipe(
     except Exception as e:
         db.rollback()
         logger.error(f"PANIC WIPE failed for user_id={user_id}: {e}", exc_info=True)
-        raise HTTPException(500, f"Data deletion error: {e}")
+        raise HTTPException(500, f"Data deletion error: {e}") from None
 
     logger.warning(f"PANIC WIPE completed for user_id={user_id}")
 

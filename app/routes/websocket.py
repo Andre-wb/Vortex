@@ -22,10 +22,12 @@ Handshake (обмен ключами, протокол X25519 DH):
      Сервер ретранслирует ciphertext как есть — НЕ дешифруя.
 """
 from __future__ import annotations
+
 import base64
 import json
 import logging
 from typing import Optional
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)

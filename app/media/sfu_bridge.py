@@ -111,11 +111,11 @@ class BuiltinSFU(SFUBridge):
         # Room is lazily created on join, but we can pre-create it
         # The second arg is numeric room_id used for access control
         numeric_room = kwargs.get("numeric_room_id", 0)
-        sfu_room = get_or_create_sfu_room(room_id, numeric_room)
+        get_or_create_sfu_room(room_id, numeric_room)
         return SFURoomInfo(room_id=room_id, created=True)
 
     async def join_room(self, room_id, user_id, username, sdp_offer=None, **kwargs):
-        from app.chats.sfu import get_or_create_sfu_room, _sfu_rooms
+        from app.chats.sfu import _sfu_rooms, get_or_create_sfu_room
         sfu_room = _sfu_rooms.get(room_id)
         if not sfu_room:
             numeric_room = kwargs.get("numeric_room_id", 0)

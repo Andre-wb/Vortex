@@ -1,6 +1,7 @@
 """Tests for BMP Push Proxy endpoints (/api/push-proxy/*)."""
 from __future__ import annotations
-from conftest import make_user, SyncASGIClient
+
+from conftest import SyncASGIClient, make_user
 
 
 def _auth(client: SyncASGIClient):

@@ -1,7 +1,6 @@
 """
 Tests for federation — multi-hop routing and federated rooms.
 """
-import pytest
 
 from conftest import random_str
 

@@ -17,14 +17,13 @@ Requirements:
 """
 
 import argparse
+import contextlib
 import os
 import sys
 import webbrowser
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-
-
 
 EXTRA_MIME = {
     '.js':    'application/javascript',
@@ -122,16 +121,14 @@ def main():
     print('  Notes:')
     print('   • html2canvas requires this server (ES modules + same-origin)')
     print('   • Test on mobile:  python run.py --host 0.0.0.0')
-    print('     then open  http://<your-LAN-ip>:{}/demo.html'.format(args.port))
+    print(f'     then open  http://<your-LAN-ip>:{args.port}/demo.html')
     print()
     print('  Press  Ctrl+C  to stop.')
     print()
 
     if not args.no_open:
-        try:
+        with contextlib.suppress(Exception):
             webbrowser.open(url)
-        except Exception:
-            pass
 
     try:
         server.serve_forever()

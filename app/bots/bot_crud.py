@@ -3,6 +3,7 @@ app/bots/bot_crud.py — Bot management endpoints (for bot owners, JWT auth).
 
 CRUD operations, token regeneration, mini-app tokens, room membership.
 """
+
 from __future__ import annotations
 
 import json
@@ -13,24 +14,24 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import Bot, User
-from app.models_rooms import RoomMember, RoomRole, Room
-from app.security.auth_jwt import get_current_user
-
 from app.bots.bot_shared import (
-    router,
     CreateBotRequest,
     UpdateBotRequest,
     _bot_queues_lock,
-    remove_bot_queue,
     _hash_token,
+    remove_bot_queue,
+    router,
 )
+from app.database import get_db
+from app.models import Bot, User
+from app.models_rooms import Room, RoomMember, RoomRole
+from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 
 
 # Bot management endpoints (for bot owners, JWT auth)
+
 
 @router.post("/api/bots", status_code=201)
 async def create_bot(
@@ -56,7 +57,7 @@ async def create_bot(
         username=bot_username,
         display_name=body.name,
         avatar_emoji="🤖",
-        password_hash="!bot_account_no_login!",  # bots can't log in via password
+        password_hash="!bot_account_no_login!",  # bots can't log in via password  # noqa: S106
         is_bot=True,
         x25519_public_key=secrets.token_hex(32),  # dummy key, bots don't use E2E
     )
@@ -134,10 +135,13 @@ async def get_bot_detail(
     # Get linked user for username
     bot_user = db.query(User).filter(User.id == bot.user_id).first() if bot.user_id else None
     import json as _json
+
     cmds = bot.commands
     if isinstance(cmds, str):
-        try: cmds = _json.loads(cmds)
-        except Exception: cmds = []
+        try:
+            cmds = _json.loads(cmds)
+        except Exception:
+            cmds = []
     return {
         "bot": {
             "bot_id": bot.id,
@@ -187,7 +191,7 @@ async def update_bot(
                 if not isinstance(item, dict) or "command" not in item:
                     raise ValueError
         except (json.JSONDecodeError, ValueError):
-            raise HTTPException(422, "commands must be a JSON array of {command, description}")
+            raise HTTPException(422, "commands must be a JSON array of {command, description}") from None
         bot.commands = body.commands
 
     if body.mini_app_url is not None:
@@ -304,19 +308,20 @@ async def get_mini_app_token(
         raise HTTPException(400, "This bot does not have a mini app configured")
 
     import jwt as pyjwt
+
     from app.config import Config
 
     now = datetime.now(timezone.utc)
     payload = {
-        "sub":          str(user.id),
-        "username":     user.username,
+        "sub": str(user.id),
+        "username": user.username,
         "display_name": user.display_name or user.username,
-        "bot_id":       bot.id,
-        "bot_name":     bot.name,
-        "iat":          now,
-        "exp":          now + timedelta(hours=1),
-        "jti":          secrets.token_hex(16),
-        "typ":          "miniapp",
+        "bot_id": bot.id,
+        "bot_name": bot.name,
+        "iat": now,
+        "exp": now + timedelta(hours=1),
+        "jti": secrets.token_hex(16),
+        "typ": "miniapp",
     }
     token = pyjwt.encode(payload, Config.JWT_SECRET, algorithm="HS256")
 
@@ -329,6 +334,7 @@ async def get_mini_app_token(
 
 
 # Add / remove bot from room (for bot owners, JWT auth)
+
 
 @router.post("/api/bots/{bot_id}/rooms/{room_id}")
 async def add_bot_to_room(
@@ -343,18 +349,26 @@ async def add_bot_to_room(
         raise HTTPException(404, "Bot not found")
 
     # Check user is a member of the room
-    user_member = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user.id,
-    ).first()
+    user_member = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user.id,
+        )
+        .first()
+    )
     if not user_member:
         raise HTTPException(403, "You are not a member of this room")
 
     # Check bot is not already in the room
-    existing = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == bot.user_id,
-    ).first()
+    existing = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == bot.user_id,
+        )
+        .first()
+    )
     if existing:
         return {"ok": True, "message": "Bot is already in this room"}
 
@@ -362,11 +376,13 @@ async def add_bot_to_room(
     if not room:
         raise HTTPException(404, "Room not found")
 
-    db.add(RoomMember(
-        room_id=room_id,
-        user_id=bot.user_id,
-        role=RoomRole.MEMBER,
-    ))
+    db.add(
+        RoomMember(
+            room_id=room_id,
+            user_id=bot.user_id,
+            role=RoomRole.MEMBER,
+        )
+    )
     db.commit()
 
     logger.info(f"Bot {bot.name} added to room {room_id}")
@@ -385,10 +401,14 @@ async def remove_bot_from_room(
     if not bot:
         raise HTTPException(404, "Bot not found")
 
-    deleted = db.query(RoomMember).filter(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == bot.user_id,
-    ).delete()
+    deleted = (
+        db.query(RoomMember)
+        .filter(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == bot.user_id,
+        )
+        .delete()
+    )
     db.commit()
 
     if not deleted:

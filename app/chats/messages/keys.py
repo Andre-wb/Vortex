@@ -5,6 +5,7 @@ Extracted from chat.py for maintainability.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -12,7 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.models import User
 from app.models_rooms import (
-    EncryptedRoomKey, PendingKeyRequest, RoomMember,
+    EncryptedRoomKey,
+    PendingKeyRequest,
+    RoomMember,
 )
 from app.peer.connection_manager import manager
 from app.security.key_exchange import validate_ecies_payload
@@ -20,7 +23,7 @@ from app.security.key_exchange import validate_ecies_payload
 logger = logging.getLogger(__name__)
 
 
-def _kyber_req_fields(u: "User | None") -> dict:
+def _kyber_req_fields(u: User | None) -> dict:
     """Kyber-pub + подпись реквестера для гибрид-обёртки ответа (пусто, если
     чего-то нет). Отвечающий ОБЯЗАН проверить подпись против припиненного Ed
     реквестера (клиент, resolvePeerKyberPub) — pub из broadcast сам не доверенный."""
@@ -94,12 +97,11 @@ async def deliver_or_request_room_key(room_id: int, user: User, db: Session) -> 
         **_kyber_req_fields(user),
     }
     if Config.BMP_DELIVERY_ENABLED:
-        try:
-            from app.transport.blind_mailbox import deposit_envelope
+        with contextlib.suppress(Exception):
             import json
+
+            from app.transport.blind_mailbox import deposit_envelope
             await deposit_envelope(room_id, json.dumps(_key_req_payload))
-        except Exception:
-            pass
     else:
         for (member_id,) in other_members:
             if member_id not in manager._rooms.get(room_id, {}):
@@ -157,7 +159,7 @@ async def handle_key_response(room_id: int, user: User, data: dict, db: Session)
     target_member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == for_user_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not target_member:
         return

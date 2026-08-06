@@ -1,18 +1,20 @@
 """Wave 10 — failover mirror + operator finance.
 
-  1. #44 Failover mirror   — push encrypted backup to a SECOND controller
-                             so losing primary doesn't orphan the node.
-  2. #47 Staking wizard    — build (unsigned) Solana stake / unstake txs
-                             the client can sign with the wallet key.
-  3. #48 Payout history    — enumerate historical payouts (read marker
-                             file + on-chain events if available).
-  4. #49 Tax export        — CSV of payouts for FIFO cost-basis.
-  5. #50 Autocompound      — config flag + scheduled job that restakes
-                             idle rewards.
+1. #44 Failover mirror   — push encrypted backup to a SECOND controller
+                           so losing primary doesn't orphan the node.
+2. #47 Staking wizard    — build (unsigned) Solana stake / unstake txs
+                           the client can sign with the wallet key.
+3. #48 Payout history    — enumerate historical payouts (read marker
+                           file + on-chain events if available).
+4. #49 Tax export        — CSV of payouts for FIFO cost-basis.
+5. #50 Autocompound      — config flag + scheduled job that restakes
+                           idle rewards.
 """
+
 from __future__ import annotations
 
 import base64
+import contextlib
 import csv
 import hashlib
 import io
@@ -29,8 +31,8 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from . import backup_api as _b
-from . import security_api as _sec
 from . import scheduler as _sched
+from . import security_api as _sec
 
 logger = logging.getLogger(__name__)
 
@@ -44,28 +46,32 @@ def _env_file(request: Request) -> Path:
 
 # 1. Failover mirror (#44)
 
+
 class MirrorBody(BaseModel):
     controller_url: str = Field(..., min_length=8, max_length=2048)
-    enabled:        bool = True
+    enabled: bool = True
 
 
 @router.get("/mirror")
 async def mirror_get(request: Request) -> dict:
     env = _b._read_env(_env_file(request))
     return {
-        "enabled":        env.get("MIRROR_ENABLED", "").lower() in ("1","true","yes"),
-        "mirror_url":     env.get("MIRROR_CONTROLLER_URL", ""),
-        "primary_url":    env.get("CONTROLLER_URL", ""),
+        "enabled": env.get("MIRROR_ENABLED", "").lower() in ("1", "true", "yes"),
+        "mirror_url": env.get("MIRROR_CONTROLLER_URL", ""),
+        "primary_url": env.get("CONTROLLER_URL", ""),
     }
 
 
 @router.post("/mirror")
 async def mirror_set(body: MirrorBody, request: Request) -> dict:
     env_file = _env_file(request)
-    _sec._write_env_keys(env_file, {
-        "MIRROR_ENABLED":        "true" if body.enabled else "false",
-        "MIRROR_CONTROLLER_URL": body.controller_url if body.enabled else "",
-    })
+    _sec._write_env_keys(
+        env_file,
+        {
+            "MIRROR_ENABLED": "true" if body.enabled else "false",
+            "MIRROR_CONTROLLER_URL": body.controller_url if body.enabled else "",
+        },
+    )
     return {"ok": True}
 
 
@@ -94,18 +100,16 @@ async def job_mirror_backup(env_file: Path) -> dict:
     sha = hashlib.sha256(blob).hexdigest()
 
     payload = {
-        "action":    "put",
-        "pubkey":    pub,
-        "sha256":    sha,
+        "action": "put",
+        "pubkey": pub,
+        "sha256": sha,
         "byte_size": len(blob),
-        "blob_b64":  base64.b64encode(blob).decode("ascii"),
+        "blob_b64": base64.b64encode(blob).decode("ascii"),
         "timestamp": int(time.time()),
     }
-    sig = priv.sign(
-        json.dumps(payload, sort_keys=True, separators=(",",":")).encode("utf-8")
-    ).hex()
+    sig = priv.sign(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hex()
     try:
-        async with httpx.AsyncClient(timeout=60.0, verify=False) as c:
+        async with httpx.AsyncClient(timeout=60.0, verify=False) as c:  # noqa: S501
             r = await c.post(mirror_url + "/v1/backup", json={"payload": payload, "signature": sig})
         if r.status_code >= 400:
             return {"message": f"mirror HTTP {r.status_code}", "ok": False}
@@ -120,9 +124,10 @@ async def job_mirror_backup(env_file: Path) -> dict:
 # side. This endpoint returns enough scaffolding for a frontend wallet to
 # build & sign a real Solana transaction.
 
+
 class StakeBuildBody(BaseModel):
-    amount_sol:    float = Field(..., ge=0.0001, le=10000)
-    action:        str   = Field(..., pattern=r"^(stake|unstake|claim)$")
+    amount_sol: float = Field(..., ge=0.0001, le=10000)
+    action: str = Field(..., pattern=r"^(stake|unstake|claim)$")
 
 
 @router.post("/stake/build")
@@ -134,21 +139,22 @@ async def stake_build(body: StakeBuildBody, request: Request) -> dict:
         raise HTTPException(400, "WALLET_PUBKEY not in .env")
     lamports = int(body.amount_sol * 1_000_000_000)
     return {
-        "ok":       True,
-        "action":   body.action,
-        "wallet":   wallet,
-        "program":  program_id,
+        "ok": True,
+        "action": body.action,
+        "wallet": wallet,
+        "program": program_id,
         "lamports": lamports,
-        "note":     "client must build+sign via @solana/web3.js using Anchor IDL",
+        "note": "client must build+sign via @solana/web3.js using Anchor IDL",
         "instruction_hint": {
-            "stake":   "vortex_registry.stake(lamports)",
+            "stake": "vortex_registry.stake(lamports)",
             "unstake": "vortex_registry.unstake(lamports)",
-            "claim":   "vortex_registry.claim_unstake()",
+            "claim": "vortex_registry.claim_unstake()",
         }[body.action],
     }
 
 
 # 3. Payout history (#48)
+
 
 def _payout_log_path(env_file: Path) -> Path:
     return env_file.parent / "payouts.ndjson"
@@ -163,17 +169,19 @@ async def payouts_list(request: Request, limit: int = 200) -> dict:
     rows: list[dict] = []
     with p.open("r", encoding="utf-8") as f:
         for line in f:
-            try: rows.append(json.loads(line))
-            except Exception: continue
+            try:
+                rows.append(json.loads(line))
+            except Exception:  # noqa: S112
+                continue
     rows.sort(key=lambda r: r.get("ts", 0), reverse=True)
     return {"payouts": rows[:limit], "total": len(rows)}
 
 
 class PayoutRecordBody(BaseModel):
-    lamports:   int    = Field(..., ge=0)
-    ts:         int    = Field(..., ge=0)
-    tx_sig:     str    = Field(..., max_length=200)
-    note:       Optional[str] = Field(None, max_length=200)
+    lamports: int = Field(..., ge=0)
+    ts: int = Field(..., ge=0)
+    tx_sig: str = Field(..., max_length=200)
+    note: Optional[str] = Field(None, max_length=200)
 
 
 @router.post("/payouts")
@@ -190,6 +198,7 @@ async def payout_record(body: PayoutRecordBody, request: Request) -> dict:
 
 # 4. Tax CSV export (#49)
 
+
 @router.get("/payouts.csv")
 async def payouts_csv(request: Request) -> Response:
     env_file = _env_file(request)
@@ -198,8 +207,10 @@ async def payouts_csv(request: Request) -> Response:
     if p.is_file():
         with p.open("r", encoding="utf-8") as f:
             for line in f:
-                try: rows.append(json.loads(line))
-                except Exception: continue
+                try:
+                    rows.append(json.loads(line))
+                except Exception:  # noqa: S112
+                    continue
 
     buf = io.StringIO()
     w = csv.writer(buf)
@@ -207,14 +218,16 @@ async def payouts_csv(request: Request) -> Response:
     for r in sorted(rows, key=lambda x: x.get("ts", 0)):
         ts = int(r.get("ts", 0))
         lamports = int(r.get("lamports", 0))
-        w.writerow([
-            time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ts)),
-            ts,
-            f"{lamports / 1_000_000_000:.9f}",
-            lamports,
-            r.get("tx_sig", ""),
-            r.get("note", ""),
-        ])
+        w.writerow(
+            [
+                time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ts)),
+                ts,
+                f"{lamports / 1_000_000_000:.9f}",
+                lamports,
+                r.get("tx_sig", ""),
+                r.get("note", ""),
+            ]
+        )
     return Response(
         content=buf.getvalue(),
         media_type="text/csv",
@@ -224,8 +237,9 @@ async def payouts_csv(request: Request) -> Response:
 
 # 5. Autocompound (#50)
 
+
 class AutocompoundBody(BaseModel):
-    enabled:       bool
+    enabled: bool
     threshold_sol: float = Field(1.0, ge=0.01, le=10000.0)
 
 
@@ -233,18 +247,21 @@ class AutocompoundBody(BaseModel):
 async def autocompound_get(request: Request) -> dict:
     env = _b._read_env(_env_file(request))
     return {
-        "enabled":        env.get("AUTOCOMPOUND_ENABLED", "").lower() in ("1","true","yes"),
-        "threshold_sol":  float(env.get("AUTOCOMPOUND_THRESHOLD", "1.0") or 1.0),
+        "enabled": env.get("AUTOCOMPOUND_ENABLED", "").lower() in ("1", "true", "yes"),
+        "threshold_sol": float(env.get("AUTOCOMPOUND_THRESHOLD", "1.0") or 1.0),
     }
 
 
 @router.post("/autocompound")
 async def autocompound_set(body: AutocompoundBody, request: Request) -> dict:
     env_file = _env_file(request)
-    _sec._write_env_keys(env_file, {
-        "AUTOCOMPOUND_ENABLED":   "true" if body.enabled else "false",
-        "AUTOCOMPOUND_THRESHOLD": str(body.threshold_sol),
-    })
+    _sec._write_env_keys(
+        env_file,
+        {
+            "AUTOCOMPOUND_ENABLED": "true" if body.enabled else "false",
+            "AUTOCOMPOUND_THRESHOLD": str(body.threshold_sol),
+        },
+    )
     return {"ok": True}
 
 
@@ -253,7 +270,7 @@ async def job_autocompound(env_file: Path) -> dict:
     the client to sign. We never sign on-chain ourselves — the operator
     has to approve in their wallet."""
     env = _b._read_env(env_file)
-    if env.get("AUTOCOMPOUND_ENABLED", "").lower() not in ("1","true","yes"):
+    if env.get("AUTOCOMPOUND_ENABLED", "").lower() not in ("1", "true", "yes"):
         return {"skipped": True, "message": "autocompound disabled"}
 
     try:
@@ -270,8 +287,8 @@ async def job_autocompound(env_file: Path) -> dict:
     marker_path = env_file.parent / "autocompound_last.json"
     last_ts = 0
     if marker_path.is_file():
-        try: last_ts = int(json.loads(marker_path.read_text()).get("last_ts", 0))
-        except Exception: pass
+        with contextlib.suppress(Exception):
+            last_ts = int(json.loads(marker_path.read_text()).get("last_ts", 0))
 
     pending = 0
     latest_ts = last_ts
@@ -283,29 +300,33 @@ async def job_autocompound(env_file: Path) -> dict:
                 if ts > last_ts:
                     pending += int(r.get("lamports", 0))
                     latest_ts = max(latest_ts, ts)
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
 
     if pending < threshold_lamports:
         return {
-            "skipped":  True,
-            "message":  f"pending {pending / 1e9:.3f} SOL < threshold {threshold}",
+            "skipped": True,
+            "message": f"pending {pending / 1e9:.3f} SOL < threshold {threshold}",
         }
 
     # Stage a stake-candidate file so the frontend wallet flow picks it
     # up on next admin login.
     candidate_path = env_file.parent / "autocompound_candidate.json"
-    candidate_path.write_text(json.dumps({
-        "action":    "stake",
-        "lamports":  pending,
-        "amount_sol": pending / 1_000_000_000,
-        "staged_at": int(time.time()),
-        "latest_payout_ts": latest_ts,
-    }))
+    candidate_path.write_text(
+        json.dumps(
+            {
+                "action": "stake",
+                "lamports": pending,
+                "amount_sol": pending / 1_000_000_000,
+                "staged_at": int(time.time()),
+                "latest_payout_ts": latest_ts,
+            }
+        )
+    )
     marker_path.write_text(json.dumps({"last_ts": latest_ts}))
     return {
-        "message":   f"candidate staged: restake {pending / 1e9:.3f} SOL",
-        "lamports":  pending,
+        "message": f"candidate staged: restake {pending / 1e9:.3f} SOL",
+        "lamports": pending,
     }
 
 
@@ -328,8 +349,7 @@ async def autocompound_candidate_clear(request: Request) -> dict:
     return {"ok": True}
 
 
-
 def install_jobs(env_file: Path) -> None:
     s = _sched.get(env_file)
-    s.register("mirror_backup",  job_mirror_backup,  default_interval="daily")
-    s.register("autocompound",   job_autocompound,   default_interval="weekly")
+    s.register("mirror_backup", job_mirror_backup, default_interval="daily")
+    s.register("autocompound", job_autocompound, default_interval="weekly")

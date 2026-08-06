@@ -27,8 +27,6 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-
-from app.security.ip_privacy import raw_ip_for_ratelimit
 from sqlalchemy.orm import Session
 
 from app.config import Config
@@ -36,6 +34,7 @@ from app.database import get_db
 from app.models_rooms import FederatedEnvelope
 from app.peer.controller_client import NodeSigningKey, _canonical
 from app.peer.peer_models import registry
+from app.security.ip_privacy import raw_ip_for_ratelimit
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +172,7 @@ async def receive_envelope(body: FederatedEnvelopeBody, request: Request,
         if existing:
             return {"status": "duplicate", "envelope_hash": env_hash}
         logger.exception("federation: envelope store failed: %s", e)
-        raise HTTPException(500, "storage error")
+        raise HTTPException(500, "storage error") from None
 
     return {"status": "stored", "envelope_hash": env_hash}
 
@@ -213,7 +212,7 @@ async def list_envelopes(
     for r in rows:
         try:
             payload = json.loads(r.payload_blob.decode("utf-8"))
-        except Exception:
+        except Exception:  # noqa: S112
             continue
         out.append({
             "hash":           r.envelope_hash,

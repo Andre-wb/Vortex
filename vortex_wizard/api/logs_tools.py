@@ -9,16 +9,17 @@ active file and every rotated .gz.
 This is a separate router from ``admin_api.logs`` so the polling endpoint
 there (every 3 s) stays on its own hot path.
 """
+
 from __future__ import annotations
 
+import contextlib
 import gzip
-import io
 import logging
 import re
 import shutil
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -27,8 +28,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wiz/admin/logs", tags=["logs"])
 
 
-_ROTATE_THRESHOLD = 5 * 1024 * 1024       # 5 MiB
-_MAX_ROTATED_KEPT = 20                    # per log file stem
+_ROTATE_THRESHOLD = 5 * 1024 * 1024  # 5 MiB
+_MAX_ROTATED_KEPT = 20  # per log file stem
 _SEARCH_RESULTS_CAP = 500
 _DEFAULT_LOG_NAMES = ("vortex.log", "vortex.json.log", "node.log")
 
@@ -37,12 +38,12 @@ def _logs_dir(env_file: Path) -> Path:
     return env_file.parent / "logs"
 
 
-def _iter_all_log_files(env_file: Path) -> List[Path]:
+def _iter_all_log_files(env_file: Path) -> list[Path]:
     d = _logs_dir(env_file)
     if not d.is_dir():
         return []
     # Active logs + all *.log.YYYYMMDD-HHMMSS.gz archives
-    files: List[Path] = []
+    files: list[Path] = []
     for name in _DEFAULT_LOG_NAMES:
         p = d / name
         if p.is_file():
@@ -65,12 +66,14 @@ async def list_log_files(request: Request) -> dict:
             st = p.stat()
         except OSError:
             continue
-        out.append({
-            "name":       p.name,
-            "byte_size":  st.st_size,
-            "modified":   int(st.st_mtime),
-            "compressed": p.suffix == ".gz",
-        })
+        out.append(
+            {
+                "name": p.name,
+                "byte_size": st.st_size,
+                "modified": int(st.st_mtime),
+                "compressed": p.suffix == ".gz",
+            }
+        )
     out.sort(key=lambda r: r["modified"], reverse=True)
     return {"files": out, "threshold": _ROTATE_THRESHOLD, "max_kept": _MAX_ROTATED_KEPT}
 
@@ -110,8 +113,8 @@ async def rotate_logs(request: Request) -> dict:
     for name in _DEFAULT_LOG_NAMES:
         archives = sorted(d.glob(f"{name}.*.gz"), key=lambda p: p.stat().st_mtime, reverse=True)
         for old in archives[_MAX_ROTATED_KEPT:]:
-            try: old.unlink()
-            except OSError: pass
+            with contextlib.suppress(OSError):
+                old.unlink()
 
     return {"rotated": rotated}
 
@@ -119,7 +122,7 @@ async def rotate_logs(request: Request) -> dict:
 @router.get("/search")
 async def search_logs(
     request: Request,
-    q:    str,
+    q: str,
     file: Optional[str] = None,
     case: bool = False,
 ) -> dict:
@@ -130,7 +133,7 @@ async def search_logs(
     try:
         pattern = re.compile(re.escape(q), 0 if case else re.IGNORECASE)
     except re.error as e:
-        raise HTTPException(400, f"bad query: {e}")
+        raise HTTPException(400, f"bad query: {e}") from None
 
     files = _iter_all_log_files(env)
     if file:
@@ -149,11 +152,13 @@ async def search_logs(
             with opener(p, "rt", encoding="utf-8", errors="replace") as f:
                 for lineno, line in enumerate(f, 1):
                     if pattern.search(line):
-                        hits.append({
-                            "file":   p.name,
-                            "line":   lineno,
-                            "text":   line.rstrip("\n")[:2000],
-                        })
+                        hits.append(
+                            {
+                                "file": p.name,
+                                "line": lineno,
+                                "text": line.rstrip("\n")[:2000],
+                            }
+                        )
                         if len(hits) >= _SEARCH_RESULTS_CAP:
                             truncated = True
                             break

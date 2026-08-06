@@ -31,17 +31,17 @@ import hmac
 import logging
 import os
 import secrets
-import time
 from typing import Optional
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.config import Config
+
 logger = logging.getLogger(__name__)
 
 # Configuration
 
-from app.config import Config
 
 STEALTH_ENABLED = Config.STEALTH_MODE
 

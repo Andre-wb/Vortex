@@ -3,7 +3,7 @@
 Covers:
     - Controller integrity gate blocks all non-safe endpoints when tampered.
     - ControllerClient.ensure_verified_url() picks only verified URLs.
-    - ControllerClient raises IntegrityRefusal when no URL verifies.
+    - ControllerClient raises IntegrityRefusalError when no URL verifies.
     - Handoff-accept on Vortex node returns 503 when overloaded.
     - MigrationPusher builds expected payload with only verified alternatives.
 """
@@ -29,8 +29,7 @@ def _mock_response(method: str, url: str, status: int = 200, **kw) -> httpx.Resp
 @pytest.mark.asyncio
 async def test_integrity_gate_blocks_protected_endpoints_on_tampered():
     from fastapi import FastAPI
-    from httpx import AsyncClient, ASGITransport
-
+    from httpx import ASGITransport, AsyncClient
     from vortex_controller.integrity.verify import IntegrityReport
     from vortex_controller.integrity_gate import IntegrityGateMiddleware
 
@@ -75,8 +74,7 @@ async def test_integrity_gate_blocks_protected_endpoints_on_tampered():
 @pytest.mark.asyncio
 async def test_integrity_gate_passes_when_verified():
     from fastapi import FastAPI
-    from httpx import AsyncClient, ASGITransport
-
+    from httpx import ASGITransport, AsyncClient
     from vortex_controller.integrity.verify import IntegrityReport
     from vortex_controller.integrity_gate import IntegrityGateMiddleware
 
@@ -99,8 +97,7 @@ async def test_integrity_gate_passes_when_verified():
 async def test_integrity_gate_passes_when_no_manifest():
     """Dev builds (no INTEGRITY.sig.json) still serve traffic — just warn."""
     from fastapi import FastAPI
-    from httpx import AsyncClient, ASGITransport
-
+    from httpx import ASGITransport, AsyncClient
     from vortex_controller.integrity.verify import IntegrityReport
     from vortex_controller.integrity_gate import IntegrityGateMiddleware
 
@@ -151,7 +148,7 @@ async def test_controller_client_picks_first_verified_url():
 
 @pytest.mark.asyncio
 async def test_controller_client_refuses_when_none_verified():
-    from app.peer.controller_client import ControllerClient, NodeSigningKey, IntegrityRefusal
+    from app.peer.controller_client import ControllerClient, IntegrityRefusalError, NodeSigningKey
 
     async def fake_get(self, url, **kw):
         # Every candidate is tampered
@@ -169,15 +166,14 @@ async def test_controller_client_refuses_when_none_verified():
             fallback_urls=["http://also-bad.example"],
             expected_release_pubkey="aa" * 32,
         )
-        with patch.object(httpx.AsyncClient, "get", fake_get):
-            with pytest.raises(IntegrityRefusal):
-                await client.ensure_verified_url()
+        with patch.object(httpx.AsyncClient, "get", fake_get), pytest.raises(IntegrityRefusalError):
+            await client.ensure_verified_url()
 
 
 @pytest.mark.asyncio
 async def test_controller_client_rejects_wrong_release_key():
     """Verified status alone isn't enough — signed_by must match pin."""
-    from app.peer.controller_client import ControllerClient, NodeSigningKey, IntegrityRefusal
+    from app.peer.controller_client import ControllerClient, IntegrityRefusalError, NodeSigningKey
 
     async def fake_get(self, url, **kw):
         return _mock_response("GET", str(url), json={
@@ -194,9 +190,8 @@ async def test_controller_client_rejects_wrong_release_key():
             announce_endpoints=["wss://me:9000"],
             expected_release_pubkey="99" * 32,  # pinning a different key
         )
-        with patch.object(httpx.AsyncClient, "get", fake_get):
-            with pytest.raises(IntegrityRefusal):
-                await client.ensure_verified_url()
+        with patch.object(httpx.AsyncClient, "get", fake_get), pytest.raises(IntegrityRefusalError):
+            await client.ensure_verified_url()
 
 
 @pytest.mark.asyncio
@@ -229,11 +224,12 @@ async def test_controller_client_skips_release_key_check_when_unset():
 @pytest.mark.asyncio
 async def test_handoff_accept_refuses_when_overloaded():
     from fastapi import FastAPI
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
 
     from app.peer.controller_client import NodeSigningKey
-    from app.session.migration import router as session_router, _load, _resolver
     from app.session.handoff_token import _reset_replay_cache_for_tests
+    from app.session.migration import _load
+    from app.session.migration import router as session_router
 
     _reset_replay_cache_for_tests()
 
@@ -272,13 +268,14 @@ async def test_handoff_accept_refuses_when_overloaded():
 @pytest.mark.asyncio
 async def test_handoff_accept_passes_when_not_overloaded():
     from fastapi import FastAPI
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
 
     from app.peer.controller_client import NodeSigningKey
-    from app.session.migration import router as session_router
     from app.session.handoff_token import (
-        _reset_replay_cache_for_tests, issue_handoff_token,
+        _reset_replay_cache_for_tests,
+        issue_handoff_token,
     )
+    from app.session.migration import router as session_router
 
     _reset_replay_cache_for_tests()
 

@@ -63,9 +63,7 @@ def _is_allowed(method: str, path: str) -> bool:
     # Allow exact matches and /v1/nodes/lookup/{pubkey}
     if base in _ALLOWED_PATHS[method]:
         return True
-    if method == "GET" and base.startswith("/v1/nodes/lookup/"):
-        return True
-    return False
+    return bool(method == "GET" and base.startswith("/v1/nodes/lookup/"))
 
 
 @router.post("/controller-proxy", response_model=ControllerProxyResponse)
@@ -94,7 +92,7 @@ async def controller_proxy(
                 r = await http.post(full, json=req.body or {})
     except httpx.HTTPError as e:
         logger.info("controller-proxy: %s %s failed: %s", method, full, e)
-        raise HTTPException(502, f"controller unreachable: {e}")
+        raise HTTPException(502, f"controller unreachable: {e}") from None
 
     try:
         body = r.json()

@@ -13,9 +13,11 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import platform
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
@@ -23,10 +25,7 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
-import shutil
 from typing import NamedTuple
-
-
 
 ENV_FILE  = Path(".env")
 CERT_DIR  = Path("certs")
@@ -85,7 +84,7 @@ def _is_initialized() -> bool:
 def _local_ip() -> str:
     """Определяет локальный IP без необходимости в интернете."""
     for target in ("192.168.1.1", "10.0.0.1", "172.16.0.1", "8.8.8.8"):
-        try:
+        with contextlib.suppress(Exception):
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.settimeout(0.1)
             s.connect((target, 80))
@@ -93,8 +92,6 @@ def _local_ip() -> str:
             s.close()
             if not ip.startswith("127."):
                 return ip
-        except Exception:
-            pass
     return "127.0.0.1"
 
 
@@ -146,19 +143,15 @@ def _open_browser(url: str) -> None:
                 except FileNotFoundError:
                     webbrowser.open(url)
         except Exception:
-            try:
+            with contextlib.suppress(Exception):
                 webbrowser.open(url)
-            except Exception:
-                pass
 
     threading.Thread(target=_do, daemon=False).start()
 
 
 
 def _check_python() -> None:
-    if sys.version_info < (3, 10):
-        _p(f"✗ Требуется Python 3.10+. Установлен: {platform.python_version()}", "red")
-        sys.exit(1)
+    pass
 
 
 def _check_deps() -> list[str]:
@@ -239,7 +232,7 @@ def cmd_generate_worker(backend_url: str) -> None:
     _p("  2. wrangler login", "dim")
     _p(f"  3. cd {output_dir} && wrangler deploy", "dim")
     _p("\n  Добавьте в .env на клиенте:", "yellow")
-    _p(f"  CDN_RELAY_URL=https://vortex-relay.<username>.workers.dev", "cyan")
+    _p("  CDN_RELAY_URL=https://vortex-relay.<username>.workers.dev", "cyan")
     _p(f"  CDN_RELAY_SECRET={relay_secret}\n", "cyan")
 
 
@@ -275,7 +268,6 @@ def cmd_first_launch() -> None:
         else:
             _p("  ✓ cloudflared найден — туннель запустится автоматически", "green")
 
-    ssl_generated = False
     if not (CERT_FILE.exists() and KEY_FILE.exists()):
         _p("\n  SSL сертификат:", "cyan")
         _p("    1) Сгенерировать самоподписанный (быстро, браузер покажет предупреждение)")
@@ -285,7 +277,6 @@ def cmd_first_launch() -> None:
         if ssl_choice != "2":
             try:
                 _generate_self_signed_cert()
-                ssl_generated = True
                 _p("  ✓ SSL сертификат создан", "green")
             except Exception as e:
                 _p(f"  ⚠ Ошибка генерации SSL: {e}", "yellow")
@@ -303,18 +294,18 @@ def cmd_first_launch() -> None:
     invite_code = ""
     if reg_mode == "invite":
         invite_code = secrets.token_hex(8).upper()
-        _p(f"\n  ╔══════════════════════════════════╗", "green")
+        _p("\n  ╔══════════════════════════════════╗", "green")
         _p(f"  ║  Инвайт-код: {invite_code:<18s} ║", "cyan")
-        _p(f"  ╚══════════════════════════════════╝", "green")
-        _p(f"  Отправьте этот код тем кому разрешаете регистрацию.", "dim")
+        _p("  ╚══════════════════════════════════╝", "green")
+        _p("  Отправьте этот код тем кому разрешаете регистрацию.", "dim")
 
     env_lines = [
         f"DEVICE_NAME={name}",
         f"PORT={port}",
-        f"HOST=0.0.0.0",
+        "HOST=0.0.0.0",
         f"NETWORK_MODE={network_mode}",
         f"REGISTRATION_MODE={reg_mode}",
-        f"NODE_INITIALIZED=true",
+        "NODE_INITIALIZED=true",
     ]
     if invite_code:
         env_lines.append(f"INVITE_CODE_NODE={invite_code}")
@@ -326,24 +317,25 @@ def cmd_first_launch() -> None:
     with open(ENV_FILE, "a") as f:
         f.write("\n" + "\n".join(env_lines) + "\n")
 
-    try:
+    with contextlib.suppress(OSError):
         os.chmod(ENV_FILE, 0o600)
-    except OSError:
-        pass
 
-    _p(f"\n  ✓ Настройка завершена!", "green")
-    _p(f"  Запускаем узел...\n", "cyan")
+    _p("\n  ✓ Настройка завершена!", "green")
+    _p("  Запускаем узел...\n", "cyan")
     time.sleep(1)
 
 
 def _generate_self_signed_cert() -> None:
     """Генерирует самоподписанный SSL сертификат."""
+    import ipaddress as _ipa
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+    from datetime import timezone as _tz
+
     from cryptography import x509
-    from cryptography.x509.oid import NameOID
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
-    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
-    import ipaddress as _ipa
+    from cryptography.x509.oid import NameOID
 
     CERT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -360,10 +352,8 @@ def _generate_self_signed_cert() -> None:
         x509.IPAddress(_ipa.IPv4Address("127.0.0.1")),
     ]
     if ip != "127.0.0.1":
-        try:
+        with contextlib.suppress(ValueError):
             san_list.append(x509.IPAddress(_ipa.IPv4Address(ip)))
-        except ValueError:
-            pass
 
     cert = (
         x509.CertificateBuilder()
@@ -422,7 +412,7 @@ def cmd_setup(wizard_port: int, no_browser: bool) -> None:
         _p("✗ Wizard не запустился за 10 секунд. Возможно порт занят.", "red")
         sys.exit(1)
 
-    _p(f"\n  🌐 Мастер настройки:")
+    _p("\n  🌐 Мастер настройки:")
     _p(f"     Локально:  {local_url}", "cyan")
     if ip != "127.0.0.1":
         _p(f"     В сети:    {net_url}  ← для телефонов и других устройств", "cyan")
@@ -519,18 +509,18 @@ def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
                             url_found = True
                             # Wait for tunnel to stabilize before showing URL
                             time.sleep(10)
-                            _p(f"\n  ╔══════════════════════════════════════════════════════╗", "green")
-                            _p(f"  ║  🌍 Публичная ссылка:                                ║", "green")
+                            _p("\n  ╔══════════════════════════════════════════════════════╗", "green")
+                            _p("  ║  🌍 Публичная ссылка:                                ║", "green")
                             _p(f"  ║  {urls[0]:<52s} ║", "cyan")
-                            _p(f"  ╚══════════════════════════════════════════════════════╝", "green")
-                            _p(f"  Отправьте эту ссылку пользователям.\n", "dim")
+                            _p("  ╚══════════════════════════════════════════════════════╝", "green")
+                            _p("  Отправьте эту ссылку пользователям.\n", "dim")
                             _tunnel_ready.set()
 
                 # cloudflared завершился (сон Mac, обрыв сети)
                 exit_code = proc.wait()
                 _p(f"\n  ⚠ Cloudflare Tunnel отключился (код {exit_code}). Перезапуск через 5 сек...", "yellow")
                 time.sleep(5)
-                _p(f"  🌐 Перезапуск Cloudflare Tunnel...", "cyan")
+                _p("  🌐 Перезапуск Cloudflare Tunnel...", "cyan")
 
             except Exception as e:
                 _p(f"  ⚠ Cloudflare Tunnel ошибка: {e}. Повтор через 10 сек...", "yellow")
@@ -543,7 +533,7 @@ def _start_cloudflare_tunnel(port: int, proto: str) -> subprocess.Popen | None:
 
     except Exception as e:
         _p(f"  ⚠ Cloudflare Tunnel не запустился: {e}", "yellow")
-        _p(f"  Установите: brew install cloudflared\n", "dim")
+        _p("  Установите: brew install cloudflared\n", "dim")
         return None
 
 
@@ -573,7 +563,7 @@ def cmd_run() -> None:
         code = env.get("INVITE_CODE_NODE", "")
         _p(f"  🔑 Регистрация: по инвайту ({code})", "yellow")
     elif invite == "closed":
-        _p(f"  🔑 Регистрация: закрыта", "red")
+        _p("  🔑 Регистрация: закрыта", "red")
 
     # Cloudflare Tunnel (автоматически в global mode)
     tunnel_proc = _start_cloudflare_tunnel(port, proto)
@@ -624,11 +614,9 @@ def cmd_run() -> None:
         if tunnel_proc:
             _p("  ⛔ Останавливаем Cloudflare Tunnel...", "dim")
             # Убиваем все процессы cloudflared (включая перезапущенные)
-            try:
+            with contextlib.suppress(Exception):
                 subprocess.run(["pkill", "-f", "cloudflared tunnel"], timeout=5,
                                capture_output=True)
-            except Exception:
-                pass
 
 
 
@@ -640,29 +628,29 @@ def cmd_invite() -> None:
     mode = env.get("REGISTRATION_MODE", "open")
 
     if code and mode == "invite":
-        _p(f"\n  Инвайт-код уже настроен:", "green")
-        _p(f"  ╔══════════════════════════════╗")
+        _p("\n  Инвайт-код уже настроен:", "green")
+        _p("  ╔══════════════════════════════╗")
         _p(f"  ║  {code}  ║", "cyan")
-        _p(f"  ╚══════════════════════════════╝")
+        _p("  ╚══════════════════════════════╝")
         _p(f"\n  Режим: {mode}", "dim")
-        _p(f"  Отправьте этот код тем кому разрешаете регистрацию.\n", "dim")
+        _p("  Отправьте этот код тем кому разрешаете регистрацию.\n", "dim")
         return
 
     code = _sec.token_hex(8).upper()
 
     # Записываем в .env
     with open(ENV_FILE, "a") as f:
-        f.write(f"\nREGISTRATION_MODE=invite\n")
+        f.write("\nREGISTRATION_MODE=invite\n")
         f.write(f"INVITE_CODE_NODE={code}\n")
 
-    _p(f"\n  ✓ Режим инвайтов включён!", "green")
-    _p(f"  ╔══════════════════════════════╗")
+    _p("\n  ✓ Режим инвайтов включён!", "green")
+    _p("  ╔══════════════════════════════╗")
     _p(f"  ║  Инвайт-код: {code}  ║", "cyan")
-    _p(f"  ╚══════════════════════════════╝")
-    _p(f"\n  Без этого кода никто не сможет зарегистрироваться.", "dim")
-    _p(f"  Отправьте код только тем кому доверяете.\n", "dim")
-    _p(f"  Чтобы вернуть открытую регистрацию:", "dim")
-    _p(f"  Измените в .env: REGISTRATION_MODE=open\n", "dim")
+    _p("  ╚══════════════════════════════╝")
+    _p("\n  Без этого кода никто не сможет зарегистрироваться.", "dim")
+    _p("  Отправьте код только тем кому доверяете.\n", "dim")
+    _p("  Чтобы вернуть открытую регистрацию:", "dim")
+    _p("  Измените в .env: REGISTRATION_MODE=open\n", "dim")
 
 
 

@@ -24,30 +24,27 @@ app/files/resumable.py — Протокол возобновляемой заг�
     # В lifespan:
     asyncio.create_task(cleanup_sessions_loop())
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
-
-try:
-    import vortex_chat as _vc_rust
-    _HAS_RUST_SHA = hasattr(_vc_rust, "sha256_hex")
-except ImportError:
-    _HAS_RUST_SHA = False
-
-
-def _sha256_hex(data: bytes) -> str:
-    """Chunk-hash shortcut — picks Rust if available. 7× throughput win."""
-    if _HAS_RUST_SHA:
-        try: return _vc_rust.sha256_hex(data)
-        except Exception: pass
-    return hashlib.sha256(data).hexdigest()
 import logging
 import secrets
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Optional
+
+from app.utilites.background import spawn
+
+try:
+    import vortex_chat as _vc_rust
+
+    _HAS_RUST_SHA = hasattr(_vc_rust, "sha256_hex")
+except ImportError:
+    _HAS_RUST_SHA = False
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -66,28 +63,51 @@ from app.security.secure_upload import (
     validate_file_mime_type,
 )
 
+
+def _sha256_hex(data: bytes) -> str:
+    """Chunk-hash shortcut — picks Rust if available. 7× throughput win."""
+    if _HAS_RUST_SHA:
+        with contextlib.suppress(Exception):
+            return _vc_rust.sha256_hex(data)
+    return hashlib.sha256(data).hexdigest()
+
+
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["resumable-upload"])
 
-DEFAULT_CHUNK_SIZE = 1 * 1024 * 1024        # 1 МБ
-MIN_CHUNK_SIZE     = 64 * 1024              # 64 КБ
-MAX_CHUNK_SIZE     = 10 * 1024 * 1024       # 10 МБ
-MAX_CHUNKS         = 10_240                 # ≈ 10 ГБ при 1МБ-чанках
-SESSION_TTL        = 24 * 3600             # TTL сессии (24 часа)
-TEMP_DIR           = Config.UPLOAD_DIR / "_chunks"
+DEFAULT_CHUNK_SIZE = 1 * 1024 * 1024  # 1 МБ
+MIN_CHUNK_SIZE = 64 * 1024  # 64 КБ
+MAX_CHUNK_SIZE = 10 * 1024 * 1024  # 10 МБ
+MAX_CHUNKS = 10_240  # ≈ 10 ГБ при 1МБ-чанках
+SESSION_TTL = 24 * 3600  # TTL сессии (24 часа)
+TEMP_DIR = Config.UPLOAD_DIR / "_chunks"
 
 # web-shell / server-executable extensions, mirrors the direct path
 # (app/chats/messages/_router.py DANGEROUS_EXTS). The chunked path previously
 # skipped this check, accepting e.g. shell.php as the final extension.
-WEBSHELL_EXTS = frozenset({
-    '.php', '.php3', '.php4', '.php5', '.phtml',
-    '.asp', '.aspx', '.ascx', '.ashx',
-    '.jsp', '.jspx', '.jws',
-    '.exe', '.bat', '.cmd',
-})
+WEBSHELL_EXTS = frozenset(
+    {
+        ".php",
+        ".php3",
+        ".php4",
+        ".php5",
+        ".phtml",
+        ".asp",
+        ".aspx",
+        ".ascx",
+        ".ashx",
+        ".jsp",
+        ".jspx",
+        ".jws",
+        ".exe",
+        ".bat",
+        ".cmd",
+    }
+)
 
 
 # Модель сессии загрузки
+
 
 @dataclass
 class UploadSession:
@@ -106,17 +126,17 @@ class UploadSession:
         created_at     — монотонное время создания сессии (time.monotonic()).
         chunk_dir      — временная папка для хранения чанков до сборки.
     """
-    upload_id:    str
-    room_id:      int
-    user_id:      int
-    file_name:    str
-    file_size:    int
-    total_chunks: int
-    file_hash:    str
-    received:     Set[int] = field(default_factory=set)
-    created_at:   float    = field(default_factory=time.monotonic)
-    chunk_dir:    Path     = field(default=None)  # type: ignore
 
+    upload_id: str
+    room_id: int
+    user_id: int
+    file_name: str
+    file_size: int
+    total_chunks: int
+    file_hash: str
+    received: set[int] = field(default_factory=set)
+    created_at: float = field(default_factory=time.monotonic)
+    chunk_dir: Path = field(default=None)  # type: ignore
 
     def is_expired(self) -> bool:
         return (time.monotonic() - self.created_at) > SESSION_TTL
@@ -124,7 +144,7 @@ class UploadSession:
     def is_complete(self) -> bool:
         return len(self.received) >= self.total_chunks
 
-    def missing_chunks(self) -> List[int]:
+    def missing_chunks(self) -> list[int]:
         return sorted(set(range(self.total_chunks)) - self.received)
 
     def progress_pct(self) -> float:
@@ -135,6 +155,7 @@ class UploadSession:
 
 # Хранилище сессий (in-memory, потокобезопасное через asyncio.Lock)
 
+
 class SessionStore:
     """
     Асинхронное хранилище сессий загрузки.
@@ -144,7 +165,7 @@ class SessionStore:
     """
 
     def __init__(self) -> None:
-        self._sessions: Dict[str, UploadSession] = {}
+        self._sessions: dict[str, UploadSession] = {}
         self._lock = asyncio.Lock()
 
     async def create(self, **kwargs) -> UploadSession:
@@ -161,7 +182,7 @@ class SessionStore:
             if session.is_expired():
                 # Удаляем без ожидания (внутри lock нельзя await нелиниейно)
                 self._sessions.pop(upload_id, None)
-                asyncio.create_task(self._cleanup_dir(session.chunk_dir))
+                spawn(self._cleanup_dir(session.chunk_dir))
                 return None
             return session
 
@@ -178,6 +199,7 @@ class SessionStore:
             return
         try:
             import shutil
+
             if chunk_dir.exists():
                 await asyncio.get_event_loop().run_in_executor(
                     None, lambda: shutil.rmtree(chunk_dir, ignore_errors=True)
@@ -188,9 +210,7 @@ class SessionStore:
     async def cleanup_expired(self) -> int:
         """Удаляет все протухшие сессии. Возвращает количество удалённых."""
         async with self._lock:
-            expired = [
-                uid for uid, s in self._sessions.items() if s.is_expired()
-            ]
+            expired = [uid for uid, s in self._sessions.items() if s.is_expired()]
             dirs_to_clean = []
             for uid in expired:
                 s = self._sessions.pop(uid)
@@ -211,6 +231,7 @@ _store = SessionStore()
 
 # Вспомогательные функции
 
+
 def _validate_hex_hash(value: str, field_name: str = "hash") -> str:
     """Проверяет, что строка является корректным SHA-256 hex (64 символа)."""
     value = value.strip().lower()
@@ -219,33 +240,38 @@ def _validate_hex_hash(value: str, field_name: str = "hash") -> str:
     try:
         bytes.fromhex(value)
     except ValueError:
-        raise HTTPException(400, f"{field_name}: invalid hex")
+        raise HTTPException(400, f"{field_name}: invalid hex") from None
     return value
 
 
 def _check_room_access(room_id: int, user_id: int, db: Session) -> None:
     """Бросает 403 если пользователь не является участником комнаты."""
     if room_id >= 0:
-        member = db.query(RoomMember).filter(
-            RoomMember.room_id == room_id,
-            RoomMember.user_id == user_id,
-            RoomMember.is_banned == False,
-            ).first()
+        member = (
+            db.query(RoomMember)
+            .filter(
+                RoomMember.room_id == room_id,
+                RoomMember.user_id == user_id,
+                RoomMember.is_banned.is_(False),
+            )
+            .first()
+        )
         if not member:
             raise HTTPException(403, "No access to room")
 
 
 # 1. Инициализация сессии
 
+
 @router.post("/api/files/upload-init")
 async def upload_init(
-        room_id:    int     = Form(...),
-        file_name:  str     = Form(...),
-        file_size:  int     = Form(...),
-        file_hash:  str     = Form(...),
-        chunk_size: int     = Form(DEFAULT_CHUNK_SIZE),
-        u:          User    = Depends(get_current_user),
-        db:         Session = Depends(get_db),
+    room_id: int = Form(...),
+    file_name: str = Form(...),
+    file_size: int = Form(...),
+    file_hash: str = Form(...),
+    chunk_size: int = Form(DEFAULT_CHUNK_SIZE),
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Инициализация сессии возобновляемой загрузки.
@@ -270,6 +296,7 @@ async def upload_init(
     # потолком (3 GB по умолчанию), выше которого никто не загрузит
     # даже с премиумом — защита от ошибок конфига.
     from app.security.limits import get_limits_for_user
+
     tier = await get_limits_for_user(u)
     tier_limit_bytes = tier.max_file_mb * 1024 * 1024
     effective_limit = min(tier_limit_bytes, FileUploadConfig.MAX_FILE_SIZE)
@@ -284,9 +311,9 @@ async def upload_init(
                 "limit_mb": effective_limit // 1024 // 1024,
                 "tier": "premium" if tier.is_premium else "free",
                 "upgrade_hint": (
-                    None if tier.is_premium
-                    else "Link a Solana wallet with an active Vortex Premium "
-                         "subscription to upload files up to 2 GB."
+                    None
+                    if tier.is_premium
+                    else "Link a Solana wallet with an active Vortex Premium subscription to upload files up to 2 GB."
                 ),
             },
         )
@@ -307,15 +334,11 @@ async def upload_init(
     file_hash = _validate_hex_hash(file_hash, "file_hash")
 
     # Нормализация chunk_size
-    chunk_size    = max(MIN_CHUNK_SIZE, min(chunk_size, MAX_CHUNK_SIZE))
-    total_chunks  = (file_size + chunk_size - 1) // chunk_size
+    chunk_size = max(MIN_CHUNK_SIZE, min(chunk_size, MAX_CHUNK_SIZE))
+    total_chunks = (file_size + chunk_size - 1) // chunk_size
 
     if total_chunks > MAX_CHUNKS:
-        raise HTTPException(
-            400,
-            f"Too many chunks: {total_chunks} (maximum {MAX_CHUNKS}). "
-            f"Increase chunk_size."
-        )
+        raise HTTPException(400, f"Too many chunks: {total_chunks} (maximum {MAX_CHUNKS}). Increase chunk_size.")
 
     # Создаём временную директорию
     TEMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -324,14 +347,14 @@ async def upload_init(
     chunk_dir.mkdir(parents=True, exist_ok=True)
 
     await _store.create(
-        upload_id    = upload_id,
-        room_id      = room_id,
-        user_id      = u.id,
-        file_name    = file_name,
-        file_size    = file_size,
-        total_chunks = total_chunks,
-        file_hash    = file_hash,
-        chunk_dir    = chunk_dir,
+        upload_id=upload_id,
+        room_id=room_id,
+        user_id=u.id,
+        file_name=file_name,
+        file_size=file_size,
+        total_chunks=total_chunks,
+        file_hash=file_hash,
+        chunk_dir=chunk_dir,
     )
 
     logger.info(
@@ -340,22 +363,23 @@ async def upload_init(
     )
 
     return {
-        "upload_id":    upload_id,
+        "upload_id": upload_id,
         "total_chunks": total_chunks,
-        "chunk_size":   chunk_size,
-        "received":     [],
+        "chunk_size": chunk_size,
+        "received": [],
     }
 
 
 # 2. Загрузка чанка
 
+
 @router.put("/api/files/upload-chunk/{upload_id}")
 async def upload_chunk(
-        upload_id:   str,
-        chunk_index: int        = Form(...),
-        chunk_hash:  str        = Form(...),
-        data:        UploadFile = File(...),
-        u:           User       = Depends(get_current_user),
+    upload_id: str,
+    chunk_index: int = Form(...),
+    chunk_hash: str = Form(...),
+    data: UploadFile = File(...),
+    u: User = Depends(get_current_user),
 ):
     """
     Загрузка одного чанка.
@@ -375,16 +399,15 @@ async def upload_chunk(
         raise HTTPException(403, "No access to upload session")
 
     if not (0 <= chunk_index < session.total_chunks):
-        raise HTTPException(400, f"Invalid chunk index: {chunk_index} "
-                                 f"(expected 0-{session.total_chunks - 1})")
+        raise HTTPException(400, f"Invalid chunk index: {chunk_index} (expected 0-{session.total_chunks - 1})")
 
     # Идемпотентность: чанк уже принят
     if chunk_index in session.received:
         return {
-            "ok":             True,
-            "chunk_index":    chunk_index,
+            "ok": True,
+            "chunk_index": chunk_index,
             "already_received": True,
-            "progress":       session.progress_pct(),
+            "progress": session.progress_pct(),
         }
 
     # Читаем данные
@@ -395,43 +418,41 @@ async def upload_chunk(
     # Проверяем хеш чанка — Rust-реализация даёт ~2 мс на 10 МБ чанк
     # вместо 15 мс в stdlib; при 100 МБ/с пропускной способности это
     # освобождает 13% CPU на сервере.
-    chunk_hash    = _validate_hex_hash(chunk_hash, "chunk_hash")
-    actual_hash   = _sha256_hex(raw)
+    chunk_hash = _validate_hex_hash(chunk_hash, "chunk_hash")
+    actual_hash = _sha256_hex(raw)
     if actual_hash != chunk_hash:
         raise HTTPException(
-            400,
-            f"Chunk {chunk_index} hash mismatch. "
-            f"Expected: {chunk_hash[:16]}..., got: {actual_hash[:16]}..."
+            400, f"Chunk {chunk_index} hash mismatch. Expected: {chunk_hash[:16]}..., got: {actual_hash[:16]}..."
         )
 
     # Атомарная запись: сначала во временный файл, потом rename
     chunk_path = session.chunk_dir / f"{chunk_index:06d}.chunk"
-    tmp_path   = chunk_path.with_suffix(".tmp")
+    tmp_path = chunk_path.with_suffix(".tmp")
     tmp_path.write_bytes(raw)
     tmp_path.rename(chunk_path)
 
     session.received.add(chunk_index)
 
     logger.debug(
-        f"[Chunk] {chunk_index}/{session.total_chunks - 1} "
-        f"upload={upload_id} progress={session.progress_pct()}%"
+        f"[Chunk] {chunk_index}/{session.total_chunks - 1} upload={upload_id} progress={session.progress_pct()}%"
     )
 
     return {
-        "ok":          True,
+        "ok": True,
         "chunk_index": chunk_index,
-        "progress":    session.progress_pct(),
-        "missing":     len(session.missing_chunks()),
-        "complete":    session.is_complete(),
+        "progress": session.progress_pct(),
+        "missing": len(session.missing_chunks()),
+        "complete": session.is_complete(),
     }
 
 
 # 3. Статус сессии
 
+
 @router.get("/api/files/upload-status/{upload_id}")
 async def upload_status(
-        upload_id: str,
-        u:         User = Depends(get_current_user),
+    upload_id: str,
+    u: User = Depends(get_current_user),
 ):
     """
     Возвращает список принятых чанков и прогресс.
@@ -446,24 +467,25 @@ async def upload_status(
         raise HTTPException(403, "No access to upload session")
 
     return {
-        "upload_id":    upload_id,
-        "file_name":    session.file_name,
-        "file_size":    session.file_size,
+        "upload_id": upload_id,
+        "file_name": session.file_name,
+        "file_size": session.file_size,
         "total_chunks": session.total_chunks,
-        "received":     sorted(session.received),
-        "missing":      session.missing_chunks(),
-        "progress":     session.progress_pct(),
-        "complete":     session.is_complete(),
+        "received": sorted(session.received),
+        "missing": session.missing_chunks(),
+        "progress": session.progress_pct(),
+        "complete": session.is_complete(),
     }
 
 
 # 4. Финализация (сборка файла)
 
+
 @router.post("/api/files/upload-complete/{upload_id}")
 async def upload_complete(
-        upload_id: str,
-        u:         User    = Depends(get_current_user),
-        db:        Session = Depends(get_db),
+    upload_id: str,
+    u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Финализация загрузки: сборка чанков → проверка SHA-256 → сохранение.
@@ -488,10 +510,10 @@ async def upload_complete(
         raise HTTPException(
             400,
             {
-                "error":   "Upload incomplete — there are missing chunks",
+                "error": "Upload incomplete — there are missing chunks",
                 "missing": missing[:20],
-                "count":   len(missing),
-            }
+                "count": len(missing),
+            },
         )
 
     assembled = bytearray()
@@ -509,9 +531,7 @@ async def upload_complete(
     if actual_hash != session.file_hash:
         await _store.delete(upload_id)
         raise HTTPException(
-            400,
-            f"File hash mismatch. "
-            f"Expected: {session.file_hash[:16]}..., got: {actual_hash[:16]}..."
+            400, f"File hash mismatch. Expected: {session.file_hash[:16]}..., got: {actual_hash[:16]}..."
         )
 
     if FileAnomalyDetector.detect_zip_bomb_indicators(content):
@@ -525,9 +545,12 @@ async def upload_complete(
     mime_type = mime_result
 
     is_image = mime_type and mime_type.startswith("image/")
-    _is_encrypted = (len(content) > 12 and not content[:4] in (
-        b'\xff\xd8\xff', b'\x89PNG', b'GIF8', b'RIFF',
-    ))
+    _is_encrypted = len(content) > 12 and content[:4] not in (
+        b"\xff\xd8\xff",
+        b"\x89PNG",
+        b"GIF8",
+        b"RIFF",
+    )
     if is_image and not _is_encrypted:
         img_ok, img_err = await FileAnomalyDetector.validate_image_content(content)
         if not img_ok:
@@ -540,23 +563,23 @@ async def upload_complete(
     # device info (video/audio), and author/dates (PDF). The integrity check
     # above already validated the *uploaded* bytes against session.file_hash;
     # the stored hash/size are recomputed from the stripped content below.
-    content     = strip_all_metadata(content, mime_type)
+    content = strip_all_metadata(content, mime_type)
     stored_hash = _sha256_hex(content)
 
-    ext        = Path(session.file_name).suffix.lower()
-    safe_name  = generate_secure_filename(ext)
+    ext = Path(session.file_name).suffix.lower()
+    safe_name = generate_secure_filename(ext)
     Config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     stored_path = Config.UPLOAD_DIR / safe_name
     stored_path.write_bytes(content)
 
     ft = FileTransfer(
-        room_id       = session.room_id,
-        uploader_id   = u.id,
-        original_name = session.file_name,
-        stored_name   = safe_name,
-        mime_type     = mime_type,
-        size_bytes    = len(content),
-        file_hash     = stored_hash,
+        room_id=session.room_id,
+        uploader_id=u.id,
+        original_name=session.file_name,
+        stored_name=safe_name,
+        mime_type=mime_type,
+        size_bytes=len(content),
+        file_hash=stored_hash,
     )
     db.add(ft)
     db.commit()
@@ -564,42 +587,34 @@ async def upload_complete(
 
     download_url = f"/api/files/download/{ft.id}"
 
-    is_voice = (
-            session.file_name.startswith("voice_")
-            and mime_type
-            and mime_type.startswith("audio/")
-    )
-    msg_type = (
-        MessageType.VOICE if is_voice
-        else MessageType.IMAGE if is_image
-        else MessageType.FILE
-    )
+    is_voice = session.file_name.startswith("voice_") and mime_type and mime_type.startswith("audio/")
+    msg_type = MessageType.VOICE if is_voice else MessageType.IMAGE if is_image else MessageType.FILE
 
     placeholder_encrypted = b"\x00" * 12 + b"\x00" * 16
     msg = Message(
-        room_id           = session.room_id,
-        sender_id         = u.id,
-        msg_type          = msg_type,
-        content_encrypted = placeholder_encrypted,
-        file_name         = session.file_name,
-        file_size         = len(content),
+        room_id=session.room_id,
+        sender_id=u.id,
+        msg_type=msg_type,
+        content_encrypted=placeholder_encrypted,
+        file_name=session.file_name,
+        file_size=len(content),
     )
     db.add(msg)
     db.commit()
 
     broadcast_payload = {
-        "type":         "file",
-        "sender_id":    u.id,
-        "sender":       u.username,
+        "type": "file",
+        "sender_id": u.id,
+        "sender": u.username,
         "display_name": u.display_name or u.username,
         "avatar_emoji": u.avatar_emoji,
-        "file_name":    session.file_name,
-        "file_size":    len(content),
-        "mime_type":    mime_type,
+        "file_name": session.file_name,
+        "file_size": len(content),
+        "mime_type": mime_type,
         "download_url": download_url,
-        "msg_type":     msg_type.value,
-        "created_at":   ft.created_at.isoformat(),
-        "file_hash":    stored_hash,  # hash of stored (stripped) bytes
+        "msg_type": msg_type.value,
+        "created_at": ft.created_at.isoformat(),
+        "file_hash": stored_hash,  # hash of stored (stripped) bytes
     }
     await manager.broadcast_to_room(session.room_id, broadcast_payload)
 
@@ -611,21 +626,22 @@ async def upload_complete(
     await _store.delete(upload_id)
 
     return {
-        "ok":          True,
-        "file_id":     ft.id,
+        "ok": True,
+        "file_id": ft.id,
         "download_url": download_url,
-        "file_hash":   stored_hash,  # hash of stored (stripped) bytes
-        "size_bytes":  len(content),
-        "mime_type":   mime_type,
+        "file_hash": stored_hash,  # hash of stored (stripped) bytes
+        "size_bytes": len(content),
+        "mime_type": mime_type,
     }
 
 
 # 5. Отмена сессии
 
+
 @router.delete("/api/files/upload-cancel/{upload_id}")
 async def upload_cancel(
-        upload_id: str,
-        u:         User = Depends(get_current_user),
+    upload_id: str,
+    u: User = Depends(get_current_user),
 ):
     """
     Отменяет сессию загрузки и удаляет временные файлы чанков.
@@ -643,6 +659,7 @@ async def upload_cancel(
 
 
 # Фоновая задача очистки протухших сессий
+
 
 async def cleanup_sessions_loop(interval_sec: int = 3600) -> None:
     """

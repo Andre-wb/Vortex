@@ -5,11 +5,9 @@ from __future__ import annotations
 
 import secrets
 import time
-from pathlib import Path
 
-from .models import NodeConfig, SSOConfig
 from ._app import ENV_FILE
-
+from .models import NodeConfig, SSOConfig
 
 # Defaults for the "global" network mode — official vortexx.sol controller.
 # Leave as empty strings until release; wizard users can't reach a real instance
@@ -72,8 +70,8 @@ def _write_env(cfg: NodeConfig) -> None:
         f"SEALED_SENDER_SECRET={sealed_secret}",
         "",
         "# Tokens",
-        f"ACCESS_TOKEN_EXPIRE_MIN=1440",
-        f"REFRESH_TOKEN_EXPIRE_DAYS=30",
+        "ACCESS_TOKEN_EXPIRE_MIN=1440",
+        "REFRESH_TOKEN_EXPIRE_DAYS=30",
         "",
         "# Server",
         f"HOST={cfg.host}",
@@ -82,20 +80,20 @@ def _write_env(cfg: NodeConfig) -> None:
         f"ENVIRONMENT={cfg.environment}",
         "",
         "# Storage",
-        f"DB_PATH=vortex.db",
-        f"UPLOAD_DIR=uploads",
-        f"KEYS_DIR=keys",
+        "DB_PATH=vortex.db",
+        "UPLOAD_DIR=uploads",
+        "KEYS_DIR=keys",
         f"MAX_FILE_MB={cfg.max_file_mb}",
         "",
         "# P2P Discovery",
         f"UDP_PORT={cfg.udp_port}",
-        f"UDP_INTERVAL_SEC=2",
-        f"PEER_TIMEOUT_SEC=15",
+        "UDP_INTERVAL_SEC=2",
+        "PEER_TIMEOUT_SEC=15",
         "",
         "# WAF",
-        f"WAF_RATE_LIMIT_REQUESTS=120",
-        f"WAF_RATE_LIMIT_WINDOW=60",
-        f"WAF_BLOCK_DURATION=3600",
+        "WAF_RATE_LIMIT_REQUESTS=120",
+        "WAF_RATE_LIMIT_WINDOW=60",
+        "WAF_BLOCK_DURATION=3600",
         "",
         "# Network Mode",
         f"NETWORK_MODE={cfg.network_mode}",
@@ -106,13 +104,13 @@ def _write_env(cfg: NodeConfig) -> None:
         f"CONTROLLER_URL={_default_controller_url(cfg) or cfg.controller_url}",
         f"CONTROLLER_PUBKEY={_default_controller_pubkey(cfg) or cfg.controller_pubkey}",
         f"NODE_ANNOUNCE_ENDPOINTS={_normalize_endpoints(cfg.announce_endpoints)}",
-        f"CONTROLLER_HEARTBEAT_SEC=60",
+        "CONTROLLER_HEARTBEAT_SEC=60",
         "",
         "# Stealth Mode (anti-censorship / DPI bypass)",
-        f"STEALTH_MODE=true",
+        "STEALTH_MODE=true",
         f"STEALTH_SECRET={existing.get('STEALTH_SECRET') or secrets.token_hex(32)}",
         f"VORTEX_NETWORK_KEY={existing.get('VORTEX_NETWORK_KEY') or secrets.token_hex(32)}",
-        f"STEALTH_TURN_URL=",
+        "STEALTH_TURN_URL=",
     ]
     if cfg.invite_code:
         lines.append(f"INVITE_CODE_NODE={cfg.invite_code}")

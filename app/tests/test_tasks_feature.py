@@ -1,7 +1,6 @@
 """
 Tests for room tasks (todo lists).
 """
-import pytest
 
 from conftest import random_str
 

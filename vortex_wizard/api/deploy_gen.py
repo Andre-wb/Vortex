@@ -19,7 +19,6 @@ import re
 import time
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response, StreamingResponse

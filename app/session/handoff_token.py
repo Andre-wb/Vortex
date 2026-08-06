@@ -34,14 +34,12 @@ from __future__ import annotations
 
 import secrets
 import time
-from typing import Optional
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from app.peer.controller_client import NodeSigningKey
 from app.peer.controller_client import _canonical as _controller_canonical
-
 
 HANDOFF_TTL_SEC = 300          # 5 min window to consume the token
 HANDOFF_SKEW_SEC = 60           # accept small clock drift
@@ -121,8 +119,8 @@ def verify_handoff_token(
     try:
         payload = envelope["payload"]
         sig_hex = envelope["signature"]
-    except (KeyError, TypeError):
-        raise HandoffError("malformed envelope")
+    except (KeyError, TypeError) as e:
+        raise HandoffError("malformed envelope") from e
 
     if payload.get("typ") != "handoff" or payload.get("v") != 1:
         raise HandoffError("unsupported token type or version")
@@ -152,7 +150,7 @@ def verify_handoff_token(
         pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(src_pubkey))
         pub.verify(bytes.fromhex(sig_hex), _canonical(payload))
     except (ValueError, InvalidSignature) as e:
-        raise HandoffError(f"signature invalid: {e}")
+        raise HandoffError(f"signature invalid: {e}") from e
 
     # Accept the jti (consume) only after everything else passed.
     _JTI_SEEN[jti] = now

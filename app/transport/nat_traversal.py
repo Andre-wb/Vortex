@@ -27,16 +27,16 @@ app/transport/nat_traversal.py — NAT Traversal: STUN + UDP Hole Punching.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
-import hmac
-import json
 import logging
 import secrets
 import socket
 import struct
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class IceCandidate:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "IceCandidate":
+    def from_dict(cls, d: dict) -> IceCandidate:
         return cls(
             ip        = d["ip"],
             port      = int(d["port"]),
@@ -201,10 +201,8 @@ class StunClient:
             return None
         finally:
             if local_sock is None and own_sock is not None:
-                try:
+                with contextlib.suppress(Exception):
                     own_sock.close()
-                except Exception:
-                    pass
 
     @classmethod
     async def discover_external(cls) -> Optional[tuple[str, int]]:
@@ -252,10 +250,8 @@ class UdpHolePuncher:
     def close_session(self, sid: str) -> None:
         sess = self._sessions.pop(sid, None)
         if sess and sess.punch_sock:
-            try:
+            with contextlib.suppress(Exception):
                 sess.punch_sock.close()
-            except Exception:
-                pass
 
     async def gather_candidates(
             self,
@@ -283,7 +279,7 @@ class UdpHolePuncher:
                 port      = local_port,
                 cand_type = "host",
                 priority  = 100,
-                foundation= hashlib.md5(f"host_{local_ip}".encode()).hexdigest()[:8],
+                foundation= hashlib.md5(f"host_{local_ip}".encode(), usedforsecurity=False).hexdigest()[:8],
             )
             candidates.append(host_cand)
 
@@ -299,7 +295,7 @@ class UdpHolePuncher:
                 port      = srflx[1],
                 cand_type = "srflx",
                 priority  = 200,
-                foundation= hashlib.md5(f"srflx_{srflx[0]}".encode()).hexdigest()[:8],
+                foundation= hashlib.md5(f"srflx_{srflx[0]}".encode(), usedforsecurity=False).hexdigest()[:8],
             )
             candidates.append(srflx_cand)
 
@@ -343,10 +339,8 @@ class UdpHolePuncher:
             for _ in range(10):  # 10 попыток с паузами
                 for cand in sorted_cands:
                     pkt = self.PUNCH_MAGIC + ping_id
-                    try:
+                    with contextlib.suppress(Exception):
                         sock.sendto(pkt, (cand.ip, cand.port))
-                    except Exception:
-                        pass
                 await asyncio.sleep(0.3)
 
         async def listen_for_ack() -> Optional[tuple[str, int]]:
@@ -449,10 +443,8 @@ class UdpHolePuncher:
             except asyncio.TimeoutError:
                 # keepalive
                 if session.remote_addr:
-                    try:
+                    with contextlib.suppress(Exception):
                         sock.sendto(b"VORTEX_KEEPALIVE", session.remote_addr)
-                    except Exception:
-                        pass
             except Exception as e:
                 logger.debug(f"UDP receive loop error: {e}")
                 break

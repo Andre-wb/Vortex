@@ -3,10 +3,17 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey,
-    Integer, LargeBinary, String, Text, Index, UniqueConstraint,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
 
 from app.base import Base
 

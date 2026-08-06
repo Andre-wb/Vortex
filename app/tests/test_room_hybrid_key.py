@@ -6,8 +6,7 @@ self-ключ создателя переживает store→fetch через �
 import secrets
 
 import pytest
-
-from conftest import make_user, login_user, random_str
+from conftest import login_user, make_user, random_str
 
 
 def _sender(client):

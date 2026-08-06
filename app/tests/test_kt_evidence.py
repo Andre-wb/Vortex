@@ -10,6 +10,7 @@ vortex-kt-entry:v1-сообщение, верифицирует node_sig, све
 для автоматического бана. Это Фаза 2; строгий fork-пруф — Фаза 3 (STH/consistency).
 """
 
+import contextlib
 import hashlib
 import json
 
@@ -77,18 +78,16 @@ def test_cross_user_pair_rejected():
     import pytest
     o = json.loads(_sample_blob())
     o["statements"][1]["user_id"] = 999   # вторая про другого юзера → не «пара про пира»
-    with pytest.raises(Exception):
+    with pytest.raises(AssertionError):
         _verify_blob(json.dumps(o))
 
 
 def test_tampered_statement_fails_verification():
     o = json.loads(_sample_blob())
     o["statements"][0]["pub_key_hash"] = "cd" * 32   # подмена → node_sig не сойдётся
-    try:
+    with contextlib.suppress(Exception):
         _verify_blob(json.dumps(o))
-        assert False, "tampered blob verified"
-    except Exception:
-        pass
+        raise AssertionError("tampered blob verified")
 
 
 def test_cross_impl_hash_serialization():

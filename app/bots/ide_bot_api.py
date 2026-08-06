@@ -23,17 +23,16 @@ import asyncio
 import json
 import logging
 import time
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
+from app.bots.ide_runner import _procs, get_status
+from app.bots.ide_shared import _BASE, _ID_RE, BotCallRequest, _require_project
 from app.models import User
 from app.security.auth_jwt import get_current_user
-from app.bots.ide_runner import _procs, get_status
-from app.bots.ide_shared import BotCallRequest, _BASE, _ID_RE, _require_project, _validate_id
-
+from app.utilites.background import spawn
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +63,7 @@ async def bot_call_function(
 
     # Find running bot whose project_id contains or equals the username
     matched_pid: Optional[str] = None
-    for pid, bp in list(_procs.items()):
+    for pid, _bp in list(_procs.items()):
         if username.lower() in pid.lower() or pid.lower() in username.lower():
             matched_pid = pid
             break
@@ -119,8 +118,9 @@ async def get_message_history(
     contains the hex-encoded AES-256-GCM payload — bots should only use this for
     metadata (sender, timestamp) unless they hold the room key.
     """
-    from app.database import SessionLocal
     from sqlalchemy import text as sa_text
+
+    from app.database import SessionLocal
 
     n = max(1, min(n, 100))  # clamp to [1, 100]
     db = SessionLocal()
@@ -168,7 +168,6 @@ async def bot_typing(
     from app.peer.connection_manager import manager
 
     bot_user_id = current_user.id
-    username = current_user.username
 
     await manager.set_typing(room_id, bot_user_id, is_typing=True)
     logger.info("bot typing: room=%s user=%s", room_id, bot_user_id)
@@ -177,7 +176,7 @@ async def bot_typing(
         await asyncio.sleep(3)
         await manager.set_typing(room_id, bot_user_id, is_typing=False)
 
-    asyncio.create_task(_clear_typing())
+    spawn(_clear_typing())
     return {"ok": True}
 
 
@@ -281,10 +280,11 @@ async def bot_notify_user(
     if not target_user_id:
         return {"ok": False, "error": "user_id required"}
 
+    import json as _json
+
+    from app.config import Config
     from app.database import SessionLocal
     from app.models import PushSubscription
-    from app.config import Config
-    import json as _json
 
     logger.info("Bot notification to user %s: %s", target_user_id, text[:100])
 
@@ -292,7 +292,7 @@ async def bot_notify_user(
     sent = 0
     try:
         try:
-            from pywebpush import webpush, WebPushException
+            from pywebpush import webpush
         except ImportError:
             return {"ok": True, "sent": 0, "note": "pywebpush not installed"}
 
@@ -336,11 +336,12 @@ async def bot_notify_room(
     if not room_id:
         return {"ok": False, "error": "room_id required"}
 
+    import json as _json
+
+    from app.config import Config
     from app.database import SessionLocal
     from app.models import PushSubscription
     from app.models_rooms import RoomMember
-    from app.config import Config
-    import json as _json
 
     logger.info("Bot room notification %s: %s", room_id, text[:100])
 
@@ -348,7 +349,7 @@ async def bot_notify_room(
     sent = 0
     try:
         try:
-            from pywebpush import webpush, WebPushException
+            from pywebpush import webpush
         except ImportError:
             return {"ok": True, "sent": 0, "note": "pywebpush not installed"}
 

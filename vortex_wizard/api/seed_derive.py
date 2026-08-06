@@ -21,7 +21,6 @@ import hmac
 import struct
 from dataclasses import dataclass
 
-
 # SLIP-0010 Ed25519 magic string — specified by the standard.
 _ED25519_MASTER_KEY = b"ed25519 seed"
 

@@ -75,7 +75,7 @@ def can_use_steganography() -> bool:
 LOSSLESS_FORMATS = {"PNG", "WEBP", "BMP"}
 
 
-def _save_lossless(img: "Image.Image", fmt: str = "PNG") -> bytes:
+def _save_lossless(img: Image.Image, fmt: str = "PNG") -> bytes:
     """Save image in a lossless format that preserves LSB values."""
     buf = io.BytesIO()
     fmt = fmt.upper()
@@ -110,7 +110,7 @@ def generate_cover_image(
             base_r = int(40 + 60 * (x / width))
             base_g = int(50 + 40 * (y / height))
             base_b = int(60 + 30 * ((x + y) / (width + height)))
-            noise = random.randint(-20, 20)
+            noise = random.randint(-20, 20)  # noqa: S311
             r = max(0, min(255, base_r + noise))
             g = max(0, min(255, base_g + noise))
             b = max(0, min(255, base_b + noise))
@@ -213,7 +213,7 @@ def embed_data(
     # Phase 2 payload: marker + length + data  (XOR-masked)
     phase2_raw = marker + length_bytes + data
     xor_mask = _derive_stream(key, nonce + b"xor", len(phase2_raw))
-    phase2_masked = bytes(a ^ b for a, b in zip(phase2_raw, xor_mask))
+    phase2_masked = bytes(a ^ b for a, b in zip(phase2_raw, xor_mask, strict=False))
 
     def to_bits(data_bytes: bytes) -> list[int]:
         bits = []
@@ -331,7 +331,7 @@ def extract_data(image_bytes: bytes, key: bytes | None = None) -> Optional[bytes
 
         # Unmask
         xor_mask = _derive_stream(key, nonce + b"xor", 20)
-        header_raw = bytes(a ^ b for a, b in zip(header_masked, xor_mask))
+        header_raw = bytes(a ^ b for a, b in zip(header_masked, xor_mask, strict=False))
 
         # Verify marker
         expected_marker = hmac.new(key, nonce + b"marker", hashlib.sha256).digest()[:16]
@@ -351,7 +351,7 @@ def extract_data(image_bytes: bytes, key: bytes | None = None) -> Optional[bytes
 
         # Unmask all
         full_xor = _derive_stream(key, nonce + b"xor", len(full_masked))
-        full_raw = bytes(a ^ b for a, b in zip(full_masked, full_xor))
+        full_raw = bytes(a ^ b for a, b in zip(full_masked, full_xor, strict=False))
 
         return full_raw[20:20 + data_len]
 

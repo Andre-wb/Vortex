@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import platform
 import socket
 from pathlib import Path
@@ -38,11 +39,9 @@ def _local_ips() -> list[str]:
     Возвращает отсортированный список уникальных IP-адресов.
     """
     ips = {"127.0.0.1", "::1"}
-    try:
+    with contextlib.suppress(Exception):
         hostname = socket.gethostname()
         ips.add(socket.gethostbyname(hostname))
-    except Exception:
-        pass
     try:
         import netifaces
         for iface in netifaces.interfaces():
@@ -52,18 +51,14 @@ def _local_ips() -> list[str]:
                     ips.add(addr["addr"].split("%")[0])  # удаляем scope_id для IPv6
     except ImportError:
         # fallback: пробуем подключиться к известным адресам
-        try:
+        with contextlib.suppress(Exception):
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             for target in ("192.168.1.1", "10.0.0.1", "8.8.8.8"):
-                try:
+                with contextlib.suppress(Exception):
                     s.connect((target, 80))
                     ips.add(s.getsockname()[0])
                     break
-                except Exception:
-                    pass
             s.close()
-        except Exception:
-            pass
     return sorted(ips)
 
 

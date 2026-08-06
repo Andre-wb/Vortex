@@ -72,12 +72,11 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Tuple
 
 from app.security.crypto import (
+    decrypt_message,
     derive_x25519_session_key,
     encrypt_message,
-    decrypt_message,
     generate_x25519_keypair,
 )
 
@@ -144,9 +143,9 @@ def ecies_encrypt_for_client(plaintext: bytes, recipient_pub_hex: str) -> dict:
     НЕ путать с ecies_encrypt (NODE-диалект, salt=sorted, node↔node/Rust-mirrored):
     именно эта путаница делала /api/zk/blind-key тихо-мёртвым (InvalidTag).
     """
+    from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-    from cryptography.hazmat.primitives import hashes
 
     if len(recipient_pub_hex) != 64:
         raise ValueError(f"recipient_pub_hex must be 64 hex chars, got {len(recipient_pub_hex)}")
@@ -243,7 +242,7 @@ def decrypt_p2p_payload(ephemeral_pub_hex: str, ciphertext_hex: str,
 
 # Утилиты для форматирования (используются в rooms.py и chat.py)
 
-def format_encrypted_key(enc_dict: dict) -> Tuple[str, str]:
+def format_encrypted_key(enc_dict: dict) -> tuple[str, str]:
     """
     Извлекает (ephemeral_pub_hex, ciphertext_hex) из словаря,
     возвращённого ecies_encrypt или переданного клиентом.

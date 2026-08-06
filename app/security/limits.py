@@ -13,6 +13,7 @@ any change here should be mirrored there for user expectations to match.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -57,7 +58,7 @@ class TierLimits:
     can_gift_premium:        bool
 
     def to_dict(self) -> dict[str, Any]:
-        return {k: getattr(self, k) for k in self.__annotations__.keys()}
+        return {k: getattr(self, k) for k in self.__annotations__}
 
 
 
@@ -144,11 +145,9 @@ def peek_limits_for_wallet(wallet_pubkey: str) -> TierLimits:
     """
     if not wallet_pubkey:
         return FREE
-    try:
+    with contextlib.suppress(Exception):
         from app.security.premium_check import premium_checker
-        cached = premium_checker._cache.get(wallet_pubkey)  # noqa: SLF001
+        cached = premium_checker._cache.get(wallet_pubkey)
         if cached and cached.is_premium:
             return PREMIUM
-    except Exception:
-        pass
     return FREE

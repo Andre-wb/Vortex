@@ -22,12 +22,12 @@ Privacy guarantees:
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import ipaddress
 import logging
 import os
-import secrets
 import socket
 import time
 from collections import defaultdict
@@ -175,10 +175,8 @@ class PushProxyStore:
 
         # Send push to each token (fire-and-forget)
         for reg in tokens:
-            try:
+            with contextlib.suppress(Exception):
                 await _send_push(reg.endpoint, reg.token)
-            except Exception:
-                pass
 
         logger.debug("[PushProxy] Wake category=%d → %d tokens", category, len(tokens))
 
@@ -210,12 +208,13 @@ async def _send_push(endpoint: str, token: str):
             return
 
         from app.push.web_push import _get_vapid_key_pair
-        private_key, public_key = _get_vapid_key_pair()
+        private_key, _public_key = _get_vapid_key_pair()
         if not private_key:
             return
 
         # Minimal payload: just {"type": "bmp_wake"}
         import json
+
         from pywebpush import webpush
         webpush(
             subscription_info={"endpoint": endpoint, "keys": json.loads(token)},

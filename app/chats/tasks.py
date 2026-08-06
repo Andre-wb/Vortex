@@ -32,7 +32,7 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
     m = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not m:
         raise HTTPException(403, "You are not a member of this room")
@@ -99,7 +99,7 @@ async def create_task(
         assignee_member = db.query(RoomMember).filter(
             RoomMember.room_id == room_id,
             RoomMember.user_id == body.assignee_id,
-            RoomMember.is_banned == False,
+            RoomMember.is_banned.is_(False),
         ).first()
         if not assignee_member:
             raise HTTPException(400, "Assigned user is not a room member")
@@ -144,7 +144,7 @@ async def update_task(
             assignee_member = db.query(RoomMember).filter(
                 RoomMember.room_id == room_id,
                 RoomMember.user_id == body.assignee_id,
-                RoomMember.is_banned == False,
+                RoomMember.is_banned.is_(False),
             ).first()
             if not assignee_member:
                 raise HTTPException(400, "Assigned user is not a room member")

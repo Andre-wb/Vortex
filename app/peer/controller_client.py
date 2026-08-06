@@ -13,6 +13,7 @@ match the controller's ``canonical_json`` exactly.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -59,7 +60,7 @@ class NodeSigningKey:
         self._priv = priv
 
     @classmethod
-    def load_or_create(cls, keys_dir: Path) -> "NodeSigningKey":
+    def load_or_create(cls, keys_dir: Path) -> NodeSigningKey:
         keys_dir.mkdir(parents=True, exist_ok=True)
         path = keys_dir / cls._KEY_FILENAME
         if path.exists():
@@ -73,10 +74,8 @@ class NodeSigningKey:
             encryption_algorithm=serialization.NoEncryption(),
         )
         path.write_bytes(raw)
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(path, 0o600)
-        except OSError:
-            pass
         logger.info("Generated new Ed25519 signing keypair for controller")
         return cls(priv)
 
@@ -176,7 +175,7 @@ class ControllerClient:
             await self.ensure_verified_url()
             await self._register()
             self._hb_task = asyncio.create_task(self._heartbeat_loop())
-        except IntegrityRefusal as e:
+        except IntegrityRefusalError as e:
             logger.error("ControllerClient: no verified controller found: %s", e)
         except Exception as e:
             logger.warning("ControllerClient: registration failed: %s", e)
@@ -187,7 +186,7 @@ class ControllerClient:
         (if configured) whose ``signed_by`` matches our pinned release key.
 
         Sets ``self.url`` to that URL so subsequent requests go there.
-        Raises ``IntegrityRefusal`` if NONE pass — this is the whole point:
+        Raises ``IntegrityRefusalError`` if NONE pass — this is the whole point:
         we refuse to connect to any unverified controller.
         """
         candidates = [self.url, *self.fallback_urls]
@@ -206,7 +205,7 @@ class ControllerClient:
                     logger.info("ControllerClient: switched to verified %s", candidate)
                 self.url = candidate
                 return candidate
-        raise IntegrityRefusal(
+        raise IntegrityRefusalError(
             f"none of {len(ordered)} controller URL(s) reported status=verified "
             f"with expected release key"
         )
@@ -248,10 +247,8 @@ class ControllerClient:
     async def stop(self) -> None:
         if self._hb_task:
             self._hb_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._hb_task
-            except (asyncio.CancelledError, Exception):
-                pass
             self._hb_task = None
 
     async def fetch_random_peers(self, count: int = 5) -> list[dict]:
@@ -304,7 +301,7 @@ class ControllerClient:
         body = {"payload": payload, "signature": self.signing_key.sign(payload)}
         try:
             await self._request("POST", "/v1/heartbeat", body=body, raise_on_fail=True)
-        except _NotFound:
+        except _NotFoundError:
             logger.info("ControllerClient: 404 from heartbeat, re-registering")
             await self._register()
 
@@ -336,7 +333,7 @@ class ControllerClient:
                 else:
                     r = await http.post(full, json=body or {})
                 if r.status_code == 404 and path.startswith("/v1/heartbeat"):
-                    raise _NotFound()
+                    raise _NotFoundError()
                 if r.status_code == 503:
                     # Hot controller went bad. Find another *verified* one.
                     logger.info(
@@ -345,11 +342,11 @@ class ControllerClient:
                     )
                     try:
                         await self.ensure_verified_url()
-                    except IntegrityRefusal:
+                    except IntegrityRefusalError as e:
                         if raise_on_fail:
                             raise RuntimeError(
                                 "all configured controllers are unverified"
-                            )
+                            ) from e
                         return None
                     # Retry once on the freshly-verified URL
                     retry_full = f"{self.url}{path}"
@@ -360,12 +357,12 @@ class ControllerClient:
                             else:
                                 r = await http.post(retry_full, json=body or {})
                             if r.status_code == 404 and path.startswith("/v1/heartbeat"):
-                                raise _NotFound()
+                                raise _NotFoundError()
                             r.raise_for_status()
                             return r.json()
                 r.raise_for_status()
                 return r.json()
-        except _NotFound:
+        except _NotFoundError:
             raise
         except Exception as direct_err:
             logger.debug("ControllerClient: direct %s %s failed: %s", method, full, direct_err)
@@ -385,11 +382,11 @@ class ControllerClient:
                     r.raise_for_status()
                     wrapped = r.json()
                     if wrapped.get("status_code") == 404 and path.startswith("/v1/heartbeat"):
-                        raise _NotFound()
+                        raise _NotFoundError()
                     if 200 <= wrapped.get("status_code", 0) < 300:
                         logger.info("ControllerClient: request succeeded via proxy %s", proxy)
                         return wrapped.get("body")
-            except _NotFound:
+            except _NotFoundError:
                 raise
             except Exception as e:
                 logger.debug("ControllerClient: proxy %s failed: %s", proxy, e)
@@ -399,12 +396,12 @@ class ControllerClient:
         return None
 
 
-class _NotFound(Exception):
+class _NotFoundError(Exception):
     """Internal sentinel for controller 404 — triggers re-registration."""
     pass
 
 
-class IntegrityRefusal(RuntimeError):
+class IntegrityRefusalError(RuntimeError):
     """Raised when no candidate controller URL passes integrity verification.
 
     Intentional dead-stop: never auto-connect to an unverified controller,

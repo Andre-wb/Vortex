@@ -15,18 +15,18 @@ POST /api/ide/permissions/{pid}/assign     assign a role to a user
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.models import User
-from app.security.auth_jwt import get_current_user
 from app.bots.ide_runner import get_logs, get_status
 from app.bots.ide_shared import _BASE, _require_project, _validate_id
-
+from app.models import User
+from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +42,10 @@ async def bot_analytics(project_id: str, current_user: User = Depends(get_curren
     logs = get_logs(pid, last_n=500)
 
     # Parse logs for metrics
-    message_count = sum(1 for l in logs if "message" in l.lower() or "emit" in l.lower() or "send" in l.lower())
-    error_count = sum(1 for l in logs if "error" in l.lower() or "ERROR" in l)
-    command_count = sum(1 for l in logs if "command" in l.lower() or "/start" in l or "/help" in l)
-    callback_count = sum(1 for l in logs if "callback" in l.lower())
+    message_count = sum(1 for line in logs if "message" in line.lower() or "emit" in line.lower() or "send" in line.lower())
+    error_count = sum(1 for line in logs if "error" in line.lower() or "ERROR" in line)
+    command_count = sum(1 for line in logs if "command" in line.lower() or "/start" in line or "/help" in line)
+    callback_count = sum(1 for line in logs if "callback" in line.lower())
 
     # Recent log lines (last 50)
     recent_logs = logs[-50:] if len(logs) > 50 else logs
@@ -55,14 +55,12 @@ async def bot_analytics(project_id: str, current_user: User = Depends(get_curren
     events: list = []
     summary: dict = {}
     if analytics_file.exists():
-        try:
+        with contextlib.suppress(Exception):
             events = json.loads(analytics_file.read_text())
             for e in events:
                 name = e.get("name", "unknown")
                 summary[name] = summary.get(name, 0) + 1
             events = events[-500:]
-        except Exception:
-            pass
 
     return {
         "project_id": pid,
@@ -91,24 +89,20 @@ async def get_bot_metrics(
     """Read bot metrics exported by Gravitix runtime."""
     pid = _require_project(project_id, current_user)
 
-    BASE = Path(__file__).resolve().parent.parent.parent
-    metrics_file = BASE / "bots_workspace" / f"{pid}_metrics.json"
-    ab_file = BASE / "bots_workspace" / f"{pid}_ab.json"
+    base = Path(__file__).resolve().parent.parent.parent
+    metrics_file = base / "bots_workspace" / f"{pid}_metrics.json"
+    ab_file = base / "bots_workspace" / f"{pid}_ab.json"
 
     metrics: dict = {}
     ab_results: dict = {}
 
     if metrics_file.exists():
-        try:
+        with contextlib.suppress(Exception):
             metrics = json.loads(metrics_file.read_text(encoding="utf-8"))
-        except Exception:
-            pass
 
     if ab_file.exists():
-        try:
+        with contextlib.suppress(Exception):
             ab_results = json.loads(ab_file.read_text(encoding="utf-8"))
-        except Exception:
-            pass
 
     return {"ok": True, "metrics": metrics, "ab_results": ab_results}
 
@@ -123,11 +117,9 @@ async def get_bot_queues(
     pid = _require_project(project_id, current_user)
     queues_file = _BASE / "bots_workspace" / f"{pid}_queues.json"
     if queues_file.exists():
-        try:
+        with contextlib.suppress(Exception):
             data = json.loads(queues_file.read_text(encoding="utf-8"))
             return {"ok": True, "queues": data}
-        except Exception:
-            pass
     return {"ok": True, "queues": {}}
 
 
@@ -142,11 +134,9 @@ async def get_bot_audit(
     pid = _require_project(project_id, current_user)
     audit_file = _BASE / "bots_workspace" / f"{pid}_audit.json"
     if audit_file.exists():
-        try:
+        with contextlib.suppress(Exception):
             entries = json.loads(audit_file.read_text(encoding="utf-8"))
             return {"ok": True, "entries": entries[-n:]}
-        except Exception:
-            pass
     return {"ok": True, "entries": []}
 
 
@@ -260,10 +250,8 @@ async def assign_role(project_id: str, body: dict, user=Depends(get_current_user
     roles_file = _BASE / "bots_workspace" / f"{project_id}_roles.json"
     roles = {}
     if roles_file.exists():
-        try:
+        with contextlib.suppress(Exception):
             roles = json.loads(roles_file.read_text())
-        except Exception:
-            pass
     roles[str(user_id)] = role
     roles_file.write_text(json.dumps(roles), encoding="utf-8")
     return {"ok": True, "user_id": user_id, "role": role}

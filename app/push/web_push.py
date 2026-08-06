@@ -129,7 +129,7 @@ def send_push(user_id: int, payload: dict, db: Optional[Session] = None) -> int:
     Uses pywebpush if available; silently skips otherwise.
     """
     try:
-        from pywebpush import webpush, WebPushException  # type: ignore[import-untyped]
+        from pywebpush import WebPushException, webpush  # type: ignore[import-untyped]
     except ImportError:
         logger.debug("pywebpush not installed -- skipping Web Push delivery")
         return 0

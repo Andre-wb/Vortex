@@ -30,9 +30,9 @@ import asyncio
 import logging
 import time
 import zlib
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Callable, Optional, Awaitable
 
 logger = logging.getLogger(__name__)
 

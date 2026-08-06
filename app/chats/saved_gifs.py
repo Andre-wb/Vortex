@@ -7,17 +7,17 @@ Saved GIFs API — пользователь сохраняет GIF на серв
 """
 from __future__ import annotations
 
+import logging
 import os
 import uuid
-import logging
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.keys.keys import get_current_user
 from app.models.user import User
 from app.models_rooms.stickers import SavedGif
-from app.keys.keys import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/gifs", tags=["saved_gifs"])

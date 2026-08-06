@@ -4,15 +4,14 @@ All endpoints return local-only data. There is no telemetry, no external
 API call, no phone-home behavior. Even "check for updates" is gated
 behind an explicit user action.
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
+import contextlib
 import logging
 import os
 import shutil
-import signal
-import socket
 import subprocess
 import sys
 import time
@@ -54,7 +53,7 @@ def _node_base_url(env: dict) -> str:
 async def _node_get_at(url: str, timeout: float = 5.0) -> Optional[dict]:
     try:
         # verify=False since the cert is self-signed and we're on loopback
-        async with httpx.AsyncClient(timeout=timeout, verify=False) as http:
+        async with httpx.AsyncClient(timeout=timeout, verify=False) as http:  # noqa: S501
             r = await http.get(url)
             if r.status_code == 200:
                 return r.json()
@@ -92,8 +91,8 @@ async def overview(request: Request) -> dict:
         "network_mode": env.get("NETWORK_MODE", "local"),
         "controller_url": env.get("CONTROLLER_URL", ""),
         "controller_pubkey": env.get("CONTROLLER_PUBKEY", ""),
-        "announce_url":     announce_list[0] if announce_list else "",
-        "announce_all":     announce_list,
+        "announce_url": announce_list[0] if announce_list else "",
+        "announce_all": announce_list,
         "running": health is not None,
         "health": health,
         "migration_hint": migration_hint,
@@ -111,11 +110,16 @@ async def identity(request: Request) -> dict:
     try:
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
         priv = Ed25519PrivateKey.from_private_bytes(sig_path.read_bytes())
-        pub = priv.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        ).hex()
+        pub = (
+            priv.public_key()
+            .public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+            .hex()
+        )
         return {"pubkey": pub}
     except Exception as e:
         return {"pubkey": None, "error": str(e)}
@@ -140,6 +144,7 @@ async def peers(request: Request) -> dict:
 async def traffic(request: Request) -> dict:
     """CPU / RAM / WS counters — metadata-safe (no content, only numbers)."""
     import resource
+
     rusage = resource.getrusage(resource.RUSAGE_SELF)
     info = {
         "ws_active": 0,
@@ -163,6 +168,7 @@ async def certs(request: Request) -> dict:
     if cert.is_file():
         try:
             from cryptography import x509
+
             data = cert.read_bytes()
             c = x509.load_pem_x509_certificate(data)
             # _utc variants avoid naïve-datetime deprecation warnings in
@@ -236,9 +242,11 @@ async def logs(request: Request, limit: int = 500, level: str = "all") -> dict:
 # tree. Hashing 1,250 files takes ~1.7s so the endpoints run synchronously
 # without a background job.
 
+
 def _load_repo_integrity():
     """Load scripts/integrity_repo.py as a module (not an installable pkg)."""
     import importlib.util
+
     repo_root = Path(__file__).resolve().parent.parent.parent
     script = repo_root / "scripts" / "integrity_repo.py"
     if not script.is_file():
@@ -274,7 +282,7 @@ async def repo_integrity_sign() -> dict:
         return await asyncio.to_thread(mod.sign_repo)
     except Exception as e:
         logging.exception("repo-integrity sign failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
 
 
 @router.post("/repo-integrity/verify")
@@ -285,7 +293,7 @@ async def repo_integrity_verify() -> dict:
         return await asyncio.to_thread(mod.verify_repo)
     except Exception as e:
         logging.exception("repo-integrity verify failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
 
 
 @router.get("/env")
@@ -294,7 +302,7 @@ async def env_snapshot(request: Request) -> dict:
     env = _read_env_at(_env_path(request))
     masked = dict(env)
     for k in ("JWT_SECRET", "CSRF_SECRET", "STEALTH_SECRET", "VORTEX_NETWORK_KEY", "POSTGRES_PASSWORD"):
-        if k in masked and masked[k]:
+        if masked.get(k):
             masked[k] = masked[k][:8] + "…" + masked[k][-4:]
     return masked
 
@@ -375,9 +383,12 @@ def _spawn_tunnel_for_node(port: int, proto: str, log_dir: Path) -> Optional[sub
     log_path = log_dir / "tunnel.log"
     log_fh = log_path.open("ab")
     cmd = [
-        bin_path, "tunnel",
-        "--url", f"{proto}://localhost:{port}",
-        "--protocol", "http2",
+        bin_path,
+        "tunnel",
+        "--url",
+        f"{proto}://localhost:{port}",
+        "--protocol",
+        "http2",
         "--no-autoupdate",
     ]
     if proto == "https":
@@ -408,8 +419,8 @@ def _spawn_tunnel_for_node(port: int, proto: str, log_dir: Path) -> Optional[sub
         except Exception as e:
             logging.debug("tunnel pump exited: %s", e)
         finally:
-            try: log_fh.close()
-            except Exception: pass
+            with contextlib.suppress(Exception):
+                log_fh.close()
 
     _threading.Thread(target=_watch_and_pump, daemon=True).start()
     return proc
@@ -425,7 +436,8 @@ def _who_holds_port(port: int) -> Optional[dict]:
     try:
         out = subprocess.check_output(
             [lsof, "-nP", "-iTCP:" + str(port), "-sTCP:LISTEN"],
-            text=True, timeout=3,
+            text=True,
+            timeout=3,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
         return None
@@ -434,7 +446,7 @@ def _who_holds_port(port: int) -> Optional[dict]:
         parts = line.split()
         if len(parts) >= 2 and parts[1].isdigit():
             return {
-                "pid":     int(parts[1]),
+                "pid": int(parts[1]),
                 "command": parts[0],
             }
     return None
@@ -520,10 +532,10 @@ async def node_start(request: Request) -> dict:
 
     if _node_proc is not None and _node_proc.poll() is None:
         return {
-            "ok":              True,
-            "pid":             _node_proc.pid,
+            "ok": True,
+            "pid": _node_proc.pid,
             "already_running": True,
-            "log":             str(_node_log_path) if _node_log_path else None,
+            "log": str(_node_log_path) if _node_log_path else None,
         }
 
     # Forget any stale handle so pre-cleanup below kills OS-level
@@ -554,12 +566,14 @@ async def node_start(request: Request) -> dict:
         raise HTTPException(
             409,
             {
-                "error":  "port_in_use",
-                "port":   target_port,
+                "error": "port_in_use",
+                "port": target_port,
                 "holder": holder,
-                "hint":   (f"Port {target_port} is already in use by PID "
-                           f"{holder.get('pid')} ({holder.get('command')}). "
-                           "Close that process or change PORT in .env, then try again."),
+                "hint": (
+                    f"Port {target_port} is already in use by PID "
+                    f"{holder.get('pid')} ({holder.get('command')}). "
+                    "Close that process or change PORT in .env, then try again."
+                ),
             },
         )
 
@@ -590,7 +604,7 @@ async def node_start(request: Request) -> dict:
         )
     except OSError as e:
         log_fh.close()
-        raise HTTPException(500, f"failed to spawn node: {e}")
+        raise HTTPException(500, f"failed to spawn node: {e}") from None
 
     # Start cloudflared in the background if the node is set up for
     # internet reach. We don't wait for the URL here — the HTTP handler
@@ -608,25 +622,24 @@ async def node_start(request: Request) -> dict:
     if want_tunnel:
         try:
             _tunnel_proc = _spawn_tunnel_for_node(
-                port=port, proto=proto, log_dir=logs_dir,
+                port=port,
+                proto=proto,
+                log_dir=logs_dir,
             )
             if _tunnel_proc is None:
-                tunnel_error = (
-                    "cloudflared not installed — "
-                    "brew install cloudflared (macOS)"
-                )
+                tunnel_error = "cloudflared not installed — brew install cloudflared (macOS)"
             else:
                 tunnel_pending = True
         except Exception as e:
             tunnel_error = f"{e.__class__.__name__}: {e}"
 
     return {
-        "ok":              True,
-        "pid":             _node_proc.pid,
+        "ok": True,
+        "pid": _node_proc.pid,
         "already_running": False,
-        "log":             str(log_path),
-        "tunnel_pending":  tunnel_pending,
-        "tunnel_error":    tunnel_error,
+        "log": str(log_path),
+        "tunnel_pending": tunnel_pending,
+        "tunnel_error": tunnel_error,
     }
 
 
@@ -643,15 +656,13 @@ async def node_stop() -> dict:
     _terminate_tunnel()
 
     if was_running:
-        try:
+        with contextlib.suppress(OSError):
             _node_proc.terminate()
-        except OSError:
-            pass
         try:
             _node_proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            try: _node_proc.kill()
-            except OSError: pass
+            with contextlib.suppress(OSError):
+                _node_proc.kill()
     _node_proc = None
     return {"ok": True, "was_running": was_running, "pid": pid}
 
@@ -699,7 +710,7 @@ async def reset_setup(request: Request) -> dict:
             env_file.unlink()
             removed.append(str(env_file))
     except OSError as e:
-        raise HTTPException(500, f"cannot delete env: {e}")
+        raise HTTPException(500, f"cannot delete env: {e}") from None
 
     keys_dir = env_file.parent / "keys"
     if keys_dir.is_dir():
@@ -719,19 +730,19 @@ async def node_status(request: Request) -> dict:
     expose the public tunnel URL (so the UI can render a clickable link).
     """
     global _node_proc, _tunnel_proc, _tunnel_url
-    proc_alive   = _node_proc is not None and _node_proc.poll() is None
+    proc_alive = _node_proc is not None and _node_proc.poll() is None
     tunnel_alive = _tunnel_proc is not None and _tunnel_proc.poll() is None
     env = _read_env_at(_env_path(request))
     base = _node_base_url(env)
     health = await _node_get_at(f"{base}/health", timeout=2.0)
     return {
-        "process_alive":  proc_alive,
-        "pid":            _node_proc.pid if proc_alive else None,
+        "process_alive": proc_alive,
+        "pid": _node_proc.pid if proc_alive else None,
         "http_reachable": health is not None,
-        "url":            base,
-        "tunnel_url":     _tunnel_url if tunnel_alive else None,
-        "tunnel_alive":   tunnel_alive,
-        "log":            str(_node_log_path) if _node_log_path else None,
+        "url": base,
+        "tunnel_url": _tunnel_url if tunnel_alive else None,
+        "tunnel_alive": tunnel_alive,
+        "log": str(_node_log_path) if _node_log_path else None,
     }
 
 
@@ -765,19 +776,18 @@ async def earnings(request: Request) -> dict:
     premium_active = False
     premium_end = 0
     if wallet:
-        try:
+        with contextlib.suppress(Exception):
             import httpx
+
             # Resolve the Solana RPC by asking the running node's premium
             # cache — keeps the wizard decoupled from RPC credentials.
             base = _node_base_url(env).rstrip("/")
-            async with httpx.AsyncClient(timeout=5.0, verify=False) as http:
+            async with httpx.AsyncClient(timeout=5.0, verify=False) as http:  # noqa: S501
                 r = await http.get(f"{base}/api/premium/status", params={"wallet": wallet})
             if r.status_code == 200:
                 d = r.json()
                 premium_active = bool(d.get("is_premium"))
                 premium_end = int(d.get("end_timestamp", 0))
-        except Exception:
-            pass
 
     rewards_multiplier = 1.2 if premium_active else 1.0
 
@@ -788,16 +798,16 @@ async def earnings(request: Request) -> dict:
     est_monthly_sol = round(est_monthly_usd / 150, 4)
 
     return {
-        "wallet_pubkey":   wallet,
-        "node_pubkey":     node_pub,
-        "stake_sol":       stake_sol,
+        "wallet_pubkey": wallet,
+        "node_pubkey": node_pub,
+        "stake_sol": stake_sol,
         "register_fee_paid": register_fee_paid,
-        "uptime_pct":      round(uptime_pct, 1),
-        "users_served":    users_served_est,
+        "uptime_pct": round(uptime_pct, 1),
+        "users_served": users_served_est,
         "premium": {
-            "active":         premium_active,
-            "end_timestamp":  premium_end,
-            "multiplier":     rewards_multiplier,
+            "active": premium_active,
+            "end_timestamp": premium_end,
+            "multiplier": rewards_multiplier,
         },
         "estimated": {
             "monthly_usd": round(est_monthly_usd, 2),

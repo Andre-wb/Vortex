@@ -6,6 +6,7 @@ The context trusts system CAs + the project's own vortex-ca.crt (self-signed).
 """
 from __future__ import annotations
 
+import contextlib
 import ssl
 from functools import lru_cache
 from pathlib import Path
@@ -27,10 +28,8 @@ def make_peer_ssl_context() -> ssl.SSLContext:
         ctx.load_verify_locations(str(_CA_PATH))
 
     # Apply TLS record padding for DPI resistance
-    try:
+    with contextlib.suppress(Exception):
         from app.transport.advanced_stealth import TLSRecordPadder
         TLSRecordPadder.configure_ssl_context(ctx)
-    except Exception:
-        pass
 
     return ctx

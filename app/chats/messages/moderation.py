@@ -245,7 +245,7 @@ async def export_chat(
 
     messages = db.query(Message).filter(
         Message.room_id == room_id,
-        Message.is_scheduled == False,
+        Message.is_scheduled.is_(False),
     ).order_by(Message.created_at).all()
 
     export = [

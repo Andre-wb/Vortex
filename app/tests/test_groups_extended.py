@@ -33,10 +33,7 @@ from __future__ import annotations
 
 import secrets
 
-import pytest
-
-from conftest import make_user, login_user, random_str, SyncASGIClient
-
+from conftest import login_user, make_user, random_str
 
 
 def _register_and_login(client) -> tuple[dict, dict]:

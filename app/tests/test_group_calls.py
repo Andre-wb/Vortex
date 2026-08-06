@@ -2,7 +2,7 @@
 
 import secrets
 
-from conftest import SyncASGIClient, random_str, make_user, login_user
+from conftest import SyncASGIClient, login_user, make_user, random_str
 
 
 def _relogin(client: SyncASGIClient, user: dict) -> dict:
@@ -48,7 +48,7 @@ def _create_room_with_two_members(client: SyncASGIClient):
 class TestGroupCalls:
 
     def test_start_group_call(self, client: SyncASGIClient):
-        room_id, u1, u2 = _create_room_with_two_members(client)
+        room_id, u1, _u2 = _create_room_with_two_members(client)
         h1 = _relogin(client, u1)
         resp = client.post(f'/api/group-calls/{room_id}/start', json={'call_type': 'group_audio'}, headers=h1)
         assert resp.status_code == 200
@@ -58,7 +58,7 @@ class TestGroupCalls:
         assert data['topology'] in ('mesh', 'sfu')
 
     def test_start_requires_room_member(self, client: SyncASGIClient):
-        room_id, u1, u2 = _create_room_with_two_members(client)
+        room_id, _u1, _u2 = _create_room_with_two_members(client)
         u3 = make_user(client)
         h3 = login_user(client, u3['username'], u3['password'])
         resp = client.post(f'/api/group-calls/{room_id}/start', json={'call_type': 'group_audio'}, headers=h3)
@@ -101,7 +101,7 @@ class TestGroupCalls:
         assert leave_resp.json()['ok'] is True
 
     def test_end_group_call_by_initiator(self, client: SyncASGIClient):
-        room_id, u1, u2 = _create_room_with_two_members(client)
+        room_id, u1, _u2 = _create_room_with_two_members(client)
         h1 = _relogin(client, u1)
         start_resp = client.post(f'/api/group-calls/{room_id}/start', json={'call_type': 'group_audio'}, headers=h1)
         call_id = start_resp.json()['call_id']
@@ -122,7 +122,7 @@ class TestGroupCalls:
         assert end_resp.status_code == 403
 
     def test_get_call_status(self, client: SyncASGIClient):
-        room_id, u1, u2 = _create_room_with_two_members(client)
+        room_id, u1, _u2 = _create_room_with_two_members(client)
         h1 = _relogin(client, u1)
         start_resp = client.post(f'/api/group-calls/{room_id}/start', json={'call_type': 'group_audio'}, headers=h1)
         call_id = start_resp.json()['call_id']
@@ -135,7 +135,7 @@ class TestGroupCalls:
         assert data['topology'] in ('mesh', 'sfu')
 
     def test_get_active_call(self, client: SyncASGIClient):
-        room_id, u1, u2 = _create_room_with_two_members(client)
+        room_id, u1, _u2 = _create_room_with_two_members(client)
         h1 = _relogin(client, u1)
 
         # Start a call

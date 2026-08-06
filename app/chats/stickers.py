@@ -159,7 +159,7 @@ async def list_public_packs(
     """Все публичные паки (для каталога / поиска)."""
     packs = (
         db.query(StickerPack)
-        .filter(StickerPack.is_public == True)
+        .filter(StickerPack.is_public.is_(True))
         .order_by(StickerPack.created_at.desc())
         .all()
     )
@@ -271,7 +271,7 @@ async def upload_sticker(
     try:
         img = Image.open(io.BytesIO(content))
     except Exception:
-        raise HTTPException(400, "Invalid image format")
+        raise HTTPException(400, "Invalid image format") from None
 
     fmt = img.format
     if fmt not in _ALLOWED_FORMATS:

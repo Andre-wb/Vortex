@@ -14,6 +14,7 @@ Without Redis (REDIS_URL empty), everything works as before — single-instance.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -68,10 +69,8 @@ async def close_redis() -> None:
     global _redis_client, _pubsub_task
     if _pubsub_task and not _pubsub_task.done():
         _pubsub_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError, Exception):
             await _pubsub_task
-        except (asyncio.CancelledError, Exception):
-            pass
     if _redis_client:
         await _redis_client.aclose()
         _redis_client = None
@@ -141,7 +140,6 @@ async def start_subscriber(on_room_message, on_notification) -> None:
         return
 
     async def _listener():
-        import redis.asyncio as aioredis
         pubsub = _redis_client.pubsub()
         pattern = f"{_get_prefix()}:*"
         await pubsub.psubscribe(pattern)

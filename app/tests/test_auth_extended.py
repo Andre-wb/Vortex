@@ -1,7 +1,8 @@
 """Extended authentication tests — 2FA, profile, avatar, key login, edge cases."""
 import secrets
+
 import pytest
-from conftest import make_user, login_user, random_str, random_digits, _unique_phone
+from conftest import _unique_phone, random_str
 
 
 class TestRegistrationEdgeCases:

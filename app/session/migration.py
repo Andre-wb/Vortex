@@ -22,7 +22,7 @@ import logging
 import time
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.config import Config
@@ -118,7 +118,7 @@ _load = _NodeLoad()
 
 # Peer pubkey resolver (source-node trust for handoff)
 
-def _default_source_resolver() -> "SourceResolver":
+def _default_source_resolver() -> SourceResolver:
     """Build a resolver from whatever context this node has.
 
     Priority:
@@ -159,11 +159,7 @@ class SourceResolver:
         pub = (pubkey_hex or "").lower()
         if not pub:
             return False
-        if pub in self._cached:
-            return True
-        # bootstrap peers are URLs, not pubkeys — can't compare directly, so
-        # fall through. The controller-cache is the primary trust source.
-        return False
+        return pub in self._cached
 
 
 _resolver = _default_source_resolver()
@@ -402,7 +398,7 @@ async def handoff_accept(body: HandoffAcceptRequest, request: Request) -> Handof
     try:
         payload = verify_handoff_token(body.token, _resolver)
     except HandoffError as e:
-        raise HTTPException(400, f"handoff rejected: {e}")
+        raise HTTPException(400, f"handoff rejected: {e}") from None
 
     user_pubkey = payload["user_pubkey"]
     cursor_data = payload.get("cursor", {}) or {}

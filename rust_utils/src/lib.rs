@@ -22,6 +22,12 @@ use crypto::handshake::{derive_session_key, generate_keypair};
 pub mod bmp;
 use bmp::pybridge::*;
 
+pub mod pq;
+use pq::pybridge::{
+    mlkem768_decapsulate, mlkem768_encapsulate, mlkem768_encapsulate_derand, mlkem768_keygen,
+    mlkem768_keygen_derand, pq_hybrid_combine,
+};
+
 mod sealed_sender;
 use sealed_sender::{compute_sender_pseudo, compute_sender_pseudo_batch, verify_sender_pseudo};
 mod canonical_json;
@@ -113,6 +119,13 @@ fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sha256_concat_hex, m)?)?;
     m.add_function(wrap_pyfunction!(sha256_combine_hex, m)?)?;
     m.add_function(wrap_pyfunction!(sha256_stream, m)?)?;
+
+    m.add_function(wrap_pyfunction!(mlkem768_keygen, m)?)?;
+    m.add_function(wrap_pyfunction!(mlkem768_encapsulate, m)?)?;
+    m.add_function(wrap_pyfunction!(mlkem768_decapsulate, m)?)?;
+    m.add_function(wrap_pyfunction!(mlkem768_keygen_derand, m)?)?;
+    m.add_function(wrap_pyfunction!(mlkem768_encapsulate_derand, m)?)?;
+    m.add_function(wrap_pyfunction!(pq_hybrid_combine, m)?)?;
 
     m.add("VERSION", env!("CARGO_PKG_VERSION"))?;
     m.add("KEY_SIZE", 32usize)?;

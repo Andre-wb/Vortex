@@ -3,10 +3,9 @@
 import secrets
 
 import pytest
+from conftest import _phone_prefix, random_digits, random_str
 
-from conftest import random_str, random_digits, _phone_prefix
 from app.main import app
-
 
 _test_phone_pfx = _phone_prefix
 
@@ -44,15 +43,13 @@ class TestWebSocket:
     def test_ws_connect_unauthenticated(self):
         """Подключение без токена закрывается с кодом 4401."""
         from starlette.testclient import TestClient
-        from starlette.websockets import WebSocketDisconnect as _WSD
+        from starlette.websockets import WebSocketDisconnect as _WSDisconnect
 
         with TestClient(app, raise_server_exceptions=False) as tc:
             room_id, _ = self._ws_setup(tc)
 
-        with TestClient(app, raise_server_exceptions=False) as tc_anon:
-            with pytest.raises(_WSD) as exc_info:
-                with tc_anon.websocket_connect(f'/ws/{room_id}') as ws:
-                    ws.receive_json()
+        with TestClient(app, raise_server_exceptions=False) as tc_anon, pytest.raises(_WSDisconnect) as exc_info, tc_anon.websocket_connect(f'/ws/{room_id}') as ws:
+            ws.receive_json()
         assert exc_info.value.code == 4401
 
     def test_ws_connect_authenticated(self):

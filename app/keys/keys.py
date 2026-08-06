@@ -12,11 +12,12 @@ import time
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.security.crypto import load_or_create_node_keypair
-from app.security.auth_jwt import get_current_user
-from app.models import User
+
 from app.config import Config
+from app.database import get_db
+from app.models import User
+from app.security.auth_jwt import get_current_user
+from app.security.crypto import load_or_create_node_keypair
 
 router = APIRouter(prefix="/api/keys", tags=["keys"])
 _logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ async def publish_kyber(
                 or len(bytes.fromhex(body.kyber_public_key_sig)) != 64:
             raise ValueError
     except ValueError:
-        raise HTTPException(400, "Invalid kyber public key / signature")
+        raise HTTPException(400, "Invalid kyber public key / signature") from None
     user.kyber_public_key = body.kyber_public_key
     user.kyber_public_key_sig = body.kyber_public_key_sig
     db.commit()
@@ -151,9 +152,8 @@ def _get_self_hosted_turn() -> list[dict] | None:
     """Return ICE server entries for the self-hosted coturn, or None if unavailable."""
     if not _is_coturn_installed():
         return None
-    if _coturn_process is None or _coturn_process.poll() is not None:
-        if not start_coturn():
-            return None
+    if (_coturn_process is None or _coturn_process.poll() is not None) and not start_coturn():
+        return None
 
     ip = _detect_public_ip()
     username, credential = _generate_turn_credentials()
@@ -167,8 +167,8 @@ def _load_or_create_node_kyber(keys_dir) -> str | None:
     """Load or create a Kyber-768 keypair for this node. Returns public key hex or None."""
     import logging as _log
     _logger = _log.getLogger(__name__)
-    kyber_pub_path = keys_dir / "kyber768_public.bin"
-    kyber_sk_path = keys_dir / "kyber768_secret.bin"
+    kyber_pub_path = keys_dir / "mlkem768_public.bin"
+    kyber_sk_path = keys_dir / "mlkem768_secret.bin"
     if kyber_pub_path.exists() and kyber_sk_path.exists():
         return kyber_pub_path.read_bytes().hex()
     try:
@@ -179,7 +179,7 @@ def _load_or_create_node_kyber(keys_dir) -> str | None:
         kyber_pub_path.write_bytes(k_pub)
         kyber_sk_path.write_bytes(k_sk)
         os.chmod(kyber_sk_path, 0o600)
-        _logger.info("Node Kyber-768 keypair generated")
+        _logger.info("Node ML-KEM-768 keypair generated")
         return k_pub.hex()
     except Exception as e:
         _logger.warning("Failed to generate node Kyber keypair: %s", e)

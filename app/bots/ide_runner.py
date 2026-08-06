@@ -13,12 +13,9 @@ import asyncio
 import logging
 import os
 import re
-import shutil
 import subprocess
-import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +31,14 @@ class _BotProcess:
         self.proc       = proc
         self.project_id = project_id
         self.started_at = time.time()
-        self.logs: List[str] = []
+        self.logs: list[str] = []
 
-_procs: Dict[str, _BotProcess] = {}   # project_id → _BotProcess
+_procs: dict[str, _BotProcess] = {}   # project_id → _BotProcess
 
 def _gx_available() -> bool:
     return _GX_BIN.exists() and os.access(_GX_BIN, os.X_OK)
 
-def _parse_gx_errors(stderr: str) -> List[dict]:
+def _parse_gx_errors(stderr: str) -> list[dict]:
     """Parse Gravitix compiler error output into structured dicts."""
     errors = []
     for line in stderr.splitlines():
@@ -185,7 +182,7 @@ def get_status(project_id: str) -> dict:
     return {"status": "crashed", "pid": bp.pid, "exit_code": rc}
 
 
-def get_logs(project_id: str, last_n: int = 100) -> List[str]:
+def get_logs(project_id: str, last_n: int = 100) -> list[str]:
     bp = _procs.get(project_id)
     if bp is None:
         return []

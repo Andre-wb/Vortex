@@ -10,8 +10,9 @@ app/chats/chat_service.py — Простая реализация WebSocket ча
 частях приложения (например, в WebSocket эндпоинте FastAPI).
 """
 
-from fastapi import WebSocket
 import json
+
+from fastapi import WebSocket
 
 try:
     import vortex_chat
@@ -150,7 +151,7 @@ class ChatService:
                     # Если не удалось отправить (например, сокет закрыт), логируем ошибку
                     print(f"❌ Failed to relay to {conn_id}: {e}")
 
-    async def broadcast_system(self, message: str, exclude: str = None):
+    async def broadcast_system(self, message: str, exclude: str | None = None):
         """
         Рассылает системное сообщение всем клиентам, кроме указанного (опционально).
 

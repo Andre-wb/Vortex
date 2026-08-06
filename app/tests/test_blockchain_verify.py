@@ -7,16 +7,16 @@ Run: pytest app/tests/test_blockchain_verify.py -v
 from __future__ import annotations
 
 import re
-import pytest
+
 import httpx
+import pytest
 from pytest_httpx import HTTPXMock
 
 from app.security.blockchain_verify import (
     VerificationResult,
-    verify_transaction,
     _parse_amount,
+    verify_transaction,
 )
-
 
 # _parse_amount
 
@@ -273,7 +273,7 @@ class TestBSCVerification:
     async def test_success_confirmed(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
             url=_BSC_API,
-            json={"result": {"to": BSC_WALLET.lower(), "value": hex(int(10 * 10**18)), "blockNumber": hex(200), "input": "0x"}},
+            json={"result": {"to": BSC_WALLET.lower(), "value": hex(10 * 10**18), "blockNumber": hex(200), "input": "0x"}},
         )
         httpx_mock.add_response(url=_BSC_API, json={"result": hex(220)})  # 21 confirmations > 15
         result = await verify_transaction(BSC_TX_HASH, BSC_WALLET, "0 USDT", "USDT", "bep20")

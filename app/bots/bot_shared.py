@@ -7,9 +7,9 @@ and constants reused across bot_crud, bot_messaging, and bot_marketplace.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -45,10 +45,10 @@ def _get_bot_by_token(request: Request, db: Session = Depends(get_db)) -> Bot:
         raise HTTPException(401, "Empty API token")
 
     token_hash = _hash_token(token)
-    bot = db.query(Bot).filter(Bot.api_token == token_hash, Bot.is_active == True).first()
+    bot = db.query(Bot).filter(Bot.api_token == token_hash, Bot.is_active.is_(True)).first()
     if not bot:
         # Fallback: try plaintext match and migrate to hashed token
-        bot = db.query(Bot).filter(Bot.api_token == token, Bot.is_active == True).first()
+        bot = db.query(Bot).filter(Bot.api_token == token, Bot.is_active.is_(True)).first()
         if bot:
             bot.api_token = token_hash
             db.commit()
@@ -83,10 +83,8 @@ async def enqueue_bot_update(bot_user_id: int, update: dict) -> None:
             q.put_nowait(update)
         except asyncio.QueueFull:
             # Drop oldest to make room for the new update
-            try:
+            with contextlib.suppress(asyncio.QueueEmpty):
                 q.get_nowait()
-            except asyncio.QueueEmpty:
-                pass
             try:
                 q.put_nowait(update)
             except asyncio.QueueFull:

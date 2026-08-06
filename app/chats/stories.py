@@ -13,8 +13,8 @@ Architecture
 """
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timedelta, timezone
+import contextlib
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -219,10 +219,8 @@ async def create_story(
             ))
 
     # Also store envelope for self (author needs to view own stories)
-    self_env = None
     for env in envs:
         if env.get("user_id") == u.id:
-            self_env = env
             break
     # If author didn't include self envelope, they handle it client-side
 
@@ -230,8 +228,8 @@ async def create_story(
     db.refresh(story)
 
     # Notify contacts about new story via WebSocket
-    from app.peer.connection_manager import manager
     from app.models.contact import Contact
+    from app.peer.connection_manager import manager
     contact_ids = [
         c.contact_id
         for c in db.query(Contact).filter(Contact.owner_id == u.id).all()
@@ -316,13 +314,11 @@ async def delete_story(
     # Delete legacy files if any
     for url in (story.media_url, story.music_url):
         if url:
-            try:
+            with contextlib.suppress(Exception):
                 fname = Path(url).name
                 safe_path = (UPLOAD_DIR / fname).resolve()
                 if safe_path.parent == UPLOAD_DIR.resolve() and safe_path.exists():
                     safe_path.unlink()
-            except Exception:
-                pass
 
     # Delete key envelopes
     db.query(StoryKeyEnvelope).filter(StoryKeyEnvelope.story_id == story_id).delete()

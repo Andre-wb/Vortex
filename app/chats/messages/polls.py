@@ -39,7 +39,7 @@ async def handle_create_poll(room_id: int, user: User, data: dict, db: Session) 
 
     # Build option objects: each can have description and media
     opt_objects = []
-    for i, opt in enumerate(options):
+    for _i, opt in enumerate(options):
         if isinstance(opt, dict):
             opt_objects.append({
                 "text": str(opt.get("text", "")).strip()[:200],

@@ -1,7 +1,8 @@
 """Extended room management tests — permissions, key rotation, export, moderation."""
 import secrets
+
 import pytest
-from conftest import make_user, login_user, random_str
+from conftest import login_user, make_user, random_str
 
 
 class TestRoomCreation:
@@ -74,7 +75,7 @@ class TestRoomJoin:
         assert r.status_code in (404, 400)
 
     def test_leave_room(self, client, room, two_users):
-        u1, u2 = two_users
+        _u1, u2 = two_users
         invite = room.get("invite_code") or room.get("room", {}).get("invite_code")
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
         if invite:
@@ -134,7 +135,7 @@ class TestRoomUpdate:
         assert r.status_code == 200
 
     def test_update_room_unauthorized(self, client, room, two_users):
-        u1, u2 = two_users
+        _u1, u2 = two_users
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
         r = client.put(f"/api/rooms/{room_id}", json={
             "name": "hacked",
@@ -146,7 +147,7 @@ class TestRoomModeration:
     """Room moderation — kick, mute, ban, roles."""
 
     def test_kick_user(self, client, logged_user, room, two_users):
-        u1, u2 = two_users
+        _u1, u2 = two_users
         room_id = room.get("id") or room.get("room", {}).get("id", 1)
         invite = room.get("invite_code") or room.get("room", {}).get("invite_code")
         if invite:

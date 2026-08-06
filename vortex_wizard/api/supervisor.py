@@ -1,33 +1,33 @@
 """Wave 9 — multi-node supervisor + federation sync + rolling upgrade.
 
-  #41 Supervisor mode — one wizard manages N remote nodes via their own
-                         wizard APIs. Each "managed node" is a base URL +
-                         ed25519 pubkey fingerprint.
-  #42 Federation-wide settings sync — push a settings delta to every
-                                       managed node in one call.
-  #43 Rolling upgrade — upgrade managed nodes one-at-a-time with
-                        health checks between steps.
-  #4  Offline installer — ZIP containing node source + wheels + README.
-  #5  Windows service — NSSM-style install script.
+#41 Supervisor mode — one wizard manages N remote nodes via their own
+                       wizard APIs. Each "managed node" is a base URL +
+                       ed25519 pubkey fingerprint.
+#42 Federation-wide settings sync — push a settings delta to every
+                                     managed node in one call.
+#43 Rolling upgrade — upgrade managed nodes one-at-a-time with
+                      health checks between steps.
+#4  Offline installer — ZIP containing node source + wheels + README.
+#5  Windows service — NSSM-style install script.
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import io
 import json
 import logging
 import time
 import zipfile
-import io
 from pathlib import Path
 from typing import Literal, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import backup_api as _b
-from . import security_api as _sec
 from . import alerts as _alerts
 
 logger = logging.getLogger(__name__)
@@ -46,29 +46,33 @@ def _managed_path(env_file: Path) -> Path:
 
 # #41 — Supervisor mode (managed nodes list)
 
+
 class ManagedNodeBody(BaseModel):
-    id:           Optional[str] = None
-    label:        str = Field(..., min_length=1, max_length=60)
-    base_url:     str = Field(..., min_length=8, max_length=512)
-    pubkey:       str = Field(..., min_length=64, max_length=128, pattern=r"^[0-9a-fA-F]+$")
-    auth_bearer:  Optional[str] = None
-    tags:         list[str] = Field(default_factory=list)
+    id: Optional[str] = None
+    label: str = Field(..., min_length=1, max_length=60)
+    base_url: str = Field(..., min_length=8, max_length=512)
+    pubkey: str = Field(..., min_length=64, max_length=128, pattern=r"^[0-9a-fA-F]+$")
+    auth_bearer: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
 
 
 @router.get("/nodes")
 async def list_nodes(request: Request) -> dict:
     p = _managed_path(_env_file(request))
-    if not p.is_file(): return {"nodes": []}
+    if not p.is_file():
+        return {"nodes": []}
     try:
         nodes = json.loads(p.read_text()).get("nodes", [])
         # Mask bearer
         safe = []
         for n in nodes:
             c = dict(n)
-            if c.get("auth_bearer"): c["auth_bearer"] = "•" * 10
+            if c.get("auth_bearer"):
+                c["auth_bearer"] = "•" * 10
             safe.append(c)
         return {"nodes": safe}
-    except Exception: return {"nodes": []}
+    except Exception:
+        return {"nodes": []}
 
 
 @router.post("/nodes")
@@ -77,9 +81,10 @@ async def add_node(body: ManagedNodeBody, request: Request) -> dict:
     p = _managed_path(env_file)
     state = {"nodes": []}
     if p.is_file():
-        try: state = json.loads(p.read_text())
-        except Exception: pass
+        with contextlib.suppress(Exception):
+            state = json.loads(p.read_text())
     import secrets as _s
+
     if body.id:
         for n in state["nodes"]:
             if n["id"] == body.id:
@@ -88,8 +93,7 @@ async def add_node(body: ManagedNodeBody, request: Request) -> dict:
         else:
             raise HTTPException(404, "node id not found")
     else:
-        entry = {**body.model_dump(exclude_none=True),
-                 "id": _s.token_urlsafe(8), "added_at": int(time.time())}
+        entry = {**body.model_dump(exclude_none=True), "id": _s.token_urlsafe(8), "added_at": int(time.time())}
         state["nodes"].append(entry)
     p.write_text(json.dumps(state, indent=2))
     return {"ok": True}
@@ -99,7 +103,8 @@ async def add_node(body: ManagedNodeBody, request: Request) -> dict:
 async def delete_node(node_id: str, request: Request) -> dict:
     env_file = _env_file(request)
     p = _managed_path(env_file)
-    if not p.is_file(): return {"ok": True}
+    if not p.is_file():
+        return {"ok": True}
     state = json.loads(p.read_text())
     state["nodes"] = [n for n in state.get("nodes", []) if n["id"] != node_id]
     p.write_text(json.dumps(state, indent=2))
@@ -111,7 +116,8 @@ async def aggregate_status(request: Request) -> dict:
     """Parallel /health probe across all managed nodes + local summary."""
     env_file = _env_file(request)
     p = _managed_path(env_file)
-    if not p.is_file(): return {"nodes": []}
+    if not p.is_file():
+        return {"nodes": []}
     nodes = json.loads(p.read_text()).get("nodes", [])
 
     async def _ping(n: dict) -> dict:
@@ -120,42 +126,50 @@ async def aggregate_status(request: Request) -> dict:
         if n.get("auth_bearer"):
             headers["Authorization"] = f"Bearer {n['auth_bearer']}"
         try:
-            async with httpx.AsyncClient(timeout=3.0, verify=False) as c:
+            async with httpx.AsyncClient(timeout=3.0, verify=False) as c:  # noqa: S501
                 r = await c.get(base + "/health", headers=headers)
             if r.status_code == 200:
                 d = r.json()
-                return {"id": n["id"], "label": n["label"], "base_url": base,
-                        "ok": True, "version": d.get("version"),
-                        "uptime_seconds": d.get("uptime_seconds"),
-                        "ws_connections": d.get("ws_connections")}
+                return {
+                    "id": n["id"],
+                    "label": n["label"],
+                    "base_url": base,
+                    "ok": True,
+                    "version": d.get("version"),
+                    "uptime_seconds": d.get("uptime_seconds"),
+                    "ws_connections": d.get("ws_connections"),
+                }
         except Exception as e:
-            return {"id": n["id"], "label": n["label"], "base_url": base,
-                    "ok": False, "error": f"{type(e).__name__}: {e}"}
-        return {"id": n["id"], "label": n["label"], "base_url": base,
-                "ok": False, "status": r.status_code}
+            return {
+                "id": n["id"],
+                "label": n["label"],
+                "base_url": base,
+                "ok": False,
+                "error": f"{type(e).__name__}: {e}",
+            }
+        return {"id": n["id"], "label": n["label"], "base_url": base, "ok": False, "status": r.status_code}
 
     results = await asyncio.gather(*[_ping(n) for n in nodes])
-    return {"nodes": results,
-            "ok_count": sum(1 for r in results if r.get("ok"))}
+    return {"nodes": results, "ok_count": sum(1 for r in results if r.get("ok"))}
 
 
 # #42 — Federation-wide settings sync
 
+
 class SyncBody(BaseModel):
-    changes:      dict[str, str | bool | int]
-    filter_tags:  list[str] = Field(default_factory=list,
-                                    description="If set, only push to nodes with any matching tag")
+    changes: dict[str, str | bool | int]
+    filter_tags: list[str] = Field(default_factory=list, description="If set, only push to nodes with any matching tag")
 
 
 @router.post("/sync")
 async def sync_settings(body: SyncBody, request: Request) -> dict:
     env_file = _env_file(request)
     p = _managed_path(env_file)
-    if not p.is_file(): raise HTTPException(400, "no managed nodes")
+    if not p.is_file():
+        raise HTTPException(400, "no managed nodes")
     nodes = json.loads(p.read_text()).get("nodes", [])
     if body.filter_tags:
-        nodes = [n for n in nodes
-                 if any(t in n.get("tags", []) for t in body.filter_tags)]
+        nodes = [n for n in nodes if any(t in n.get("tags", []) for t in body.filter_tags)]
 
     async def _push(n: dict) -> tuple[str, str]:
         url = n["base_url"].rstrip("/") + "/api/wiz/admin/settings"
@@ -163,9 +177,8 @@ async def sync_settings(body: SyncBody, request: Request) -> dict:
         if n.get("auth_bearer"):
             headers["Authorization"] = f"Bearer {n['auth_bearer']}"
         try:
-            async with httpx.AsyncClient(timeout=10.0, verify=False) as c:
-                r = await c.post(url, headers=headers,
-                                  json={"changes": body.changes})
+            async with httpx.AsyncClient(timeout=10.0, verify=False) as c:  # noqa: S501
+                r = await c.post(url, headers=headers, json={"changes": body.changes})
             if r.status_code < 400:
                 return n["label"], "ok"
             return n["label"], f"http_{r.status_code}"
@@ -174,9 +187,9 @@ async def sync_settings(body: SyncBody, request: Request) -> dict:
 
     results = await asyncio.gather(*[_push(n) for n in nodes])
     return {
-        "ok":            True,
-        "pushed":        dict(results),
-        "total_nodes":   len(nodes),
+        "ok": True,
+        "pushed": dict(results),
+        "total_nodes": len(nodes),
         "success_count": sum(1 for _, s in results if s == "ok"),
     }
 
@@ -192,20 +205,23 @@ async def sync_settings(body: SyncBody, request: Request) -> dict:
 # We don't actually do binary swap here — that's out of scope. This
 # endpoint gives the orchestration primitive.
 
+
 class RollingBody(BaseModel):
     action_endpoint: str = Field(..., description="e.g. /api/wiz/admin/node/stop")
-    action_method:   Literal["POST","PUT","PATCH"] = "POST"
-    between_sec:     int = Field(30, ge=5, le=600)
-    health_timeout:  int = Field(60, ge=5, le=600)
+    action_method: Literal["POST", "PUT", "PATCH"] = "POST"
+    between_sec: int = Field(30, ge=5, le=600)
+    health_timeout: int = Field(60, ge=5, le=600)
 
 
 @router.post("/rolling")
 async def rolling_execute(body: RollingBody, request: Request) -> dict:
     env_file = _env_file(request)
     p = _managed_path(env_file)
-    if not p.is_file(): raise HTTPException(400, "no managed nodes")
+    if not p.is_file():
+        raise HTTPException(400, "no managed nodes")
     nodes = json.loads(p.read_text()).get("nodes", [])
-    if not nodes: return {"ok": True, "processed": 0}
+    if not nodes:
+        return {"ok": True, "processed": 0}
 
     report = []
     for n in nodes:
@@ -216,38 +232,43 @@ async def rolling_execute(body: RollingBody, request: Request) -> dict:
 
         # 1. Perform the action
         url = base + body.action_endpoint
-        async with httpx.AsyncClient(timeout=30.0, verify=False) as c:
+        async with httpx.AsyncClient(timeout=30.0, verify=False) as c:  # noqa: S501
             try:
                 r = await c.request(body.action_method, url, headers=headers)
                 action_status = r.status_code
             except Exception as e:
-                report.append({"node": n["label"], "step": "action",
-                               "ok": False, "error": str(e)})
-                await _alerts.dispatch(env_file, "error",
-                    f"Rolling upgrade failed on {n['label']}", str(e),
-                    tags=["rolling_upgrade"])
-                return {"ok": False, "stopped_at": n["label"],
-                        "report": report}
+                report.append({"node": n["label"], "step": "action", "ok": False, "error": str(e)})
+                await _alerts.dispatch(
+                    env_file, "error", f"Rolling upgrade failed on {n['label']}", str(e), tags=["rolling_upgrade"]
+                )
+                return {"ok": False, "stopped_at": n["label"], "report": report}
 
         # 2. Wait for health
-        waited = 0; healthy = False
+        waited = 0
+        healthy = False
         while waited < body.health_timeout:
-            await asyncio.sleep(2); waited += 2
+            await asyncio.sleep(2)
+            waited += 2
             try:
-                async with httpx.AsyncClient(timeout=3.0, verify=False) as c:
+                async with httpx.AsyncClient(timeout=3.0, verify=False) as c:  # noqa: S501
                     r = await c.get(base + "/health", headers=headers)
                 if r.status_code == 200:
-                    healthy = True; break
-            except Exception:
+                    healthy = True
+                    break
+            except Exception:  # noqa: S112
                 continue
 
-        report.append({"node": n["label"], "step": "health",
-                       "action_status": action_status,
-                       "ok": healthy, "waited_sec": waited})
+        report.append(
+            {"node": n["label"], "step": "health", "action_status": action_status, "ok": healthy, "waited_sec": waited}
+        )
         if not healthy:
-            await _alerts.dispatch(env_file, "critical",
+            await _alerts.dispatch(
+                env_file,
+                "critical",
                 f"Rolling upgrade — node {n['label']} unhealthy",
-                f"after {body.health_timeout}s", tags=["rolling_upgrade"])
+                f"after {body.health_timeout}s",
+                tags=["rolling_upgrade"],
+            )
             return {"ok": False, "stopped_at": n["label"], "report": report}
 
         # 3. Delay before next
@@ -257,6 +278,7 @@ async def rolling_execute(body: RollingBody, request: Request) -> dict:
 
 
 # #4 — Offline installer ZIP
+
 
 @router.get("/installer/offline.zip")
 async def offline_installer(request: Request) -> StreamingResponse:
@@ -274,12 +296,14 @@ async def offline_installer(request: Request) -> StreamingResponse:
             "README.md",
         ]:
             p = root / rel
-            if p.is_file(): zf.write(p, arcname=rel)
+            if p.is_file():
+                zf.write(p, arcname=rel)
 
         # Walk app/ and vortex_wizard/ and templates/ and static/
         for subdir in ["app", "templates", "static", "certs"]:
             base = root / subdir
-            if not base.is_dir(): continue
+            if not base.is_dir():
+                continue
             for p in base.rglob("*"):
                 if p.is_file() and "__pycache__" not in p.parts:
                     zf.write(p, arcname=str(p.relative_to(root)))
@@ -290,8 +314,9 @@ async def offline_installer(request: Request) -> StreamingResponse:
 
     buf.seek(0)
     name = f"vortex-offline-{time.strftime('%Y%m%d')}.zip"
-    return StreamingResponse(buf, media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    return StreamingResponse(
+        buf, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'}
+    )
 
 
 def _install_script() -> str:
@@ -346,6 +371,7 @@ def _install_readme() -> str:
 
 # #5 — Windows service template
 
+
 @router.get("/windows/service.ps1")
 async def windows_service() -> Response:
     """PowerShell script that installs Vortex as a Windows service via
@@ -385,5 +411,8 @@ Start-Service $ServiceName
 Write-Host "$ServiceName installed and started."
 Write-Host "Uninstall with:  nssm remove $ServiceName confirm"
 """
-    return Response(content=ps, media_type="text/plain; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="install-vortex.ps1"'})
+    return Response(
+        content=ps,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="install-vortex.ps1"'},
+    )

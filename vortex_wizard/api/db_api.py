@@ -30,17 +30,16 @@ The endpoints do not stream — they do the work inline and return when
 each stage finishes. For big brew installs the caller keeps the browser
 busy; UI shows a spinner.
 """
+
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import re
-import secrets
 import shutil
 import socket
 import subprocess
-import sys
-import time
 from pathlib import Path
 from typing import Optional
 
@@ -55,8 +54,6 @@ logger = logging.getLogger(__name__)
 # across machines. If the operator already has another major version on
 # PATH we happily use that instead.
 _PREFERRED_PG_MAJOR = "17"
-
-
 
 
 def _env_path(request: Request) -> Path:
@@ -74,11 +71,9 @@ def _pglog(request: Request) -> Path:
     return logs / "postgres.log"
 
 
-
-
 _BREW_PREFIXES = (
-    "/opt/homebrew",             # Apple Silicon
-    "/usr/local",                # Intel / Linux brew
+    "/opt/homebrew",  # Apple Silicon
+    "/usr/local",  # Intel / Linux brew
 )
 
 
@@ -119,8 +114,6 @@ def _find_brew() -> Optional[str]:
     return None
 
 
-
-
 def _pg_is_running(pgdata: Path) -> bool:
     """True if pg_ctl status on our cluster says it's up."""
     pg_ctl = _find_pg_bin("pg_ctl")
@@ -129,7 +122,9 @@ def _pg_is_running(pgdata: Path) -> bool:
     try:
         r = subprocess.run(
             [pg_ctl, "status", "-D", str(pgdata)],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         return r.returncode == 0
     except (subprocess.TimeoutExpired, OSError):
@@ -176,7 +171,7 @@ def _write_env_keys(env_file: Path, updates: dict[str, Optional[str]]) -> None:
                     seen.add(k)
                     new = updates[k]
                     if new is None:
-                        continue           # drop the key entirely
+                        continue  # drop the key entirely
                     lines.append(f"{k}={new}")
                     continue
             lines.append(line)
@@ -185,12 +180,8 @@ def _write_env_keys(env_file: Path, updates: dict[str, Optional[str]]) -> None:
             continue
         lines.append(f"{k}={v}")
     env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    try:
+    with contextlib.suppress(OSError):
         os.chmod(env_file, 0o600)
-    except OSError:
-        pass
-
-
 
 
 @router.get("/status")
@@ -200,27 +191,24 @@ async def db_status(request: Request) -> dict:
     database_url = env.get("DATABASE_URL", "")
     uses_postgres = database_url.startswith("postgresql://") or database_url.startswith("postgres://")
 
-    pg_ctl  = _find_pg_bin("pg_ctl")
-    initdb  = _find_pg_bin("initdb")
-    brew    = _find_brew()
-    pgdata  = _pgdata(request)
+    pg_ctl = _find_pg_bin("pg_ctl")
+    initdb = _find_pg_bin("initdb")
+    brew = _find_brew()
+    pgdata = _pgdata(request)
     running = _pg_is_running(pgdata)
 
     return {
-        "installed":     pg_ctl is not None and initdb is not None,
-        "pg_ctl":        pg_ctl,
-        "initdb":        initdb,
+        "installed": pg_ctl is not None and initdb is not None,
+        "pg_ctl": pg_ctl,
+        "initdb": initdb,
         "cluster_inited": pgdata.is_dir() and (pgdata / "PG_VERSION").is_file(),
-        "pgdata":        str(pgdata),
-        "running":       running,
-        "brew":          brew,
+        "pgdata": str(pgdata),
+        "running": running,
+        "brew": brew,
         "preferred_major": _PREFERRED_PG_MAJOR,
         "env_uses_postgres": uses_postgres,
-        "current_database_url_masked":
-            (database_url[:30] + "…") if database_url else "",
+        "current_database_url_masked": (database_url[:30] + "…") if database_url else "",
     }
-
-
 
 
 class SetupBody(BaseModel):
@@ -230,7 +218,9 @@ class SetupBody(BaseModel):
         description="Password for the new 'vortex' Postgres role",
     )
     port: int = Field(
-        0, ge=0, le=65535,
+        0,
+        ge=0,
+        le=65535,
         description="Bind port (0 = auto-pick, default 5432 if free)",
     )
     force_install: bool = Field(
@@ -243,8 +233,8 @@ class SetupBody(BaseModel):
 async def db_setup(body: SetupBody, request: Request) -> dict:
     """Install (if needed), init cluster, start, create role+db, write .env."""
     env_file = _env_path(request)
-    pgdata   = _pgdata(request)
-    pglog    = _pglog(request)
+    pgdata = _pgdata(request)
+    pglog = _pglog(request)
     steps: list[dict] = []
 
     def _step(name: str, **kv) -> None:
@@ -267,10 +257,12 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
         try:
             r = subprocess.run(
                 [brew, "install", pkg],
-                capture_output=True, text=True, timeout=900,
+                capture_output=True,
+                text=True,
+                timeout=900,
             )
         except subprocess.TimeoutExpired:
-            raise HTTPException(500, "brew install timed out after 15 min")
+            raise HTTPException(500, "brew install timed out after 15 min") from None
         if r.returncode != 0:
             raise HTTPException(500, f"brew install failed: {r.stderr[:800]}")
         _step("brew_install_done", stdout_tail=r.stdout[-200:])
@@ -283,11 +275,11 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
                 f"try 'brew link postgresql@{_PREFERRED_PG_MAJOR}' manually",
             )
 
-    initdb    = _find_pg_bin("initdb")
-    pg_ctl    = _find_pg_bin("pg_ctl")
-    psql      = _find_pg_bin("psql")
-    createdb  = _find_pg_bin("createdb")
-    createuser = _find_pg_bin("createuser")
+    initdb = _find_pg_bin("initdb")
+    pg_ctl = _find_pg_bin("pg_ctl")
+    psql = _find_pg_bin("psql")
+    createdb = _find_pg_bin("createdb")
+    _find_pg_bin("createuser")
     assert initdb and pg_ctl, "binaries checked above"
 
     # 2. initdb if the directory is empty / fresh.
@@ -302,11 +294,19 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
         # Use scram-sha-256 for the new role's password (secure default).
         _step("initdb_start", pgdata=str(pgdata))
         r = subprocess.run(
-            [initdb, "-D", str(pgdata),
-             "--auth-local=trust", "--auth-host=scram-sha-256",
-             "--encoding=UTF8", "--locale=C",
-             "--username=postgres"],
-            capture_output=True, text=True, timeout=120,
+            [
+                initdb,
+                "-D",
+                str(pgdata),
+                "--auth-local=trust",
+                "--auth-host=scram-sha-256",
+                "--encoding=UTF8",
+                "--locale=C",
+                "--username=postgres",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         if r.returncode != 0:
             raise HTTPException(500, f"initdb failed: {r.stderr[:800]}")
@@ -323,11 +323,16 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
                 existing_port = int(m.group(1))
                 break
     port = body.port or existing_port
+
     # If neither user-chosen nor existing port is actually free, step down.
     def _is_free(p: int) -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try: s.bind(("127.0.0.1", p)); return True
-            except OSError: return False
+            try:
+                s.bind(("127.0.0.1", p))
+                return True
+            except OSError:
+                return False
+
     if not _is_free(port) and not _pg_is_running(pgdata):
         port = _pick_free_pg_port()
 
@@ -339,9 +344,10 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
     if not _pg_is_running(pgdata):
         _step("pg_ctl_start")
         r = subprocess.run(
-            [pg_ctl, "-D", str(pgdata), "-l", str(pglog),
-             "-o", f"-p {port}", "-w", "-t", "30", "start"],
-            capture_output=True, text=True, timeout=40,
+            [pg_ctl, "-D", str(pgdata), "-l", str(pglog), "-o", f"-p {port}", "-w", "-t", "30", "start"],
+            capture_output=True,
+            text=True,
+            timeout=40,
         )
         if r.returncode != 0:
             raise HTTPException(500, f"pg_ctl start failed: {r.stderr[:800]}")
@@ -356,9 +362,8 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
     # (default /tmp on macOS, /var/run/postgresql on Debian); empty
     # PGHOST tells libpq to use the platform default socket path.
     socket_dir = ""
-    for candidate in ("/tmp", "/var/run/postgresql", str(pgdata)):
-        if Path(candidate).is_dir() and \
-           (Path(candidate) / f".s.PGSQL.{port}").exists():
+    for candidate in ("/tmp", "/var/run/postgresql", str(pgdata)):  # noqa: S108
+        if Path(candidate).is_dir() and (Path(candidate) / f".s.PGSQL.{port}").exists():
             socket_dir = candidate
             break
     env = {**os.environ, "PGPORT": str(port), "PGUSER": "postgres"}
@@ -372,7 +377,7 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
     # Set / reset role password via ALTER ROLE so re-running this endpoint
     # after forgetting the password still works.
     create_sql = (
-        f"DO $$ BEGIN "
+        f"DO $$ BEGIN "  # noqa: S608
         f"  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') "
         f"  THEN CREATE ROLE {role} LOGIN; "
         f"  END IF; "
@@ -382,25 +387,32 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
     assert psql, "psql should be present alongside pg_ctl"
     for sql in (create_sql, alter_sql):
         r = subprocess.run(
-            [psql, "-v", "ON_ERROR_STOP=1", "-d", "postgres",
-             "-c", sql],
-            capture_output=True, text=True, timeout=15, env=env,
+            [psql, "-v", "ON_ERROR_STOP=1", "-d", "postgres", "-c", sql],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=env,
         )
         if r.returncode != 0:
             raise HTTPException(500, f"role setup failed: {r.stderr[:400]}")
 
     # Create the DB only if missing.
     r = subprocess.run(
-        [psql, "-At", "-d", "postgres",
-         "-c", f"SELECT 1 FROM pg_database WHERE datname = '{dbname}'"],
-        capture_output=True, text=True, timeout=10, env=env,
+        [psql, "-At", "-d", "postgres", "-c", f"SELECT 1 FROM pg_database WHERE datname = '{dbname}'"],  # noqa: S608
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=env,
     )
     if r.stdout.strip() != "1":
         if createdb is None:
             raise HTTPException(500, "createdb binary missing alongside pg_ctl")
         r = subprocess.run(
             [createdb, "-O", role, dbname],
-            capture_output=True, text=True, timeout=15, env=env,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=env,
         )
         if r.returncode != 0 and "already exists" not in (r.stderr or ""):
             raise HTTPException(500, f"createdb failed: {r.stderr[:400]}")
@@ -411,26 +423,27 @@ async def db_setup(body: SetupBody, request: Request) -> dict:
     # /uninstall flip back is a one-liner.
     database_url = f"postgresql+asyncpg://{role}:{_url_quote(body.password)}@127.0.0.1:{port}/{dbname}"
     sync_database_url = f"postgresql+psycopg2://{role}:{_url_quote(body.password)}@127.0.0.1:{port}/{dbname}"
-    _write_env_keys(env_file, {
-        "DATABASE_URL":      database_url,
-        "SYNC_DATABASE_URL": sync_database_url,
-        "POSTGRES_HOST":     "127.0.0.1",
-        "POSTGRES_PORT":     str(port),
-        "POSTGRES_USER":     role,
-        "POSTGRES_PASSWORD": body.password,
-        "POSTGRES_DB":       dbname,
-    })
+    _write_env_keys(
+        env_file,
+        {
+            "DATABASE_URL": database_url,
+            "SYNC_DATABASE_URL": sync_database_url,
+            "POSTGRES_HOST": "127.0.0.1",
+            "POSTGRES_PORT": str(port),
+            "POSTGRES_USER": role,
+            "POSTGRES_PASSWORD": body.password,
+            "POSTGRES_DB": dbname,
+        },
+    )
     _step("env_updated", database_url="postgresql://" + role + ":***@127.0.0.1:" + str(port) + "/" + dbname)
 
     return {
-        "ok":     True,
-        "steps":  steps,
-        "note":   "Node must be restarted to pick up the new DATABASE_URL",
-        "port":   port,
+        "ok": True,
+        "steps": steps,
+        "note": "Node must be restarted to pick up the new DATABASE_URL",
+        "port": port,
         "pgdata": str(pgdata),
     }
-
-
 
 
 @router.post("/start")
@@ -454,9 +467,10 @@ async def db_start(request: Request) -> dict:
                 port = int(m.group(1))
                 break
     r = subprocess.run(
-        [pg_ctl, "-D", str(pgdata), "-l", str(pglog),
-         "-o", f"-p {port}", "-w", "-t", "30", "start"],
-        capture_output=True, text=True, timeout=40,
+        [pg_ctl, "-D", str(pgdata), "-l", str(pglog), "-o", f"-p {port}", "-w", "-t", "30", "start"],
+        capture_output=True,
+        text=True,
+        timeout=40,
     )
     if r.returncode != 0:
         raise HTTPException(500, f"pg_ctl start failed: {r.stderr[:400]}")
@@ -473,7 +487,9 @@ async def db_stop(request: Request) -> dict:
         raise HTTPException(500, "pg_ctl not found")
     r = subprocess.run(
         [pg_ctl, "-D", str(pgdata), "-m", "fast", "-w", "-t", "30", "stop"],
-        capture_output=True, text=True, timeout=40,
+        capture_output=True,
+        text=True,
+        timeout=40,
     )
     if r.returncode != 0:
         raise HTTPException(500, f"pg_ctl stop failed: {r.stderr[:400]}")
@@ -496,7 +512,9 @@ async def db_uninstall(body: UninstallBody, request: Request) -> dict:
         if pg_ctl:
             subprocess.run(
                 [pg_ctl, "-D", str(pgdata), "-m", "fast", "-w", "stop"],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
     removed = False
     if body.remove_cluster and pgdata.is_dir():
@@ -504,20 +522,19 @@ async def db_uninstall(body: UninstallBody, request: Request) -> dict:
         removed = not pgdata.is_dir()
 
     env_file = _env_path(request)
-    _write_env_keys(env_file, {
-        "DATABASE_URL":      None,   # drop entirely — app falls back to CONTROLLER_DB/SQLite
-        "SYNC_DATABASE_URL": None,
-        "POSTGRES_HOST":     None,
-        "POSTGRES_PORT":     None,
-        "POSTGRES_USER":     None,
-        "POSTGRES_PASSWORD": None,
-        "POSTGRES_DB":       None,
-    })
+    _write_env_keys(
+        env_file,
+        {
+            "DATABASE_URL": None,  # drop entirely — app falls back to CONTROLLER_DB/SQLite
+            "SYNC_DATABASE_URL": None,
+            "POSTGRES_HOST": None,
+            "POSTGRES_PORT": None,
+            "POSTGRES_USER": None,
+            "POSTGRES_PASSWORD": None,
+            "POSTGRES_DB": None,
+        },
+    )
     return {"ok": True, "cluster_removed": removed}
-
-
-
-
 
 
 def _resolve_db_url(env: dict[str, str], env_file: Path) -> tuple[str, str]:
@@ -545,28 +562,23 @@ async def db_tables(request: Request) -> dict:
 
     if kind == "sqlite":
         import sqlite3
+
         if not Path(url_or_path).is_file():
-            return {"kind": "sqlite", "path": url_or_path, "tables": [],
-                    "note": "database file does not exist yet"}
+            return {"kind": "sqlite", "path": url_or_path, "tables": [], "note": "database file does not exist yet"}
         con = sqlite3.connect(url_or_path)
         try:
             cur = con.cursor()
-            cur.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table' AND name NOT LIKE 'sqlite_%' "
-                "ORDER BY name"
-            )
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
             tables: list[dict] = []
             for (name,) in cur.fetchall():
                 safe = _safe_ident(name)
-                cur.execute(f"SELECT COUNT(*) FROM {safe}")
+                cur.execute(f"SELECT COUNT(*) FROM {safe}")  # noqa: S608
                 rows = cur.fetchone()[0]
                 tables.append({"name": name, "rows": rows, "bytes": None})
         finally:
             con.close()
         total = Path(url_or_path).stat().st_size
-        return {"kind": "sqlite", "path": url_or_path,
-                "total_bytes": total, "tables": tables}
+        return {"kind": "sqlite", "path": url_or_path, "total_bytes": total, "tables": tables}
 
     # Postgres — use the wizard-owned role via PGPASSWORD so we don't
     # need to parse the URL in Python. Cheap and robust.
@@ -575,20 +587,20 @@ async def db_tables(request: Request) -> dict:
         raise HTTPException(500, "psql not found — is PostgreSQL installed?")
     spawn_env = {
         **os.environ,
-        "PGHOST":     env.get("POSTGRES_HOST", "127.0.0.1"),
-        "PGPORT":     env.get("POSTGRES_PORT", "5432"),
-        "PGUSER":     env.get("POSTGRES_USER", "vortex"),
+        "PGHOST": env.get("POSTGRES_HOST", "127.0.0.1"),
+        "PGPORT": env.get("POSTGRES_PORT", "5432"),
+        "PGUSER": env.get("POSTGRES_USER", "vortex"),
         "PGPASSWORD": env.get("POSTGRES_PASSWORD", ""),
     }
     dbname = env.get("POSTGRES_DB", "vortex")
     # One query — table name, row count estimate, pretty size.
-    sql = (
-        "SELECT relname, n_live_tup, pg_total_relation_size(relid) "
-        "FROM pg_stat_user_tables ORDER BY relname"
-    )
+    sql = "SELECT relname, n_live_tup, pg_total_relation_size(relid) FROM pg_stat_user_tables ORDER BY relname"
     r = subprocess.run(
         [psql, "-At", "-F", "\t", "-d", dbname, "-c", sql],
-        capture_output=True, text=True, timeout=10, env=spawn_env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=spawn_env,
     )
     if r.returncode != 0:
         raise HTTPException(500, f"psql: {r.stderr[:400]}")
@@ -596,31 +608,38 @@ async def db_tables(request: Request) -> dict:
     for line in r.stdout.splitlines():
         parts = line.split("\t")
         if len(parts) == 3:
-            tables.append({
-                "name":  parts[0],
-                "rows":  int(parts[1] or 0),
-                "bytes": int(parts[2] or 0),
-            })
+            tables.append(
+                {
+                    "name": parts[0],
+                    "rows": int(parts[1] or 0),
+                    "bytes": int(parts[2] or 0),
+                }
+            )
     # Total database size
     r2 = subprocess.run(
         [psql, "-At", "-d", dbname, "-c", f"SELECT pg_database_size('{dbname}')"],
-        capture_output=True, text=True, timeout=5, env=spawn_env,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        env=spawn_env,
     )
     total = int(r2.stdout.strip() or "0") if r2.returncode == 0 else 0
     return {
-        "kind":        "postgres",
-        "host":        spawn_env["PGHOST"],
-        "port":        int(spawn_env["PGPORT"]),
-        "database":    dbname,
+        "kind": "postgres",
+        "host": spawn_env["PGHOST"],
+        "port": int(spawn_env["PGPORT"]),
+        "database": dbname,
         "total_bytes": total,
-        "tables":      tables,
+        "tables": tables,
     }
 
 
 @router.get("/table/{name}")
 async def db_table_rows(
-    name: str, request: Request,
-    limit: int = 50, offset: int = 0,
+    name: str,
+    request: Request,
+    limit: int = 50,
+    offset: int = 0,
 ) -> dict:
     """Read up to ``limit`` rows from a single table — read-only preview."""
     if limit < 1 or limit > 500:
@@ -635,24 +654,20 @@ async def db_table_rows(
 
     if kind == "sqlite":
         import sqlite3
+
         if not Path(url_or_path).is_file():
             return {"columns": [], "rows": [], "total": 0}
         con = sqlite3.connect(url_or_path)
         try:
             cur = con.cursor()
-            cur.execute(f"SELECT COUNT(*) FROM {_safe_ident(name)}")
+            cur.execute(f"SELECT COUNT(*) FROM {_safe_ident(name)}")  # noqa: S608
             total = cur.fetchone()[0]
-            cur.execute(
-                f"SELECT * FROM {_safe_ident(name)} "
-                f"LIMIT {int(limit)} OFFSET {int(offset)}"
-            )
+            cur.execute(f"SELECT * FROM {_safe_ident(name)} LIMIT {int(limit)} OFFSET {int(offset)}")  # noqa: S608
             cols = [d[0] for d in cur.description]
             rows = [list(row) for row in cur.fetchall()]
         finally:
             con.close()
-        return {"columns": cols,
-                "rows": [_stringify_row(r) for r in rows],
-                "total": total}
+        return {"columns": cols, "rows": [_stringify_row(r) for r in rows], "total": total}
 
     # Postgres
     psql = _find_pg_bin("psql")
@@ -660,27 +675,29 @@ async def db_table_rows(
         raise HTTPException(500, "psql not found")
     spawn_env = {
         **os.environ,
-        "PGHOST":     env.get("POSTGRES_HOST", "127.0.0.1"),
-        "PGPORT":     env.get("POSTGRES_PORT", "5432"),
-        "PGUSER":     env.get("POSTGRES_USER", "vortex"),
+        "PGHOST": env.get("POSTGRES_HOST", "127.0.0.1"),
+        "PGPORT": env.get("POSTGRES_PORT", "5432"),
+        "PGUSER": env.get("POSTGRES_USER", "vortex"),
         "PGPASSWORD": env.get("POSTGRES_PASSWORD", ""),
     }
     dbname = env.get("POSTGRES_DB", "vortex")
     # Count
     rc = subprocess.run(
-        [psql, "-At", "-d", dbname,
-         "-c", f"SELECT COUNT(*) FROM \"{name}\""],
-        capture_output=True, text=True, timeout=10, env=spawn_env,
+        [psql, "-At", "-d", dbname, "-c", f'SELECT COUNT(*) FROM "{name}"'],  # noqa: S608
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=spawn_env,
     )
     total = int(rc.stdout.strip() or "0") if rc.returncode == 0 else 0
     # Rows — use \COPY-like TSV dump via -At for simplicity
-    sql = (
-        f"SELECT * FROM \"{name}\" ORDER BY 1 "
-        f"LIMIT {int(limit)} OFFSET {int(offset)}"
-    )
+    sql = f'SELECT * FROM "{name}" ORDER BY 1 LIMIT {int(limit)} OFFSET {int(offset)}'  # noqa: S608
     r = subprocess.run(
         [psql, "-A", "-F", "\t", "-P", "null=∅", "-d", dbname, "-c", sql],
-        capture_output=True, text=True, timeout=15, env=spawn_env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env=spawn_env,
     )
     if r.returncode != 0:
         raise HTTPException(500, f"psql: {r.stderr[:400]}")
@@ -691,7 +708,7 @@ async def db_table_rows(
     data: list[list[str]] = []
     for line in lines[1:]:
         if line.startswith("(") and "row" in line:
-            continue   # trailing "(N rows)" summary
+            continue  # trailing "(N rows)" summary
         data.append(line.split("\t"))
     return {"columns": cols, "rows": data, "total": total}
 
@@ -725,7 +742,8 @@ def _rewrite_conf_port(conf: Path, port: int) -> None:
     new, n = re.subn(
         r"(^|\n)\s*#?\s*port\s*=\s*\d+\s*(#[^\n]*)?",
         f"\\1port = {port}  # vortex-wizard",
-        text, count=1,
+        text,
+        count=1,
     )
     if n == 0:
         new = text.rstrip() + f"\nport = {port}  # vortex-wizard\n"
@@ -738,4 +756,5 @@ def _escape_sql(s: str) -> str:
 
 def _url_quote(s: str) -> str:
     from urllib.parse import quote
+
     return quote(s, safe="")

@@ -9,12 +9,12 @@ import secrets
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from pydantic import BaseModel
 
+from app.models import User
 from app.security.auth_jwt import get_current_user
 from app.security.ip_privacy import raw_ip_for_ratelimit
-from app.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +87,8 @@ async def transport_status(u: User = Depends(get_current_user)):
 @router.get("/stealth-status")
 async def stealth_status(u: User = Depends(get_current_user)):
     """Full stealth/obfuscation status — all mechanisms (Level 1-4)."""
-    from app.transport.auto_stealth import get_stealth_status
     from app.transport.advanced_stealth import advanced_stealth
+    from app.transport.auto_stealth import get_stealth_status
     from app.transport.stealth_level3 import stealth_l3
     from app.transport.stealth_level4 import stealth_l4
     base = get_stealth_status()
@@ -244,7 +244,7 @@ async def stego_send(body: StegoSendRequest, u: User = Depends(get_current_user)
     try:
         from app.transport.steganography import embed_data, generate_cover_image
     except ImportError:
-        raise HTTPException(501, "Steganography not available (PIL not installed)")
+        raise HTTPException(501, "Steganography not available (PIL not installed)") from None
 
     data = base64.b64decode(body.data_b64)
     cover = generate_cover_image(body.width, body.height)
@@ -269,7 +269,7 @@ async def stego_receive(request: Request, u: User = Depends(get_current_user)):
     try:
         from app.transport.steganography import extract_data
     except ImportError:
-        raise HTTPException(501, "Steganography not available")
+        raise HTTPException(501, "Steganography not available") from None
 
     body = await request.body()
     data = extract_data(body)

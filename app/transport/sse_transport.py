@@ -19,7 +19,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -55,7 +54,7 @@ async def sse_stream(
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == u.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not member:
         raise HTTPException(403, "Access denied")
@@ -67,13 +66,13 @@ async def sse_stream(
     manager._sse_queues[sse_key] = queue
 
     async def event_generator():
-        import os as _os
         import base64 as _b64
+        import os as _os
         import secrets as _sec
 
         def _pad_json(data: dict) -> str:
             """Добавляет рандомный padding к JSON чтобы убрать паттерн размеров."""
-            raw = json.dumps(data)
+            json.dumps(data)
             pad_len = 64 + _sec.randbelow(193)  # 64..256 символов
             padded = {**data, "_p": _b64.b85encode(_os.urandom(pad_len)).decode()}
             return json.dumps(padded)
@@ -129,7 +128,7 @@ async def sse_send(
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == u.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not member:
         raise HTTPException(403, "Access denied")

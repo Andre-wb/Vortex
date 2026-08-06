@@ -242,12 +242,13 @@ def test_base58_encode_roundtrip():
 async def test_migration_hint_merges_solana_and_controller_peers():
     """Feed both sources and verify merger dedupes, excludes self, caps at 5."""
     from fastapi import FastAPI
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
 
     from app.config import Config
     from app.peer.controller_client import NodeSigningKey
     from app.peer.solana_registry import PeerAccount
-    from app.session.migration import router as session_router, _cursor_store
+    from app.session.migration import _cursor_store
+    from app.session.migration import router as session_router
 
     _cursor_store.clear = getattr(_cursor_store, "clear", None)  # silence linters
 
@@ -361,7 +362,7 @@ async def test_migration_hint_merges_solana_and_controller_peers():
 async def test_migration_hint_works_without_solana():
     """When no Solana config, the merger still returns controller peers."""
     from fastapi import FastAPI
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
 
     from app.config import Config
     from app.peer.controller_client import NodeSigningKey

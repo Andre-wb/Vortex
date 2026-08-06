@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import contextlib
+from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Enum, ForeignKey,
-    Integer, String, Text, UniqueConstraint, Index,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -111,7 +120,7 @@ class Room(Base):
 
     def member_user_ids(self) -> set[int]:
         """Return set of user IDs who are members of this room."""
-        try:
+        with contextlib.suppress(Exception):
             from sqlalchemy.orm import Session, object_session
             sess: Session | None = object_session(self)
             if sess is not None:
@@ -119,8 +128,6 @@ class Room(Base):
                     RoomMember.room_id == self.id
                 ).all()
                 return {r[0] for r in rows}
-        except Exception:
-            pass
         return set()
 
     def is_full(self) -> bool:

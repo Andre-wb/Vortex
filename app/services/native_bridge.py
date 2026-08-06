@@ -8,11 +8,10 @@ file system access, share extensions.
 from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from app.database import get_db
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
 from app.models import User
 from app.security.auth_jwt import get_current_user
 from app.services.unified_push import up_manager
@@ -47,7 +46,7 @@ async def register_native_push(
     For UnifiedPush: endpoint URL, no Google/Apple dependency.
     """
     if body.platform == "unified_push":
-        sub = await up_manager.register(u.id, body.token)
+        await up_manager.register(u.id, body.token)
         return {"ok": True, "type": "unified_push"}
     elif body.platform in ("ios", "android"):
         # Native push token — store for later delivery

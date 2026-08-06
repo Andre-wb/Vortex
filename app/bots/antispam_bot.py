@@ -17,13 +17,16 @@ import logging
 import re
 import secrets
 import time
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.models import Bot, User
 from app.models_rooms import (
-    Message, MessageType, Room, RoomMember, RoomRole,
+    Message,
+    MessageType,
+    Room,
+    RoomMember,
+    RoomRole,
 )
 from app.peer.connection_manager import manager
 
@@ -406,13 +409,16 @@ async def handle_antispam_command(
         block_repeats = cfg.get("block_repeats", True)
         block_links = cfg.get("block_links", True)
 
+        repeats_mark = "\u2705" if block_repeats else "\u274c"
+        links_mark = "\u2705" if block_links else "\u274c"
+
         text = (
             f"\U0001f6e1\ufe0f Antispam Settings\n"
             f"Status: {status}\n"
             f"Flood threshold: {_THRESHOLD_LABELS.get(threshold, str(threshold))} msg/10sec\n"
             f"Action: {_ACTION_LABELS.get(action, action)}\n"
-            f"Block repeats: {'\u2705' if block_repeats else '\u274c'}\n"
-            f"Block links: {'\u2705' if block_links else '\u274c'}"
+            f"Block repeats: {repeats_mark}\n"
+            f"Block links: {links_mark}"
         )
         await antispam_bot_message(room_id, text, db)
 

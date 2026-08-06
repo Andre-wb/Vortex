@@ -5,19 +5,23 @@ Extracted from chat.py for maintainability.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.chats.messages._router import utc_iso as _utc_iso
 from app.models import User
 from app.models_rooms import (
-    FileTransfer, Message, MessageReaction, MessageType, Room, RoomMember,
+    FileTransfer,
+    Message,
+    MessageReaction,
+    MessageType,
+    Room,
+    RoomMember,
 )
 from app.peer.connection_manager import manager
-
-from app.chats.messages._router import utc_iso as _utc_iso
 from app.security.sealed_sender import compute_sender_pseudo as _compute_pseudo
 
 logger = logging.getLogger(__name__)
@@ -114,7 +118,7 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
 
         # Polls — pass as poll
         if m.msg_type == MessageType.SYSTEM and m.content_encrypted:
-            try:
+            with contextlib.suppress(Exception):
                 poll_data = json.loads(m.content_encrypted.decode())
                 if "question" in poll_data and "options" in poll_data:
                     _poll_sender_id = (
@@ -138,8 +142,6 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
                         "created_at": _utc_iso(m.created_at),
                     })
                     continue
-            except Exception:
-                pass
 
         # Resolve sender user_id from sealed-sender pseudo or fallback
         _resolved_sender_id = (
@@ -171,10 +173,8 @@ async def send_history(room_id: int, user_id: int, db: Session) -> None:
         }
         # Bot messages are stored as plaintext — include decoded text
         if _sender_is_bot and m.content_encrypted:
-            try:
+            with contextlib.suppress(Exception):
                 entry["plaintext"] = m.content_encrypted.decode("utf-8")
-            except Exception:
-                pass
         # Calculate read status
         # Resolve sender's user_id via pseudo (sealed sender) or fallback to sender_id
         _sender_uid = (

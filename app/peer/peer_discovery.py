@@ -4,6 +4,7 @@ app/peer/peer_discovery.py — UDP discovery helpers & listeners/senders.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import socket
@@ -13,10 +14,10 @@ from typing import Optional
 
 import httpx
 
-from app.config import Config
-from app.peer.peer_models import PeerInfo, registry, _main_loop
-from app.security.ssl_context import make_peer_ssl_context
 import app.peer.peer_models as _models
+from app.config import Config
+from app.peer.peer_models import PeerInfo, registry
+from app.security.ssl_context import make_peer_ssl_context
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +119,7 @@ def start_discovery(device_name: str = "") -> None:
 
         def _sync_rust_peers():
             while True:
-                try:
+                with contextlib.suppress(Exception):
                     for ip, port in _vc.get_peers():
                         is_new = registry.update(ip, ip, port)
                         if is_new:
@@ -131,8 +132,6 @@ def start_discovery(device_name: str = "") -> None:
                             peer = registry.get(ip)
                             if peer:
                                 _schedule_fetch_peer_rooms(peer)
-                except Exception:
-                    pass
                 time.sleep(3)
 
         threading.Thread(target=_sync_rust_peers, daemon=True, name="rust-peers-sync").start()
@@ -166,7 +165,7 @@ def _py_listener():
                 continue
 
             # Stealth mode: try to decrypt UDP broadcast
-            from app.transport.stealth import is_stealth, decrypt_udp_broadcast
+            from app.transport.stealth import decrypt_udp_broadcast, is_stealth
             if is_stealth():
                 decrypted = decrypt_udp_broadcast(data)
                 if decrypted:
@@ -199,7 +198,7 @@ def _py_listener():
                     # чтобы новые комнаты появлялись у соседей без перезапуска.
                     _schedule_fetch_peer_rooms(peer)
 
-        except socket.timeout:
+        except TimeoutError:
             registry.cleanup()
         except Exception as e:
             logger.warning(f"UDP listener error: {e}", exc_info=True)
@@ -222,17 +221,15 @@ def _py_sender(name: str, node_pubkey_hex: Optional[str]):
             payload = json.dumps(payload_dict).encode()
 
             # Stealth mode: encrypt UDP broadcast
-            from app.transport.stealth import is_stealth, encrypt_udp_broadcast, get_stealth_udp_port
+            from app.transport.stealth import encrypt_udp_broadcast, get_stealth_udp_port, is_stealth
             if is_stealth():
                 payload = encrypt_udp_broadcast(payload)
             udp_port = get_stealth_udp_port() if is_stealth() else Config.UDP_PORT
 
             bcast   = _subnet_broadcast(own_ip)
             sock.sendto(payload, (bcast, udp_port))
-            try:
+            with contextlib.suppress(Exception):
                 sock.sendto(payload, ("255.255.255.255", udp_port))
-            except Exception:
-                pass
         except Exception as e:
             logger.debug(f"UDP send: {e}")
         time.sleep(Config.UDP_INTERVAL_SEC)

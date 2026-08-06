@@ -6,21 +6,23 @@ scales better with PostgreSQL + asyncpg.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import sqlite3
 import subprocess
 
-from sqlalchemy import create_engine, event, text as _text
+from sqlalchemy import create_engine, event
+from sqlalchemy import text as _text
 from sqlalchemy.orm import sessionmaker
 
 from app.config import Config
 
 logger = logging.getLogger(__name__)
-from app.base import Base  # noqa: E402
 from app import models, models_rooms  # noqa: E402, F401  -- register models
-from app.models import contact as _models_contact  # noqa: F401  -- register Contact table
-from app.models import prekeys as _models_prekeys  # noqa: F401  -- register PreKeyBundle/OneTimePreKey
+from app.base import Base  # noqa: E402
+from app.models import contact as _models_contact  # noqa: E402, F401  -- register Contact table
+from app.models import prekeys as _models_prekeys  # noqa: E402, F401  -- register PreKeyBundle/OneTimePreKey
 
 # Resolve the effective database URL
 DATABASE_URL = Config.get_database_url()
@@ -170,12 +172,10 @@ def _alembic_needs_stamp() -> bool:
     try:
         with engine.connect() as conn:
             # Check if alembic_version table exists and has rows
-            try:
+            with contextlib.suppress(Exception):
                 row = conn.execute(_text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
                 if row:
                     return False  # Already stamped — normal upgrade
-            except Exception:
-                pass  # alembic_version doesn't exist yet
 
             # Check if main tables already exist (created by create_all)
             try:
@@ -281,7 +281,7 @@ def _rebuild_prekey_bundles_if_legacy(conn) -> None:
     old = set(old_cols)
     select_exprs = ["NULL" if c == "device_id" else (c if c in old else "NULL") for c in new_cols]
     insert_sql = (
-        f"INSERT INTO prekey_bundles_new ({', '.join(new_cols)})"
+        f"INSERT INTO prekey_bundles_new ({', '.join(new_cols)})"  # noqa: S608
         f" SELECT {', '.join(select_exprs)} FROM prekey_bundles"
     )
     for stmt in (
@@ -330,10 +330,8 @@ def init_db() -> None:
             logger.info("Alembic not available -- using create_all + ALTER TABLE fallback")
 
         # Lazy-import models that can't be imported at module level (circular deps)
-        try:
+        with contextlib.suppress(ImportError):
             from app.authentication.security_questions import SecurityQuestion  # noqa: F401
-        except ImportError:
-            pass
 
         Base.metadata.create_all(bind=engine)
 

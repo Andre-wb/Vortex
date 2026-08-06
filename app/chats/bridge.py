@@ -27,7 +27,6 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
-from app.models.contact import Contact
 from app.models_rooms import Message, MessageType, Room, RoomMember, RoomRole
 from app.security.auth_jwt import get_current_user
 
@@ -49,7 +48,7 @@ def _get_or_create_external_user(username: str, display_name: str, db: Session) 
             username=slug,
             display_name=display_name[:100] if display_name else username,
             phone=f"+0{secrets.token_hex(6)}",  # dummy phone
-            password_hash="!external",           # не может войти
+            password_hash="!external",           # не может войти  # noqa: S106
             avatar_emoji="👤",
             is_active=True,
         )
@@ -63,7 +62,7 @@ def _get_or_create_dm_room(user_a: User, user_b: User, db: Session) -> Room:
     # Ищем существующую DM
     existing = (
         db.query(Room)
-        .filter(Room.is_dm == True)
+        .filter(Room.is_dm.is_(True))
         .join(RoomMember, RoomMember.room_id == Room.id)
         .filter(RoomMember.user_id == user_a.id)
         .all()
@@ -137,10 +136,8 @@ def _import_telegram(data: dict, user: User, db: Session) -> dict:
     Структура: {"chats": {"list": [{"type": "...", "name": "...", "messages": [...]}]}}
     """
     chats = data.get("chats", {}).get("list", [])
-    if not chats:
-        # Попробуем плоский формат (один чат)
-        if "messages" in data:
-            chats = [data]
+    if not chats and "messages" in data:
+        chats = [data]
 
     stats = {"chats": 0, "messages": 0, "contacts": 0}
 
@@ -289,13 +286,13 @@ async def import_telegram(
     try:
         data = json.loads(raw)
     except Exception:
-        raise HTTPException(400, "Invalid JSON")
+        raise HTTPException(400, "Invalid JSON") from None
 
     try:
         stats = _import_telegram(data, u, db)
     except Exception as e:
         logger.exception("Telegram import error")
-        raise HTTPException(500, f"Import error: {e}")
+        raise HTTPException(500, f"Import error: {e}") from None
 
     return {
         "ok": True,
@@ -325,13 +322,13 @@ async def import_matrix(
     try:
         data = json.loads(raw)
     except Exception:
-        raise HTTPException(400, "Invalid JSON")
+        raise HTTPException(400, "Invalid JSON") from None
 
     try:
         stats = _import_matrix(data, u, db)
     except Exception as e:
         logger.exception("Matrix import error")
-        raise HTTPException(500, f"Import error: {e}")
+        raise HTTPException(500, f"Import error: {e}") from None
 
     return {
         "ok": True,

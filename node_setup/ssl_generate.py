@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import ipaddress
 import logging
@@ -13,13 +14,13 @@ import subprocess
 from pathlib import Path
 
 from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
-from cryptography.hazmat.backends import default_backend
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
-from node_setup.ssl_result import SSLResult, _local_ips
 from node_setup.ssl_install import install_ca_to_trust_store
+from node_setup.ssl_result import SSLResult, _local_ips
 from node_setup.ssl_utils import _get_mkcert_ca_path
 
 logger = logging.getLogger(__name__)
@@ -84,10 +85,8 @@ def generate_self_signed(
         x509.DNSName(hostname + ".local"),
     ]
     for ip_str in _local_ips():
-        try:
+        with contextlib.suppress(ValueError):
             san_list.append(x509.IPAddress(ipaddress.ip_address(ip_str)))
-        except ValueError:
-            pass
 
     srv_name = x509.Name([
         x509.NameAttribute(NameOID.COUNTRY_NAME, "XX"),
@@ -126,10 +125,8 @@ def generate_self_signed(
         serialization.NoEncryption(),
     ))
 
-    try:
+    with contextlib.suppress(Exception):
         os.chmod(key_path, 0o600)  # защищаем ключ
-    except Exception:
-        pass
 
     logger.info(f"SSL: сгенерированы сертификаты в {cert_dir}")
     trusted = False
@@ -163,7 +160,7 @@ def generate_with_mkcert(cert_dir: Path, hostname: str = "") -> SSLResult:
     key_path = cert_dir / "vortex.key"
     ips = _local_ips()
 
-    domains = [hostname, "localhost", "127.0.0.1"] + ips
+    domains = [hostname, "localhost", "127.0.0.1", *ips]
 
     # Устанавливаем CA mkcert (если ещё не установлен)
     subprocess.run([mkcert_bin, "-install"], capture_output=True)

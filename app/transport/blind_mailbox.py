@@ -14,10 +14,13 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import logging
+import secrets as _secrets
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -306,11 +309,6 @@ async def start_bmp():
 
 # UNIFIED BMP TRANSPORT — Room Secret Store + Envelope Deposit
 
-import hashlib
-import hmac
-import json
-import math
-import secrets as _secrets
 
 BMP_FAST_RATE_LIMIT = 3000  # higher rate for fast-poll during calls
 BMP_ROTATION_PERIOD = 3600  # 1 hour — must match client ROTATION_PERIOD
@@ -465,7 +463,7 @@ async def register_room_secret(
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == u.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not member:
         raise HTTPException(403, "Not a member of this room")

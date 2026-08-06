@@ -13,6 +13,7 @@ path and share helpers:
      (wired in the setup HTML; this module just provides the API the UI
      hits to fetch the controller's backup metadata).
 """
+
 from __future__ import annotations
 
 import base64
@@ -20,7 +21,6 @@ import hashlib
 import hmac
 import json
 import logging
-import os
 import secrets as _secrets
 import shutil
 import socket
@@ -30,11 +30,8 @@ from typing import Optional
 
 import httpx
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
-
-from . import backup_api as _backup_api
-from . import security_api as _sec
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +58,7 @@ for _i in range(255):
     # {02} alone is not a generator under this reduction polynomial —
     # its multiplicative order is 51, which would skip most field
     # elements (every value whose gcd with 51 doesn't match).
-    _y = (_x << 1)
+    _y = _x << 1
     if _y & 0x100:
         _y ^= _GF_POLY
     _x = _y ^ _x
@@ -102,10 +99,7 @@ def shamir_split(secret: bytes, k: int, n: int) -> list[bytes]:
         for i in range(n):
             shares_y[i].append(_eval_poly(coeffs, i + 1))
     # Prefix each share with (version, k, idx). Version byte 0x01.
-    return [
-        bytes([0x01, k, i + 1]) + bytes(shares_y[i])
-        for i in range(n)
-    ]
+    return [bytes([0x01, k, i + 1]) + bytes(shares_y[i]) for i in range(n)]
 
 
 def shamir_combine(shares: list[bytes]) -> bytes:
@@ -151,7 +145,7 @@ def shamir_combine(shares: list[bytes]) -> bytes:
                 if m == j:
                     continue
                 xm = use[m][1]
-                num = _gf_mul(num, xm)                 # 0 - xm == xm in GF(256)
+                num = _gf_mul(num, xm)  # 0 - xm == xm in GF(256)
                 den = _gf_mul(den, xj ^ xm)
             total ^= _gf_mul(yj, _gf_div(num, den))
         out[byte_idx] = total
@@ -160,8 +154,8 @@ def shamir_combine(shares: list[bytes]) -> bytes:
 
 class ShamirSplitBody(BaseModel):
     mnemonic: str = Field(..., min_length=20)
-    k:        int = Field(..., ge=2, le=10)
-    n:        int = Field(..., ge=2, le=10)
+    k: int = Field(..., ge=2, le=10)
+    n: int = Field(..., ge=2, le=10)
 
 
 class ShamirCombineBody(BaseModel):
@@ -176,12 +170,12 @@ async def shamir_split_endpoint(body: ShamirSplitBody) -> dict:
     try:
         shares = shamir_split(data, body.k, body.n)
     except Exception as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from None
     return {
         "k": body.k,
         "n": body.n,
         "shares_b64": [base64.urlsafe_b64encode(s).decode("ascii") for s in shares],
-        "byte_size":  len(shares[0]),
+        "byte_size": len(shares[0]),
     }
 
 
@@ -190,19 +184,20 @@ async def shamir_combine_endpoint(body: ShamirCombineBody) -> dict:
     try:
         raw = [base64.urlsafe_b64decode(s + "=" * (-len(s) % 4)) for s in body.shares_b64]
     except Exception:
-        raise HTTPException(400, "one of the shares isn't valid base64")
+        raise HTTPException(400, "one of the shares isn't valid base64") from None
     try:
         secret = shamir_combine(raw)
     except Exception as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from None
     try:
         mnemonic = secret.decode("utf-8")
     except UnicodeDecodeError:
-        raise HTTPException(400, "recovered bytes are not valid UTF-8 (wrong shares?)")
+        raise HTTPException(400, "recovered bytes are not valid UTF-8 (wrong shares?)") from None
     return {"mnemonic": mnemonic}
 
 
 # 2. Duress seed
+
 
 def _duress_hash(phrase: str) -> str:
     norm = " ".join(phrase.strip().lower().split())
@@ -225,8 +220,10 @@ def _load_duress(env_file: Path) -> dict:
     p = _duress_state_path(env_file)
     if not p.is_file():
         return {}
-    try: return json.loads(p.read_text())
-    except Exception: return {}
+    try:
+        return json.loads(p.read_text())
+    except Exception:
+        return {}
 
 
 def _save_duress(env_file: Path, state: dict) -> None:
@@ -271,6 +268,7 @@ async def duress_delete(request: Request) -> dict:
 
 # 3. Contacts CSV staging
 
+
 def _pending_contacts_path(env_file: Path) -> Path:
     return env_file.parent / "pending_contacts.csv"
 
@@ -306,8 +304,8 @@ async def contacts_pending_status(request: Request) -> dict:
     if not p.is_file():
         return {"pending": False}
     return {
-        "pending":    True,
-        "byte_size":  p.stat().st_size,
+        "pending": True,
+        "byte_size": p.stat().st_size,
         "uploaded_at": int(p.stat().st_mtime),
     }
 
@@ -322,10 +320,11 @@ async def contacts_pending_delete(request: Request) -> dict:
 
 # 4. Pre-flight check
 
+
 class PreflightBody(BaseModel):
-    controller_url:   Optional[str] = None
-    port:             Optional[int] = 9000
-    require_tunnel:   bool = False
+    controller_url: Optional[str] = None
+    port: Optional[int] = 9000
+    require_tunnel: bool = False
 
 
 @router.post("/preflight")
@@ -338,11 +337,13 @@ async def preflight(body: PreflightBody, request: Request) -> dict:
         du = shutil.disk_usage(str(env_file.parent))
         free_pct = (du.free / du.total) * 100 if du.total else 0
         ok = free_pct > 5
-        checks.append({
-            "name": "disk_free",
-            "ok":   ok,
-            "detail": f"{free_pct:.1f}% free ({du.free // (1024**3)} GB)",
-        })
+        checks.append(
+            {
+                "name": "disk_free",
+                "ok": ok,
+                "detail": f"{free_pct:.1f}% free ({du.free // (1024**3)} GB)",
+            }
+        )
     except Exception as e:
         checks.append({"name": "disk_free", "ok": False, "detail": str(e)})
 
@@ -352,12 +353,14 @@ async def preflight(body: PreflightBody, request: Request) -> dict:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.3)
             r = s.connect_ex(("127.0.0.1", int(port)))
-            in_use = (r == 0)
-        checks.append({
-            "name": "port_free",
-            "ok":   not in_use,
-            "detail": f"port {port} " + ("occupied" if in_use else "free"),
-        })
+            in_use = r == 0
+        checks.append(
+            {
+                "name": "port_free",
+                "ok": not in_use,
+                "detail": f"port {port} " + ("occupied" if in_use else "free"),
+            }
+        )
     except Exception as e:
         checks.append({"name": "port_free", "ok": False, "detail": str(e)})
 
@@ -365,26 +368,31 @@ async def preflight(body: PreflightBody, request: Request) -> dict:
     if body.controller_url:
         url = body.controller_url.rstrip("/") + "/v1/health"
         try:
-            async with httpx.AsyncClient(timeout=4.0, verify=False) as c:
+            async with httpx.AsyncClient(timeout=4.0, verify=False) as c:  # noqa: S501
                 r = await c.get(url)
                 ok = r.status_code == 200
-                checks.append({
-                    "name": "controller",
-                    "ok":   ok,
-                    "detail": f"{r.status_code} from {url}",
-                })
+                checks.append(
+                    {
+                        "name": "controller",
+                        "ok": ok,
+                        "detail": f"{r.status_code} from {url}",
+                    }
+                )
         except Exception as e:
             checks.append({"name": "controller", "ok": False, "detail": str(e)})
 
     # cloudflared binary
     if body.require_tunnel:
         from .admin_api import _find_cloudflared  # reuse existing finder
+
         path = _find_cloudflared()
-        checks.append({
-            "name": "cloudflared",
-            "ok":   bool(path),
-            "detail": path or "not found on PATH or common brew dirs",
-        })
+        checks.append(
+            {
+                "name": "cloudflared",
+                "ok": bool(path),
+                "detail": path or "not found on PATH or common brew dirs",
+            }
+        )
 
     all_ok = all(c["ok"] for c in checks)
     return {"all_ok": all_ok, "checks": checks}
@@ -392,9 +400,10 @@ async def preflight(body: PreflightBody, request: Request) -> dict:
 
 # 5. Backup-on-controller discovery (setup first-screen)
 
+
 class BackupDiscoverBody(BaseModel):
     controller_url: str = Field(..., min_length=8, max_length=2048)
-    mnemonic:       str = Field(..., min_length=20)
+    mnemonic: str = Field(..., min_length=20)
 
 
 @router.post("/backup/discover")
@@ -407,6 +416,7 @@ async def backup_discover(body: BackupDiscoverBody) -> dict:
     setup to know if there's something to restore.
     """
     from .seed_derive import derive_identity, normalize_mnemonic, validate_mnemonic
+
     phrase = normalize_mnemonic(body.mnemonic)
     if not validate_mnemonic(phrase):
         raise HTTPException(400, "invalid BIP39 checksum")
@@ -419,17 +429,17 @@ async def backup_discover(body: BackupDiscoverBody) -> dict:
 
     url = body.controller_url.rstrip("/") + "/v1/backup/meta"
     try:
-        async with httpx.AsyncClient(timeout=6.0, verify=False) as c:
+        async with httpx.AsyncClient(timeout=6.0, verify=False) as c:  # noqa: S501
             r = await c.post(url, json={"payload": payload, "signature": sig})
         if r.status_code >= 400:
             return {"exists": False, "error": f"HTTP {r.status_code}"}
         d = r.json()
         return {
-            "exists":     bool(d.get("exists")),
-            "byte_size":  d.get("byte_size"),
+            "exists": bool(d.get("exists")),
+            "byte_size": d.get("byte_size"),
             "updated_at": d.get("updated_at"),
-            "sha256":     d.get("sha256"),
-            "pubkey":     pub,
+            "sha256": d.get("sha256"),
+            "pubkey": pub,
         }
     except Exception as e:
         return {"exists": False, "error": f"{type(e).__name__}: {e}"}

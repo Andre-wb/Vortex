@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.models_rooms import RoomMember, Room, RoomRole, RoomInviteEscrow
+from app.models_rooms import Room, RoomInviteEscrow, RoomMember, RoomRole
 from app.peer.connection_manager import manager
 from app.security.ecies_schema import EciesKeyFields
 
@@ -133,7 +133,7 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
     m = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
         ).first()
     if not m:
         raise HTTPException(403, "You are not a member of this room")

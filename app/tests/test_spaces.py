@@ -1,10 +1,8 @@
 """
 Tests for Spaces (Discord-like workspaces).
 """
-import secrets
-import pytest
 
-from conftest import make_user, login_user, random_str
+from conftest import random_str
 
 
 class TestSpaces:

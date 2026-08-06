@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ARCHITEX_DOCS: dict = {
     "title": "Architex Language Reference",
     "subtitle": "A declarative UI language for Vortex Mini Apps. Reactive state, composable layouts, zero build step.",
@@ -202,7 +201,7 @@ def target_paths() -> list[Path]:
     root = Path("/Users/borismaltsev/RustroverProjects")
     ios_en = root / "Vortex/ios/Modules/Sources/I18N/Resources/locales/en.json"
     web_locales = sorted((root / "vortex-introduce-page/locales").glob("*.json"))
-    return [ios_en] + web_locales
+    return [ios_en, *web_locales]
 
 
 def splice(paths: list[Path]) -> None:

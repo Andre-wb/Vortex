@@ -34,9 +34,9 @@ class TestE2EEncryption:
     def test_ecies_simulation(self):
         """ECIES с параметрами продового клиента (crypto.js:37-42)."""
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-        from cryptography.hazmat.primitives.hashes import SHA256
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.hashes import SHA256
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
         bob_priv = X25519PrivateKey.generate()
         bob_pub  = bob_priv.public_key()
@@ -55,11 +55,11 @@ class TestE2EEncryption:
         assert recovered == room_key
 
     def test_ecies_wrong_private_key_fails(self):
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-        from cryptography.hazmat.primitives.hashes import SHA256
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         from cryptography.exceptions import InvalidTag
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.hashes import SHA256
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
         bob_priv = X25519PrivateKey.generate()
         eve_priv = X25519PrivateKey.generate()
@@ -81,8 +81,8 @@ class TestE2EEncryption:
         """Документирует соответствие JS↔Python: пустой salt в Web Crypto
         (new Uint8Array(0)) и salt=None в cryptography дают один ключ —
         HMAC дополняет и пустой ключ, и HashLen нулей до размера блока."""
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         from cryptography.hazmat.primitives.hashes import SHA256
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
         ikm = os.urandom(32)
         k_none  = HKDF(SHA256(), 32, None, b'vortex-session').derive(ikm)

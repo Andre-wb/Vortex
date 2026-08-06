@@ -1,9 +1,8 @@
 """Comprehensive coverage boost tests — targets low-coverage modules."""
 import secrets
-import os
-import pytest
-from conftest import make_user, login_user, random_str, random_digits
 
+import pytest
+from conftest import login_user, make_user, random_str
 
 # Bot API (app/bots/bot_api.py — 24% coverage)
 
@@ -348,7 +347,7 @@ class TestDMFlow:
 
         # Get user IDs
         me1 = client.get("/api/authentication/me", headers=h1).json()
-        user1_id = me1.get("user_id") or me1.get("id")
+        me1.get("user_id") or me1.get("id")
         me2 = client.get("/api/authentication/me", headers=h2).json()
         user2_id = me2.get("user_id") or me2.get("id")
 

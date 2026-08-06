@@ -58,7 +58,7 @@ async def send_web_push(
 ) -> None:
     """Send Web Push notification to an offline user. Silently ignores failures."""
     try:
-        from pywebpush import webpush, WebPushException
+        from pywebpush import webpush
     except ImportError:
         return
 
@@ -85,7 +85,7 @@ async def send_web_push(
                 vapid_private_key=vapid_priv,
                 vapid_claims={"sub": "mailto:noreply@vortex.local"},
             )
-        except (Exception,) as e:
+        except Exception as e:
             logger.debug("Web push failed for user %s sub %s: %s — removing subscription", user_id, sub.endpoint[:30], e)
             try:
                 db.delete(sub)

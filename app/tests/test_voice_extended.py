@@ -1,7 +1,4 @@
 """Voice channel and link preview tests."""
-import secrets
-import pytest
-from conftest import make_user, login_user, random_str
 
 
 class TestVoiceChannels:

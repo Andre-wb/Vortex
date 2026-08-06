@@ -17,8 +17,8 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-import time
 import threading
+import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -118,9 +118,7 @@ def record_page_visit(session_id: str, path: str) -> Optional[str]:
         prev_seq = _get_previous_knock_sequence()
 
         matched = False
-        if expected_idx < len(current_seq) and path == current_seq[expected_idx]:
-            matched = True
-        elif expected_idx < len(prev_seq) and path == prev_seq[expected_idx]:
+        if (expected_idx < len(current_seq) and path == current_seq[expected_idx]) or (expected_idx < len(prev_seq) and path == prev_seq[expected_idx]):
             matched = True
 
         if matched:

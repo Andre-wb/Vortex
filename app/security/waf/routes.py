@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -19,19 +19,19 @@ class WAFManager:
     def __init__(self, waf_engine: WAFEngine):
         self.waf = waf_engine
 
-    def block_ip(self, ip: str, reason: str, duration: int = 3600) -> Dict:
+    def block_ip(self, ip: str, reason: str, duration: int = 3600) -> dict:
         success = self.waf.block_ip(ip, reason, duration)
         return {'success': success, 'ip': ip, 'reason': reason, 'duration': duration}
 
-    def unblock_ip(self, ip: str) -> Dict:
+    def unblock_ip(self, ip: str) -> dict:
         if self.waf.unblock_ip(ip):
             return {'success': True, 'ip': ip, 'message': 'IP unblocked'}
         return {'success': False, 'ip': ip, 'message': 'IP not found'}
 
-    def get_blocked_ips(self) -> List[Dict]:
+    def get_blocked_ips(self) -> list[dict]:
         return self.waf.blocked_ips()
 
-    def add_whitelist_ip(self, ip: str) -> Dict:
+    def add_whitelist_ip(self, ip: str) -> dict:
         try:
             ipaddress.ip_address(ip)
         except ValueError:
@@ -39,12 +39,12 @@ class WAFManager:
         self.waf.add_whitelist_ip(ip)
         return {'success': True, 'ip': ip, 'message': 'IP added to whitelist'}
 
-    def remove_whitelist_ip(self, ip: str) -> Dict:
+    def remove_whitelist_ip(self, ip: str) -> dict:
         if self.waf.remove_whitelist_ip(ip):
             return {'success': True, 'ip': ip, 'message': 'IP removed from whitelist'}
         return {'success': False, 'ip': ip, 'message': 'IP not found in whitelist'}
 
-    def get_whitelist(self) -> List[str]:
+    def get_whitelist(self) -> list[str]:
         return self.waf.whitelist()
 
 
@@ -52,7 +52,7 @@ class WAFManager:
 _waf_engine: Optional[WAFEngine] = None
 
 
-def init_waf_engine(config: Optional[Dict] = None) -> WAFEngine:
+def init_waf_engine(config: Optional[dict] = None) -> WAFEngine:
     global _waf_engine
     _waf_engine = WAFEngine(config)
     return _waf_engine
@@ -129,7 +129,7 @@ async def test_waf(request: Request):
 
 
 
-def setup_waf(app, config: Optional[Dict] = None) -> WAFEngine:
+def setup_waf(app, config: Optional[dict] = None) -> WAFEngine:
     waf_engine = init_waf_engine(config)
     from app.security.waf.middleware import WAFMiddleware
     app.add_middleware(WAFMiddleware, waf_engine=waf_engine)

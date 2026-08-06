@@ -1,6 +1,7 @@
 """Tests for IDE Monitoring & Versioning endpoints (/api/ide/*)."""
 from __future__ import annotations
-from conftest import make_user, random_str, SyncASGIClient
+
+from conftest import SyncASGIClient, make_user, random_str
 
 
 def _auth(client: SyncASGIClient):

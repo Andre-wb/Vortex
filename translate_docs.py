@@ -7,9 +7,9 @@ translates only prose via Google Translate, reassembles.
 
 import json
 import os
+import re
 import sys
 import time
-import re
 
 from deep_translator import GoogleTranslator
 
@@ -73,17 +73,7 @@ _CODE_RE = re.compile(r'|'.join([
 ]))
 
 _COMMON_WORDS = frozenset(
-    'the and for that this with from have will your when they each which their '
-    'about into than them been some like then what only just also more here '
-    'every where after before other because between can are you all use not '
-    'any but how its one two run set new get may put see now way own add '
-    'need want give make call take does should would could these those there '
-    'first second write read check always never define defines handler runs '
-    'sends message user function variable block inside value number result '
-    'text command pattern example returns creates allows means same different '
-    'above below following built possible declared available suspends until '
-    'specified event occurs returned declares persistent survive across covered '
-    'depth section'.split()
+    ['the', 'and', 'for', 'that', 'this', 'with', 'from', 'have', 'will', 'your', 'when', 'they', 'each', 'which', 'their', 'about', 'into', 'than', 'them', 'been', 'some', 'like', 'then', 'what', 'only', 'just', 'also', 'more', 'here', 'every', 'where', 'after', 'before', 'other', 'because', 'between', 'can', 'are', 'you', 'all', 'use', 'not', 'any', 'but', 'how', 'its', 'one', 'two', 'run', 'set', 'new', 'get', 'may', 'put', 'see', 'now', 'way', 'own', 'add', 'need', 'want', 'give', 'make', 'call', 'take', 'does', 'should', 'would', 'could', 'these', 'those', 'there', 'first', 'second', 'write', 'read', 'check', 'always', 'never', 'define', 'defines', 'handler', 'runs', 'sends', 'message', 'user', 'function', 'variable', 'block', 'inside', 'value', 'number', 'result', 'text', 'command', 'pattern', 'example', 'returns', 'creates', 'allows', 'means', 'same', 'different', 'above', 'below', 'following', 'built', 'possible', 'declared', 'available', 'suspends', 'until', 'specified', 'event', 'occurs', 'returned', 'declares', 'persistent', 'survive', 'across', 'covered', 'depth', 'section']
 )
 
 def _looks_like_code(line):
@@ -95,9 +85,7 @@ def _looks_like_code(line):
         return False
     # Post-filter: long lines with many common English words are prose, not code
     words = re.findall(r'[a-zA-Z]{3,}', s)
-    if len(words) >= 8 and sum(1 for w in words if w.lower() in _COMMON_WORDS) >= 4:
-        return False
-    return True
+    return not (len(words) >= 8 and sum(1 for w in words if w.lower() in _COMMON_WORDS) >= 4)
 
 
 def parse_doc(text):
@@ -199,7 +187,7 @@ def extract_translatable(chunks):
 
 def reassemble(chunks, items, translated):
     """Put translated strings back into chunks."""
-    for (idx, orig, kind), trans in zip(items, translated):
+    for (idx, _orig, kind), trans in zip(items, translated, strict=False):
         old_line = chunks[idx][1]
         if kind == 'head':
             m = re.match(r'^(#{1,3})\s+', old_line)
@@ -213,9 +201,8 @@ def reassemble(chunks, items, translated):
             chunks[idx] = ('table', '| ' + ' | '.join(c.strip() for c in cells) + ' |')
         elif kind == 'prose':
             # Preserve leading > for callouts
-            if old_line.strip().startswith('> '):
-                if not trans.startswith('>'):
-                    trans = '> ' + trans
+            if old_line.strip().startswith('> ') and not trans.startswith('>'):
+                trans = '> ' + trans
             chunks[idx] = ('prose', trans)
 
     return '\n'.join(content for _, content in chunks)
@@ -266,7 +253,7 @@ def _one_by_one(strings, target_lang):
             r = translator.translate(s)
             results.append(r if r else s)
             time.sleep(0.15)
-        except:
+        except Exception:
             results.append(s)
     return results
 
@@ -278,7 +265,7 @@ def process_locale(locale_code, en_ref):
     if not os.path.exists(path):
         return False
 
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         loc = json.load(f)
 
     current = loc.get('gravitixDocs', {}).get('fullReference', '')
@@ -324,7 +311,7 @@ def process_locale(locale_code, en_ref):
 def main():
     # Load English reference
     en_path = os.path.join(LOCALE_DIR, 'en.json')
-    with open(en_path, 'r', encoding='utf-8') as f:
+    with open(en_path, encoding='utf-8') as f:
         en = json.load(f)
 
     en_ref = en.get('gravitixDocs', {}).get('fullReference', '')

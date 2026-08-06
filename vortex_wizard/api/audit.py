@@ -9,14 +9,16 @@ Also surfaces an "unknown IP" alert: if the client IP has never hit the
 admin surface before, the row is flagged ``alert=1``. The operator can
 see the list in the Audit tab and dismiss false positives.
 """
+
 from __future__ import annotations
 
+import contextlib
 import logging
-import os
 import sqlite3
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Awaitable, Callable, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -24,7 +26,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/wiz/admin/audit", tags=["audit"])
-
 
 
 _DB_FILENAME = "wizard_audit.db"
@@ -115,23 +116,19 @@ def _insert_entry(
     except Exception as e:
         logger.debug("audit: insert failed %s", e)
     finally:
-        try: c.close()
-        except Exception: pass
+        with contextlib.suppress(Exception):
+            c.close()
 
 
 def _purge_old(env_file: Path, keep_entries: int = 10_000) -> None:
     """Cap the log at N newest entries so it can't grow unbounded."""
-    try:
+    with contextlib.suppress(Exception):
         c = _conn(env_file)
         c.execute(
-            "DELETE FROM audit_entries WHERE id NOT IN "
-            "(SELECT id FROM audit_entries ORDER BY id DESC LIMIT ?)",
+            "DELETE FROM audit_entries WHERE id NOT IN (SELECT id FROM audit_entries ORDER BY id DESC LIMIT ?)",
             (keep_entries,),
         )
         c.close()
-    except Exception:
-        pass
-
 
 
 class AuditMiddleware(BaseHTTPMiddleware):
@@ -182,12 +179,10 @@ class AuditMiddleware(BaseHTTPMiddleware):
             except Exception:
                 client_ip = ""
             node_pubkey = ""
-            try:
+            with contextlib.suppress(Exception):
                 sk = getattr(request.app.state, "signing_key", None)
                 if sk is not None:
                     node_pubkey = sk.pubkey_hex()
-            except Exception:
-                pass
 
             _insert_entry(
                 Path(env_file),
@@ -202,7 +197,6 @@ class AuditMiddleware(BaseHTTPMiddleware):
             _purge_old(Path(env_file))
 
 
-
 def _env(request: Request) -> Path:
     p = getattr(request.app.state, "env_file", None)
     if p is None:
@@ -213,8 +207,8 @@ def _env(request: Request) -> Path:
 @router.get("")
 async def list_audit(
     request: Request,
-    limit:      int = 100,
-    offset:     int = 0,
+    limit: int = 100,
+    offset: int = 0,
     only_alert: bool = False,
 ) -> dict:
     env_file = _env(request)
@@ -224,8 +218,7 @@ async def list_audit(
     try:
         if only_alert:
             rows = c.execute(
-                "SELECT * FROM audit_entries WHERE alert=1 "
-                "ORDER BY id DESC LIMIT ? OFFSET ?",
+                "SELECT * FROM audit_entries WHERE alert=1 ORDER BY id DESC LIMIT ? OFFSET ?",
                 (limit, offset),
             ).fetchall()
             total = c.execute("SELECT COUNT(*) FROM audit_entries WHERE alert=1").fetchone()[0]
@@ -236,11 +229,10 @@ async def list_audit(
             ).fetchall()
             total = c.execute("SELECT COUNT(*) FROM audit_entries").fetchone()[0]
 
-        alert_count = c.execute(
-            "SELECT COUNT(*) FROM audit_entries WHERE alert=1"
-        ).fetchone()[0]
+        alert_count = c.execute("SELECT COUNT(*) FROM audit_entries WHERE alert=1").fetchone()[0]
         known_ips = [
-            dict(r) for r in c.execute(
+            dict(r)
+            for r in c.execute(
                 "SELECT ip, first_seen, trusted FROM audit_known_ips ORDER BY first_seen DESC"
             ).fetchall()
         ]
@@ -248,10 +240,10 @@ async def list_audit(
         c.close()
 
     return {
-        "total":        int(total),
-        "alert_total":  int(alert_count),
-        "entries":      [dict(r) for r in rows],
-        "known_ips":    known_ips,
+        "total": int(total),
+        "alert_total": int(alert_count),
+        "entries": [dict(r) for r in rows],
+        "known_ips": known_ips,
     }
 
 

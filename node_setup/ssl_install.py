@@ -48,7 +48,7 @@ def install_ca_to_trust_store(ca_path: Path, password: Optional[str] = None) -> 
 def _sudo_run(cmd: list[str], password: str) -> subprocess.CompletedProcess:
     """Запускает команду через sudo -S (пароль через stdin)."""
     return subprocess.run(
-        ["sudo", "-S"] + cmd,
+        ["sudo", "-S", *cmd],
         input=password + "\n",
         capture_output=True, text=True,
         timeout=30,

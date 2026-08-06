@@ -8,25 +8,26 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.authentication._helpers import (
+    _AUTH_RATE_LOGIN,
+    _Challenge,
+    _challenges,
+    _challenges_lock,
+    _check_auth_rate,
+    router,
+)
 from app.config import Config
 from app.database import get_db
 from app.models import User
 from app.security.auth_jwt import create_access_token, create_refresh_token
 from app.security.crypto import derive_x25519_session_key, load_or_create_node_keypair
-
 from app.security.ip_privacy import raw_ip_for_ratelimit, sanitize_ip
-
-from app.authentication._helpers import (
-    _AUTH_RATE_LOGIN, _Challenge, _challenges, _challenges_lock,
-    _check_auth_rate, router,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +82,10 @@ async def qr_init(request: Request, db: Session = Depends(get_db)):
             expires_at=time.monotonic() + _QR_TTL,
         )
 
+    import io
+
     import qrcode
     import qrcode.image.svg as qr_svg
-    import io
     qr_data = f"vortex://qr-login?s={session_id}&c={challenge_id}&p={server_pub.hex()}"
     qr_obj = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=6, border=3)
     qr_obj.add_data(qr_data)
@@ -132,7 +134,7 @@ async def qr_confirm(body: QRConfirmRequest, request: Request, db: Session = Dep
     if ch.pubkey_hex != f"QR:{body.session_id}":
         raise HTTPException(401, "QR session mismatch")
 
-    user = db.query(User).filter(User.x25519_public_key == body.pubkey, User.is_active == True).first()
+    user = db.query(User).filter(User.x25519_public_key == body.pubkey, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(401, "User with this key not found")
 
@@ -143,7 +145,7 @@ async def qr_confirm(body: QRConfirmRequest, request: Request, db: Session = Dep
         if isinstance(shared, list):
             shared = bytes(shared)
     except Exception:
-        raise HTTPException(401, "Key computation error")
+        raise HTTPException(401, "Key computation error") from None
 
     expected = hmac.new(shared, ch.challenge, hashlib.sha256).hexdigest()
     if not secrets.compare_digest(body.proof, expected):
@@ -179,7 +181,7 @@ async def qr_check(session_id: str, request: Request, db: Session = Depends(get_
     if not qs.confirmed:
         return {"confirmed": False}
 
-    user = db.query(User).filter(User.id == qs.user_id, User.is_active == True).first()
+    user = db.query(User).filter(User.id == qs.user_id, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(401, "User not found")
 

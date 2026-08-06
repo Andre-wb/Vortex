@@ -15,7 +15,7 @@ import hashlib
 import logging
 import re
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -77,7 +77,7 @@ async def sync_contacts(
     # Get all users with phone numbers (except current user)
     users_with_phone = (
         db.query(User)
-        .filter(User.phone.isnot(None), User.phone != "", User.is_active == True, User.id != u.id)
+        .filter(User.phone.isnot(None), User.phone != "", User.is_active.is_(True), User.id != u.id)
         .all()
     )
 
@@ -129,7 +129,7 @@ async def add_all_matched(
         if uid == u.id or uid in existing_contact_ids:
             continue
         # Check that user exists
-        target = db.query(User).filter(User.id == uid, User.is_active == True).first()
+        target = db.query(User).filter(User.id == uid, User.is_active.is_(True)).first()
         if not target:
             continue
         contact = Contact(owner_id=u.id, contact_id=uid)

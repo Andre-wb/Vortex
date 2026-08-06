@@ -17,13 +17,9 @@ No FCM/APNs required — works on de-Googled phones (GrapheneOS, CalyxOS, Lineag
 """
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import os
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 import httpx
 

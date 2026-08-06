@@ -7,13 +7,10 @@ Comprehensive tests for:
 Pattern: def test_xxx(client) — uses the session-scope SyncASGIClient from conftest.
 """
 import base64
-import hashlib
 import os
 import secrets
 
-import pytest
-from conftest import make_user, login_user, random_str
-
+from conftest import login_user, make_user
 
 # Helpers
 

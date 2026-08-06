@@ -11,7 +11,7 @@ from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.chats.messages._router import router, utc_iso, check_double_extension
+from app.chats.messages._router import check_double_extension, router, utc_iso
 from app.config import Config
 from app.database import get_db
 from app.models import User
@@ -20,10 +20,13 @@ from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 from app.security.sealed_sender import compute_sender_pseudo
 from app.security.secure_upload import (
-    FileAnomalyDetector, FileUploadConfig,
-    calculate_file_hash, generate_secure_filename,
-    read_file_chunked, validate_file_mime_type,
-    strip_exif, strip_all_metadata, generate_encrypted_thumbnail,
+    FileAnomalyDetector,
+    FileUploadConfig,
+    calculate_file_hash,
+    generate_secure_filename,
+    read_file_chunked,
+    strip_all_metadata,
+    validate_file_mime_type,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,7 +51,7 @@ async def upload_file(
         member = db.query(RoomMember).filter(
             RoomMember.room_id   == room_id,
             RoomMember.user_id   == u.id,
-            RoomMember.is_banned == False,
+            RoomMember.is_banned.is_(False),
         ).first()
         if not member:
             raise HTTPException(403, "No access to room")
@@ -60,7 +63,7 @@ async def upload_file(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(400, f"File read error: {e}")
+        raise HTTPException(400, f"File read error: {e}") from None
 
     if FileAnomalyDetector.detect_null_bytes(filename):
         raise HTTPException(400, "Invalid characters in filename")
@@ -79,7 +82,7 @@ async def upload_file(
     is_image = mime_type and mime_type.startswith("image/")
     # E2E: encrypted content can't be validated as image — skip PIL check
     # if magic bytes indicate octet-stream but extension is image, it's encrypted
-    _is_encrypted = (len(content) > 12 and not content[:4] in (
+    _is_encrypted = (len(content) > 12 and content[:4] not in (
         b'\xff\xd8\xff', b'\x89PNG', b'GIF8', b'RIFF',  # JPEG, PNG, GIF, WEBP magic
     ))
     if is_image and not _is_encrypted:
@@ -168,7 +171,7 @@ async def download_file(
 ):
     ft = db.query(FileTransfer).filter(
         FileTransfer.id           == file_id,
-        FileTransfer.is_available == True,
+        FileTransfer.is_available.is_(True),
     ).first()
     if not ft:
         raise HTTPException(404, "File not found")
@@ -176,7 +179,7 @@ async def download_file(
     member = db.query(RoomMember).filter(
         RoomMember.room_id   == ft.room_id,
         RoomMember.user_id   == u.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not member:
         raise HTTPException(403, "Access denied")
@@ -208,14 +211,14 @@ async def list_room_files(
     member = db.query(RoomMember).filter(
         RoomMember.room_id   == room_id,
         RoomMember.user_id   == u.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not member:
         raise HTTPException(403, "Access denied")
 
     files = db.query(FileTransfer).filter(
         FileTransfer.room_id      == room_id,
-        FileTransfer.is_available == True,
+        FileTransfer.is_available.is_(True),
     ).order_by(FileTransfer.created_at.desc()).limit(100).all()
 
     return {"files": [

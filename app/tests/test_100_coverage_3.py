@@ -14,12 +14,10 @@ Coverage tests for remaining endpoint edge cases and internal functions:
   - app/chats/link_preview.py (parse OG, cache, SSRF protection)
   - app/security/middleware.py (TokenRefreshMiddleware edge cases)
 """
-import os
 import secrets
-import time
+
 import pytest
-from unittest.mock import patch, MagicMock
-from conftest import make_user, login_user, random_str, random_digits
+from conftest import login_user, make_user, random_str
 
 
 def _two_users_in_room(client):
@@ -479,8 +477,9 @@ class TestStickersFullLifecycle:
         }, headers=logged_user["headers"])
 
         # Upload sticker
-        from PIL import Image
         import io
+
+        from PIL import Image
         img = Image.new("RGB", (64, 64), color="green")
         buf = io.BytesIO()
         img.save(buf, format="PNG")

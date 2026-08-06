@@ -5,28 +5,38 @@ Extracted from chat.py for maintainability.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func as sa_func, update as sa_update
+from sqlalchemy import func as sa_func
+from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
+from app.chats.messages._router import (
+    parse_client_ts as _parse_client_ts,
+)
+from app.chats.messages._router import (
+    parse_enc_v as _parse_enc_v,
+)
+from app.chats.messages._router import (
+    utc_iso as _utc_iso,
+)
+from app.chats.messages.flood import _FLOOD_THRESHOLD
+from app.chats.messages.flood import check_flood as _check_flood
+from app.chats.messages.push import send_web_push as _send_web_push
+from app.federation.replication import maybe_replicate as _maybe_replicate
 from app.models import User
 from app.models_rooms import (
-    Message, MessageType, Room, RoomMember, RoomRole,
+    Message,
+    MessageType,
+    Room,
+    RoomMember,
+    RoomRole,
 )
 from app.peer.connection_manager import manager
 from app.security.crypto import hash_message
-
-from app.chats.messages._router import (
-    utc_iso as _utc_iso,
-    parse_client_ts as _parse_client_ts,
-    parse_enc_v as _parse_enc_v,
-)
-from app.chats.messages.flood import check_flood as _check_flood, _FLOOD_THRESHOLD
-from app.chats.messages.push import send_web_push as _send_web_push
-from app.federation.replication import maybe_replicate as _maybe_replicate
-from app.security.sealed_sender import compute_sender_pseudo, verify_sender_pseudo, resolve_pseudo
+from app.security.sealed_sender import compute_sender_pseudo, resolve_pseudo, verify_sender_pseudo
 from app.transport.blind_mailbox import deposit_envelope
 
 logger = logging.getLogger(__name__)
@@ -82,8 +92,11 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
 
     if _antispam and not _is_dm:
         from app.bots.antispam_bot import (
-            get_antispam_config, get_antispam_bot_user_id,
-            check_repeat_spam, check_link_spam, check_caps_spam,
+            check_caps_spam,
+            check_link_spam,
+            check_repeat_spam,
+            get_antispam_bot_user_id,
+            get_antispam_config,
         )
 
         # Skip antispam for the bot itself
@@ -114,13 +127,11 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
             if _plaintext and isinstance(_plaintext, str):
                 _member_role = member_flood.role if member_flood else RoomRole.MEMBER
 
-                if _cfg.get("block_repeats", True):
-                    if await check_repeat_spam(room_id, user, _plaintext, db):
-                        return
+                if _cfg.get("block_repeats", True) and await check_repeat_spam(room_id, user, _plaintext, db):
+                    return
 
-                if _cfg.get("block_links", True):
-                    if await check_link_spam(room_id, user, _plaintext, _member_role, db):
-                        return
+                if _cfg.get("block_links", True) and await check_link_spam(room_id, user, _plaintext, _member_role, db):
+                    return
 
                 if await check_caps_spam(room_id, user, _plaintext, db):
                     return
@@ -199,10 +210,8 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
     content_hash = None
     hash_hex     = data.get("hash", "")
     if hash_hex:
-        try:
+        with contextlib.suppress(ValueError):
             content_hash = bytes.fromhex(hash_hex)
-        except ValueError:
-            pass
     if content_hash is None:
         content_hash_result = hash_message(ciphertext_bytes)
         if isinstance(content_hash_result, (bytes, bytearray)):
@@ -301,7 +310,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
     _room_member_ids = [
         rm.user_id for rm in db.query(RoomMember.user_id).filter(
             RoomMember.room_id == room_id,
-            RoomMember.is_banned == False,
+            RoomMember.is_banned.is_(False),
         ).all()
     ]
 
@@ -374,7 +383,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
 
     room_members_full = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).all()
     # BMP mode: notifications go through BMP deposit (already done above).
     # Anonymous push proxy handles wake signals (Phase 6).
@@ -469,7 +478,8 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     _is_dm2 = _room_for_flood and _room_for_flood.is_dm
     _antispam2 = _room_for_flood.antispam_enabled if (_room_for_flood and _room_for_flood.antispam_enabled is not None) else True
     if _antispam2 and not _is_dm2:
-        from app.bots.antispam_bot import get_antispam_config as _get_as_cfg2, get_antispam_bot_user_id as _get_bot_uid2
+        from app.bots.antispam_bot import get_antispam_bot_user_id as _get_bot_uid2
+        from app.bots.antispam_bot import get_antispam_config as _get_as_cfg2
         _bot_uid2 = _get_bot_uid2()
         if not (_bot_uid2 and user.id == _bot_uid2):
             member_flood = db.query(RoomMember).filter(
@@ -516,10 +526,8 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     content_hash = None
     hash_hex = data.get("hash", "")
     if hash_hex:
-        try:
+        with contextlib.suppress(ValueError):
             content_hash = bytes.fromhex(hash_hex)
-        except ValueError:
-            pass
     if content_hash is None:
         content_hash_result = hash_message(ciphertext_bytes)
         if isinstance(content_hash_result, (bytes, bytearray)):
@@ -570,7 +578,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     _thread_member_ids = [
         rm.user_id for rm in db.query(RoomMember.user_id).filter(
             RoomMember.room_id == room_id,
-            RoomMember.is_banned == False,
+            RoomMember.is_banned.is_(False),
         ).all()
     ]
 

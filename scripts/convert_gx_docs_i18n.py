@@ -9,9 +9,9 @@ This script:
 4. Generates new keys for content without existing keys
 5. Outputs locale entries (en + ru) for new keys
 """
-import re
 import json
 import os
+import re
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_JS = os.path.join(BASE, 'static', 'js', 'ide-docs', 'data.js')
@@ -290,14 +290,14 @@ class GxDocsConverter:
         return line
 
     def convert(self):
-        with open(DATA_JS, 'r') as f:
+        with open(DATA_JS) as f:
             content = f.read()
 
         lines = content.split('\n')
         output = []
         self.current_section = ''
 
-        for i, line in enumerate(lines):
+        for _i, line in enumerate(lines):
             # Detect section start: "sectionName: `"
             m = re.match(r"^(\w+):\s*`\s*$", line.strip())
             if m:
@@ -337,9 +337,9 @@ class GxDocsConverter:
 def update_locales(new_keys):
     """Add new keys to en.json and ru.json."""
     # Read existing locales
-    with open(EN_JSON, 'r') as f:
+    with open(EN_JSON) as f:
         en = json.load(f)
-    with open(RU_JSON, 'r') as f:
+    with open(RU_JSON) as f:
         ru = json.load(f)
 
     # Add new keys under gxd namespace

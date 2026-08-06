@@ -7,21 +7,19 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import secrets
 
 from fastapi import Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
+from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import Session
 
+from app.authentication._helpers import _AUTH_RATE_LOGIN, _check_auth_rate, router
 from app.base import Base
 from app.database import get_db
 from app.models import User
-from app.security.auth_jwt import get_current_user, create_access_token
+from app.security.auth_jwt import get_current_user
 from app.security.ip_privacy import raw_ip_for_ratelimit
-
-from app.authentication._helpers import _AUTH_RATE_LOGIN, _check_auth_rate, router
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +98,7 @@ async def setup_security_questions(
     if len(body.questions) != 3 or len(body.answers) != 3:
         raise HTTPException(400, "Exactly 3 questions and 3 answers required")
 
-    for q, a in zip(body.questions, body.answers):
+    for q, a in zip(body.questions, body.answers, strict=False):
         if not q.strip() or not a.strip():
             raise HTTPException(400, "Questions and answers cannot be empty")
 
@@ -108,7 +106,7 @@ async def setup_security_questions(
     db.query(SecurityQuestion).filter(SecurityQuestion.user_id == u.id).delete()
 
     # Save new
-    for i, (q, a) in enumerate(zip(body.questions, body.answers)):
+    for i, (q, a) in enumerate(zip(body.questions, body.answers, strict=False)):
         db.add(SecurityQuestion(
             user_id=u.id,
             question=q.strip(),
@@ -183,7 +181,7 @@ async def recover_with_security_questions(
     if len(body.answers) != 3:
         raise HTTPException(400, "3 answers required")
 
-    _GENERIC_FAIL = "Recovery failed: incorrect username or answers"
+    _generic_fail = "Recovery failed: incorrect username or answers"
 
     user = db.query(User).filter(User.username == body.username).first()
     questions = []
@@ -202,18 +200,19 @@ async def recover_with_security_questions(
         dummy = _hash_answer("__dummy_answer__")
         for answer in body.answers:
             _verify_answer(answer, dummy)
-        raise HTTPException(403, _GENERIC_FAIL)
+        raise HTTPException(403, _generic_fail)
 
     # Verify all 3 (do not short-circuit the error message per-question)
     all_ok = True
-    for q, answer in zip(questions, body.answers):
+    for q, answer in zip(questions, body.answers, strict=False):
         if not _verify_answer(answer, q.answer_hash):
             all_ok = False
     if not all_ok:
-        raise HTTPException(403, _GENERIC_FAIL)
+        raise HTTPException(403, _generic_fail)
 
     # All correct — set auth cookies and mark as recovery
     from fastapi.responses import JSONResponse
+
     from app.authentication._helpers import _set_auth_cookies
 
     data = {

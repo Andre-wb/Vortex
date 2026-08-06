@@ -36,7 +36,7 @@ _flood_lock: asyncio.Lock = asyncio.Lock()
 
 async def check_flood(room_id: int, user: User, db: Session, threshold_override: int | None = None) -> bool:
     """Check flood threshold. Returns True if user is flooding and message should be dropped."""
-    from app.bots.antispam_bot import antispam_bot_message, get_antispam_config, get_antispam_bot_user_id
+    from app.bots.antispam_bot import antispam_bot_message, get_antispam_bot_user_id, get_antispam_config
 
     # Skip flood check for room owners and admins
     member = db.query(RoomMember).filter(

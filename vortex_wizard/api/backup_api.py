@@ -19,9 +19,9 @@ Current limitations (documented so users know what to expect):
 from __future__ import annotations
 
 import base64
+import contextlib
 import gzip
 import hashlib
-import io
 import logging
 import os
 import shutil
@@ -32,10 +32,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 import httpx
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes, serialization
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
@@ -167,10 +167,8 @@ def _sqlite_snapshot(src: Path) -> bytes:
             src_conn.close()
         return tmp_path.read_bytes()
     finally:
-        try:
+        with contextlib.suppress(OSError):
             tmp_path.unlink()
-        except OSError:
-            pass
 
 
 
@@ -193,11 +191,11 @@ def _decrypt_blob(blob: bytes, blob_key: bytes) -> bytes:
     try:
         gz = aes.decrypt(nonce, ct, _BLOB_MAGIC)
     except Exception:
-        raise HTTPException(400, "decrypt failed — wrong key or corrupted blob")
+        raise HTTPException(400, "decrypt failed — wrong key or corrupted blob") from None
     try:
         return gzip.decompress(gz)
     except Exception:
-        raise HTTPException(400, "decompression failed")
+        raise HTTPException(400, "decompression failed") from None
 
 
 
@@ -214,14 +212,14 @@ async def _post_signed(controller_url: str, path: str, payload: dict,
     body = {"payload": payload, "signature": sig}
     url = f"{controller_url}{path}"
     try:
-        async with httpx.AsyncClient(timeout=_CLIENT_TIMEOUT, verify=False) as client:
+        async with httpx.AsyncClient(timeout=_CLIENT_TIMEOUT, verify=False) as client:  # noqa: S501
             r = await client.post(url, json=body)
     except httpx.ConnectError:
-        raise HTTPException(503, f"controller unreachable at {controller_url} — is it running?")
+        raise HTTPException(503, f"controller unreachable at {controller_url} — is it running?") from None
     except httpx.TimeoutException:
-        raise HTTPException(504, f"controller timeout at {controller_url}")
+        raise HTTPException(504, f"controller timeout at {controller_url}") from None
     except Exception as e:
-        raise HTTPException(502, f"controller request failed: {type(e).__name__}: {e}")
+        raise HTTPException(502, f"controller request failed: {type(e).__name__}: {e}") from None
 
     if r.status_code == 404:
         # Specific hint — most common cause is an old controller deploy
@@ -327,15 +325,13 @@ async def backup_upload(request: Request) -> dict:
 
     # Drop a tiny marker file so the Prometheus exporter can surface
     # "last backup at T" without re-querying the controller.
-    try:
+    with contextlib.suppress(Exception):
         import json as _json
         (env_file.parent / "backup_last.meta").write_text(_json.dumps({
             "updated_at": res.get("updated_at") or int(time.time()),
             "byte_size":  byte_size,
             "sha256":     sha256_hex,
         }))
-    except Exception:
-        pass
 
     logger.info("backup uploaded: %d bytes, sha256=%s", byte_size, sha256_hex[:12])
     return {
@@ -379,7 +375,7 @@ async def backup_restore(body: RestoreBody, request: Request) -> dict:
     try:
         blob = base64.b64decode(blob_b64, validate=True)
     except Exception:
-        raise HTTPException(500, "controller returned invalid base64")
+        raise HTTPException(500, "controller returned invalid base64") from None
     if hashlib.sha256(blob).hexdigest() != sha256_hex:
         raise HTTPException(500, "sha256 mismatch on download — blob corrupted")
 

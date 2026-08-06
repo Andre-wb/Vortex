@@ -1,18 +1,19 @@
 """Refresh-токены, logout и управление устройствами."""
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+import contextlib
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel as _BaseModel
 from sqlalchemy.orm import Session
 
+from app.authentication._helpers import _set_auth_cookies, router
 from app.database import get_db
 from app.models import RefreshToken, User, UserDevice
 from app.models.prekeys import OneTimePreKey, PreKeyBundle
 from app.security.auth_jwt import get_current_user, verify_refresh_token
-
-from app.authentication._helpers import _set_auth_cookies, router
 
 
 @router.post("/refresh")
@@ -192,14 +193,13 @@ async def logout_all_other_devices(request: Request,
 
 
 
-from pydantic import BaseModel as _BM
 
 
-class _VerifyPasswordRequest(_BM):
+class _VerifyPasswordRequest(_BaseModel):
     password: str
 
 
-class _ChangePasswordRequest(_BM):
+class _ChangePasswordRequest(_BaseModel):
     new_password: str
     # re-authentication with the current password. Optional only so the
     # security-questions recovery flow (which has no current password to supply)
@@ -307,17 +307,15 @@ async def change_password(
     # cannot be replayed after the credential change.
     access = request.cookies.get("access_token")
     if access:
-        try:
+        with contextlib.suppress(Exception):
             from app.security.auth_jwt import revoke_access_token
             revoke_access_token(access)
-        except Exception:
-            pass  # non-critical: refresh tokens are already revoked
 
     return {"ok": True}
 
 
 
-class _AccountTTLRequest(_BM):
+class _AccountTTLRequest(_BaseModel):
     ttl_days: int = 0  # 0 = disabled
 
 
@@ -345,7 +343,7 @@ async def set_account_ttl(
 
 
 
-class _SessionLimitRequest(_BM):
+class _SessionLimitRequest(_BaseModel):
     max_sessions: int = 0  # 0 = unlimited
 
 
@@ -356,10 +354,8 @@ async def get_session_limit(
 ):
     """Get session limit for current user. 0 = unlimited (default)."""
     current_sessions = 0
-    try:
+    with contextlib.suppress(Exception):
         current_sessions = db.query(UserDevice).filter(UserDevice.user_id == u.id).count()
-    except Exception:
-        pass
     return {"max_sessions": 0, "current_sessions": current_sessions}
 
 

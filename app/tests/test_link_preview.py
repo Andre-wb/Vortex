@@ -12,15 +12,12 @@ Covers:
 """
 from __future__ import annotations
 
-import importlib
 from collections import OrderedDict
-from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
+from conftest import login_user, make_user, random_str
 
-from conftest import make_user, login_user, random_str
-
+import app.chats.link_preview as lp_module
 
 
 def _headers(client, user):
@@ -36,8 +33,6 @@ def _logged_user(client):
 
 
 # Import the module under test so we can access helpers directly
-import app.chats.link_preview as lp_module
-
 
 # Unit tests for _parse_og
 

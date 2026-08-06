@@ -10,13 +10,8 @@ Tests:
 - Mailbox rotation simulation
 - Garbage collection
 """
-import asyncio
 import secrets
 import time
-
-import pytest
-
-from conftest import make_user, login_user, random_str
 
 
 def _rand_mb_id():
@@ -82,7 +77,7 @@ class TestBMPBatch:
         client.post(f'/api/bmp/post/{real_id}', json={'ct': ct})
 
         cover_ids = [_rand_mb_id() for _ in range(10)]
-        all_ids = cover_ids + [real_id]
+        all_ids = [*cover_ids, real_id]
 
         r = client.post('/api/bmp/batch', json={'ids': all_ids, 'since': 0})
         assert r.status_code == 200

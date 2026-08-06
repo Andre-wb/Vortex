@@ -14,15 +14,16 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.authentication._helpers import (
+    _AUTH_RATE_LOGIN,
+    _check_auth_rate,
+    _set_auth_cookies,
+    router,
+)
 from app.database import get_db
 from app.models import User
 from app.security.auth_jwt import get_current_user
-
 from app.security.ip_privacy import raw_ip_for_ratelimit
-
-from app.authentication._helpers import (
-    _AUTH_RATE_LOGIN, _check_auth_rate, _set_auth_cookies, router,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +146,7 @@ async def passkey_register_verify(
         )
     except Exception as e:
         logger.warning(f"Passkey register verify failed for user={u.id}: {e}")
-        raise HTTPException(400, f"Verification error: {e}")
+        raise HTTPException(400, f"Verification error: {e}") from None
 
     u.passkey_credential_id = _b64url_encode(verification.credential_id)
     u.passkey_public_key = _b64url_encode(verification.credential_public_key)
@@ -216,12 +217,12 @@ async def passkey_login_verify(
     try:
         credential = AuthenticationCredential.parse_raw(json.dumps(body.credential))
     except Exception as e:
-        raise HTTPException(400, f"Invalid credential: {e}")
+        raise HTTPException(400, f"Invalid credential: {e}") from None
 
     cred_id_b64 = _b64url_encode(credential.raw_id)
     user = db.query(User).filter(
         User.passkey_credential_id == cred_id_b64,
-        User.is_active == True,
+        User.is_active.is_(True),
     ).first()
     if not user:
         raise HTTPException(401, "Verification error")
@@ -238,7 +239,7 @@ async def passkey_login_verify(
         )
     except Exception as e:
         logger.warning(f"Passkey login verify failed for cred={cred_id_b64}: {e}")
-        raise HTTPException(401, f"Verification error: {e}")
+        raise HTTPException(401, f"Verification error: {e}") from None
 
     user.passkey_sign_count = verification.new_sign_count
     db.commit()

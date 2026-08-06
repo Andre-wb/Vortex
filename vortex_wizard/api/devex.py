@@ -1,11 +1,12 @@
 """Wave 8 — developer experience extensions.
 
-  #36 .env hot-reload      — poll mtime, reload Config on change
-  #37 Swagger / Redoc UI   — enabled at /api/wiz/docs and /api/wiz/redoc
-  #38 WebSocket inspector  — /ws/inspect emits all WS traffic with filter
-  #39 Postman collection   — derive from FastAPI OpenAPI schema
-  #40 Debug proxy          — capture+replay any /api/* call with rewrites
+#36 .env hot-reload      — poll mtime, reload Config on change
+#37 Swagger / Redoc UI   — enabled at /api/wiz/docs and /api/wiz/redoc
+#38 WebSocket inspector  — /ws/inspect emits all WS traffic with filter
+#39 Postman collection   — derive from FastAPI OpenAPI schema
+#40 Debug proxy          — capture+replay any /api/* call with rewrites
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -14,9 +15,9 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from . import backup_api as _b
@@ -48,10 +49,12 @@ async def _watch_env_loop(env_file: Path):
     while True:
         try:
             await asyncio.sleep(2)
-            if not env_file.is_file(): continue
+            if not env_file.is_file():
+                continue
             mt = env_file.stat().st_mtime
             last = _env_mtime_cache.get(str(env_file), 0)
-            if mt <= last: continue
+            if mt <= last:
+                continue
             _env_mtime_cache[str(env_file)] = mt
             env = _b._read_env(env_file)
             for k, v in env.items():
@@ -92,6 +95,7 @@ async def hotreload_status() -> dict:
 # pages that reference the existing OpenAPI schema. Expose /docs and
 # /redoc under the wizard prefix so operators can browse the full
 # 170+ endpoint surface.
+
 
 @router.get("/openapi.json")
 async def openapi_json(request: Request) -> JSONResponse:
@@ -145,14 +149,17 @@ _ws_observers: set[WebSocket] = set()
 async def broadcast_ws_event(kind: str, data: dict) -> None:
     """Called by the node / wizard to tee a WebSocket frame into the
     inspector. No-op if no observers connected."""
-    if not _ws_observers: return
-    msg = json.dumps({"kind": kind, "ts": int(time.time() * 1000),
-                      "data": data})
+    if not _ws_observers:
+        return
+    msg = json.dumps({"kind": kind, "ts": int(time.time() * 1000), "data": data})
     dead = []
     for obs in _ws_observers:
-        try: await obs.send_text(msg)
-        except Exception: dead.append(obs)
-    for obs in dead: _ws_observers.discard(obs)
+        try:
+            await obs.send_text(msg)
+        except Exception:
+            dead.append(obs)
+    for obs in dead:
+        _ws_observers.discard(obs)
 
 
 @router.websocket("/ws/inspect")
@@ -160,9 +167,7 @@ async def ws_inspect(ws: WebSocket) -> None:
     await ws.accept()
     _ws_observers.add(ws)
     try:
-        await ws.send_text(json.dumps({"kind": "hello",
-                                       "ts": int(time.time() * 1000),
-                                       "msg": "connected"}))
+        await ws.send_text(json.dumps({"kind": "hello", "ts": int(time.time() * 1000), "msg": "connected"}))
         while True:
             # Keep-alive: echo any client message.
             txt = await ws.receive_text()
@@ -177,6 +182,7 @@ async def ws_inspect(ws: WebSocket) -> None:
 
 # #39 — Postman collection export
 
+
 @router.get("/postman.json")
 async def postman_collection(request: Request) -> JSONResponse:
     """Convert the OpenAPI schema into a Postman v2.1 collection."""
@@ -184,39 +190,46 @@ async def postman_collection(request: Request) -> JSONResponse:
     items = []
     for path, methods in schema.get("paths", {}).items():
         for method, op in methods.items():
-            if method.lower() not in ("get","post","put","patch","delete"): continue
-            items.append({
-                "name": op.get("summary") or f"{method.upper()} {path}",
-                "request": {
-                    "method": method.upper(),
-                    "url": {
-                        "raw": "{{baseUrl}}" + path,
-                        "host": ["{{baseUrl}}"],
-                        "path": [p for p in path.strip("/").split("/") if p],
+            if method.lower() not in ("get", "post", "put", "patch", "delete"):
+                continue
+            items.append(
+                {
+                    "name": op.get("summary") or f"{method.upper()} {path}",
+                    "request": {
+                        "method": method.upper(),
+                        "url": {
+                            "raw": "{{baseUrl}}" + path,
+                            "host": ["{{baseUrl}}"],
+                            "path": [p for p in path.strip("/").split("/") if p],
+                        },
+                        "header": [
+                            {"key": "Content-Type", "value": "application/json", "disabled": method.lower() == "get"}
+                        ],
+                        "description": op.get("description", ""),
+                        "body": {"mode": "raw", "raw": "{\n  \n}"} if method.lower() != "get" else None,
                     },
-                    "header": [{"key": "Content-Type", "value": "application/json",
-                                "disabled": method.lower() == "get"}],
-                    "description": op.get("description", ""),
-                    "body": {"mode": "raw", "raw": "{\n  \n}"} if method.lower() != "get" else None,
-                },
-            })
+                }
+            )
     collection = {
         "info": {
-            "name": f"Vortex Wizard API ({schema.get('info',{}).get('version','')})",
+            "name": f"Vortex Wizard API ({schema.get('info', {}).get('version', '')})",
             "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
             "description": "Auto-generated from OpenAPI by vortex_wizard.",
         },
         "item": items,
         "variable": [{"key": "baseUrl", "value": "http://127.0.0.1:9001"}],
     }
-    return JSONResponse(collection, headers={
-        "Content-Disposition": 'attachment; filename="vortex.postman_collection.json"',
-    })
+    return JSONResponse(
+        collection,
+        headers={
+            "Content-Disposition": 'attachment; filename="vortex.postman_collection.json"',
+        },
+    )
 
 
 # #40 — HTTP debug proxy (capture + replay)
 
-_captures: list[dict] = []   # ring buffer
+_captures: list[dict] = []  # ring buffer
 _CAPTURE_CAP = 500
 _capture_enabled = False
 
@@ -241,8 +254,7 @@ async def capture_off() -> dict:
 
 @router.get("/proxy/captures")
 async def list_captures() -> dict:
-    return {"captures": _captures[-200:], "total": len(_captures),
-            "enabled": _capture_enabled}
+    return {"captures": _captures[-200:], "total": len(_captures), "enabled": _capture_enabled}
 
 
 @router.delete("/proxy/captures")
@@ -251,27 +263,30 @@ async def clear_captures() -> dict:
     return {"ok": True}
 
 
-def record_request(method: str, path: str, status: int,
-                   duration_ms: float, body_preview: str = "") -> None:
+def record_request(method: str, path: str, status: int, duration_ms: float, body_preview: str = "") -> None:
     """Called by a middleware to capture request metadata."""
-    if not _capture_enabled: return
-    _captures.append({
-        "ts":          int(time.time() * 1000),
-        "method":      method,
-        "path":        path,
-        "status":      status,
-        "duration_ms": round(duration_ms, 2),
-        "body":        body_preview[:500],
-    })
+    if not _capture_enabled:
+        return
+    _captures.append(
+        {
+            "ts": int(time.time() * 1000),
+            "method": method,
+            "path": path,
+            "status": status,
+            "duration_ms": round(duration_ms, 2),
+            "body": body_preview[:500],
+        }
+    )
     while len(_captures) > _CAPTURE_CAP:
         _captures.pop(0)
-
 
 
 def install_devex_hooks(app) -> None:
     """Start hot-reload watcher at app startup."""
     env_file = getattr(app.state, "env_file", None)
-    if not env_file: return
+    if not env_file:
+        return
+
     @app.on_event("startup")
     async def _start_hotreload():
         global _env_watch_task

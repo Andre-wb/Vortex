@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 import time
 from typing import Any, Optional
 
@@ -33,7 +34,6 @@ from sqlalchemy import (
     String,
     func,
     select,
-    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import (
@@ -42,7 +42,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.types import JSON as _SAJson
+from sqlalchemy.types import JSON as _SA_JSON
+
+_sysrand = random.SystemRandom()
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,7 @@ ONLINE_WINDOW_SEC = 300  # 5 min
 
 
 # PostgreSQL → JSONB, SQLite → JSON
-_JSONType = _SAJson().with_variant(JSONB(), "postgresql")
+_JSONType = _SA_JSON().with_variant(JSONB(), "postgresql")
 
 
 class Base(DeclarativeBase):
@@ -225,7 +227,6 @@ class Storage:
         Nodes without any recent heartbeat are not returned at all, so
         stale operators naturally stop receiving traffic.
         """
-        import random as _random
 
         cutoff = int(time.time()) - ONLINE_WINDOW_SEC
         stmt = (
@@ -247,12 +248,12 @@ class Storage:
 
         # weighted random sample without replacement
         rows: list[Node] = []
-        nodes, weights = zip(*pool)
+        nodes, weights = zip(*pool, strict=False)
         nodes = list(nodes)
         weights = list(weights)
         chosen = min(count, len(nodes))
         for _ in range(chosen):
-            idx = _random.choices(range(len(nodes)), weights=weights, k=1)[0]
+            idx = _sysrand.choices(range(len(nodes)), weights=weights, k=1)[0]
             rows.append(nodes.pop(idx))
             weights.pop(idx)
         return [_to_dict(r) for r in rows]

@@ -19,20 +19,16 @@ No network calls are made, no secrets are saved, no config is required.
 """
 from __future__ import annotations
 
-import hashlib
 import json
-import secrets
 import time
 from pathlib import Path
 
 import uvicorn
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC = ROOT / "public"

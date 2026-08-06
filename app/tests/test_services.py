@@ -1,8 +1,6 @@
 """Service layer and utility tests — chat service, file upload, validation."""
+import contextlib
 import os
-import secrets
-import pytest
-from conftest import make_user, login_user, random_str
 
 
 class TestPasswordValidation:
@@ -10,64 +8,64 @@ class TestPasswordValidation:
 
     def test_valid_password(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("StrongPass99!@")
+        ok, _msg = validate_password("StrongPass99!@")
         assert ok is True
 
     def test_too_short(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("Ab1!")
+        ok, _msg = validate_password("Ab1!")
         assert ok is False
 
     def test_no_uppercase(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("nouppercase99!")
+        ok, _msg = validate_password("nouppercase99!")
         assert ok is False
 
     def test_no_lowercase(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("NOLOWERCASE99!")
+        ok, _msg = validate_password("NOLOWERCASE99!")
         assert ok is False
 
     def test_no_digit(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("NoDigitsHere!")
+        ok, _msg = validate_password("NoDigitsHere!")
         assert ok is False
 
     def test_no_special_char(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("NoSpecial99aa")
+        ok, _msg = validate_password("NoSpecial99aa")
         assert ok is False
 
     def test_common_password(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("Qwerty12345!")
+        ok, _msg = validate_password("Qwerty12345!")
         # "qwerty" is a keyboard sequence
         assert ok is False
 
     def test_repeated_chars(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("Aaaa1111!!!!")
+        ok, _msg = validate_password("Aaaa1111!!!!")
         assert ok is False
 
     def test_sequential_numbers(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("Test0123456!")
+        ok, _msg = validate_password("Test0123456!")
         assert ok is False
 
     def test_keyboard_sequence(self):
         from app.security.security_validate import validate_password
-        ok, msg = validate_password("Qwerty12345!")
+        ok, _msg = validate_password("Qwerty12345!")
         assert ok is False
 
     def test_max_length(self):
         from app.security.security_validate import validate_password
         pw = "A" * 64 + "a" * 63 + "1!"
-        ok, msg = validate_password(pw)
+        ok, _msg = validate_password(pw)
         assert ok is False
 
     def test_password_with_context(self):
         from app.security.security_validate import validate_password_with_context
-        ok, msg = validate_password_with_context("MyUser99!@ok", "myuser", "+79001234567")
+        ok, _msg = validate_password_with_context("MyUser99!@ok", "myuser", "+79001234567")
         # Username in password
         assert ok is False
 
@@ -122,7 +120,7 @@ class TestFileUploadValidation:
     def test_mime_type_validation(self):
         from app.security.secure_upload import validate_file_mime_type
         # Text file
-        ok, mime = validate_file_mime_type(b"Hello, plain text file content here.", "test.txt")
+        ok, _mime = validate_file_mime_type(b"Hello, plain text file content here.", "test.txt")
         assert ok is True
 
     def test_mime_type_rejection(self):
@@ -184,10 +182,8 @@ class TestDatabaseEngine:
         gen = get_db()
         db = next(gen)
         assert db is not None
-        try:
+        with contextlib.suppress(StopIteration):
             next(gen)
-        except StopIteration:
-            pass
 
 
 class TestLoggingConfig:
@@ -196,6 +192,7 @@ class TestLoggingConfig:
     def test_json_formatter(self):
         import json
         import logging
+
         from app.logging_config import JSONFormatter
 
         formatter = JSONFormatter()
@@ -211,6 +208,7 @@ class TestLoggingConfig:
 
     def test_console_formatter(self):
         import logging
+
         from app.logging_config import ConsoleFormatter
 
         formatter = ConsoleFormatter()

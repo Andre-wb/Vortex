@@ -27,21 +27,25 @@ app/transport/transport_manager.py — Unified Transport Manager.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Callable, Optional
+from typing import Optional
 
 import httpx
 
 from app.security.ssl_context import make_peer_ssl_context
+from app.transport.ble_transport import ble_manager
 from app.transport.nat_traversal import (
-    IceCandidate, StunClient, UdpHolePuncher,
-    SignalingStore, hole_puncher, signaling,
+    IceCandidate,
+    StunClient,
+    hole_puncher,
+    signaling,
 )
-from app.transport.ble_transport import BleTransportManager, ble_manager
-from app.transport.wifi_direct import WifiDirectManager, wifi_direct_manager
+from app.transport.wifi_direct import wifi_direct_manager
 
 logger = logging.getLogger(__name__)
 
@@ -398,26 +402,22 @@ class TransportManager:
     async def _send_http(self, ip: str, port: int, payload: dict) -> bool:
         """Пробует отправить payload через HTTP (shared pool)."""
         for scheme in ("https", "http"):
-            try:
+            with contextlib.suppress(Exception):
                 resp = await _transport_pool.post(
                     f"{scheme}://{ip}:{port}/api/peers/receive",
                     json=payload,
                 )
                 return resp.status_code == 200
-            except Exception:
-                pass
         return False
 
     async def _measure_latency(self, ip: str, port: int) -> float:
         """Измеряет round-trip latency в мс (shared pool)."""
         start = time.monotonic()
         for scheme in ("https", "http"):
-            try:
+            with contextlib.suppress(Exception):
                 r = await _transport_pool.get(f"{scheme}://{ip}:{port}/api/peers/status")
                 if r.status_code == 200:
                     return (time.monotonic() - start) * 1000
-            except Exception:
-                pass
         return 9999.0
 
 
@@ -436,7 +436,7 @@ class TransportManager:
             return await self.send_via_best_transport(peer_ip, peer_port, payload)
 
         tasks: list[tuple[str, asyncio.Task]] = []
-        loop = asyncio.get_event_loop()
+        asyncio.get_event_loop()
 
         # Collect available transports
         hp_ts = state.transports.get(TransportPriority.UDP_HOLE_PUNCH)
@@ -466,7 +466,7 @@ class TransportManager:
             return False, "no_transports"
 
         # Race: first success wins
-        done, pending = await asyncio.wait(
+        done, _pending = await asyncio.wait(
             [t for _, t in tasks],
             return_when=asyncio.FIRST_COMPLETED,
             timeout=8.0,
@@ -476,13 +476,11 @@ class TransportManager:
         success = False
         for name, task in tasks:
             if task in done and not task.cancelled():
-                try:
+                with contextlib.suppress(Exception):
                     if task.result():
                         winner = name
                         success = True
                         break
-                except Exception:
-                    pass
 
         # Cancel remaining tasks
         for _, task in tasks:

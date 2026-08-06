@@ -17,7 +17,6 @@ Domain fronting and Shadowsocks-like transports are production-ready.
 from __future__ import annotations
 
 import asyncio
-import base64
 import hashlib
 import hmac
 import logging
@@ -185,8 +184,8 @@ class ShadowsocksTransport:
 
     def _derive_key(self, salt: bytes) -> bytes:
         """Derive a 32-byte AES key via HKDF with the provided random salt."""
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         return HKDF(
             algorithm=hashes.SHA256(),
             length=32,

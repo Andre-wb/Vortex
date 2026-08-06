@@ -14,14 +14,14 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.models import User
 from app.security.auth_jwt import get_current_user
-from app.transport.transport_manager import transport_manager
-from app.transport.nat_traversal import signaling, hole_puncher, StunClient
 from app.transport.ble_transport import ble_manager
+from app.transport.nat_traversal import StunClient, hole_puncher
+from app.transport.transport_manager import transport_manager
 from app.transport.wifi_direct import wifi_direct_manager
 
 logger = logging.getLogger(__name__)

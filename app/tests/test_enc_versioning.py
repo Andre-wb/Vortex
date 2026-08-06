@@ -7,11 +7,10 @@ enc_v, оставаясь полностью «слепым» к содержи�
 
 import secrets
 
-import pytest
+from conftest import _phone_prefix, random_digits, random_str
 
-from conftest import random_str, random_digits, _phone_prefix
-from app.main import app
 from app.chats.messages._router import parse_enc_v
+from app.main import app
 
 
 class TestParseEncV:

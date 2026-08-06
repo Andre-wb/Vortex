@@ -8,35 +8,42 @@ for decentralized node discovery.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import hmac
 import ipaddress
 import json
 import logging
 import os
+import random
 import secrets
 import socket
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, DateTime, func
+from sqlalchemy import Column, DateTime, Integer, String, func
 from sqlalchemy.orm import Session
 
 from app.base import Base
 from app.config import Config
-from app.database import get_db, SessionLocal
+from app.database import SessionLocal, get_db
 from app.models import User
 from app.security.auth_jwt import get_current_user
 from app.security.ssl_context import make_peer_ssl_context
 from app.transport.gossip_security import (
-    GossipRateLimiter, ReputationManager, ProofOfWork, VectorClock,
-    MAX_GOSSIP_PEERS, MAX_GOSSIP_ROOMS,
+    GossipRateLimiter,
+    ProofOfWork,
+    ReputationManager,
+    VectorClock,
 )
+from app.utilites.background import spawn
+
+_sysrand = random.SystemRandom()
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +247,7 @@ class ValidateTokenRequest(BaseModel):
 # NodeSandbox — Security isolation
 
 
-def _ip_is_internal(addr: "ipaddress.IPv4Address | ipaddress.IPv6Address") -> bool:
+def _ip_is_internal(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     """True if an IP must never be reached via federation node-add (SSRF)."""
     if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved \
             or addr.is_multicast or addr.is_unspecified:
@@ -270,8 +277,8 @@ def _resolve_safe_ips(hostname: str) -> list[str]:
 
     try:
         infos = socket.getaddrinfo(hostname, None)
-    except socket.gaierror:
-        raise ValueError(f"Cannot resolve hostname: {hostname}")
+    except socket.gaierror as e:
+        raise ValueError(f"Cannot resolve hostname: {hostname}") from e
 
     ips: list[str] = []
     for info in infos:
@@ -383,7 +390,7 @@ class NodeSandbox:
         try:
             parsed = json.loads(data)
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            raise ValueError(f"Invalid JSON: {e}")
+            raise ValueError(f"Invalid JSON: {e}") from e
 
         if not isinstance(parsed, dict):
             raise ValueError("Payload must be a JSON object")
@@ -631,7 +638,7 @@ async def _broadcast_gossip(endpoint_path: str, payload: dict) -> None:
         verify=ssl_ctx,
     ) as client:
         tasks = []
-        for url, node_id in urls:
+        for url, _node_id in urls:
             # Don't gossip about a node back to itself
             if payload.get("url") == url:
                 continue
@@ -829,10 +836,8 @@ async def stop_federation_monitor() -> None:
     for task in (_monitor_task, _token_rotation_task):
         if task and not task.done():
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
     _monitor_task = None
     _token_rotation_task = None
@@ -858,8 +863,7 @@ async def _verify_code_hash_via_validator(
     ).all()
 
     if validators:
-        import random
-        validator = random.choice(validators)
+        validator = _sysrand.choice(validators)
         ssl_ctx = make_peer_ssl_context()
         try:
             async with httpx.AsyncClient(
@@ -905,7 +909,7 @@ async def add_node(
     try:
         normalized_url = NodeSandbox.validate_url(body.url)
     except ValueError as e:
-        raise HTTPException(400, f"Invalid URL: {e}")
+        raise HTTPException(400, f"Invalid URL: {e}") from None
 
     # Check for duplicates
     existing = db.query(TrustedNode).filter(TrustedNode.url == normalized_url).first()
@@ -919,7 +923,7 @@ async def add_node(
         info = await NodeSandbox.probe_node(normalized_url)
     except Exception as e:
         logger.warning("Node probe failed for %s: %s", normalized_url, e)
-        raise HTTPException(502, "Could not reach or verify the node")
+        raise HTTPException(502, "Could not reach or verify the node") from None
 
     node_id = info.get("node_id") or secrets.token_hex(16)
 
@@ -940,7 +944,7 @@ async def add_node(
     logger.info("Node added: %s (%s) by user %d", normalized_url, node_id, u.id)
 
     # Initiate handshake in background
-    asyncio.create_task(_initiate_handshake(node.id))
+    spawn(_initiate_handshake(node.id))
 
     return {"node": _node_to_dict(node)}
 
@@ -1061,7 +1065,7 @@ async def remove_node(
     _apply_task_distribution(db)
 
     logger.info("Node removed: %s (by user %d)", url, u.id)
-    asyncio.create_task(_gossip_node_left(node))
+    spawn(_gossip_node_left(node))
 
     return {"removed": True, "url": url}
 
@@ -1091,13 +1095,13 @@ async def verify_node(
     except Exception as e:
         node.fail_count += 1
         db.commit()
-        raise HTTPException(502, f"Node unreachable: {e}")
+        raise HTTPException(502, f"Node unreachable: {e}") from None
 
     # Re-initiate handshake
     node.status = "pending"
     db.commit()
 
-    asyncio.create_task(_initiate_handshake(node.id))
+    spawn(_initiate_handshake(node.id))
 
     return {"status": "verification_initiated", "node": _node_to_dict(node)}
 
@@ -1140,7 +1144,7 @@ async def receive_handshake(
     try:
         normalized_url = NodeSandbox.validate_url(body.url)
     except ValueError as e:
-        raise HTTPException(400, f"Invalid URL: {e}")
+        raise HTTPException(400, f"Invalid URL: {e}") from None
 
     # Rate limit by node_id
     if not NodeSandbox.check_rate_limit(body.node_id):
@@ -1214,7 +1218,7 @@ async def receive_handshake(
     logger.info("Handshake accepted from %s (node_id=%s)", normalized_url, body.node_id)
 
     # Gossip about the new node
-    asyncio.create_task(_gossip_new_node(node))
+    spawn(_gossip_new_node(node))
 
     return {
         "accepted": True,
@@ -1304,7 +1308,7 @@ async def gossip_node_joined(
         normalized_url = NodeSandbox.validate_url(body.url)
     except ValueError:
         _reputation_manager.record_failure(client_ip, penalty=0.2)
-        raise HTTPException(400, "Invalid node URL in gossip")
+        raise HTTPException(400, "Invalid node URL in gossip") from None
 
     existing = db.query(TrustedNode).filter(TrustedNode.url == normalized_url).first()
     if existing:
@@ -1387,7 +1391,7 @@ async def my_tasks(
             self.task_slots = "[]"
 
     local_proxy = _LocalProxy()
-    all_nodes = [local_proxy] + active_nodes  # type: ignore[list-item]
+    all_nodes = [local_proxy, *active_nodes]  # type: ignore[list-item]
     dist = distribute_tasks(all_nodes)  # type: ignore[arg-type]
     my = dist.get(0, [])
 

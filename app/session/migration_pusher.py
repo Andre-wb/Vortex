@@ -13,6 +13,7 @@ Rules:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from typing import Optional
@@ -43,10 +44,8 @@ class MigrationPusher:
         self._stop.set()
         if self._task is not None:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._task
-            except (asyncio.CancelledError, Exception):
-                pass
             self._task = None
 
     async def _loop(self) -> None:
@@ -63,8 +62,8 @@ class MigrationPusher:
 
     async def _tick(self) -> None:
         # Import lazily so the pusher can be instantiated without circular imports
-        from app.session.migration import _load, _collect_alternatives, _require_signing_key
         from app.peer.connection_manager import manager as _mgr
+        from app.session.migration import _collect_alternatives, _load, _require_signing_key
 
         if not _load.should_suggest_migration():
             self._over_since = None
@@ -111,12 +110,10 @@ async def _broadcast_all_rooms(mgr, payload: dict) -> int:
     rooms = getattr(mgr, "_rooms", None) or getattr(mgr, "rooms", {}) or {}
     for room_id, users in list(rooms.items()):
         for user_id in list(users.keys()):
-            try:
+            with contextlib.suppress(Exception):
                 ok = await mgr.send_to_user(int(room_id), int(user_id), dict(payload))
                 if ok:
                     sent += 1
-            except Exception:
-                pass
     return sent
 
 

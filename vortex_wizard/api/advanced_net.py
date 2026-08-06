@@ -17,9 +17,7 @@ Five loosely-related features bundled together:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 import re
 import shutil
 import time
@@ -191,9 +189,9 @@ async def le_issue(request: Request) -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
     except asyncio.TimeoutError:
-        raise HTTPException(504, "certbot timed out (port 80 in use?)")
+        raise HTTPException(504, "certbot timed out (port 80 in use?)") from None
     except FileNotFoundError:
-        raise HTTPException(500, f"cannot execute {cb}")
+        raise HTTPException(500, f"cannot execute {cb}") from None
 
     if proc.returncode != 0:
         raise HTTPException(500, f"certbot failed: {(stderr or b'').decode()[:500]}")

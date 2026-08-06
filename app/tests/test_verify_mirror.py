@@ -8,10 +8,9 @@
      недоступны), rollback-guard по signed_at.
 """
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from conftest import login_user, make_user
 from cryptography.hazmat.primitives import serialization
-
-from conftest import make_user, login_user
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 def _raw(pub) -> bytes:

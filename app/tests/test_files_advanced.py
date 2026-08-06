@@ -19,10 +19,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 
-import pytest
-
-from conftest import make_user, login_user, random_str
-
+from conftest import login_user, make_user, random_str
 
 
 def _register_and_login(client) -> dict:
@@ -347,7 +344,7 @@ class TestDistributedFiles:
 
     def test_get_distributed_file_not_found(self, client):
         h = _register_and_login(client)
-        r = client.get(f"/api/files/distributed/nonexistenthash123", headers=h)
+        r = client.get("/api/files/distributed/nonexistenthash123", headers=h)
         assert r.status_code == 404
 
     def test_list_distributed_files_authenticated(self, client):

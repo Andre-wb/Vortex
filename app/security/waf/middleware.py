@@ -7,10 +7,10 @@ import logging
 import os
 import secrets
 from datetime import datetime, timezone
-from typing import Dict, List
 from urllib.parse import parse_qs
 
 from app.security.waf.backend import resolve_client_ip
+from app.utilites.background import spawn
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # spoofed to bypass per-IP rate limits. Operators behind a real reverse proxy set
 # TRUSTED_PROXY_IPS to a comma-separated list of proxy IPs or CIDR networks
 # (e.g. "10.0.0.5,192.168.1.0/24").
-def _load_trusted_proxies() -> List[str]:
+def _load_trusted_proxies() -> list[str]:
     raw = os.getenv("TRUSTED_PROXY_IPS", "").strip()
     return [token.strip() for token in raw.split(",") if token.strip()]
 
@@ -65,7 +65,7 @@ class WAFMiddleware:
             return
 
         if not self._cleanup_started:
-            asyncio.create_task(self._cleanup_loop())
+            spawn(self._cleanup_loop())
             self._cleanup_started = True
 
         method = scope.get('method', 'GET')
@@ -150,7 +150,7 @@ class WAFMiddleware:
 
         await self.app(scope, replay_receive, send)
 
-    def _build_request_from_scope(self, scope, body_bytes: bytes) -> Dict:
+    def _build_request_from_scope(self, scope, body_bytes: bytes) -> dict:
         headers = {
             k.decode('latin-1').lower(): v.decode('latin-1')
             for k, v in scope.get('headers', [])
@@ -169,7 +169,7 @@ class WAFMiddleware:
             'body': body_bytes.decode('utf-8', errors='ignore') if body_bytes else '',
         }
 
-    def _get_client_ip(self, scope, headers: Dict[str, str]) -> str:
+    def _get_client_ip(self, scope, headers: dict[str, str]) -> str:
         client = scope.get('client')
         peer = client[0] if client else None
         # Forwarding headers are honoured only for peers inside the operator's
@@ -180,7 +180,7 @@ class WAFMiddleware:
         path_lower = path.lower()
         return any(path_lower.startswith(ex.lower()) for ex in self.EXCLUDED_PATHS)
 
-    async def _send_blocked(self, send, analysis: Dict, req: Dict):
+    async def _send_blocked(self, send, analysis: dict, req: dict):
         findings = analysis.get('findings', [])
         critical = [f for f in findings if f.get('severity') in ('high', 'critical')][:3]
         body = json.dumps({

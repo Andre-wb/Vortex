@@ -25,21 +25,21 @@ format 0.0.4):
 """
 from __future__ import annotations
 
+import contextlib
 import logging
-import os
 import resource
 import sqlite3
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 
-from .audit import _audit_db_path
 from . import profiler as _profiler
+from .audit import _audit_db_path
 
 logger = logging.getLogger(__name__)
 
@@ -84,20 +84,16 @@ async def _node_metrics(env: dict) -> Iterable[str]:
 
     alive = 0
     peers = rooms = ws = 0
-    cpu = 0.0
-    mem_mb = 0
     try:
-        async with httpx.AsyncClient(timeout=2.0, verify=False) as c:
+        async with httpx.AsyncClient(timeout=2.0, verify=False) as c:  # noqa: S501
             r = await c.get(f"{base}/health")
             if r.status_code == 200:
                 alive = 1
-                try:
+                with contextlib.suppress(Exception):
                     j = r.json()
                     peers = int(j.get("peers", 0))
                     rooms = int(j.get("rooms", 0))
                     ws    = int(j.get("ws_connections", 0))
-                except Exception:
-                    pass
     except Exception:
         alive = 0
 
@@ -117,15 +113,13 @@ async def _node_metrics(env: dict) -> Iterable[str]:
 
 def _audit_metrics(env_file: Path) -> Iterable[str]:
     total = alerts = 0
-    try:
+    with contextlib.suppress(Exception):
         c = sqlite3.connect(str(_audit_db_path(env_file)))
         try:
             total  = c.execute("SELECT COUNT(*) FROM audit_entries").fetchone()[0]
             alerts = c.execute("SELECT COUNT(*) FROM audit_entries WHERE alert=1").fetchone()[0]
         finally:
             c.close()
-    except Exception:
-        pass
     yield "# HELP vortex_audit_entries_total Audit log entry count."
     yield "# TYPE vortex_audit_entries_total gauge"
     yield f"vortex_audit_entries_total {total}"
@@ -142,13 +136,11 @@ def _backup_metrics(env_file: Path) -> Iterable[str]:
     updated_at = 0
     byte_size = 0
     if marker.is_file():
-        try:
+        with contextlib.suppress(Exception):
             import json as _json
             d = _json.loads(marker.read_text())
             updated_at = int(d.get("updated_at", 0))
             byte_size  = int(d.get("byte_size", 0))
-        except Exception:
-            pass
     yield "# HELP vortex_backup_updated_at_seconds Epoch seconds of last backup."
     yield "# TYPE vortex_backup_updated_at_seconds gauge"
     yield f"vortex_backup_updated_at_seconds {updated_at}"
@@ -160,10 +152,7 @@ def _backup_metrics(env_file: Path) -> Iterable[str]:
 @router.get("/metrics", response_class=PlainTextResponse)
 async def metrics(request: Request) -> PlainTextResponse:
     env_file = getattr(request.app.state, "env_file", None)
-    if env_file is None:
-        env_file = Path(".env")
-    else:
-        env_file = Path(env_file)
+    env_file = Path(".env") if env_file is None else Path(env_file)
 
     env: dict = {}
     if env_file.is_file():

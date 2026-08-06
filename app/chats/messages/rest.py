@@ -12,24 +12,22 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
 
+from app.chats.messages._router import router, utc_iso
+from app.chats.messages.actions import is_valid_reaction_emoji  # emoji whitelist
 from app.database import get_db
 from app.models import User
-from app.models_rooms import Message, MessageType, Room, RoomMember, MessageReaction, MessageEditHistory
+from app.models_rooms import Message, MessageEditHistory, MessageReaction, MessageType, Room, RoomMember
 from app.models_rooms.blocks import BlockedUser  # block enforcement on DM send
-
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 from app.security.crypto import hash_message
 from app.security.sealed_sender import compute_sender_pseudo
-
-from app.chats.messages._router import router, utc_iso
-from app.chats.messages.actions import is_valid_reaction_emoji  # emoji whitelist
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +49,7 @@ def _require_member(room_id: int, user_id: int, db: Session) -> RoomMember:
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id,
         RoomMember.user_id == user_id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not member:
         raise HTTPException(403, "Not a room member")
@@ -188,7 +186,7 @@ async def list_messages(
             db.query(Message).filter(
                 Message.room_id == room_id,
                 Message.thread_id.is_(None),
-                Message.is_scheduled == False,
+                Message.is_scheduled.is_(False),
                 Message.id <= around_id,
             ).order_by(Message.created_at.desc()).limit(half + 1).all()
         )
@@ -196,7 +194,7 @@ async def list_messages(
             db.query(Message).filter(
                 Message.room_id == room_id,
                 Message.thread_id.is_(None),
-                Message.is_scheduled == False,
+                Message.is_scheduled.is_(False),
                 Message.id > around_id,
             ).order_by(Message.created_at.asc()).limit(half).all()
         )
@@ -206,7 +204,7 @@ async def list_messages(
     q = db.query(Message).filter(
         Message.room_id == room_id,
         Message.thread_id.is_(None),
-        Message.is_scheduled == False,
+        Message.is_scheduled.is_(False),
     )
 
     if before_id:

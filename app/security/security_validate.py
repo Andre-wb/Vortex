@@ -2,22 +2,46 @@
 Валидация паролей и утилиты безопасности.
 Перенесено из старого проекта и улучшено.
 """
+
 from __future__ import annotations
+
 import re
 import secrets
 import string
-from typing import Tuple
-
 
 # Валидация пароля
 
-_COMMON_PASSWORDS = frozenset([
-    "password", "123456", "qwerty", "admin", "welcome", "password123",
-    "12345678", "123456789", "123123", "111111", "пароль", "1234567890",
-    "йцукен", "letmein", "monkey", "dragon", "baseball", "football",
-    "master", "hello", "freedom", "qazwsx", "trustno1", "sunshine",
-    "iloveyou", "starwars", "princess",
-])
+_COMMON_PASSWORDS = frozenset(
+    [
+        "password",
+        "123456",
+        "qwerty",
+        "admin",
+        "welcome",
+        "password123",
+        "12345678",
+        "123456789",
+        "123123",
+        "111111",
+        "пароль",
+        "1234567890",
+        "йцукен",
+        "letmein",
+        "monkey",
+        "dragon",
+        "baseball",
+        "football",
+        "master",
+        "hello",
+        "freedom",
+        "qazwsx",
+        "trustno1",
+        "sunshine",
+        "iloveyou",
+        "starwars",
+        "princess",
+    ]
+)
 
 _SEQUENCES = [
     r"012|123|234|345|456|567|678|789|890|098|987|876|765|654|543|432|321|210",
@@ -26,7 +50,7 @@ _SEQUENCES = [
 ]
 
 
-def validate_password(password: str) -> Tuple[bool, str]:
+def validate_password(password: str) -> tuple[bool, str]:
     """
     Проверяет пароль по требованиям безопасности.
     Возвращает (ok, error_message).
@@ -37,9 +61,9 @@ def validate_password(password: str) -> Tuple[bool, str]:
         return False, "Password must not exceed 128 characters"
 
     checks = [
-        (r"[A-ZА-Я]",                          "хотя бы одну заглавную букву"),
-        (r"[a-zа-я]",                          "хотя бы одну строчную букву"),
-        (r"\d",                                "хотя бы одну цифру"),
+        (r"[A-ZА-Я]", "хотя бы одну заглавную букву"),
+        (r"[a-zа-я]", "хотя бы одну строчную букву"),
+        (r"\d", "хотя бы одну цифру"),
         (r'[!@#$%^&*()\-_=+\[\]{};:\'",.<>/?\\|`~]', "хотя бы один специальный символ"),
     ]
     for pattern, msg in checks:
@@ -59,9 +83,7 @@ def validate_password(password: str) -> Tuple[bool, str]:
     return True, ""
 
 
-def validate_password_with_context(
-        password: str, username: str = "", phone: str = ""
-) -> Tuple[bool, str]:
+def validate_password_with_context(password: str, username: str = "", phone: str = "") -> tuple[bool, str]:
     ok, msg = validate_password(password)
     if not ok:
         return ok, msg
@@ -87,8 +109,8 @@ def calculate_password_strength(password: str) -> dict:
     for pat, pts, desc in [
         (r"[A-ZА-Я]", 10, "Заглавные буквы"),
         (r"[a-zа-я]", 10, "Строчные буквы"),
-        (r"\d",       10, "Цифры"),
-        (r'[!@#$%^&*]', 15, "Специальные символы"),
+        (r"\d", 10, "Цифры"),
+        (r"[!@#$%^&*]", 15, "Специальные символы"),
     ]:
         if re.search(pat, password):
             score += pts
@@ -97,9 +119,9 @@ def calculate_password_strength(password: str) -> dict:
             feedback.append(f"✗ {desc}")
 
     for pat, penalty, reason in [
-        (r"(.)\1{3,}",          20, "Много повторяющихся символов"),
-        (r"123|234|456|789",    15, "Числовая последовательность"),
-        (r"qwerty|asdf",        20, "Клавиатурная последовательность"),
+        (r"(.)\1{3,}", 20, "Много повторяющихся символов"),
+        (r"123|234|456|789", 15, "Числовая последовательность"),
+        (r"qwerty|asdf", 20, "Клавиатурная последовательность"),
     ]:
         if re.search(pat, password.lower()):
             score -= penalty
@@ -107,30 +129,38 @@ def calculate_password_strength(password: str) -> dict:
 
     score = max(0, min(score, 100))
 
-    if score >= 80:   level, color = "Очень сильный", "green"
-    elif score >= 60: level, color = "Сильный",       "lightgreen"
-    elif score >= 40: level, color = "Средний",       "orange"
-    elif score >= 20: level, color = "Слабый",        "red"
-    else:             level, color = "Очень слабый",  "darkred"
+    if score >= 80:
+        level, color = "Очень сильный", "green"
+    elif score >= 60:
+        level, color = "Сильный", "lightgreen"
+    elif score >= 40:
+        level, color = "Средний", "orange"
+    elif score >= 20:
+        level, color = "Слабый", "red"
+    else:
+        level, color = "Очень слабый", "darkred"
 
     return {
-        "score": score, "strength": level, "color": color, "feedback": feedback,
-        "has_upper":   bool(re.search(r"[A-ZА-Я]",  password)),
-        "has_lower":   bool(re.search(r"[a-zа-я]",  password)),
-        "has_digits":  bool(re.search(r"\d",         password)),
-        "has_symbols": bool(re.search(r'[!@#$%^&*]', password)),
+        "score": score,
+        "strength": level,
+        "color": color,
+        "feedback": feedback,
+        "has_upper": bool(re.search(r"[A-ZА-Я]", password)),
+        "has_lower": bool(re.search(r"[a-zа-я]", password)),
+        "has_digits": bool(re.search(r"\d", password)),
+        "has_symbols": bool(re.search(r"[!@#$%^&*]", password)),
     }
 
 
 def generate_secure_password(length: int = 16) -> str:
     """Генерирует стойкий пароль."""
     length = max(12, min(length, 64))
-    chars = (
-            [secrets.choice(string.ascii_lowercase)]
-            + [secrets.choice(string.ascii_uppercase)]
-            + [secrets.choice(string.digits)]
-            + [secrets.choice("!@#$%^&*()-_=+")]
-    )
+    chars = [
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.digits),
+        secrets.choice("!@#$%^&*()-_=+"),
+    ]
     all_chars = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
     chars += [secrets.choice(all_chars) for _ in range(length - 4)]
     secrets.SystemRandom().shuffle(chars)

@@ -20,9 +20,10 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 import httpx
+
+from app.utilites.background import spawn
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ class WebhookManager:
                 continue
             if event not in hook.events and "*" not in hook.events:
                 continue
-            asyncio.create_task(self._deliver(hook, event, payload))
+            spawn(self._deliver(hook, event, payload))
 
     async def _deliver(self, hook: WebhookConfig, event: str, payload: dict) -> None:
         """Deliver webhook with retries and HMAC signing."""

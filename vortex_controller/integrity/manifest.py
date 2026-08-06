@@ -9,8 +9,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 # File suffixes we consider "code" — everything else (uploads, cached db,
 # runtime keys, virtualenv bytecode) is skipped.
@@ -42,10 +42,7 @@ def _should_include(relative_path: Path) -> bool:
         return False
     if relative_path.name in _EXCLUDE_NAMES:
         return False
-    for part in relative_path.parts:
-        if part in _EXCLUDE_ANY:
-            return False
-    return True
+    return all(part not in _EXCLUDE_ANY for part in relative_path.parts)
 
 
 def _walk_files(root: Path) -> Iterator[Path]:
@@ -60,8 +57,7 @@ def _walk_files(root: Path) -> Iterator[Path]:
             rel = abs_path.relative_to(root)
             if _should_include(rel):
                 collected.append(rel)
-    for p in sorted(collected):
-        yield p
+    yield from sorted(collected)
 
 
 try:

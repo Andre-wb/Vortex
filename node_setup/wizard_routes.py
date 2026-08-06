@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import platform
 import socket
@@ -13,17 +14,17 @@ from pathlib import Path
 from fastapi import HTTPException
 from fastapi.responses import HTMLResponse
 
-from .models import SelfSignedRequest, ManualCertRequest, LetsEncryptRequest, NodeConfig, SSOConfig
 from node_setup.ssl_manager import (
     check_cert_expiry,
     detect_available_methods,
     generate_letsencrypt,
     generate_self_signed,
     generate_with_mkcert,
-    get_ca_install_instructions,
     use_manual_cert,
 )
-from ._app import wizard_app, CERT_DIR, _load_html, _setup_done
+
+from ._app import CERT_DIR, _load_html, _setup_done, wizard_app
+from .models import LetsEncryptRequest, ManualCertRequest, NodeConfig, SelfSignedRequest, SSOConfig
 from .wizard_env import _read_env_dict, _write_env, _write_sso_env
 
 logger = logging.getLogger(__name__)
@@ -58,21 +59,17 @@ async def system_info():
     - признак инициализации узла (NODE_INITIALIZED в .env)
     """
     ips = []
-    try:
+    with contextlib.suppress(Exception):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Пытаемся подключиться к разным адресам, чтобы узнать реальный IP
         for t in ("192.168.1.1", "10.0.0.1", "8.8.8.8"):
-            try:
+            with contextlib.suppress(Exception):
                 s.connect((t, 80))
                 ip = s.getsockname()[0]
                 if not ip.startswith("127."):
                     ips.append(ip)
                     break
-            except Exception:
-                pass
         s.close()
-    except Exception:
-        pass
 
     return {
         "hostname":   socket.gethostname(),

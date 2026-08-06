@@ -9,6 +9,7 @@ app/peer/connection_manager.py — WebSocket менеджер с разделе�
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json as _json
 import logging
 import time
@@ -36,7 +37,7 @@ class TokenBucket:
     но в среднем не более 5 в секунду.
     """
 
-    __slots__ = ("capacity", "rate", "_tokens", "_last_ts")
+    __slots__ = ("_last_ts", "_tokens", "capacity", "rate")
 
     def __init__(self, capacity: float = 20.0, rate: float = 5.0):
         self.capacity  = capacity
@@ -319,10 +320,8 @@ class ConnectionManager:
         async with self._lock:
             if self._ws_cap_reached(user_id):
                 logger.warning("WS cap reached for user %s (room) — rejecting", user_id)
-                try:
+                with contextlib.suppress(Exception):
                     await ws.close(code=4429)  # 4429 ≈ "too many connections"
-                except Exception:
-                    pass
                 return
             self._rooms[room_id][user_id] = ConnectedUser(
                 user_id      = user_id,
@@ -391,10 +390,11 @@ class ConnectionManager:
         from app.config import Config
         if Config.BMP_DELIVERY_ENABLED and msg_type in self._BMP_TYPES:
             try:
-                from app.transport.blind_mailbox import deposit_envelope
                 import json
+
+                from app.transport.blind_mailbox import deposit_envelope
                 await deposit_envelope(room_id, json.dumps(payload))
-            except Exception as e:
+            except Exception:
                 logger.debug("BMP deposit failed (sanitized)")
 
             # Enqueue pending for offline users (messages only)
@@ -436,11 +436,9 @@ class ConnectionManager:
                     uid_str = key.split(":")[-1]
                     if exclude and uid_str == str(exclude):
                         continue
-                    try:
+                    with contextlib.suppress(Exception):
                         await queue.put(payload)
                         delivered_uids.add(int(uid_str))
-                    except Exception:
-                        pass
 
         # Pending for offline users (system messages that need delivery)
         if member_ids and msg_type in ("message", "thread_message"):
@@ -471,7 +469,8 @@ class ConnectionManager:
     @staticmethod
     def _pad_ws_frame(payload: dict) -> str:
         """Добавляет рандомный padding к WS-фрейму (anti DPI size analysis)."""
-        import json, secrets
+        import json
+        import secrets
         pad_len = 32 + secrets.randbelow(225)  # 32..256
         payload["_p"] = secrets.token_urlsafe(pad_len)
         return json.dumps(payload)
@@ -509,10 +508,8 @@ class ConnectionManager:
         had_global = user_id in self._global_ws
         if not had_global and self._ws_cap_reached(user_id):
             logger.warning("WS cap reached for user %s (global) — rejecting", user_id)
-            try:
+            with contextlib.suppress(Exception):
                 await ws.close(code=4429)
-            except Exception:
-                pass
             return
         self._global_ws[user_id] = ws
         if not had_global:
@@ -677,12 +674,10 @@ class ConnectionManager:
     async def close_all(self) -> None:
         """Gracefully close all active WebSocket connections."""
         async with self._lock:
-            for room_id, users in list(self._rooms.items()):
-                for user_id, entry in list(users.items()):
-                    try:
+            for _room_id, users in list(self._rooms.items()):
+                for _user_id, entry in list(users.items()):
+                    with contextlib.suppress(Exception):
                         await entry.ws.close(code=1001, reason="Server shutting down")
-                    except Exception:
-                        pass
             self._rooms.clear()
             # room sockets are gone; drop their cap contribution.
             # Global WS counts remain (they aren't closed here).

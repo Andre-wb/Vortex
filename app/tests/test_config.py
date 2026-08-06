@@ -1,8 +1,7 @@
 """
 Tests for configuration and database setup.
 """
-import os
-import pytest
+import contextlib
 
 
 class TestConfig:
@@ -67,16 +66,14 @@ class TestDatabase:
         gen = get_db()
         db = next(gen)
         assert db is not None
-        try:
+        with contextlib.suppress(StopIteration):
             next(gen)
-        except StopIteration:
-            pass
 
 
 class TestLogging:
 
     def test_logging_config_module_exists(self):
-        from app.logging_config import setup_logging, new_correlation_id
+        from app.logging_config import new_correlation_id
 
         cid = new_correlation_id()
         assert len(cid) == 12
@@ -85,6 +82,7 @@ class TestLogging:
     def test_json_formatter(self):
         import json
         import logging
+
         from app.logging_config import JSONFormatter
 
         formatter = JSONFormatter()

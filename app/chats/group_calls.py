@@ -8,6 +8,7 @@ initiator ends the call.  State is in-memory (like voice.py).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -23,6 +24,7 @@ from app.models import User
 from app.models_rooms import Room, RoomMember
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
+from app.utilites.background import spawn
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/group-calls", tags=["group-calls"])
@@ -163,7 +165,7 @@ async def start_group_call(
     members = db.query(RoomMember).filter(RoomMember.room_id == room_id).limit(500).all()
     member_count = len(members)
 
-    from app.chats.sfu import is_sfu_available, SFU_THRESHOLD, SFU_MAX_PARTICIPANTS
+    from app.chats.sfu import SFU_MAX_PARTICIPANTS, SFU_THRESHOLD, is_sfu_available
     use_sfu = is_sfu_available() and member_count > SFU_THRESHOLD
     topology = "sfu" if use_sfu else "mesh"
     max_p = SFU_MAX_PARTICIPANTS if use_sfu else 10
@@ -206,7 +208,7 @@ async def start_group_call(
     })
 
     # Start ringing timeout
-    asyncio.create_task(_ring_timeout(call_id))
+    spawn(_ring_timeout(call_id))
 
     return {"call_id": call_id, "already_active": False, "topology": topology}
 
@@ -312,19 +314,18 @@ async def add_participant(
     # BMP mode: group call invite goes through BMP room deposit
     from app.config import Config
     if Config.BMP_DELIVERY_ENABLED:
-        try:
-            from app.transport.blind_mailbox import deposit_envelope
+        with contextlib.suppress(Exception):
             import json
+
+            from app.transport.blind_mailbox import deposit_envelope
             await deposit_envelope(call.room_id, json.dumps({
                 "type": "group_call_invite",
                 "call_id": call.call_id,
                 "room_id": call.room_id,
                 "call_type": call.call_type,
             }))
-        except Exception:
-            pass
     else:
-        try:
+        with contextlib.suppress(Exception):
             await manager.notify_user(user_id, {
                 "type": "group_call_invite",
                 "call_id": call.call_id,
@@ -336,8 +337,6 @@ async def add_participant(
                     "display_name": u.display_name or u.username,
                 },
             })
-        except Exception:
-            pass
 
     return {"ok": True}
 

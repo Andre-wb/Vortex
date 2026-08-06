@@ -1,6 +1,7 @@
 """Регистрация и парольный вход."""
 from __future__ import annotations
 
+import contextlib
 import logging
 import secrets
 import threading
@@ -11,18 +12,22 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.authentication._helpers import (
+    _AUTH_RATE_LOGIN,
+    _AUTH_RATE_REGISTER,
+    _DUMMY_HASH,
+    _IS_TESTING,
+    _check_auth_rate,
+    _set_auth_cookies,
+    router,
+)
 from app.config import Config
 from app.database import get_db
 from app.models import LoginRequest, RegisterRequest, SeedLoginRequest, User
 from app.security.crypto import hash_password, verify_password
 from app.security.ip_privacy import raw_ip_for_ratelimit, sanitize_ip
-from app.security.seed_phrase import generate_mnemonic, normalize_mnemonic, validate_mnemonic
 from app.security.security_validate import validate_password_with_context
-
-from app.authentication._helpers import (
-    _AUTH_RATE_LOGIN, _AUTH_RATE_REGISTER, _DUMMY_HASH, _IS_TESTING,
-    _check_auth_rate, _set_auth_cookies, router,
-)
+from app.security.seed_phrase import generate_mnemonic, normalize_mnemonic, validate_mnemonic
 
 logger = logging.getLogger(__name__)
 
@@ -138,15 +143,15 @@ async def register(body: RegisterRequest, request: Request,
     # non-attributing message so registration cannot be used to enumerate which
     # phones / usernames / emails / keys already exist on the node. The 409
     # status is preserved for the client.
-    _IDENTIFIER_TAKEN = "Registration failed: identifier unavailable"
+    _identifier_taken = "Registration failed: identifier unavailable"
     if body.phone and db.query(User).filter(User.phone == body.phone).first():
-        raise HTTPException(409, _IDENTIFIER_TAKEN)
+        raise HTTPException(409, _identifier_taken)
     if db.query(User).filter(User.username == body.username).first():
-        raise HTTPException(409, _IDENTIFIER_TAKEN)
+        raise HTTPException(409, _identifier_taken)
     if db.query(User).filter(User.x25519_public_key == body.x25519_public_key).first():
-        raise HTTPException(409, _IDENTIFIER_TAKEN)
+        raise HTTPException(409, _identifier_taken)
     if body.email and db.query(User).filter(User.email == body.email).first():
-        raise HTTPException(409, _IDENTIFIER_TAKEN)
+        raise HTTPException(409, _identifier_taken)
 
     ok, msg = validate_password_with_context(body.password, body.username)
     if not ok:
@@ -171,7 +176,7 @@ async def register(body: RegisterRequest, request: Request,
     except Exception:
         db.rollback()
         logger.exception("Register commit failed")
-        raise HTTPException(500, "Database error")
+        raise HTTPException(500, "Database error") from None
 
     db.refresh(user)
 
@@ -184,11 +189,9 @@ async def register(body: RegisterRequest, request: Request,
         logger.info("Anonymous registration: %s (seed phrase issued)", user.username)
 
     # Auto-log X25519 key to transparency log
-    try:
+    with contextlib.suppress(Exception):
         from app.security.key_backup import _kt_auto_log
         _kt_auto_log(user.id, "x25519", user.x25519_public_key, None, db)
-    except Exception:
-        pass  # non-critical
 
     # ADR-004 K2: Kyber (ML-KEM-768) keypair генерится КЛИЕНТОМ (E2E — сервер не
     # видит приватный) и публикуется через POST /api/keys/kyber (подписанный
@@ -242,11 +245,9 @@ async def login(body: LoginRequest, request: Request,
     import asyncio as _aio
 
     if not user:
-        try:
+        with contextlib.suppress(Exception):
             await _aio.get_event_loop().run_in_executor(
                 None, verify_password, body.password, _DUMMY_HASH)
-        except Exception:
-            pass
         raise HTTPException(401, "Invalid phone/username or password")
 
     pw_ok = await _aio.get_event_loop().run_in_executor(
@@ -312,11 +313,9 @@ async def login_with_seed(body: SeedLoginRequest, request: Request,
 
     if not user or not user.seed_phrase_hash:
         # Constant-time dummy to prevent timing oracle
-        try:
+        with contextlib.suppress(Exception):
             await _aio.get_event_loop().run_in_executor(
                 None, verify_password, "dummy", _DUMMY_HASH)
-        except Exception:
-            pass
         raise HTTPException(401, "Invalid username or seed phrase")
 
     if not validate_mnemonic(body.seed_phrase):

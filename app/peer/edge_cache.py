@@ -13,6 +13,7 @@ Peer query: parallel HTTP to N nearest peers, first-response wins.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 import os
@@ -131,7 +132,7 @@ class EdgeCache:
 
         async def _try_peer(ip: str, port: int) -> Optional[bytes]:
             for scheme in ("https", "http"):
-                try:
+                with contextlib.suppress(Exception):
                     r = await _cache_pool.get(
                         f"{scheme}://{ip}:{port}/api/files/download/{file_id}",
                         headers={"X-Edge-Cache": "1"},
@@ -141,8 +142,6 @@ class EdgeCache:
                         h = hashlib.sha256(r.content).hexdigest()
                         if h == file_hash:
                             return r.content
-                except Exception:
-                    pass
             return None
 
         tasks = [_try_peer(ip, port) for ip, port in selected]
@@ -184,14 +183,12 @@ class EdgeCache:
     ) -> None:
         """Inform nearby peers about a newly uploaded file for pre-caching."""
         for ip, port in peer_ips[:5]:
-            try:
+            with contextlib.suppress(Exception):
                 await _cache_pool.post(
                     f"https://{ip}:{port}/api/edge-cache/announce",
                     json={"file_hash": file_hash, "file_id": file_id,
                           "origin_ip": Config.HOST, "origin_port": Config.PORT},
                 )
-            except Exception:
-                pass
 
 
     def _evict(self, file_hash: str) -> None:

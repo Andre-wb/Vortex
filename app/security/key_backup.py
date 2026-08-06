@@ -15,9 +15,16 @@ app/security/key_backup.py — Зашифрованный бэкап ключе�
 """
 from __future__ import annotations
 
+import contextlib
+import hashlib as _hashlib
+import hmac as _hmac
 import ipaddress
 import logging
+import os as _os
 import secrets
+import time as _time
+from collections import defaultdict as _defaultdict
+from collections import deque as _deque
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -29,8 +36,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User
 from app.models.user import (
-    KeyBackup, DeviceLinkRequest, SyncEvent, DeviceCrossSign,
-    SecretShare, FederatedBackupShard, KeyTransparencyEntry,
+    DeviceCrossSign,
+    DeviceLinkRequest,
+    FederatedBackupShard,
+    KeyBackup,
+    KeyTransparencyEntry,
+    SecretShare,
+    SyncEvent,
 )
 from app.security.auth_jwt import get_current_user
 from app.security.crypto import hash_token, verify_token_hash
@@ -68,11 +80,6 @@ def _is_peer_ip(ip: str) -> bool:
 # require an HMAC proof over a shared per-deployment secret (FEDERATION_PSK),
 # plus an owner-bound proof on retrieval, plus per-owner caps and a global
 # store rate limit.
-import hashlib as _hashlib
-import hmac as _hmac
-import os as _os
-import time as _time
-from collections import defaultdict as _defaultdict, deque as _deque
 
 _SHARD_PROOF_HEADER = "X-Federation-Proof"     # "<ts>:<hmac_hex>"
 _SHARD_PROOF_WINDOW = 300                       # ±5 min clock skew
@@ -81,7 +88,7 @@ _MAX_SHARD_BYTES = 64 * 1024                    # reject oversized encrypted sha
 _STORE_RATE_PER_MIN = 120                       # global store rate (per source IP)
 
 # In-memory sliding window for the global store rate limit: ip -> deque[ts]
-_store_hits: dict[str, "_deque"] = _defaultdict(_deque)
+_store_hits: dict[str, _deque] = _defaultdict(_deque)
 
 
 def _shard_psk() -> bytes:
@@ -185,7 +192,7 @@ async def upload_backup(
         bytes.fromhex(body.vault_data)
         bytes.fromhex(body.vault_salt)
     except ValueError:
-        raise HTTPException(400, "vault_data and vault_salt must be valid hex")
+        raise HTTPException(400, "vault_data and vault_salt must be valid hex") from None
 
     existing = db.query(KeyBackup).filter(KeyBackup.user_id == user.id).first()
     if existing:
@@ -254,7 +261,7 @@ async def create_link_request(
         if len(pub_bytes) != 32:
             raise ValueError
     except ValueError:
-        raise HTTPException(400, "new_device_pub must be 64 hex chars (32 bytes)")
+        raise HTTPException(400, "new_device_pub must be 64 hex chars (32 bytes)") from None
 
     # Expire old pending requests for this user
     now = datetime.now(timezone.utc)
@@ -335,7 +342,7 @@ async def approve_link_request(
     try:
         bytes.fromhex(body.encrypted_keys)
     except ValueError:
-        raise HTTPException(400, "encrypted_keys must be valid hex")
+        raise HTTPException(400, "encrypted_keys must be valid hex") from None
 
     now = datetime.now(timezone.utc)
     pending = db.query(DeviceLinkRequest).filter(
@@ -480,7 +487,7 @@ async def sync_push(
     try:
         bytes.fromhex(body.payload)
     except ValueError:
-        raise HTTPException(400, "payload must be valid hex")
+        raise HTTPException(400, "payload must be valid hex") from None
 
     # Monotonic sequence number per user
     max_seq = db.query(SyncEvent.seq).filter(
@@ -601,8 +608,9 @@ async def sync_rooms_summary(
     List rooms the user is a member of, with message counts.
     Used by new devices to know which rooms to migrate.
     """
-    from app.models_rooms import Message, Room, RoomMember
     from sqlalchemy import func
+
+    from app.models_rooms import Message, Room, RoomMember
 
     memberships = (
         db.query(
@@ -649,7 +657,7 @@ async def cross_sign(
         bytes.fromhex(body.signer_pub_hash)
         bytes.fromhex(body.signed_pub_hash)
     except ValueError:
-        raise HTTPException(400, "Fields must be valid hex")
+        raise HTTPException(400, "Fields must be valid hex") from None
 
     # Prevent duplicate
     existing = db.query(DeviceCrossSign).filter(
@@ -715,7 +723,7 @@ async def save_sync_settings(
         bytes.fromhex(body.vault_data)
         bytes.fromhex(body.vault_salt)
     except ValueError:
-        raise HTTPException(400, "Fields must be valid hex")
+        raise HTTPException(400, "Fields must be valid hex") from None
 
     # Store as a special SyncEvent with seq=0 (settings marker)
     existing = db.query(SyncEvent).filter(
@@ -774,7 +782,7 @@ async def ssss_create(
         try:
             bytes.fromhex(s.encrypted_share)
         except ValueError:
-            raise HTTPException(400, f"Share {s.share_index}: encrypted_share must be valid hex")
+            raise HTTPException(400, f"Share {s.share_index}: encrypted_share must be valid hex") from None
 
     # Revoke any existing shares for this user
     db.query(SecretShare).filter(
@@ -885,7 +893,7 @@ async def set_device_pub_key(
         if len(pub_bytes) != 32:
             raise ValueError
     except ValueError:
-        raise HTTPException(400, "device_pub_key must be 64 hex chars (32 bytes)")
+        raise HTTPException(400, "device_pub_key must be 64 hex chars (32 bytes)") from None
 
     raw_refresh = request.cookies.get("refresh_token")
     if not raw_refresh:
@@ -956,7 +964,7 @@ async def federated_backup_distribute(
             bytes.fromhex(s.encrypted_shard)
             bytes.fromhex(s.shard_hash)
         except ValueError:
-            raise HTTPException(400, f"Shard {s.shard_index}: invalid hex")
+            raise HTTPException(400, f"Shard {s.shard_index}: invalid hex") from None
 
     # Revoke old shards
     db.query(FederatedBackupShard).filter(
@@ -1044,7 +1052,7 @@ async def federated_backup_store_shard(
         raw_shard = bytes.fromhex(body.encrypted_shard)
         bytes.fromhex(body.shard_hash)
     except ValueError:
-        raise HTTPException(400, "Fields must be valid hex")
+        raise HTTPException(400, "Fields must be valid hex") from None
 
     # FIX F2: size cap on the encrypted shard.
     if len(raw_shard) > _MAX_SHARD_BYTES:
@@ -1097,7 +1105,6 @@ async def federated_backup_retrieve_shard(
     can pull the (metadata of) held shards. Source IP is never an authorization
     boundary.
     """
-    client_ip = request.client.host if request.client else ""
 
     # FIX F2: owner-bound peer authorization (mutual secret + owner binding).
     challenge = f"vortex-shard-retrieve:{owner_user_id}"
@@ -1149,6 +1156,7 @@ def _get_kt_secret():
     global _KT_SECRET_KEY
     if _KT_SECRET_KEY is None:
         import hmac
+
         from app.config import Config
         seed = (Config.JWT_SECRET or "vortex-default-key").encode()
         _KT_SECRET_KEY = hmac.new(seed, b"vortex-key-transparency", "sha256").digest()
@@ -1173,8 +1181,8 @@ _KT_NODE_KEY = None
 def _kt_node_key():
     global _KT_NODE_KEY
     if _KT_NODE_KEY is None:
-        from app.peer.controller_client import NodeSigningKey
         from app.config import Config
+        from app.peer.controller_client import NodeSigningKey
         _KT_NODE_KEY = NodeSigningKey.load_or_create(Config.KEYS_DIR)
     return _KT_NODE_KEY
 
@@ -1210,10 +1218,8 @@ def _kt_auto_log(user_id: int, key_type: str, pub_key_hex: str, device_id: int |
 
     signature = _kt_sign_entry(user_id, key_type, pub_key_hash, prev_hash, next_seq)
     node_sig = None
-    try:
+    with contextlib.suppress(Exception):
         node_sig = _kt_node_key().sign_bytes(_kt_entry_message(user_id, key_type, pub_key_hash, prev_hash, next_seq))
-    except Exception:
-        pass  # нода-ключ недоступен → запись остаётся с legacy-HMAC, клиент увидит «не подписано»
 
     entry = KeyTransparencyEntry(
         user_id=user_id,
@@ -1256,7 +1262,7 @@ async def kt_log_key(
     try:
         bytes.fromhex(body.pub_key_hash)
     except ValueError:
-        raise HTTPException(400, "pub_key_hash must be valid hex")
+        raise HTTPException(400, "pub_key_hash must be valid hex") from None
 
     entry = _kt_auto_log(user.id, body.key_type, body.pub_key_hash, body.device_id, db)
     return {"ok": True, "seq": entry.seq}

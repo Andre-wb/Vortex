@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ROOT = Path("/Users/borismaltsev/RustroverProjects")
 LOCALES = sorted((ROOT / "vortex-introduce-page/locales").glob("*.json"))
 IOS_EN = ROOT / "Vortex/ios/Modules/Sources/I18N/Resources/locales/en.json"
@@ -844,7 +843,7 @@ def process(p: Path) -> None:
 
 
 def main() -> None:
-    targets = [IOS_EN] + LOCALES
+    targets = [IOS_EN, *LOCALES]
     for p in targets:
         if not p.exists():
             continue

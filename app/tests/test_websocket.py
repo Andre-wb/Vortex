@@ -1,8 +1,7 @@
 """WebSocket infrastructure and message handling tests."""
-import json
 import secrets
+
 import pytest
-from conftest import make_user, login_user, random_str
 
 
 class TestWebSocketMessageTypes:

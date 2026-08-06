@@ -9,7 +9,6 @@ import json
 import logging
 import secrets
 from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -17,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Bot, User
-from app.models_rooms import Message, MessageType, Room, RoomMember
+from app.models_rooms import Message, MessageType, RoomMember
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 
@@ -95,10 +94,10 @@ def _get_bot(request: Request, db: Session = Depends(get_db)) -> Bot:
         raise HTTPException(401, "Expected: Authorization: Bot <token>")
     token = auth[4:].strip()
     token_hash = _hash_token(token)
-    bot = db.query(Bot).filter(Bot.api_token == token_hash, Bot.is_active == True).first()
+    bot = db.query(Bot).filter(Bot.api_token == token_hash, Bot.is_active.is_(True)).first()
     if not bot:
         # Fallback: try plaintext match and migrate to hashed token
-        bot = db.query(Bot).filter(Bot.api_token == token, Bot.is_active == True).first()
+        bot = db.query(Bot).filter(Bot.api_token == token, Bot.is_active.is_(True)).first()
         if bot:
             bot.api_token = token_hash
             db.commit()
@@ -143,7 +142,7 @@ async def query_inline_bot(bot_id: int, q: str = Query(default="", max_length=20
     """Client queries an inline bot with @bot_name search text.
     Returns cached results from the bot.
     """
-    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_active == True).first()
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_active.is_(True)).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
     results = _inline_handlers.get(bot.id, [])
@@ -248,7 +247,7 @@ async def register_slash_commands(request: Request, db: Session = Depends(get_db
 @router.get("/api/bots/{bot_id}/commands")
 async def get_bot_commands(bot_id: int, db: Session = Depends(get_db)):
     """Get slash commands for a bot (for autocomplete UI)."""
-    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_active == True).first()
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_active.is_(True)).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
     commands = _slash_commands.get(bot.id) or json.loads(bot.commands or "[]")
@@ -260,7 +259,7 @@ async def get_room_commands(room_id: int, u: User = Depends(get_current_user),
                             db: Session = Depends(get_db)):
     """Get all slash commands available in a room (from all bots)."""
     bot_members = db.query(RoomMember).join(User).filter(
-        RoomMember.room_id == room_id, User.is_bot == True,
+        RoomMember.room_id == room_id, User.is_bot.is_(True),
     ).all()
     all_commands = []
     for bm in bot_members:
@@ -316,9 +315,10 @@ async def deliver_webhook(bot_id: int, event: str, payload: dict) -> bool:
     if event not in wh.get("events", []):
         return False
     try:
-        import httpx
-        import hmac
         import hashlib
+        import hmac
+
+        import httpx
         body = json.dumps({"event": event, "payload": payload})
         sig = hmac.new(wh["secret"].encode(), body.encode(), hashlib.sha256).hexdigest()
         async with httpx.AsyncClient(timeout=10) as client:
@@ -442,7 +442,7 @@ async def bot_store(category: str = Query(default="", max_length=30),
                     sort: str = Query(default="popular"),
                     db: Session = Depends(get_db)):
     """Enhanced bot store with categories, search, and sorting."""
-    query = db.query(Bot).filter(Bot.is_public == True, Bot.is_active == True)
+    query = db.query(Bot).filter(Bot.is_public.is_(True), Bot.is_active.is_(True))
     if category:
         query = query.filter(Bot.category == category)
     if q:

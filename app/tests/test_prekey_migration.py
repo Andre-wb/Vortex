@@ -5,11 +5,9 @@
 временном файле.
 """
 
-import pytest
 from sqlalchemy import create_engine, text
 
 from app.database import _rebuild_prekey_bundles_if_legacy
-
 
 _LEGACY_PREKEY_BUNDLES = (
     "CREATE TABLE prekey_bundles ("

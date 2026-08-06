@@ -6,23 +6,28 @@ import hmac
 import logging
 import secrets
 import time
+from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.authentication._helpers import (
+    _AUTH_RATE_LOGIN,
+    _CHALLENGE_TTL,
+    _Challenge,
+    _challenges,
+    _challenges_lock,
+    _check_auth_rate,
+    _cleanup_expired_challenges,
+    _set_auth_cookies,
+    router,
+)
 from app.config import Config
 from app.database import get_db
-from app.security.ip_privacy import raw_ip_for_ratelimit
 from app.models import KeyLoginRequest, User
 from app.security.crypto import derive_x25519_session_key, load_or_create_node_keypair
-
-from app.authentication._helpers import (
-    _AUTH_RATE_LOGIN, _CHALLENGE_TTL, _Challenge,
-    _challenges, _challenges_lock, _check_auth_rate,
-    _cleanup_expired_challenges, _set_auth_cookies, router,
-)
-from datetime import datetime, timezone
+from app.security.ip_privacy import raw_ip_for_ratelimit
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +97,7 @@ async def login_with_key(body: KeyLoginRequest, request: Request,
             shared = bytes(shared)
     except Exception as e:
         logger.warning(f"Key derivation failed: {e}")
-        raise HTTPException(401, "Shared secret computation error")
+        raise HTTPException(401, "Shared secret computation error") from None
 
     expected_proof = hmac.new(shared, ch.challenge, hashlib.sha256).hexdigest()
 
@@ -100,7 +105,7 @@ async def login_with_key(body: KeyLoginRequest, request: Request,
         raise HTTPException(401, "Invalid proof — possibly wrong private key")
 
     user = db.query(User).filter(
-        User.id == ch.user_id, User.is_active == True
+        User.id == ch.user_id, User.is_active.is_(True)
     ).first()
     if not user:
         raise HTTPException(401, "User not found or deactivated")

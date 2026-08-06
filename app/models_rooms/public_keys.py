@@ -16,7 +16,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, DateTime, ForeignKey, Integer, String,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
 )
 
 from app.base import Base

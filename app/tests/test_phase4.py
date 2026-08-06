@@ -191,6 +191,7 @@ async def test_mirror_health_snapshot_shape():
 async def test_mirrors_endpoint_exposes_health_after_sweep():
     from asgi_lifespan import LifespanManager
     from vortex_controller.main import create_app
+
     from app.peer.controller_client import verify_controller_signature
 
     with tempfile.TemporaryDirectory() as d:
@@ -218,7 +219,7 @@ async def test_mirrors_endpoint_exposes_health_after_sweep():
             # Дефолтные 5 с у asgi_lifespan иногда не выдерживают параллельного
             # прогона: сам старт контроллера занимает ~0.06 с.
             async with LifespanManager(app, startup_timeout=30.0, shutdown_timeout=30.0):
-                from httpx import AsyncClient, ASGITransport
+                from httpx import ASGITransport, AsyncClient
                 async with AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://ctrl",
                 ) as http:

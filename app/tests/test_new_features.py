@@ -10,20 +10,21 @@ Tests for all new features:
   - redis_pubsub.py
   - pluggable.py (obfs4, domain fronting, shadowsocks, tunnel, bridges)
 """
-import json
-import os
-import secrets
-import pytest
-from conftest import make_user, login_user, random_str, _unique_phone
 
+import secrets
+
+import pytest
+from conftest import make_user, random_str
 
 # Groups: Topics, Forum, Permissions, AutoMod, Slowmode
+
 
 class TestTopics:
     def test_create_topic(self, client, logged_user, room):
         rid = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.post(f"/api/rooms/{rid}/topics", json={"title": "General Discussion"},
-                        headers=logged_user["headers"])
+        r = client.post(
+            f"/api/rooms/{rid}/topics", json={"title": "General Discussion"}, headers=logged_user["headers"]
+        )
         assert r.status_code in (201, 403, 404)
 
     def test_list_topics(self, client, logged_user, room):
@@ -51,8 +52,11 @@ class TestTopics:
 class TestForumThreads:
     def test_create_thread(self, client, logged_user, room):
         rid = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.post(f"/api/rooms/{rid}/forum", json={"title": "First Thread", "body": "Hello", "tags": ["test"]},
-                        headers=logged_user["headers"])
+        r = client.post(
+            f"/api/rooms/{rid}/forum",
+            json={"title": "First Thread", "body": "Hello", "tags": ["test"]},
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (201, 403, 404)
 
     def test_list_threads(self, client, logged_user, room):
@@ -79,17 +83,27 @@ class TestPermissions:
 
     def test_set_permission(self, client, logged_user, room):
         rid = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.put(f"/api/rooms/{rid}/permissions", json={"role": "member", "allow": 255, "deny": 0},
-                       headers=logged_user["headers"])
+        r = client.put(
+            f"/api/rooms/{rid}/permissions",
+            json={"role": "member", "allow": 255, "deny": 0},
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 400, 403)
 
 
 class TestAutoMod:
     def test_create_rule(self, client, logged_user, room):
         rid = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.post(f"/api/rooms/{rid}/automod", json={
-            "name": "No Spam", "rule_type": "word_filter", "pattern": "spam,scam,buy now", "action": "delete",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            f"/api/rooms/{rid}/automod",
+            json={
+                "name": "No Spam",
+                "rule_type": "word_filter",
+                "pattern": "spam,scam,buy now",
+                "action": "delete",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (201, 403)
 
     def test_list_rules(self, client, logged_user, room):
@@ -99,16 +113,30 @@ class TestAutoMod:
 
     def test_regex_rule(self, client, logged_user, room):
         rid = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.post(f"/api/rooms/{rid}/automod", json={
-            "name": "No Links", "rule_type": "regex", "pattern": r"https?://\S+", "action": "warn",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            f"/api/rooms/{rid}/automod",
+            json={
+                "name": "No Links",
+                "rule_type": "regex",
+                "pattern": r"https?://\S+",
+                "action": "warn",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (201, 403)
 
     def test_invalid_regex(self, client, logged_user, room):
         rid = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.post(f"/api/rooms/{rid}/automod", json={
-            "name": "Bad Regex", "rule_type": "regex", "pattern": "[invalid(", "action": "delete",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            f"/api/rooms/{rid}/automod",
+            json={
+                "name": "Bad Regex",
+                "rule_type": "regex",
+                "pattern": "[invalid(",
+                "action": "delete",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (400, 403)
 
 
@@ -117,9 +145,12 @@ class TestUserSlowmode:
         rid = room.get("id") or room.get("room", {}).get("id", 1)
         # Create a real user so FK constraint is satisfied
         target = make_user(client)
-        target_id = target['data']['user_id']
-        r = client.put(f"/api/rooms/{rid}/slowmode/users", json={"user_id": target_id, "cooldown_seconds": 30},
-                       headers=logged_user["headers"])
+        target_id = target["data"]["user_id"]
+        r = client.put(
+            f"/api/rooms/{rid}/slowmode/users",
+            json={"user_id": target_id, "cooldown_seconds": 30},
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 403)
 
     def test_list_user_slowmodes(self, client, logged_user, room):
@@ -132,8 +163,9 @@ class TestAutoModCheck:
     @pytest.mark.asyncio
     async def test_check_automod(self):
         from app.chats.groups import check_automod
-        from app.models_rooms import RoomRole
         from app.database import SessionLocal
+        from app.models_rooms import RoomRole
+
         db = SessionLocal()
         try:
             result = await check_automod(999999, 1, "normal message", RoomRole.MEMBER, db)
@@ -144,6 +176,7 @@ class TestAutoModCheck:
 
 # Spaces Advanced
 
+
 class TestSpacesAdvanced:
     def _create_space(self, client, headers):
         r = client.post("/api/spaces", json={"name": f"sp_{random_str(6)}", "is_public": True}, headers=headers)
@@ -153,10 +186,17 @@ class TestSpacesAdvanced:
 
     def test_onboarding(self, client, logged_user):
         sid = self._create_space(client, logged_user["headers"])
-        if not sid: return
-        r = client.put(f"/api/spaces/{sid}/onboarding", json={
-            "welcome_message": "Welcome!", "rules": "Be nice", "onboarding_roles": ["Gamer", "Artist"],
-        }, headers=logged_user["headers"])
+        if not sid:
+            return
+        r = client.put(
+            f"/api/spaces/{sid}/onboarding",
+            json={
+                "welcome_message": "Welcome!",
+                "rules": "Be nice",
+                "onboarding_roles": ["Gamer", "Artist"],
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 403)
         r2 = client.get(f"/api/spaces/{sid}/onboarding")
         assert r2.status_code == 200
@@ -167,19 +207,22 @@ class TestSpacesAdvanced:
 
     def test_audit_log(self, client, logged_user):
         sid = self._create_space(client, logged_user["headers"])
-        if not sid: return
+        if not sid:
+            return
         r = client.get(f"/api/spaces/{sid}/audit-log", headers=logged_user["headers"])
         assert r.status_code in (200, 403)
 
     def test_custom_emoji(self, client, logged_user):
         sid = self._create_space(client, logged_user["headers"])
-        if not sid: return
+        if not sid:
+            return
         r = client.get(f"/api/spaces/{sid}/emojis", headers=logged_user["headers"])
         assert r.status_code == 200
 
     def test_vanity_url(self, client, logged_user):
         sid = self._create_space(client, logged_user["headers"])
-        if not sid: return
+        if not sid:
+            return
         vanity = f"test_{random_str(8)}"
         r = client.put(f"/api/spaces/{sid}/vanity", json={"vanity_url": vanity}, headers=logged_user["headers"])
         assert r.status_code in (200, 403)
@@ -195,13 +238,15 @@ class TestSpacesAdvanced:
 
     def test_apply_template(self, client, logged_user):
         sid = self._create_space(client, logged_user["headers"])
-        if not sid: return
+        if not sid:
+            return
         r = client.post(f"/api/spaces/{sid}/apply-template?template_id=gaming", headers=logged_user["headers"])
         assert r.status_code in (200, 403)
 
     def test_sub_spaces(self, client, logged_user):
         sid = self._create_space(client, logged_user["headers"])
-        if not sid: return
+        if not sid:
+            return
         r = client.post(f"/api/spaces/{sid}/sub-spaces", headers=logged_user["headers"])
         assert r.status_code in (201, 403)
         r2 = client.get(f"/api/spaces/{sid}/sub-spaces", headers=logged_user["headers"])
@@ -210,10 +255,12 @@ class TestSpacesAdvanced:
 
 # Channels Advanced
 
+
 class TestChannelsAdvanced:
     def test_channel_stats(self, client, logged_user):
         cr = client.post("/api/channels", json={"name": f"ch_{random_str(6)}"}, headers=logged_user["headers"])
-        if cr.status_code not in (200, 201): return
+        if cr.status_code not in (200, 201):
+            return
         cid = cr.json().get("id")
         r = client.get(f"/api/channels/{cid}/stats", headers=logged_user["headers"])
         assert r.status_code in (200, 403)
@@ -234,24 +281,36 @@ class TestChannelsAdvanced:
             # Channel posts endpoint not available — skip react test
             return
         pid = pr.json().get("id")
-        r = client.post(f"/api/channels/{cid}/posts/{pid}/react", json={"emoji": "\U0001f44d"}, headers=logged_user["headers"])
+        r = client.post(
+            f"/api/channels/{cid}/posts/{pid}/react", json={"emoji": "\U0001f44d"}, headers=logged_user["headers"]
+        )
         assert r.status_code in (200, 201, 404)
 
     def test_monetization(self, client, logged_user):
         cr = client.post("/api/channels", json={"name": f"paid_{random_str(6)}"}, headers=logged_user["headers"])
-        if cr.status_code not in (200, 201): return
+        if cr.status_code not in (200, 201):
+            return
         cid = cr.json().get("id")
-        r = client.put(f"/api/channels/{cid}/monetization", json={
-            "wallet_address": "TRx1234567890abcdef1234567890abcdef",
-            "currency": "USDT", "network": "trc20", "price_monthly": 500,
-            "price_display": "5 USDT", "is_paid": True, "donations_enabled": True,
-        }, headers=logged_user["headers"])
+        r = client.put(
+            f"/api/channels/{cid}/monetization",
+            json={
+                "wallet_address": "TRx1234567890abcdef1234567890abcdef",
+                "currency": "USDT",
+                "network": "trc20",
+                "price_monthly": 500,
+                "price_display": "5 USDT",
+                "is_paid": True,
+                "donations_enabled": True,
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code in (200, 403)
         r2 = client.get(f"/api/channels/{cid}/monetization")
         assert r2.status_code == 200
 
 
 # Bots Advanced
+
 
 class TestBotsAdvanced:
     def test_sdk_info(self, client):
@@ -284,6 +343,7 @@ class TestBotsAdvanced:
 
 # Files Advanced
 
+
 class TestFilesAdvanced:
     def test_compression_presets(self, client):
         r = client.get("/api/files/compression-presets")
@@ -313,6 +373,7 @@ class TestFilesAdvanced:
 
 # Privacy (Tor, Padding, Ephemeral, ZK)
 
+
 class TestPrivacy:
     def test_status(self, client, logged_user):
         r = client.get("/api/privacy/status", headers=logged_user["headers"])
@@ -332,14 +393,20 @@ class TestPrivacy:
 
     def test_ephemeral_generate(self, client, logged_user):
         sec = client.get("/api/privacy/ephemeral/new-secret", headers=logged_user["headers"]).json()["secret_hex"]
-        r = client.post("/api/privacy/ephemeral/generate", json={
-            "room_id": 1, "user_secret_hex": sec,
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/privacy/ephemeral/generate",
+            json={
+                "room_id": 1,
+                "user_secret_hex": sec,
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code == 200
         assert "ephemeral_username" in r.json()
 
     def test_padding(self, client, logged_user):
         import base64
+
         data = base64.b64encode(b"test message").decode()
         r = client.post("/api/privacy/pad", json={"data_b64": data}, headers=logged_user["headers"])
         assert r.status_code == 200
@@ -347,6 +414,7 @@ class TestPrivacy:
 
     def test_unpad(self, client, logged_user):
         import base64
+
         data = base64.b64encode(b"test data").decode()
         padded = client.post("/api/privacy/pad", json={"data_b64": data}, headers=logged_user["headers"]).json()
         r = client.post("/api/privacy/unpad", json={"data_b64": padded["padded_b64"]}, headers=logged_user["headers"])
@@ -361,6 +429,7 @@ class TestPrivacy:
 class TestPrivacyUnit:
     def test_metadata_padding(self):
         from app.security.privacy import MetadataPadding
+
         data = b"hello world"
         padded = MetadataPadding.pad(data)
         assert len(padded) in MetadataPadding.STANDARD_SIZES
@@ -369,6 +438,7 @@ class TestPrivacyUnit:
 
     def test_ephemeral_identity(self):
         from app.security.privacy import EphemeralIdentity
+
         secret = EphemeralIdentity.generate_secret()
         name1 = EphemeralIdentity.generate(secret, 1)
         name2 = EphemeralIdentity.generate(secret, 2)
@@ -377,12 +447,14 @@ class TestPrivacyUnit:
 
     def test_ephemeral_display_name(self):
         from app.security.privacy import EphemeralIdentity
+
         secret = EphemeralIdentity.generate_secret()
         name = EphemeralIdentity.generate_display_name(secret, 42)
         assert " " in name  # "Adjective Noun Number"
 
     def test_zk_membership(self):
         from app.security.privacy import ZKMembership
+
         room_secret = ZKMembership.generate_room_secret()
         token = ZKMembership.create_membership_token(room_secret, 42)
         challenge = ZKMembership.generate_challenge()
@@ -391,6 +463,7 @@ class TestPrivacyUnit:
 
     def test_zk_non_member_fails(self):
         from app.security.privacy import ZKMembership
+
         room_secret = ZKMembership.generate_room_secret()
         token = ZKMembership.create_membership_token(room_secret, 99)
         challenge = ZKMembership.generate_challenge()
@@ -399,15 +472,18 @@ class TestPrivacyUnit:
 
     def test_tor_proxy_status(self):
         from app.security.privacy import tor_proxy
+
         status = tor_proxy.get_status()
         assert "available" in status
 
 
 # Post-Quantum Crypto
 
+
 class TestPostQuantum:
     def test_pq_status(self, client):
         from app.security.post_quantum import _PQ_SIMULATED
+
         r = client.get("/api/crypto/pq-status")
         assert r.status_code == 200
         if not _PQ_SIMULATED:
@@ -415,12 +491,14 @@ class TestPostQuantum:
 
     def test_hybrid_keygen(self):
         from app.security.post_quantum import hybrid_keygen
+
         keys = hybrid_keygen()
         assert len(keys["x25519_public"]) == 32
         assert len(keys["kyber_public"]) == 1184
 
     def test_hybrid_encrypt_decrypt(self):
-        from app.security.post_quantum import hybrid_keygen, hybrid_encrypt, hybrid_decrypt
+        from app.security.post_quantum import hybrid_decrypt, hybrid_encrypt, hybrid_keygen
+
         keys = hybrid_keygen()
         plaintext = b"post-quantum room key test!"
         enc = hybrid_encrypt(plaintext, keys["x25519_public"].hex(), keys["kyber_public"].hex())
@@ -430,12 +508,14 @@ class TestPostQuantum:
 
     def test_kyber_keygen(self):
         from app.security.post_quantum import Kyber768
+
         pk, sk = Kyber768.keygen()
         assert len(pk) == 1184
         assert len(sk) == 2400
 
     def test_kyber_encaps_decaps(self):
         from app.security.post_quantum import Kyber768
+
         pk, sk = Kyber768.keygen()
         ct, ss1 = Kyber768.encapsulate(pk)
         ss2 = Kyber768.decapsulate(sk, ct)
@@ -444,6 +524,7 @@ class TestPostQuantum:
 
 
 # Pluggable Transports
+
 
 class TestPluggableTransports:
     def test_transport_status(self, client, logged_user):
@@ -456,9 +537,13 @@ class TestPluggableTransports:
         assert r.status_code == 200
 
     def test_bridge_add(self, client, logged_user):
-        r = client.post("/api/transport/bridge/add", json={
-            "bridge_line": "bridge 1.2.3.4:9000 abcdef1234567890abcdef1234567890",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/transport/bridge/add",
+            json={
+                "bridge_line": "bridge 1.2.3.4:9000 abcdef1234567890abcdef1234567890",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code == 200
 
     def test_tunnel_create(self, client, logged_user):
@@ -468,6 +553,7 @@ class TestPluggableTransports:
 
     def test_obfs4_wrap_unwrap(self):
         from app.transport.pluggable import Obfs4Transport
+
         t = Obfs4Transport(shared_secret=b"test" * 8)
         data = b"hello obfs4"
         frame = t.wrap(data)
@@ -477,6 +563,7 @@ class TestPluggableTransports:
 
     def test_shadowsocks_encrypt_decrypt(self):
         from app.transport.pluggable import ShadowsocksTransport
+
         ss = ShadowsocksTransport("test_password")
         enc = ss.encrypt_payload("example.com", 9000, b"hello ss")
         host, port, data = ss.decrypt_payload(enc)
@@ -486,6 +573,7 @@ class TestPluggableTransports:
 
     def test_bridge_registry(self):
         from app.transport.pluggable import BridgeRegistry
+
         reg = BridgeRegistry()
         bid = reg.register_bridge("10.0.0.1", 9000, secrets.token_hex(32))
         assert reg.get_bridge(bid) is not None
@@ -497,6 +585,7 @@ class TestPluggableTransports:
 
     def test_transport_manager(self):
         from app.transport.pluggable import transport_manager
+
         available = transport_manager.get_available_transports()
         assert "obfs4" in available
         assert "tls_tunnel" in available
@@ -506,15 +595,18 @@ class TestPluggableTransports:
 
 # Redis Pub/Sub
 
+
 class TestRedisPubSub:
     def test_redis_not_connected(self):
-        from app.peer.redis_pubsub import is_redis_available, get_instance_id
+        from app.peer.redis_pubsub import is_redis_available
+
         # In test env Redis is not running
         assert isinstance(is_redis_available(), bool)
 
     @pytest.mark.asyncio
     async def test_publish_without_redis(self):
-        from app.peer.redis_pubsub import publish_to_room, publish_notification
+        from app.peer.redis_pubsub import publish_notification, publish_to_room
+
         # Should not raise even without Redis
         await publish_to_room(1, {"test": True})
         await publish_notification(1, {"test": True})
@@ -522,18 +614,21 @@ class TestRedisPubSub:
     @pytest.mark.asyncio
     async def test_rate_limit_without_redis(self):
         from app.peer.redis_pubsub import check_rate_limit_distributed
+
         result = await check_rate_limit_distributed("test_key", 10, 60)
         assert result is True  # Fail open without Redis
 
     @pytest.mark.asyncio
     async def test_cache_without_redis(self):
-        from app.peer.redis_pubsub import cache_set, cache_get
+        from app.peer.redis_pubsub import cache_get, cache_set
+
         await cache_set("test", "value")
         result = await cache_get("test")
         assert result is None  # No Redis = no cache
 
 
 # Voice Advanced (SFU, recording, stage)
+
 
 class TestVoiceAdvanced:
     def test_sfu_config(self, client, logged_user, room):
@@ -559,9 +654,11 @@ class TestVoiceAdvanced:
 
 # Permission Flags Unit Test
 
+
 class TestPermissionFlags:
     def test_all_flags(self):
         from app.models_rooms import PermissionFlags
+
         flags = PermissionFlags.all_flags()
         assert len(flags) >= 41
         assert "SEND_MESSAGES" in flags
@@ -569,12 +666,14 @@ class TestPermissionFlags:
 
     def test_defaults(self):
         from app.models_rooms import PermissionFlags
+
         assert PermissionFlags.DEFAULT_MEMBER & PermissionFlags.SEND_MESSAGES
         assert PermissionFlags.DEFAULT_ADMIN & PermissionFlags.KICK_MEMBERS
         assert PermissionFlags.DEFAULT_OWNER & PermissionFlags.ADMINISTRATOR
 
 
 # Call History
+
 
 class TestCallHistory:
     def test_recent_calls_empty(self, client, logged_user):
@@ -584,24 +683,31 @@ class TestCallHistory:
 
     def test_start_and_end_call(self, client, logged_user):
         # Start call
-        r = client.post("/api/calls/start", json={
-            "call_type": "audio",
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "call_type": "audio",
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code == 201
         call_id = r.json()["call_id"]
 
         # End call
-        r2 = client.post("/api/calls/end", json={
-            "call_id": call_id,
-            "status": "answered",
-            "duration": 120,
-        }, headers=logged_user["headers"])
+        r2 = client.post(
+            "/api/calls/end",
+            json={
+                "call_id": call_id,
+                "status": "answered",
+                "duration": 120,
+            },
+            headers=logged_user["headers"],
+        )
         assert r2.status_code == 200
         assert r2.json()["duration"] == 120
 
     def test_recent_calls_after_start(self, client, logged_user):
-        client.post("/api/calls/start", json={"call_type": "video"},
-                    headers=logged_user["headers"])
+        client.post("/api/calls/start", json={"call_type": "video"}, headers=logged_user["headers"])
         r = client.get("/api/calls/recent", headers=logged_user["headers"])
         assert r.status_code == 200
         assert len(r.json()["calls"]) >= 1
@@ -618,8 +724,7 @@ class TestCallHistory:
         assert "total_duration_human" in data
 
     def test_delete_call(self, client, logged_user):
-        cr = client.post("/api/calls/start", json={"call_type": "audio"},
-                         headers=logged_user["headers"])
+        cr = client.post("/api/calls/start", json={"call_type": "audio"}, headers=logged_user["headers"])
         if cr.status_code == 201:
             call_id = cr.json()["call_id"]
             r = client.delete(f"/api/calls/{call_id}", headers=logged_user["headers"])
@@ -635,10 +740,14 @@ class TestCallHistory:
 
     def test_start_group_call(self, client, logged_user, room):
         rid = room.get("id") or room.get("room", {}).get("id", 1)
-        r = client.post("/api/calls/start", json={
-            "call_type": "group_audio",
-            "room_id": rid,
-        }, headers=logged_user["headers"])
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "call_type": "group_audio",
+                "room_id": rid,
+            },
+            headers=logged_user["headers"],
+        )
         assert r.status_code == 201
 
     def test_start_video_call_with_callee(self, client, two_users):
@@ -646,8 +755,12 @@ class TestCallHistory:
         callee_id = u2.get("data", {}).get("user_id") or u2.get("data", {}).get("id")
         if not callee_id:
             return
-        r = client.post("/api/calls/start", json={
-            "callee_id": callee_id,
-            "call_type": "video",
-        }, headers=u1["headers"])
+        r = client.post(
+            "/api/calls/start",
+            json={
+                "callee_id": callee_id,
+                "call_type": "video",
+            },
+            headers=u1["headers"],
+        )
         assert r.status_code == 201

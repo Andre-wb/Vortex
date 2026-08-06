@@ -7,8 +7,7 @@ exists, self-heal (DELETE /my-key → has_key=False → key_request).
 import secrets
 
 import pytest
-
-from conftest import make_user, login_user, random_str
+from conftest import login_user, make_user, random_str
 
 
 def _hybrid_key() -> dict:
@@ -111,7 +110,7 @@ def test_provision_skip_if_exists(client):
 
 def test_provision_requires_caller_membership(client):
     a, x = _pair(client)
-    x_id = _uid(x)
+    _uid(x)
     room_id = _create_room(client, a["headers"])
     # X (не член, без ключа) не может провижнить
     x_h = login_user(client, x["username"], x["password"])

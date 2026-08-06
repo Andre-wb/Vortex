@@ -10,14 +10,12 @@ from fastapi import Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.authentication._helpers import router
 from app.config import Config
 from app.database import get_db
 from app.models import PasswordStrengthRequest, UpdateRichStatusRequest, User
 from app.security.auth_jwt import get_current_user
 from app.security.security_validate import calculate_password_strength
-
-from app.authentication._helpers import router
-
 
 
 @router.get("/me")
@@ -149,8 +147,9 @@ async def update_rich_status(body: UpdateRichStatusRequest,
 @router.post("/avatar")
 async def upload_avatar(file: UploadFile = File(...), u: User = Depends(get_current_user),
                         db: Session = Depends(get_db)):
-    from PIL import Image
     import io
+
+    from PIL import Image
 
     max_size = 5 * 1024 * 1024
     chunks = []
@@ -170,7 +169,7 @@ async def upload_avatar(file: UploadFile = File(...), u: User = Depends(get_curr
         img = img.convert("RGB")
         img.thumbnail((256, 256))
     except Exception:
-        raise HTTPException(400, "Invalid image format")
+        raise HTTPException(400, "Invalid image format") from None
 
     os.makedirs("uploads/avatars", exist_ok=True)
     filename = f"{secrets.token_hex(16)}.jpg"

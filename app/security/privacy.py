@@ -15,7 +15,6 @@ import logging
 import os
 import secrets
 import struct
-import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -55,7 +54,7 @@ class TorProxy:
             s.close()
             self._available = True
             logger.info("Tor SOCKS5 proxy available at %s", self.socks_url)
-        except (ConnectionRefusedError, OSError, socket.timeout):
+        except (TimeoutError, ConnectionRefusedError, OSError):
             self._available = False
             logger.info("Tor not available at %s — direct connections will be used", self.socks_url)
         return self._available
@@ -80,7 +79,6 @@ class TorProxy:
         if not self.is_available():
             return None
         try:
-            import httpx
             async with self.get_httpx_client() as client:
                 resp = await client.get("https://api.ipify.org?format=json")
                 if resp.status_code == 200:

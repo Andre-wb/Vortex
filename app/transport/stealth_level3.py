@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import gzip
 import hashlib
 import hmac
@@ -49,9 +50,12 @@ import secrets
 import socket
 import struct
 import time
-from typing import Optional, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Optional
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+_sysrand = random.SystemRandom()
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +168,7 @@ class DoHTunnel:
                     logger.debug("DoH tunnel error: %s", e)
 
                 # Jitter между запросами (как DNS-resolver)
-                await asyncio.sleep(random.uniform(0.05, 0.3))
+                await asyncio.sleep(_sysrand.uniform(0.05, 0.3))
         return True
 
     def get_status(self) -> dict:
@@ -216,7 +220,6 @@ class ECHConfigurator:
         """
         Настраивает SSL context для ECH или domain fronting.
         """
-        import ssl
 
         if self._ech_available:
             # Нативный ECH через OpenSSL 3.2+
@@ -299,12 +302,12 @@ class H2Multiplexer:
         Генерирует набор фейковых HTTP/2 потоков для отправки
         параллельно с реальными данными.
         """
-        n = random.randint(self.min_streams, self.max_streams)
+        n = _sysrand.randint(self.min_streams, self.max_streams)
         streams = random.sample(self.FAKE_RESOURCES, min(n, len(self.FAKE_RESOURCES)))
 
         result = []
         for res in streams:
-            size = random.randint(*res["size_range"])
+            size = _sysrand.randint(*res["size_range"])
             result.append({
                 "path": res["path"],
                 "content_type": res["content_type"],
@@ -510,7 +513,7 @@ class TLSSessionRandomizer:
     def __init__(self):
         self._ticket_rotation_counter = 0
         self._last_ticket_rotation = time.monotonic()
-        self._rotation_interval = random.uniform(1800, 7200)  # 30min - 2hr
+        self._rotation_interval = _sysrand.uniform(1800, 7200)  # 30min - 2hr
 
     def should_resume(self) -> bool:
         """Решает: resume session или full handshake."""
@@ -518,11 +521,11 @@ class TLSSessionRandomizer:
         now = time.monotonic()
         if now - self._last_ticket_rotation > self._rotation_interval:
             self._last_ticket_rotation = now
-            self._rotation_interval = random.uniform(1800, 7200)
+            self._rotation_interval = _sysrand.uniform(1800, 7200)
             self._ticket_rotation_counter += 1
             return False  # Force full handshake
 
-        return random.random() < self.RESUMPTION_PROBABILITY
+        return _sysrand.random() < self.RESUMPTION_PROBABILITY
 
     def configure_ssl_context(self, ctx):
         """Настраивает SSL context для рандомизации session tickets."""
@@ -530,16 +533,12 @@ class TLSSessionRandomizer:
 
         if self.should_resume():
             # Разрешаем session tickets
-            try:
+            with contextlib.suppress(AttributeError, ValueError):
                 ctx.options &= ~ssl.OP_NO_TICKET
-            except (AttributeError, ValueError):
-                pass
         else:
             # Запрещаем session tickets — будет full handshake
-            try:
+            with contextlib.suppress(AttributeError, ValueError):
                 ctx.options |= ssl.OP_NO_TICKET
-            except (AttributeError, ValueError):
-                pass
 
     def get_status(self) -> dict:
         return {
@@ -577,18 +576,18 @@ class PacketLossSimulator:
           - [(data, 0), (data, 0.05)] — дупликат
         """
         self._total += 1
-        r = random.random()
+        r = _sysrand.random()
 
         if r < self.loss_rate:
             # "Потеря" — задержка 200-800ms (имитация ретрансмиссии)
-            delay = random.uniform(0.2, 0.8)
+            delay = _sysrand.uniform(0.2, 0.8)
             self._delayed += 1
             return [(data, delay)]
 
         if r < self.loss_rate + self.dup_rate:
             # Дупликат (ретрансмиссия)
             self._duplicated += 1
-            return [(data, 0), (data, random.uniform(0.03, 0.08))]
+            return [(data, 0), (data, _sysrand.uniform(0.03, 0.08))]
 
         return [(data, 0)]
 
@@ -720,10 +719,8 @@ class FragmentedClientHello:
         Настраивает сокет для отправки фрагментированного ClientHello.
         TCP_NODELAY = 1 → каждый send() = отдельный TCP пакет.
         """
-        try:
+        with contextlib.suppress(OSError):
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        except OSError:
-            pass
 
     @classmethod
     def fragment_data(cls, data: bytes, fragment_size: int = 5) -> list[bytes]:
@@ -737,7 +734,7 @@ class FragmentedClientHello:
         # Остальное — одним куском или random split
         remaining = data[fragment_size:]
         if len(remaining) > 256:
-            mid = random.randint(len(remaining) // 3, len(remaining) * 2 // 3)
+            mid = _sysrand.randint(len(remaining) // 3, len(remaining) * 2 // 3)
             fragments.append(remaining[:mid])
             fragments.append(remaining[mid:])
         else:
@@ -757,7 +754,7 @@ class FragmentedClientHello:
         for i, frag in enumerate(fragments):
             sock.send(frag)
             if i < len(fragments) - 1:
-                await asyncio.sleep(random.uniform(0.001, 0.01))
+                await asyncio.sleep(_sysrand.uniform(0.001, 0.01))
 
 
 # 9. HTTP/2 SETTINGS FINGERPRINT
@@ -1086,12 +1083,10 @@ class MeekLiteTunnel:
 
     def decode_response(self, body: bytes) -> Optional[bytes]:
         """Декодирует ответ от сервера через CDN."""
-        try:
+        with contextlib.suppress(Exception):
             resp = json.loads(body)
             if "d" in resp:
                 return base64.b64decode(resp["d"])
-        except Exception:
-            pass
         return None
 
     async def poll(self) -> dict:
@@ -1179,8 +1174,8 @@ class CookieJarSimulator:
     """
 
     def __init__(self):
-        self._ga_id = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time()) - random.randint(0, 86400 * 30)}"
-        self._gid = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time()) - random.randint(0, 86400)}"
+        self._ga_id = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time()) - random.randint(0, 86400 * 30)}"  # noqa: S311
+        self._gid = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time()) - random.randint(0, 86400)}"  # noqa: S311
         self._cf_clearance = secrets.token_hex(32)
         self._cf_bm = secrets.token_hex(32)
 
@@ -1190,23 +1185,23 @@ class CookieJarSimulator:
         cookies = [
             f"_ga={self._ga_id}",
             f"_gid={self._gid}",
-            f"_gat=1",
+            "_gat=1",
             f"cf_clearance={self._cf_clearance}",
             f"__cf_bm={self._cf_bm}",
-            f"_gcl_au=1.1.{random.randint(100000, 999999)}.{now - random.randint(0, 3600)}",
+            f"_gcl_au=1.1.{random.randint(100000, 999999)}.{now - random.randint(0, 3600)}",  # noqa: S311
         ]
         # Ротация некоторых куков
-        if random.random() < 0.3:
+        if random.random() < 0.3:  # noqa: S311
             cookies.append(f"NID={secrets.token_hex(48)}")
-        if random.random() < 0.5:
+        if random.random() < 0.5:  # noqa: S311
             cookies.append(f"1P_JAR={time.strftime('%Y-%m-%d-%H')}")
 
         return "; ".join(cookies)
 
     def rotate(self):
         """Периодическая ротация куков (как при реальном использовании)."""
-        self._gid = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time())}"
-        if random.random() < 0.2:
+        self._gid = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time())}"  # noqa: S311
+        if random.random() < 0.2:  # noqa: S311
             self._cf_clearance = secrets.token_hex(32)
 
 
@@ -1327,10 +1322,8 @@ class BurstCoalescer:
 
     async def enqueue(self, data: bytes):
         """Ставит сообщение в очередь для burst-отправки."""
-        try:
+        with contextlib.suppress(asyncio.QueueFull):
             self._buffer.put_nowait(data)
-        except asyncio.QueueFull:
-            pass
 
     async def _burst_loop(self, send_fn: Callable[[bytes], Awaitable[None]]):
         """Основной цикл: собираем буфер → отправляем пачкой → пауза."""
@@ -1355,13 +1348,13 @@ class BurstCoalescer:
                     await send_fn(item)
                     if len(batch) > 1:
                         await asyncio.sleep(
-                            random.uniform(0.01, self.burst_interval))
+                            _sysrand.uniform(0.01, self.burst_interval))
 
                 self._bursts_sent += 1
 
                 # Пауза между пачками (как "чтение страницы")
                 if self._buffer.empty():
-                    pause = random.uniform(self.pause_min, self.pause_max)
+                    pause = _sysrand.uniform(self.pause_min, self.pause_max)
                     await asyncio.sleep(pause)
 
             except asyncio.TimeoutError:
@@ -1415,7 +1408,7 @@ class TLSKeyRotator:
 
     async def _rotation_loop(self, callback: Optional[Callable]):
         while self._running:
-            interval = random.uniform(self.min_interval, self.max_interval)
+            interval = _sysrand.uniform(self.min_interval, self.max_interval)
             try:
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
@@ -1471,7 +1464,7 @@ class RefererChainSimulator:
 
     def _init_chain(self):
         """Инициализирует реалистичную цепочку Referer."""
-        source = random.choice(self.SEARCH_ENGINES + self.SOCIAL_REFERERS)
+        source = _sysrand.choice(self.SEARCH_ENGINES + self.SOCIAL_REFERERS)
         self._chain = [
             source,                           # Google/Yandex
             self.site_url + "/",              # Главная
@@ -1482,12 +1475,12 @@ class RefererChainSimulator:
     def get_referer(self, depth: int = -1) -> str:
         """Возвращает Referer для текущего запроса."""
         if depth < 0:
-            depth = min(len(self._chain) - 1, random.randint(1, 3))
+            depth = min(len(self._chain) - 1, _sysrand.randint(1, 3))
         return self._chain[min(depth, len(self._chain) - 1)]
 
     def advance(self):
         """Продвигает цепочку (новый "клик")."""
-        if random.random() < 0.3:
+        if _sysrand.random() < 0.3:
             self._init_chain()  # Иногда начинаем заново
 
 
@@ -1618,7 +1611,7 @@ class ProtocolPolymorph:
 
     def next_protocol(self) -> dict:
         """Выбирает следующий протокол для маскировки."""
-        proto = random.choice(self.PROTOCOLS)
+        proto = _sysrand.choice(self.PROTOCOLS)
         self._current_idx += 1
         return proto
 
@@ -1708,7 +1701,7 @@ class ConnectionLifecycleMimicry:
         created = self._connections.get(conn_id)
         if not created:
             return False
-        lifetime = random.uniform(self.min_lifetime, self.max_lifetime)
+        lifetime = _sysrand.uniform(self.min_lifetime, self.max_lifetime)
         return (time.monotonic() - created) > lifetime
 
     async def _lifecycle_loop(self, callback: Optional[Callable]):
@@ -1718,7 +1711,7 @@ class ConnectionLifecycleMimicry:
                 now = time.monotonic()
 
                 for conn_id, created in list(self._connections.items()):
-                    max_life = random.uniform(self.min_lifetime, self.max_lifetime)
+                    max_life = _sysrand.uniform(self.min_lifetime, self.max_lifetime)
                     if now - created > max_life:
                         self._reconnect_count += 1
                         logger.debug("Connection lifecycle: reconnect %s (age=%.0fs)",
@@ -1873,7 +1866,7 @@ class CertChainMimicry:
             ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 
             # Cipher suites как у типичного LE-сервера (nginx default)
-            try:
+            with contextlib.suppress(ssl.SSLError):
                 ctx.set_ciphers(
                     "ECDHE-ECDSA-AES128-GCM-SHA256:"
                     "ECDHE-RSA-AES128-GCM-SHA256:"
@@ -1882,8 +1875,6 @@ class CertChainMimicry:
                     "ECDHE-ECDSA-CHACHA20-POLY1305:"
                     "ECDHE-RSA-CHACHA20-POLY1305"
                 )
-            except ssl.SSLError:
-                pass
 
         except Exception as e:
             logger.debug("LE cert mimicry partial: %s", e)
@@ -1925,13 +1916,13 @@ class TrafficScheduler:
         base = self.HOURLY_ACTIVITY[local_hour]
 
         # Добавляем рандомный шум ±10%
-        noise = random.uniform(-0.1, 0.1)
+        noise = _sysrand.uniform(-0.1, 0.1)
         return max(0.02, min(1.0, base + noise))
 
     def should_send_cover(self) -> bool:
         """Решает: отправлять ли cover traffic сейчас."""
         factor = self.get_activity_factor()
-        return random.random() < factor
+        return _sysrand.random() < factor
 
     def get_delay_multiplier(self) -> float:
         """
@@ -1984,7 +1975,7 @@ class GeoCoherenceChecker:
     def get_coherent_headers(self) -> dict:
         """Возвращает набор заголовков, согласованных с GeoIP."""
         return {
-            "Accept-Language": random.choice(self._profile["languages"]),
+            "Accept-Language": _sysrand.choice(self._profile["languages"]),
             "Sec-CH-UA-Platform": self._profile["platform"],
         }
 
@@ -2002,8 +1993,8 @@ class GeoCoherenceChecker:
         if profile:
             # Проверяем язык
             lang_prefix = lang.split(",")[0].split("-")[0] if lang else ""
-            expected_prefixes = [l.split(",")[0].split("-")[0]
-                                 for l in profile["languages"]]
+            expected_prefixes = [lang.split(",")[0].split("-")[0]
+                                 for lang in profile["languages"]]
             if lang_prefix and lang_prefix not in expected_prefixes:
                 anomalies.append(f"language_mismatch:{lang_prefix}!=expected")
 

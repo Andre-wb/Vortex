@@ -11,14 +11,8 @@ test_sfu_resilience.py — Тесты устойчивости SFU с simulcast,
 - Edge cases (empty room, max participants)
 """
 import asyncio
-import secrets
-import struct
-import time
 
 import pytest
-
-from conftest import make_user, login_user, random_str
-
 
 # 1. UNIT TESTS: SFU Logic (без реального WebRTC)
 
@@ -59,7 +53,6 @@ class TestViewportSelection:
 
     def test_subscription_none_drops_video(self):
         """Подписка "none" отбрасывает видео пакеты."""
-        from app.chats.sfu import SFURoom
         # none subscription means video should NOT be forwarded
         # This is tested via _forward_rtp logic: if wanted == "none", skip
         assert True  # Logic tested in integration
@@ -176,7 +169,7 @@ class TestBandwidthWithSimulcast:
         sizes = [5, 10, 20, 50, 100, 200]
 
         print(f"\n{'='*95}")
-        print(f"  СРАВНЕНИЕ BANDWIDTH: Mesh vs SFU vs SFU+Simulcast+Viewport")
+        print("  СРАВНЕНИЕ BANDWIDTH: Mesh vs SFU vs SFU+Simulcast+Viewport")
         print(f"{'='*95}")
         print(f"  {'N':>4} | {'Mesh (Mbps)':>12} | {'SFU basic':>12} | {'SFU+Sim+VP':>12} | "
               f"{'Video':>8} | {'Feasible':>8}")
@@ -201,12 +194,10 @@ class TestBandwidthWithSimulcast:
             sfu_sv = (upload_sv + download_sv) / 1_000_000
 
             # Video quality
-            if n <= 6:
-                mesh_video = "720p"
-            elif n <= 10:
-                mesh_video = "480p"
+            if n <= 6 or n <= 10:
+                pass
             else:
-                mesh_video = "impossible"
+                pass
 
             feasible = "✅" if sfu_sv < 10 else "⚠️"
 
@@ -214,9 +205,9 @@ class TestBandwidthWithSimulcast:
                   f"{sfu_sv:>10.1f}  | {'720p+360p':>8} | {feasible:>8}")
 
         print(f"{'='*95}")
-        print(f"  Simulcast: клиент шлёт 3 потока (720p + 360p + 180p) = ~3.3 Mbps upload")
-        print(f"  Viewport: получатель видит 1 high + 4 medium + rest audio = ~5-8 Mbps download")
-        print(f"  Итого: фиксированные ~8-10 Mbps на любое N!")
+        print("  Simulcast: клиент шлёт 3 потока (720p + 360p + 180p) = ~3.3 Mbps upload")
+        print("  Viewport: получатель видит 1 high + 4 medium + rest audio = ~5-8 Mbps download")
+        print("  Итого: фиксированные ~8-10 Mbps на любое N!")
         print(f"{'='*95}\n")
 
 
@@ -259,7 +250,7 @@ class TestSFUResilience:
 
     def test_viewport_subscription(self):
         """Viewport subscription обрабатывается."""
-        from app.chats.sfu import SFURoom, SFUParticipant
+        from app.chats.sfu import SFUParticipant, SFURoom
         room = SFURoom("test-vp", 1)
         room.participants[1] = SFUParticipant(user_id=1, username="u1")
         loop = asyncio.new_event_loop()
@@ -269,7 +260,7 @@ class TestSFUResilience:
 
     def test_leave_cleans_up(self):
         """Leave очищает participant и SSRC таблицу."""
-        from app.chats.sfu import SFURoom, SFUParticipant
+        from app.chats.sfu import SFUParticipant, SFURoom
         room = SFURoom("test-leave", 1)
         room.participants[1] = SFUParticipant(user_id=1, username="u1")
         room.participants[2] = SFUParticipant(user_id=2, username="u2")
@@ -285,7 +276,7 @@ class TestSFUResilience:
 
     def test_empty_room_self_closes(self):
         """Пустая комната удаляется из реестра."""
-        from app.chats.sfu import SFURoom, SFUParticipant, _sfu_rooms
+        from app.chats.sfu import SFUParticipant, SFURoom, _sfu_rooms
         room = SFURoom("test-close", 1)
         _sfu_rooms["test-close"] = room
         room.participants[1] = SFUParticipant(user_id=1, username="u1")
@@ -430,7 +421,7 @@ class TestScaleQuality:
     def test_full_scale_table(self):
         """Сводная таблица: клиент + сервер для 2–10 000."""
         print(f"\n{'='*130}")
-        print(f"  МАСШТАБИРОВАНИЕ VORTEX SFU: 2 – 10 000 УЧАСТНИКОВ")
+        print("  МАСШТАБИРОВАНИЕ VORTEX SFU: 2 – 10 000 УЧАСТНИКОВ")
         print(f"{'='*130}")
         print(
             f"  {'N':>6} | {'Topo':>7} | "
@@ -478,20 +469,20 @@ class TestScaleQuality:
                 f"  {n:>6} | {topo:>7} | "
                 f"{up_mbps:>5.1f} | {dn_mbps:>6.1f} | {total:>5.1f} | "
                 f"{focus:>5} | {grid_label:>4} | {hidden_lbl:>6} | "
-                f"{str(sfus):>4} | {str(ing):>8} | {str(eg):>8} | {str(cpu):>4} | {str(ram):>6} | "
+                f"{sfus!s:>4} | {ing!s:>8} | {eg!s:>8} | {cpu!s:>4} | {ram!s:>6} | "
                 f"{quality:>17}"
             )
 
         print(f"{'='*130}")
-        print(f"  КЛИЕНТ:")
-        print(f"    Upload:   фиксированный 3.28 Mbps (simulcast 3 потока)")
-        print(f"    Download: 1×720p + 4×360p + rest audio = 5–12 Mbps (viewport)")
-        print(f"    Видео:    720p фокус + 360p сетка для ЛЮБОГО числа участников")
-        print(f"  СЕРВЕР:")
-        print(f"    Каскад SFU: до 500 участников на 1 SFU, далее горизонтальное масштабирование")
-        print(f"    RTP forwarding без encode/decode = минимальный CPU")
-        print(f"    E2E сохраняется: SFU видит только зашифрованные RTP payloads")
-        print(f"  СТОИМОСТЬ: $0 — aiortc (MIT), WebRTC (W3C стандарт), наш код")
+        print("  КЛИЕНТ:")
+        print("    Upload:   фиксированный 3.28 Mbps (simulcast 3 потока)")
+        print("    Download: 1×720p + 4×360p + rest audio = 5–12 Mbps (viewport)")
+        print("    Видео:    720p фокус + 360p сетка для ЛЮБОГО числа участников")
+        print("  СЕРВЕР:")
+        print("    Каскад SFU: до 500 участников на 1 SFU, далее горизонтальное масштабирование")
+        print("    RTP forwarding без encode/decode = минимальный CPU")
+        print("    E2E сохраняется: SFU видит только зашифрованные RTP payloads")
+        print("  СТОИМОСТЬ: $0 — aiortc (MIT), WebRTC (W3C стандарт), наш код")
         print(f"{'='*130}\n")
 
     def test_cascade_sfu_for_1000(self):
@@ -535,7 +526,7 @@ class TestScaleQuality:
         # С bridge: SFU микширует в 3 потока (dominant + 2 recent)
         bridged_audio_down = 3 * AUDIO_BPS
 
-        savings_pct = round((1 - bridged_audio_down / max(raw_audio_down, 1)) * 100, 1)
+        round((1 - bridged_audio_down / max(raw_audio_down, 1)) * 100, 1)
 
         # С bridge: download = video(focus+grid) + bridged_audio
         video_down = VIDEO_HIGH_BPS + 4 * VIDEO_MEDIUM_BPS
@@ -549,7 +540,7 @@ class TestScaleQuality:
         """В реальности >80% участников muted → 0 bps audio."""
         n = 10000
         active_speakers = 5   # обычно говорят 1-5 человек
-        muted = n - active_speakers
+        n - active_speakers
 
         # Только active speakers отправляют audio
         actual_audio_down = active_speakers * AUDIO_BPS
@@ -557,7 +548,7 @@ class TestScaleQuality:
         total = (UPLOAD_SIMULCAST_BPS + video_down + actual_audio_down) / 1e6
 
         assert total < 10, f"10000 with muted: {total:.1f} Mbps"
-        print(f"\n  10000 участников, 5 говорят, 9995 muted:")
+        print("\n  10000 участников, 5 говорят, 9995 muted:")
         print(f"    Total bandwidth: {total:.2f} Mbps — EXCELLENT!")
 
 
@@ -571,7 +562,7 @@ class TestScaleOptimizations:
         n = 1000
         bw = _client_bandwidth(n)
         # Hidden получают только audio
-        hidden_bps = bw["hidden_count"] * AUDIO_BPS
+        bw["hidden_count"] * AUDIO_BPS
         hidden_video_bps = 0  # ноль видео для hidden!
         assert hidden_video_bps == 0
 
@@ -580,10 +571,10 @@ class TestScaleOptimizations:
         # Simulcast = 3 готовых потока, SFU просто выбирает какой пересылать
         # Переключение = 0ms latency, 0 CPU на SFU
         layers = ["high", "medium", "low"]
-        for l in layers:
+        for layer in layers:
             from app.chats.sfu import SIMULCAST_LAYERS
-            assert l in SIMULCAST_LAYERS
-            assert SIMULCAST_LAYERS[l]["maxBitrate"] > 0
+            assert layer in SIMULCAST_LAYERS
+            assert SIMULCAST_LAYERS[layer]["maxBitrate"] > 0
 
     def test_dominant_speaker_reduces_switching(self):
         """Dominant speaker detection уменьшает частоту переключений."""

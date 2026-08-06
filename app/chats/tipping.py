@@ -9,19 +9,18 @@ lives in the user's wallet, not on the node). So this module only:
 
 The node NEVER holds private wallet keys.
 """
+
 from __future__ import annotations
 
 import html
 import logging
-import time
-from typing import Optional
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
 
 from app.base import Base
 from app.database import get_db
@@ -33,7 +32,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tipping", tags=["tipping"])
 
 
-
 class TipEvent(Base):
     """Append-only tip log.
 
@@ -42,44 +40,43 @@ class TipEvent(Base):
     indexer task). UI shows them as "pending" / "confirmed" based on
     whether another process later flips the flag.
     """
+
     __tablename__ = "tip_events"
 
-    id          = Column(Integer, primary_key=True, index=True)
-    from_user   = Column(Integer, index=True)           # local user_id
-    to_user     = Column(Integer, index=True)           # local user_id (0 if anon donation)
-    to_wallet   = Column(String(64), nullable=False)     # Solana pubkey b58
-    lamports    = Column(Integer, nullable=False)
-    note        = Column(String(200), default="")
-    tx_sig      = Column(String(200), index=True)       # base58 sig
-    confirmed   = Column(Integer, default=0)            # 0/1
-    created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
+    id = Column(Integer, primary_key=True, index=True)
+    from_user = Column(Integer, index=True)  # local user_id
+    to_user = Column(Integer, index=True)  # local user_id (0 if anon donation)
+    to_wallet = Column(String(64), nullable=False)  # Solana pubkey b58
+    lamports = Column(Integer, nullable=False)
+    note = Column(String(200), default="")
+    tx_sig = Column(String(200), index=True)  # base58 sig
+    confirmed = Column(Integer, default=0)  # 0/1
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 def _public_profile(u: User) -> dict:
     return {
-        "user_id":      u.id,
-        "username":     u.username,
+        "user_id": u.id,
+        "username": u.username,
         "display_name": u.display_name or u.username,
-        "avatar_url":   u.avatar_url,
+        "avatar_url": u.avatar_url,
         "wallet_pubkey": u.wallet_pubkey or "",
-        "bio":          (u.bio or "")[:240],
+        "bio": (u.bio or "")[:240],
     }
-
 
 
 class TipRecordBody(BaseModel):
     to_user_id: int
-    lamports:   int   = Field(..., ge=1, le=1_000_000_000_000)   # up to 1M SOL
-    tx_sig:     str   = Field(..., min_length=32, max_length=200)
-    note:       str   = Field("", max_length=200)
+    lamports: int = Field(..., ge=1, le=1_000_000_000_000)  # up to 1M SOL
+    tx_sig: str = Field(..., min_length=32, max_length=200)
+    note: str = Field("", max_length=200)
 
 
 @router.post("/record")
 async def tip_record(
     body: TipRecordBody,
-    me:   User = Depends(get_current_user),
-    db:   Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict:
     """Record a tip after the client has submitted the Solana tx.
 
@@ -93,21 +90,23 @@ async def tip_record(
         raise HTTPException(400, "target has no wallet_pubkey set")
 
     ev = TipEvent(
-        from_user = me.id,
-        to_user   = target.id,
-        to_wallet = target.wallet_pubkey,
-        lamports  = body.lamports,
-        note      = body.note[:200],
-        tx_sig    = body.tx_sig,
-        confirmed = 0,
+        from_user=me.id,
+        to_user=target.id,
+        to_wallet=target.wallet_pubkey,
+        lamports=body.lamports,
+        note=body.note[:200],
+        tx_sig=body.tx_sig,
+        confirmed=0,
     )
-    db.add(ev); db.commit(); db.refresh(ev)
+    db.add(ev)
+    db.commit()
+    db.refresh(ev)
     logger.info("tip recorded: %s → %s · %d lamports", me.username, target.username, body.lamports)
     return {
         "ok": True,
-        "tip_id":     ev.id,
-        "to_wallet":  target.wallet_pubkey,
-        "lamports":   body.lamports,
+        "tip_id": ev.id,
+        "to_wallet": target.wallet_pubkey,
+        "lamports": body.lamports,
         "amount_sol": body.lamports / 1_000_000_000,
     }
 
@@ -122,9 +121,9 @@ async def tip_target(user_id: int, db: Session = Depends(get_db)) -> dict:
     if not u.wallet_pubkey:
         raise HTTPException(400, "user has no wallet pubkey")
     return {
-        "user_id":       u.id,
-        "username":      u.username,
-        "display_name":  u.display_name or u.username,
+        "user_id": u.id,
+        "username": u.username,
+        "display_name": u.display_name or u.username,
         "wallet_pubkey": u.wallet_pubkey,
     }
 
@@ -138,29 +137,25 @@ async def tip_history(
 ) -> dict:
     limit = max(1, min(limit, 200))
     q = db.query(TipEvent)
-    if incoming:
-        q = q.filter(TipEvent.to_user == me.id)
-    else:
-        q = q.filter(TipEvent.from_user == me.id)
+    q = q.filter(TipEvent.to_user == me.id) if incoming else q.filter(TipEvent.from_user == me.id)
     rows = q.order_by(TipEvent.id.desc()).limit(limit).all()
     return {
         "events": [
             {
-                "id":         e.id,
-                "from_user":  e.from_user,
-                "to_user":    e.to_user,
-                "to_wallet":  e.to_wallet,
-                "lamports":   e.lamports,
+                "id": e.id,
+                "from_user": e.from_user,
+                "to_user": e.to_user,
+                "to_wallet": e.to_wallet,
+                "lamports": e.lamports,
                 "amount_sol": e.lamports / 1_000_000_000,
-                "note":       e.note,
-                "tx_sig":     e.tx_sig,
-                "confirmed":  bool(e.confirmed),
+                "note": e.note,
+                "tx_sig": e.tx_sig,
+                "confirmed": bool(e.confirmed),
                 "created_at": e.created_at.isoformat() if e.created_at else None,
             }
             for e in rows
         ]
     }
-
 
 
 @router.get("/donate/{username}", response_class=HTMLResponse)
@@ -171,23 +166,26 @@ async def donate_page(username: str, db: Session = Depends(get_db)) -> HTMLRespo
         raise HTTPException(404, "user not found or no wallet configured")
 
     # Recent tips — public counts only, no sender usernames.
-    recent = (db.query(TipEvent)
-              .filter(TipEvent.to_user == u.id, TipEvent.confirmed == 1)
-              .order_by(TipEvent.id.desc())
-              .limit(10)
-              .all())
-    total_lamports = sum(e.lamports for e in (db.query(TipEvent)
-        .filter(TipEvent.to_user == u.id, TipEvent.confirmed == 1).all()))
+    recent = (
+        db.query(TipEvent)
+        .filter(TipEvent.to_user == u.id, TipEvent.confirmed == 1)
+        .order_by(TipEvent.id.desc())
+        .limit(10)
+        .all()
+    )
+    total_lamports = sum(
+        e.lamports for e in (db.query(TipEvent).filter(TipEvent.to_user == u.id, TipEvent.confirmed == 1).all())
+    )
 
     # Full HTML-escaping (incl. quotes) — these are interpolated into both text
     # and attribute (src="…", href="…") contexts, so quote-escaping is required
     # to prevent attribute breakout / stored XSS, not just stripping <>.
     wallet = html.escape(u.wallet_pubkey or "", quote=True)
-    name   = html.escape(u.display_name or u.username, quote=True)
+    name = html.escape(u.display_name or u.username, quote=True)
     avatar = html.escape(u.avatar_url or "", quote=True)
 
     # Intentionally minimal HTML — no JS dependencies, zero tracking.
-    html = f"""<!doctype html>
+    page = f"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -220,7 +218,7 @@ async def donate_page(username: str, db: Session = Depends(get_db)) -> HTMLRespo
 </style>
 </head><body>
 <div class="card">
-  <img class="avatar" src="{avatar or '/static/logo-small.png'}" alt="">
+  <img class="avatar" src="{avatar or "/static/logo-small.png"}" alt="">
   <h1>Donate to {name}</h1>
   <p class="total">Total received: {total_lamports / 1_000_000_000:.4f} SOL</p>
 
@@ -230,7 +228,7 @@ async def donate_page(username: str, db: Session = Depends(get_db)) -> HTMLRespo
   <a class="btn-solflare" href="https://solflare.com/ul/v1/transfer?recipient={wallet}">Solflare</a>
 
   <div class="recent">
-    {"".join(f'<div class="recent-row"><span>{e.created_at.strftime("%Y-%m-%d")}</span><span>{e.lamports/1e9:.3f} SOL</span></div>' for e in recent) or '<em>No donations yet.</em>'}
+    {"".join(f'<div class="recent-row"><span>{e.created_at.strftime("%Y-%m-%d")}</span><span>{e.lamports / 1e9:.3f} SOL</span></div>' for e in recent) or "<em>No donations yet.</em>"}
   </div>
 
   <p class="hint">
@@ -239,4 +237,4 @@ async def donate_page(username: str, db: Session = Depends(get_db)) -> HTMLRespo
   </p>
 </div>
 </body></html>"""
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=page)

@@ -4,22 +4,18 @@ file search, auto-compression presets.
 """
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import os
 from datetime import datetime, timezone
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
-from sqlalchemy import func, or_
+from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import Config
 from app.database import get_db
 from app.models import User
-from app.models_rooms import FileTransfer, Message, Room, RoomMember
+from app.models_rooms import FileTransfer, RoomMember
 from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -105,7 +101,7 @@ async def media_preview(room_id: int, file_id: int,
     """
     member = db.query(RoomMember).filter(
         RoomMember.room_id == room_id, RoomMember.user_id == u.id,
-        RoomMember.is_banned == False,
+        RoomMember.is_banned.is_(False),
     ).first()
     if not member:
         raise HTTPException(403, "Not a member")

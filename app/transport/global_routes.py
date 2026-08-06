@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -80,7 +79,7 @@ async def gossip(body: GossipRequest, request: Request):
         try:
             bytes.fromhex(body.sender_pubkey)
         except ValueError:
-            raise HTTPException(400, "Invalid pubkey hex")
+            raise HTTPException(400, "Invalid pubkey hex") from None
 
     # Always use real IP from TCP connection (spoof protection)
     real_ip = request.client.host if request.client else body.sender_ip
@@ -121,7 +120,7 @@ async def bootstrap(body: BootstrapRequest, request: Request):
         try:
             bytes.fromhex(body.sender_pubkey)
         except ValueError:
-            raise HTTPException(400, "Invalid pubkey hex")
+            raise HTTPException(400, "Invalid pubkey hex") from None
 
     real_ip = body.sender_ip
     if request.client and request.client.host:
@@ -155,7 +154,7 @@ async def search_rooms_local(q: str = Query("", description="Search query")):
         from app.models_rooms import Room
         db = SessionLocal()
         try:
-            query = db.query(Room).filter(Room.is_private == False)
+            query = db.query(Room).filter(Room.is_private.is_(False))
             if q:
                 query = query.filter(Room.name.ilike(f"%{q}%"))
             rooms = query.all()

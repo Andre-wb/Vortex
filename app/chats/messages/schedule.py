@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.chats.messages._router import utc_iso, parse_enc_v
+from app.chats.messages._router import parse_enc_v, utc_iso
 from app.models import User
 from app.models_rooms import Message, MessageType
 from app.peer.connection_manager import manager
@@ -148,8 +148,8 @@ async def deliver_scheduled_messages(db: Session) -> int:
     """Доставляет запланированные сообщения, у которых наступило время."""
     now = datetime.now(timezone.utc)
     scheduled = db.query(Message).filter(
-        Message.is_scheduled == True,
-        Message.scheduled_at != None,
+        Message.is_scheduled.is_(True),
+        Message.scheduled_at.is_not(None),
         Message.scheduled_at <= now,
     ).all()
 
@@ -187,7 +187,7 @@ async def deliver_scheduled_messages(db: Session) -> int:
 async def cleanup_expired_messages(db: Session) -> int:
     """Удаляет просроченные сообщения. Возвращает количество удалённых."""
     expired = db.query(Message).filter(
-        Message.expires_at != None,
+        Message.expires_at.is_not(None),
         Message.expires_at < datetime.now(timezone.utc),
     ).all()
 

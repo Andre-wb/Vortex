@@ -6,9 +6,9 @@ POST /api/keys/kyber хранит pub + Ed25519-подпись; профиль �
 
 import secrets
 
+from conftest import _phone_prefix, random_digits, random_str
 from starlette.testclient import TestClient
 
-from conftest import random_str, random_digits, _phone_prefix
 from app.main import app
 
 _PW = "Str0ng_abcd!@"

@@ -16,11 +16,8 @@ Message content is E2E encrypted and exported as ciphertext (server cannot decry
 """
 from __future__ import annotations
 
-import io
-import json
+import contextlib
 import logging
-import time
-import zipfile
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -47,7 +44,7 @@ async def export_user_data(
     Returns a JSON object with all data categories.
     Message content is E2E encrypted — exported as ciphertext.
     """
-    from app.models_rooms import RoomMember, Message, FileTransfer
+    from app.models_rooms import FileTransfer, Message, RoomMember
 
     # Account data
     account = {
@@ -95,7 +92,7 @@ async def export_user_data(
 
     # Devices (if model exists)
     devices = []
-    try:
+    with contextlib.suppress(Exception):
         from app.models import UserDevice
         user_devices = db.query(UserDevice).filter(UserDevice.user_id == u.id).all()
         for d in user_devices:
@@ -105,8 +102,6 @@ async def export_user_data(
                 "device_type": getattr(d, "device_type", ""),
                 "created_at": str(getattr(d, "created_at", "")),
             })
-    except Exception:
-        pass
 
     export = {
         "export_type": "gdpr_article_15",
@@ -151,7 +146,7 @@ async def erase_user_data(
 
     WARNING: This action is irreversible.
     """
-    from app.models_rooms import RoomMember, Message, FileTransfer
+    from app.models_rooms import FileTransfer, RoomMember
 
     erased = {
         "account": False,
@@ -170,12 +165,10 @@ async def erase_user_data(
         erased["files"] = count
 
         # Remove devices
-        try:
+        with contextlib.suppress(Exception):
             from app.models import UserDevice
             count = db.query(UserDevice).filter(UserDevice.user_id == u.id).delete()
             erased["devices"] = count
-        except Exception:
-            pass
 
         # Zero sensitive fields before deletion
         u.password_hash = ""
@@ -197,7 +190,7 @@ async def erase_user_data(
     except Exception as e:
         db.rollback()
         logger.error("GDPR erasure failed for user %d: %s", u.id, e)
-        raise HTTPException(500, "Data deletion error")
+        raise HTTPException(500, "Data deletion error") from None
 
     return {
         "erased": True,
@@ -263,8 +256,9 @@ async def enforce_retention_policy(db: Session, max_age_days: int = 365):
     Called periodically by background task.
     Respects per-room auto-delete settings (which may be shorter).
     """
-    from app.models_rooms import Message
     from datetime import timedelta
+
+    from app.models_rooms import Message
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
     count = 0

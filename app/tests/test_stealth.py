@@ -11,24 +11,21 @@
   - Fake site HTML
   - Stealth status endpoint
 """
-import os
-import pytest
 
 from app.transport.stealth import (
-    obfuscate_ws_path,
-    deobfuscate_ws_path,
-    sanitize_request_headers,
     camouflage_payload,
     decamouflage_payload,
-    encrypt_udp_broadcast,
     decrypt_udp_broadcast,
-    get_stealth_port,
-    get_stealth_udp_port,
-    get_stealth_ice_servers,
+    deobfuscate_ws_path,
+    encrypt_udp_broadcast,
     get_fake_index,
+    get_stealth_ice_servers,
+    get_stealth_port,
     get_stealth_status,
+    get_stealth_udp_port,
+    obfuscate_ws_path,
+    sanitize_request_headers,
 )
-
 
 # WebSocket Path Obfuscation
 

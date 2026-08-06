@@ -6,24 +6,30 @@ DM реализованы как комнаты с is_dm=True, max_members=2.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from app.security.ecies_schema import EciesKeyFields
-from sqlalchemy import and_, func
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
 from app.models.contact import Contact
 from app.models_rooms import (
-    EncryptedRoomKey, Message, PendingKeyRequest, Room, RoomMember, RoomRole,
+    EncryptedRoomKey,
+    Message,
+    PendingKeyRequest,
+    Room,
+    RoomMember,
+    RoomRole,
 )
 from app.models_rooms.blocks import BlockedUser  # enforce blocks on DM open
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
+from app.security.ecies_schema import EciesKeyFields
 from app.security.key_exchange import validate_ecies_payload
 from app.utilites.utils import generative_invite_code
 
@@ -49,7 +55,7 @@ def _find_existing_dm(user_a: int, user_b: int, db: Session) -> Room | None:
     rooms_a = (
         db.query(RoomMember.room_id)
         .join(Room, Room.id == RoomMember.room_id)
-        .filter(Room.is_dm == True, RoomMember.user_id == user_a)
+        .filter(Room.is_dm.is_(True), RoomMember.user_id == user_a)
         .subquery()
     )
     dm_room_id = (
@@ -69,10 +75,7 @@ def _is_user_online(user_id: int) -> bool:
     """Проверяет, подключён ли пользователь к какому-либо WS."""
     if hasattr(manager, '_global_ws') and user_id in manager._global_ws:
         return True
-    for room_users in manager._rooms.values():
-        if user_id in room_users:
-            return True
-    return False
+    return any(user_id in room_users for room_users in manager._rooms.values())
 
 
 def _room_to_dict(room: Room, other_user: User, has_key: bool) -> dict:
@@ -130,7 +133,7 @@ async def create_or_get_dm(
         raise HTTPException(400, "Cannot create DM with yourself")
 
     target = db.query(User).filter(
-        User.id == target_user_id, User.is_active == True,
+        User.id == target_user_id, User.is_active.is_(True),
     ).first()
     if not target:
         raise HTTPException(404, "User not found or deactivated")
@@ -178,16 +181,15 @@ async def create_or_get_dm(
     db.add(RoomMember(room_id=room.id, user_id=target_user_id, role=RoomRole.MEMBER))
 
     # Сохраняем зашифрованный ключ для создателя (если передан)
-    if body.encrypted_room_key:
-        if validate_ecies_payload(body.encrypted_room_key.ecies_dict()):
-            db.add(EncryptedRoomKey(
-                room_id          = room.id,
-                user_id          = u.id,
-                ephemeral_pub    = body.encrypted_room_key.eph_pub,
-                ciphertext       = body.encrypted_room_key.ciphertext,
-                kyber_ciphertext = body.encrypted_room_key.kyber_ciphertext,
-                recipient_pub    = u.x25519_public_key,
-            ))
+    if body.encrypted_room_key and validate_ecies_payload(body.encrypted_room_key.ecies_dict()):
+        db.add(EncryptedRoomKey(
+            room_id          = room.id,
+            user_id          = u.id,
+            ephemeral_pub    = body.encrypted_room_key.eph_pub,
+            ciphertext       = body.encrypted_room_key.ciphertext,
+            kyber_ciphertext = body.encrypted_room_key.kyber_ciphertext,
+            recipient_pub    = u.x25519_public_key,
+        ))
 
     # Сохраняем зашифрованный ключ для получателя (если передан)
     if body.encrypted_key_for_target and target.x25519_public_key:
@@ -314,12 +316,11 @@ async def store_key_for_user(
     # BMP mode: key delivery through BMP room deposit
     from app.config import Config
     if Config.BMP_DELIVERY_ENABLED:
-        try:
-            from app.transport.blind_mailbox import deposit_envelope
+        with contextlib.suppress(Exception):
             import json
+
+            from app.transport.blind_mailbox import deposit_envelope
             await deposit_envelope(room_id, json.dumps(key_payload))
-        except Exception:
-            pass
     else:
         delivered = await manager.send_to_user(room_id, body.user_id, key_payload)
         if not delivered:
@@ -338,7 +339,7 @@ async def list_dms(
     dm_rooms = (
         db.query(Room)
         .join(RoomMember, RoomMember.room_id == Room.id)
-        .filter(Room.is_dm == True, RoomMember.user_id == u.id)
+        .filter(Room.is_dm.is_(True), RoomMember.user_id == u.id)
         .order_by(Room.updated_at.desc())
         .all()
     )

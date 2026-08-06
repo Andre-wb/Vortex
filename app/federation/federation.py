@@ -29,12 +29,23 @@ import logging
 import os
 import ssl
 import time
+from collections import defaultdict as _defaultdict
+from collections import deque as _deque
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Optional
+
 import httpx
 import websockets
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from app.config import Config
+from app.database import SessionLocal, get_db
+from app.models import User
+from app.models_rooms import PersistedFederatedRoom
+from app.peer.connection_manager import manager as ws_manager
+from app.security.auth_jwt import get_current_user
 from app.security.ssl_context import make_peer_ssl_context
 
 _federation_http = httpx.AsyncClient(
@@ -42,17 +53,7 @@ _federation_http = httpx.AsyncClient(
     limits=httpx.Limits(max_keepalive_connections=10, max_connections=50, keepalive_expiry=30.0),
     verify=make_peer_ssl_context(),
 )
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from app.config import Config
-from app.database import get_db, SessionLocal
-from app.models import User
-from app.models_rooms import PersistedFederatedRoom
-from app.peer.connection_manager import manager as ws_manager
-from app.peer.peer_registry import registry
-from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +76,8 @@ def _make_peer_ssl_context() -> ssl.SSLContext:
 
 def _derive_fed_storage_key() -> bytes:
     """Деривирует 32-байтовый AES-ключ из секретов приложения через HKDF-SHA256."""
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     from cryptography.hazmat.primitives import hashes as _h
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     raw = (os.environ.get("JWT_SECRET", "") + os.environ.get("CSRF_SECRET", "")).encode()
     if not raw.strip():
         # fallback: стабильный ключ из hostname — лучше чем ничего, но слабее
@@ -184,7 +185,8 @@ class FederationRelayManager:
                 row.invite_code    = info.invite_code
                 row.is_private     = info.is_private
                 row.member_count   = info.member_count
-                from datetime import datetime, timezone as _tz
+                from datetime import datetime
+                from datetime import timezone as _tz
                 row.last_accessed  = datetime.now(_tz.utc)
                 db.commit()
             finally:
@@ -569,12 +571,11 @@ def _is_private_ip(ip: str) -> bool:
 # We now: (a) gate behind FEDERATION_GUEST_ENABLED (default OFF → 403); and
 # (b) require a pre-shared peer proof (HMAC over FEDERATION_PSK) before minting;
 # and (c) rate-limit guest creation per source IP.
-from collections import defaultdict as _defaultdict, deque as _deque
 
 _GUEST_PROOF_HEADER = "X-Federation-Proof"   # "<ts>:<hmac_hex>"
 _GUEST_PROOF_WINDOW = 300                     # ±5 min clock skew
 _GUEST_RATE_PER_MIN = 30                       # guest-login attempts per source IP
-_guest_hits: dict[str, "_deque"] = _defaultdict(_deque)
+_guest_hits: dict[str, _deque] = _defaultdict(_deque)
 
 
 def _guest_enabled() -> bool:
@@ -725,7 +726,6 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
                 password_hash     = password_hash,
                 x25519_public_key = body.x25519_pubkey[:64] if body.x25519_pubkey else None,
             )
-            import inspect as _inspect
             _user_cols = [c.key for c in User.__table__.columns]
             if "phone" in _user_cols:
                 user_kwargs["phone"] = fed_phone
@@ -738,7 +738,7 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
         except Exception as _e:
             db.rollback()
             logger.error(f"guest-login: DB error for {fed_username}: {_e}", exc_info=True)
-            raise HTTPException(500, "Internal server error")
+            raise HTTPException(500, "Internal server error") from None
     else:
         user.display_name = body.display_name[:64]
         user.avatar_emoji = body.avatar_emoji or "👤"
@@ -749,14 +749,14 @@ async def guest_login(body: GuestLoginRequest, request: Request, db: Session = D
         except Exception as _e:
             db.rollback()
             logger.error(f"guest-login: DB update error: {_e}", exc_info=True)
-            raise HTTPException(500, "Internal server error")
+            raise HTTPException(500, "Internal server error") from None
 
     try:
         from app.security.auth_jwt import create_access_token
         token = create_access_token(user.id, getattr(user, 'phone', ''), user.username)
     except Exception as _e:
         logger.error(f"guest-login: JWT error: {_e}", exc_info=True)
-        raise HTTPException(500, "Internal server error")
+        raise HTTPException(500, "Internal server error") from None
 
     return {
         "access_token": token,

@@ -13,9 +13,11 @@ app/chats/ai_assistant.py — AI-ассистент внутри чата.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import pathlib
-from typing import AsyncIterator
+import threading
+import time
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,11 +25,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.security.auth_jwt import get_current_user
 from app.config import Config
 from app.database import get_db
 from app.models import User
 from app.models_rooms import Message, MessageType, RoomMember
+from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -51,7 +53,7 @@ _SYSTEM_PROMPT = (
 )
 
 # Rate limit: не более 20 запросов в минуту на пользователя
-import time, threading
+
 _ai_rate: dict[int, list[float]] = {}
 _ai_rate_lock = threading.Lock()
 
@@ -72,20 +74,17 @@ async def _ollama_generate_stream(prompt: str, system: str = _SYSTEM_PROMPT):
     import json as _json
     payload = {"model": _OLLAMA_MODEL, "prompt": prompt, "system": system, "stream": True,
                "options": {"temperature": 0.7, "num_predict": 512}}
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        async with client.stream("POST", f"{_OLLAMA_URL}/api/generate", json=payload) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if line:
-                    try:
-                        chunk = _json.loads(line)
-                        token = chunk.get("response", "")
-                        if token:
-                            yield token
-                        if chunk.get("done"):
-                            break
-                    except Exception:
-                        pass
+    async with httpx.AsyncClient(timeout=60.0) as client, client.stream("POST", f"{_OLLAMA_URL}/api/generate", json=payload) as resp:
+        resp.raise_for_status()
+        async for line in resp.aiter_lines():
+            if line:
+                with contextlib.suppress(Exception):
+                    chunk = _json.loads(line)
+                    token = chunk.get("response", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        break
 
 
 async def _ollama_generate(prompt: str, system: str = _SYSTEM_PROMPT) -> str:
@@ -104,20 +103,17 @@ async def _ollama_chat_stream(messages: list[dict]):
     import json as _json
     payload = {"model": _OLLAMA_MODEL, "messages": messages, "stream": True,
                "options": {"temperature": 0.7, "num_predict": 1024}}
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        async with client.stream("POST", f"{_OLLAMA_URL}/api/chat", json=payload) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if line:
-                    try:
-                        chunk = _json.loads(line)
-                        token = chunk.get("message", {}).get("content", "")
-                        if token:
-                            yield token
-                        if chunk.get("done"):
-                            break
-                    except Exception:
-                        pass
+    async with httpx.AsyncClient(timeout=60.0) as client, client.stream("POST", f"{_OLLAMA_URL}/api/chat", json=payload) as resp:
+        resp.raise_for_status()
+        async for line in resp.aiter_lines():
+            if line:
+                with contextlib.suppress(Exception):
+                    chunk = _json.loads(line)
+                    token = chunk.get("message", {}).get("content", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        break
 
 
 async def _ollama_chat(messages: list[dict]) -> str:
@@ -138,7 +134,7 @@ def _get_room_history(room_id: int, limit: int, db: Session) -> list[str]:
         .filter(
             Message.room_id == room_id,
             Message.msg_type == MessageType.TEXT,
-            Message.is_scheduled == False,
+            Message.is_scheduled.is_(False),
         )
         .order_by(Message.id.desc())
         .limit(limit)
@@ -258,9 +254,9 @@ async def ai_chat(
         if not result:
             result = "(нет ответа)"
     except httpx.ConnectError:
-        raise HTTPException(503, "Ollama is unavailable. Run: ollama serve")
+        raise HTTPException(503, "Ollama is unavailable. Run: ollama serve") from None
     except Exception as e:
-        raise HTTPException(500, f"AI error: {e}")
+        raise HTTPException(500, f"AI error: {e}") from None
 
     return {"response": result, "model": _OLLAMA_MODEL}
 
@@ -296,9 +292,9 @@ async def ai_summarize(
     try:
         result = await _ollama_generate(prompt, system=_SYSTEM_PROMPT)
     except httpx.ConnectError:
-        raise HTTPException(503, "Ollama is unavailable. Run: ollama serve")
+        raise HTTPException(503, "Ollama is unavailable. Run: ollama serve") from None
     except Exception as e:
-        raise HTTPException(500, f"AI error: {e}")
+        raise HTTPException(500, f"AI error: {e}") from None
 
     return {"summary": result, "messages_analyzed": len(history), "model": _OLLAMA_MODEL}
 
@@ -345,9 +341,9 @@ async def ai_suggest(
             import json as _json
             raw = _json.loads(resp.text).get("response", "")
     except httpx.ConnectError:
-        raise HTTPException(503, "Ollama is unavailable. Run: ollama serve")
+        raise HTTPException(503, "Ollama is unavailable. Run: ollama serve") from None
     except Exception as e:
-        raise HTTPException(500, f"AI error: {e}")
+        raise HTTPException(500, f"AI error: {e}") from None
 
     suggestions = [s.strip() for s in raw.strip().split("\n") if s.strip()][:3]
     return {"suggestions": suggestions, "model": _OLLAMA_MODEL}
@@ -378,8 +374,9 @@ def _get_qwen_pipeline():
             return _qwen_pipeline
 
         try:
-            from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline as hf_pipeline
             import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            from transformers import pipeline as hf_pipeline
 
             model_path = str(_QWEN_LOCAL_PATH)
             logger.info("Loading Qwen3-8B from %s …", model_path)
@@ -478,9 +475,9 @@ async def ai_fix_text(
     try:
         result = await _qwen_generate(body.text, system=system, temperature=0.2)
     except httpx.ConnectError:
-        raise HTTPException(503, "Qwen3-8B is unavailable. Install transformers+torch or run Ollama.")
+        raise HTTPException(503, "Qwen3-8B is unavailable. Install transformers+torch or run Ollama.") from None
     except Exception as e:
-        raise HTTPException(500, f"AI error: {e}")
+        raise HTTPException(500, f"AI error: {e}") from None
 
     return {"result": result, "model": _QWEN_MODEL_NAME}
 
@@ -509,8 +506,8 @@ async def ai_rephrase(
     try:
         result = await _qwen_generate(body.text, system=system, temperature=0.6)
     except httpx.ConnectError:
-        raise HTTPException(503, "Qwen3-8B is unavailable. Install transformers+torch or run Ollama.")
+        raise HTTPException(503, "Qwen3-8B is unavailable. Install transformers+torch or run Ollama.") from None
     except Exception as e:
-        raise HTTPException(500, f"AI error: {e}")
+        raise HTTPException(500, f"AI error: {e}") from None
 
     return {"result": result, "model": _QWEN_MODEL_NAME}

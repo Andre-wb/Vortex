@@ -1,7 +1,7 @@
 {
   "payload": {
     "version": "0.1.0",
-    "built_at": 1785943585,
+    "built_at": 1786019084,
     "algorithm": "sha256",
     "root": "vortex_controller",
     "files": [
@@ -15,7 +15,7 @@
       },
       {
         "path": "controller_crypto.py",
-        "sha256": "a7da5c12eacc49a3204a0f3f319839007e869352831fd2b982b93535ad3d5e0a"
+        "sha256": "c3a4867d47d0b62ac46cde0b16ce8af26c89ff5a1f6a3708ec9504c7cdbebfd1"
       },
       {
         "path": "docs/DEPLOY.md",
@@ -47,7 +47,7 @@
       },
       {
         "path": "endpoints/backup.py",
-        "sha256": "3ff74518f658558947d163536464a0386124692ffbda6ce98b5af11fd7db4a1e"
+        "sha256": "cfb8a55d4bccfb341363bc5d0433aec639dfc49c70a2ee3e08eb4f49a6b9c129"
       },
       {
         "path": "endpoints/entries.py",
@@ -71,7 +71,7 @@
       },
       {
         "path": "endpoints/register.py",
-        "sha256": "52c10664cef2d6a15ad15bc0293576c61511406327fa5a4f503a90dc71b698a0"
+        "sha256": "032f500c2edded5b936a251c6ffb788d9656e8470cecc55e177748f66d554b2c"
       },
       {
         "path": "integrity/README.md",
@@ -83,19 +83,19 @@
       },
       {
         "path": "integrity/manifest.py",
-        "sha256": "715afbc0523b4693c2105ad9888854ff87bfa7463cad34f78248dbb1da83f074"
+        "sha256": "c9c62cc5664e4266f3d4ce818813f9b43f644398dbe84871b57d2e9e19e77586"
       },
       {
         "path": "integrity/sign_tool.py",
-        "sha256": "cc12199a28ac3a0a8b1d35254bfd79f3745eef7153c492daa5325441a740645c"
+        "sha256": "027e1e78a487f5cfd9cfa32a8b7b7323da71ad47ba2f94abdc0d325c9253ba13"
       },
       {
         "path": "integrity/verify.py",
-        "sha256": "35eac8444133a689272a7f572689b2db0d6f17b8094bc2b9253b77a16016a83b"
+        "sha256": "c058badcfdb6b8330ceb340bcbb9d152c14251769dfb3ba52e7274701164d629"
       },
       {
         "path": "integrity_gate.py",
-        "sha256": "d8c8abacc0c1bec65ecdf0ff76f29c358508ca9824c6be25bab10042976b424f"
+        "sha256": "cbb8bc0010b6bbd912a963f8c855ee18047781b3d6a4b4c018efffda129ed56c"
       },
       {
         "path": "ipfs_publish.py",
@@ -103,11 +103,11 @@
       },
       {
         "path": "main.py",
-        "sha256": "7a57600107f086623e2605b6eea1835b60b277d7aed5475ac14fc1bff217bc4e"
+        "sha256": "7865a07d042576d4744e2f273192c8c060471fc53867990a9f67d47966b092c7"
       },
       {
         "path": "mirror_health.py",
-        "sha256": "5489aa7443fca35f42d926cf8a8e10548a0800a28b465cbfcdced119ac3607e0"
+        "sha256": "e803de2e4fcc70102edf7321955f737d1a4a483490cf9108e23f8a8c054d1645"
       },
       {
         "path": "models.py",
@@ -119,7 +119,7 @@
       },
       {
         "path": "storage.py",
-        "sha256": "5ee25de4e17bd053543a584029cad06922370cb8a82fe206388836ead1503ad0"
+        "sha256": "cbe0a0494cbfb6b29a93c39b78d6bd4d283c795cf684344d2bc0f7afa0a9f26d"
       },
       {
         "path": "web/README.md",
@@ -715,6 +715,6 @@
       }
     ]
   },
-  "signature": "58167c467d1d3adda2d944f1b820572a8eb7e7b71454b5d1188841e2da5f91375e1f4089919d0aba1c3e46f9f687f8bb8e7bc08f817c35c0093fd0cc0580df08",
+  "signature": "d53507f121316f6477ef29c0f45891b204edc489a55270751e8bd4df54cac31cd9db95a98cc4185d04e70c1d999527d6b70260a45b60cf04bfa1bd0facf51e0b",
   "signed_by": "f80c0fc173fac6ca7218a05245df8de97e1ed755853050da873bc1fdddce0198"
 }

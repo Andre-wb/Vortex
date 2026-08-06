@@ -317,7 +317,9 @@ class CDNRelayConfig:
         Timestamp привязан к 5-минутным окнам — replay-защита.
         """
         if self.enabled and self.relay_secret:
-            import hashlib, hmac, time
+            import hashlib
+            import hmac
+            import time
             ts = str(int(time.time()) // 300)  # 5-минутное окно
             sig = hmac.new(
                 self.relay_secret.encode(), ts.encode(), hashlib.sha256
@@ -331,7 +333,9 @@ class CDNRelayConfig:
     @staticmethod
     def verify_relay_auth(secret: str, auth_header: str, ts_header: str) -> bool:
         """Проверяет HMAC-подпись CDN relay на стороне сервера."""
-        import hashlib, hmac, time
+        import hashlib
+        import hmac
+        import time
         if not auth_header or not ts_header:
             return False
         # Принимаем текущее и предыдущее окно (grace period)

@@ -14,13 +14,11 @@ Coverage:
 from __future__ import annotations
 
 import asyncio
-import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -28,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from conftest import SyncASGIClient, make_user, login_user, random_str
+from conftest import SyncASGIClient, login_user, make_user, random_str
 
 import app.bots.ide_shared as ide_shared
 
@@ -234,7 +232,6 @@ class TestCompileCode:
 
         orig_bin = runner._GX_BIN
         orig_dir = runner._BOTS_DIR
-        orig_timeout = None
 
         try:
             runner._GX_BIN = bin_path
@@ -367,9 +364,8 @@ class TestPublishBot:
             mock_loop_obj = MagicMock()
             mock_asyncio.get_event_loop.return_value = mock_loop_obj
 
-            with patch("subprocess.Popen", return_value=fake_proc):
-                with patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                    result = loop.run_until_complete(runner.publish_bot("pub3", "code", "tok"))
+            with patch("subprocess.Popen", return_value=fake_proc), patch("app.bots.ide_runner.asyncio", mock_asyncio):
+                result = loop.run_until_complete(runner.publish_bot("pub3", "code", "tok"))
 
             assert result["ok"] is True
             assert result["pid"] == 9999
@@ -410,11 +406,10 @@ class TestPublishBot:
             mock_asyncio.get_event_loop.return_value = MagicMock()
             loop = asyncio.new_event_loop()
             try:
-                with patch("subprocess.Popen", return_value=new_proc):
-                    with patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                        result = loop.run_until_complete(
-                            runner.publish_bot("pub_replace", "code", "tok")
-                        )
+                with patch("subprocess.Popen", return_value=new_proc), patch("app.bots.ide_runner.asyncio", mock_asyncio):
+                    result = loop.run_until_complete(
+                        runner.publish_bot("pub_replace", "code", "tok")
+                    )
             finally:
                 loop.close()
 
@@ -447,11 +442,10 @@ class TestPublishBot:
             mock_asyncio.get_event_loop.return_value = MagicMock()
             loop = asyncio.new_event_loop()
             try:
-                with patch("subprocess.Popen", side_effect=OSError("no such file")):
-                    with patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                        result = loop.run_until_complete(
-                            runner.publish_bot("pub_exc", "code", "tok")
-                        )
+                with patch("subprocess.Popen", side_effect=OSError("no such file")), patch("app.bots.ide_runner.asyncio", mock_asyncio):
+                    result = loop.run_until_complete(
+                        runner.publish_bot("pub_exc", "code", "tok")
+                    )
             finally:
                 loop.close()
 
@@ -535,7 +529,6 @@ class TestGetStatus:
     """Tests for get_status()."""
 
     def _make_bp(self, pid=777, running=True, returncode=0):
-        import app.bots.ide_runner as runner
         from app.bots.ide_runner import _BotProcess
         proc = MagicMock(spec=subprocess.Popen)
         proc.pid = pid
@@ -632,9 +625,9 @@ class TestCollectLogs:
     """Tests for _collect_logs() background thread."""
 
     def test_collects_stdout_lines(self):
+
         import app.bots.ide_runner as runner
         from app.bots.ide_runner import _BotProcess, _collect_logs
-        import io
 
         lines = [f"log line {i}\n" for i in range(5)]
         proc = MagicMock(spec=subprocess.Popen)
@@ -884,13 +877,12 @@ class TestIDEPublish:
 
             mock_asyncio = MagicMock()
             mock_asyncio.get_event_loop.return_value = MagicMock()
-            with patch("subprocess.Popen", return_value=fake_proc):
-                with patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                    r = client.post("/api/ide/publish", json={
-                        "project_id": "pub_proj",
-                        "code": VALID_CODE,
-                        "token": "real_token_abc",
-                    }, headers=headers)
+            with patch("subprocess.Popen", return_value=fake_proc), patch("app.bots.ide_runner.asyncio", mock_asyncio):
+                r = client.post("/api/ide/publish", json={
+                    "project_id": "pub_proj",
+                    "code": VALID_CODE,
+                    "token": "real_token_abc",
+                }, headers=headers)
 
             assert r.status_code == 200
             data = r.json()
@@ -1172,13 +1164,12 @@ class TestIDEEdgeCases:
 
             mock_asyncio = MagicMock()
             mock_asyncio.get_event_loop.return_value = MagicMock()
-            with patch("subprocess.Popen", return_value=new_proc):
-                with patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                    r = client.post("/api/ide/publish", json={
-                        "project_id": "conc_proj",
-                        "code": VALID_CODE,
-                        "token": "tok",
-                    }, headers=headers)
+            with patch("subprocess.Popen", return_value=new_proc), patch("app.bots.ide_runner.asyncio", mock_asyncio):
+                r = client.post("/api/ide/publish", json={
+                    "project_id": "conc_proj",
+                    "code": VALID_CODE,
+                    "token": "tok",
+                }, headers=headers)
 
             assert r.status_code == 200
             assert r.json()["pid"] == 1002
@@ -1233,9 +1224,10 @@ class TestIDEEdgeCases:
 
     def test_publish_code_written_to_disk(self, tmp_path):
         """publish_bot writes the code to the .grav file."""
-        import app.bots.ide_runner as runner
-        from unittest.mock import patch
         import asyncio
+        from unittest.mock import patch
+
+        import app.bots.ide_runner as runner
 
         bin_path = tmp_path / "gravitix"
         bin_path.write_bytes(b"x")
@@ -1260,11 +1252,10 @@ class TestIDEEdgeCases:
             mock_asyncio.get_event_loop.return_value = MagicMock()
             loop = asyncio.new_event_loop()
             try:
-                with patch("subprocess.Popen", return_value=fake_proc):
-                    with patch("app.bots.ide_runner.asyncio", mock_asyncio):
-                        result = loop.run_until_complete(
-                            runner.publish_bot("disk_test", code, "tok")
-                        )
+                with patch("subprocess.Popen", return_value=fake_proc), patch("app.bots.ide_runner.asyncio", mock_asyncio):
+                    loop.run_until_complete(
+                        runner.publish_bot("disk_test", code, "tok")
+                    )
             finally:
                 loop.close()
 
@@ -1293,7 +1284,7 @@ class TestIDEEdgeCases:
 
             code = "on /test do\n    send 'ok'\nend\n"
             loop = asyncio.new_event_loop()
-            result = loop.run_until_complete(runner.compile_code(code, "write_test"))
+            loop.run_until_complete(runner.compile_code(code, "write_test"))
             loop.close()
 
             script_file = tmp_path / "bots" / "write_test.grav"
@@ -1346,37 +1337,42 @@ class TestRequestModels:
         assert req.code == "some code"
 
     def test_compile_request_empty_id(self):
-        from app.bots.ide_routes import CompileRequest
         from pydantic import ValidationError
+
+        from app.bots.ide_routes import CompileRequest
         with pytest.raises(ValidationError):
             CompileRequest(project_id="", code="code")
 
     def test_compile_request_id_too_long(self):
-        from app.bots.ide_routes import CompileRequest
         from pydantic import ValidationError
+
+        from app.bots.ide_routes import CompileRequest
         with pytest.raises(ValidationError):
             CompileRequest(project_id="a" * 65, code="code")
 
     def test_compile_request_code_too_long(self):
-        from app.bots.ide_routes import CompileRequest
         from pydantic import ValidationError
+
+        from app.bots.ide_routes import CompileRequest
         with pytest.raises(ValidationError):
             CompileRequest(project_id="proj", code="x" * 500_001)
 
     def test_publish_request_valid(self):
         from app.bots.ide_routes import PublishRequest
         req = PublishRequest(project_id="p", code="c", token="t")
-        assert req.token == "t"
+        assert req.token == "t"  # noqa: S105
 
     def test_publish_request_empty_token(self):
-        from app.bots.ide_routes import PublishRequest
         from pydantic import ValidationError
+
+        from app.bots.ide_routes import PublishRequest
         with pytest.raises(ValidationError):
             PublishRequest(project_id="proj", code="code", token="")
 
     def test_publish_request_token_too_long(self):
-        from app.bots.ide_routes import PublishRequest
         from pydantic import ValidationError
+
+        from app.bots.ide_routes import PublishRequest
         with pytest.raises(ValidationError):
             PublishRequest(project_id="proj", code="code", token="t" * 121)
 
@@ -1387,8 +1383,9 @@ class TestRequestModels:
         assert _validate_id("a1-b2_c3") == "a1-b2_c3"
 
     def test_validate_id_rejects_invalid(self):
-        from app.bots.ide_routes import _validate_id
         from fastapi import HTTPException
+
+        from app.bots.ide_routes import _validate_id
         for bad in ["../etc", "proj;rm", "p q", "p@q", "p/q"]:
             with pytest.raises(HTTPException) as exc_info:
                 _validate_id(bad)

@@ -2,13 +2,11 @@
 app/tests/test_key_backup.py — Tests for encrypted key backup and device linking.
 """
 import secrets
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-from conftest import make_user, login_user, random_str
+from conftest import login_user, make_user
 
 from app.security.key_backup import make_shard_proof
-
 
 # Key Backup CRUD
 
@@ -136,7 +134,7 @@ class TestDeviceLinking:
             'new_device_pub': new_pub,
         }, headers=h)
         code = r1.json()['link_code']
-        request_id = r1.json()['request_id']
+        r1.json()['request_id']
         encrypted_keys = secrets.token_hex(128)
         r2 = client.post(f'/api/keys/link/{code}/approve', json={
             'encrypted_keys': encrypted_keys,
@@ -814,7 +812,7 @@ class TestKeyTransparency:
         r = client.get(f'/api/keys/transparency/{uid}', headers=h)
         entries = r.json()['entries']
         # Last entry should have prev_hash set
-        last = [e for e in entries if e['seq'] == max(e2['seq'] for e2 in entries)][0]
+        last = next(e for e in entries if e['seq'] == max(e2['seq'] for e2 in entries))
         assert last['prev_hash'] is not None
 
     def test_latest_404_no_entries(self, client):

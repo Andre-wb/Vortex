@@ -9,18 +9,17 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Optional
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-
 from app.config import Config
 from app.database import get_db
 from app.models import User, UserDevice
-from app.models.prekeys import OneTimePreKey, OneTimeKyberPreKey, PreKeyBundle
+from app.models.prekeys import OneTimeKyberPreKey, OneTimePreKey, PreKeyBundle
 from app.security.auth_jwt import get_current_user
 from app.security.double_ratchet import verify_spk_signature
 
@@ -216,12 +215,12 @@ class PublishPreKeysRequest(BaseModel):
     device_kyber_id: Optional[int] = Field(
         default=None, ge=0, description="Kyber pre-key id for rotation.",
     )
-    one_time_prekeys: List[OneTimePreKeyUpload] = Field(
+    one_time_prekeys: list[OneTimePreKeyUpload] = Field(
         default_factory=list,
         max_length=_MAX_OPK_BATCH,
         description="Bundle of one-time Pre-Keys (up to 100)",
     )
-    one_time_kyber_prekeys: List[OneTimeKyberPreKeyUpload] = Field(
+    one_time_kyber_prekeys: list[OneTimeKyberPreKeyUpload] = Field(
         default_factory=list,
         max_length=_MAX_OPK_BATCH,
         description="Bundle of one-time Kyber Pre-Keys (ML-KEM-768, PQXDH P6)",
@@ -278,7 +277,7 @@ class PreKeyBundleListResponse(BaseModel):
     One entry per publishing device; OPK НЕ включён (см. /claim-opk).
     """
     user_id: int
-    bundles: List[DeviceBundle]
+    bundles: list[DeviceBundle]
 
 
 class ClaimOpkRequest(BaseModel):
@@ -322,7 +321,7 @@ async def publish_prekeys(
         spk_bytes = bytes.fromhex(body.signed_prekey)
         sig_bytes = bytes.fromhex(body.signed_prekey_sig)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid hex encoding in keys")
+        raise HTTPException(status_code=400, detail="Invalid hex encoding in keys") from None
 
     if len(ik_bytes) != 32 or len(spk_bytes) != 32 or len(sig_bytes) != 64:
         raise HTTPException(status_code=400, detail="Invalid key lengths")
@@ -338,7 +337,7 @@ async def publish_prekeys(
             if body.identity_key_sig is not None:
                 ik_sig_bytes = bytes.fromhex(body.identity_key_sig)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid hex encoding in identity key/signature")
+            raise HTTPException(status_code=400, detail="Invalid hex encoding in identity key/signature") from None
         if len(ik_ed_bytes) != 32 or (ik_sig_bytes is not None and len(ik_sig_bytes) != 64):
             raise HTTPException(status_code=400, detail="Invalid identity key/signature lengths")
 
@@ -378,7 +377,7 @@ async def publish_prekeys(
         if body.device_cert_sig is not None:
             dev_cert_bytes = bytes.fromhex(body.device_cert_sig)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid hex encoding in device-identity fields")
+        raise HTTPException(status_code=400, detail="Invalid hex encoding in device-identity fields") from None
     if (dev_x3dh_bytes is not None and len(dev_x3dh_bytes) != 32) \
             or (dev_sign_bytes is not None and len(dev_sign_bytes) != 32) \
             or (dev_cert_bytes is not None and len(dev_cert_bytes) != 64):
@@ -397,7 +396,7 @@ async def publish_prekeys(
         if body.device_kyber_sig is not None:
             dev_kyber_sig_bytes = bytes.fromhex(body.device_kyber_sig)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid hex encoding in Kyber pre-key fields")
+        raise HTTPException(status_code=400, detail="Invalid hex encoding in Kyber pre-key fields") from None
     if (dev_kyber_bytes is not None and len(dev_kyber_bytes) != 1184) \
             or (dev_kyber_sig_bytes is not None and len(dev_kyber_sig_bytes) != 64):
         raise HTTPException(status_code=400, detail="Invalid Kyber pre-key field lengths")
@@ -589,7 +588,7 @@ async def get_prekey_bundles_all(
     POST /{user_id}/claim-opk (свежий OPK на сессию — forward secrecy). Пустой
     список (не 404) → caller падает в v1 без спец-обработки.
     """
-    bundles: List[PreKeyBundle] = (
+    bundles: list[PreKeyBundle] = (
         db.query(PreKeyBundle)
         .filter(PreKeyBundle.user_id == user_id)
         .order_by(PreKeyBundle.device_id)

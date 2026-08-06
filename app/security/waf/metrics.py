@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import weakref
 
@@ -129,7 +130,5 @@ def unregister_waf_metrics(registry=None) -> None:
     collector = _registered.pop(target, None) if target is not None else None
     if collector is None:
         return
-    try:
+    with contextlib.suppress(KeyError):
         target.unregister(collector)
-    except KeyError:
-        pass

@@ -8,9 +8,9 @@ account_ed_pub + identity_key_sig) от одобряющего к новому �
 
 import secrets
 
+from conftest import _phone_prefix, random_digits, random_str
 from starlette.testclient import TestClient
 
-from conftest import random_str, random_digits, _phone_prefix
 from app.main import app
 
 _PW = "Str0ng_abcd!@"

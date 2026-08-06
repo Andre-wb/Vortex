@@ -12,6 +12,7 @@ machine. Everything needed to run the node lives inside the bundle.
 """
 from __future__ import annotations
 
+import contextlib
 import sys
 from pathlib import Path
 
@@ -24,11 +25,7 @@ def _run_bundled_node() -> int:
     sys.argv.pop(1)
 
     mei = getattr(sys, "_MEIPASS", None)
-    if mei:
-        run_py = Path(mei) / "run.py"
-    else:
-        # Dev checkout — run.py sits one level above this package.
-        run_py = Path(__file__).resolve().parents[1] / "run.py"
+    run_py = Path(mei) / "run.py" if mei else Path(__file__).resolve().parents[1] / "run.py"
 
     if not run_py.is_file():
         print(f"FATAL: run.py not found at {run_py}", file=sys.stderr)
@@ -72,10 +69,8 @@ def _run_bundled_node() -> int:
             try:
                 dst.symlink_to(src, target_is_directory=src.is_dir())
             except OSError:
-                try:
+                with contextlib.suppress(Exception):
                     _shutil.copytree(src, dst)
-                except Exception:
-                    pass
 
     os.chdir(state_root)
 

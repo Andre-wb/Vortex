@@ -14,19 +14,18 @@ from typing import Optional
 from fastapi import Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
+from app.bots.bot_shared import (
+    BotReplyRequest,
+    BotSendRequest,
+    _get_bot_by_token,
+    _get_or_create_queue,
+    enqueue_bot_update,
+    router,
+)
 from app.database import get_db
 from app.models import Bot, User
 from app.models_rooms import Message, MessageType, Room, RoomMember
 from app.peer.connection_manager import manager
-
-from app.bots.bot_shared import (
-    router,
-    _get_bot_by_token,
-    _get_or_create_queue,
-    enqueue_bot_update,
-    BotSendRequest,
-    BotReplyRequest,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -241,10 +240,10 @@ async def ws_bot(
 
     from app.bots.bot_shared import _hash_token
     token_hash = _hash_token(token)
-    bot = db.query(Bot).filter(Bot.api_token == token_hash, Bot.is_active == True).first()
+    bot = db.query(Bot).filter(Bot.api_token == token_hash, Bot.is_active.is_(True)).first()
     if not bot:
         # Fallback: try plaintext match and migrate to hashed token
-        bot = db.query(Bot).filter(Bot.api_token == token, Bot.is_active == True).first()
+        bot = db.query(Bot).filter(Bot.api_token == token, Bot.is_active.is_(True)).first()
         if bot:
             bot.api_token = token_hash
             db.commit()
@@ -334,7 +333,7 @@ async def ws_bot(
     writer_task = asyncio.create_task(_writer())
 
     try:
-        done, pending = await asyncio.wait(
+        _done, pending = await asyncio.wait(
             [reader_task, writer_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
@@ -367,7 +366,7 @@ async def notify_bots_in_room(
         .join(User, User.id == RoomMember.user_id)
         .filter(
             RoomMember.room_id == room_id,
-            User.is_bot == True,
+            User.is_bot.is_(True),
         )
         .all()
     )
@@ -414,6 +413,7 @@ async def _constructor_bot_respond(bot_user_id, room_id, command, sender_name, d
     respond automatically without Gravitix runtime.
     """
     import json as _json
+
     from app.bots.bot_crud import Bot
     from app.models_rooms import Message, MessageType
     from app.peer.connection_manager import manager

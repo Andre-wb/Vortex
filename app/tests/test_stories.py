@@ -15,10 +15,8 @@ from __future__ import annotations
 
 import json
 import os
-import pytest
 
-from conftest import make_user, login_user, random_str, SyncASGIClient
-
+from conftest import SyncASGIClient, login_user, make_user
 
 
 def _make_auth(client: SyncASGIClient) -> tuple[dict, dict]:
@@ -46,7 +44,7 @@ def _create_text_story(client, headers, text="Hello E2E!", envelopes=None):
 
 def _create_photo_story(client, headers, envelopes=None):
     """Create a story with an encrypted media blob."""
-    text_ct = "caption".encode().hex()
+    text_ct = b"caption".hex()
     meta_ct = json.dumps({"text_color": "#fff", "bg_color": "#000", "music_title": ""}).encode().hex()
     fake_encrypted_media = os.urandom(128)
 
@@ -360,8 +358,8 @@ class TestStoryLifecycle:
     """Full create → view → react → reply → delete lifecycle."""
 
     def test_full_lifecycle(self, client):
-        u1, h1 = _make_auth(client)
-        u2, h2 = _make_auth(client)
+        _u1, h1 = _make_auth(client)
+        _u2, h2 = _make_auth(client)
 
         # Create
         cr = _create_text_story(client, h1)

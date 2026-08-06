@@ -2,6 +2,7 @@
 Tests for Pydantic validation schemas and SQLAlchemy models.
 """
 import secrets
+
 import pytest
 from pydantic import ValidationError
 

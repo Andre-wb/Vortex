@@ -25,7 +25,6 @@ import json
 from pathlib import Path
 
 
-
 def chapter(title: str, subtitle: str, intro: str, *blocks) -> dict:
     """A chapter = title + subtitle + intro + N heading/paragraph/list blocks.
 

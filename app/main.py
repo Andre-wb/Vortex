@@ -7,6 +7,7 @@ v5: Global mode, structured logging, Prometheus metrics, graceful shutdown.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import socket
@@ -19,55 +20,67 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.config import Config
-from app.database import init_db
-from app.files.resumable import router as resumable_router, cleanup_sessions_loop
-from app.logging_config import setup_logging, correlation_id, new_correlation_id
-from app.peer.connection_manager import manager
-from app.peer.peer_registry import start_discovery, registry
-from app.security.crypto import load_or_create_node_keypair, rust_available
-
 # Routers
 from app.authentication import router as auth_router
 from app.bots.bot_api import router as bots_router
-from app.bots.ide_routes import router as ide_router, bot_call_router as ide_bot_call_router, federated_router as ide_federated_router, webhook_router as ide_webhook_router
-from app.chats.channels import router as channels_router
+from app.bots.ide_routes import bot_call_router as ide_bot_call_router
+from app.bots.ide_routes import federated_router as ide_federated_router
+from app.bots.ide_routes import router as ide_router
+from app.bots.ide_routes import webhook_router as ide_webhook_router
 from app.chats.channel_feeds import router as channel_feeds_router
+from app.chats.channels import router as channels_router
 from app.chats.chat import router as chat_router
-from app.chats.contacts import router as contacts_router, block_router
 from app.chats.contact_sync import router as contact_sync_router
+from app.chats.contacts import block_router
+from app.chats.contacts import router as contacts_router
 from app.chats.dm import router as dm_router
 from app.chats.link_preview import router as link_preview_router
 from app.chats.reports import router as reports_router
 from app.chats.rooms import router as rooms_router
 from app.chats.saved import router as saved_router
-from app.chats.search import router as search_router, messages_search_router
+from app.chats.saved_gifs import router as saved_gifs_router
+from app.chats.search import messages_search_router
+from app.chats.search import router as search_router
 from app.chats.spaces import router as spaces_router
 from app.chats.statuses import router as statuses_router
 from app.chats.stickers import router as stickers_router
-from app.chats.saved_gifs import router as saved_gifs_router
-from app.push.bmp_push_proxy import router as bmp_push_router
 from app.chats.tasks import router as tasks_router
-from app.chats.voice import router as voice_router, ws_router as voice_ws_router
-from app.federation.federation import router as federation_router, ws_router as fed_ws_router
+from app.chats.voice import router as voice_router
+from app.chats.voice import ws_router as voice_ws_router
+from app.config import Config
+from app.database import init_db
+from app.federation.federation import router as federation_router
+from app.federation.federation import ws_router as fed_ws_router
 from app.federation.replication import router as replication_router
 from app.federation.trusted_nodes import trusted_nodes_router
-from app.security.zero_knowledge import zk_router
+from app.files.resumable import cleanup_sessions_loop
+from app.files.resumable import router as resumable_router
 from app.keys.keys import router as keys_router
-from app.peer.peer_registry import router as peers_router
+from app.logging_config import correlation_id, new_correlation_id, setup_logging
+
 # Side-effect import: registers /api/peers/controller-proxy on peers_router
 from app.peer import controller_proxy as _controller_proxy  # noqa: F401
-from app.session.migration import router as session_router
+from app.peer.connection_manager import manager
+from app.peer.peer_registry import registry, start_discovery
+from app.peer.peer_registry import router as peers_router
+from app.push.bmp_push_proxy import router as bmp_push_router
+from app.security.crypto import load_or_create_node_keypair, rust_available
 from app.security.middleware import (
     CSRFMiddleware,
     LoggingMiddleware,
     SecurityHeadersMiddleware,
     TokenRefreshMiddleware,
 )
-from app.transport.stealth import StealthMiddleware, is_stealth
 from app.security.waf import (
-    WAFMiddleware, get_waf_engine, init_waf_engine, register_waf_metrics, waf_router,
+    WAFMiddleware,
+    get_waf_engine,
+    init_waf_engine,
+    register_waf_metrics,
+    waf_router,
 )
+from app.security.zero_knowledge import zk_router
+from app.session.migration import router as session_router
+from app.transport.stealth import StealthMiddleware, is_stealth
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -82,7 +95,7 @@ if _SENTRY_DSN:
         sentry_sdk.init(
             dsn=_SENTRY_DSN,
             environment=os.getenv("SENTRY_ENVIRONMENT", Config.ENVIRONMENT),
-            release=f"vortex@1.0.0",
+            release="vortex@1.0.0",
             traces_sample_rate=float(os.getenv("SENTRY_TRACES_RATE", "0.1")),
             profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_RATE", "0.1")),
             integrations=[
@@ -99,11 +112,11 @@ if _SENTRY_DSN:
 
 try:
     from prometheus_client import (
+        CONTENT_TYPE_LATEST,
         Counter,
         Gauge,
         Histogram,
         generate_latest,
-        CONTENT_TYPE_LATEST,
     )
 
     REQUEST_COUNT = Counter(
@@ -218,10 +231,10 @@ async def lifespan(app: FastAPI):
             raise SystemExit(
                 f"Post-quantum cryptography is REQUIRED but status check failed: {_pq_err}. "
                 "Set VORTEX_PQ_REQUIRED=false to allow startup without PQ."
-            )
+            ) from _pq_err
         logger.warning("Could not determine PQ-crypto status: %s", _pq_err)
 
-    from app.peer.redis_pubsub import init_redis, start_subscriber, is_redis_available
+    from app.peer.redis_pubsub import init_redis, start_subscriber
     redis_ok = await init_redis()
     if redis_ok:
         async def _on_redis_room_msg(room_id, payload):
@@ -243,7 +256,8 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Python crypto fallback (compile Rust module for performance)")
 
-    from app.security.waf import RULE_COUNT as _WAF_RULES, VERSION as _WAF_VERSION
+    from app.security.waf import RULE_COUNT as _WAF_RULES
+    from app.security.waf import VERSION as _WAF_VERSION
     logger.info("Rust WAF backend: vortex_waf %s (%d rules)", _WAF_VERSION, _WAF_RULES)
 
     name = Config.DEVICE_NAME or socket.gethostname()
@@ -321,11 +335,9 @@ async def lifespan(app: FastAPI):
         """Periodically update Prometheus gauges."""
         while _PROMETHEUS_AVAILABLE:
             await asyncio.sleep(15)
-            try:
+            with contextlib.suppress(Exception):
                 ACTIVE_CONNECTIONS.set(manager.total_connections())
                 ACTIVE_PEERS.set(len(registry.active()))
-            except Exception:
-                pass
 
     async def _ws_cleanup_loop():
         """Periodically remove stale WebSocket connections."""
@@ -508,31 +520,21 @@ async def lifespan(app: FastAPI):
         await tor_hidden_service.stop()
 
     # Stop stealth transports
-    try:
+    with contextlib.suppress(Exception):
         from app.transport.auto_stealth import stop_auto_stealth
         await stop_auto_stealth()
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         from app.transport.advanced_stealth import advanced_stealth
         advanced_stealth.stop()
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         from app.transport.stealth_level3 import stealth_l3
         stealth_l3.stop()
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         from app.transport.stealth_level4 import stealth_l4
         stealth_l4.stop()
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         from app.security.secret_rotation import rotator as _secret_rotator
         _secret_rotator.stop()
-    except Exception:
-        pass
 
     # Close Redis
     from app.peer.redis_pubsub import close_redis
@@ -546,6 +548,7 @@ async def lifespan(app: FastAPI):
 
 
 from app.docs.openapi_config import get_openapi_config
+
 _oapi = get_openapi_config()
 
 app = FastAPI(
@@ -698,6 +701,7 @@ app.include_router(auth_router)
 # PDA from Solana, caches 5 min. Safe to mount unconditionally; when no
 # SOLANA_RPC_URL is configured the endpoints return "no subscription".
 from app.security.premium_check import router as premium_router
+
 app.include_router(premium_router)
 app.include_router(session_router)
 app.include_router(rooms_router)
@@ -734,69 +738,90 @@ app.include_router(ide_webhook_router)
 app.include_router(reports_router)
 
 from app.chats.translate import router as translate_router
+
 app.include_router(translate_router)
 
 from app.chats.bridge import router as bridge_router
+
 app.include_router(bridge_router)
 
 from app.chats.ai_assistant import router as ai_router
+
 app.include_router(ai_router)
 
 from app.chats.tipping import router as tipping_router
+
 app.include_router(tipping_router)
 
 from app.security.panic import router as panic_router
+
 app.include_router(panic_router)
 
 from app.security.verify_mirror import router as verify_mirror_router
+
 app.include_router(verify_mirror_router)
 
 from app.transport.blind_mailbox import router as bmp_router
+
 app.include_router(bmp_router)
 
 from app.chats.calls import router as calls_router
+
 app.include_router(calls_router)
 
 from app.chats.group_calls import router as group_calls_router
+
 app.include_router(group_calls_router)
 
 from app.chats.sfu import router as sfu_router
+
 app.include_router(sfu_router)
 
-from app.chats.stream import router as stream_router, ws_router as stream_ws_router
+from app.chats.stream import router as stream_router
+from app.chats.stream import ws_router as stream_ws_router
+
 app.include_router(stream_router)
 app.include_router(stream_ws_router)
 
 from app.security.key_backup import router as key_backup_router
+
 app.include_router(key_backup_router)
 
 from app.chats.stories import router as stories_router
+
 app.include_router(stories_router)
 
 from app.push.web_push import router as push_router
+
 app.include_router(push_router)
 
 from app.keys.prekeys import router as prekeys_router
+
 app.include_router(prekeys_router)
 
 # ── Bots Advanced (inline, keyboards, components, slash, webhooks, payments, store, scopes)
 from app.bots.bot_advanced import router as bots_adv_router
+
 app.include_router(bots_adv_router)
 
 from app.chats.groups import router as groups_router
+
 app.include_router(groups_router)
 
 # ── Spaces Advanced (nested, onboarding, discovery, audit, emoji, vanity, templates)
 # Must be included BEFORE spaces_router so literal paths (/templates, /discover)
 # take precedence over the /{space_id} pattern route in spaces_router.
 from app.chats.spaces_advanced import router as spaces_adv_router
+
 app.include_router(spaces_adv_router)
 app.include_router(spaces_router)
 
 from app.files.files_advanced import router as files_adv_router
+
 app.include_router(files_adv_router)
 
 from app.security.post_quantum import get_pq_status
+
 
 @app.get("/api/crypto/pq-status", include_in_schema=True, tags=["crypto"])
 async def pq_status():
@@ -804,25 +829,32 @@ async def pq_status():
     return get_pq_status()
 
 from app.security.privacy_routes import router as privacy_router
+
 app.include_router(privacy_router)
 
 from app.services.native_bridge import router as native_bridge_router
+
 app.include_router(native_bridge_router)
 
 from app.security.canary import router as canary_router
+
 app.include_router(canary_router)
 
 from app.security.gdpr import router as gdpr_router
+
 app.include_router(gdpr_router)
 
 from app.transport.sse_transport import router as sse_router
+
 app.include_router(sse_router)
 
 from app.transport.pluggable_routes import router as pluggable_router
+
 app.include_router(pluggable_router)
 
 # Configure transport manager
 from app.transport.pluggable import transport_manager
+
 transport_manager.configure({
     "cdn_relay_url": Config.CDN_RELAY_URL,
     "shadowsocks_password": os.getenv("SHADOWSOCKS_PASSWORD", ""),
@@ -832,12 +864,15 @@ transport_manager.configure({
 # auth-protected endpoints (/api/global/peers, /api/global/cdn-status, etc.)
 # return 401 for unauthenticated access rather than 404.
 from app.transport.global_routes import router as global_router
+
 app.include_router(global_router)
 
 from app.transport.routes import router as transport_router
+
 app.include_router(transport_router)
 
 from app.transport.cover_traffic import router as cover_router
+
 app.include_router(cover_router)
 if Config.NETWORK_MODE == "global":
     logger.info("Global mode: gossip + cover routes enabled")
@@ -846,14 +881,15 @@ if Config.OBFUSCATION_ENABLED:
     from starlette.middleware.base import BaseHTTPMiddleware
     from starlette.requests import Request as StarletteRequest
     from starlette.responses import Response as StarletteResponse
-    from app.transport.obfuscation import TrafficObfuscator
+
     from app.transport.auto_stealth import add_response_padding
+    from app.transport.obfuscation import TrafficObfuscator
 
     class ObfuscationMiddleware(BaseHTTPMiddleware):
         """Добавляет cover HTTP-заголовки, padding, probe detection ко всем ответам."""
         async def dispatch(self, request: StarletteRequest, call_next):
             # Active probe detection: если зонд — отдаём cover site
-            try:
+            with contextlib.suppress(Exception):
                 from app.transport.stealth_level3 import stealth_l3
                 req_info = {
                     "ip": request.client.host if request.client else "",
@@ -861,14 +897,13 @@ if Config.OBFUSCATION_ENABLED:
                     "path": request.url.path,
                     "method": request.method,
                 }
-                is_probe, reason = stealth_l3.probe_detector.is_probe(req_info)
+                is_probe, _reason = stealth_l3.probe_detector.is_probe(req_info)
                 if is_probe:
-                    from app.transport.cover_traffic import COVER_PAGES
                     from fastapi.responses import HTMLResponse
+
+                    from app.transport.cover_traffic import COVER_PAGES
                     html = COVER_PAGES.get(request.url.path, COVER_PAGES["/"])
                     return HTMLResponse(html, headers={"Server": "nginx/1.24.0"})
-            except Exception:
-                pass
 
             response: StarletteResponse = await call_next(request)
             for k, v in TrafficObfuscator.get_cover_headers().items():
@@ -946,10 +981,10 @@ class SafeUploadStaticFiles(StaticFiles):
     def _authorize_attachment(self, path: str, scope) -> bool:
         """Return True if the requesting session is a non-banned member of the
         room that owns this attachment. Public sub-dirs bypass this check."""
-        from app.security.auth_jwt import decode_access_token
         from app.database import SessionLocal
         from app.models_rooms.messages import FileTransfer
         from app.models_rooms.rooms import RoomMember
+        from app.security.auth_jwt import decode_access_token
 
         # Parse cookies from the raw ASGI scope.
         headers = {
@@ -988,7 +1023,7 @@ class SafeUploadStaticFiles(StaticFiles):
             member = db.query(RoomMember).filter(
                 RoomMember.room_id   == ft.room_id,
                 RoomMember.user_id   == user_id,
-                RoomMember.is_banned == False,
+                RoomMember.is_banned.is_(False),
             ).first()
             return member is not None
         finally:
@@ -996,10 +1031,9 @@ class SafeUploadStaticFiles(StaticFiles):
 
     async def get_response(self, path, scope):
         # gate root-level attachments behind session + room membership.
-        if self._top_dir(path) not in _PUBLIC_UPLOAD_DIRS:
-            if not self._authorize_attachment(path, scope):
-                # 404 (not 403) so we don't confirm the file exists to a stranger.
-                return JSONResponse({"detail": "Not Found"}, status_code=404)
+        if self._top_dir(path) not in _PUBLIC_UPLOAD_DIRS and not self._authorize_attachment(path, scope):
+            # 404 (not 403) so we don't confirm the file exists to a stranger.
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
 
         response = await super().get_response(path, scope)
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -1015,6 +1049,7 @@ app.mount("/uploads", SafeUploadStaticFiles(directory="uploads"), name="uploads"
 
 
 from fastapi.templating import Jinja2Templates
+
 _templates = Jinja2Templates(directory="templates")
 
 @app.get("/", include_in_schema=False)
@@ -1070,7 +1105,7 @@ async def health():
         return {"status": "ok"}
 
     from app.database import get_engine_info
-    from app.peer.redis_pubsub import is_redis_available, get_instance_id
+    from app.peer.redis_pubsub import get_instance_id, is_redis_available
     result = {
         "status": "ok",
         "version": "1.0.0",
@@ -1157,6 +1192,7 @@ async def readiness():
 if _PROMETHEUS_AVAILABLE:
     import ipaddress as _ipaddress
     import secrets
+
     from starlette.responses import Response
 
     # Restrict /metrics: scraped by a local Prometheus by default, so allow the

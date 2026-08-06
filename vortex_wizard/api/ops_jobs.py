@@ -6,18 +6,15 @@ is logged into the job's last_msg, it doesn't kill the loop.
 """
 from __future__ import annotations
 
-import asyncio
-import gzip
+import contextlib
 import json
 import logging
-import os
 import resource
 import shutil
 import sqlite3
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
@@ -58,9 +55,10 @@ async def job_cron_backup(env_file: Path) -> dict:
         return {"skipped": True, "message": "sqlite file not present"}
 
     # Reuse the handler internals.
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     import base64 as _b64
     import hashlib as _h
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
     priv_bytes = _backup_api._signing_key_bytes(env_file)
     priv = Ed25519PrivateKey.from_private_bytes(priv_bytes)
@@ -83,14 +81,12 @@ async def job_cron_backup(env_file: Path) -> dict:
     res = await _backup_api._post_signed(ctrl_url, "/v1/backup", payload, priv)
 
     # Drop the marker file the Prometheus exporter reads.
-    try:
+    with contextlib.suppress(Exception):
         (env_file.parent / "backup_last.meta").write_text(json.dumps({
             "updated_at": res.get("updated_at") or int(time.time()),
             "byte_size":  len(blob),
             "sha256":     sha,
         }))
-    except Exception:
-        pass
 
     return {
         "message":   f"uploaded {len(blob)} B (plaintext {len(plaintext)} B)",
@@ -182,7 +178,7 @@ async def job_resource_watchdog(env_file: Path) -> dict:
     # Any alert → write as audit row with alert flag so the operator sees
     # it in the Observability tab too.
     if alerts:
-        try:
+        with contextlib.suppress(Exception):
             _audit._insert_entry(
                 env_file,
                 method="JOB",
@@ -203,8 +199,6 @@ async def job_resource_watchdog(env_file: Path) -> dict:
                 )
             finally:
                 c.close()
-        except Exception:
-            pass
 
         # Fan out to configured alert channels (email / Slack / etc.)
         try:
@@ -253,7 +247,7 @@ async def job_uptime_ping(env_file: Path) -> dict:
 
     up = 0
     try:
-        async with httpx.AsyncClient(timeout=3.0, verify=False) as c:
+        async with httpx.AsyncClient(timeout=3.0, verify=False) as c:  # noqa: S501
             r = await c.get(url)
             up = 1 if r.status_code == 200 else 0
     except Exception:
@@ -270,11 +264,9 @@ async def job_uptime_ping(env_file: Path) -> dict:
         pass
 
     # Trim file once it gets past ~2*window
-    try:
+    with contextlib.suppress(Exception):
         cutoff = ts - _UPTIME_WINDOW_DAYS * 86400 - 3600
         _trim_uptime(p, cutoff)
-    except Exception:
-        pass
 
     return {"message": "up" if up else "down", "up": up}
 
@@ -291,7 +283,7 @@ def _trim_uptime(p: Path, cutoff: int) -> None:
                 rec = json.loads(line)
                 if int(rec.get("ts", 0)) >= cutoff:
                     keep_lines.append(line)
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
     p.write_text("".join(keep_lines), encoding="utf-8")
 
@@ -311,7 +303,7 @@ def _uptime_percent(env_file: Path, window_sec: int = _UPTIME_WINDOW_DAYS * 8640
                     continue
                 total += 1
                 up += int(rec.get("up", 0))
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
     if total == 0:
         return 100.0, 0, 0
@@ -400,7 +392,7 @@ async def patch_job(name: str, body: IntervalBody, request: Request) -> dict:
     try:
         s.set_interval(name, body.interval)
     except (KeyError, ValueError) as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from None
     return {"ok": True, "name": name, "interval": body.interval}
 
 
@@ -410,14 +402,14 @@ async def run_job(name: str, request: Request) -> dict:
     try:
         res = await s.run_once(name)
     except KeyError:
-        raise HTTPException(404, "unknown job")
+        raise HTTPException(404, "unknown job") from None
     return {"ok": True, "name": name, "result": res}
 
 
 # Uptime badge — public-readable SVG so operators can embed on a website.
 @router.get("/uptime/badge.svg")
 async def uptime_badge(request: Request) -> Response:
-    pct, total, up = _uptime_percent(_env_file(request))
+    pct, total, _up = _uptime_percent(_env_file(request))
     color = "#22c55e" if pct >= 99 else ("#eab308" if pct >= 95 else "#ef4444")
     label = "uptime"
     value = f"{pct}% ({total}s)"

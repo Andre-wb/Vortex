@@ -4,11 +4,15 @@ conftest.py — глобальные фикстуры и настройки pyte
 """
 
 import asyncio
+import contextlib
 import os
 import secrets
 import string
 import sys
 import tempfile
+
+import httpx
+import pytest
 
 # Добавляем корень проекта в sys.path чтобы импорт app.* работал
 ROOT = os.path.dirname(__file__)
@@ -39,10 +43,8 @@ def _isolated_db_path() -> str:
     # WAL и SHM удаляем вместе с базой — иначе остатки прошлого прогона
     # подмешиваются к пустой БД.
     for suffix in ('', '-wal', '-shm'):
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.unlink(path + suffix)
-        except FileNotFoundError:
-            pass
     return path
 
 
@@ -74,16 +76,15 @@ os.environ.setdefault('FEDERATION_GUEST_ENABLED',  '1')
 # поднята ли модель на машине, а один запрос съедает десятки секунд.
 os.environ.setdefault('AI_ENABLED',                'false')
 
-import httpx
-import pytest
-
-# Импорт приложения (после установки env)
-from app.main import app  # noqa: E402
 
 # Тесты не должны ходить в реальный DNS: несуществующие хосты вроде
 # node-xxx.example.com резолвятся до 30+ секунд и роняют pytest-timeout.
 # Литеральные IP проверяем как раньше (SSRF-тесты), домены считаем публичными.
 from app.federation import trusted_nodes as _trusted_nodes  # noqa: E402
+
+# Импорт приложения (после установки env)
+from app.main import app  # noqa: E402
+
 
 def _test_resolve_safe_ips(hostname: str) -> list[str]:
     import ipaddress
@@ -140,10 +141,8 @@ class SyncASGIClient:
 
     def close(self):
         if self._own_loop:
-            try:
+            with contextlib.suppress(Exception):
                 self._loop.close()
-            except Exception:
-                pass
 
     def make_anon_client(self) -> 'SyncASGIClient':
         """Return a fresh client sharing this loop but with no stored cookies."""

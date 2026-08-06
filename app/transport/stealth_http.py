@@ -17,7 +17,7 @@ JA3 fingerprint становится ИДЕНТИЧЕН настоящему Chr
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class StealthClient:
             await self._httpx_client.aclose()
             self._httpx_client = None
 
-    async def get(self, url: str, **kwargs) -> 'StealthResponse':
+    async def get(self, url: str, **kwargs) -> StealthResponse:
         if self._session:
             resp = await self._session.get(url, **kwargs)
             return StealthResponse(resp.status_code, resp.content, resp.headers)
@@ -79,7 +79,7 @@ class StealthClient:
             resp = await self._httpx_client.get(url, **kwargs)
             return StealthResponse(resp.status_code, resp.content, dict(resp.headers))
 
-    async def post(self, url: str, json: Any = None, **kwargs) -> 'StealthResponse':
+    async def post(self, url: str, json: Any = None, **kwargs) -> StealthResponse:
         if self._session:
             resp = await self._session.post(url, json=json, **kwargs)
             return StealthResponse(resp.status_code, resp.content, resp.headers)

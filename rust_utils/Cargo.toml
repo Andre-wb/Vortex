@@ -21,6 +21,7 @@ ed25519-dalek = { version = "2", features = ["batch", "rand_core"] }
 rand_core = "0.6"
 rand.workspace = true
 hkdf = "0.12"
+ml-kem.workspace = true
 tokio = { version = "1", features = ["full"] }
 serde.workspace = true
 serde_json.workspace = true

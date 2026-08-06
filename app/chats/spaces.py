@@ -12,6 +12,7 @@ Space — контейнер, группирующий несколько ком
 """
 from __future__ import annotations
 
+import json as _json
 import logging
 import os
 import secrets as _secrets
@@ -24,8 +25,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User
 from app.models_rooms import (
-    EncryptedRoomKey, PendingKeyRequest, Room, RoomMember, RoomRole,
-    Space, SpaceCategory, SpaceMember,
+    EncryptedRoomKey,
+    PendingKeyRequest,
+    Room,
+    RoomMember,
+    RoomRole,
+    Space,
+    SpaceCategory,
+    SpaceMember,
 )
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
@@ -265,7 +272,7 @@ async def my_spaces(
 async def public_spaces(db: Session = Depends(get_db)):
     """Публичные пространства для обзора."""
     spaces = (db.query(Space)
-              .filter(Space.is_public == True)
+              .filter(Space.is_public.is_(True))
               .order_by(Space.member_count.desc())
               .limit(50)
               .all())
@@ -698,7 +705,7 @@ async def create_space_room(
     Все участники пространства автоматически добавляются в новую комнату.
     """
     _require_admin(space_id, u.id, db)
-    space = _require_space(space_id, db)
+    _require_space(space_id, db)
 
     # Проверяем category_id
     category_id = body.category_id
@@ -767,8 +774,9 @@ async def upload_space_avatar(
     _require_admin(space_id, u.id, db)
     space = _require_space(space_id, db)
 
-    from PIL import Image
     import io
+
+    from PIL import Image
 
     content = await file.read()
     if len(content) > 5 * 1024 * 1024:
@@ -779,7 +787,7 @@ async def upload_space_avatar(
         img = img.convert("RGB")
         img.thumbnail((256, 256))
     except Exception:
-        raise HTTPException(400, "Invalid image format")
+        raise HTTPException(400, "Invalid image format") from None
 
     os.makedirs("uploads/space_avatars", exist_ok=True)
     filename = f"{_secrets.token_hex(16)}.jpg"
@@ -795,7 +803,6 @@ async def upload_space_avatar(
 
 # Тема пространства (per-space theme)
 
-import json as _json
 
 
 class SpaceThemeBody(BaseModel):

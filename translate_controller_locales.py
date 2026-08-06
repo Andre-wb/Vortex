@@ -113,10 +113,10 @@ def _restore(text: str, slots: dict) -> str:
 def _walk_strings(obj, path=()):
     if isinstance(obj, dict):
         for k, v in obj.items():
-            yield from _walk_strings(v, path + (k,))
+            yield from _walk_strings(v, (*path, k))
     elif isinstance(obj, list):
         for i, v in enumerate(obj):
-            yield from _walk_strings(v, path + (str(i),))
+            yield from _walk_strings(v, (*path, str(i)))
     elif isinstance(obj, str):
         yield path, obj
 
@@ -124,10 +124,7 @@ def _walk_strings(obj, path=()):
 def _set_path(obj, path, value):
     cur = obj
     for p in path[:-1]:
-        if isinstance(cur, dict):
-            cur = cur[p]
-        else:
-            cur = cur[int(p)]
+        cur = cur[p] if isinstance(cur, dict) else cur[int(p)]
     last = path[-1]
     if isinstance(cur, dict):
         cur[last] = value
@@ -186,7 +183,7 @@ def translate_file(target_code: str, source_obj: dict, force: bool) -> bool:
                     parts.append(text)
                 time.sleep(0.1)
 
-        for (path, _, slots), translated in zip(batch, parts):
+        for (path, _, slots), translated in zip(batch, parts, strict=False):
             restored = _restore(translated, slots)
             _set_path(result, path, restored)
 

@@ -13,12 +13,12 @@ Kyber pub здесь синтетический (1184 случайных бай�
 import secrets
 
 import pytest
+from conftest import _phone_prefix, random_digits, random_str
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from starlette.testclient import TestClient
 
-from conftest import random_str, random_digits, _phone_prefix
 from app.config import Config
 from app.main import app
 

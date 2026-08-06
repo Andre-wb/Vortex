@@ -101,7 +101,7 @@ async def receive_from_peer(body: P2PReceiveRequest, request: Request):
             msg = decrypt_p2p_payload(body.ephemeral_pub, body.ciphertext, node_priv)
         except Exception as e:
             logger.warning(f"P2P decrypt failed from {src_ip}: {e}")
-            raise HTTPException(400, "Failed to decrypt P2P message")
+            raise HTTPException(400, "Failed to decrypt P2P message") from None
     elif body.plaintext_payload:
         msg = body.plaintext_payload
     else:

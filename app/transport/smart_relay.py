@@ -24,15 +24,17 @@ Architecture:
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
+import random
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import httpx
 
 from app.security.ssl_context import make_peer_ssl_context
+
+_sysrand = random.SystemRandom()
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +176,7 @@ class SmartRelayRouter:
 
         try:
             t0 = time.monotonic()
-            r = await _probe_pool.head(
+            await _probe_pool.head(
                 f"https://{ip}:{port}/api/health",
                 follow_redirects=False,
             )
@@ -253,10 +255,9 @@ class SmartRelayRouter:
         if len(top_k) == 1:
             return top_k[0][1]
 
-        import random
         weights = [1.0 / (s[0] + 1) for s in top_k]
         total_w = sum(weights)
-        r = random.random() * total_w
+        r = _sysrand.random() * total_w
         cumulative = 0.0
         for i, w in enumerate(weights):
             cumulative += w

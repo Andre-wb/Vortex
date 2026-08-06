@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 from ..controller_crypto import verify_signature
 from ..models import (
@@ -89,8 +90,7 @@ async def heartbeat(req: HeartbeatRequest, request: Request) -> RegisterAck:
 # For supernodes that aggregate heartbeats from downstream nodes.
 # Uses Rust's ed25519-dalek batch verifier: 3-5× faster than per-item
 # verify when N >= 8. Fails fast on ANY bad signature (batch semantics).
-from pydantic import BaseModel
-from typing import List
+
 
 try:
     import vortex_chat as _vc_rust
@@ -100,7 +100,7 @@ except ImportError:
 
 
 class BatchHeartbeat(BaseModel):
-    items: List[HeartbeatRequest]
+    items: list[HeartbeatRequest]
 
 
 @router.post("/heartbeat/batch")
@@ -124,7 +124,7 @@ async def heartbeat_batch(req: BatchHeartbeat, request: Request) -> dict:
             from ..controller_crypto import canonical_json as _cj
             msgs.append(_cj(p.model_dump()))
         except ValueError:
-            raise HTTPException(400, "invalid hex in pubkey or signature")
+            raise HTTPException(400, "invalid hex in pubkey or signature") from None
 
     if _HAS_RUST_BATCH:
         try:
@@ -137,7 +137,7 @@ async def heartbeat_batch(req: BatchHeartbeat, request: Request) -> dict:
             raise HTTPException(401, "at least one signature invalid")
         if ok is None:
             # Fall through to per-item verify
-            for it, m in zip(req.items, msgs):
+            for it, _m in zip(req.items, msgs, strict=False):
                 if not verify_signature(it.payload.pubkey, it.signature,
                                         it.payload.model_dump()):
                     raise HTTPException(401, "invalid signature")
