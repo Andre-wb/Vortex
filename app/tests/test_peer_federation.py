@@ -104,8 +104,8 @@ class TestPeerEndpoints:
         data = r.json()
         assert "ok" in data or "status" in data
 
-    def test_peers_public_rooms(self, client):
-        r = client.get("/api/peers/public-rooms")
+    def test_peers_public_rooms(self, client, logged_user):
+        r = client.get("/api/peers/public-rooms", headers=logged_user["headers"])
         assert r.status_code == 200
 
     def test_peers_send_unauthenticated(self, client):

@@ -23,8 +23,8 @@ env/
 *.db-shm
 *.db-wal
 *.db-journal
-file::memory:
-:file::memory:
+file::memory:*
+:file::memory:*
 
 # User Data — matches these dirs anywhere in the tree (e.g. runtime
 # uploads/ written under static/ or Gravitix/). The `!app/keys/` line
