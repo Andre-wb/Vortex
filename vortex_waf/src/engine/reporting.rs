@@ -2,7 +2,6 @@
 
 use crate::domain::rule_id::RuleId;
 use crate::engine::runtime::WafRuntime;
-use crate::ports::block_store::BlockStore;
 use crate::ports::stats_reporter::StatsReporter;
 use serde::Serialize;
 use std::collections::BTreeMap;

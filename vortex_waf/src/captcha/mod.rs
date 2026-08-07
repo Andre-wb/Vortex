@@ -1,9 +1,8 @@
-//! Капча: выдача и проверка разнесены по разным типам.
-
 pub mod arithmetic_issuer;
 pub mod challenge;
 pub mod hmac_signer;
 pub mod hmac_verifier;
+pub mod signing_key;
 pub mod token;
 
 pub use arithmetic_issuer::ArithmeticChallengeIssuer;

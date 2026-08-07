@@ -1,5 +1,4 @@
-//! Подпись HMAC-SHA256.
-
+use crate::captcha::signing_key;
 use crate::ports::random_source::RandomSource;
 use crate::ports::signer::Signer;
 use hmac::{Hmac, Mac};
@@ -18,16 +17,11 @@ impl HmacSigner {
         }
     }
 
-    /// Ключ из общего секрета приложения — тогда любой инстанс проверит любую
-    /// капчу. Если секрет пуст, берётся случайный ключ процесса: капчи
-    /// перестают действовать при перезапуске и не переносятся между репликами.
     pub fn derive(app_secret: &str, domain: &str, random: &dyn RandomSource) -> Self {
         if app_secret.is_empty() {
-            let mut key = vec![0u8; 32];
-            random.fill_bytes(&mut key);
-            return HmacSigner::new(key);
+            return HmacSigner::new(signing_key::random(random));
         }
-        HmacSigner::new(format!("{app_secret}{domain}").into_bytes())
+        HmacSigner::new(signing_key::derive(app_secret, domain))
     }
 }
 
@@ -47,7 +41,6 @@ impl Signer for HmacSigner {
         };
         let mut mac = HmacSha256::new_from_slice(&self.secret).expect("HMAC принимает любой ключ");
         mac.update(payload.as_bytes());
-        // Сравнение в постоянном времени делает сама реализация HMAC.
         expected.len() == provided.len() && mac.verify_slice(&provided).is_ok()
     }
 }
@@ -56,6 +49,7 @@ impl Signer for HmacSigner {
 mod tests {
     use super::HmacSigner;
     use crate::ports::signer::Signer;
+    use crate::random::sequence_random::SequenceRandom;
 
     #[test]
     fn signature_round_trips() {
@@ -77,5 +71,32 @@ mod tests {
         let a = HmacSigner::new("ключ-А");
         let b = HmacSigner::new("ключ-Б");
         assert!(!b.verify("payload", &a.sign("payload")));
+    }
+
+    #[test]
+    fn derivation_from_one_secret_is_reproducible() {
+        let random = SequenceRandom::new(vec![]).with_filler(0x11);
+        let a = HmacSigner::derive("секрет", "waf-captcha-v1", &random);
+        let b = HmacSigner::derive("секрет", "waf-captcha-v1", &random);
+        assert!(b.verify("7:1000", &a.sign("7:1000")));
+    }
+
+    #[test]
+    fn derived_keys_of_different_domains_do_not_cross_verify() {
+        let random = SequenceRandom::new(vec![]).with_filler(0x11);
+        let captcha = HmacSigner::derive("секрет", "waf-captcha-v1", &random);
+        let other = HmacSigner::derive("секрет", "waf-other-v1", &random);
+        assert!(!other.verify("7:1000", &captcha.sign("7:1000")));
+    }
+
+    #[test]
+    fn an_empty_secret_falls_back_to_a_random_key() {
+        let first = HmacSigner::derive("", "waf-captcha-v1", &SequenceRandom::new(vec![]));
+        let second = HmacSigner::derive(
+            "",
+            "waf-captcha-v1",
+            &SequenceRandom::new(vec![]).with_filler(0x11),
+        );
+        assert!(!second.verify("7:1000", &first.sign("7:1000")));
     }
 }

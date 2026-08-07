@@ -2,6 +2,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::sync::Arc;
+use vortex_redis::transport::seen_envelopes::RedisSeenEnvelopes;
 use vortex_transport::ports::clock::Clock;
 use vortex_transport::ports::random_source::RandomSource;
 use vortex_transport::random::os_random::OsRandom;
@@ -53,6 +54,10 @@ impl PyRealityAuth {
 
         if let Some(bytes) = private_key {
             builder = builder.with_secret(StaticSecret::from(to_key(bytes)?));
+        }
+
+        if let Some(backbone) = crate::bmp::shared::backbone() {
+            builder = builder.with_seen_envelopes(Arc::new(RedisSeenEnvelopes::new(backbone)));
         }
 
         Ok(PyRealityAuth {

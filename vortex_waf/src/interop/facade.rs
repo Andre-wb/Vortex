@@ -1,9 +1,3 @@
-//! Фасад над собранным WAF в примитивных типах.
-//!
-//! Всё, что нужно вызывающей стороне за пределами Rust, собрано в одном месте и
-//! не требует знания трейтов крейта. Языковая привязка поверх него остаётся
-//! тонкой: разобрать аргументы, вызвать метод, отдать результат.
-
 use crate::captcha::arithmetic_issuer::ArithmeticChallengeIssuer;
 use crate::captcha::hmac_signer::HmacSigner;
 use crate::captcha::hmac_verifier::HmacChallengeVerifier;
@@ -15,8 +9,11 @@ use crate::engine::runtime::WafRuntime;
 use crate::error::Result;
 use crate::http::client_ip::peer_address::PeerAddressResolver;
 use crate::http::client_ip::trusted_proxy::TrustedProxyResolver;
+use crate::http::guard::WafGuard;
+use crate::http::guard_builder::GuardBuilder;
 use crate::interop::config_spec::ConfigSpec;
 use crate::interop::finding_map::AnalysisView;
+use crate::interop::guard_spec::GuardSpec;
 use crate::interop::request_spec::RequestSpec;
 use crate::interop::stats_view::StatsView;
 use crate::manager::dto::{BlockedIpView, RuleView};
@@ -24,9 +21,12 @@ use crate::manager::waf_manager::WafManager;
 use crate::ports::challenge_issuer::ChallengeIssuer;
 use crate::ports::challenge_verifier::ChallengeVerifier;
 use crate::ports::client_ip_resolver::ClientIpResolver;
+use crate::ports::clock::Clock;
 use crate::ports::ip_deny_list::IpDenyList;
 use crate::ports::ip_gate::IpGate;
 use crate::random::os_random::OsRandom;
+use crate::redis::block_store::RedisBlockStore;
+use crate::redis::request_history::RedisRequestHistory;
 use crate::time::system_clock::SystemClock;
 use std::sync::Arc;
 
@@ -34,20 +34,32 @@ pub struct WafFacade {
     runtime: Arc<WafRuntime>,
     manager: WafManager,
     issuer: ArithmeticChallengeIssuer,
-    verifier: HmacChallengeVerifier,
+    verifier: Arc<HmacChallengeVerifier>,
+    clock: Arc<dyn Clock>,
 }
 
 impl WafFacade {
     pub fn new(spec: &ConfigSpec) -> Result<WafFacade> {
-        let runtime = Arc::new(
-            WafBuilder::new()
-                .with_config(spec.to_engine_config())
-                .build()?,
-        );
         let clock = Arc::new(SystemClock::new());
+        let mut builder = WafBuilder::new()
+            .with_config(spec.to_engine_config())
+            .with_clock(clock.clone());
+
+        // Общее состояние подключается до сборки: блокировки и история обращений
+        // должны действовать во всех воркерах, а не только в том, где записаны.
+        if let Some(backbone) = crate::redis::shared::backbone() {
+            builder = builder
+                .with_block_store(Arc::new(RedisBlockStore::new(
+                    backbone.clone(),
+                    clock.clone(),
+                )))
+                .with_request_history(Arc::new(RedisRequestHistory::new(backbone)));
+        }
+
+        let runtime = Arc::new(builder.build()?);
         let random = Arc::new(OsRandom::new());
         let signer = Arc::new(HmacSigner::derive(
-            spec.captcha_secret.as_deref().unwrap_or(""),
+            &spec.resolve_captcha_secret(),
             "waf-captcha-v1",
             random.as_ref(),
         ));
@@ -59,9 +71,19 @@ impl WafFacade {
                 clock.clone(),
                 random,
             ),
-            verifier: HmacChallengeVerifier::new(signer, clock),
+            verifier: Arc::new(HmacChallengeVerifier::new(signer, clock.clone())),
             runtime,
+            clock,
         })
+    }
+
+    pub fn guard(&self, spec: &GuardSpec) -> WafGuard {
+        GuardBuilder::new(Arc::clone(&self.runtime))
+            .with_config(spec.to_guard_config())
+            .with_excluded_paths(spec.to_excluded_paths())
+            .with_clock(self.clock.clone())
+            .with_captcha_verifier(self.verifier.clone())
+            .build()
     }
 
     pub fn analyze(&self, spec: RequestSpec) -> AnalysisView {
@@ -121,8 +143,6 @@ impl WafFacade {
         self.manager.rules()
     }
 
-    /// Уборка просроченных блокировок и неактивной истории обращений.
-    /// Возвращает число удалённых записей.
     pub fn run_maintenance(&self) -> usize {
         self.runtime
             .run_maintenance()
@@ -131,7 +151,6 @@ impl WafFacade {
             .sum()
     }
 
-    /// Новая задача-капча: идентификатор, вопрос, срок жизни в секундах.
     pub fn issue_captcha(&self, client_ip: &str) -> (String, String, u64) {
         let challenge = self.issuer.issue(&ClientIp::from(client_ip));
         (
@@ -154,10 +173,6 @@ impl WafFacade {
     }
 }
 
-/// Адрес источника с учётом доверенных прокси.
-///
-/// Пустой список доверенных сетей означает, что заголовки пересылки
-/// игнорируются целиком и берётся адрес TCP-пира.
 pub fn resolve_client_ip(
     peer: Option<&str>,
     headers: &[(String, String)],
@@ -174,12 +189,24 @@ pub fn resolve_client_ip(
 #[cfg(test)]
 mod tests {
     use super::{resolve_client_ip, WafFacade};
+    use crate::http::guard::{CAPTCHA_ANSWER_HEADER, CAPTCHA_ID_HEADER};
+    use crate::http::raw_request::RawHttpRequest;
     use crate::interop::config_spec::ConfigSpec;
+    use crate::interop::guard_spec::GuardSpec;
     use crate::interop::request_spec::RequestSpec;
 
     fn facade() -> WafFacade {
         WafFacade::new(&ConfigSpec {
             rate_limit_requests: Some(10_000),
+            ..Default::default()
+        })
+        .expect("фасад собрался")
+    }
+
+    fn facade_with_secret(secret: &str) -> WafFacade {
+        WafFacade::new(&ConfigSpec {
+            rate_limit_requests: Some(10_000),
+            captcha_secret: Some(secret.to_owned()),
             ..Default::default()
         })
         .expect("фасад собрался")
@@ -267,10 +294,86 @@ mod tests {
     }
 
     #[test]
+    fn the_guard_verifies_captcha_issued_by_the_engine() {
+        let facade = facade();
+        let (id, question, _) = facade.issue_captcha("203.0.113.10");
+        let answer = solve(&question);
+        let guard = facade.guard(&GuardSpec::default());
+
+        let base = RawHttpRequest::get("/api/chat/messages")
+            .with_peer("203.0.113.10")
+            .with_header(CAPTCHA_ID_HEADER, &id);
+
+        let wrong = base
+            .clone()
+            .with_header(CAPTCHA_ANSWER_HEADER, &format!("{}", answer + 1));
+        assert_eq!(guard.evaluate(&wrong).status(), Some(429));
+
+        let correct = base.with_header(CAPTCHA_ANSWER_HEADER, &answer.to_string());
+        assert!(guard.evaluate(&correct).is_pass());
+    }
+
+    #[test]
+    fn a_shared_secret_makes_captcha_valid_across_engines() {
+        let issuing = facade_with_secret("общий секрет воркеров");
+        let checking = facade_with_secret("общий секрет воркеров");
+        let (id, question, _) = issuing.issue_captcha("203.0.113.21");
+        let answer = solve(&question).to_string();
+
+        assert!(checking.verify_captcha(&id, &answer));
+
+        let solved = RawHttpRequest::get("/api/chat/messages")
+            .with_peer("203.0.113.21")
+            .with_header(CAPTCHA_ID_HEADER, &id)
+            .with_header(CAPTCHA_ANSWER_HEADER, &answer);
+        assert!(checking
+            .guard(&GuardSpec::default())
+            .evaluate(&solved)
+            .is_pass());
+    }
+
+    #[test]
+    fn engines_with_different_secrets_reject_each_others_captcha() {
+        let issuing = facade_with_secret("секрет A");
+        let checking = facade_with_secret("секрет B");
+        let (id, question, _) = issuing.issue_captcha("203.0.113.22");
+
+        assert!(!checking.verify_captcha(&id, &solve(&question).to_string()));
+    }
+
+    fn solve(question: &str) -> i64 {
+        let expression = question
+            .trim_start_matches("What is ")
+            .trim_end_matches('?')
+            .trim();
+        let (left, operator, right) = match expression.split_whitespace().collect::<Vec<_>>()[..] {
+            [left, operator, right] => (left, operator, right),
+            _ => panic!("непонятный вопрос капчи: {question}"),
+        };
+        let left: i64 = left.parse().expect("левый операнд");
+        let right: i64 = right.parse().expect("правый операнд");
+        match operator {
+            "+" => left + right,
+            "-" => left - right,
+            "*" => left * right,
+            _ => panic!("непонятная операция: {operator}"),
+        }
+    }
+
+    #[test]
+    fn the_guard_shares_the_engine_state() {
+        let facade = facade();
+        let guard = facade.guard(&GuardSpec::default());
+        facade.add_blacklist_ip("198.51.100.7");
+
+        let raw = RawHttpRequest::get("/api/chat/messages").with_peer("198.51.100.7");
+        assert_eq!(guard.evaluate(&raw).status(), Some(403));
+    }
+
+    #[test]
     fn maintenance_is_callable() {
         let facade = facade();
         facade.block_ip("198.51.100.2", "тест", 3600);
-        // Блокировка ещё активна — удалять нечего.
         assert_eq!(facade.run_maintenance(), 0);
     }
 

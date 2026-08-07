@@ -1,8 +1,7 @@
-//! Python-класс `WafEngine` — обёртка над фасадом крейта.
-
 use crate::interop::facade::WafFacade;
 use crate::interop::finding_map::FlatMap;
 use crate::python::extract;
+use crate::python::guard::PyWafGuard;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -15,7 +14,6 @@ pub struct PyWafEngine {
 
 #[pymethods]
 impl PyWafEngine {
-    /// Настройки принимаются словарём; отсутствующие ключи берут умолчания.
     #[new]
     #[pyo3(signature = (config=None))]
     fn new(config: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
@@ -24,8 +22,11 @@ impl PyWafEngine {
             .map_err(|err| PyRuntimeError::new_err(err.to_string()))
     }
 
-    /// Полный анализ запроса. Возвращает словарь с ключами `block`, `reason`,
-    /// `findings`, `matched_rules`, `client_ip`.
+    #[pyo3(signature = (config=None))]
+    fn guard(&self, config: Option<&Bound<'_, PyDict>>) -> PyWafGuard {
+        PyWafGuard::new(self.facade.guard(&extract::guard_spec(config)))
+    }
+
     fn analyze_request<'py>(
         &self,
         py: Python<'py>,
@@ -135,13 +136,10 @@ impl PyWafEngine {
         PyList::new(py, items)
     }
 
-    /// Удаляет просроченные блокировки и историю неактивных адресов.
     fn run_maintenance(&self) -> usize {
         self.facade.run_maintenance()
     }
 
-    /// Новая задача-капча. Выдача и проверка живут на одном экземпляре, поэтому
-    /// подписаны общим ключом.
     #[pyo3(signature = (client_ip="unknown"))]
     fn generate_captcha<'py>(
         &self,

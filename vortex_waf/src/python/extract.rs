@@ -1,11 +1,9 @@
-//! Разбор Python-словарей в примитивные описания крейта.
-
 use crate::interop::config_spec::ConfigSpec;
+use crate::interop::guard_spec::GuardSpec;
 use crate::interop::request_spec::RequestSpec;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyString};
 
-/// Значение по ключу, если оно есть и не `None`.
 fn item<'py>(dict: &Bound<'py, PyDict>, key: &str) -> Option<Bound<'py, PyAny>> {
     match dict.get_item(key) {
         Ok(Some(value)) if !value.is_none() => Some(value),
@@ -25,7 +23,6 @@ fn u64_item(dict: &Bound<'_, PyDict>, key: &str) -> Option<u64> {
     item(dict, key).and_then(|value| value.extract::<u64>().ok())
 }
 
-/// Список строк из любой последовательности (list, tuple, set).
 fn string_list_item(dict: &Bound<'_, PyDict>, key: &str) -> Option<Vec<String>> {
     let value = item(dict, key)?;
     if let Ok(list) = value.extract::<Vec<String>>() {
@@ -40,7 +37,6 @@ fn string_list_item(dict: &Bound<'_, PyDict>, key: &str) -> Option<Vec<String>> 
     Some(collected)
 }
 
-/// Пары «ключ — значение» из словаря; значения приводятся к строке.
 fn pairs_item(dict: &Bound<'_, PyDict>, key: &str) -> Vec<(String, String)> {
     let Some(value) = item(dict, key) else {
         return Vec::new();
@@ -58,7 +54,6 @@ fn pairs_item(dict: &Bound<'_, PyDict>, key: &str) -> Vec<(String, String)> {
     pairs
 }
 
-/// Пары параметров: значение может быть списком — тогда пара повторяется.
 fn params_item(dict: &Bound<'_, PyDict>, key: &str) -> Vec<(String, String)> {
     let Some(value) = item(dict, key) else {
         return Vec::new();
@@ -82,8 +77,6 @@ fn params_item(dict: &Bound<'_, PyDict>, key: &str) -> Vec<(String, String)> {
     pairs
 }
 
-/// Строковое представление значения: строки берутся как есть, остальное — через
-/// `str()`, как это делал прежний движок.
 fn to_text(value: &Bound<'_, PyAny>) -> String {
     if let Ok(text) = value.downcast::<PyString>() {
         return text.to_string_lossy().into_owned();
@@ -119,5 +112,16 @@ pub fn config_spec(dict: Option<&Bound<'_, PyDict>>) -> ConfigSpec {
         safe_params: string_list_item(dict, "safe_params"),
         whitelist_ips: string_list_item(dict, "whitelist_ips"),
         captcha_secret: string_item(dict, "captcha_secret"),
+    }
+}
+
+pub fn guard_spec(dict: Option<&Bound<'_, PyDict>>) -> GuardSpec {
+    let Some(dict) = dict else {
+        return GuardSpec::default();
+    };
+    GuardSpec {
+        max_body_bytes: usize_item(dict, "max_body_bytes"),
+        trusted_proxies: string_list_item(dict, "trusted_proxies"),
+        excluded_paths: string_list_item(dict, "excluded_paths"),
     }
 }

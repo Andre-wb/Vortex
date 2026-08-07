@@ -27,8 +27,11 @@ use crate::ports::block_policy::BlockPolicy;
 use crate::ports::clock::Clock;
 use crate::ports::inspector::Inspector;
 use crate::ports::ip_allow_list::IpAllowList;
+use crate::ports::prunable_block_store::PrunableBlockStore;
+use crate::ports::request_history::RequestHistory;
 use crate::ports::rule_source::RuleSource;
 use crate::ratelimit::config::RateLimitConfig;
+use crate::ratelimit::memory_history::InMemoryRequestHistory;
 use crate::ratelimit::sliding_window::SlidingWindowRateLimiter;
 use crate::rules::catalog_source::CatalogRuleSource;
 use crate::scanning::field_scanner::FieldScanner;
@@ -44,6 +47,8 @@ pub struct WafBuilder {
     policy: Option<Arc<dyn BlockPolicy>>,
     stats: Arc<InMemoryStats>,
     extra_inspectors: Vec<Arc<dyn Inspector>>,
+    block_store: Option<Arc<dyn PrunableBlockStore>>,
+    request_history: Option<Arc<dyn RequestHistory>>,
 }
 
 impl Default for WafBuilder {
@@ -55,6 +60,8 @@ impl Default for WafBuilder {
             policy: None,
             stats: Arc::new(InMemoryStats::new()),
             extra_inspectors: Vec::new(),
+            block_store: None,
+            request_history: None,
         }
     }
 }
@@ -89,6 +96,20 @@ impl WafBuilder {
         self
     }
 
+    /// Хранилище блокировок. По умолчанию — в памяти процесса; общее для всех
+    /// воркеров подставляется здесь.
+    pub fn with_block_store(mut self, block_store: Arc<dyn PrunableBlockStore>) -> Self {
+        self.block_store = Some(block_store);
+        self
+    }
+
+    /// История обращений для ограничителя частоты. Политика (белый список,
+    /// эскалация в блокировку) остаётся прежней — общей становится только счётная часть.
+    pub fn with_request_history(mut self, history: Arc<dyn RequestHistory>) -> Self {
+        self.request_history = Some(history);
+        self
+    }
+
     /// Дополнительный инспектор — выполняется после штатных.
     pub fn with_inspector(mut self, inspector: Arc<dyn Inspector>) -> Self {
         self.extra_inspectors.push(inspector);
@@ -103,7 +124,10 @@ impl WafBuilder {
             allow_list.add(ip.as_str().into());
         }
         let deny_list = Arc::new(InMemoryDenyList::empty());
-        let block_store = Arc::new(InMemoryBlockStore::new(self.clock.clone()));
+        let block_store: Arc<dyn PrunableBlockStore> = self
+            .block_store
+            .clone()
+            .unwrap_or_else(|| Arc::new(InMemoryBlockStore::new(self.clock.clone())));
         let reputation = Arc::new(IpReputation::new(
             allow_list.clone(),
             deny_list.clone(),
@@ -112,7 +136,7 @@ impl WafBuilder {
             stats.clone(),
         ));
 
-        let rate_limiter = Arc::new(SlidingWindowRateLimiter::new(
+        let rate_limiter = Arc::new(SlidingWindowRateLimiter::with_history(
             RateLimitConfig {
                 requests: self.config.rate_limit_requests,
                 window_secs: self.config.rate_limit_window_secs,
@@ -121,6 +145,9 @@ impl WafBuilder {
             self.clock.clone(),
             allow_list.clone(),
             reputation.clone(),
+            self.request_history
+                .clone()
+                .unwrap_or_else(|| Arc::new(InMemoryRequestHistory::new())),
         ));
 
         let scanner = Arc::new(FieldScanner::new(

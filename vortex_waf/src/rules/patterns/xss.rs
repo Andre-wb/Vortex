@@ -1,9 +1,7 @@
-//! Паттерны межсайтового скриптинга.
-
 pub const PATTERNS: &[(&str, &str)] = &[
     (r"(<script.*?>.*?</script>)", "Script Tag XSS"),
     (r"(javascript:)", "JavaScript Protocol XSS"),
-    (r"(on\w+\s*=)", "Event Handler XSS"),
+    (r#"((?:^|[\s"'`/;(<])on[a-z]{3,}\s*=)"#, "Event Handler XSS"),
     (r"(alert\(.*\))", "Alert XSS"),
     (
         r"(document\.(cookie|location|domain|referrer))",

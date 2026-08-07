@@ -1,6 +1,5 @@
-//! Настройки, приходящие извне крейта в примитивных типах.
-
 use crate::config::engine_config::EngineConfig;
+use crate::config::env;
 
 #[derive(Debug, Clone, Default)]
 pub struct ConfigSpec {
@@ -10,12 +9,17 @@ pub struct ConfigSpec {
     pub max_content_length: Option<usize>,
     pub safe_params: Option<Vec<String>>,
     pub whitelist_ips: Option<Vec<String>>,
-    /// Секрет для подписи капчи. Пустой — ключ генерируется на процесс.
     pub captcha_secret: Option<String>,
 }
 
 impl ConfigSpec {
-    /// Незаданные поля берут значения по умолчанию.
+    pub fn resolve_captcha_secret(&self) -> String {
+        match &self.captcha_secret {
+            Some(secret) if !secret.is_empty() => secret.clone(),
+            _ => env::captcha_secret_from_env(),
+        }
+    }
+
     pub fn to_engine_config(&self) -> EngineConfig {
         let mut config = EngineConfig::default();
         if let Some(value) = self.rate_limit_requests {
@@ -65,7 +69,33 @@ mod tests {
         assert_eq!(config.rate_limit_requests, 50);
         assert_eq!(config.rate_limit_window_secs, 30);
         assert_eq!(config.whitelist_ips, vec!["10.0.0.1"]);
-        // Незаданное поле осталось со значением по умолчанию.
         assert_eq!(config.block_duration_secs, 3600);
+    }
+
+    #[test]
+    fn an_explicit_captcha_secret_wins() {
+        let spec = ConfigSpec {
+            captcha_secret: Some("общий секрет".to_owned()),
+            ..Default::default()
+        };
+        assert_eq!(spec.resolve_captcha_secret(), "общий секрет");
+    }
+
+    #[test]
+    fn a_missing_captcha_secret_falls_back_to_the_environment() {
+        use crate::config::env;
+
+        assert_eq!(
+            ConfigSpec::default().resolve_captcha_secret(),
+            env::captcha_secret_from_env()
+        );
+        let empty = ConfigSpec {
+            captcha_secret: Some(String::new()),
+            ..Default::default()
+        };
+        assert_eq!(
+            empty.resolve_captcha_secret(),
+            env::captcha_secret_from_env()
+        );
     }
 }

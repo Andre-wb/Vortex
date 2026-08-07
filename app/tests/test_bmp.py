@@ -214,6 +214,94 @@ class TestBMPGarbageCollection:
         assert "removed" in r.json()
 
 
+class TestBMPValidation:
+    """Идентификаторы и секреты проверяет Rust, Python только переводит отказ в HTTP."""
+
+    def test_deposit_rejects_non_hex_id(self, client, logged_user):
+        r = client.post(f"/api/bmp/post/{'z' * 32}", json={"ct": _rand_ciphertext()})
+        assert r.status_code == 400
+
+    def test_deposit_rejects_path_traversal_in_id(self, client, logged_user):
+        r = client.post("/api/bmp/post/..%2F..%2Fetc%2Fpasswd", json={"ct": _rand_ciphertext()})
+        assert r.status_code in (400, 404)
+
+    def test_deposit_rejects_too_short_message(self, client, logged_user):
+        r = client.post(f"/api/bmp/post/{_rand_mb_id()}", json={"ct": "aabb"})
+        assert r.status_code == 400
+
+    def test_limits_come_from_rust(self):
+        from app.transport import bmp_backend
+
+        limits = bmp_backend.LIMITS
+        assert limits["ttl_seconds"] == 7200
+        assert limits["max_batch"] == 100
+        assert limits["secret_hex_len"] == 64
+        assert limits["max_mailboxes"] > 0
+        assert limits["max_stored_bytes"] > 0
+
+    def test_room_secret_that_is_not_hex_is_refused(self):
+        from app.transport import bmp_backend
+
+        rejection = bmp_backend.set_room_secret(981001, "z" * 64)
+        assert rejection is not None
+        assert rejection.status == 400
+        assert bmp_backend.get_room_secret(981001) is None
+
+    def test_room_secret_of_wrong_length_is_refused(self):
+        from app.transport import bmp_backend
+
+        assert bmp_backend.set_room_secret(981002, "ab" * 16) is not None
+
+
+class TestBMPEnvelope:
+    """Конверт, положенный сервером, читается клиентом по выведенному ящику."""
+
+    def test_envelope_without_secret_is_not_deposited(self):
+        from app.transport import bmp_backend
+
+        assert bmp_backend.deposit_envelope(981003, "aabbccdd") is False
+
+    def test_envelope_lands_in_the_mailbox_the_client_derives(self, client, logged_user):
+        from app.transport import bmp_backend
+
+        secret = secrets.token_hex(32)
+        assert bmp_backend.set_room_secret(981004, secret) is None
+        assert bmp_backend.deposit_envelope(981004, "deadbeef" * 4) is True
+
+        mailbox_id = bmp_backend.compute_mailbox_id(secret)
+        r = client.post("/api/bmp/batch", json={"ids": [mailbox_id], "since": 0})
+        assert r.status_code == 200
+        assert r.json()["mailboxes"][mailbox_id][0]["ct"] == "deadbeef" * 4
+
+    def test_a_forgotten_room_stops_accepting_envelopes(self):
+        from app.transport import bmp_backend
+
+        assert bmp_backend.set_room_secret(981005, secrets.token_hex(32)) is None
+        bmp_backend.remove_room_secret(981005)
+        assert bmp_backend.deposit_envelope(981005, "aabbccdd") is False
+
+
+class TestBMPFastBatch:
+    """Быстрый опрос идёт тем же путём, что и обычный, но со своим лимитом."""
+
+    def test_fast_batch_returns_messages_and_padding(self, client, logged_user):
+        mb_id = _rand_mb_id()
+        ct = _rand_ciphertext()
+        client.post(f"/api/bmp/post/{mb_id}", json={"ct": ct})
+
+        r = client.post("/api/bmp/fast-batch", json={"ids": [mb_id], "since": 0})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["mailboxes"][mb_id][0]["ct"] == ct
+        assert len(body["_p"]) >= 170
+
+    def test_fast_batch_rate_limit_is_higher_than_standard(self):
+        from app.transport import bmp_backend
+
+        limits = bmp_backend.LIMITS
+        assert limits["fast_rate_per_window"] > limits["standard_rate_per_window"]
+
+
 class TestBMPAnonymity:
     """Core anonymity properties."""
 

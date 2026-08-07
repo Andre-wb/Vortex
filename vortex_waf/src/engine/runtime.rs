@@ -5,13 +5,13 @@
 
 use crate::blocking::allow_list::InMemoryAllowList;
 use crate::blocking::deny_list::InMemoryDenyList;
-use crate::blocking::memory_store::InMemoryBlockStore;
 use crate::blocking::reputation::IpReputation;
 use crate::config::engine_config::EngineConfig;
 use crate::domain::analysis::Analysis;
 use crate::domain::request::InspectedRequest;
 use crate::engine::maintenance::{MaintenanceService, PruneReport};
 use crate::engine::waf_engine::WafEngine;
+use crate::ports::prunable_block_store::PrunableBlockStore;
 use crate::scanning::field_scanner::FieldScanner;
 use crate::stats::in_memory::InMemoryStats;
 use std::sync::Arc;
@@ -21,7 +21,7 @@ pub struct WafRuntime {
     reputation: Arc<IpReputation>,
     allow_list: Arc<InMemoryAllowList>,
     deny_list: Arc<InMemoryDenyList>,
-    block_store: Arc<InMemoryBlockStore>,
+    block_store: Arc<dyn PrunableBlockStore>,
     scanner: Arc<FieldScanner>,
     stats: Arc<InMemoryStats>,
     maintenance: MaintenanceService,
@@ -35,7 +35,7 @@ impl WafRuntime {
         reputation: Arc<IpReputation>,
         allow_list: Arc<InMemoryAllowList>,
         deny_list: Arc<InMemoryDenyList>,
-        block_store: Arc<InMemoryBlockStore>,
+        block_store: Arc<dyn PrunableBlockStore>,
         scanner: Arc<FieldScanner>,
         stats: Arc<InMemoryStats>,
         maintenance: MaintenanceService,
@@ -74,7 +74,7 @@ impl WafRuntime {
         &self.deny_list
     }
 
-    pub fn block_store(&self) -> &Arc<InMemoryBlockStore> {
+    pub fn block_store(&self) -> &Arc<dyn PrunableBlockStore> {
         &self.block_store
     }
 

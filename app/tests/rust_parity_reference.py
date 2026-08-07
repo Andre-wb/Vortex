@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 BMP_ROTATION_PERIOD = 3600
 BMP_ROTATION_JITTER = 600
 BMP_CLOCK_SKEW_EPOCHS = 1
+BMP_TIMESTAMP_BUCKET = 300
 
 PAD_BUCKETS = (64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536)
 
@@ -142,6 +143,17 @@ def _py_mailbox_ids(case: dict[str, Any]) -> list[str]:
     epoch = int(adjusted / BMP_ROTATION_PERIOD)
     span = range(epoch - BMP_CLOCK_SKEW_EPOCHS, epoch + BMP_CLOCK_SKEW_EPOCHS + 1)
     return [_mailbox_for_epoch(case["secret_hex"], max(0, e)) for e in span]
+
+
+def _py_wake_category(case: dict[str, Any]) -> int:
+    return hashlib.sha256(case["mailbox_id"].encode()).digest()[0]
+
+
+def _py_bucket_timestamp(case: dict[str, Any]) -> float:
+    ts = case["timestamp"]
+    if ts <= 0:
+        return 0.0
+    return float(int(ts) // BMP_TIMESTAMP_BUCKET * BMP_TIMESTAMP_BUCKET)
 
 
 def _py_pad_bucket_for(case: dict[str, Any]) -> int:
@@ -295,7 +307,13 @@ FUNCTIONS: tuple[ParityFn, ...] = (
     ),
     ParityFn(
         name="bmp_pair_jitter",
-        cases=({"secret_hex": "ab" * 32}, {"secret_hex": "cd" * 32}, {"secret_hex": _det("bmp")}),
+        cases=(
+            {"secret_hex": "ab" * 32},
+            {"secret_hex": "cd" * 32},
+            {"secret_hex": _det("bmp")},
+            {"secret_hex": "00" * 32},
+            {"secret_hex": "ff" * 32},
+        ),
         python=_py_pair_jitter,
         rust=lambda m, c: m.bmp_pair_jitter(c["secret_hex"]),
     ),
@@ -305,6 +323,11 @@ FUNCTIONS: tuple[ParityFn, ...] = (
             {"secret_hex": "ab" * 32, "timestamp": 1700000000.0},
             {"secret_hex": "cd" * 32, "timestamp": 1700003600.5},
             {"secret_hex": _det("bmp"), "timestamp": 1.0},
+            {"secret_hex": "ab" * 32, "timestamp": 0.0},
+            {"secret_hex": "ab" * 32, "timestamp": 3599.999},
+            {"secret_hex": "ab" * 32, "timestamp": 4200.0},
+            {"secret_hex": "ff" * 32, "timestamp": 599.0},
+            {"secret_hex": _det("bmp"), "timestamp": 4102444800.0},
         ),
         python=_py_mailbox_id,
         rust=lambda m, c: m.bmp_compute_mailbox_id(c["secret_hex"], c["timestamp"]),
@@ -314,9 +337,33 @@ FUNCTIONS: tuple[ParityFn, ...] = (
         cases=(
             {"secret_hex": "ab" * 32, "timestamp": 1700000000.0},
             {"secret_hex": _det("bmp"), "timestamp": 1.0},
+            {"secret_hex": "ab" * 32, "timestamp": 0.0},
+            {"secret_hex": "cd" * 32, "timestamp": 3600.0},
+            {"secret_hex": "ff" * 32, "timestamp": 599.0},
+            {"secret_hex": _det("bmp"), "timestamp": 4102444800.0},
         ),
         python=_py_mailbox_ids,
         rust=lambda m, c: m.bmp_compute_mailbox_ids(c["secret_hex"], c["timestamp"]),
+    ),
+    ParityFn(
+        name="bmp_wake_category",
+        cases=(
+            {"mailbox_id": "0123456789abcdef"},
+            {"mailbox_id": _det("bmp-mailbox", 16)},
+            {"mailbox_id": "ff" * 32},
+            {"mailbox_id": "00" * 8},
+        ),
+        python=_py_wake_category,
+        rust=lambda m, c: m.bmp_wake_category(c["mailbox_id"]),
+    ),
+    ParityFn(
+        name="bmp_bucket_timestamp",
+        cases=tuple(
+            {"timestamp": ts}
+            for ts in (0.0, 1.0, 299.999, 300.0, 1700000000.0, 1700000299.0, 1700000300.0)
+        ),
+        python=_py_bucket_timestamp,
+        rust=lambda m, c: m.bmp_bucket_timestamp(c["timestamp"]),
     ),
     ParityFn(
         name="pad_bucket_for",

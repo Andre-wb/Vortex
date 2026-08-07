@@ -722,7 +722,11 @@ waf_config = {
     "rate_limit_window": Config.WAF_RATE_LIMIT_WINDOW,
     "block_duration": Config.WAF_BLOCK_DURATION,
     "max_content_length": 10 * 1024 * 1024,
+    "captcha_secret": Config.CSRF_SECRET,
 }
+from app.security.waf import backend as _waf_backend
+
+_waf_backend.use_shared_state()
 waf_engine = init_waf_engine(waf_config)
 if _PROMETHEUS_AVAILABLE:
     register_waf_metrics(get_waf_engine)

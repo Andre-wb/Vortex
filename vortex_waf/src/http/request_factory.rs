@@ -1,11 +1,10 @@
-//! Превращение транспортного запроса в предмет анализа.
-
 use crate::domain::content_type::ContentType;
 use crate::domain::http_method::HttpMethod;
 use crate::domain::request::InspectedRequest;
 use crate::http::raw_request::RawHttpRequest;
 use crate::ports::client_ip_resolver::ClientIpResolver;
 use crate::util::query::parse_qs;
+use crate::util::utf8::decode_dropping_invalid;
 use std::sync::Arc;
 
 pub struct RequestFactory {
@@ -37,9 +36,7 @@ impl RequestFactory {
             headers: raw.headers.clone(),
             params: parse_qs(&raw.query),
             content_type,
-            // Недекодируемые байты заменяются, а не приводят к отказу: анализ
-            // должен работать и на кривой кодировке.
-            body: String::from_utf8_lossy(&raw.body).into_owned(),
+            body: decode_dropping_invalid(&raw.body),
         }
     }
 }
@@ -71,8 +68,14 @@ mod tests {
     }
 
     #[test]
-    fn invalid_utf8_body_is_replaced_not_rejected() {
+    fn invalid_utf8_body_is_dropped_not_rejected() {
         let raw = RawHttpRequest::post("/x", vec![0xff, 0xfe]);
-        assert!(!factory().build(&raw).body.is_empty());
+        assert_eq!(factory().build(&raw).body, "");
+    }
+
+    #[test]
+    fn a_payload_split_by_invalid_bytes_still_matches() {
+        let raw = RawHttpRequest::post("/x", b"<scr\xffipt>".to_vec());
+        assert_eq!(factory().build(&raw).body, "<script>");
     }
 }

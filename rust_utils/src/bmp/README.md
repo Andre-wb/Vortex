@@ -1,33 +1,53 @@
-# `rust_utils/src/bmp/` — BMP (Blind Mailbox Protocol)
+# `rust_utils/src/bmp/` — мост BMP в Python
 
-Rust implementation of Vortex's metadata-obfuscation layer. See `RESEARCH-BMP.md` at the repo root for the design document.
+Тонкая PyO3-обёртка над крейтом `vortex-bmp`. Сам протокол (хранилище ящиков,
+деривация идентификаторов, пределы, частота запросов, секреты комнат, уборка)
+живёт в крейте; здесь только преобразование типов и процессные синглтоны.
+Дизайн протокола — `RESEARCH-BMP.md` в корне репозитория.
 
-## What's here
+## Что здесь
 
-- `mailbox_id(shared_secret, epoch_seconds, period)` — derives the current mailbox ID:
-  ```
-  mailbox_id(t) = HMAC-SHA256(S_AB, floor(t / T))[0:16]
-  ```
-- `generate_covers(real_ids, count)` — wraps real mailbox IDs with `count` cryptographically random decoys and shuffles the result.
-- Helpers for epoch math and envelope packing.
+- `shared.rs` — один `BmpService` на процесс (`BmpServiceBuilder` с настройками по умолчанию).
+- `api.rs` — функции, выставленные в `vortex_chat`.
+- `rejection.rs`, `batch.rs` — классы `BmpRejection` и `BmpBatch`, возвращаемые в Python.
+- `limits.rs` — словарь `vortex_chat.BMP_LIMITS`: пределы берутся из Rust, Python их только применяет.
+- `maintenance.rs` — фоновый поток уборки, запускается один раз за процесс.
 
-## Exposed to Python
+## Выставлено в Python
 
 ```python
-import rust_utils
+import vortex_chat
 
-mid    = rust_utils.bmp_mailbox_id(shared_secret, time.time(), period=3600)
-poll   = rust_utils.bmp_generate_covers(real_ids=[mid], count=50)
+rejection = vortex_chat.bmp_deposit(mailbox_id, ciphertext, client_ip)
+if rejection is not None:
+    raise HTTPException(rejection.status, rejection.detail)
+
+batch = vortex_chat.bmp_fetch_batch(ids, since, client_ip, False)
+batch.rejection, batch.mailboxes, batch.padding
+
+vortex_chat.bmp_set_room_secret(room_id, secret_hex)
+vortex_chat.bmp_deposit_envelope(room_id, envelope_hex)
+vortex_chat.bmp_compute_mailbox_id(secret_hex, timestamp)
+vortex_chat.bmp_compute_mailbox_ids(secret_hex, timestamp)
+vortex_chat.bmp_pair_jitter(secret_hex)
+vortex_chat.bmp_bucket_timestamp(timestamp)
+vortex_chat.bmp_wake_category(mailbox_id)
+vortex_chat.bmp_stats()
+vortex_chat.bmp_gc()
+vortex_chat.bmp_start_gc()
+vortex_chat.BMP_LIMITS
 ```
 
-## Performance
+Python-сторона — `app/transport/bmp_backend.py` (загрузка, без fallback) и
+`app/transport/blind_mailbox.py` (маршруты FastAPI).
 
-- Mailbox derivation: ~0.5µs per call (HMAC-SHA256 throughput dominated).
-- Cover generation: O(n) in decoy count; single BLAKE3 + Fisher–Yates shuffle.
+## Тесты
 
-## Tests
-
-Round-trip test: two parties derive the same mailbox ID from their own private key + the other's public key. Also verifies epoch rollover (one party querying at `t - 1s`, the other at `t + 1s`, both still agreeing within the same epoch).
+- Домен: `cargo test -p vortex-bmp` — деривация, пределы, вытеснение, уборка, отказы.
+- Паритет Python↔Rust: `app/tests/test_rust_parity.py` (`bmp_pair_jitter`,
+  `bmp_compute_mailbox_id`, `bmp_compute_mailbox_ids`, `bmp_wake_category`,
+  `bmp_bucket_timestamp`), векторы — `app/tests/vectors/rust_parity.json`.
+- HTTP: `app/tests/test_bmp.py`.
 
 ---
 

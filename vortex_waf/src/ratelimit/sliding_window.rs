@@ -7,9 +7,10 @@ use crate::ports::ip_allow_list::IpAllowList;
 use crate::ports::ip_blocker::IpBlocker;
 use crate::ports::prunable::Prunable;
 use crate::ports::rate_limiter::{RateLimitOutcome, RateLimiter};
+use crate::ports::request_history::RequestHistory;
 use crate::ratelimit::config::RateLimitConfig;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use crate::ratelimit::memory_history::InMemoryRequestHistory;
+use std::sync::Arc;
 
 /// Причина, с которой адрес блокируется при грубом превышении.
 pub const ESCALATION_REASON: &str = "Rate limit exceeded (double limit)";
@@ -19,7 +20,7 @@ pub struct SlidingWindowRateLimiter {
     clock: Arc<dyn Clock>,
     allow_list: Arc<dyn IpAllowList>,
     blocker: Arc<dyn IpBlocker>,
-    history: RwLock<HashMap<ClientIp, Vec<Timestamp>>>,
+    history: Arc<dyn RequestHistory>,
 }
 
 impl SlidingWindowRateLimiter {
@@ -29,12 +30,28 @@ impl SlidingWindowRateLimiter {
         allow_list: Arc<dyn IpAllowList>,
         blocker: Arc<dyn IpBlocker>,
     ) -> Self {
+        SlidingWindowRateLimiter::with_history(
+            config,
+            clock,
+            allow_list,
+            blocker,
+            Arc::new(InMemoryRequestHistory::new()),
+        )
+    }
+
+    pub fn with_history(
+        config: RateLimitConfig,
+        clock: Arc<dyn Clock>,
+        allow_list: Arc<dyn IpAllowList>,
+        blocker: Arc<dyn IpBlocker>,
+        history: Arc<dyn RequestHistory>,
+    ) -> Self {
         SlidingWindowRateLimiter {
             config,
             clock,
             allow_list,
             blocker,
-            history: RwLock::new(HashMap::new()),
+            history,
         }
     }
 
@@ -44,34 +61,13 @@ impl SlidingWindowRateLimiter {
 
     /// Сколько обращений адреса попадает в текущее окно.
     pub fn hits_in_window(&self, ip: &ClientIp) -> usize {
-        let window_start = self.clock.now().minus_secs(self.config.window_secs);
         self.history
-            .read()
-            .expect("история запросов отравлена")
-            .get(ip)
-            .map(|hits| hits.iter().filter(|ts| **ts > window_start).count())
-            .unwrap_or(0)
+            .hits_in_window(ip, self.clock.now(), self.config.window_secs)
     }
 
-    /// Учёт обращения. `None` — в пределах лимита; `Some((попаданий в окно,
-    /// секунд до освобождения))` — лимит исчерпан.
     fn register(&self, ip: &ClientIp, now: Timestamp) -> Option<(usize, f64)> {
-        let window_start = now.minus_secs(self.config.window_secs);
-        let mut history = self.history.write().expect("история запросов отравлена");
-        let hits = history.entry(ip.clone()).or_default();
-        hits.retain(|ts| *ts > window_start);
-
-        if hits.len() >= self.config.requests {
-            let oldest = hits.iter().copied().min().unwrap_or(now);
-            let wait = self.config.window_secs as f64 - now.secs_since(oldest);
-            return Some((hits.len(), wait));
-        }
-
-        // После этой вставки длина не превышает `requests`: как только лимит
-        // достигнут, обращения перестают записываться. Размер истории одного
-        // адреса ограничен самим лимитом, отдельное усечение не нужно.
-        hits.push(now);
-        None
+        self.history
+            .register(ip, now, self.config.requests, self.config.window_secs)
     }
 }
 
@@ -103,11 +99,8 @@ impl Prunable for SlidingWindowRateLimiter {
 
     fn prune(&self) -> usize {
         // Адреса без обращений за два окна вычищаем целиком.
-        let cutoff = self.clock.now().minus_secs(self.config.window_secs * 2);
-        let mut history = self.history.write().expect("история запросов отравлена");
-        let before = history.len();
-        history.retain(|_, hits| hits.iter().any(|ts| *ts >= cutoff));
-        before - history.len()
+        self.history
+            .forget_stale(self.clock.now(), self.config.window_secs.saturating_mul(2))
     }
 }
 

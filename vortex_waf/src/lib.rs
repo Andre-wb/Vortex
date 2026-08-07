@@ -26,9 +26,11 @@ pub mod prelude;
 pub mod python;
 pub mod random;
 pub mod ratelimit;
+pub mod redis;
 pub mod rules;
 pub mod scanning;
 pub mod stats;
+pub mod testing;
 pub mod time;
 pub mod util;
 

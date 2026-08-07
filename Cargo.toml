@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["rust_utils", "vortex_waf", "vortex-transport"]
+members = [
+    "rust_utils",
+    "vortex_waf",
+    "vortex-transport",
+    "vortex-bmp",
+    "vortex-redis",
+]
 exclude = ["src-tauri", "Gravitix", "solana_program"]
 
 [workspace.package]
@@ -25,6 +31,20 @@ aes-gcm = "0.10"
 hkdf = "0.12"
 subtle = "2.6.1"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
+base64 = "0.22"
+dashmap = "5"
+parking_lot = "0.12"
+criterion = "0.5"
+tokio = { version = "1", features = ["full"] }
+fred = { version = "10", default-features = false, features = [
+    "i-std",
+    "i-keys",
+    "i-hashes",
+    "i-sets",
+    "i-sorted-sets",
+    "i-scripts",
+    "i-server",
+] }
 
 [profile.release]
 opt-level = 3

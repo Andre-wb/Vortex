@@ -5,7 +5,7 @@ mod common;
 use common::{has_rule, Harness};
 use vortex_waf::config::EngineConfig;
 use vortex_waf::domain::RequestBuilder;
-use vortex_waf::ports::{BlockStore, IpBlocker, IpGate, StatsReporter};
+use vortex_waf::ports::{IpBlocker, IpGate, StatsReporter};
 
 fn request(ip: &str) -> vortex_waf::domain::InspectedRequest {
     RequestBuilder::new()

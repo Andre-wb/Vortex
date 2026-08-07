@@ -1,0 +1,27 @@
+[package]
+name = "vortex-bmp"
+version = "0.1.0"
+edition.workspace = true
+description = "Blind Mailbox Protocol — анонимные почтовые ящики Vortex"
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "vortex_bmp"
+path = "src/lib.rs"
+
+[dependencies]
+base64.workspace = true
+dashmap.workspace = true
+hex.workspace = true
+hmac.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "mailbox"
+harness = false

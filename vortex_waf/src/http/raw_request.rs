@@ -1,6 +1,5 @@
-//! Запрос в терминах транспорта, до превращения в `InspectedRequest`.
-
 use crate::domain::header_map::HeaderMap;
+use crate::http::request_head::RequestHead;
 
 #[derive(Debug, Clone, Default)]
 pub struct RawHttpRequest {
@@ -8,9 +7,7 @@ pub struct RawHttpRequest {
     pub path: String,
     pub query: String,
     pub headers: HeaderMap,
-    /// Адрес TCP-пира, если он известен.
     pub peer: Option<String>,
-    /// Значение заголовка `Content-Length`, если он передан.
     pub content_length: Option<usize>,
     pub body: Vec<u8>,
 }
@@ -54,9 +51,16 @@ impl RawHttpRequest {
         self.with_header("content-type", value)
     }
 
-    /// Заявленный размер тела: `Content-Length`, иначе фактическая длина.
     pub fn declared_length(&self) -> usize {
         self.content_length.unwrap_or(self.body.len())
+    }
+
+    pub fn head(&self) -> RequestHead {
+        RequestHead {
+            method: self.method.clone(),
+            path: self.path.clone(),
+            content_length: self.content_length,
+        }
     }
 }
 
@@ -75,5 +79,13 @@ mod tests {
         let mut req = RawHttpRequest::post("/x", b"abc".to_vec());
         req.content_length = None;
         assert_eq!(req.declared_length(), 3);
+    }
+
+    #[test]
+    fn head_carries_what_is_known_before_the_body() {
+        let head = RawHttpRequest::post("/api/messages", b"hello".to_vec()).head();
+        assert_eq!(head.method, "POST");
+        assert_eq!(head.path, "/api/messages");
+        assert_eq!(head.content_length, Some(5));
     }
 }

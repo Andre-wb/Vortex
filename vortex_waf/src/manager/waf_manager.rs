@@ -4,7 +4,6 @@ use crate::domain::client_ip::ClientIp;
 use crate::engine::reporting::{build_report, WafStatsReport};
 use crate::engine::runtime::WafRuntime;
 use crate::manager::dto::{BlockedIpView, OperationResult, RuleView};
-use crate::ports::block_store::BlockStore;
 use crate::ports::ip_allow_list::IpAllowList;
 use crate::ports::ip_blocker::IpBlocker;
 use crate::ports::stats_reporter::StatsReporter;

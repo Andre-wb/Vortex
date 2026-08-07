@@ -1138,16 +1138,30 @@ class TestWAFCaptcha:
         assert waf.verify_captcha("nonexistent", "42") is False
         assert waf.verify_captcha("", "42") is False
 
-    def test_challenge_from_another_engine_is_rejected(self):
-        """Ключ подписи свой у каждого экземпляра без общего секрета."""
+    def test_challenge_from_another_engine_is_rejected_without_any_secret(self, monkeypatch):
+        """Без секрета ни в конфиге, ни в окружении ключ у каждого экземпляра свой."""
         from app.security.waf import WAFEngine
 
+        monkeypatch.delenv("CSRF_SECRET", raising=False)
+        monkeypatch.delenv("JWT_SECRET", raising=False)
         issuer = WAFEngine()
         outsider = WAFEngine()
         challenge = issuer.generate_captcha("1.1.1.1")
         answer = self._solve(challenge["question"])
         assert issuer.verify_captcha(challenge["challenge_id"], answer) is True
         assert outsider.verify_captcha(challenge["challenge_id"], answer) is False
+
+    def test_engines_without_config_share_the_environment_secret(self):
+        """Так работает прод: воркеры не получают конфига, но секрет у них общий."""
+        from app.config import Config
+        from app.security.waf import WAFEngine
+
+        assert Config.CSRF_SECRET
+        issuer = WAFEngine()
+        verifier = WAFEngine()
+        challenge = issuer.generate_captcha("1.1.1.1")
+        answer = self._solve(challenge["question"])
+        assert verifier.verify_captcha(challenge["challenge_id"], answer) is True
 
     def test_shared_secret_allows_cross_verification(self):
         """С общим секретом капчу проверит любой экземпляр."""
@@ -1159,6 +1173,22 @@ class TestWAFCaptcha:
         challenge = issuer.generate_captcha("1.1.1.1")
         answer = self._solve(challenge["question"])
         assert verifier.verify_captcha(challenge["challenge_id"], answer) is True
+
+    def test_different_secrets_do_not_cross_verify(self):
+        from app.security.waf import WAFEngine
+
+        issuer = WAFEngine({"captcha_secret": "секрет A"})
+        outsider = WAFEngine({"captcha_secret": "секрет B"})
+        challenge = issuer.generate_captcha("1.1.1.1")
+        answer = self._solve(challenge["question"])
+        assert outsider.verify_captcha(challenge["challenge_id"], answer) is False
+
+    def test_app_supplies_the_captcha_secret_to_the_engine(self):
+        from app.config import Config
+        from app.main import waf_config
+
+        assert waf_config["captcha_secret"] == Config.CSRF_SECRET
+        assert waf_config["captcha_secret"]
 
 
 class TestWAFManager:
@@ -1293,7 +1323,7 @@ class TestWAFEndpoints:
 
 
 class TestWAFMiddlewareHelpers:
-    """Внутренние методы ASGI-middleware."""
+    """ASGI-адаптер и страж, который он обслуживает."""
 
     @staticmethod
     def _middleware():
@@ -1304,60 +1334,154 @@ class TestWAFMiddlewareHelpers:
 
         return WAFMiddleware(dummy_app, waf_engine=WAFEngine())
 
-    def test_build_request_from_scope(self):
+    def test_guard_comes_from_the_engine(self):
         mw = self._middleware()
-        scope = {
-            "type": "http",
-            "method": "POST",
-            "path": "/api/test",
-            "query_string": b"page=1&limit=10",
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"user-agent", b"TestAgent"),
-            ],
-            "client": ("192.168.1.100", 12345),
-        }
-        req = mw._build_request_from_scope(scope, b'{"key":"value"}')
-        assert req["client_ip"] == "192.168.1.100"
-        assert req["method"] == "POST"
-        assert req["path"] == "/api/test"
-        assert req["url"] == "/api/test?page=1&limit=10"
-        assert "page" in req["params"]
-        assert req["content_type"] == "application/json"
-        assert req["body"] == '{"key":"value"}'
-
-    def test_get_client_ip_from_scope(self):
-        mw = self._middleware()
-        assert mw._get_client_ip({"client": ("1.2.3.4", 80)}, {}) == "1.2.3.4"
+        assert mw.guard.max_body_bytes > 0
 
     def test_forwarded_header_ignored_by_default(self):
         """Без списка доверенных прокси заголовкам пересылки не верим."""
-        mw = self._middleware()
-        headers = {"x-forwarded-for": "10.20.30.40"}
-        assert mw._get_client_ip({"client": ("8.8.8.8", 80)}, headers) == "8.8.8.8"
+        from app.security.waf import resolve_client_ip
 
-    def test_get_client_ip_from_trusted_proxy(self, monkeypatch):
-        import app.security.waf.middleware as mw_mod
+        headers = [("x-forwarded-for", "10.20.30.40")]
+        assert resolve_client_ip("8.8.8.8", headers, []) == "8.8.8.8"
 
-        # Список доверенных прокси читается из env при импорте — патчим глобал.
-        monkeypatch.setattr(mw_mod, "_TRUSTED_PROXIES", ["127.0.0.0/8"])
-        mw = self._middleware()
-        headers = {"x-forwarded-for": "10.20.30.40, 1.1.1.1"}
-        assert mw._get_client_ip({"client": ("127.0.0.1", 80)}, headers) == "10.20.30.40"
-        assert mw._get_client_ip({"client": ("8.8.8.8", 80)}, headers) == "8.8.8.8"
+    def test_client_ip_from_trusted_proxy(self):
+        from app.security.waf import resolve_client_ip
 
-    def test_get_client_ip_unknown(self):
-        mw = self._middleware()
-        assert mw._get_client_ip({"headers": []}, {}) == "unknown"
-        assert mw._get_client_ip({"client": None}, {"x-forwarded-for": "bad"}) == "unknown"
+        headers = [("x-forwarded-for", "10.20.30.40, 1.1.1.1")]
+        assert resolve_client_ip("127.0.0.1", headers, ["127.0.0.0/8"]) == "10.20.30.40"
+        assert resolve_client_ip("8.8.8.8", headers, ["127.0.0.0/8"]) == "8.8.8.8"
+
+    def test_client_ip_unknown(self):
+        from app.security.waf import resolve_client_ip
+
+        assert resolve_client_ip(None, [], []) == "unknown"
+        assert resolve_client_ip(None, [("x-forwarded-for", "bad")], []) == "unknown"
 
     def test_is_excluded(self):
         mw = self._middleware()
-        assert mw._is_excluded("/static/js/app.js") is True
-        assert mw._is_excluded("/api/files/upload-chunk/42") is True
-        assert mw._is_excluded("/api/something") is False
-        # Внешняя выборка по ссылке проверяется — это поверхность SSRF.
-        assert mw._is_excluded("/api/link-preview") is False
+        assert mw.guard.is_excluded("/static/js/app.js") is True
+        assert mw.guard.is_excluded("/api/files/upload-chunk/42") is True
+        assert mw.guard.is_excluded("/api/something") is False
+        assert mw.guard.is_excluded("/api/link-preview") is False
+
+    def test_plan_skips_excluded_paths_without_reading_the_body(self):
+        plan = self._middleware().guard.plan("POST", "/api/files/upload-chunk/42", 10**9)
+        assert plan.skip is True
+        assert plan.read_body is False
+        assert plan.response is None
+
+    def test_plan_buffers_the_body_of_write_methods(self):
+        guard = self._middleware().guard
+        for method in ("POST", "PUT", "PATCH"):
+            plan = guard.plan(method, "/api/rooms", 10)
+            assert plan.read_body is True
+            assert plan.body_limit == guard.max_body_bytes
+
+    def test_plan_does_not_buffer_a_request_without_a_body(self):
+        plan = self._middleware().guard.plan("GET", "/api/rooms", None)
+        assert (plan.skip, plan.read_body, plan.response) == (False, False, None)
+
+    def test_plan_inspects_a_body_declared_on_any_method(self):
+        guard = self._middleware().guard
+        plan = guard.plan("DELETE", "/api/rooms/7", 64)
+        assert plan.read_body is True
+        assert plan.body_limit == guard.max_body_bytes
+
+        oversized = guard.plan("GET", "/api/rooms", guard.max_body_bytes + 1)
+        assert oversized.response.status == 413
+
+    def test_plan_rejects_a_declared_oversize_before_buffering(self):
+        guard = self._middleware().guard
+        plan = guard.plan("POST", "/api/rooms", guard.max_body_bytes + 1)
+        assert plan.read_body is False
+        assert plan.response.status == 413
+        assert b"Request entity too large" in plan.response.body
+
+    def test_evaluate_answers_only_for_refused_requests(self):
+        guard = self._middleware().guard
+        headers = [(b"user-agent", b"Mozilla/5.0")]
+        assert guard.evaluate("GET", "/api/chat/messages", b"", headers, "203.0.113.71", 0, b"") is None
+
+        attack = guard.evaluate(
+            "GET",
+            "/api/search",
+            b"q=%3Cscript%3Ealert(1)%3C%2Fscript%3E",
+            headers,
+            "203.0.113.72",
+            0,
+            b"",
+        )
+        assert attack.status == 403
+        assert (b"x-waf-blocked", b"true") in attack.headers
+
+    def test_declared_length_ignores_a_broken_header(self):
+        import sys
+
+        from app.security.waf.middleware import _declared_length
+
+        assert _declared_length([(b"Content-Length", b"42")]) == 42
+        assert _declared_length([(b"content-length", b"-1")]) is None
+        assert _declared_length([(b"content-length", b"not-a-number")]) is None
+        assert _declared_length([(b"user-agent", b"curl")]) is None
+        assert _declared_length([(b"content-length", b"9" * 40)]) == sys.maxsize
+
+    def test_an_absurd_content_length_is_refused_not_crashed(self):
+        from app.security.waf.middleware import _declared_length
+
+        declared = _declared_length([(b"content-length", b"9" * 40)])
+        plan = self._middleware().guard.plan("POST", "/api/rooms", declared)
+        assert plan.response.status == 413
+
+    @staticmethod
+    def _drive(path: str, chunks: list[bytes]) -> bytes:
+        """Прогоняет POST по ASGI через middleware и возвращает тело, дошедшее до приложения."""
+        import asyncio
+
+        from app.security.waf import WAFEngine, WAFMiddleware
+
+        delivered: list[bytes] = []
+
+        async def collecting_app(scope, receive, send):
+            while True:
+                message = await receive()
+                delivered.append(message.get("body", b""))
+                if not message.get("more_body", False):
+                    return
+
+        middleware = WAFMiddleware(collecting_app, waf_engine=WAFEngine())
+        middleware._cleanup_started = True
+
+        pending = [
+            {"type": "http.request", "body": chunk, "more_body": index < len(chunks) - 1}
+            for index, chunk in enumerate(chunks)
+        ]
+
+        async def receive():
+            return pending.pop(0)
+
+        async def send(message):
+            raise AssertionError(f"WAF ответил сам: {message}")
+
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": path,
+            "query_string": b"",
+            "headers": [(b"content-type", b"application/octet-stream")],
+            "client": ("203.0.113.73", 5000),
+        }
+        asyncio.run(middleware(scope, receive, send))
+        return b"".join(delivered)
+
+    def test_excluded_path_streams_the_body_to_the_app_intact(self):
+        """Исключённый путь не буферизуется: подмена receive обрезала бы загрузку."""
+        body = self._drive("/api/files/upload-chunk/42", [b"first chunk ", b"second chunk"])
+        assert body == b"first chunk second chunk"
+
+    def test_inspected_path_replays_the_buffered_body(self):
+        body = self._drive("/api/rooms", [b'{"name": ', b'"general"}'])
+        assert body == b'{"name": "general"}'
 
 
 class TestWAFSetupFunction:

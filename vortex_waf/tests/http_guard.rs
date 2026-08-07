@@ -1,5 +1,3 @@
-//! Транспортный слой: исключённые пути, лимит тела, ответы, капча.
-
 mod common;
 
 use common::Harness;
@@ -7,7 +5,9 @@ use std::sync::Arc;
 use vortex_waf::captcha::{ArithmeticChallengeIssuer, HmacChallengeVerifier, HmacSigner};
 use vortex_waf::config::GuardConfig;
 use vortex_waf::domain::ClientIp;
-use vortex_waf::http::{ExcludedPaths, GuardBuilder, RawHttpRequest, WafGuard};
+use vortex_waf::http::{
+    BodyPolicy, ExcludedPaths, GuardBuilder, RawHttpRequest, RequestHead, WafGuard,
+};
 use vortex_waf::ports::ChallengeIssuer;
 use vortex_waf::random::SequenceRandom;
 
@@ -56,7 +56,6 @@ fn clean_request_passes_through() {
 fn excluded_upload_path_is_not_inspected() {
     let waf = Harness::new();
     let guard = guard(&waf, GuardConfig::default());
-    // Полезная нагрузка внутри, но путь исключён из анализа.
     let raw = RawHttpRequest::post("/api/files/upload-chunk/42", b"' OR 1=1 -- ".to_vec())
         .with_peer("203.0.113.62");
 
@@ -82,10 +81,109 @@ fn lying_content_length_does_not_bypass_the_limit() {
     let waf = Harness::new();
     let guard = guard(&waf, GuardConfig::default().max_body_bytes(128));
     let mut raw = RawHttpRequest::post("/api/messages", vec![b'a'; 512]).with_peer("203.0.113.64");
-    // Клиент заявил маленькое тело, но прислал большое.
     raw.content_length = Some(10);
 
     assert_eq!(guard.evaluate(&raw).status(), Some(413));
+}
+
+#[test]
+fn an_excluded_path_is_planned_without_reading_the_body() {
+    let waf = Harness::new();
+    let guard = guard(&waf, GuardConfig::default());
+    let head = RequestHead::new("POST", "/api/files/upload-chunk/42").with_content_length(1 << 30);
+
+    assert_eq!(guard.plan(&head), BodyPolicy::Skip);
+}
+
+#[test]
+fn a_request_without_a_body_is_planned_for_analysis_only() {
+    let waf = Harness::new();
+    let guard = guard(&waf, GuardConfig::default());
+
+    for method in ["GET", "DELETE", "HEAD", "OPTIONS"] {
+        let head = RequestHead::new(method, "/api/chat/messages");
+        assert_eq!(
+            guard.plan(&head),
+            BodyPolicy::InspectHead,
+            "метод {method} без тела не должен буферизоваться"
+        );
+        assert_eq!(
+            guard.plan(&head.clone().with_content_length(0)),
+            BodyPolicy::InspectHead
+        );
+    }
+}
+
+#[test]
+fn a_body_declared_on_any_method_is_inspected() {
+    let waf = Harness::new();
+    let guard = guard(&waf, GuardConfig::default().max_body_bytes(128));
+
+    for method in ["GET", "DELETE", "HEAD", "OPTIONS"] {
+        let head = RequestHead::new(method, "/api/chat/messages").with_content_length(64);
+        assert_eq!(
+            guard.plan(&head),
+            BodyPolicy::BufferBody { limit: 128 },
+            "заявленное тело {method} должно проверяться"
+        );
+        assert_eq!(
+            guard.plan(&head.with_content_length(129)).status(),
+            Some(413),
+            "предел тела должен действовать и для {method}"
+        );
+    }
+}
+
+#[test]
+fn an_oversized_body_is_refused_on_any_method() {
+    let waf = Harness::new();
+    let guard = guard(&waf, GuardConfig::default().max_body_bytes(128));
+
+    let mut raw = RawHttpRequest::post("/api/messages", vec![b'a'; 512]).with_peer("203.0.113.68");
+    raw.method = "DELETE".to_owned();
+
+    assert_eq!(guard.evaluate(&raw).status(), Some(413));
+}
+
+#[test]
+fn an_attack_in_a_delete_body_is_blocked() {
+    let waf = Harness::new();
+    let guard = guard(&waf, GuardConfig::default());
+
+    let mut raw = RawHttpRequest::post("/api/rooms/7", b"{\"q\": \"' OR 1=1 -- \"}".to_vec())
+        .with_peer("203.0.113.69")
+        .with_content_type("application/json");
+    raw.method = "DELETE".to_owned();
+
+    assert_eq!(guard.evaluate(&raw).status(), Some(403));
+}
+
+#[test]
+fn a_declared_oversize_is_refused_before_the_body_is_read() {
+    let waf = Harness::new();
+    let guard = guard(&waf, GuardConfig::default().max_body_bytes(128));
+    let head = RequestHead::new("POST", "/api/messages").with_content_length(129);
+
+    let policy = guard.plan(&head);
+    assert_eq!(policy.status(), Some(413));
+    assert!(!policy.reads_body());
+}
+
+#[test]
+fn a_body_carrying_method_is_planned_with_the_configured_limit() {
+    let waf = Harness::new();
+    let guard = guard(&waf, GuardConfig::default().max_body_bytes(128));
+
+    for method in ["POST", "PUT", "PATCH"] {
+        let head = RequestHead::new(method, "/api/messages").with_content_length(64);
+        assert_eq!(guard.plan(&head), BodyPolicy::BufferBody { limit: 128 });
+    }
+
+    let without_header = RequestHead::new("POST", "/api/messages");
+    assert_eq!(
+        guard.plan(&without_header),
+        BodyPolicy::BufferBody { limit: 128 }
+    );
 }
 
 #[test]
@@ -97,7 +195,6 @@ fn forged_forwarded_header_does_not_change_the_source() {
         .with_header("x-forwarded-for", "127.0.0.1")
         .with_query("q=%3Cscript%3Ealert(1)%3C%2Fscript%3E");
 
-    // Если бы заголовку доверяли, адрес попал бы в белый список и не блокировался.
     let outcome = guard.evaluate(&raw);
     assert_eq!(outcome.status(), Some(403));
     let body: serde_json::Value =
@@ -131,7 +228,6 @@ fn wrong_captcha_answer_gets_a_429() {
     let issuer = ArithmeticChallengeIssuer::new(
         signer,
         waf.clock.clone(),
-        // '+', a = 3, b = 4 -> ответ 7
         Arc::new(SequenceRandom::new(vec![0, 2, 3])),
     );
     let challenge = issuer.issue(&ClientIp::from("203.0.113.67"));

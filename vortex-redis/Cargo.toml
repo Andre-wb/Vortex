@@ -1,0 +1,19 @@
+[package]
+name = "vortex-redis"
+version = "0.1.0"
+edition.workspace = true
+description = "Общее состояние Vortex в Redis — реализации портов доменных крейтов"
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "vortex_redis"
+path = "src/lib.rs"
+
+[dependencies]
+fred.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+log.workspace = true
+parking_lot.workspace = true
+vortex-bmp = { path = "../vortex-bmp" }
+vortex-transport = { path = "../vortex-transport" }

@@ -1,4 +1,48 @@
 {
+  "bmp_bucket_timestamp": [
+    {
+      "args": {
+        "timestamp": 0.0
+      },
+      "expected": 0.0
+    },
+    {
+      "args": {
+        "timestamp": 1.0
+      },
+      "expected": 0.0
+    },
+    {
+      "args": {
+        "timestamp": 299.999
+      },
+      "expected": 0.0
+    },
+    {
+      "args": {
+        "timestamp": 300.0
+      },
+      "expected": 300.0
+    },
+    {
+      "args": {
+        "timestamp": 1700000000.0
+      },
+      "expected": 1699999800.0
+    },
+    {
+      "args": {
+        "timestamp": 1700000299.0
+      },
+      "expected": 1700000100.0
+    },
+    {
+      "args": {
+        "timestamp": 1700000300.0
+      },
+      "expected": 1700000100.0
+    }
+  ],
   "bmp_compute_mailbox_id": [
     {
       "args": {
@@ -20,6 +64,41 @@
         "timestamp": 1.0
       },
       "expected": "52d16175de50cc3d0f4f1b610d08b5e3"
+    },
+    {
+      "args": {
+        "secret_hex": "abababababababababababababababababababababababababababababababab",
+        "timestamp": 0.0
+      },
+      "expected": "e1a5607fbbbd07b86e15caaef0695ee3"
+    },
+    {
+      "args": {
+        "secret_hex": "abababababababababababababababababababababababababababababababab",
+        "timestamp": 3599.999
+      },
+      "expected": "e1a5607fbbbd07b86e15caaef0695ee3"
+    },
+    {
+      "args": {
+        "secret_hex": "abababababababababababababababababababababababababababababababab",
+        "timestamp": 4200.0
+      },
+      "expected": "431edf1a641fef016b6265acdac814bb"
+    },
+    {
+      "args": {
+        "secret_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "timestamp": 599.0
+      },
+      "expected": "cb647ebb3bfc4855048927a06234fcd1"
+    },
+    {
+      "args": {
+        "secret_hex": "82e7ddafb57bdd2dffd0bcf449a69cd439cb73b3575911d5cec9ae8115edbc8f",
+        "timestamp": 4102444800.0
+      },
+      "expected": "e4b302a176bb0e553728106d8eddc746"
     }
   ],
   "bmp_compute_mailbox_ids": [
@@ -44,6 +123,50 @@
         "52d16175de50cc3d0f4f1b610d08b5e3",
         "bb35709a08a870f6a4099e06d8d5df28"
       ]
+    },
+    {
+      "args": {
+        "secret_hex": "abababababababababababababababababababababababababababababababab",
+        "timestamp": 0.0
+      },
+      "expected": [
+        "e1a5607fbbbd07b86e15caaef0695ee3",
+        "e1a5607fbbbd07b86e15caaef0695ee3",
+        "431edf1a641fef016b6265acdac814bb"
+      ]
+    },
+    {
+      "args": {
+        "secret_hex": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "timestamp": 3600.0
+      },
+      "expected": [
+        "929e9ac40c8bff9424f54501ad471b6e",
+        "929e9ac40c8bff9424f54501ad471b6e",
+        "96f8d3a2b4f8a9b40b57401fe6f0c116"
+      ]
+    },
+    {
+      "args": {
+        "secret_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "timestamp": 599.0
+      },
+      "expected": [
+        "cb647ebb3bfc4855048927a06234fcd1",
+        "cb647ebb3bfc4855048927a06234fcd1",
+        "573dd7f7c60e0ef7b60e51876290ea19"
+      ]
+    },
+    {
+      "args": {
+        "secret_hex": "82e7ddafb57bdd2dffd0bcf449a69cd439cb73b3575911d5cec9ae8115edbc8f",
+        "timestamp": 4102444800.0
+      },
+      "expected": [
+        "bdcbf8a18bc60b0dadb83e90524fea98",
+        "e4b302a176bb0e553728106d8eddc746",
+        "422fe43cf8ff5f057ab31424623d547e"
+      ]
     }
   ],
   "bmp_pair_jitter": [
@@ -64,6 +187,44 @@
         "secret_hex": "82e7ddafb57bdd2dffd0bcf449a69cd439cb73b3575911d5cec9ae8115edbc8f"
       },
       "expected": 279
+    },
+    {
+      "args": {
+        "secret_hex": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected": 210
+    },
+    {
+      "args": {
+        "secret_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "expected": 358
+    }
+  ],
+  "bmp_wake_category": [
+    {
+      "args": {
+        "mailbox_id": "0123456789abcdef"
+      },
+      "expected": 159
+    },
+    {
+      "args": {
+        "mailbox_id": "10c3dcc78a069b75eb2b5d3af192f4f9"
+      },
+      "expected": 43
+    },
+    {
+      "args": {
+        "mailbox_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "expected": 223
+    },
+    {
+      "args": {
+        "mailbox_id": "0000000000000000"
+      },
+      "expected": 252
     }
   ],
   "canonical_json": [
