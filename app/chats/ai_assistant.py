@@ -411,11 +411,11 @@ def _get_qwen_pipeline():
             model_path = str(_QWEN_LOCAL_PATH)
             logger.info("Loading Qwen3-8B from %s …", model_path)
 
-            tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+            tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)  # nosec B615
             device = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
             dtype = torch.bfloat16 if device != "cpu" else torch.float32
 
-            model = AutoModelForCausalLM.from_pretrained(
+            model = AutoModelForCausalLM.from_pretrained(  # nosec B615
                 model_path,
                 torch_dtype=dtype,
                 device_map=device,

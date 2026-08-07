@@ -67,6 +67,7 @@ from app.security.secret_rotation import (
     register_reload_hook,
     rotation_status,
 )
+from app.security.ssl_context import make_peer_ssl_context
 from app.transport.reality_backend import RealityAuth
 
 _sysrand = random.SystemRandom()
@@ -156,7 +157,7 @@ class VMessProtocol:
         self._request_body_key = os.urandom(16)
         self._request_body_iv = os.urandom(16)
         self._response_header = os.urandom(1)[0]
-        self._cmd_key = hashlib.md5(self._uuid + _VMESS_CMD_KEY_MAGIC).digest()  # noqa: S324
+        self._cmd_key = hashlib.md5(self._uuid + _VMESS_CMD_KEY_MAGIC).digest()  # noqa: S324  # nosec B324
 
     @property
     def uuid(self) -> str:
@@ -168,13 +169,13 @@ class VMessProtocol:
         payload = struct.pack(">q", ts) + os.urandom(4)
         payload += struct.pack(">I", zlib.crc32(payload) & 0xFFFFFFFF)
         key = _vmess_kdf(self._cmd_key, b"AES Auth ID Encryption")[:16]
-        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())  # noqa: S305
+        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())  # noqa: S305  # nosec B305
         encryptor = cipher.encryptor()
         return encryptor.update(payload) + encryptor.finalize()
 
     def _verify_auth_id(self, auth_id: bytes) -> bool:
         key = _vmess_kdf(self._cmd_key, b"AES Auth ID Encryption")[:16]
-        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())  # noqa: S305
+        cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())  # noqa: S305  # nosec B305
         decryptor = cipher.decryptor()
         decoded = decryptor.update(auth_id) + decryptor.finalize()
         if zlib.crc32(decoded[:12]) & 0xFFFFFFFF != struct.unpack(">I", decoded[12:16])[0]:
@@ -1545,7 +1546,7 @@ class CensorshipAutoProbe:
         try:
             import httpx
 
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as c:  # noqa: S501
+            async with httpx.AsyncClient(timeout=timeout, verify=make_peer_ssl_context()) as c:
                 resp = await c.get(f"{url}/api/health")
                 elapsed = time.monotonic() - start
                 return {
@@ -1562,7 +1563,7 @@ class CensorshipAutoProbe:
         try:
             import httpx
 
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as c:  # noqa: S501
+            async with httpx.AsyncClient(timeout=timeout, verify=make_peer_ssl_context()) as c:
                 # Проверяем что WS endpoint отвечает (даже 401 = доступен)
                 resp = await c.get(f"{url}/ws/chat/0")
                 elapsed = time.monotonic() - start
@@ -1579,7 +1580,7 @@ class CensorshipAutoProbe:
         try:
             import httpx
 
-            async with httpx.AsyncClient(timeout=3.0, verify=False) as c:  # noqa: S501
+            async with httpx.AsyncClient(timeout=3.0, verify=make_peer_ssl_context()) as c:
                 resp = await c.get(f"{url}/api/transport/sse/stream", headers={"Accept": "text/event-stream"})
                 elapsed = time.monotonic() - start
                 return {
@@ -1594,7 +1595,7 @@ class CensorshipAutoProbe:
         try:
             import httpx
 
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as c:  # noqa: S501
+            async with httpx.AsyncClient(timeout=timeout, verify=make_peer_ssl_context()) as c:
                 resp = await c.get(f"{url}{path}")
                 elapsed = time.monotonic() - start
                 return {

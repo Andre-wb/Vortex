@@ -299,7 +299,7 @@ def _rebuild_prekey_bundles_if_legacy(conn) -> None:
     old = set(old_cols)
     select_exprs = ["NULL" if c == "device_id" else (c if c in old else "NULL") for c in new_cols]
     insert_sql = (
-        f"INSERT INTO prekey_bundles_new ({', '.join(new_cols)})"  # noqa: S608
+        f"INSERT INTO prekey_bundles_new ({', '.join(new_cols)})"  # noqa: S608  # nosec B608
         f" SELECT {', '.join(select_exprs)} FROM prekey_bundles"
     )
     for stmt in (

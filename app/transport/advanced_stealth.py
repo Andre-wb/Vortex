@@ -532,6 +532,10 @@ class DecoyConnectionManager:
             logger.warning("httpx not installed — decoy connections disabled")
             return
 
+        from app.security.ssl_context import make_peer_ssl_context
+
+        ssl_ctx = make_peer_ssl_context()
+
         while self._running:
             try:
                 # Выбираем случайные цели
@@ -540,7 +544,7 @@ class DecoyConnectionManager:
                 # Запускаем параллельно
                 async with httpx.AsyncClient(
                     timeout=10.0,
-                    verify=False,  # noqa: S501
+                    verify=ssl_ctx,
                     follow_redirects=True,
                 ) as client:
                     tasks = [self._do_decoy(client, url) for url in targets]
