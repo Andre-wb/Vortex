@@ -101,9 +101,7 @@ async def bmp_batch(body: BatchRequest, request: Request):
     Клиент присылает смесь настоящих идентификаторов и прикрытия, различить их
     сервер не может. В ответе только непустые ящики.
     """
-    batch = await asyncio.to_thread(
-        backend.fetch_batch, body.ids, body.since, _client(request), False
-    )
+    batch = await asyncio.to_thread(backend.fetch_batch, body.ids, body.since, _client(request), False)
     if batch.rejection is not None:
         _refuse(batch.rejection)
     return {"mailboxes": batch.mailboxes, "_p": batch.padding}
@@ -112,9 +110,7 @@ async def bmp_batch(body: BatchRequest, request: Request):
 @router.post("/fast-batch")
 async def bmp_fast_batch(body: BatchRequest, request: Request):
     """Как `/batch`, но с повышенным лимитом — опрос раз в 500 мс при звонке."""
-    batch = await asyncio.to_thread(
-        backend.fetch_batch, body.ids, body.since, _client(request), True
-    )
+    batch = await asyncio.to_thread(backend.fetch_batch, body.ids, body.since, _client(request), True)
     if batch.rejection is not None:
         _refuse(batch.rejection)
     return {"mailboxes": batch.mailboxes, "_p": batch.padding}

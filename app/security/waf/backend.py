@@ -61,6 +61,7 @@ def use_shared_state() -> bool:
         logger.info("[WAF] блокировки и лимиты в Redis — действуют во всех воркерах")
     return connected
 
+
 logger.info("✅ vortex_waf %s (Rust) загружен — правил: %d", VERSION, RULE_COUNT)
 
 __all__ = [

@@ -218,10 +218,7 @@ _HELLO_SECOND_KEY_SHARE_INVALID = build_client_hello(
 _HELLO_EMPTY_SESSION_ID = build_client_hello(b"", build_key_share_extension(b"\xcd" * 32))
 _HELLO_P256_ONLY = build_client_hello(
     b"\xab" * 32,
-    struct.pack(">HH", KEY_SHARE_EXTENSION, 71)
-    + struct.pack(">H", 69)
-    + struct.pack(">HH", 0x0017, 65)
-    + b"\x04" * 65,
+    struct.pack(">HH", KEY_SHARE_EXTENSION, 71) + struct.pack(">H", 69) + struct.pack(">HH", 0x0017, 65) + b"\x04" * 65,
 )
 
 FUNCTIONS = [

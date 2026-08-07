@@ -146,9 +146,7 @@ class TestCrossRuntimeHandshake:
         server = self._server()
         client = _rust.RealityAuth()
         timestamp = int(time.time())
-        ephemeral_pub, session_id = client.build_client_hello_auth(
-            self.SHORT_ID, server.public_key(), timestamp
-        )
+        ephemeral_pub, session_id = client.build_client_hello_auth(self.SHORT_ID, server.public_key(), timestamp)
         opened = reference.open_envelope(reference.SERVER_SECRET, ephemeral_pub, session_id)
         assert opened == (reference.ENVELOPE_VERSION, timestamp, self.SHORT_ID)
 

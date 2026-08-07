@@ -358,10 +358,7 @@ FUNCTIONS: tuple[ParityFn, ...] = (
     ),
     ParityFn(
         name="bmp_bucket_timestamp",
-        cases=tuple(
-            {"timestamp": ts}
-            for ts in (0.0, 1.0, 299.999, 300.0, 1700000000.0, 1700000299.0, 1700000300.0)
-        ),
+        cases=tuple({"timestamp": ts} for ts in (0.0, 1.0, 299.999, 300.0, 1700000000.0, 1700000299.0, 1700000300.0)),
         python=_py_bucket_timestamp,
         rust=lambda m, c: m.bmp_bucket_timestamp(c["timestamp"]),
     ),

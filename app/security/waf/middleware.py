@@ -138,9 +138,7 @@ class WAFMiddleware:
         except ValueError:
             report = {}
         violations = [item.get("rule_id") for item in report.get("violations", [])]
-        logger.warning(
-            f"WAF blocked {method} {path} from {report.get('client_ip')} — {violations}"
-        )
+        logger.warning(f"WAF blocked {method} {path} from {report.get('client_ip')} — {violations}")
 
     async def _cleanup_loop(self):
         while True:
