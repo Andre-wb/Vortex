@@ -50,6 +50,7 @@ logs/
 .pytest_cache/
 htmlcov/
 .coverage
+.coverage.*
 coverage.xml
 coverage/
 test-results/
