@@ -206,8 +206,9 @@ jobs:
       - name: Build and install the Rust extensions
         run: |
           pip install maturin
-          maturin develop --release -m vortex_waf/Cargo.toml
-          maturin develop --release -m rust_utils/Cargo.toml
+          maturin build --release -m vortex_waf/Cargo.toml --out dist-rust
+          maturin build --release -m rust_utils/Cargo.toml --out dist-rust
+          pip install --no-index --find-links dist-rust vortex-waf vortex-chat-rs
 
       - name: Run tests with coverage
         run: |
