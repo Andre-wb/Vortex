@@ -199,45 +199,6 @@ score = true
 good-names = ["i", "j", "k", "n", "e", "f", "r", "s", "t", "v", "db", "ws", "id", "ip", "pk", "sk", "ct", "ss", "iv", "ok", "_"]
 
 
-[tool.pytest.ini_options]
-testpaths = ["app/tests"]
-python_files = ["tests.py", "test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-asyncio_mode = "auto"
-addopts = [
-    "-v",
-    "--tb=short",
-    "--strict-markers",
-    "--no-header",
-    "-ra",
-    "--color=yes",
-    "--durations=10",
-    "--cov=app",
-    "--cov-report=term-missing",
-    "--cov-report=html:htmlcov",
-    "--cov-fail-under=88",
-    "--timeout=30",
-]
-markers = [
-    "slow: tests that take > 1 sec",
-    "crypto: crypto core tests (AES, ECIES, SHA-256)",
-    "auth: authentication tests",
-    "rooms: room tests",
-    "files: file upload tests",
-    "websocket: WebSocket tests",
-    "security: security tests (WAF, SQLi, XSS, CSRF)",
-    "metrics: performance benchmarks",
-    "integration: end-to-end integration tests",
-]
-filterwarnings = [
-    "ignore::DeprecationWarning:starlette.*",
-    "ignore::DeprecationWarning:fastapi.*",
-    "ignore::PendingDeprecationWarning",
-    "ignore::pytest.PytestUnraisableExceptionWarning",
-]
-
-
 [tool.coverage.run]
 source = ["app"]
 omit = [

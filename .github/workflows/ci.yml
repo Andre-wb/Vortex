@@ -191,6 +191,12 @@ jobs:
           key: cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-
 
+      - name: Cache liboqs
+        uses: actions/cache@v4
+        with:
+          path: ~/_oqs
+          key: liboqs-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
       - name: Install system deps
         run: |
           sudo apt-get update

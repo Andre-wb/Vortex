@@ -63,8 +63,8 @@ jobs:
         # integrity walk, steganography. Falls back to Python if missing.
         continue-on-error: true
         run: |
-          cd rust_utils
-          maturin develop --release
+          maturin build --release -m rust_utils/Cargo.toml --out dist-rust
+          pip install --no-index --find-links dist-rust vortex-chat-rs
 
       - name: Build with PyInstaller
         env:
