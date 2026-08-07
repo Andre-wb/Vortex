@@ -8,7 +8,7 @@ uvicorn[standard]>=0.24.0
 gunicorn>=21.2.0
 
 # ── Database ──────────────────────────────────────────────────────────────────
-SQLAlchemy>=2.0.20
+SQLAlchemy[asyncio]>=2.0.20   # asyncio extra pulls greenlet, needed by vortex_controller
 alembic>=1.13.0
 psycopg2-binary>=2.9.9        # PostgreSQL sync driver
 asyncpg>=0.29.0               # PostgreSQL async driver
@@ -85,6 +85,7 @@ pytest-timeout>=2.2.0
 pytest-xdist>=3.0.0              # Parallel test execution (-n auto in pytest.ini)
 pytest-httpx>=0.30.0             # Mock httpx requests in tests (blockchain API mocking)
 asgi-lifespan>=2.1.0
+aiosqlite>=0.19.0                # Async SQLite driver for tests that spin up vortex_controller
 
 # ── Code Quality (dev) ───────────────────────────────────────────────────────
 ruff>=0.3.0
