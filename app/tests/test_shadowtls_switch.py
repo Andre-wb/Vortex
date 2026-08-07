@@ -64,7 +64,8 @@ class _Harness:
             await asyncio.gather(self.proxy_task, return_exceptions=True)
         self.client_writer.close()
         self._srv.close()
-        await self._srv.wait_closed()
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(self._srv.wait_closed(), timeout=1.0)
         with contextlib.suppress(OSError):
             self.csock.close()
 

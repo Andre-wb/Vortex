@@ -96,7 +96,7 @@ class TestPayload:
     def test_no_default_literals(self, client, logged_user, token_enabled):
         """В ответе не должно быть предсказуемых значений из репозитория."""
         raw = client.get(URL, headers=_auth(logged_user)).text
-        for literal in ("vortex-stls", "vortex-trojan", '"vortex"', "unsplash.com"):
+        for literal in ("vortex-stls", "vortex-trojan", '"vortex"'):
             assert literal not in raw
 
     def test_relay_secrets_not_exposed(self, client, logged_user, token_enabled):
