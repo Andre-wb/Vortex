@@ -288,6 +288,7 @@ jobs:
           context: .
           push: false
           load: true
+          provenance: false
           tags: vortex-chat:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -312,9 +313,10 @@ jobs:
           done
 
           # Verify health response
-          curl -sf http://localhost:9000/health | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
+          curl -sf http://localhost:9000/health > /tmp/health.json || { docker logs vortex-test; exit 1; }
+          python3 -c "
+          import json
+          data = json.load(open('/tmp/health.json'))
           assert data['status'] == 'ok', f'Bad status: {data}'
           print('Docker health check: OK')
           "

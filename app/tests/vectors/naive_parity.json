@@ -1,0 +1,747 @@
+{
+  "caddyfile": [
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:443 {\n    tls \"admin@example.com\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"a3f9c2b1\" \"xK-_9Zq\"\n        hide_ip\n        hide_via\n        probe_resistance \"www.bing.com\"\n    }\n\n    reverse_proxy \"http://127.0.0.1:8000\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 8443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:8443 {\n    tls \"admin@example.com\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"a3f9c2b1\" \"xK-_9Zq\"\n        hide_ip\n        hide_via\n        probe_resistance \"www.bing.com\"\n    }\n\n    reverse_proxy \"http://127.0.0.1:8000\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "",
+        "email": "",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:443 {\n    tls \"admin@example.com\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"a3f9c2b1\" \"xK-_9Zq\"\n        hide_ip\n        hide_via\n        probe_resistance \"www.bing.com\"\n    }\n\n    reverse_proxy \"http://127.0.0.1:8000\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "ops+acme@vortex.test",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:443 {\n    tls \"ops+acme@vortex.test\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"a3f9c2b1\" \"xK-_9Zq\"\n        hide_ip\n        hide_via\n        probe_resistance \"www.bing.com\"\n    }\n\n    reverse_proxy \"http://127.0.0.1:8000\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "archive.org",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:443 {\n    tls \"admin@example.com\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"a3f9c2b1\" \"xK-_9Zq\"\n        hide_ip\n        hide_via\n        probe_resistance \"archive.org\"\n    }\n\n    reverse_proxy \"http://127.0.0.1:8000\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "https://backend.internal",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:443 {\n    tls \"admin@example.com\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"a3f9c2b1\" \"xK-_9Zq\"\n        hide_ip\n        hide_via\n        probe_resistance \"www.bing.com\"\n    }\n\n    reverse_proxy \"https://backend.internal\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://[::1]:9000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:443 {\n    tls \"admin@example.com\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"a3f9c2b1\" \"xK-_9Zq\"\n        hide_ip\n        hide_via\n        probe_resistance \"www.bing.com\"\n    }\n\n    reverse_proxy \"http://[::1]:9000\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "HTTP://127.0.0.1:08000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:443 {\n    tls \"admin@example.com\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"a3f9c2b1\" \"xK-_9Zq\"\n        hide_ip\n        hide_via\n        probe_resistance \"www.bing.com\"\n    }\n\n    reverse_proxy \"http://127.0.0.1:8000\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:443 {\n    tls \"admin@example.com\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" \"xK-_9Zq\"\n        hide_ip\n        hide_via\n        probe_resistance \"www.bing.com\"\n    }\n\n    reverse_proxy \"http://127.0.0.1:8000\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "p!$%&()*+,;=<>?@[]^|~",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": "{\n    order forward_proxy before file_server\n    servers {\n        protocols h1 h2\n    }\n}\n\n:443 {\n    tls \"admin@example.com\" {\n        protocols tls1.2 tls1.3\n        curves x25519 secp256r1 secp384r1\n    }\n\n    forward_proxy {\n        basic_auth \"a3f9c2b1\" \"p!$%&()*+,;=<>?@[]^|~\"\n        hide_ip\n        hide_via\n        probe_resistance \"www.bing.com\"\n    }\n\n    reverse_proxy \"http://127.0.0.1:8000\" {\n        header_up Host {host}\n        header_up X-Real-IP {remote_host}\n    }\n\n    file_server {\n        root /var/www/html\n    }\n}\n"
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 0,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": ""
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9 c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "s3cret}\n    respond \"pwned\"\n{",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "s3cret{env.HOME}",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "s3\"cret",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "s3\\cret",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "s3'cret",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "s3`cret",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "s3#cret",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "пароль",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com\n    respond",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "a@b@c.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com\n    respond",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "гугл.рф",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:8000/api",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://user:pass@127.0.0.1:8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:+8000",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "http://127.0.0.1:0",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    },
+    {
+      "args": {
+        "backend_url": "unix//run/app.sock",
+        "email": "admin@example.com",
+        "password": "xK-_9Zq",
+        "port": 443,
+        "probe_domain": "www.bing.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "caddyfile": null
+      }
+    }
+  ],
+  "client_config": [
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "config": {
+          "listen": "socks://127.0.0.1:1080",
+          "log": "",
+          "padding": true,
+          "proxy": "https://a3f9c2b1:xK-_9Zq@proxy.example.com:443"
+        }
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 8443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "config": {
+          "listen": "socks://127.0.0.1:1080",
+          "log": "",
+          "padding": true,
+          "proxy": "https://a3f9c2b1:xK-_9Zq@proxy.example.com:8443"
+        }
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "2001:db8::1",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "config": {
+          "listen": "socks://127.0.0.1:1080",
+          "log": "",
+          "padding": true,
+          "proxy": "https://a3f9c2b1:xK-_9Zq@[2001:db8::1]:443"
+        }
+      }
+    },
+    {
+      "args": {
+        "password": "p@ss/evil.test",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "config": {
+          "listen": "socks://127.0.0.1:1080",
+          "log": "",
+          "padding": true,
+          "proxy": "https://a3f9c2b1:p%40ss%2Fevil.test@proxy.example.com:443"
+        }
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "config": null
+      }
+    },
+    {
+      "args": {
+        "password": "пароль",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "config": null
+      }
+    }
+  ],
+  "proxy_url": [
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": "https://a3f9c2b1:xK-_9Zq@proxy.example.com:443"
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 8443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": "https://a3f9c2b1:xK-_9Zq@proxy.example.com:8443"
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "127.0.0.1",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": "https://a3f9c2b1:xK-_9Zq@127.0.0.1:443"
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "2001:db8::1",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": "https://a3f9c2b1:xK-_9Zq@[2001:db8::1]:443"
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "[2001:db8::1]",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": "https://a3f9c2b1:xK-_9Zq@[2001:db8::1]:443"
+      }
+    },
+    {
+      "args": {
+        "password": "p@ss/evil.test",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": "https://a3f9c2b1:p%40ss%2Fevil.test@proxy.example.com:443"
+      }
+    },
+    {
+      "args": {
+        "password": "a:b",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": "https://a3f9c2b1:a%3Ab@proxy.example.com:443"
+      }
+    },
+    {
+      "args": {
+        "password": "100%",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": "https://a3f9c2b1:100%25@proxy.example.com:443"
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "u ser"
+      },
+      "expected": {
+        "url": null
+      }
+    },
+    {
+      "args": {
+        "password": "p!$&()*+,;=~._-",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": "https://a3f9c2b1:p%21%24%26%28%29%2A%2B%2C%3B%3D~._-@proxy.example.com:443"
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": null
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "proxy.example.com/path",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": null
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "user@proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": null
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "[127.0.0.1]",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": null
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 0,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": null
+      }
+    },
+    {
+      "args": {
+        "password": "xK-_9Zq",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": ""
+      },
+      "expected": {
+        "url": null
+      }
+    },
+    {
+      "args": {
+        "password": "",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": null
+      }
+    },
+    {
+      "args": {
+        "password": "пароль",
+        "port": 443,
+        "server_host": "proxy.example.com",
+        "username": "a3f9c2b1"
+      },
+      "expected": {
+        "url": null
+      }
+    }
+  ]
+}

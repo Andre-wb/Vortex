@@ -150,6 +150,9 @@ class SyncASGIClient:
     def delete(self, url: str, **kwargs) -> httpx.Response:
         return self._send("delete", url, **kwargs)
 
+    def head(self, url: str, **kwargs) -> httpx.Response:
+        return self._send("head", url, **kwargs)
+
     def close(self):
         if self._own_loop:
             with contextlib.suppress(Exception):

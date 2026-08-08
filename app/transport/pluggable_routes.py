@@ -105,17 +105,25 @@ async def censorship_report(request: Request):
     """
     Клиент отправляет отчёт о доступности транспортов.
     Без аутентификации (клиент может быть заблокирован).
+
+    Имя региона, состав отчёта и потолок числа регионов проверяет Rust: роут
+    открыт, поэтому и ключи хранилища, и содержимое отчёта задаёт кто угодно.
+    Отчёт одного клиента вердикт по региону не меняет — нужен кворум.
     """
     from app.transport.stealth_level4 import stealth_l4
 
     try:
         body = await request.json()
-        region = body.get("region", "unknown")
-        stealth_l4.dashboard.submit_report(region, body)
-        recommended = stealth_l4.dashboard.get_recommended_transport(region)
-        return {"ok": True, "recommended_transport": recommended}
     except Exception:
-        return {"ok": False}
+        raise HTTPException(400, "Malformed report") from None
+
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Malformed report")
+
+    recommended, rejection = stealth_l4.dashboard.submit_report(body.get("region", "unknown"), body)
+    if rejection is not None:
+        raise HTTPException(rejection.status, rejection.detail)
+    return {"ok": True, "recommended_transport": recommended}
 
 
 @router.get("/censorship-map")
@@ -138,7 +146,17 @@ async def sw_config():
 
 @router.get("/probe/{token}")
 async def probe_transport(token: str):
-    """Probe endpoint для проверки доступности транспорта."""
+    """
+    Probe endpoint для проверки доступности транспорта.
+
+    Отвечает только на токены транспортов из каталога Rust; на любой другой —
+    как обычный несуществующий путь. Иначе одного запроса на произвольный путь
+    хватало, чтобы отличить ноду Vortex от чего угодно ещё.
+    """
+    from app.transport.stealth_level4 import stealth_l4
+
+    if not stealth_l4.censor_probe.serves(token):
+        raise HTTPException(404, "Not Found")
     return {"ok": True, "ts": int(time.time())}
 
 
@@ -300,7 +318,7 @@ async def shadowsocks_config(u: User = Depends(get_current_user)):
     """Get Shadowsocks client config for connecting through encrypted proxy."""
     from app.transport.pluggable import transport_manager
 
-    if not transport_manager.shadowsocks:
+    if not transport_manager.shadowsocks.is_configured:
         raise HTTPException(404, "Shadowsocks transport not configured")
     from app.config import Config
 

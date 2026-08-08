@@ -1,0 +1,580 @@
+{
+  "decode_request": [
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01030f7777772e6578616d706c652e636f6d01bb0d0a474554202f20485454502f312e310d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": "domain",
+        "command": "connect",
+        "host": "www.example.com",
+        "outcome": "accepted",
+        "password_hash": "648db6019764b598f75ab6b7616d2e82563a00eb1531680e19ac4c6f",
+        "payload": "474554202f20485454502f312e310d0a",
+        "port": 443
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01030f7777772e6578616d706c652e636f6d0d0a0d0a7061796c6f6164",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": "domain",
+        "command": "connect",
+        "host": "www.example.com",
+        "outcome": "accepted",
+        "password_hash": "648db6019764b598f75ab6b7616d2e82563a00eb1531680e19ac4c6f",
+        "payload": "7061796c6f6164",
+        "port": 3338
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01010d0a0d0a00500d0a7061796c6f6164",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": "ipv4",
+        "command": "connect",
+        "host": "13.10.13.10",
+        "outcome": "accepted",
+        "password_hash": "648db6019764b598f75ab6b7616d2e82563a00eb1531680e19ac4c6f",
+        "payload": "7061796c6f6164",
+        "port": 80
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a010420010db800000000000000000000000101bb0d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": "ipv6",
+        "command": "connect",
+        "host": "2001:db8::1",
+        "outcome": "accepted",
+        "password_hash": "648db6019764b598f75ab6b7616d2e82563a00eb1531680e19ac4c6f",
+        "payload": "",
+        "port": 443
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01010d0a010201bb0d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": "ipv4",
+        "command": "connect",
+        "host": "13.10.1.2",
+        "outcome": "accepted",
+        "password_hash": "648db6019764b598f75ab6b7616d2e82563a00eb1531680e19ac4c6f",
+        "payload": "",
+        "port": 443
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01030f7777772e6578616d706c652e636f6d01bb0d0a474554202f20485454502f312e310d0a",
+        "passwords": [
+          "newpass",
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": "domain",
+        "command": "connect",
+        "host": "www.example.com",
+        "outcome": "accepted",
+        "password_hash": "648db6019764b598f75ab6b7616d2e82563a00eb1531680e19ac4c6f",
+        "payload": "474554202f20485454502f312e310d0a",
+        "port": 443
+      }
+    },
+    {
+      "args": {
+        "data": "38326535323164346462303430353063653539653732323162336636643236373439386638303931666536613039326363613930663931380d0a01030f7777772e6578616d706c652e636f6d01bb0d0a78",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "unauthorized",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01030f7777772e6578616d706c652e636f6d01bb0d0a474554202f20485454502f312e310d0a",
+        "passwords": []
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "unauthorized",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "need_more",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "need_more",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01030f7777772e6578616d706c652e636f6d0d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "need_more",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "need_more",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "16030100050100000d",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "malformed",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "30783864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01010d0a010201bb0d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "malformed",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a02010d0a010201bb0d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "malformed",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a0102000001bb0d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "malformed",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01030001bb0d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "malformed",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a0103076120622e636f6d01bb0d0a",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "malformed",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01010d0a010201bb00007061796c6f6164",
+        "passwords": [
+          "testpass"
+        ]
+      },
+      "expected": {
+        "address_type": null,
+        "command": null,
+        "host": null,
+        "outcome": "malformed",
+        "password_hash": null,
+        "payload": null,
+        "port": null
+      }
+    }
+  ],
+  "encode_request": [
+    {
+      "args": {
+        "host": "www.example.com",
+        "password": "testpass",
+        "payload": "474554202f0d0a",
+        "port": 443
+      },
+      "expected": {
+        "request": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01030f7777772e6578616d706c652e636f6d01bb0d0a474554202f0d0a"
+      }
+    },
+    {
+      "args": {
+        "host": "13.10.1.2",
+        "password": "testpass",
+        "payload": "",
+        "port": 443
+      },
+      "expected": {
+        "request": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01010d0a010201bb0d0a"
+      }
+    },
+    {
+      "args": {
+        "host": "13.10.13.10",
+        "password": "testpass",
+        "payload": "7061796c6f6164",
+        "port": 80
+      },
+      "expected": {
+        "request": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01010d0a0d0a00500d0a7061796c6f6164"
+      }
+    },
+    {
+      "args": {
+        "host": "www.example.com",
+        "password": "testpass",
+        "payload": "7061796c6f6164",
+        "port": 3338
+      },
+      "expected": {
+        "request": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01030f7777772e6578616d706c652e636f6d0d0a0d0a7061796c6f6164"
+      }
+    },
+    {
+      "args": {
+        "host": "2001:db8::1",
+        "password": "testpass",
+        "payload": "",
+        "port": 443
+      },
+      "expected": {
+        "request": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a010420010db800000000000000000000000101bb0d0a"
+      }
+    },
+    {
+      "args": {
+        "host": "127.0.0.1",
+        "password": "testpass",
+        "payload": "00ff0d0a",
+        "port": 65535
+      },
+      "expected": {
+        "request": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a01017f000001ffff0d0a00ff0d0a"
+      }
+    },
+    {
+      "args": {
+        "host": "www.example.com",
+        "password": "oldpass",
+        "payload": "",
+        "port": 443
+      },
+      "expected": {
+        "request": "37623935373864663031303263656330373231316133313762613533373663323331653038373835623465323636303239396661363561310d0a01030f7777772e6578616d706c652e636f6d01bb0d0a"
+      }
+    },
+    {
+      "args": {
+        "host": "www.example.com",
+        "password": "пароль",
+        "payload": "",
+        "port": 443
+      },
+      "expected": {
+        "request": "32666135653938636333363166646463306633643635313239633065616364643831626434313038386436363632363134623262333133650d0a01030f7777772e6578616d706c652e636f6d01bb0d0a"
+      }
+    }
+  ],
+  "password_hash": [
+    {
+      "args": {
+        "password": "testpass"
+      },
+      "expected": {
+        "hash": "648db6019764b598f75ab6b7616d2e82563a00eb1531680e19ac4c6f"
+      }
+    },
+    {
+      "args": {
+        "password": "oldpass"
+      },
+      "expected": {
+        "hash": "7b9578df0102cec07211a317ba5376c231e08785b4e2660299fa65a1"
+      }
+    },
+    {
+      "args": {
+        "password": "extrapass"
+      },
+      "expected": {
+        "hash": "663917205e20b7ad77db68d0812d206de9ab5d471d82488c314065ea"
+      }
+    },
+    {
+      "args": {
+        "password": "пароль"
+      },
+      "expected": {
+        "hash": "2fa5e98cc361fddc0f3d65129c0eacdd81bd41088d6662614b2b313e"
+      }
+    },
+    {
+      "args": {
+        "password": ""
+      },
+      "expected": {
+        "hash": null
+      }
+    }
+  ],
+  "probe": [
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a"
+      },
+      "expected": {
+        "probe": "trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a7061796c6f6164"
+      },
+      "expected": {
+        "probe": "trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "3634386462363031393736346235393866373561623662373631366432653832353633613030656231353331363830653139616334633666"
+      },
+      "expected": {
+        "probe": "need_more"
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d"
+      },
+      "expected": {
+        "probe": "need_more"
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937"
+      },
+      "expected": {
+        "probe": "need_more"
+      }
+    },
+    {
+      "args": {
+        "data": ""
+      },
+      "expected": {
+        "probe": "need_more"
+      }
+    },
+    {
+      "args": {
+        "data": "36343844423630313937363442353938463735414236423736313644324538323536334130304542313533313638304531394143344336460d0a"
+      },
+      "expected": {
+        "probe": "trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "30783864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a"
+      },
+      "expected": {
+        "probe": "not_trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "315f3864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a"
+      },
+      "expected": {
+        "probe": "not_trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "2b343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a"
+      },
+      "expected": {
+        "probe": "not_trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "20343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d0a"
+      },
+      "expected": {
+        "probe": "not_trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336662020"
+      },
+      "expected": {
+        "probe": "not_trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "36343864623630313937363462353938663735616236623736313664326538323536336130306562313533313638306531396163346336660d20"
+      },
+      "expected": {
+        "probe": "not_trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "16030100050100000d"
+      },
+      "expected": {
+        "probe": "not_trojan"
+      }
+    },
+    {
+      "args": {
+        "data": "474554202f20485454502f312e310d0a"
+      },
+      "expected": {
+        "probe": "not_trojan"
+      }
+    }
+  ]
+}

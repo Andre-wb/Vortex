@@ -35,7 +35,6 @@ import contextlib
 import hashlib
 import hmac
 import logging
-import math
 import os
 import random
 import socket
@@ -43,7 +42,7 @@ import struct
 import time
 import zlib
 from collections.abc import Awaitable, Callable
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -68,35 +67,17 @@ from app.security.secret_rotation import (
     rotation_status,
 )
 from app.security.ssl_context import make_peer_ssl_context
+from app.transport.naive_backend import Naive
+from app.transport.probe_backend import CensorshipDashboard as RustDashboard
+from app.transport.probe_backend import CensorshipProbe, LatencyMonitor, ServiceWorkerProfile
 from app.transport.reality_backend import RealityAuth
+from app.transport.shadowtls_backend import ShadowTls
+from app.transport.timeout_backend import HANDSHAKE_TIMEOUT_SECS, ReadDeadline
+from app.transport.trojan_backend import Trojan
 
 _sysrand = random.SystemRandom()
 
 logger = logging.getLogger(__name__)
-
-
-_PROBE_JITTER_LOW = 0.5
-_PROBE_JITTER_HIGH = 1.8
-
-_PAD_BUCKETS = (128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536)
-_PAD_PROMOTE_PROBABILITY = 0.15
-_PAD_TILE_STEP = 8192
-
-
-def _jittered_delay(base: float, *, low: float = 0.5, high: float = 2.0) -> float:
-    """
-    Возвращает паузу для периодической задачи так, чтобы интервалы были
-    memoryless, а не строго периодическими: наблюдатель не восстанавливает
-    частоту по гистограмме. Усечённая экспонента на [base*low, base*high],
-    сэмплированная через обратную функцию распределения — плотность непрерывна,
-    без атомов на границах (обычный clamp свалил бы туда всю хвостовую массу и
-    сам стал бы сигнатурой). Верхняя граница ограничивает худшую задержку
-    обнаружения, нижняя убирает слишком частые пробы. Источник — random, не
-    секрет: это расписание, а не криптоматериал.
-    """
-    s_lo = math.exp(-low)
-    s_hi = math.exp(-high)
-    return -base * math.log(s_lo - _sysrand.random() * (s_lo - s_hi))
 
 
 # 1. V2RAY / VMESS PROTOCOL
@@ -336,7 +317,18 @@ class VMessProtocol:
         }
 
 
-# 2. SHADOWTLS — TLS handshake с разрешённым сервером
+class ShadowTLSSwitch(NamedTuple):
+    """Результат переключения потока на данные Vortex.
+
+    session_id — идентификатор, выбранный клиентом; trailing — байты клиента,
+    пришедшие в том же сегменте, что и switch-запись; stream — защищённый поток
+    серверной стороны, ключи которого уже выведены из random донора и
+    session_id.
+    """
+
+    session_id: bytes
+    trailing: bytes
+    stream: object
 
 
 class ShadowTLS:
@@ -351,147 +343,126 @@ class ShadowTLS:
     4. Encrypted Application Data (неотличимо от Google)
 
     Механизм:
-    - Сервер прозрачно проксирует поток к реальному google.com, разбирая его
-      по TLS-записям, и параллельно ищет switch-запись от клиента.
+    - Сервер прозрачно проксирует поток к донору, разбирая его по TLS-записям,
+      и параллельно ищет switch-запись от клиента.
+    - Донор выбирается по SNI из ClientHello клиента и только из списка
+      разрешённых — иначе сертификат в ответе не совпал бы с запрошенным именем,
+      что само по себе выдаёт сервер активному пробингу.
     - Switch-запись — TLS Application Data (0x17) с payload
-      session_id‖HMAC(session_id): подделать без ключа нельзя, настоящий клиент
-      её не шлёт (тогда поток остаётся прозрачным проксёром — активное
-      зондирование получает настоящий google).
+      session_id‖token(session_id, random донора): подделать без пароля нельзя,
+      а перехваченная запись не проигрывается на другом соединении, потому что
+      random донора там другой.
     - Момент переключения не привязан к таймеру: совпадает с завершением
       handshake и колеблется с RTT, без фиксированной отсечки-сигнатуры.
+
+    Весь разбор и всё крипто — в Rust (`vortex-transport`), здесь только
+    асинхронный ввод-вывод.
     """
 
-    # Whitelisted серверы для TLS handshake
-    HANDSHAKE_TARGETS = [
-        ("www.google.com", 443),
-        ("www.microsoft.com", 443),
-        ("cloudflare.com", 443),
-        ("www.apple.com", 443),
-        ("www.amazon.com", 443),
-    ]
-
-    SESSION_ID_LEN = 16
-    HMAC_MARKER_LEN = 8
-    _TLS_CONTENT_TYPES = (0x14, 0x15, 0x16, 0x17)
-    _MAX_TLS_RECORD = 16640
-
-    def __init__(self, password: str = ""):
+    def __init__(self, password: str = "", donors: Optional[list[tuple[str, int]]] = None):
         self._explicit_password = password
-        self.reload_secrets()
+        self._donors = list(donors) if donors else None
+        self._guard = ShadowTls(*self._secrets(), donors=self._donors)
+
+    def _secrets(self) -> tuple[str, str]:
+        if self._explicit_password:
+            return self._explicit_password, ""
+        return Config.SHADOWTLS_PASSWORD, previous("SHADOWTLS_PASSWORD")
 
     def reload_secrets(self) -> None:
-        """Перечитывает пароль из конфигурации (вызывается после ротации)."""
-        if self._explicit_password:
-            self._password = self._explicit_password.encode()
-            self._prev_password = b""
-        else:
-            self._password = Config.SHADOWTLS_PASSWORD.encode()
-            self._prev_password = previous("SHADOWTLS_PASSWORD").encode()
-        self._hmac_key = self._derive_key(self._password)
-        self._prev_hmac_key = self._derive_key(self._prev_password) if self._prev_password else b""
+        """Перечитывает пароль из конфигурации (вызывается после ротации).
 
-    @staticmethod
-    def _derive_key(password: bytes) -> bytes:
-        return hashlib.sha256(b"shadowtls-hmac:" + password).digest()
+        Соединения, начатые до ротации, доигрывают на прежнем ключе — новый
+        keyring получают только соединения, созданные после вызова.
+        """
+        self._guard.reload(*self._secrets())
 
-    def get_handshake_target(self) -> tuple[str, int]:
-        """Выбирает случайный сервер для TLS handshake."""
-        return _sysrand.choice(self.HANDSHAKE_TARGETS)
+    @property
+    def handshake_targets(self) -> list[tuple[str, int]]:
+        """Разрешённые доноры сертификата."""
+        return self._guard.donors
 
-    def generate_switch_marker(self, session_id: bytes) -> bytes:
-        """
-        Генерирует HMAC-маркер для переключения с TLS на данные.
-        Этот маркер вставляется в начало Application Data после handshake.
-        """
-        h = hmac.new(self._hmac_key, session_id, hashlib.sha256)
-        return h.digest()[: self.HMAC_MARKER_LEN]
+    def generate_session_id(self) -> bytes:
+        """Идентификатор сессии для клиентской стороны."""
+        return self._guard.generate_session_id()
 
-    def verify_switch_marker(self, data: bytes, session_id: bytes) -> bool:
-        """
-        Проверяет HMAC-маркер переключения.
-        Принимается также маркер на предыдущем пароле — до следующей ротации,
-        пока клиенты не получили новый.
-        """
-        if len(data) < self.HMAC_MARKER_LEN:
-            return False
-        marker = data[: self.HMAC_MARKER_LEN]
-        if hmac.compare_digest(marker, self.generate_switch_marker(session_id)):
-            return True
-        if not self._prev_hmac_key:
-            return False
-        prev = hmac.new(self._prev_hmac_key, session_id, hashlib.sha256).digest()[: self.HMAC_MARKER_LEN]
-        return hmac.compare_digest(marker, prev)
+    def seal_switch(self, server_random: bytes, session_id: bytes) -> bytes:
+        """Собирает switch-запись клиента: полная TLS-запись с паддингом."""
+        return self._guard.seal_switch(server_random, session_id)
+
+    def client_stream(self, server_random: bytes, session_id: bytes) -> object:
+        """Защищённый поток клиентской стороны после переключения."""
+        return self._guard.stream(server_random, session_id, False)
 
     async def server_handshake_proxy(
-        self, client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter
-    ) -> Optional[bytes]:
+        self,
+        client_reader: asyncio.StreamReader,
+        client_writer: asyncio.StreamWriter,
+        timeout: float = HANDSHAKE_TIMEOUT_SECS,
+    ) -> Optional[ShadowTLSSwitch]:
         """
-        Серверная сторона: прозрачно проксирует поток к whitelisted серверу,
-        разбирая его по TLS-записям, и ждёт switch-запись от клиента.
+        Серверная сторона: прозрачно проксирует поток к донору, разбирая его по
+        TLS-записям, и ждёт switch-запись от клиента.
 
         Обе стороны релеятся по целым TLS-записям, поэтому при переключении
         отмена релея сервер→клиент приходит только на границе записи — клиент
-        никогда не получает обрезанную запись и его парсер кадров не рассинхронён.
-        Записи handshake форвардятся к реальному серверу как есть, поэтому DPI
+        никогда не получает обрезанную запись и его парсер кадров не
+        рассинхронён. Записи handshake форвардятся донору как есть, поэтому DPI
         видит полный настоящий handshake; switch-запись наружу не уходит.
-        Переключение не привязано к таймеру — момент совпадает с завершением
-        handshake и колеблется с RTT.
 
-        Клиентский контракт: switch-запись (session_id‖HMAC(session_id) в
-        Application Data) шлётся первой после завершения handshake, отдельной
-        записью; ответные NewSessionTicket до этого момента клиент игнорирует.
-        Клиент добивает switch-запись padding'ом до правдоподобного размера
-        Application Data — иначе одинокая 24-байтная запись сама станет приметой
-        в точке переключения.
+        Клиентский контракт: switch-запись шлётся первой после того, как получен
+        ServerHello донора, отдельной записью; ответные NewSessionTicket до
+        этого момента клиент игнорирует. Паддинг до правдоподобного размера
+        Application Data добавляет `seal_switch`, а не клиент.
 
-        Возвращает session_id, либо None, если клиент закрылся или это не наш
-        клиент — тогда поток так и остаётся прозрачным проксёром к серверу.
+        Возвращает ShadowTLSSwitch, либо None, если клиент закрылся или это не
+        наш клиент — тогда поток так и остаётся прозрачным проксёром к донору.
         """
-        target_host, target_port = self.get_handshake_target()
-        remote_writer = None
-        to_client = None
-
-        async def pump(reader, writer):
-            try:
-                while True:
-                    data = await reader.read(8192)
-                    if not data:
-                        break
-                    writer.write(data)
-                    await writer.drain()
-            except (ConnectionError, asyncio.CancelledError):
-                pass
+        connection = self._guard.connection()
+        pending = bytearray()
+        loop = asyncio.get_running_loop()
+        deadline = ReadDeadline(loop.time(), timeout)
 
         try:
+            while True:
+                chunk = await self._read_within(client_reader, deadline, loop)
+                if not chunk:
+                    return None
+                step = connection.feed_client(chunk)
+                pending += step.forward
+                switched = self._switched(connection, step)
+                if switched is not None:
+                    return switched
+                if connection.donor() is not None:
+                    break
+        except asyncio.TimeoutError:
+            logger.debug("ShadowTLS: клиент не прислал ClientHello за %.1f с", deadline.seconds)
+            return None
+
+        target_host, target_port = connection.donor()
+        remote_writer = None
+        to_client = None
+        try:
             remote_reader, remote_writer = await asyncio.open_connection(target_host, target_port)
-            to_client = asyncio.create_task(self._pump_records(remote_reader, client_writer))
+            if pending:
+                remote_writer.write(bytes(pending))
+                await remote_writer.drain()
+            to_client = asyncio.create_task(self._pump_donor(connection, remote_reader, client_writer))
 
             while True:
-                try:
-                    header = await client_reader.readexactly(5)
-                except (asyncio.IncompleteReadError, ConnectionError):
+                chunk = await self._read_within(client_reader, deadline, loop)
+                if not chunk:
                     return None
-
-                length = int.from_bytes(header[3:5], "big")
-                if header[0] not in self._TLS_CONTENT_TYPES or header[1] != 0x03 or length > self._MAX_TLS_RECORD:
-                    remote_writer.write(header)
+                step = connection.feed_client(chunk)
+                if step.forward:
+                    remote_writer.write(step.forward)
                     await remote_writer.drain()
-                    await pump(client_reader, remote_writer)
-                    return None
-
-                try:
-                    payload = await client_reader.readexactly(length)
-                except (asyncio.IncompleteReadError, ConnectionError):
-                    return None
-
-                session_id = self._match_switch_record(header[0], payload)
-                if session_id is not None:
-                    logger.debug("ShadowTLS: switch record received, entering data mode")
-                    return session_id
-
-                remote_writer.write(header + payload)
-                await remote_writer.drain()
-
+                switched = self._switched(connection, step)
+                if switched is not None:
+                    return switched
+        except asyncio.TimeoutError:
+            logger.debug("ShadowTLS: рукопожатие не завершилось за %.1f с", deadline.seconds)
+            return None
         except Exception as e:
             logger.debug("ShadowTLS handshake error: %s", e)
             return None
@@ -502,134 +473,43 @@ class ShadowTLS:
             if remote_writer is not None and not remote_writer.is_closing():
                 remote_writer.close()
 
-    async def _pump_records(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    @staticmethod
+    async def _read_within(reader: asyncio.StreamReader, deadline, loop) -> bytes:
+        """Читает, пока у рукопожатия есть бюджет. Бюджет считает Rust."""
+        return await asyncio.wait_for(reader.read(8192), timeout=deadline.remaining(loop.time()))
+
+    @staticmethod
+    def _switched(connection, step) -> Optional[ShadowTLSSwitch]:
+        if step.session_id is None:
+            return None
+        logger.debug("ShadowTLS: switch record received, entering data mode")
+        return ShadowTLSSwitch(step.session_id, step.trailing, connection.stream(True))
+
+    async def _pump_donor(
+        self, connection, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         """
-        Релеит поток сервер→клиент целыми TLS-записями. Каждая запись пишется
+        Релеит поток донор→клиент целыми TLS-записями. Каждая запись пишется
         одним write, поэтому отмена задачи (при switch) не оставляет клиенту
         обрезанную запись — теряется максимум одна целая запись (например
         NewSessionTicket), а не половина, что рассинхронило бы парсер кадров.
+        Попутно из ServerHello берётся random донора: к нему привязаны и маркер
+        переключения, и ключи потока данных.
         """
         try:
             while True:
-                try:
-                    header = await reader.readexactly(5)
-                except (asyncio.IncompleteReadError, ConnectionError):
+                chunk = await reader.read(8192)
+                if not chunk:
                     return
-                length = int.from_bytes(header[3:5], "big")
-                if header[0] not in self._TLS_CONTENT_TYPES or header[1] != 0x03 or length > self._MAX_TLS_RECORD:
-                    return
-                try:
-                    payload = await reader.readexactly(length)
-                except (asyncio.IncompleteReadError, ConnectionError):
-                    return
-                writer.write(header + payload)
-                await writer.drain()
+                step = connection.feed_donor(chunk)
+                if step.forward:
+                    writer.write(step.forward)
+                    await writer.drain()
         except (ConnectionError, asyncio.CancelledError):
             pass
 
-    def _match_switch_record(self, content_type: int, payload: bytes) -> Optional[bytes]:
-        """
-        Возвращает session_id, если запись — валидная switch-запись: Application
-        Data с аутентичным HMAC на первых SESSION_ID_LEN+HMAC_MARKER_LEN байтах.
-        Payload может быть длиннее (padding после маркера) — проверяется префикс.
-        """
-        if content_type != 0x17:
-            return None
-        head = self.SESSION_ID_LEN + self.HMAC_MARKER_LEN
-        if len(payload) < head:
-            return None
-        session_id = payload[: self.SESSION_ID_LEN]
-        if self.verify_switch_marker(payload[self.SESSION_ID_LEN : head], session_id):
-            return session_id
-        return None
-
-    def _session_key(self, session_id: bytes, label: bytes) -> bytes:
-        return HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=session_id,
-            info=label,
-        ).derive(self._hmac_key)
-
-    def new_session(self, session_id: bytes, *, server: bool) -> ShadowTLSSession:
-        """
-        Создаёт защищённую сессию поверх switched-потока. Ключи направлений
-        разделены (c2s/s2c), поэтому детерминированный счётчик-nonce безопасен;
-        запись нумеруется монотонно и номер входит в AAD: подменить или
-        переставить запись нельзя, а пропуск записи рассинхронизирует счётчик
-        и роняет расшифровку последующих фреймов.
-        """
-        c2s = self._session_key(session_id, b"shadowtls c2s")
-        s2c = self._session_key(session_id, b"shadowtls s2c")
-        if server:
-            return ShadowTLSSession(key_send=s2c, key_recv=c2s)
-        return ShadowTLSSession(key_send=c2s, key_recv=s2c)
-
     def get_status(self) -> dict:
-        return {
-            "protocol": "shadowtls_v3",
-            "handshake_targets": len(self.HANDSHAKE_TARGETS),
-            "marker_len": self.HMAC_MARKER_LEN,
-        }
-
-
-class ShadowTLSSession:
-    """
-    Защищённый поток данных ShadowTLS после switch: каждая запись — валидная
-    TLS 1.3 application_data (0x17 0x03 0x03) с AEAD-телом. Nonce — монотонный
-    счётчик записи (не передаётся, как implicit sequence в TLS 1.3), номер также
-    входит в AAD: подменить или переставить запись нельзя, а пропуск записи
-    рассинхронизирует счётчик и роняет расшифровку последующих фреймов.
-    """
-
-    TLS_RECORD_HEADER = b"\x17\x03\x03"
-    TLS_RECORD_MAX = 16384
-    _TAG_LEN = 16
-
-    def __init__(self, key_send: bytes, key_recv: bytes):
-        self._send = AESGCM(key_send)
-        self._recv = AESGCM(key_recv)
-        self._send_seq = 0
-        self._recv_seq = 0
-
-    @staticmethod
-    def _nonce(seq: int) -> bytes:
-        return seq.to_bytes(12, "big")
-
-    def wrap(self, data: bytes) -> bytes:
-        """Упаковывает данные в TLS-записи; крупнее 16 КБ — несколько записей."""
-        chunk = self.TLS_RECORD_MAX - self._TAG_LEN
-        out = bytearray()
-        for i in range(0, max(len(data), 1), chunk):
-            piece = data[i : i + chunk]
-            header = self.TLS_RECORD_HEADER + struct.pack(">H", len(piece) + self._TAG_LEN)
-            aad = header + struct.pack(">Q", self._send_seq)
-            out += header + self._send.encrypt(self._nonce(self._send_seq), piece, aad)
-            self._send_seq += 1
-        return bytes(out)
-
-    def unwrap(self, frame: bytes) -> Optional[bytes]:
-        """Извлекает данные, проверяя непрерывность счётчика записей."""
-        out = bytearray()
-        pos = 0
-        while pos + 5 <= len(frame):
-            header = frame[pos : pos + 5]
-            if header[:3] != self.TLS_RECORD_HEADER:
-                return None
-            body_len = struct.unpack(">H", header[3:5])[0]
-            pos += 5
-            if pos + body_len > len(frame) or body_len < self._TAG_LEN:
-                return None
-            aad = header + struct.pack(">Q", self._recv_seq)
-            try:
-                out += self._recv.decrypt(self._nonce(self._recv_seq), frame[pos : pos + body_len], aad)
-            except Exception:
-                return None
-            self._recv_seq += 1
-            pos += body_len
-        if pos != len(frame):
-            return None
-        return bytes(out)
+        return self._guard.status()
 
 
 # 3. REALITY (XTLS) — проксирует реальный TLS сертификат
@@ -713,7 +593,9 @@ class RealityProtocol:
 
     TLS_RECORD_MAX = 16384
 
-    async def _read_client_hello(self, reader: asyncio.StreamReader, timeout: float = 10.0) -> bytes:
+    async def _read_client_hello(
+        self, reader: asyncio.StreamReader, timeout: float = HANDSHAKE_TIMEOUT_SECS
+    ) -> bytes:
         """Читает первую TLS-запись целиком по её длине — без рассинхронизации
         на фрагментированном ClientHello."""
         try:
@@ -811,114 +693,60 @@ class TrojanProtocol:
     """
     Trojan: данные внутри обычного HTTPS.
 
-    Формат:
-    [56B hex(SHA224(password))][CRLF][1B cmd][address][2B port][CRLF][payload]
+    Формат (публичная спецификация, совместим с trojan-go/xray/sing-box):
+    [56B hex(SHA224(password))][CRLF][1B cmd][1B atyp][address][2B port][CRLF][payload]
 
     Если пароль неверный — сервер работает как обычный nginx.
     Active probe получает реальную веб-страницу.
-    """
 
-    CMD_CONNECT = 0x01
-    CMD_UDP = 0x03
+    Весь разбор, реестр паролей и решение — в Rust (`vortex-transport`),
+    здесь только чтение секретов из конфигурации.
+    """
 
     def __init__(self, password: str = ""):
         self._explicit_password = password
-        self._extra_hashes: set[str] = set()
-        self.reload_secrets()
+        self._guard = Trojan(*self._secrets())
+
+    def _secrets(self) -> tuple[str, str]:
+        if self._explicit_password:
+            return self._explicit_password, ""
+        return Config.TROJAN_PASSWORD, previous("TROJAN_PASSWORD")
 
     def reload_secrets(self) -> None:
-        """Перечитывает пароль из конфигурации (вызывается после ротации)."""
-        self._password = self._explicit_password or Config.TROJAN_PASSWORD
-        self._password_hash = hashlib.sha224(self._password.encode()).hexdigest()
-        self._authorized_hashes = {self._password_hash} | self._extra_hashes
-        # Предыдущий пароль принимается до следующей ротации.
-        prev = "" if self._explicit_password else previous("TROJAN_PASSWORD")
-        if prev:
-            self._authorized_hashes.add(hashlib.sha224(prev.encode()).hexdigest())
+        """Перечитывает пароль из конфигурации (вызывается после ротации).
 
-    def add_password(self, password: str):
-        """Добавляет дополнительный пароль."""
-        h = hashlib.sha224(password.encode()).hexdigest()
-        self._extra_hashes.add(h)
-        self._authorized_hashes.add(h)
+        Пароли, добавленные `add_password`, ротацию переживают.
+        """
+        self._guard.reload(*self._secrets())
+
+    def add_password(self, password: str) -> bool:
+        """Добавляет дополнительный пароль. Пустой пароль не принимается."""
+        return self._guard.add_password(password)
 
     def encode_request(self, data: bytes, target_addr: str = "127.0.0.1", target_port: int = 443) -> bytes:
+        """Собирает Trojan-запрос к указанному адресу назначения."""
+        return self._guard.encode_request(data, target_addr, target_port)
+
+    def decode_request(self, data: bytes) -> Optional[object]:
+        """Разбирает Trojan-запрос.
+
+        Возвращает `TrojanRequest` (хеш пароля, команда, адрес, порт, полезная
+        нагрузка) либо None, если запрос не принят — неавторизован, испорчен или
+        ещё не дочитан. Каким именно из трёх, отвечает `inspect`; на проводе
+        поведение при любом из них обязано быть одинаковым — отдача сайта-прикрытия.
         """
-        Кодирует Trojan-запрос.
-        """
-        # Password hash (56 hex chars)
-        request = self._password_hash.encode()
-        request += b"\r\n"
+        return self._guard.decode_request(data)
 
-        # Command
-        request += struct.pack(">B", self.CMD_CONNECT)
-
-        # Address
-        try:
-            socket.inet_pton(socket.AF_INET, target_addr)
-            request += struct.pack(">B", 0x01)  # IPv4
-            request += socket.inet_aton(target_addr)
-        except OSError:
-            addr_bytes = target_addr.encode()
-            request += struct.pack(">B B", 0x03, len(addr_bytes))
-            request += addr_bytes
-
-        # Port
-        request += struct.pack(">H", target_port)
-        request += b"\r\n"
-
-        # Payload
-        request += data
-        return request
-
-    def decode_request(self, data: bytes) -> Optional[tuple[str, bytes]]:
-        """
-        Декодирует Trojan-запрос.
-        Возвращает (password_hash, payload) или None если формат неверный.
-        """
-        if len(data) < 58:  # 56 + CRLF
-            return None
-
-        # Extract password hash
-        crlf_idx = data.find(b"\r\n")
-        if crlf_idx < 0 or crlf_idx != 56:
-            return None
-
-        pwd_hash = data[:56].decode("ascii", errors="replace")
-
-        if pwd_hash not in self._authorized_hashes:
-            return None
-
-        # Parse command + address (skip for simplicity, extract payload)
-        # After second CRLF is the payload
-        rest = data[58:]
-        second_crlf = rest.find(b"\r\n")
-        if second_crlf < 0:
-            return pwd_hash, b""
-
-        payload = rest[second_crlf + 2 :]
-        return pwd_hash, payload
+    def inspect(self, data: bytes) -> str:
+        """Исход разбора: accepted / unauthorized / need_more / malformed."""
+        return self._guard.inspect(data)
 
     def is_trojan_request(self, first_bytes: bytes) -> bool:
-        """
-        Быстрая проверка: это Trojan-запрос?
-        Первые 56 байт должны быть hex-символами.
-        """
-        if len(first_bytes) < 58:
-            return False
-        try:
-            candidate = first_bytes[:56].decode("ascii")
-            int(candidate, 16)  # Должен быть валидный hex
-            return first_bytes[56:58] == b"\r\n"
-        except (ValueError, UnicodeDecodeError):
-            return False
+        """Быстрая проверка префикса: 56 hex-символов и CRLF."""
+        return self._guard.probe(first_bytes) == "trojan"
 
     def get_status(self) -> dict:
-        return {
-            "protocol": "trojan",
-            "authorized_passwords": len(self._authorized_hashes),
-            "fallback": "nginx_cover_site",
-        }
+        return self._guard.status()
 
 
 # 5. NAIVEPROXY — Chromium network stack fingerprint
@@ -934,81 +762,69 @@ class NaiveProxyConfig:
     Серверная часть: Caddy с naive plugin.
     Клиентская часть: naiveproxy binary.
 
-    Здесь — конфигуратор для Vortex-интеграции.
+    Сборка Caddyfile, допустимость значений в нём и построение URL прокси —
+    в Rust (`vortex-transport`); здесь только чтение секретов из конфигурации
+    и ввод-вывод через httpx.
     """
-
-    CADDY_CONFIG_TEMPLATE = """\
-{{
-    order forward_proxy before file_server
-    servers {{
-        protocols h1 h2
-    }}
-}}
-
-:{port} {{
-    tls {email} {{
-        protocols tls1.2 tls1.3
-        curves x25519 secp256r1 secp384r1
-    }}
-
-    forward_proxy {{
-        basic_auth {username} {password}
-        hide_ip
-        hide_via
-        probe_resistance {probe_domain}
-    }}
-
-    reverse_proxy {backend_url} {{
-        header_up Host {{host}}
-        header_up X-Real-IP {{remote_host}}
-    }}
-
-    file_server {{
-        root /var/www/html
-    }}
-}}
-"""
 
     def __init__(
         self, port: int = 443, backend_url: str = "", server_host: str = "", username: str = "", password: str = ""
     ):
-        self.port = port
-        self.backend_url = backend_url
-        self._server_host = server_host
         self._explicit_username = username
         self._explicit_password = password
+        self._guard = Naive(port, backend_url, server_host)
         self.reload_secrets()
+
+    @property
+    def port(self) -> int:
+        return self._guard.port
+
+    @property
+    def backend_url(self) -> str:
+        return self._guard.backend_url
+
+    @property
+    def server_host(self) -> str:
+        return self._guard.server_host
+
+    @property
+    def username(self) -> str:
+        return self._guard.username
+
+    @property
+    def password(self) -> str:
+        return self._guard.password
+
+    @property
+    def probe_domain(self) -> str:
+        return self._guard.probe_domain
 
     def reload_secrets(self) -> None:
         """Перечитывает имя, пароль и probe-домен (вызывается после ротации)."""
-        self._username = self._explicit_username or Config.NAIVE_USERNAME
-        self._password = self._explicit_password or Config.NAIVE_PASSWORD
-        self._probe_domain = Config.NAIVE_PROBE_DOMAIN
+        self._guard.reload(
+            self._explicit_username or Config.NAIVE_USERNAME,
+            self._explicit_password or Config.NAIVE_PASSWORD,
+            Config.NAIVE_PROBE_DOMAIN,
+        )
+        try:
+            self._guard.caddyfile()
+        except ValueError as e:
+            logger.warning("NaiveProxy: Caddyfile собран не будет — %s", e)
 
     def generate_caddy_config(
         self, username: str = "", password: str = "", email: str = "admin@example.com", probe_domain: str = ""
     ) -> str:
-        """Генерирует Caddyfile для NaïveProxy."""
-        pwd = password or self._password
-        return self.CADDY_CONFIG_TEMPLATE.format(
-            port=self.port,
-            email=email,
-            username=username or self._username,
-            password=pwd,
-            probe_domain=probe_domain or self._probe_domain,
-            backend_url=self.backend_url or "http://127.0.0.1:8000",
-        )
+        """Генерирует Caddyfile для NaïveProxy.
+
+        Значение, которое нельзя записать в Caddyfile как один токен, отвергается
+        целиком (`ValueError`): пустить в конфиг фронтящего прокси собственную
+        директиву хуже, чем не пересобрать его.
+        """
+        return self._guard.caddyfile(username, password, email, probe_domain)
 
     def generate_client_config(self, server_host: str, username: str = "", password: str = "") -> dict:
         """Генерирует конфигурацию для naiveproxy клиента."""
-        user = username or self._username
-        pwd = password or self._password
-        return {
-            "listen": "socks://127.0.0.1:1080",
-            "proxy": f"https://{user}:{pwd}@{server_host}:{self.port}",
-            "log": "",
-            "padding": True,
-        }
+        return self._guard.client_config(server_host, username, password)
 
     async def check_available(self, server_host: str = "", timeout: float = 5.0) -> bool:
         """
@@ -1016,15 +832,12 @@ class NaiveProxyConfig:
         Отправляет HTTP CONNECT probe — ожидает 407 (Proxy Auth Required)
         или 200 при правильных credentials.
         """
-        host = server_host or self._server_host
-        if not host:
+        proxy_url = self._proxy_url(server_host)
+        if proxy_url is None:
             return False
         try:
             import httpx
 
-            # Caddy с forward_proxy при probe_resistance возвращает фейковую страницу
-            # для неавторизованных запросов. Авторизованный CONNECT вернёт 200.
-            proxy_url = f"https://{self._username}:{self._password}@{host}:{self.port}"
             async with httpx.AsyncClient(
                 proxy=proxy_url,
                 timeout=timeout,
@@ -1042,12 +855,9 @@ class NaiveProxyConfig:
         Пересылает запрос через NaiveProxy (HTTP CONNECT proxy).
         Использует Caddy forward_proxy как HTTPS прокси.
         """
-        host = server_host or self._server_host
-        if not host:
-            logger.error("NaiveProxy: server_host not configured")
+        proxy_url = self._proxy_url(server_host)
+        if proxy_url is None:
             return None
-
-        proxy_url = f"https://{self._username}:{self._password}@{host}:{self.port}"
         try:
             import httpx
 
@@ -1067,13 +877,15 @@ class NaiveProxyConfig:
             logger.debug("NaiveProxy forward error: %s", e)
             return None
 
+    def _proxy_url(self, server_host: str) -> Optional[str]:
+        try:
+            return self._guard.proxy_url(server_host)
+        except ValueError as e:
+            logger.error("NaiveProxy: %s", e)
+            return None
+
     def get_status(self) -> dict:
-        return {
-            "protocol": "naiveproxy",
-            "port": self.port,
-            "server_host": self._server_host or "not_configured",
-            "fingerprint": "chrome_identical",
-        }
+        return self._guard.status()
 
 
 # 6. TOR HIDDEN SERVICE
@@ -1464,168 +1276,73 @@ class CensorshipAutoProbe:
     """
     Автоматическое определение заблокированных транспортов.
 
-    При запуске клиент проверяет:
-    1. Direct HTTPS к серверу — работает?
-    2. WebSocket upgrade — работает?
-    3. SSE long-poll — работает?
-    4. CDN relay — работает?
-    5. Tor — работает?
-    6. QUIC/UDP — работает?
-
-    Результат: выбирает лучший работающий транспорт.
+    Каталог проб, чтение ответа, выбор лучшего транспорта и расписание повторов
+    живут в Rust (`vortex_chat.CensorshipProbe`); здесь остался адаптер httpx —
+    он ходит по адресам, которые назвал Rust, и отдаёт ему код ответа.
     """
 
-    PROBES = [
-        {"name": "reality", "priority": 1, "timeout": 8.0},
-        {"name": "direct_https", "priority": 2, "timeout": 5.0},
-        {"name": "websocket", "priority": 3, "timeout": 5.0},
-        {"name": "sse", "priority": 4, "timeout": 8.0},
-        {"name": "trojan", "priority": 5, "timeout": 10.0},
-        {"name": "shadowtls", "priority": 6, "timeout": 10.0},
-        {"name": "cdn_relay", "priority": 7, "timeout": 10.0},
-        {"name": "meek_cdn", "priority": 8, "timeout": 15.0},
-        {"name": "doh_tunnel", "priority": 9, "timeout": 15.0},
-        {"name": "tor", "priority": 10, "timeout": 30.0},
-    ]
-
     def __init__(self):
-        self._results: dict[str, dict] = {}
-        self._best_transport: Optional[str] = None
-        self._last_probe_time: float = 0
-        self._probe_base = 300.0
-        self._probe_interval = _jittered_delay(self._probe_base)
+        self._probe = CensorshipProbe()
 
     async def probe_all(self, server_url: str) -> dict[str, dict]:
         """
         Проверяет все транспорты параллельно.
         server_url: базовый URL сервера.
         """
-        tasks = {}
-        for probe in self.PROBES:
-            tasks[probe["name"]] = asyncio.create_task(self._run_probe(probe, server_url))
+        tasks = {
+            target.name: asyncio.create_task(self._run_probe(target, server_url))
+            for target in self._probe.plan()
+        }
 
-        results = {}
         for name, task in tasks.items():
             try:
-                results[name] = await asyncio.wait_for(task, timeout=35.0)
+                status, latency, error = await asyncio.wait_for(task, timeout=self._probe.run_timeout)
             except asyncio.TimeoutError:
-                results[name] = {"ok": False, "latency": -1, "error": "timeout"}
-
-        self._results = results
-        self._last_probe_time = time.time()
-        self._probe_interval = _jittered_delay(self._probe_base)
-
-        self._best_transport = self._select_best(results)
-        logger.info("Censorship probe: best transport = %s", self._best_transport)
-
-        return results
-
-    async def _run_probe(self, probe: dict, server_url: str) -> dict:
-        """Запускает один probe."""
-        name = probe["name"]
-        start = time.monotonic()
-
-        try:
-            if name == "direct_https":
-                return await self._probe_https(server_url, probe["timeout"])
-            elif name == "websocket":
-                return await self._probe_websocket(server_url, probe["timeout"])
-            elif name == "sse":
-                return await self._probe_sse(server_url, probe["timeout"])
-            elif name in ("reality", "cdn_relay", "meek_cdn", "doh_tunnel", "tor", "shadowtls", "trojan"):
-                token = hashlib.sha256(name.encode()).hexdigest()[:12]
-                return await self._probe_endpoint(server_url, f"/api/transport/probe/{token}", probe["timeout"])
+                self._probe.timed_out(name)
+                continue
+            if status is None:
+                self._probe.failed(name, error, latency)
             else:
-                return {"ok": False, "latency": -1, "error": "unknown_probe"}
-        except Exception as e:
-            elapsed = time.monotonic() - start
-            return {"ok": False, "latency": round(elapsed * 1000), "error": str(e)}
+                self._probe.answered(name, status, latency)
 
-    async def _probe_https(self, url: str, timeout: float) -> dict:
+        best = self._probe.finish(time.time())
+        logger.info("Censorship probe: best transport = %s", best)
+
+        return self._probe.results()
+
+    async def _run_probe(self, target, server_url: str) -> tuple[Optional[int], int, str]:
+        """Один запрос по адресу, который назвал Rust: (код, мс, ошибка)."""
+        import httpx
+
+        headers = {"Accept": target.accept_header} if target.accept_header else None
         start = time.monotonic()
         try:
-            import httpx
-
-            async with httpx.AsyncClient(timeout=timeout, verify=make_peer_ssl_context()) as c:
-                resp = await c.get(f"{url}/api/health")
-                elapsed = time.monotonic() - start
-                return {
-                    "ok": resp.status_code in (200, 401, 403),
-                    "latency": round(elapsed * 1000),
-                    "status": resp.status_code,
-                }
+            async with httpx.AsyncClient(timeout=target.timeout, verify=make_peer_ssl_context()) as c:
+                resp = await c.get(f"{server_url}{target.path}", headers=headers)
+                return resp.status_code, round((time.monotonic() - start) * 1000), ""
         except Exception as e:
-            return {"ok": False, "latency": -1, "error": str(e)}
+            return None, -1, str(e)
 
-    async def _probe_websocket(self, url: str, timeout: float) -> dict:
-        start = time.monotonic()
-        url.replace("https://", "wss://").replace("http://", "ws://")
-        try:
-            import httpx
+    def plan(self) -> list:
+        """Что и по какому адресу проверяется — каталог из Rust."""
+        return self._probe.plan()
 
-            async with httpx.AsyncClient(timeout=timeout, verify=make_peer_ssl_context()) as c:
-                # Проверяем что WS endpoint отвечает (даже 401 = доступен)
-                resp = await c.get(f"{url}/ws/chat/0")
-                elapsed = time.monotonic() - start
-                return {
-                    "ok": resp.status_code in (101, 200, 401, 403, 426),
-                    "latency": round(elapsed * 1000),
-                    "status": resp.status_code,
-                }
-        except Exception as e:
-            return {"ok": False, "latency": -1, "error": str(e)}
-
-    async def _probe_sse(self, url: str, timeout: float) -> dict:
-        start = time.monotonic()
-        try:
-            import httpx
-
-            async with httpx.AsyncClient(timeout=3.0, verify=make_peer_ssl_context()) as c:
-                resp = await c.get(f"{url}/api/transport/sse/stream", headers={"Accept": "text/event-stream"})
-                elapsed = time.monotonic() - start
-                return {
-                    "ok": resp.status_code in (200, 401, 403),
-                    "latency": round(elapsed * 1000),
-                }
-        except Exception as e:
-            return {"ok": False, "latency": -1, "error": str(e)}
-
-    async def _probe_endpoint(self, url: str, path: str, timeout: float) -> dict:
-        start = time.monotonic()
-        try:
-            import httpx
-
-            async with httpx.AsyncClient(timeout=timeout, verify=make_peer_ssl_context()) as c:
-                resp = await c.get(f"{url}{path}")
-                elapsed = time.monotonic() - start
-                return {
-                    "ok": resp.status_code in (200, 401, 403, 404, 501),
-                    "latency": round(elapsed * 1000),
-                    "status": resp.status_code,
-                }
-        except Exception as e:
-            return {"ok": False, "latency": -1, "error": str(e)}
-
-    def _select_best(self, results: dict) -> Optional[str]:
-        """Выбирает лучший работающий транспорт по приоритету."""
-        for probe in self.PROBES:
-            name = probe["name"]
-            if name in results and results[name].get("ok"):
-                return name
-        return None
+    def serves(self, token: str) -> Optional[str]:
+        """Имя транспорта, которому принадлежит probe-токен, или None."""
+        return self._probe.serves(token)
 
     @property
     def best_transport(self) -> Optional[str]:
-        return self._best_transport
+        return self._probe.best
 
     def needs_reprobe(self) -> bool:
-        return (time.time() - self._last_probe_time) > self._probe_interval
+        return self._probe.due(time.time())
 
     def get_status(self) -> dict:
         return {
-            "best_transport": self._best_transport,
-            "last_probe": self._last_probe_time,
-            "results": self._results,
+            "best_transport": self._probe.best,
+            "last_probe": self._probe.last_run,
+            "results": self._probe.results(),
         }
 
 
@@ -2181,9 +1898,15 @@ class ServiceWorkerConfig:
     Сам SW код → static/js/sw-proxy.js (генерируется ниже).
     """
 
+    def __init__(self):
+        self._profile = ServiceWorkerProfile()
+
     def generate_sw_config(self, transports: list[str], cdn_url: str = "", meek_url: str = "") -> dict:
         """
         Генерирует конфигурацию для Service Worker.
+
+        Собирает её Rust (`vortex_chat.ServiceWorkerProfile`); здесь только
+        передача списка транспортов и адресов релеев.
 
         probe_interval — базовый интервал проб, probe_interval_min/max — границы,
         в которых SW обязан выбирать задержку каждой пробы случайно (memoryless),
@@ -2204,28 +1927,7 @@ class ServiceWorkerConfig:
         Округление вверх до бакета, наоборот, склеивает целый диапазон длин в
         одно наблюдаемое значение.
         """
-        return {
-            "version": "4.0",
-            "transports": transports,
-            "primary_transport": transports[0] if transports else "direct",
-            "cdn_relay_url": cdn_url,
-            "meek_url": meek_url,
-            "cache_ttl": 3600,
-            "probe_interval": 60,
-            "probe_interval_min": round(60 * _PROBE_JITTER_LOW),
-            "probe_interval_max": round(60 * _PROBE_JITTER_HIGH),
-            "padding": {
-                "enabled": True,
-                "buckets": list(_PAD_BUCKETS),
-                "promote_probability": _PAD_PROMOTE_PROBABILITY,
-                "tile_step": _PAD_TILE_STEP,
-            },
-            "retry": {
-                "max_attempts": 3,
-                "backoff_base": 1000,
-                "backoff_max": 30000,
-            },
-        }
+        return self._profile.build(list(transports), cdn_url, meek_url)
 
     @staticmethod
     def get_sw_registration_script() -> str:
@@ -2506,91 +2208,56 @@ class CensorshipDashboard:
     """
     Панель мониторинга блокировок по регионам.
 
-    Собирает данные от клиентов:
-    - Какие транспорты работают/заблокированы
-    - Задержки по регионам
-    - Время обнаружения блокировки
+    Собирает данные от клиентов: какие транспорты работают, какие нет.
 
-    Данные хранятся в памяти (in-memory), обновляются push'ами от клиентов.
+    Разбор отчёта, проверка имени региона, потолки хранилища, кворум и
+    рекомендация живут в Rust (`vortex_chat.CensorshipDashboard`); отчёты лежат
+    в Redis, когда backbone подключён, и в памяти процесса, когда нет.
     """
 
     def __init__(self):
-        self._reports: dict[str, list[dict]] = {}  # region → [reports]
-        self._max_reports_per_region = 100
-        self._blocked_transports: dict[str, set[str]] = {}  # region → {transport_names}
+        self._dashboard = RustDashboard()
 
     def submit_report(self, region: str, report: dict):
         """
         Клиент отправляет отчёт о доступности.
-        report: {transports: {name: {ok, latency}}, timestamp, client_id}
+        report: {transports: {name: {ok: bool}}, ...}
+
+        Возвращает рекомендованный транспорт либо отказ (`CensorshipRejection`),
+        который вызывающий переводит в HTTP-ответ.
         """
-        if region not in self._reports:
-            self._reports[region] = []
-            self._blocked_transports[region] = set()
+        transports = report.get("transports")
+        pairs = []
+        if isinstance(transports, dict):
+            pairs = [(str(name), bool(_reported_ok(result))) for name, result in transports.items()]
+        return self._dashboard.submit(str(region), pairs, time.time())
 
-        self._reports[region].append(
-            {
-                **report,
-                "received_at": time.time(),
-            }
-        )
-
-        # Trim old reports
-        if len(self._reports[region]) > self._max_reports_per_region:
-            self._reports[region] = self._reports[region][-self._max_reports_per_region :]
-
-        # Update blocked transports
-        transports = report.get("transports", {})
-        for name, result in transports.items():
-            if not result.get("ok"):
-                self._blocked_transports[region].add(name)
-            else:
-                self._blocked_transports[region].discard(name)
-
-    def get_region_status(self, region: str) -> dict:
+    def get_region_status(self, region: str) -> Optional[dict]:
         """Статус блокировок для региона."""
-        reports = self._reports.get(region, [])
-        blocked = self._blocked_transports.get(region, set())
-
-        return {
-            "region": region,
-            "total_reports": len(reports),
-            "blocked_transports": sorted(blocked),
-            "last_report": reports[-1] if reports else None,
-        }
+        return self._dashboard.region_status(str(region))
 
     def get_all_regions(self) -> dict:
         """Статус всех регионов."""
-        result = {}
-        for region in self._reports:
-            result[region] = self.get_region_status(region)
-        return result
+        return self._dashboard.all_regions()
 
-    def get_recommended_transport(self, region: str) -> Optional[str]:
+    def get_recommended_transport(self, region: str) -> str:
         """Рекомендованный транспорт для региона."""
-        blocked = self._blocked_transports.get(region, set())
-        all_transports = [
-            "direct_https",
-            "websocket",
-            "sse",
-            "reality",
-            "trojan",
-            "shadowtls",
-            "cdn_relay",
-            "meek_cdn",
-            "doh_tunnel",
-            "tor",
-        ]
-        for t in all_transports:
-            if t not in blocked:
-                return t
-        return "tor"  # Tor as last resort
+        return self._dashboard.recommended(str(region))
+
+    @property
+    def is_shared(self) -> bool:
+        """True, когда отчёты лежат в Redis, а не в памяти этого процесса."""
+        return self._dashboard.is_shared
 
     def get_status(self) -> dict:
-        return {
-            "regions_monitored": len(self._reports),
-            "regions": self.get_all_regions(),
-        }
+        return self._dashboard.status()
+
+
+def _reported_ok(result) -> bool:
+    """Клиент шлёт либо {"ok": bool}, либо сам bool."""
+    if isinstance(result, dict):
+        return bool(result.get("ok"))
+    return bool(result)
 
 
 # 15. LATENCY PROBES
@@ -2606,16 +2273,21 @@ class LatencyProbeSystem:
     Пробы идут с memoryless-джиттером вокруг probe_interval (по умолчанию
     ~60 сек), а не строго периодически, чтобы наблюдатель не читал частоту.
     При обнаружении блокировки — автоматическое переключение.
+
+    История задержек, правила «заблокирован» / «деградирует», журнал событий и
+    выбор паузы живут в Rust (`vortex_chat.LatencyMonitor`); здесь остался цикл,
+    который спит и зовёт probe_fn.
     """
 
     def __init__(self, probe_interval: float = 60.0):
-        self.probe_interval = probe_interval
-        self._latencies: dict[str, list[float]] = {}
-        self._max_history = 60
-        self._alerts: list[dict] = []
+        self._monitor = LatencyMonitor(probe_interval)
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._callback: Optional[Callable] = None
+
+    @property
+    def probe_interval(self) -> float:
+        return self._monitor.probe_interval
 
     async def start(
         self,
@@ -2642,75 +2314,35 @@ class LatencyProbeSystem:
             for transport in transports:
                 try:
                     latency = await probe_fn(transport)
+                    verdict = self._monitor.record(transport, latency, time.time())
 
-                    if transport not in self._latencies:
-                        self._latencies[transport] = []
-
-                    self._latencies[transport].append(latency)
-                    if len(self._latencies[transport]) > self._max_history:
-                        self._latencies[transport] = self._latencies[transport][-self._max_history :]
-
-                    recent = self._latencies[transport][-3:]
-                    if len(recent) >= 3 and all(lat < 0 for lat in recent):
-                        alert = {
-                            "transport": transport,
-                            "type": "blocked",
-                            "timestamp": time.time(),
-                        }
-                        self._alerts.append(alert)
+                    if verdict == "blocked":
                         logger.warning("Transport %s appears BLOCKED (3 consecutive failures)", transport)
-
                         if self._callback:
                             with contextlib.suppress(Exception):
                                 await self._callback(transport)
-
-                    elif latency > 0 and len(self._latencies[transport]) > 5:
-                        avg = sum(lat for lat in self._latencies[transport][:-1] if lat > 0) / max(
-                            1, sum(1 for lat in self._latencies[transport][:-1] if lat > 0)
-                        )
-                        if avg > 0 and latency > avg * 3:
-                            self._alerts.append(
-                                {
-                                    "transport": transport,
-                                    "type": "degraded",
-                                    "latency": latency,
-                                    "average": round(avg),
-                                    "timestamp": time.time(),
-                                }
-                            )
 
                 except asyncio.CancelledError:
                     return
                 except Exception as e:
                     logger.debug("Latency probe error (%s): %s", transport, e)
 
-            await asyncio.sleep(_jittered_delay(self.probe_interval, low=_PROBE_JITTER_LOW, high=_PROBE_JITTER_HIGH))
+            await asyncio.sleep(self._monitor.next_wait())
 
     def get_latency_stats(self) -> dict:
         """Статистика задержек по транспортам."""
-        stats = {}
-        for transport, history in self._latencies.items():
-            valid = [lat for lat in history if lat > 0]
-            stats[transport] = {
-                "current": history[-1] if history else -1,
-                "avg": round(sum(valid) / max(1, len(valid))) if valid else -1,
-                "min": round(min(valid)) if valid else -1,
-                "max": round(max(valid)) if valid else -1,
-                "failures": sum(1 for lat in history if lat < 0),
-                "total_probes": len(history),
-            }
-        return stats
+        return self._monitor.stats()
 
     def get_recent_alerts(self, limit: int = 20) -> list[dict]:
-        return self._alerts[-limit:]
+        return self._monitor.alerts(limit)
 
     def get_status(self) -> dict:
         return {
             "running": self._running,
             "probe_interval": self.probe_interval,
-            "transports_monitored": len(self._latencies),
-            "latencies": self.get_latency_stats(),
-            "recent_alerts": self.get_recent_alerts(5),
+            "transports_monitored": self._monitor.tracked,
+            "latencies": self._monitor.stats(),
+            "recent_alerts": self._monitor.alerts(5),
         }
 
 
@@ -2786,9 +2418,9 @@ class StealthLevel4Manager:
                 "previous_password": previous("TROJAN_PASSWORD") or None,
             },
             "naiveproxy": {
-                "username": self.naiveproxy._username,
-                "password": self.naiveproxy._password,
-                "probe_domain": self.naiveproxy._probe_domain,
+                "username": self.naiveproxy.username,
+                "password": self.naiveproxy.password,
+                "probe_domain": self.naiveproxy.probe_domain,
                 "previous_username": previous("NAIVE_USERNAME") or None,
                 "previous_password": previous("NAIVE_PASSWORD") or None,
                 "previous_probe_domain": previous("NAIVE_PROBE_DOMAIN") or None,

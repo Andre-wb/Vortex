@@ -1,5 +1,5 @@
 use crate::reality::auth::sealed_auth::X25519_KEY_LEN;
-use crate::reality::handshake::byte_slice::{be_uint, clamped};
+use crate::tls::byte_slice::{be_uint, clamped};
 
 pub const EXTENSION_KEY_SHARE: usize = 0x0033;
 pub const GROUP_X25519: usize = 0x001D;

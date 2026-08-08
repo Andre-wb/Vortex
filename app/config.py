@@ -220,7 +220,7 @@ class Config:
 
     import secrets as _secrets
 
-    SHADOWSOCKS_PASSWORD = os.getenv("SHADOWSOCKS_PASSWORD", "") or _secrets.token_urlsafe(32)
+    SHADOWSOCKS_PASSWORD = _auto_secret("SHADOWSOCKS_PASSWORD")
     BRIDGE_MODE = os.getenv("BRIDGE_MODE", "false").lower() == "true"
     DOMAIN_FRONT_HOST = os.getenv("DOMAIN_FRONT_HOST", "")  # e.g. "www.cloudflare.com"
 

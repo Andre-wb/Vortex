@@ -15,6 +15,7 @@ import pytest
 
 from app.config import Config
 from app.security import secret_rotation as sr
+from app.transport.stealth_level4 import ShadowTLS
 
 URL = "/api/transport/level4/secrets"
 TOKEN = "test-transport-token-value"  # noqa: S105
@@ -156,9 +157,14 @@ class TestRotationGrace:
             assert written["SHADOWTLS_PASSWORD"] == Config.SHADOWTLS_PASSWORD
             assert written["SHADOWTLS_PASSWORD_PREV"] == saved["SHADOWTLS_PASSWORD"]
             assert saved["SHADOWTLS_PASSWORD"] != Config.SHADOWTLS_PASSWORD
-            # Живые объекты подхватили новое значение и держат прежнее.
-            assert stealth_l4.shadowtls._password.decode() == Config.SHADOWTLS_PASSWORD
-            assert stealth_l4.shadowtls._prev_hmac_key
+            live = stealth_l4.shadowtls
+            assert live.get_status()["accepts_previous"]
+            server_random, session_id = bytes(32), bytes(range(16))
+            probe = live.client_stream(server_random, session_id).wrap(b"probe")
+            fresh = ShadowTLS(password=Config.SHADOWTLS_PASSWORD)
+            stale = ShadowTLS(password=saved["SHADOWTLS_PASSWORD"])
+            assert probe == fresh.client_stream(server_random, session_id).wrap(b"probe")
+            assert probe != stale.client_stream(server_random, session_id).wrap(b"probe")
         finally:
             for key, value in saved.items():
                 setattr(Config, key, value)

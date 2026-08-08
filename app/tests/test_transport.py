@@ -6,10 +6,10 @@ Covers:
   - sse_transport.py  : /api/stream/* endpoints (SSE, POST send)
   - pluggable_routes.py: /api/transport/* endpoints (status, bridges, tunnel, stego)
   - cover_traffic.py  : /cover/* cover-website endpoints
-  - obfuscation.py    : TrafficObfuscator / TrafficNormalizer pure-Python helpers
+  - obfuscation.py    : TrafficObfuscator / TrafficNormalizer шимы над Rust
   - cdn_relay.py      : CDNRelayConfig pure-Python helpers
   - knock.py          : record_page_visit / verify_knock pure-Python helpers
-  - pluggable.py      : BridgeRegistry / Obfs4Transport pure-Python helpers
+  - pluggable.py      : BridgeRegistry pure-Python helpers, VortexObfuscationTransport шим
   - steganography.py  : embed_data / extract_data pure-Python helpers
   - stealth_http.py   : StealthClient / StealthResponse pure-Python helpers
 """
@@ -626,9 +626,6 @@ def test_cover_nginx_server_header(client):
     assert r.headers.get("server") == "nginx/1.24.0"
 
 
-# Pure-Python unit tests: TrafficObfuscator
-
-
 def test_obfuscator_pad_roundtrip():
     from app.transport.obfuscation import TrafficObfuscator
 
@@ -643,19 +640,39 @@ def test_obfuscator_pad_roundtrip():
 
 
 def test_obfuscator_pad_large_message():
+    """Сообщение длиннее 65535 байт в формат не помещается: отказ, а не тихий
+    возврат исходных байт — такой «конверт» не разобрать обратно."""
+    import pytest
+
     from app.transport.obfuscation import TrafficObfuscator
 
-    # Messages >65535 bytes are returned as-is
-    big = b"x" * 70000
-    result = TrafficObfuscator.pad_message(big)
-    assert result == big
+    with pytest.raises(ValueError):
+        TrafficObfuscator.pad_message(b"x" * 70000)
 
 
 def test_obfuscator_unpad_too_short():
+    import pytest
+
     from app.transport.obfuscation import TrafficObfuscator
 
-    short = b"\x00\x01"  # < 4 bytes
-    assert TrafficObfuscator.unpad_message(short) == short
+    with pytest.raises(ValueError):
+        TrafficObfuscator.unpad_message(b"\x00\x01")
+
+
+def test_obfuscator_unpad_refuses_a_buffer_that_was_never_padded():
+    import pytest
+
+    from app.transport.obfuscation import TrafficObfuscator
+
+    with pytest.raises(ValueError):
+        TrafficObfuscator.unpad_message(b"x" * 70000)
+
+
+def test_obfuscator_pad_hits_a_web_size_exactly():
+    from app.transport.obfuscation import TrafficObfuscator
+
+    padded = TrafficObfuscator.pad_message(b"body", TrafficObfuscator.WEB_SIZES)
+    assert len(padded) in TrafficObfuscator.WEB_SIZES
 
 
 def test_obfuscator_random_delay_in_range():
@@ -902,52 +919,64 @@ def test_bridge_registry_get_best_bridge_empty():
     assert reg.get_best_bridge() is None
 
 
-# Pure-Python unit tests: Obfs4Transport (pluggable.py)
+def _obfs4_pair():
+    from app.transport.pluggable import Obfs4Transport
+
+    transport = Obfs4Transport(secrets.token_bytes(32))
+    initiator = transport.begin()
+    return initiator, transport.accept(initiator.prologue)
 
 
 def test_obfs4_wrap_unwrap():
-    from app.transport.pluggable import Obfs4Transport
-
-    shared_secret = secrets.token_bytes(32)
-    transport = Obfs4Transport(shared_secret)
+    initiator, responder = _obfs4_pair()
 
     original = b"Secret message for obfs4 wrapping"
-    wrapped = transport.wrap(original)
+    wrapped = initiator.wrap(original)
     assert wrapped != original
     assert len(wrapped) > len(original)
+    assert original not in wrapped
 
-    recovered = transport.unwrap(wrapped)
-    assert recovered == original
+    assert responder.unwrap(wrapped) == original
 
 
 def test_obfs4_wrap_produces_different_output_each_time():
-    from app.transport.pluggable import Obfs4Transport
+    initiator, _ = _obfs4_pair()
 
-    t = Obfs4Transport()
     data = b"same data"
-    w1 = t.wrap(data)
-    w2 = t.wrap(data)
-    # Padding is random, so outputs should differ (extremely likely)
-    assert w1 != w2
+    assert initiator.wrap(data) != initiator.wrap(data)
 
 
 def test_obfs4_unwrap_invalid_frame():
+    _, responder = _obfs4_pair()
+
+    assert responder.unwrap(b"\x00\x01\x02") is None
+
+
+def test_obfs4_unwrap_tampered_frame():
+    initiator, responder = _obfs4_pair()
+
+    wrapped = bytearray(initiator.wrap(b"tamper test"))
+    wrapped[-1] ^= 0xFF
+    assert responder.unwrap(bytes(wrapped)) is None
+
+
+def test_obfs4_replayed_frame_is_refused():
+    initiator, responder = _obfs4_pair()
+
+    frame = initiator.wrap(b"replay me")
+    assert responder.unwrap(frame) == b"replay me"
+    assert responder.unwrap(frame) is None
+
+
+def test_obfs4_without_a_secret_is_not_configured():
+    import pytest
+
     from app.transport.pluggable import Obfs4Transport
 
-    t = Obfs4Transport()
-    # Frame too short
-    assert t.unwrap(b"\x00\x01\x02") is None
-
-
-def test_obfs4_unwrap_tampered_mac():
-    from app.transport.pluggable import Obfs4Transport
-
-    t = Obfs4Transport()
-    wrapped = t.wrap(b"tamper test")
-    # Flip a byte in the MAC area (bytes 10-41)
-    tampered = bytearray(wrapped)
-    tampered[15] ^= 0xFF
-    assert t.unwrap(bytes(tampered)) is None
+    transport = Obfs4Transport()
+    assert transport.is_configured is False
+    with pytest.raises(ValueError):
+        transport.begin()
 
 
 # Pure-Python unit tests: steganography.py
@@ -1154,3 +1183,111 @@ def test_stealth_response_status_code():
 
     resp = StealthResponse(404, b"not found", {"Content-Type": "text/plain"})
     assert resp.status_code == 404
+
+
+# /api/transport/probe/{token}  (public, no auth)
+
+
+def _token_paths() -> list[str]:
+    from app.transport.stealth_level4 import stealth_l4
+
+    return [t.path for t in stealth_l4.censor_probe.plan() if t.path.startswith("/api/transport/probe/")]
+
+
+def test_probe_answers_every_transport_of_the_catalogue(anon_client):
+    paths = _token_paths()
+    assert paths
+    for path in paths:
+        r = anon_client.get(path)
+        assert r.status_code == 200, path
+        assert r.json()["ok"] is True
+
+
+def test_probe_looks_like_a_missing_path_for_any_other_token(anon_client):
+    for token in ("zz", "000000000000", "d7ac1d220e6g", secrets.token_hex(6)):
+        r = anon_client.get(f"/api/transport/probe/{token}")
+        assert r.status_code == 404, token
+
+
+def test_probe_refusal_is_indistinguishable_from_a_path_that_is_not_there(anon_client):
+    refused = anon_client.get("/api/transport/probe/000000000000")
+    missing = anon_client.get("/api/transport/nonexistent-path")
+    assert refused.status_code == missing.status_code
+    assert refused.headers.get("content-type") == missing.headers.get("content-type")
+
+
+# /api/transport/censorship-report  (public, no auth)
+
+
+def _report(region: str, transports: dict) -> dict:
+    return {"region": region, "transports": transports}
+
+
+def test_censorship_report_answers_with_a_recommendation(anon_client):
+    r = anon_client.post("/api/transport/censorship-report", json=_report(random_str(8), {"reality": {"ok": True}}))
+    assert r.status_code == 200
+    assert r.json()["recommended_transport"] == "reality"
+
+
+def test_censorship_report_refuses_a_region_it_cannot_name(anon_client):
+    for region in ("", "ru ru", "россия", "a" * 64):
+        r = anon_client.post("/api/transport/censorship-report", json=_report(region, {"reality": {"ok": True}}))
+        assert r.status_code == 400, region
+
+
+def test_a_region_that_looks_like_a_path_never_reaches_the_store(anon_client):
+    r = anon_client.post("/api/transport/censorship-report", json=_report("../../etc", {"reality": {"ok": True}}))
+    assert r.status_code in (400, 403), "WAF отвергает раньше, панель — если не отверг он"
+
+
+def test_censorship_report_refuses_a_report_about_nothing_known(anon_client):
+    r = anon_client.post("/api/transport/censorship-report", json=_report(random_str(8), {"vmess": {"ok": False}}))
+    assert r.status_code == 400
+
+
+def test_censorship_report_refuses_a_body_that_is_not_a_report(anon_client):
+    assert anon_client.post("/api/transport/censorship-report", json=[1, 2]).status_code == 400
+    assert (
+        anon_client.post(
+            "/api/transport/censorship-report",
+            content=b"not json",
+            headers={"Content-Type": "application/json"},
+        ).status_code
+        == 400
+    )
+
+
+def test_one_client_never_decides_the_verdict_of_a_whole_region(anon_client):
+    region = random_str(8)
+    body = _report(region, {"reality": {"ok": False}})
+    first = anon_client.post("/api/transport/censorship-report", json=body)
+    assert first.json()["recommended_transport"] == "reality"
+    anon_client.post("/api/transport/censorship-report", json=body)
+    third = anon_client.post("/api/transport/censorship-report", json=body)
+    assert third.json()["recommended_transport"] == "direct_https"
+
+
+def test_censorship_map_keeps_only_what_the_domain_understands(client, logged_user):
+    region = random_str(8)
+    body = _report(region, {"reality": {"ok": True}, "vmess": {"ok": False}})
+    body["client_id"] = "secret-client-id"
+    body["note"] = "<b>reflected</b>"
+    body["received_at"] = 1
+    assert client.post("/api/transport/censorship-report", json=body).status_code == 200
+
+    r = client.get("/api/transport/censorship-map", headers=logged_user["headers"])
+    assert r.status_code == 200
+    status = r.json()[region.lower()]
+    assert status["total_reports"] == 1
+    assert set(status["last_report"]["transports"]) == {"reality"}
+    reflected = str(status)
+    for leaked in ("secret-client-id", "reflected", "client_id", "note", "vmess"):
+        assert leaked not in reflected, leaked
+
+
+def test_the_dashboard_says_whether_its_reports_are_shared(client, logged_user):
+    from app.transport.stealth_level4 import stealth_l4
+
+    status = stealth_l4.dashboard.get_status()
+    assert "shared_state" in status
+    assert status["shared_state"] is stealth_l4.dashboard.is_shared

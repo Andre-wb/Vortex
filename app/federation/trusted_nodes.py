@@ -351,9 +351,13 @@ class NodeSandbox:
 
     @staticmethod
     async def probe_node(url: str) -> dict:
-        """Probe a remote Vortex node via GET /api/health.
+        """Probe a remote Vortex node via GET /health.
 
-        Returns a dict with node metadata on success.
+        Returns whatever metadata the node reported. Keys the node did not
+        report are absent rather than empty, so a caller doing
+        `.get(key, current)` keeps what it already stored instead of wiping it
+        with an empty string.
+
         Raises ValueError or httpx errors on failure.
         """
         # Re-validate at connect time to shrink the DNS-rebinding TOCTOU window
@@ -370,7 +374,7 @@ class NodeSandbox:
             verify=ssl_ctx,
             follow_redirects=False,
         ) as client:
-            resp = await client.get(f"{url}/api/health")
+            resp = await client.get(f"{url}/health")
             resp.raise_for_status()
             data = resp.json()
 
@@ -382,11 +386,12 @@ class NodeSandbox:
         if "status" not in data and "ok" not in data:
             raise ValueError("Health response missing expected fields (status/ok)")
 
-        return {
-            "name": data.get("node_name", data.get("name", "")),
-            "version": data.get("version", ""),
-            "node_id": data.get("node_id", ""),
+        reported = {
+            "name": data.get("node_name") or data.get("name"),
+            "version": data.get("version"),
+            "node_id": data.get("node_id"),
         }
+        return {key: value for key, value in reported.items() if isinstance(value, str) and value}
 
     @staticmethod
     def validate_payload(data: bytes, max_size: int = MAX_PAYLOAD_SIZE) -> dict:
@@ -764,7 +769,7 @@ async def _health_monitor_loop() -> None:
                     if _shutdown_event.is_set():
                         return
                     try:
-                        resp = await client.get(f"{node.url}/api/health")
+                        resp = await client.get(f"{node.url}/health")
                         resp.raise_for_status()
                         node.last_seen = datetime.now(timezone.utc)
                         node.fail_count = 0

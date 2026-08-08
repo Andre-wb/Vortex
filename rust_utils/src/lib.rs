@@ -51,7 +51,23 @@ use batch_verify::{batch_verify as ed_batch_verify, verify_signature as ed_verif
 mod chunk_hash;
 use chunk_hash::{sha256_combine_hex, sha256_concat_hex, sha256_hex, sha256_stream};
 pub mod transport;
+use transport::censorship_bridge::{PyCensorshipDashboard, PyCensorshipRejection};
+use transport::latency_bridge::PyLatencyMonitor;
+use transport::naive_bridge::PyNaive;
+use transport::obfuscation_bridge::{
+    PyObfuscation, PyObfuscationFrameStep, PyObfuscationFrames, PyObfuscationSession,
+    PyTrafficNormalizer,
+};
+use transport::probe_bridge::{PyCensorshipProbe, PyProbeTarget};
 use transport::reality_bridge::PyRealityAuth;
+use transport::shadowsocks_bridge::{PyShadowsocks, PyShadowsocksFrameStep, PyShadowsocksSession};
+use transport::shadowtls_bridge::{
+    PyShadowTls, PyShadowTlsClientStep, PyShadowTlsConnection, PyShadowTlsDonorStep,
+    PyShadowTlsStream,
+};
+use transport::sw_bridge::PyServiceWorkerProfile;
+use transport::timeout_bridge::{handshake_timeout_secs, PyReadDeadline};
+use transport::trojan_bridge::{PyTrojan, PyTrojanRequest};
 
 #[pymodule]
 fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -135,7 +151,31 @@ fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pq_hybrid_combine, m)?)?;
 
     m.add_class::<PyRealityAuth>()?;
+    m.add_class::<PyShadowsocks>()?;
+    m.add_class::<PyShadowsocksSession>()?;
+    m.add_class::<PyShadowsocksFrameStep>()?;
+    m.add_class::<PyShadowTls>()?;
+    m.add_class::<PyShadowTlsConnection>()?;
+    m.add_class::<PyShadowTlsClientStep>()?;
+    m.add_class::<PyShadowTlsDonorStep>()?;
+    m.add_class::<PyShadowTlsStream>()?;
+    m.add_class::<PyTrojan>()?;
+    m.add_class::<PyTrojanRequest>()?;
+    m.add_class::<PyNaive>()?;
+    m.add_class::<PyReadDeadline>()?;
+    m.add_class::<PyObfuscation>()?;
+    m.add_class::<PyTrafficNormalizer>()?;
+    m.add_class::<PyObfuscationFrames>()?;
+    m.add_class::<PyObfuscationSession>()?;
+    m.add_class::<PyObfuscationFrameStep>()?;
+    m.add_class::<PyCensorshipProbe>()?;
+    m.add_class::<PyProbeTarget>()?;
+    m.add_class::<PyLatencyMonitor>()?;
+    m.add_class::<PyCensorshipDashboard>()?;
+    m.add_class::<PyCensorshipRejection>()?;
+    m.add_class::<PyServiceWorkerProfile>()?;
 
+    m.add("HANDSHAKE_TIMEOUT_SECS", handshake_timeout_secs())?;
     m.add("VERSION", env!("CARGO_PKG_VERSION"))?;
     m.add("KEY_SIZE", 32usize)?;
     m.add("NONCE_SIZE", 12usize)?;

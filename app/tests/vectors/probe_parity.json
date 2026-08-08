@@ -1,0 +1,1172 @@
+{
+  "best_transport": [
+    {
+      "args": {
+        "working": []
+      },
+      "expected": {
+        "best": null
+      }
+    },
+    {
+      "args": {
+        "working": [
+          "reality"
+        ]
+      },
+      "expected": {
+        "best": "reality"
+      }
+    },
+    {
+      "args": {
+        "working": [
+          "tor"
+        ]
+      },
+      "expected": {
+        "best": "tor"
+      }
+    },
+    {
+      "args": {
+        "working": [
+          "reality",
+          "tor"
+        ]
+      },
+      "expected": {
+        "best": "reality"
+      }
+    },
+    {
+      "args": {
+        "working": [
+          "tor",
+          "sse"
+        ]
+      },
+      "expected": {
+        "best": "sse"
+      }
+    },
+    {
+      "args": {
+        "working": [
+          "websocket",
+          "doh_tunnel"
+        ]
+      },
+      "expected": {
+        "best": "websocket"
+      }
+    },
+    {
+      "args": {
+        "working": [
+          "meek_cdn",
+          "cdn_relay",
+          "trojan"
+        ]
+      },
+      "expected": {
+        "best": "trojan"
+      }
+    },
+    {
+      "args": {
+        "working": [
+          "reality",
+          "direct_https",
+          "websocket",
+          "sse",
+          "trojan",
+          "shadowtls",
+          "cdn_relay",
+          "meek_cdn",
+          "doh_tunnel",
+          "tor"
+        ]
+      },
+      "expected": {
+        "best": "reality"
+      }
+    },
+    {
+      "args": {
+        "working": [
+          "direct_https",
+          "reality"
+        ]
+      },
+      "expected": {
+        "best": "reality"
+      }
+    },
+    {
+      "args": {
+        "working": [
+          "vmess"
+        ]
+      },
+      "expected": {
+        "best": null
+      }
+    }
+  ],
+  "latency_stats": [
+    {
+      "args": {
+        "samples": []
+      },
+      "expected": {
+        "stats": {
+          "avg": -1,
+          "current": -1.0,
+          "failures": 0,
+          "max": -1,
+          "min": -1,
+          "total_probes": 0
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.0
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": 10,
+          "current": 10.0,
+          "failures": 0,
+          "max": 10,
+          "min": 10,
+          "total_probes": 1
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.0,
+          -1.0,
+          30.0
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": 20,
+          "current": 30.0,
+          "failures": 1,
+          "max": 30,
+          "min": 10,
+          "total_probes": 3
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          -1.0,
+          -1.0
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": -1,
+          "current": -1.0,
+          "failures": 2,
+          "max": -1,
+          "min": -1,
+          "total_probes": 2
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          0.0
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": -1,
+          "current": 0.0,
+          "failures": 1,
+          "max": -1,
+          "min": -1,
+          "total_probes": 1
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          0.0,
+          10.0
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": 10,
+          "current": 10.0,
+          "failures": 1,
+          "max": 10,
+          "min": 10,
+          "total_probes": 2
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          2.0,
+          3.0
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": 3,
+          "current": 3.0,
+          "failures": 0,
+          "max": 3,
+          "min": 2,
+          "total_probes": 2
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          1.0,
+          2.0
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": 2,
+          "current": 2.0,
+          "failures": 0,
+          "max": 2,
+          "min": 1,
+          "total_probes": 2
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          2.5,
+          2.5
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": 3,
+          "current": 2.5,
+          "failures": 0,
+          "max": 3,
+          "min": 3,
+          "total_probes": 2
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.4,
+          10.6
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": 11,
+          "current": 10.6,
+          "failures": 0,
+          "max": 11,
+          "min": 10,
+          "total_probes": 2
+        }
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          1000.0,
+          2000.0,
+          3000.0,
+          -1.0,
+          4000.0
+        ]
+      },
+      "expected": {
+        "stats": {
+          "avg": 2500,
+          "current": 4000.0,
+          "failures": 1,
+          "max": 4000,
+          "min": 1000,
+          "total_probes": 5
+        }
+      }
+    }
+  ],
+  "latency_verdict": [
+    {
+      "args": {
+        "samples": []
+      },
+      "expected": {
+        "verdict": "fine"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.0
+        ]
+      },
+      "expected": {
+        "verdict": "fine"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          -1.0,
+          -1.0
+        ]
+      },
+      "expected": {
+        "verdict": "fine"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          -1.0,
+          -1.0,
+          -1.0
+        ]
+      },
+      "expected": {
+        "verdict": "blocked"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.0,
+          -1.0,
+          -1.0,
+          -1.0
+        ]
+      },
+      "expected": {
+        "verdict": "blocked"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          -1.0,
+          -1.0,
+          -1.0,
+          10.0
+        ]
+      },
+      "expected": {
+        "verdict": "fine"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "expected": {
+        "verdict": "blocked"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          100.0
+        ]
+      },
+      "expected": {
+        "verdict": "degraded"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          30.0
+        ]
+      },
+      "expected": {
+        "verdict": "fine"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          30.1
+        ]
+      },
+      "expected": {
+        "verdict": "degraded"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.0,
+          10.0,
+          100.0
+        ]
+      },
+      "expected": {
+        "verdict": "fine"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          -1.0,
+          -1.0,
+          -1.0
+        ]
+      },
+      "expected": {
+        "verdict": "blocked"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          -1.0,
+          -1.0,
+          -1.0,
+          -1.0,
+          -1.0,
+          -1.0,
+          100.0
+        ]
+      },
+      "expected": {
+        "verdict": "fine"
+      }
+    },
+    {
+      "args": {
+        "samples": [
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          -1.0
+        ]
+      },
+      "expected": {
+        "verdict": "fine"
+      }
+    }
+  ],
+  "probe_plan": [
+    {
+      "args": {
+        "name": "reality"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": null,
+          "accepted": [
+            200
+          ],
+          "path": "/api/transport/probe/d7ac1d220e6a",
+          "priority": 1,
+          "timeout": 8.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "direct_https"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": null,
+          "accepted": [
+            200,
+            401,
+            403
+          ],
+          "path": "/health",
+          "priority": 2,
+          "timeout": 5.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "websocket"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": null,
+          "accepted": [
+            101,
+            200,
+            401,
+            403,
+            426
+          ],
+          "path": "/ws/chat/0",
+          "priority": 3,
+          "timeout": 5.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "sse"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": "text/event-stream",
+          "accepted": [
+            200,
+            401,
+            403
+          ],
+          "path": "/api/transport/sse/stream",
+          "priority": 4,
+          "timeout": 8.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "trojan"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": null,
+          "accepted": [
+            200
+          ],
+          "path": "/api/transport/probe/7aca6784a90c",
+          "priority": 5,
+          "timeout": 10.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "shadowtls"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": null,
+          "accepted": [
+            200
+          ],
+          "path": "/api/transport/probe/a059843adf6f",
+          "priority": 6,
+          "timeout": 10.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "cdn_relay"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": null,
+          "accepted": [
+            200
+          ],
+          "path": "/api/transport/probe/e0593619d9f2",
+          "priority": 7,
+          "timeout": 10.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "meek_cdn"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": null,
+          "accepted": [
+            200
+          ],
+          "path": "/api/transport/probe/48c75130e94a",
+          "priority": 8,
+          "timeout": 15.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "doh_tunnel"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": null,
+          "accepted": [
+            200
+          ],
+          "path": "/api/transport/probe/54ffd7f7fd8a",
+          "priority": 9,
+          "timeout": 15.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "tor"
+      },
+      "expected": {
+        "plan": {
+          "accept_header": null,
+          "accepted": [
+            200
+          ],
+          "path": "/api/transport/probe/bd144d4b9250",
+          "priority": 10,
+          "timeout": 30.0
+        }
+      }
+    },
+    {
+      "args": {
+        "name": "vmess"
+      },
+      "expected": {
+        "plan": null
+      }
+    },
+    {
+      "args": {
+        "name": "Reality"
+      },
+      "expected": {
+        "plan": null
+      }
+    },
+    {
+      "args": {
+        "name": ""
+      },
+      "expected": {
+        "plan": null
+      }
+    }
+  ],
+  "probe_serves": [
+    {
+      "args": {
+        "token": "d7ac1d220e6a"
+      },
+      "expected": {
+        "serves": "reality"
+      }
+    },
+    {
+      "args": {
+        "token": "bd144d4b9250"
+      },
+      "expected": {
+        "serves": "tor"
+      }
+    },
+    {
+      "args": {
+        "token": "D7AC1D220E6A"
+      },
+      "expected": {
+        "serves": "reality"
+      }
+    },
+    {
+      "args": {
+        "token": "f12a0235f370"
+      },
+      "expected": {
+        "serves": null
+      }
+    },
+    {
+      "args": {
+        "token": "000000000000"
+      },
+      "expected": {
+        "serves": null
+      }
+    },
+    {
+      "args": {
+        "token": "d7ac1d220e6"
+      },
+      "expected": {
+        "serves": null
+      }
+    },
+    {
+      "args": {
+        "token": "d7ac1d220e6a0"
+      },
+      "expected": {
+        "serves": null
+      }
+    },
+    {
+      "args": {
+        "token": "0xd7ac1d220e"
+      },
+      "expected": {
+        "serves": null
+      }
+    },
+    {
+      "args": {
+        "token": "d7ac1d220e6g"
+      },
+      "expected": {
+        "serves": null
+      }
+    },
+    {
+      "args": {
+        "token": "d7ac_1d220e6"
+      },
+      "expected": {
+        "serves": null
+      }
+    },
+    {
+      "args": {
+        "token": " d7ac1d220e6a"
+      },
+      "expected": {
+        "serves": null
+      }
+    },
+    {
+      "args": {
+        "token": ""
+      },
+      "expected": {
+        "serves": null
+      }
+    }
+  ],
+  "probe_token": [
+    {
+      "args": {
+        "name": "reality"
+      },
+      "expected": {
+        "serves": "reality",
+        "token": "d7ac1d220e6a"
+      }
+    },
+    {
+      "args": {
+        "name": "direct_https"
+      },
+      "expected": {
+        "serves": "direct_https",
+        "token": "f718179d291b"
+      }
+    },
+    {
+      "args": {
+        "name": "websocket"
+      },
+      "expected": {
+        "serves": "websocket",
+        "token": "7ce54cbababd"
+      }
+    },
+    {
+      "args": {
+        "name": "sse"
+      },
+      "expected": {
+        "serves": "sse",
+        "token": "fe3811fe21af"
+      }
+    },
+    {
+      "args": {
+        "name": "trojan"
+      },
+      "expected": {
+        "serves": "trojan",
+        "token": "7aca6784a90c"
+      }
+    },
+    {
+      "args": {
+        "name": "shadowtls"
+      },
+      "expected": {
+        "serves": "shadowtls",
+        "token": "a059843adf6f"
+      }
+    },
+    {
+      "args": {
+        "name": "cdn_relay"
+      },
+      "expected": {
+        "serves": "cdn_relay",
+        "token": "e0593619d9f2"
+      }
+    },
+    {
+      "args": {
+        "name": "meek_cdn"
+      },
+      "expected": {
+        "serves": "meek_cdn",
+        "token": "48c75130e94a"
+      }
+    },
+    {
+      "args": {
+        "name": "doh_tunnel"
+      },
+      "expected": {
+        "serves": "doh_tunnel",
+        "token": "54ffd7f7fd8a"
+      }
+    },
+    {
+      "args": {
+        "name": "tor"
+      },
+      "expected": {
+        "serves": "tor",
+        "token": "bd144d4b9250"
+      }
+    }
+  ],
+  "sw_pad_target": [
+    {
+      "args": {
+        "length": 0
+      },
+      "expected": {
+        "target": 128
+      }
+    },
+    {
+      "args": {
+        "length": 1
+      },
+      "expected": {
+        "target": 128
+      }
+    },
+    {
+      "args": {
+        "length": 127
+      },
+      "expected": {
+        "target": 128
+      }
+    },
+    {
+      "args": {
+        "length": 128
+      },
+      "expected": {
+        "target": 128
+      }
+    },
+    {
+      "args": {
+        "length": 129
+      },
+      "expected": {
+        "target": 256
+      }
+    },
+    {
+      "args": {
+        "length": 65535
+      },
+      "expected": {
+        "target": 65536
+      }
+    },
+    {
+      "args": {
+        "length": 65536
+      },
+      "expected": {
+        "target": 65536
+      }
+    },
+    {
+      "args": {
+        "length": 65537
+      },
+      "expected": {
+        "target": 73728
+      }
+    },
+    {
+      "args": {
+        "length": 73728
+      },
+      "expected": {
+        "target": 73728
+      }
+    },
+    {
+      "args": {
+        "length": 73729
+      },
+      "expected": {
+        "target": 81920
+      }
+    },
+    {
+      "args": {
+        "length": 200000
+      },
+      "expected": {
+        "target": 204800
+      }
+    }
+  ],
+  "sw_profile": [
+    {
+      "args": {
+        "cdn_url": "",
+        "meek_url": "",
+        "transports": []
+      },
+      "expected": {
+        "profile": {
+          "cache_ttl": 3600,
+          "cdn_relay_url": "",
+          "meek_url": "",
+          "padding": {
+            "buckets": [
+              128,
+              256,
+              512,
+              1024,
+              2048,
+              4096,
+              8192,
+              16384,
+              32768,
+              65536
+            ],
+            "enabled": true,
+            "promote_probability": 0.15,
+            "tile_step": 8192
+          },
+          "primary_transport": "direct",
+          "probe_interval": 60,
+          "probe_interval_max": 108,
+          "probe_interval_min": 30,
+          "retry": {
+            "backoff_base": 1000,
+            "backoff_max": 30000,
+            "max_attempts": 3
+          },
+          "transports": [],
+          "version": "4.0"
+        }
+      }
+    },
+    {
+      "args": {
+        "cdn_url": "",
+        "meek_url": "",
+        "transports": [
+          "websocket",
+          "sse",
+          "cdn_relay",
+          "meek",
+          "doh"
+        ]
+      },
+      "expected": {
+        "profile": {
+          "cache_ttl": 3600,
+          "cdn_relay_url": "",
+          "meek_url": "",
+          "padding": {
+            "buckets": [
+              128,
+              256,
+              512,
+              1024,
+              2048,
+              4096,
+              8192,
+              16384,
+              32768,
+              65536
+            ],
+            "enabled": true,
+            "promote_probability": 0.15,
+            "tile_step": 8192
+          },
+          "primary_transport": "websocket",
+          "probe_interval": 60,
+          "probe_interval_max": 108,
+          "probe_interval_min": 30,
+          "retry": {
+            "backoff_base": 1000,
+            "backoff_max": 30000,
+            "max_attempts": 3
+          },
+          "transports": [
+            "websocket",
+            "sse",
+            "cdn_relay",
+            "meek",
+            "doh"
+          ],
+          "version": "4.0"
+        }
+      }
+    },
+    {
+      "args": {
+        "cdn_url": "https://cdn.example.com",
+        "meek_url": "https://meek.example.com",
+        "transports": [
+          "reality"
+        ]
+      },
+      "expected": {
+        "profile": {
+          "cache_ttl": 3600,
+          "cdn_relay_url": "https://cdn.example.com",
+          "meek_url": "https://meek.example.com",
+          "padding": {
+            "buckets": [
+              128,
+              256,
+              512,
+              1024,
+              2048,
+              4096,
+              8192,
+              16384,
+              32768,
+              65536
+            ],
+            "enabled": true,
+            "promote_probability": 0.15,
+            "tile_step": 8192
+          },
+          "primary_transport": "reality",
+          "probe_interval": 60,
+          "probe_interval_max": 108,
+          "probe_interval_min": 30,
+          "retry": {
+            "backoff_base": 1000,
+            "backoff_max": 30000,
+            "max_attempts": 3
+          },
+          "transports": [
+            "reality"
+          ],
+          "version": "4.0"
+        }
+      }
+    },
+    {
+      "args": {
+        "cdn_url": "",
+        "meek_url": "",
+        "transports": [
+          "vmess",
+          "tor"
+        ]
+      },
+      "expected": {
+        "profile": {
+          "cache_ttl": 3600,
+          "cdn_relay_url": "",
+          "meek_url": "",
+          "padding": {
+            "buckets": [
+              128,
+              256,
+              512,
+              1024,
+              2048,
+              4096,
+              8192,
+              16384,
+              32768,
+              65536
+            ],
+            "enabled": true,
+            "promote_probability": 0.15,
+            "tile_step": 8192
+          },
+          "primary_transport": "vmess",
+          "probe_interval": 60,
+          "probe_interval_max": 108,
+          "probe_interval_min": 30,
+          "retry": {
+            "backoff_base": 1000,
+            "backoff_max": 30000,
+            "max_attempts": 3
+          },
+          "transports": [
+            "vmess",
+            "tor"
+          ],
+          "version": "4.0"
+        }
+      }
+    }
+  ]
+}

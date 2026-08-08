@@ -1868,8 +1868,10 @@ name = "vortex-transport"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "criterion",
  "hex",
  "hkdf",
+ "hmac",
  "rand",
  "sha2",
  "subtle",

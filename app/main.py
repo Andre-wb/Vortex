@@ -906,7 +906,7 @@ from app.transport.pluggable import transport_manager
 transport_manager.configure(
     {
         "cdn_relay_url": Config.CDN_RELAY_URL,
-        "shadowsocks_password": os.getenv("SHADOWSOCKS_PASSWORD", ""),
+        "shadowsocks_password": Config.SHADOWSOCKS_PASSWORD,
     }
 )
 
@@ -1187,11 +1187,17 @@ async def v1_integrity_probe():
     return {"status": "verified", "version": "0.1.0-dev"}
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
-    """Liveness probe — basic health status."""
-    # Stealth mode: return minimal info (handled by StealthMiddleware returning 404,
-    # but if called internally we still limit exposure)
+    """Liveness probe — basic health status.
+
+    HEAD is answered as well: `smart_relay.probe_peer` measures RTT to every
+    peer periodically, and there is no reason to ship the body describing this
+    node on each measurement. Starlette drops the body for HEAD by itself.
+
+    In stealth mode only the bare status is returned. Outside callers get the
+    decoy from StealthMiddleware anyway; this keeps internal callers thin too.
+    """
     if is_stealth():
         return {"status": "ok"}
 

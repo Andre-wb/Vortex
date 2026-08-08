@@ -555,21 +555,42 @@ class TestPluggableTransports:
         from app.transport.pluggable import Obfs4Transport
 
         t = Obfs4Transport(shared_secret=b"test" * 8)
+        initiator = t.begin()
+        responder = t.accept(initiator.prologue)
         data = b"hello obfs4"
-        frame = t.wrap(data)
+        frame = initiator.wrap(data)
         assert frame != data
-        result = t.unwrap(frame)
-        assert result == data
+        assert data not in frame
+        assert responder.unwrap(frame) == data
 
-    def test_shadowsocks_encrypt_decrypt(self):
+    def test_shadowsocks_connect_accept(self):
         from app.transport.pluggable import ShadowsocksTransport
 
         ss = ShadowsocksTransport("test_password")
-        enc = ss.encrypt_payload("example.com", 9000, b"hello ss")
-        host, port, data = ss.decrypt_payload(enc)
-        assert host == "example.com"
-        assert port == 9000
-        assert data == b"hello ss"
+        client = ss.connect("example.com", 9000, b"hello ss")
+        assert b"example.com" not in client.stream
+        assert b"hello ss" not in client.stream
+
+        status, server = ss.accept(client.stream)
+        assert status == "accepted"
+        assert server.host == "example.com"
+        assert server.port == 9000
+        assert server.payload == b"hello ss"
+
+        assert server.open(client.seal(b"ping")) == b"ping"
+        assert client.open(server.seal(b"pong")) == b"pong"
+
+    def test_shadowsocks_without_a_password_is_not_configured(self):
+        from app.transport.pluggable import ShadowsocksTransport
+
+        ss = ShadowsocksTransport("")
+        assert ss.is_configured is False
+        with pytest.raises(ValueError):
+            ss.connect("example.com", 9000, b"x")
+
+        configured = ShadowsocksTransport("test_password")
+        stream = configured.connect("example.com", 9000, b"x").stream
+        assert ss.accept(stream) == ("unauthorized", None)
 
     def test_bridge_registry(self):
         from app.transport.pluggable import BridgeRegistry

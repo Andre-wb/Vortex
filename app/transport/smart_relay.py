@@ -188,7 +188,7 @@ class SmartRelayRouter:
         try:
             t0 = time.monotonic()
             await _probe_pool.head(
-                f"https://{ip}:{port}/api/health",
+                f"https://{ip}:{port}/health",
                 follow_redirects=False,
             )
             latency = (time.monotonic() - t0) * 1000

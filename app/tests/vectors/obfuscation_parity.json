@@ -1,0 +1,587 @@
+{
+  "open_frames": [
+    {
+      "args": {
+        "buffers": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff319131"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 98,
+            "data": "48656c6c6f2c20566f7274657821",
+            "status": "opened"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff319131",
+          "c8b08048e2be6d55ccc266164336235ee0029df3c69dcea9dc579a95d4dec94deda45e601fa9bb51accd24e027deb1f5c6b7a81f63f2ae12d1be8545d6985cbead10cf33c6e3762b32d7769ba8d64e22d64977b1e484672dae39"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 98,
+            "data": "48656c6c6f2c20566f7274657821",
+            "status": "opened"
+          },
+          {
+            "consumed": 90,
+            "data": "7365636f6e64",
+            "status": "opened"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff319131",
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff319131"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 98,
+            "data": "48656c6c6f2c20566f7274657821",
+            "status": "opened"
+          },
+          {
+            "consumed": 0,
+            "data": null,
+            "status": "need_more"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "c8b08048e2be6d55ccc266164336235ee0029df3c69dcea9dc579a95d4dec94deda45e601fa9bb51accd24e027deb1f5c6b7a81f63f2ae12d1be8545d6985cbead10cf33c6e3762b32d7769ba8d64e22d64977b1e484672dae39"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 0,
+            "data": null,
+            "status": "need_more"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "daa6eafd2add68fe57d19181794e6cc35ec6e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3ffe0285064ac8ead7f7d388f33acbce4"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 84,
+            "data": "",
+            "status": "opened"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "f0846723c6b8144d79492b66f8ffcc87d71d0dc8a2a035cef8beb60bfabd2c01aad9e4004e7037cc27095190a0fac88051e7b60e256ecb64b9620bb9ecf6e8757bc950a1aef0e0264bc2f944e3307d2738f36a4fb23db64a"
+        ],
+        "role": "initiator",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 88,
+            "data": "6261636b",
+            "status": "opened"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "a5f7cd3d2c2067aa0bffdbb99ad586c9f827108444db888ccba79a12e63ff87a5a56a6594cb8e7463ee1e005132c5160b7bbb23e6c118caf6494e95bf4348bca219832597b5c087f8bd415288f40006dfa337ceb647a5412"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 0,
+            "data": null,
+            "status": "malformed"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "0cded70a28494aa3af88541cf81207bfe6f56b4415a1db440cfb831bbace1d8b1d089107fefc3e9327c8dff50590de5814d09c7061ce726279e676376caa0288a442ec7503e589bb34d33e883e429edb04c52a4d90651037"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 0,
+            "data": null,
+            "status": "malformed"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff319100"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 0,
+            "data": null,
+            "status": "malformed"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          ""
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 0,
+            "data": null,
+            "status": "need_more"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "da"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 0,
+            "data": null,
+            "status": "need_more"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff3191"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 0,
+            "data": null,
+            "status": "need_more"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff31913141"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": [
+          {
+            "consumed": 98,
+            "data": "48656c6c6f2c20566f7274657821",
+            "status": "opened"
+          }
+        ]
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff319131"
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": ""
+      },
+      "expected": {
+        "steps": null
+      }
+    },
+    {
+      "args": {
+        "buffers": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff319131"
+        ],
+        "role": "responder",
+        "salt": "1111111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "steps": null
+      }
+    }
+  ],
+  "pad": [
+    {
+      "args": {
+        "data": "",
+        "padding": "00000000000000000000000000000000"
+      },
+      "expected": {
+        "envelope": "0000001000000000000000000000000000000000"
+      }
+    },
+    {
+      "args": {
+        "data": "48656c6c6f2c20566f7274657821",
+        "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected": {
+        "envelope": "000e002848656c6c6f2c20566f727465782100000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "args": {
+        "data": "48656c6c6f2c20566f7274657821",
+        "padding": ""
+      },
+      "expected": {
+        "envelope": "000e000048656c6c6f2c20566f7274657821"
+      }
+    },
+    {
+      "args": {
+        "data": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "padding": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "expected": {
+        "envelope": "00ff0200ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
+  "seal_frames": [
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "48656c6c6f2c20566f7274657821",
+            "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "role": "initiator",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "frames": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff319131"
+        ]
+      }
+    },
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "48656c6c6f2c20566f7274657821",
+            "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "data": "7365636f6e64",
+            "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "data": "7468697264",
+            "padding": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          }
+        ],
+        "role": "initiator",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "frames": [
+          "da94eaf362b8049238fdb1d7163c18a626e7e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3e88f3ee2a3921cd47f60f4a308267f649e8726553bbe51116c24ff319131",
+          "c8b08048e2be6d55ccc266164336235ee0029df3c69dcea9dc579a95d4dec94deda45e601fa9bb51accd24e027deb1f5c6b7a81f63f2ae12d1be8545d6985cbead10cf33c6e3762b32d7769ba8d64e22d64977b1e484672dae39",
+          "ec1abf1f5a524e7924d22f27cba0ad6705d5ebd04e6354453821ba2a5c9414de39e9241d05f07e107035e2f3e9101748fa3fc59c66f0f32ea6647eddd8b7f49b704acab27958764a14e7545bfab7dbdfbd4f20f243eb4352c0d76d1f2b5e18bb636bec58f49365b914ad61053ed73b31986da1ac77df49f48ba3187108841905825fd97fc1c0056b661e7c499339f397a9b13db158a846f168ffe271f82ad8e158e0ecaf7632e0db08b4250d70ff5817ffeaf2b5d0599f56c96ee6887e6a133d98e504ed7b93fce02ef7c983093670df6e9a01a45f7058416a61e0e6386ed959450e3c57d2690cef538a94962a24df7201c816ecd4453506cd16d93801d4caf982577d510f6c363af104509f5fe15e48dbccb28d3a2bfce598ec2bfc60891a93b31c04183a99041cc8c51dc49a66cec0ec9db177494434a9e7dbfb2cb8f24c5e746f6a6cfa4d02aed0bd725532d5114441ede34f03b51f1cdcfdccf928c92d852b83def5dd387a33f1439c7334d25361f145e26434d7b973a29b547209d9bdf97a1317aeabce7dc93661742cbafb420ed4c735343d5d1db266a8fd57a979de2670b6eab87205986ce120a8dd007ed22085c615e66cf888fea821d98f5553ac0864570e8623ff5c1d65d74ef7053584b1a94853cb3c91764ea553b309beea9107819d4b61b6b698e483a52fbc88949e9c8fca6bf68e21a5b101a1e276c6cc84acc068d74d5c3b93fca68e3cbaa0b99dd34b1e03ba8ad75f04d2"
+        ]
+      }
+    },
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "6261636b",
+            "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "role": "responder",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "frames": [
+          "f0846723c6b8144d79492b66f8ffcc87d71d0dc8a2a035cef8beb60bfabd2c01aad9e4004e7037cc27095190a0fac88051e7b60e256ecb64b9620bb9ecf6e8757bc950a1aef0e0264bc2f944e3307d2738f36a4fb23db64a"
+        ]
+      }
+    },
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "",
+            "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "role": "initiator",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "frames": [
+          "daa6eafd2add68fe57d19181794e6cc35ec6e75c5ffabfc8ac51a1760f6281a4140fdbd72a9f5a3ac08c8d40082ae9bbc9a7140b47a3c31077f519aada90701654348eb3ffe0285064ac8ead7f7d388f33acbce4"
+        ]
+      }
+    },
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "41414141414141414141414141414141",
+            "padding": ""
+          }
+        ],
+        "role": "initiator",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "frames": [
+          "dad6eaed6b9c29bf1690d0c0380f2d821f87a61df5f6dca231cf488a4fb61aaf8020e9bb"
+        ]
+      }
+    },
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "626f6479",
+            "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "role": "initiator",
+        "salt": "12121212121212121212121212121212",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "frames": [
+          "0cded70a28494aa3af88541cf81207bfe6f56b4415a1db440cfb831bbace1d8b1d089107fefc3e9327c8dff50590de5814d09c7061ce726279e676376caa0288a442ec7503e589bb34d33e883e429edb04c52a4d90651037"
+        ]
+      }
+    },
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "626f6479",
+            "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "role": "initiator",
+        "salt": "11111111111111111111111111111111",
+        "secret": "6f7468657273656372657400"
+      },
+      "expected": {
+        "frames": [
+          "a5f7cd3d2c2067aa0bffdbb99ad586c9f827108444db888ccba79a12e63ff87a5a56a6594cb8e7463ee1e005132c5160b7bbb23e6c118caf6494e95bf4348bca219832597b5c087f8bd415288f40006dfa337ceb647a5412"
+        ]
+      }
+    },
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "626f6479",
+            "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "role": "initiator",
+        "salt": "11111111111111111111111111111111",
+        "secret": ""
+      },
+      "expected": {
+        "frames": null
+      }
+    },
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "626f6479",
+            "padding": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "role": "initiator",
+        "salt": "111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "frames": null
+      }
+    },
+    {
+      "args": {
+        "frames": [
+          {
+            "data": "626f6479",
+            "padding": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "role": "initiator",
+        "salt": "11111111111111111111111111111111",
+        "secret": "746573747365637265740a"
+      },
+      "expected": {
+        "frames": null
+      }
+    }
+  ],
+  "unpad": [
+    {
+      "args": {
+        "envelope": "0000001000000000000000000000000000000000"
+      },
+      "expected": {
+        "data": ""
+      }
+    },
+    {
+      "args": {
+        "envelope": "000e002848656c6c6f2c20566f727465782100000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected": {
+        "data": "48656c6c6f2c20566f7274657821"
+      }
+    },
+    {
+      "args": {
+        "envelope": "000e000048656c6c6f2c20566f7274657821"
+      },
+      "expected": {
+        "data": "48656c6c6f2c20566f7274657821"
+      }
+    },
+    {
+      "args": {
+        "envelope": "00040010626f6479000000000000000000000000000000"
+      },
+      "expected": {
+        "data": null
+      }
+    },
+    {
+      "args": {
+        "envelope": "00040010626f64790000000000000000000000000000000000"
+      },
+      "expected": {
+        "data": null
+      }
+    },
+    {
+      "args": {
+        "envelope": "0001"
+      },
+      "expected": {
+        "data": null
+      }
+    },
+    {
+      "args": {
+        "envelope": ""
+      },
+      "expected": {
+        "data": null
+      }
+    },
+    {
+      "args": {
+        "envelope": "0004000041414141"
+      },
+      "expected": {
+        "data": "41414141"
+      }
+    },
+    {
+      "args": {
+        "envelope": "0004ffff41414141"
+      },
+      "expected": {
+        "data": null
+      }
+    }
+  ]
+}

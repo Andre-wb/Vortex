@@ -7,7 +7,7 @@ Wraps real HTTP/WebSocket traffic in protocols indistinguishable from:
   - AES-256-GCM SOCKS5 proxy (Shadowsocks-like)
 
 ⚠️  VortexObfuscationTransport is a CUSTOM implementation inspired by obfs4
-    concepts (random padding, HMAC framing, counter-nonce).  It is NOT the
+    concepts (random padding, AEAD framing, counter nonce).  It is NOT the
     official obfs4 / obfs4proxy by Yawning Angel.  For full obfs4 compatibility
     (PT 2.0, bridge lines, etc.) integrate obfs4proxy:
       https://gitlab.com/yawning/obfs4
@@ -19,70 +19,54 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import hmac
 import logging
 import os
 import secrets
-import struct
 import time
 from typing import Optional
 
+from app.transport.obfuscation_backend import ObfuscationFrames
+from app.transport.shadowsocks_backend import Shadowsocks
+
 logger = logging.getLogger(__name__)
-
-
-# obfs4-like: Random byte padding that looks like encrypted noise
 
 
 class VortexObfuscationTransport:
     """
     Custom obfuscation layer that makes traffic look like random encrypted noise.
-    Inspired by obfs4 concepts: random-length padding, HMAC framing, counter nonce.
 
     ⚠️  This is NOT obfs4proxy / obfs4-go.  It does not implement the obfs4 PT 2.0
     specification and is NOT interoperable with standard obfs4 bridges.
     It provides application-layer obfuscation only.
 
-    Wire format:
-      [2B data_len][8B nonce][32B HMAC-SHA256][data][random_padding(64-512B)]
+    Формат v2 живёт в крейте `vortex-transport` (`vortex_obfs`), здесь только шим.
+    Сеанс начинается с 16-байтового пролога инициатора; каждый кадр —
+    замаскированная длина и AES-256-GCM поверх `[2B data_len][data][padding]`.
+    Пустой секрет означает ненастроенный транспорт: он не собирает и не
+    принимает ничего.
     """
 
     def __init__(self, shared_secret: bytes | None = None):
-        self.secret = shared_secret or os.urandom(32)
-        self._nonce_counter = 0
+        self._frames = ObfuscationFrames(shared_secret or b"")
 
-    def wrap(self, data: bytes) -> bytes:
-        """Wrap plaintext into obfs4-like frame."""
-        # Random padding (64-512 bytes)
-        pad_len = secrets.randbelow(449) + 64
-        padding = os.urandom(pad_len)
+    @property
+    def is_configured(self) -> bool:
+        return self._frames.is_configured
 
-        # HMAC for integrity
-        self._nonce_counter += 1
-        nonce = struct.pack(">Q", self._nonce_counter)
-        mac = hmac.new(self.secret, nonce + data, hashlib.sha256).digest()
+    @property
+    def prologue_len(self) -> int:
+        return self._frames.prologue_len
 
-        # Frame: [2B total_len][8B nonce][32B mac][data][padding]
-        payload = nonce + mac + data + padding
-        frame_len = struct.pack(">H", len(data))
+    def begin(self):
+        """Сеанс инициатора. `session.prologue` уходит на провод первым."""
+        return self._frames.begin()
 
-        return frame_len + payload
+    def accept(self, prologue: bytes):
+        """Сеанс отвечающего по прологу, прочитанному из потока."""
+        return self._frames.accept(prologue)
 
-    def unwrap(self, frame: bytes) -> Optional[bytes]:
-        """Extract plaintext from obfs4-like frame. Returns None if invalid."""
-        if len(frame) < 42:  # 2 + 8 + 32 minimum
-            return None
-
-        data_len = struct.unpack(">H", frame[:2])[0]
-        nonce = frame[2:10]
-        mac_received = frame[10:42]
-        data = frame[42 : 42 + data_len]
-
-        # Verify HMAC
-        mac_expected = hmac.new(self.secret, nonce + data, hashlib.sha256).digest()
-        if not hmac.compare_digest(mac_received, mac_expected):
-            return None
-
-        return data
+    def get_status(self) -> dict:
+        return self._frames.status()
 
 
 # Backward-compatible alias — older code and tests import `Obfs4Transport`
@@ -166,113 +150,52 @@ class DomainFrontingTransport:
 
 class ShadowsocksTransport:
     """
-    Shadowsocks/VLESS-like transport: encrypted SOCKS5 proxy.
+    Shadowsocks-подобный транспорт: прокси с AEAD-шифрованием.
 
-    All traffic encrypted with AES-256-GCM, no detectable header patterns.
-    Looks like random encrypted data to DPI.
+    Формат v2 живёт в крейте `vortex-transport` (`shadowsocks`), здесь только шим.
+    Сеанс начинается с 32-байтового пролога клиента (соль расписания); первый кадр
+    несёт назначение с паддингом, дальше идут кадры данных. Каждый кадр —
+    `AES-256-GCM(длина тела) ‖ AES-256-GCM(тело)`, длина на проводе заверена и
+    скрыта, счётчик записи входит в nonce. Пустой пароль означает ненастроенный
+    транспорт: он не собирает и не принимает ничего.
 
-    Wire format:
-      [12B nonce][encrypted_payload][16B GCM tag]
-
-    Encrypted payload:
-      [1B address_type][address][2B port][data]
+    Совместимости с настоящим Shadowsocks (SIP004/SIP022) нет и не было — вывод
+    ключа и кадр другие.
     """
 
-    ATYPE_IPV4 = 0x01
-    ATYPE_DOMAIN = 0x03
-    ATYPE_IPV6 = 0x04
+    def __init__(self, password: str, previous_password: str = ""):
+        self._proxy = Shadowsocks(password, previous_password)
 
-    def __init__(self, password: str):
-        """Store password bytes; key is derived fresh per packet with a random salt."""
-        self._password_bytes = password.encode()
+    @property
+    def is_configured(self) -> bool:
+        return self._proxy.is_configured
 
-    def _derive_key(self, salt: bytes) -> bytes:
-        """Derive a 32-byte AES key via HKDF with the provided random salt."""
-        from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    @property
+    def prologue_len(self) -> int:
+        return self._proxy.prologue_len
 
-        return HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            info=b"vortex-shadowsocks",
-        ).derive(self._password_bytes)
+    def reload_secrets(self, password: str, previous_password: str = "") -> None:
+        """Ротация пароля: прежний остаётся принимаемым, новым запечатывается."""
+        self._proxy.reload(password, previous_password)
 
-    def encrypt_payload(self, target_host: str, target_port: int, data: bytes) -> bytes:
-        """Encrypt a request payload for the proxy.
+    def add_password(self, password: str) -> bool:
+        """Добавить принимаемый пароль сверх текущего и предыдущего."""
+        return self._proxy.add_password(password)
 
-        Wire format: [32B salt][12B nonce][AESGCM ciphertext+tag]
-        A fresh random salt per call ensures every packet uses a unique key.
-        """
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    def connect(self, target_host: str, target_port: int, data: bytes = b""):
+        """Сеанс клиента. `session.stream` уходит на провод первым."""
+        return self._proxy.connect(target_host, target_port, data)
 
-        # Build address header
-        if self._is_ipv4(target_host):
-            import socket
-
-            addr_header = bytes([self.ATYPE_IPV4]) + socket.inet_aton(target_host)
-        else:
-            host_bytes = target_host.encode()
-            addr_header = bytes([self.ATYPE_DOMAIN, len(host_bytes)]) + host_bytes
-
-        port_bytes = struct.pack(">H", target_port)
-        plaintext = addr_header + port_bytes + data
-
-        salt = os.urandom(32)
-        nonce = os.urandom(12)
-        ct = AESGCM(self._derive_key(salt)).encrypt(nonce, plaintext, None)
-
-        return salt + nonce + ct
-
-    def decrypt_payload(self, encrypted: bytes) -> tuple[str, int, bytes]:
-        """Decrypt a proxy payload. Returns (host, port, data).
-
-        Wire format: [32B salt][12B nonce][AESGCM ciphertext+tag]
-        """
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-        salt = encrypted[:32]
-        nonce = encrypted[32:44]
-        plaintext = AESGCM(self._derive_key(salt)).decrypt(nonce, encrypted[44:], None)
-
-        atype = plaintext[0]
-        offset = 1
-
-        if atype == self.ATYPE_IPV4:
-            import socket
-
-            host = socket.inet_ntoa(plaintext[offset : offset + 4])
-            offset += 4
-        elif atype == self.ATYPE_DOMAIN:
-            domain_len = plaintext[offset]
-            offset += 1
-            host = plaintext[offset : offset + domain_len].decode()
-            offset += domain_len
-        else:
-            raise ValueError(f"Unsupported address type: {atype}")
-
-        port = struct.unpack(">H", plaintext[offset : offset + 2])[0]
-        offset += 2
-        data = plaintext[offset:]
-
-        return host, port, data
-
-    @staticmethod
-    def _is_ipv4(host: str) -> bool:
-        try:
-            parts = host.split(".")
-            return len(parts) == 4 and all(0 <= int(p) <= 255 for p in parts)
-        except (ValueError, AttributeError):
-            return False
+    def accept(self, stream: bytes) -> tuple[str, object | None]:
+        """Разбор потока клиента. Возвращает (исход, сеанс | None) за один разбор."""
+        return self._proxy.accept(stream)
 
     def generate_client_config(self, server_host: str, server_port: int) -> dict:
-        """Generate client-side config for connecting via Shadowsocks."""
-        return {
-            "method": "shadowsocks",
-            "server": server_host,
-            "server_port": server_port,
-            "cipher": "aes-256-gcm",
-        }
+        """Клиентский конфиг для подключения через Shadowsocks."""
+        return self._proxy.client_config(server_host, server_port)
+
+    def get_status(self) -> dict:
+        return self._proxy.status()
 
 
 # TLS-in-TLS: WebSocket inside raw TLS without WS Upgrade header
@@ -641,7 +564,7 @@ class PluggableTransportManager:
         self.obfs4 = VortexObfuscationTransport()
         self.pt_subprocess = PTSubprocessTransport()
         self.domain_fronting: Optional[DomainFrontingTransport] = None
-        self.shadowsocks: Optional[ShadowsocksTransport] = None
+        self.shadowsocks = ShadowsocksTransport("")
 
     def configure(self, config: dict) -> None:
         """Configure available transports from app config."""
@@ -649,20 +572,21 @@ class PluggableTransportManager:
             self.domain_fronting = DomainFrontingTransport(
                 real_host=config["cdn_relay_url"].split("//")[-1].split("/")[0],
             )
-        if config.get("shadowsocks_password"):
-            self.shadowsocks = ShadowsocksTransport(config["shadowsocks_password"])
+        self.shadowsocks = ShadowsocksTransport(config.get("shadowsocks_password") or "")
         if config.get("pt_binary"):
             self.pt_subprocess = PTSubprocessTransport(config["pt_binary"])
 
     def get_available_transports(self) -> list[str]:
         """List available transport methods in priority order."""
-        available = ["obfs4", "vortex_obfs", "tls_tunnel", "sse", "websocket"]
+        available = ["obfs4", "tls_tunnel", "sse", "websocket"]
+        if self.obfs4.is_configured:
+            available.insert(1, "vortex_obfs")
 
         if PTSubprocessTransport.find_binary():
             available.insert(0, "pt_subprocess")
         if self.domain_fronting:
             available.insert(0, "domain_fronting")
-        if self.shadowsocks:
+        if self.shadowsocks.is_configured:
             available.insert(min(2, len(available)), "shadowsocks")
         try:
             from app.transport.steganography import can_use_steganography
@@ -681,7 +605,7 @@ class PluggableTransportManager:
         return {
             "available": self.get_available_transports(),
             "domain_fronting": self.domain_fronting is not None,
-            "shadowsocks": self.shadowsocks is not None,
+            "shadowsocks": self.shadowsocks.is_configured,
             "bridges": len(bridge_registry.list_bridges()),
             "bridge_mode": bridge_registry.is_bridge_mode(),
             "pt_subprocess": pt_binary is not None,
@@ -689,7 +613,7 @@ class PluggableTransportManager:
             "pt_running": self.pt_subprocess.running,
             "pt_socks": self.pt_subprocess.socks_addr,
             "obfs4": True,
-            "vortex_obfs": True,
+            "vortex_obfs": self.obfs4.is_configured,
             "tls_tunnel": True,
             "sse": True,
             "steganography": self._check_stego(),
