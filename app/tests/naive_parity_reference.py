@@ -36,7 +36,7 @@ MAX_HOST_LEN = 253
 MAX_EMAIL_LEN = 254
 MAX_PORT_DIGITS = 5
 
-REFUSED_BYTES = '"\\\'`{}#'
+REFUSED_BYTES = "\"\\'`{}#"
 
 DEFAULT_PORT = 443
 DEFAULT_UPSTREAM = "http://127.0.0.1:8000"
@@ -305,7 +305,7 @@ FUNCTIONS: list[ParityFunction] = [
             _site(password=""),
             _site(probe_domain=""),
             _site(username="a3f9 c2b1"),
-            _site(password="s3cret}\n    respond \"pwned\"\n{"),
+            _site(password='s3cret}\n    respond "pwned"\n{'),
             _site(password="s3cret{env.HOME}"),
             _site(password='s3"cret'),
             _site(password="s3\\cret"),

@@ -268,8 +268,7 @@ FUNCTIONS = [
     ParityFunction(
         name="probe_plan",
         python=_plan_case,
-        cases=[{"name": name} for name, _, _, _ in CATALOGUE]
-        + [{"name": "vmess"}, {"name": "Reality"}, {"name": ""}],
+        cases=[{"name": name} for name, _, _, _ in CATALOGUE] + [{"name": "vmess"}, {"name": "Reality"}, {"name": ""}],
     ),
     ParityFunction(
         name="probe_serves",

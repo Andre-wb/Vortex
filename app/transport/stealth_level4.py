@@ -485,9 +485,7 @@ class ShadowTLS:
         logger.debug("ShadowTLS: switch record received, entering data mode")
         return ShadowTLSSwitch(step.session_id, step.trailing, connection.stream(True))
 
-    async def _pump_donor(
-        self, connection, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
+    async def _pump_donor(self, connection, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """
         Релеит поток донор→клиент целыми TLS-записями. Каждая запись пишется
         одним write, поэтому отмена задачи (при switch) не оставляет клиенту
@@ -593,9 +591,7 @@ class RealityProtocol:
 
     TLS_RECORD_MAX = 16384
 
-    async def _read_client_hello(
-        self, reader: asyncio.StreamReader, timeout: float = HANDSHAKE_TIMEOUT_SECS
-    ) -> bytes:
+    async def _read_client_hello(self, reader: asyncio.StreamReader, timeout: float = HANDSHAKE_TIMEOUT_SECS) -> bytes:
         """Читает первую TLS-запись целиком по её длине — без рассинхронизации
         на фрагментированном ClientHello."""
         try:
@@ -1289,10 +1285,7 @@ class CensorshipAutoProbe:
         Проверяет все транспорты параллельно.
         server_url: базовый URL сервера.
         """
-        tasks = {
-            target.name: asyncio.create_task(self._run_probe(target, server_url))
-            for target in self._probe.plan()
-        }
+        tasks = {target.name: asyncio.create_task(self._run_probe(target, server_url)) for target in self._probe.plan()}
 
         for name, task in tasks.items():
             try:

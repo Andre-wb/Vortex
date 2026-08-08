@@ -164,9 +164,7 @@ class TestCrossRuntimeSwitch:
 
     def test_rust_accepts_a_switch_sealed_by_python(self):
         guard = _rust.ShadowTls(self.PASSWORD)
-        switch = reference.switch_record(
-            self.PASSWORD.encode(), self.SERVER_RANDOM, self.SESSION_ID, bytes(200)
-        )
+        switch = reference.switch_record(self.PASSWORD.encode(), self.SERVER_RANDOM, self.SESSION_ID, bytes(200))
         _, step = self._switched(guard, switch)
         assert step.session_id == self.SESSION_ID
         assert step.forward == b""
@@ -181,9 +179,7 @@ class TestCrossRuntimeSwitch:
 
     def test_a_switch_captured_from_another_connection_is_refused(self):
         guard = _rust.ShadowTls(self.PASSWORD)
-        captured = reference.switch_record(
-            self.PASSWORD.encode(), self.SERVER_RANDOM, self.SESSION_ID, bytes(200)
-        )
+        captured = reference.switch_record(self.PASSWORD.encode(), self.SERVER_RANDOM, self.SESSION_ID, bytes(200))
         _, step = self._switched(guard, captured, server_random=bytes([0xAA]) * 32)
         assert step.session_id is None
         assert step.forward == captured
@@ -219,9 +215,7 @@ class TestCrossRuntimeStream:
     def _pair(self, server_random=reference.SERVER_RANDOM, session_id=reference.SESSION_ID):
         guard = _rust.ShadowTls(self.PASSWORD)
         rust_server = guard.stream(server_random, session_id, True)
-        python_client = reference.SealedStream.for_role(
-            self.PASSWORD.encode(), server_random, session_id, server=False
-        )
+        python_client = reference.SealedStream.for_role(self.PASSWORD.encode(), server_random, session_id, server=False)
         return rust_server, python_client
 
     def test_python_opens_what_rust_sealed(self):

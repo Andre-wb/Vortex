@@ -162,7 +162,15 @@ def _parse_header(data: bytes) -> tuple[str, Optional[dict], int]:
 
 def decode_request(passwords: list[bytes], data: bytes) -> dict:
     """Разбор запроса: исход и, если он accepted, разобранные поля."""
-    refused = {"outcome": None, "password_hash": None, "command": None, "address_type": None, "host": None, "port": None, "payload": None}
+    refused = {
+        "outcome": None,
+        "password_hash": None,
+        "command": None,
+        "address_type": None,
+        "host": None,
+        "port": None,
+        "payload": None,
+    }
     prefix = probe(data)
     if prefix == PROBE_NOT_TROJAN:
         return {**refused, "outcome": MALFORMED}
@@ -284,7 +292,10 @@ FUNCTIONS: list[ParityFunction] = [
             {"passwords": ["testpass"], "data": _CRLF_PORT_REQUEST[: 2 * (len(_CRLF_PORT_REQUEST) // 2 - 9)]},
             {"passwords": ["testpass"], "data": ""},
             {"passwords": ["testpass"], "data": "16030100050100000d"},
-            {"passwords": ["testpass"], "data": (b"0x" + _HASH[2:] + CRLF + b"\x01\x01\x0d\x0a\x01\x02\x01\xbb\r\n").hex()},
+            {
+                "passwords": ["testpass"],
+                "data": (b"0x" + _HASH[2:] + CRLF + b"\x01\x01\x0d\x0a\x01\x02\x01\xbb\r\n").hex(),
+            },
             {"passwords": ["testpass"], "data": _broken(b"\x02\x01\x0d\x0a\x01\x02\x01\xbb\r\n")},
             {"passwords": ["testpass"], "data": _broken(b"\x01\x02\x00\x00\x01\xbb\r\n")},
             {"passwords": ["testpass"], "data": _broken(b"\x01\x03\x00\x01\xbb\r\n")},

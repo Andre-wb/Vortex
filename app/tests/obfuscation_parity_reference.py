@@ -135,8 +135,7 @@ def seal_frame(keys: dict, counter: int, data: bytes, padding: bytes) -> Optiona
     plaintext = len(data).to_bytes(2, "big") + data + padding
     body_len = len(plaintext) + TAG_LEN
     wire_len = bytes(
-        a ^ b
-        for a, b in zip(body_len.to_bytes(2, "big"), _mask(keys["send_length"], counter), strict=True)
+        a ^ b for a, b in zip(body_len.to_bytes(2, "big"), _mask(keys["send_length"], counter), strict=True)
     )
     sealed = AESGCM(keys["send"]).encrypt(_nonce(counter), plaintext, _aad(wire_len, counter))
     return wire_len + sealed
@@ -156,9 +155,7 @@ def open_frame(keys: dict, counter: int, buffer: bytes) -> dict:
     if len(buffer) < frame_len:
         return {"status": NEED_MORE, "consumed": 0, "data": None}
     try:
-        opened = AESGCM(keys["recv"]).decrypt(
-            _nonce(counter), buffer[LENGTH_LEN:frame_len], _aad(wire_len, counter)
-        )
+        opened = AESGCM(keys["recv"]).decrypt(_nonce(counter), buffer[LENGTH_LEN:frame_len], _aad(wire_len, counter))
     except Exception:
         return {"status": MALFORMED, "consumed": 0, "data": None}
     if len(opened) < DATA_LEN_LEN:

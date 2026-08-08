@@ -316,9 +316,7 @@ def _switch_record_case(args: dict) -> dict:
 
 def _switch_token_case(args: dict) -> dict:
     key = password_key(args["password"].encode())
-    return {
-        "token": switch_token(key, bytes.fromhex(args["server_random"]), bytes.fromhex(args["session_id"])).hex()
-    }
+    return {"token": switch_token(key, bytes.fromhex(args["server_random"]), bytes.fromhex(args["session_id"])).hex()}
 
 
 def _wrap_case(args: dict) -> dict:

@@ -73,9 +73,7 @@ def _rust_password_hash(args: dict) -> dict:
 
 
 def _rust_encode_request(args: dict) -> dict:
-    request = _rust.Trojan(args["password"]).encode_request(
-        bytes.fromhex(args["payload"]), args["host"], args["port"]
-    )
+    request = _rust.Trojan(args["password"]).encode_request(bytes.fromhex(args["payload"]), args["host"], args["port"])
     return {"request": request.hex()}
 
 

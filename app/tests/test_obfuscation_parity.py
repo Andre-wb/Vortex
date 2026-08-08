@@ -60,10 +60,7 @@ class TestVectorFile:
             for name in vectors
             for vector in vectors[name]
             if None in vector["expected"].values()
-            or any(
-                step["status"] != reference.OPENED
-                for step in (vector["expected"].get("steps") or [])
-            )
+            or any(step["status"] != reference.OPENED for step in (vector["expected"].get("steps") or []))
         )
         assert refusals >= 18, "отказы обязаны быть заморожены наравне с успехами"
 
@@ -84,9 +81,7 @@ def _session(args: dict):
 
 def _rust_pad(args: dict) -> dict:
     try:
-        envelope = _rust.Obfuscation().pad_with(
-            bytes.fromhex(args["data"]), bytes.fromhex(args["padding"])
-        )
+        envelope = _rust.Obfuscation().pad_with(bytes.fromhex(args["data"]), bytes.fromhex(args["padding"]))
     except ValueError:
         return {"envelope": None}
     return {"envelope": envelope.hex()}
@@ -108,9 +103,7 @@ def _rust_seal_frames(args: dict) -> dict:
     frames = []
     for frame in args["frames"]:
         try:
-            sealed = session.wrap_one(
-                bytes.fromhex(frame["data"]), bytes.fromhex(frame["padding"])
-            )
+            sealed = session.wrap_one(bytes.fromhex(frame["data"]), bytes.fromhex(frame["padding"]))
         except ValueError:
             return {"frames": None}
         frames.append(sealed.hex())
