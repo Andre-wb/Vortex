@@ -1,6 +1,6 @@
 pub const MAX_CREDENTIAL_LEN: usize = 255;
 
-pub const REFUSED_BYTES: [u8; 7] = [b'"', b'\\', b'\'', b'`', b'{', b'}', b'#'];
+pub const REFUSED_BYTES: [u8; 7] = *b"\"\\'`{}#";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CredentialText(String);
