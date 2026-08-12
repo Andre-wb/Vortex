@@ -1,11 +1,15 @@
+pub mod browser_bridge;
 pub mod censorship_bridge;
 pub mod latency_bridge;
 pub mod naive_bridge;
 pub mod obfuscation_bridge;
+pub mod pacing_bridge;
 pub mod probe_bridge;
+pub mod probe_detector_bridge;
 pub mod reality_bridge;
 pub mod shadowsocks_bridge;
 pub mod shadowtls_bridge;
 pub mod sw_bridge;
 pub mod timeout_bridge;
 pub mod trojan_bridge;
+pub mod tunnel_bridge;

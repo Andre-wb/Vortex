@@ -40,9 +40,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
-import gzip
 import hashlib
-import hmac
 import json
 import logging
 import os
@@ -55,6 +53,20 @@ from collections.abc import Awaitable, Callable
 from typing import Optional
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+from app.transport.stealth3_backend import (
+    BurstPlan,
+    CookieJar,
+    DohTunnel,
+    EntropyEnvelope,
+    PacketLoss,
+    ProbeDetector,
+    RefererChain,
+    RotationSchedule,
+    chrome_headers,
+    header_order,
+)
+from app.transport.stealth3_backend import DomainGenerator as RustDomainGenerator
 
 _sysrand = random.SystemRandom()
 
@@ -75,64 +87,30 @@ class DoHTunnel:
     Ответ: сервер отвечает TXT-записью с payload.
     """
 
-    DOH_ENDPOINTS = [
-        "https://1.1.1.1/dns-query",
-        "https://8.8.8.8/resolve",
-        "https://dns.google/resolve",
-        "https://cloudflare-dns.com/dns-query",
-        "https://dns.quad9.net/dns-query",
-    ]
-
-    # Размер chunk: DNS label max 63 bytes, base32 → ~39 raw bytes per label
-    MAX_LABEL_LEN = 63
-    MAX_LABELS = 4  # subdomain.subdomain.subdomain.subdomain.base
-    CHUNK_RAW = 37  # чтобы base32 ≤ 63
-
     def __init__(self, domain_suffix: str = "cdn-sync.net"):
-        self.domain_suffix = domain_suffix
-        self._endpoint_idx = 0
+        self._tunnel = DohTunnel(domain_suffix)
+
+    @property
+    def domain_suffix(self) -> str:
+        return self._tunnel.suffix
+
+    @property
+    def payload_per_query(self) -> int:
+        return self._tunnel.payload_per_query
 
     def _next_endpoint(self) -> str:
-        ep = self.DOH_ENDPOINTS[self._endpoint_idx % len(self.DOH_ENDPOINTS)]
-        self._endpoint_idx += 1
-        return ep
+        return self._tunnel.next_resolver()
 
     def encode_query(self, data: bytes, msg_id: int = 0) -> list[str]:
-        """
-        Кодирует данные в DNS-запросы.
-        Возвращает список FQDN для TXT-запросов.
-        """
-        # Header: [2B msg_id][2B total_chunks][2B chunk_idx]
-        chunk_payload = self.CHUNK_RAW * self.MAX_LABELS - 6
-        chunks = []
-        offset = 0
-        while offset < len(data):
-            chunks.append(data[offset : offset + chunk_payload])
-            offset += chunk_payload
+        """Кодирует данные в DNS-запросы. Возвращает список FQDN для TXT-запросов."""
+        return self._tunnel.encode(data, msg_id)
 
-        fqdns = []
-        for idx, chunk in enumerate(chunks):
-            header = struct.pack(">HHH", msg_id, len(chunks), idx)
-            raw = header + chunk
-            # base32 encode, split into labels
-            encoded = base64.b32encode(raw).decode().rstrip("=").lower()
-            labels = [encoded[i : i + self.MAX_LABEL_LEN] for i in range(0, len(encoded), self.MAX_LABEL_LEN)]
-            fqdn = ".".join(labels) + "." + self.domain_suffix
-            fqdns.append(fqdn)
-        return fqdns
-
-    @staticmethod
-    def decode_query(fqdn: str, domain_suffix: str = "cdn-sync.net") -> tuple[int, int, int, bytes]:
+    def decode_query(self, fqdn: str) -> tuple[int, int, int, bytes]:
         """Декодирует DNS-запрос обратно в данные."""
-        # Убираем суффикс
-        name = fqdn[: -(len(domain_suffix) + 1)]
-        encoded = name.replace(".", "").upper()
-        # Восстанавливаем padding
-        pad = (8 - len(encoded) % 8) % 8
-        encoded += "=" * pad
-        raw = base64.b32decode(encoded)
-        msg_id, total, idx = struct.unpack(">HHH", raw[:6])
-        return msg_id, total, idx, raw[6:]
+        decoded = self._tunnel.decode(fqdn)
+        if decoded is None:
+            raise ValueError(f"имя не принадлежит туннелю {self._tunnel.suffix}: {fqdn[:40]}")
+        return decoded
 
     async def send_via_doh(self, data: bytes, msg_id: int = 0) -> bool:
         """Отправляет данные через DoH-запросы."""
@@ -175,7 +153,7 @@ class DoHTunnel:
     def get_status(self) -> dict:
         return {
             "enabled": True,
-            "endpoints": len(self.DOH_ENDPOINTS),
+            "endpoints": self._tunnel.resolver_count,
             "domain_suffix": self.domain_suffix,
         }
 
@@ -350,165 +328,40 @@ class ActiveProbeDetector:
     """
     Обнаруживает active probing от DPI/ТСПУ.
 
-    ТСПУ отправляет тестовые запросы чтобы определить протокол.
-    Если обнаружен зонд — отвечаем cover-сайтом.
-
-    Признаки зонда:
-      - Нет куков от предыдущих визитов
-      - User-Agent не совпадает с TLS fingerprint
-      - Запрос повторяет точную последовательность (replay)
-      - IP из диапазонов DPI-инфраструктуры
-      - Аномально быстрые последовательные запросы
-      - Отсутствие типичных браузерных заголовков
+    Признаки зонда, порог вердикта, сети цензора, освобождённые маршруты,
+    отпечаток запроса и оба хранилища (виденные запросы, список адресов) живут
+    в Rust (`vortex_chat.ProbeDetector`); здесь остался перевод ASGI-запроса
+    в вызов и запись в лог.
     """
 
-    # Известные диапазоны ТСПУ (РКН/AS)
-    PROBE_ASN_PREFIXES = [
-        "109.124.",  # РКН тестовая инфраструктура
-        "149.154.",  # Типичный range для проверок
-        "185.228.",  # DPI probe range
-    ]
-
-    # Обязательные браузерные заголовки
-    BROWSER_HEADERS = {
-        "accept",
-        "accept-language",
-        "accept-encoding",
-        "sec-fetch-mode",
-        "sec-fetch-site",
-        "sec-fetch-dest",
-    }
-
     def __init__(self):
-        self._seen_fps: dict[str, float] = {}  # fingerprint → timestamp
-        self._probe_ips: set[str] = set()
-        self._total_probes = 0
-        self._fp_max_size = 10000
+        self._detector = ProbeDetector()
+
+    @property
+    def is_shared(self) -> bool:
+        return self._detector.is_shared
 
     def is_probe(self, request_info: dict) -> tuple[bool, str]:
-        """
-        Проверяет, является ли запрос зондом DPI.
-
-        request_info: {
-            "ip": str,
-            "headers": dict,
-            "path": str,
-            "method": str,
-            "tls_version": str (optional),
-            "ja3": str (optional),
-        }
-
-        Возвращает (is_probe: bool, reason: str).
-        """
+        """Проверяет, является ли запрос зондом DPI. Возвращает (is_probe, reason)."""
+        headers = [(str(k), str(v)) for k, v in (request_info.get("headers") or {}).items()]
         ip = request_info.get("ip", "")
-
-        # Loopback / local-link clients are NOT external censors — they're
-        # the wizard polling /api/health, a browser on the same box, or
-        # a LAN peer. Treating them as probes spams the log with false
-        # positives (the wizard fetches /api/health every 2s).
-        if ip in ("127.0.0.1", "::1", "localhost"):
-            return False, ""
-        # Quick check for IPv4-mapped IPv6 loopback
-        if ip.startswith("::ffff:127."):
-            return False, ""
-        # Same-subnet private addresses (LAN peers)
-        if ip.startswith(
-            (
-                "10.",
-                "192.168.",
-                "172.16.",
-                "172.17.",
-                "172.18.",
-                "172.19.",
-                "172.2",
-                "172.30.",
-                "172.31.",
-                "169.254.",
-                "fe80:",
-                "fc00:",
-                "fd00:",
-            )
-        ):
-            return False, ""
-
-        headers = {k.lower(): v for k, v in request_info.get("headers", {}).items()}
-        path = request_info.get("path", "")
-        reasons = []
-
-        # BMP endpoints use credentials:'omit' (no cookies) by design — skip probe detection
-        if path.startswith("/api/bmp/"):
-            return False, ""
-
-        # 1. Проверка IP из известных DPI-диапазонов
-        for prefix in self.PROBE_ASN_PREFIXES:
-            if ip.startswith(prefix):
-                reasons.append(f"probe_asn:{prefix}")
-
-        # 2. Отсутствие ключевых браузерных заголовков
-        missing = self.BROWSER_HEADERS - set(headers.keys())
-        if len(missing) >= 4:
-            reasons.append(f"missing_headers:{len(missing)}")
-
-        # 3. User-Agent аномалии
-        ua = headers.get("user-agent", "")
-        if not ua:
-            reasons.append("no_user_agent")
-        elif len(ua) < 20:
-            reasons.append("short_ua")
-        elif any(
-            bot in ua.lower()
-            for bot in ["curl", "wget", "python", "go-http", "java/", "scanner", "nikto", "sqlmap", "nmap", "masscan"]
-        ):
-            reasons.append(f"bot_ua:{ua[:30]}")
-
-        # 4. Replay detection — точный fingerprint запроса повторяется
-        fp = hashlib.sha256(
-            f"{ip}:{request_info.get('method', '')}:{request_info.get('path', '')}:"
-            f"{ua}:{headers.get('accept', '')}".encode()
-        ).hexdigest()[:16]
-
-        now = time.monotonic()
-        if fp in self._seen_fps:
-            elapsed = now - self._seen_fps[fp]
-            if elapsed < 2.0:  # Тот же запрос < 2 сек назад
-                reasons.append(f"replay:{elapsed:.1f}s")
-
-        self._seen_fps[fp] = now
-        # Очистка старых fingerprints
-        if len(self._seen_fps) > self._fp_max_size:
-            cutoff = now - 300
-            self._seen_fps = {k: v for k, v in self._seen_fps.items() if v > cutoff}
-
-        # 5. Отсутствие cookie
-        if "cookie" not in headers and request_info.get("path", "/") != "/":
-            reasons.append("no_cookies")
-
-        # 6. Несовместимость Accept и пути
-        accept = headers.get("accept", "")
-        path = request_info.get("path", "")
-        if path.endswith(".js") and "javascript" not in accept and "/*" not in accept:
-            reasons.append("accept_mismatch")
-        if path.endswith(".css") and "text/css" not in accept and "/*" not in accept:
-            reasons.append("accept_mismatch")
-
-        is_probe = len(reasons) >= 2  # 2+ признака = зонд
-        if is_probe:
-            self._probe_ips.add(ip)
-            self._total_probes += 1
-            logger.warning("Active probe detected from %s: %s", ip, ", ".join(reasons))
-
-        return is_probe, "; ".join(reasons)
+        verdict, reason = self._detector.inspect(
+            ip,
+            request_info.get("method", ""),
+            request_info.get("path", ""),
+            headers,
+            time.time(),
+        )
+        if verdict:
+            logger.warning("Active probe detected from %s: %s", ip, reason)
+        return verdict, reason
 
     def is_known_probe_ip(self, ip: str) -> bool:
         """Проверяет, был ли этот IP ранее определён как зонд."""
-        return ip in self._probe_ips
+        return self._detector.holds(ip)
 
     def get_stats(self) -> dict:
-        return {
-            "total_probes_detected": self._total_probes,
-            "known_probe_ips": len(self._probe_ips),
-            "fingerprint_cache_size": len(self._seen_fps),
-        }
+        return self._detector.stats()
 
 
 # 5. TLS SESSION TICKET RANDOMIZATION
@@ -579,34 +432,33 @@ class PacketLossSimulator:
     """
 
     def __init__(self, loss_rate: float = 0.002, dup_rate: float = 0.001):
-        self.loss_rate = loss_rate
-        self.dup_rate = dup_rate
+        self._profile = PacketLoss(loss_rate, dup_rate)
         self._delayed = 0
         self._duplicated = 0
         self._total = 0
 
+    @property
+    def loss_rate(self) -> float:
+        return self._profile.loss_rate
+
+    @property
+    def dup_rate(self) -> float:
+        return self._profile.duplicate_rate
+
     async def process_frame(self, data: str) -> list[tuple[str, float]]:
         """
         Обрабатывает фрейм, возвращает список (data, delay_sec).
-        Обычно [(data, 0)], но может:
-          - [(data, 0.5)] — задержка (потеря + ретрансмиссия)
-          - [(data, 0), (data, 0.05)] — дупликат
+        Судьбу кадра решает Rust, здесь только учёт.
         """
         self._total += 1
-        r = _sysrand.random()
+        delays = self._profile.decide()
 
-        if r < self.loss_rate:
-            # "Потеря" — задержка 200-800ms (имитация ретрансмиссии)
-            delay = _sysrand.uniform(0.2, 0.8)
-            self._delayed += 1
-            return [(data, delay)]
-
-        if r < self.loss_rate + self.dup_rate:
-            # Дупликат (ретрансмиссия)
+        if len(delays) > 1:
             self._duplicated += 1
-            return [(data, 0), (data, _sysrand.uniform(0.03, 0.08))]
+        elif delays[0] > 0:
+            self._delayed += 1
 
-        return [(data, 0)]
+        return [(data, delay) for delay in delays]
 
     def get_stats(self) -> dict:
         return {
@@ -637,79 +489,15 @@ class HeaderOrderRandomizer:
     accept-encoding, accept-language, cookie
     """
 
-    CHROME_ORDER = [
-        ":method",
-        ":authority",
-        ":scheme",
-        ":path",
-        "host",
-        "sec-ch-ua",
-        "sec-ch-ua-mobile",
-        "sec-ch-ua-platform",
-        "upgrade-insecure-requests",
-        "user-agent",
-        "accept",
-        "sec-fetch-site",
-        "sec-fetch-mode",
-        "sec-fetch-user",
-        "sec-fetch-dest",
-        "referer",
-        "accept-encoding",
-        "accept-language",
-        "cookie",
-        "content-type",
-        "content-length",
-        "origin",
-    ]
-
-    @classmethod
-    def order_headers(cls, headers: dict) -> dict:
+    @staticmethod
+    def order_headers(headers: dict) -> dict:
         """Упорядочивает заголовки в порядке Chrome."""
-        ordered = {}
-        lower_map = {k.lower(): (k, v) for k, v in headers.items()}
+        return dict(header_order([(str(k), str(v)) for k, v in headers.items()]))
 
-        # Сначала — в порядке Chrome
-        for key in cls.CHROME_ORDER:
-            if key in lower_map:
-                orig_key, value = lower_map.pop(key)
-                ordered[orig_key] = value
-
-        # Остальные — в конец (как Chrome добавляет custom headers)
-        for orig_key, value in lower_map.values():
-            ordered[orig_key] = value
-
-        return ordered
-
-    @classmethod
-    def get_chrome_headers(cls, host: str, path: str = "/", referer: str = "", cookies: str = "") -> dict:
+    @staticmethod
+    def get_chrome_headers(host: str, path: str = "/", referer: str = "", cookies: str = "") -> dict:
         """Полный набор заголовков Chrome 120 в правильном порядке."""
-        headers = {}
-        headers["Host"] = host
-        headers["sec-ch-ua"] = '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
-        headers["sec-ch-ua-mobile"] = "?0"
-        headers["sec-ch-ua-platform"] = '"Windows"'
-        headers["Upgrade-Insecure-Requests"] = "1"
-        headers["User-Agent"] = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
-        headers["Accept"] = (
-            "text/html,application/xhtml+xml,application/xml;q=0.9,"
-            "image/avif,image/webp,image/apng,*/*;q=0.8,"
-            "application/signed-exchange;v=b3;q=0.7"
-        )
-        headers["Sec-Fetch-Site"] = "none"
-        headers["Sec-Fetch-Mode"] = "navigate"
-        headers["Sec-Fetch-User"] = "?1"
-        headers["Sec-Fetch-Dest"] = "document"
-        if referer:
-            headers["Referer"] = referer
-        headers["Accept-Encoding"] = "gzip, deflate, br"
-        headers["Accept-Language"] = "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"
-        if cookies:
-            headers["Cookie"] = cookies
-        return headers
+        return dict(chrome_headers(host, path, referer, cookies))
 
 
 # 8. FRAGMENTED CLIENT HELLO
@@ -924,54 +712,21 @@ class DomainGenerator:
     TLD: .com, .net, .org, .info, .xyz (дешёвые, массовые)
     """
 
-    TLDS = [".com", ".net", ".org", ".info", ".xyz", ".online", ".site"]
-
-    # Словарь для генерации pronounceable доменов
-    CONSONANTS = "bcdfghjklmnpqrstvwxyz"
-    VOWELS = "aeiou"
-
     def __init__(self, seed: str):
-        self._seed = seed.encode() if isinstance(seed, str) else seed
+        self._generator = RustDomainGenerator(seed)
 
     def generate(self, date_str: str = "", count: int = 10) -> list[str]:
         """
-        Генерирует count резервных доменов для указанной даты.
+        Генерирует count резервных доменов для указанной даты (UTC).
         date_str: "2026-04-07" (если пусто — сегодня)
         """
         if not date_str:
-            date_str = time.strftime("%Y-%m-%d")
-
-        domains = []
-        for i in range(count):
-            data = f"{date_str}:{i}".encode()
-            h = hmac.new(self._seed, data, hashlib.sha256).digest()
-            domain = self._hash_to_domain(h)
-            domains.append(domain)
-        return domains
-
-    def _hash_to_domain(self, h: bytes) -> str:
-        """Конвертирует hash в pronounceable домен."""
-        # Длина домена: 6-12 символов
-        length = 6 + (h[0] % 7)
-        name = []
-        for i in range(length):
-            byte_val = h[(i + 1) % len(h)]
-            if i % 2 == 0:
-                name.append(self.CONSONANTS[byte_val % len(self.CONSONANTS)])
-            else:
-                name.append(self.VOWELS[byte_val % len(self.VOWELS)])
-
-        tld = self.TLDS[h[-1] % len(self.TLDS)]
-        return "".join(name) + tld
+            return self._generator.current(int(time.time()), count)[:count]
+        return self._generator.on(date_str, count)
 
     def get_current_domains(self, count: int = 5) -> list[str]:
         """Домены на сегодня и завтра (для grace period)."""
-        today = time.strftime("%Y-%m-%d")
-        # Завтра
-        tomorrow = time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400))
-        domains = self.generate(today, count)
-        domains += self.generate(tomorrow, count)
-        return domains
+        return self._generator.current(int(time.time()), count)
 
 
 # 13. SNOWFLAKE-STYLE WEBRTC PROXY
@@ -1205,35 +960,15 @@ class CookieJarSimulator:
     """
 
     def __init__(self):
-        self._ga_id = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time()) - random.randint(0, 86400 * 30)}"  # noqa: S311
-        self._gid = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time()) - random.randint(0, 86400)}"  # noqa: S311
-        self._cf_clearance = secrets.token_hex(32)
-        self._cf_bm = secrets.token_hex(32)
+        self._jar = CookieJar(int(time.time()))
 
     def get_cookies(self) -> str:
         """Возвращает Cookie header как у реального браузера."""
-        now = int(time.time())
-        cookies = [
-            f"_ga={self._ga_id}",
-            f"_gid={self._gid}",
-            "_gat=1",
-            f"cf_clearance={self._cf_clearance}",
-            f"__cf_bm={self._cf_bm}",
-            f"_gcl_au=1.1.{random.randint(100000, 999999)}.{now - random.randint(0, 3600)}",  # noqa: S311
-        ]
-        # Ротация некоторых куков
-        if random.random() < 0.3:  # noqa: S311
-            cookies.append(f"NID={secrets.token_hex(48)}")
-        if random.random() < 0.5:  # noqa: S311
-            cookies.append(f"1P_JAR={time.strftime('%Y-%m-%d-%H')}")
-
-        return "; ".join(cookies)
+        return self._jar.header(int(time.time()))
 
     def rotate(self):
         """Периодическая ротация куков (как при реальном использовании)."""
-        self._gid = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time())}"  # noqa: S311
-        if random.random() < 0.2:  # noqa: S311
-            self._cf_clearance = secrets.token_hex(32)
+        self._jar.rotate(int(time.time()))
 
 
 # 17. ENTROPY NORMALIZATION
@@ -1249,76 +984,24 @@ class EntropyNormalizer:
     Content-Encoding: gzip + valid gzip header + encrypted data inside.
     """
 
-    # Gzip header (RFC 1952): ID1, ID2, CM, FLG, MTIME(4), XFL, OS
-    GZIP_HEADER = bytes(
-        [
-            0x1F,
-            0x8B,  # Magic number
-            0x08,  # Compression method (deflate)
-            0x00,  # Flags
-            0x00,
-            0x00,
-            0x00,
-            0x00,  # Modification time
-            0x02,  # Extra flags (max compression)
-            0xFF,  # OS (unknown)
-        ]
-    )
-
-    @classmethod
-    def wrap_as_gzip(cls, encrypted_data: bytes) -> bytes:
+    @staticmethod
+    def wrap_as_gzip(encrypted_data: bytes) -> bytes:
         """
         Оборачивает шифрованные данные в gzip формат.
         DPI видит: valid gzip stream. Реально внутри — encrypted payload.
         """
-        # Gzip header + "compressed" data + CRC32 + size
-        crc = struct.pack("<I", gzip._crc32(encrypted_data) & 0xFFFFFFFF)
-        size = struct.pack("<I", len(encrypted_data) & 0xFFFFFFFF)
+        return bytes(EntropyEnvelope.wrap(encrypted_data))
 
-        # Используем stored block (не сжатый) — чтобы не терять данные
-        # BFINAL=1, BTYPE=00 (no compression)
-        # Но для реалистичности — просто пакуем данные как non-compressed deflate block
-        # Заголовок deflate block: 0x01 (final, stored), len, ~len
-        data_len = len(encrypted_data)
-        if data_len <= 65535:
-            deflate_block = struct.pack("<BHH", 0x01, data_len, data_len ^ 0xFFFF)
-            deflate_block += encrypted_data
-        else:
-            # Для больших данных — несколько блоков
-            deflate_block = b""
-            offset = 0
-            while offset < data_len:
-                chunk = encrypted_data[offset : offset + 65535]
-                is_final = offset + 65535 >= data_len
-                deflate_block += struct.pack("<BHH", 0x01 if is_final else 0x00, len(chunk), len(chunk) ^ 0xFFFF)
-                deflate_block += chunk
-                offset += 65535
+    @staticmethod
+    def unwrap_gzip(data: bytes) -> bytes:
+        """Извлекает данные из gzip-обёртки. Что не является конвертом — возвращается как есть."""
+        payload = EntropyEnvelope.unwrap(data)
+        return data if payload is None else bytes(payload)
 
-        return cls.GZIP_HEADER + deflate_block + crc + size
-
-    @classmethod
-    def unwrap_gzip(cls, data: bytes) -> bytes:
-        """Извлекает данные из gzip-обёртки."""
-        if not data.startswith(b"\x1f\x8b"):
-            return data
-
-        try:
-            return gzip.decompress(data)
-        except Exception:
-            # Fallback: skip header, extract raw
-            if len(data) > 18:
-                # Skip gzip header (10B) + deflate stored block header (5B)
-                return data[15:-8]  # skip gzip header + deflate header, trim CRC+size
-            return data
-
-    @classmethod
-    def get_content_headers(cls) -> dict:
+    @staticmethod
+    def get_content_headers() -> dict:
         """HTTP заголовки для gzip-wrapped данных."""
-        return {
-            "Content-Encoding": "gzip",
-            "Content-Type": "text/html; charset=utf-8",  # Выглядит как обычная страница
-            "Vary": "Accept-Encoding",
-        }
+        return dict(EntropyEnvelope.headers())
 
 
 # 18. BURST COALESCING — группировка в пачки как веб-страница
@@ -1338,7 +1021,7 @@ class BurstCoalescer:
     def __init__(
         self, burst_size: int = 8, burst_interval: float = 0.05, pause_min: float = 2.0, pause_max: float = 15.0
     ):
-        self.burst_size = burst_size
+        self._plan = BurstPlan(burst_size, pause_min, pause_max)
         self.burst_interval = burst_interval
         self.pause_min = pause_min
         self.pause_max = pause_max
@@ -1371,8 +1054,8 @@ class BurstCoalescer:
                 batch = [first]
 
                 # Собираем ещё несколько (до burst_size) за короткое время
-                deadline = time.monotonic() + 0.3
-                while len(batch) < self.burst_size and time.monotonic() < deadline:
+                deadline = time.monotonic() + self._plan.gather
+                while self._plan.room_left(len(batch)) and time.monotonic() < deadline:
                     try:
                         item = await asyncio.wait_for(self._buffer.get(), timeout=0.05)
                         batch.append(item)
@@ -1383,14 +1066,13 @@ class BurstCoalescer:
                 for item in batch:
                     await send_fn(item)
                     if len(batch) > 1:
-                        await asyncio.sleep(_sysrand.uniform(0.01, self.burst_interval))
+                        await asyncio.sleep(self._plan.gap())
 
                 self._bursts_sent += 1
 
                 # Пауза между пачками (как "чтение страницы")
                 if self._buffer.empty():
-                    pause = _sysrand.uniform(self.pause_min, self.pause_max)
-                    await asyncio.sleep(pause)
+                    await asyncio.sleep(self._plan.pause())
 
             except asyncio.TimeoutError:
                 continue
@@ -1399,6 +1081,10 @@ class BurstCoalescer:
             except Exception as e:
                 logger.debug("BurstCoalescer error: %s", e)
                 await asyncio.sleep(1)
+
+    @property
+    def burst_size(self) -> int:
+        return self._plan.burst_size
 
     def get_stats(self) -> dict:
         return {
@@ -1423,11 +1109,18 @@ class TLSKeyRotator:
     """
 
     def __init__(self, min_interval: float = 300, max_interval: float = 900):
-        self.min_interval = min_interval  # 5 мин
-        self.max_interval = max_interval  # 15 мин
+        self._schedule = RotationSchedule(min_interval, max_interval)
         self._rotations = 0
         self._running = False
         self._task: Optional[asyncio.Task] = None
+
+    @property
+    def min_interval(self) -> float:
+        return self._schedule.min_interval
+
+    @property
+    def max_interval(self) -> float:
+        return self._schedule.max_interval
 
     async def start(self, rotation_callback: Optional[Callable] = None):
         """
@@ -1444,9 +1137,8 @@ class TLSKeyRotator:
 
     async def _rotation_loop(self, callback: Optional[Callable]):
         while self._running:
-            interval = _sysrand.uniform(self.min_interval, self.max_interval)
             try:
-                await asyncio.sleep(interval)
+                await asyncio.sleep(self._schedule.next_wait())
             except asyncio.CancelledError:
                 return
 
@@ -1481,44 +1173,17 @@ class RefererChainSimulator:
     Реальный пользователь приходит: Google → сайт → подстраница.
     """
 
-    SEARCH_ENGINES = [
-        "https://www.google.com/",
-        "https://www.google.ru/",
-        "https://yandex.ru/",
-        "https://www.bing.com/",
-    ]
-
-    SOCIAL_REFERERS = [
-        "https://t.me/",
-        "https://vk.com/",
-        "https://www.youtube.com/",
-    ]
-
     def __init__(self, site_url: str):
         self.site_url = site_url
-        self._chain: list[str] = []
-        self._init_chain()
-
-    def _init_chain(self):
-        """Инициализирует реалистичную цепочку Referer."""
-        source = _sysrand.choice(self.SEARCH_ENGINES + self.SOCIAL_REFERERS)
-        self._chain = [
-            source,  # Google/Yandex
-            self.site_url + "/",  # Главная
-            self.site_url + "/features",  # Подстраница
-            self.site_url + "/app",  # Приложение
-        ]
+        self._chain = RefererChain(site_url)
 
     def get_referer(self, depth: int = -1) -> str:
         """Возвращает Referer для текущего запроса."""
-        if depth < 0:
-            depth = min(len(self._chain) - 1, _sysrand.randint(1, 3))
-        return self._chain[min(depth, len(self._chain) - 1)]
+        return self._chain.referer(None if depth < 0 else depth)
 
     def advance(self):
         """Продвигает цепочку (новый "клик")."""
-        if _sysrand.random() < 0.3:
-            self._init_chain()  # Иногда начинаем заново
+        self._chain.advance()
 
 
 # 21. ACCEPT-LANGUAGE / ACCEPT-ENCODING FINGERPRINT

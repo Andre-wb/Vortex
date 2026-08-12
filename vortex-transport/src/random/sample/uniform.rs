@@ -2,6 +2,8 @@ use crate::ports::random_source::RandomSource;
 
 const MANTISSA_BITS: u32 = 53;
 
+pub const MAX_ATTEMPTS: usize = 32;
+
 pub fn unit(random: &dyn RandomSource) -> f64 {
     let mut bytes = [0u8; 8];
     random.fill_bytes(&mut bytes);
@@ -18,14 +20,16 @@ pub fn below(random: &dyn RandomSource, bound: u64) -> u64 {
         return 0;
     }
     let limit = u64::MAX - u64::MAX % bound;
-    loop {
+    let mut drawn = 0u64;
+    for _ in 0..MAX_ATTEMPTS {
         let mut bytes = [0u8; 8];
         random.fill_bytes(&mut bytes);
-        let drawn = u64::from_be_bytes(bytes);
+        drawn = u64::from_be_bytes(bytes);
         if drawn < limit {
             return drawn % bound;
         }
     }
+    drawn % bound
 }
 
 #[cfg(test)]
@@ -74,6 +78,13 @@ mod tests {
             seen[drawn] = true;
         }
         assert!(seen.iter().all(|hit| *hit));
+    }
+
+    #[test]
+    fn a_source_that_never_draws_below_the_bound_still_answers() {
+        let stuck = FixedRandom::new(vec![]).with_filler(0xFF);
+        assert_eq!(below(&stuck, 900_000), u64::MAX % 900_000);
+        assert!(below(&stuck, 7) < 7);
     }
 
     #[test]

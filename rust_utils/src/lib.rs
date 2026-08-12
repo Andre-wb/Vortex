@@ -51,6 +51,9 @@ use batch_verify::{batch_verify as ed_batch_verify, verify_signature as ed_verif
 mod chunk_hash;
 use chunk_hash::{sha256_combine_hex, sha256_concat_hex, sha256_hex, sha256_stream};
 pub mod transport;
+use transport::browser_bridge::{
+    chrome_headers, header_order, PyCookieJar, PyEntropyEnvelope, PyRefererChain,
+};
 use transport::censorship_bridge::{PyCensorshipDashboard, PyCensorshipRejection};
 use transport::latency_bridge::PyLatencyMonitor;
 use transport::naive_bridge::PyNaive;
@@ -58,7 +61,9 @@ use transport::obfuscation_bridge::{
     PyObfuscation, PyObfuscationFrameStep, PyObfuscationFrames, PyObfuscationSession,
     PyTrafficNormalizer,
 };
+use transport::pacing_bridge::{PyBurstPlan, PyPacketLoss, PyRotationSchedule};
 use transport::probe_bridge::{PyCensorshipProbe, PyProbeTarget};
+use transport::probe_detector_bridge::PyProbeDetector;
 use transport::reality_bridge::PyRealityAuth;
 use transport::shadowsocks_bridge::{PyShadowsocks, PyShadowsocksFrameStep, PyShadowsocksSession};
 use transport::shadowtls_bridge::{
@@ -68,6 +73,7 @@ use transport::shadowtls_bridge::{
 use transport::sw_bridge::PyServiceWorkerProfile;
 use transport::timeout_bridge::{handshake_timeout_secs, PyReadDeadline};
 use transport::trojan_bridge::{PyTrojan, PyTrojanRequest};
+use transport::tunnel_bridge::{dns_addresses, dns_query, PyDohTunnel, PyDomainGenerator};
 
 #[pymodule]
 fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -149,6 +155,10 @@ fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mlkem768_keygen_derand, m)?)?;
     m.add_function(wrap_pyfunction!(mlkem768_encapsulate_derand, m)?)?;
     m.add_function(wrap_pyfunction!(pq_hybrid_combine, m)?)?;
+    m.add_function(wrap_pyfunction!(header_order, m)?)?;
+    m.add_function(wrap_pyfunction!(chrome_headers, m)?)?;
+    m.add_function(wrap_pyfunction!(dns_query, m)?)?;
+    m.add_function(wrap_pyfunction!(dns_addresses, m)?)?;
 
     m.add_class::<PyRealityAuth>()?;
     m.add_class::<PyShadowsocks>()?;
@@ -174,6 +184,15 @@ fn vortex_chat(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCensorshipDashboard>()?;
     m.add_class::<PyCensorshipRejection>()?;
     m.add_class::<PyServiceWorkerProfile>()?;
+    m.add_class::<PyProbeDetector>()?;
+    m.add_class::<PyCookieJar>()?;
+    m.add_class::<PyRefererChain>()?;
+    m.add_class::<PyEntropyEnvelope>()?;
+    m.add_class::<PyDomainGenerator>()?;
+    m.add_class::<PyDohTunnel>()?;
+    m.add_class::<PyBurstPlan>()?;
+    m.add_class::<PyPacketLoss>()?;
+    m.add_class::<PyRotationSchedule>()?;
 
     m.add("HANDSHAKE_TIMEOUT_SECS", handshake_timeout_secs())?;
     m.add("VERSION", env!("CARGO_PKG_VERSION"))?;

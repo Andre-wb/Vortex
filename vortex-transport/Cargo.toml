@@ -24,6 +24,10 @@ x25519-dalek.workspace = true
 criterion.workspace = true
 
 [[bench]]
+name = "active_probe"
+harness = false
+
+[[bench]]
 name = "shadowtls"
 harness = false
 
