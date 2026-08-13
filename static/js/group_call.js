@@ -101,7 +101,7 @@ export async function startGroupCall(roomId, withVideo = false) {
 
     _gcRoomId = roomId;
     _gcWithVideo = withVideo;
-    _gcInitiatorId = S.user?.id;
+    _gcInitiatorId = _myUserId();
     _gcTopology = topology;
 
     const room = S.rooms?.find(r => r.id === roomId);
@@ -504,16 +504,7 @@ function _connectGcSignal(roomId) {
 
     _gcSignalWs.onopen = () => {
         console.log('[GroupCall] Signal WS open, room', roomId);
-        _gcSignalSend({
-            type: 'group_join',
-            call_id: _gcCallId,
-            user_id: window.AppState.user?.id,
-            username: window.AppState.user?.username,
-            display_name: window.AppState.user?.display_name,
-            avatar_emoji: window.AppState.user?.avatar_emoji,
-            avatar_url: window.AppState.user?.avatar_url,
-            with_video: _gcWithVideo,
-        });
+        _gcSignalSend(_selfJoinPayload());
     };
 
     _gcSignalWs.onmessage = async (e) => {
@@ -539,6 +530,28 @@ function _connectGcSignal(roomId) {
     };
 }
 
+// Присутствие этого участника. `reply` — ответ новичку: он объявился уже после
+// того, как остальные разослали свой group_join, и иначе не узнал бы о них.
+function _myUserId() {
+    const u = window.AppState?.user;
+    return u?.user_id ?? u?.id ?? null;
+}
+
+function _selfJoinPayload(extra) {
+    const S = window.AppState;
+    return {
+        type: 'group_join',
+        call_id: _gcCallId,
+        user_id: _myUserId(),
+        username: S.user?.username,
+        display_name: S.user?.display_name,
+        avatar_emoji: S.user?.avatar_emoji,
+        avatar_url: S.user?.avatar_url,
+        with_video: _gcWithVideo,
+        ...extra,
+    };
+}
+
 function _gcSignalSend(msg) {
     if (_gcSignalWs?.readyState === WebSocket.OPEN) {
         _gcSignalWs.send(JSON.stringify(msg));
@@ -548,10 +561,12 @@ function _gcSignalSend(msg) {
 // Signal handling
 
 async function _handleSignal(msg) {
-    const S = window.AppState;
-    const from = msg.from || msg.user_id;
-
-    if (from === S.user?.id) return;
+    const from = msg.from ?? msg.user_id;
+    const me = _myUserId();
+    // Отбрасываем только заведомо своё эхо. Раньше сравнивались два undefined
+    // (у AppState.user поле user_id, а не id; у событий звонка отправителя нет),
+    // из-за чего приглашение и завершение звонка терялись.
+    if (from != null && me != null && from === me) return;
 
     switch (msg.type) {
         case 'group_call_invite':
@@ -584,7 +599,13 @@ async function _handleSignal(msg) {
             };
             _renderGcGrid();
 
-            await _createPeerOffer(from);
+            // Ответ-присутствие: новичок узнаёт об уже подключённых. Offer при этом
+            // создаёт только сторона, получившая ПЕРВИЧНЫЙ join, — иначе обе стороны
+            // начнут переговоры одновременно (glare).
+            if (!msg.reply) {
+                _gcSignalSend(_selfJoinPayload({ to: from, reply: true }));
+                await _createPeerOffer(from);
+            }
             _adaptBitrate();
 
             if (_connectedCount() >= 1 && _gcState === 'connecting') {
@@ -1116,7 +1137,7 @@ function _renderGcGrid() {
     if (!grid) return;
 
     const S = window.AppState;
-    const myId = S.user?.id;
+    const myId = _myUserId();
 
     const participants = [];
 
@@ -1322,7 +1343,7 @@ async function _showAddModal() {
 
         for (const m of members) {
             const userId = m.user_id || m.id;
-            const inCall = !!_gcParticipants[userId] || userId === S.user?.id;
+            const inCall = !!_gcParticipants[userId] || userId === _myUserId();
 
             const row = document.createElement('div');
             row.className = 'gc-add-row';

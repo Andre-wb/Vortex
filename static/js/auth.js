@@ -1,6 +1,7 @@
 // static/js/auth.js
 import { $, api, showAlert, openModal, closeModal } from './utils.js';
 import { stopMultiplexCover } from './notifications.js';
+import * as x25519 from './dr/x25519-compat.js';
 import { validatePasswords, getFullPhone } from './phone_password.js';
 
 // X25519 КЛЮЧЕВАЯ ПАРА
@@ -32,11 +33,9 @@ async function _publishKyber(uid) {
  */
 async function generateX25519Keypair() {
     try {
-        const keyPair = await crypto.subtle.generateKey(
-            { name: 'X25519' }, true, ['deriveBits']
-        );
-        const publicRaw  = await crypto.subtle.exportKey('raw', keyPair.publicKey);
-        const privateJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+        const keyPair = await x25519.generateKeyPair();
+        const publicRaw  = await x25519.exportPublicRaw(keyPair.publicKey);
+        const privateJwk = await x25519.exportPrivateJwk(keyPair.privateKey);
         return {
             publicKeyHex:  toHex(publicRaw),
             privateKeyJwk: JSON.stringify(privateJwk),
@@ -203,9 +202,9 @@ function _recoverPubkeyFromJwk(jwkString) {
  */
 export async function _computeKeyLoginProof(privJwkStr, serverPubHex, challengeHex) {
     const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
-    const privKey = await crypto.subtle.importKey('jwk', JSON.parse(privJwkStr), { name: 'X25519' }, false, ['deriveBits']);
-    const serverPub = await crypto.subtle.importKey('raw', fromHex(serverPubHex), { name: 'X25519' }, false, []);
-    const sharedBits = await crypto.subtle.deriveBits({ name: 'X25519', public: serverPub }, privKey, 256);
+    const privKey = await x25519.importPrivateJwk(privJwkStr, false);
+    const serverPub = await x25519.importPublicHex(serverPubHex);
+    const sharedBits = await x25519.deriveBits(privKey, serverPub);
 
     // salt = отсортированная конкатенация обоих pub'ов (как серверный
     // derive_x25519_session_key / handshake.rs). sorted симметричен → сервер

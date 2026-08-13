@@ -138,28 +138,40 @@ async function decryptFrame(key, frame, controller) {
  * @param {RTCRtpSender} sender
  * @param {{key: CryptoKey, raw: Uint8Array}} mediaKey
  */
+// Оба API одноразовые: повторное присваивание transform или второй вызов
+// createEncodedStreams на том же объекте бросают InvalidStateError. Один и тот
+// же receiver приходит и из getReceivers(), и из ontrack, поэтому помечаем.
+const _e2eApplied = new WeakSet();
+
 export function setupSenderTransform(sender, mediaKey) {
-    if (!sender || !mediaKey) return;
+    if (!sender || !mediaKey || _e2eApplied.has(sender)) return;
 
-    // Path 1: RTCRtpScriptTransform (Firefox 117+, Safari 15.4+, Chrome 118+)
-    if (_supportsScriptTransform()) {
-        const buf = mediaKey.raw.buffer.slice(0);  // copy — transfer moves ownership
-        sender.transform = new RTCRtpScriptTransform(
-            _getWorker(),
-            { operation: 'encrypt', keyBytes: buf },
-            [buf]
-        );
-        return;
-    }
+    try {
+        // Path 1: RTCRtpScriptTransform (Firefox 117+, Safari 15.4+, Chrome 118+)
+        if (_supportsScriptTransform()) {
+            const buf = mediaKey.raw.buffer.slice(0);  // copy — transfer moves ownership
+            sender.transform = new RTCRtpScriptTransform(
+                _getWorker(),
+                { operation: 'encrypt', keyBytes: buf },
+                [buf]
+            );
+            _e2eApplied.add(sender);
+            return;
+        }
 
-    // Path 2: createEncodedStreams (Chrome 86–117)
-    if (typeof sender.createEncodedStreams === 'function') {
-        const { readable, writable } = sender.createEncodedStreams();
-        readable
-            .pipeThrough(new TransformStream({
-                transform: (frame, ctrl) => encryptFrame(mediaKey.key, frame, ctrl),
-            }))
-            .pipeTo(writable);
+        // Path 2: createEncodedStreams (Chrome 86–117)
+        if (typeof sender.createEncodedStreams === 'function') {
+            const { readable, writable } = sender.createEncodedStreams();
+            _e2eApplied.add(sender);
+            readable
+                .pipeThrough(new TransformStream({
+                    transform: (frame, ctrl) => encryptFrame(mediaKey.key, frame, ctrl),
+                }))
+                .pipeTo(writable);
+            return;
+        }
+    } catch (e) {
+        console.warn('[E2E-Media] sender transform not applied:', e.message);
         return;
     }
 
@@ -172,27 +184,34 @@ export function setupSenderTransform(sender, mediaKey) {
  * @param {{key: CryptoKey, raw: Uint8Array}} mediaKey
  */
 export function setupReceiverTransform(receiver, mediaKey) {
-    if (!receiver || !mediaKey) return;
+    if (!receiver || !mediaKey || _e2eApplied.has(receiver)) return;
 
-    // Path 1: RTCRtpScriptTransform
-    if (_supportsScriptTransform()) {
-        const buf = mediaKey.raw.buffer.slice(0);
-        receiver.transform = new RTCRtpScriptTransform(
-            _getWorker(),
-            { operation: 'decrypt', keyBytes: buf },
-            [buf]
-        );
-        return;
-    }
+    try {
+        // Path 1: RTCRtpScriptTransform
+        if (_supportsScriptTransform()) {
+            const buf = mediaKey.raw.buffer.slice(0);
+            receiver.transform = new RTCRtpScriptTransform(
+                _getWorker(),
+                { operation: 'decrypt', keyBytes: buf },
+                [buf]
+            );
+            _e2eApplied.add(receiver);
+            return;
+        }
 
-    // Path 2: createEncodedStreams
-    if (typeof receiver.createEncodedStreams === 'function') {
-        const { readable, writable } = receiver.createEncodedStreams();
-        readable
-            .pipeThrough(new TransformStream({
-                transform: (frame, ctrl) => decryptFrame(mediaKey.key, frame, ctrl),
-            }))
-            .pipeTo(writable);
+        // Path 2: createEncodedStreams
+        if (typeof receiver.createEncodedStreams === 'function') {
+            const { readable, writable } = receiver.createEncodedStreams();
+            _e2eApplied.add(receiver);
+            readable
+                .pipeThrough(new TransformStream({
+                    transform: (frame, ctrl) => decryptFrame(mediaKey.key, frame, ctrl),
+                }))
+                .pipeTo(writable);
+            return;
+        }
+    } catch (e) {
+        console.warn('[E2E-Media] receiver transform not applied:', e.message);
         return;
     }
 

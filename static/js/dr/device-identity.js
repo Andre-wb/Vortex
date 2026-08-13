@@ -21,6 +21,7 @@
 
 import { getClientDeviceId } from '../utils.js';
 import { edSign, edVerify } from './prekeys.js';
+import * as x25519 from './x25519-compat.js';
 
 const toHex = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
 const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
@@ -28,9 +29,9 @@ const fromHex = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)))
 function _slot(userId) { return `vortex_device_identity_${userId}`; }
 
 async function _genX25519() {
-    const pair = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
-    const raw = await crypto.subtle.exportKey('raw', pair.publicKey);
-    return { pubHex: toHex(raw), privJwk: JSON.stringify(await crypto.subtle.exportKey('jwk', pair.privateKey)) };
+    const pair = await x25519.generateKeyPair();
+    const raw = await x25519.exportPublicRaw(pair.publicKey);
+    return { pubHex: toHex(raw), privJwk: JSON.stringify(await x25519.exportPrivateJwk(pair.privateKey)) };
 }
 
 async function _genEd25519() {

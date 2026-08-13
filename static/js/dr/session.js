@@ -21,6 +21,7 @@ import {
 import { encodeV2, decodeV2 } from './v2-envelope.js';
 import { getSpkPrivate, getOpkPrivate, deleteOpkPrivate, getPqspkPrivate, getPqopkPrivate, deletePqopkPrivate } from './prekey-store.js';
 import { verifyDeviceCert } from './device-identity.js';
+import * as x25519 from './x25519-compat.js';
 
 /** Ошибка установления/использования сессии — caller деградирует в плейсхолдер. */
 export class SessionError extends Error {
@@ -34,7 +35,7 @@ export function dmSessionId(roomId, peerDeviceId) { return `dm:${roomId}:${peerD
 
 /** Импортирует X25519 приватный из JWK-строки → CryptoKey. */
 export async function importX25519PrivJwk(jwkString) {
-    return crypto.subtle.importKey('jwk', JSON.parse(jwkString), { name: 'X25519' }, false, ['deriveBits']);
+    return x25519.importPrivateJwk(jwkString, false);
 }
 
 /** Извлекает hex публичного ключа из X25519 JWK-строки (поле x). */

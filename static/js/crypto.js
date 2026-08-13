@@ -3,6 +3,8 @@
 // Приватный ключ хранится как JWK JSON-строка (Web Crypto не позволяет
 // экспортировать X25519 private key как 'raw').
 
+import * as x25519 from './dr/x25519-compat.js';
+
 const toHex   = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
 const fromHex = h => {
     const m = h?.match(/.{2}/g);
@@ -18,21 +20,14 @@ const fromHex = h => {
  */
 export async function eciesEncrypt(roomKeyBytes, recipientPubHex) {
     // Эфемерная X25519 пара (новая для каждого шифрования — forward secrecy)
-    const ephPair = await crypto.subtle.generateKey(
-        { name: 'X25519' }, true, ['deriveBits']
-    );
-    const ephPubRaw = await crypto.subtle.exportKey('raw', ephPair.publicKey);
+    const ephPair = await x25519.generateKeyPair();
+    const ephPubRaw = await x25519.exportPublicRaw(ephPair.publicKey);
 
     // Импортируем публичный ключ получателя
-    const recipientPub = await crypto.subtle.importKey(
-        'raw', fromHex(recipientPubHex), { name: 'X25519' }, false, []
-    );
+    const recipientPub = await x25519.importPublicHex(recipientPubHex);
 
     // X25519 DH → shared secret
-    const sharedBits = await crypto.subtle.deriveBits(
-        { name: 'X25519', public: recipientPub },
-        ephPair.privateKey, 256
-    );
+    const sharedBits = await x25519.deriveBits(ephPair.privateKey, recipientPub);
 
     // HKDF-SHA256(shared, salt=ephPub, info="ecies-room-key") → ключ AES
     const hkdfKey = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
@@ -62,19 +57,13 @@ export async function eciesDecrypt(ephemeralPubHex, ciphertextHex, ourPrivKeyJwk
     const ephPubRaw = fromHex(ephemeralPubHex);
 
     // Импортируем эфемерный публичный ключ
-    const ephPub = await crypto.subtle.importKey(
-        'raw', ephPubRaw, { name: 'X25519' }, false, []
-    );
+    const ephPub = await x25519.importPublicRaw(ephPubRaw);
 
     // Импортируем наш приватный ключ из JWK (не raw — X25519 так не работает)
-    const ourPriv = await crypto.subtle.importKey(
-        'jwk', JSON.parse(ourPrivKeyJwk), { name: 'X25519' }, false, ['deriveBits']
-    );
+    const ourPriv = await x25519.importPrivateJwk(ourPrivKeyJwk, false);
 
     // X25519 DH → shared secret
-    const sharedBits = await crypto.subtle.deriveBits(
-        { name: 'X25519', public: ephPub }, ourPriv, 256
-    );
+    const sharedBits = await x25519.deriveBits(ourPriv, ephPub);
 
     // HKDF → ключ AES
     const hkdfKey = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
@@ -122,10 +111,10 @@ async function _hybridAesKey(x25519Shared, kyberShared, usage) {
 export async function hybridEciesEncrypt(dataBytes, recipientX25519PubHex, recipientKyberPubHex) {
     if (!recipientKyberPubHex) return eciesEncrypt(dataBytes, recipientX25519PubHex);
 
-    const ephPair = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
-    const ephPubRaw = await crypto.subtle.exportKey('raw', ephPair.publicKey);
-    const recipPub = await crypto.subtle.importKey('raw', fromHex(recipientX25519PubHex), { name: 'X25519' }, false, []);
-    const x25519Shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'X25519', public: recipPub }, ephPair.privateKey, 256));
+    const ephPair = await x25519.generateKeyPair();
+    const ephPubRaw = await x25519.exportPublicRaw(ephPair.publicKey);
+    const recipPub = await x25519.importPublicHex(recipientX25519PubHex);
+    const x25519Shared = new Uint8Array(await x25519.deriveBits(ephPair.privateKey, recipPub));
 
     const { mlkemEncaps } = await import('./dr/mlkem.js');
     const { cipherTextHex, sharedSecret: kyberShared } = mlkemEncaps(recipientKyberPubHex);
@@ -157,9 +146,9 @@ export async function hybridEciesDecrypt(envelope, ourX25519PrivJwk, ourKyberPri
     }
     if (!ourKyberPrivHex) throw new Error('hybrid envelope requires Kyber private key');
 
-    const ephPub = await crypto.subtle.importKey('raw', fromHex(envelope.x25519_ephemeral_pub), { name: 'X25519' }, false, []);
-    const ourPriv = await crypto.subtle.importKey('jwk', JSON.parse(ourX25519PrivJwk), { name: 'X25519' }, false, ['deriveBits']);
-    const x25519Shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'X25519', public: ephPub }, ourPriv, 256));
+    const ephPub = await x25519.importPublicHex(envelope.x25519_ephemeral_pub);
+    const ourPriv = await x25519.importPrivateJwk(ourX25519PrivJwk, false);
+    const x25519Shared = new Uint8Array(await x25519.deriveBits(ourPriv, ephPub));
 
     const { mlkemDecaps } = await import('./dr/mlkem.js');
     const kyberShared = mlkemDecaps(envelope.kyber_ciphertext, ourKyberPrivHex);

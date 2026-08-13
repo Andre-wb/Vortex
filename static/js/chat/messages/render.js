@@ -177,6 +177,7 @@ export function appendMessage(msg) {
     group.className        = `fade-in msg-group${isOwn ? ' msg-group-own' : ''}`;
     group.dataset.msgId    = msg.msg_id || '';
     group.dataset.senderId = msg.sender_id || '';
+    if (msg.client_msg_id) group.dataset.clientMsgId = msg.client_msg_id;
 
     const room = S.currentRoom;
     const isDm = room && room.is_dm;

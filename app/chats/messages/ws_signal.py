@@ -21,8 +21,13 @@ from app.security.auth_jwt import get_user_ws
 
 logger = logging.getLogger(__name__)
 
-# room_id → {user_id → WebSocket}
-_signal_rooms: dict[int, dict[int, WebSocket]] = {}
+# room_id → {sender_pseudo → WebSocket}
+#
+# Ключ — sealed-sender псевдоним, а НЕ user_id: наружу в поле "from" уходит
+# именно он, и клиент возвращает его же в "to". Реестр обязан жить в том же
+# пространстве идентификаторов, иначе адресная доставка не находит получателя
+# и каждый offer/answer уходит широковещательно (ломает mesh-звонки).
+_signal_rooms: dict[int, dict[str, WebSocket]] = {}
 
 # Per-user signal rate limiter (token bucket)
 _signal_rate: dict[int, list] = {}  # user_id -> [timestamp, count]
@@ -89,11 +94,10 @@ async def ws_signal(
         return
 
     await websocket.accept()
-    _signal_rooms.setdefault(room_id, {})[user.id] = websocket
-    # Compute sealed pseudo for this room (used in relay instead of user.id)
     from app.security.sealed_sender import compute_sender_pseudo
 
     _user_pseudo = compute_sender_pseudo(room_id, user.id)
+    _signal_rooms.setdefault(room_id, {})[_user_pseudo] = websocket
     logger.debug("Signal WS+ (sanitized)")
 
     try:
@@ -115,10 +119,7 @@ async def ws_signal(
             else:
                 _signal_rate[user.id] = [now, 1]
 
-            # Use sealed sender pseudo instead of real user.id for privacy
-            from app.security.sealed_sender import compute_sender_pseudo
-
-            msg["from"] = compute_sender_pseudo(room_id, user.id)
+            msg["from"] = _user_pseudo
             msg["display_name"] = user.display_name or user.username
             msg["avatar_emoji"] = user.avatar_emoji or "\U0001f464"
 
@@ -127,28 +128,31 @@ async def ws_signal(
 
             msg["_p"] = _sec.token_urlsafe(32 + _sec.randbelow(225))
 
-            target_uid = msg.get("to")
+            target = msg.get("to")
             padded = _json.dumps(msg)
-            if target_uid and target_uid in _signal_rooms.get(room_id, {}):
+            if target and target in _signal_rooms.get(room_id, {}):
                 try:
-                    await _signal_rooms[room_id][target_uid].send_text(padded)
+                    await _signal_rooms[room_id][target].send_text(padded)
                 except Exception as e:
-                    logger.debug("Signal: dead WS target=%s room=%s: %s", target_uid, room_id, e)
-                    _signal_rooms[room_id].pop(target_uid, None)
+                    logger.debug("Signal: dead WS target room=%s: %s", room_id, e)
+                    _signal_rooms[room_id].pop(target, None)
+            elif target:
+                logger.debug("Signal: unknown target in room=%s, dropping", room_id)
             else:
-                for uid, ws in list(_signal_rooms.get(room_id, {}).items()):
-                    if uid != user.id:
+                for pseudo, ws in list(_signal_rooms.get(room_id, {}).items()):
+                    if pseudo != _user_pseudo:
                         try:
                             await ws.send_text(padded)
                         except Exception as e:
-                            logger.debug("Signal broadcast: dead WS user=%s room=%s: %s", uid, room_id, e)
-                            _signal_rooms[room_id].pop(uid, None)
+                            logger.debug("Signal broadcast: dead WS room=%s: %s", room_id, e)
+                            _signal_rooms[room_id].pop(pseudo, None)
 
     except WebSocketDisconnect:
         logger.debug("Signal WS disconnect user=%s room=%s", user.username, room_id)
     finally:
         room_dict = _signal_rooms.get(room_id, {})
-        room_dict.pop(user.id, None)
+        if room_dict.get(_user_pseudo) is websocket:
+            room_dict.pop(_user_pseudo, None)
         if not room_dict and room_id in _signal_rooms:
             del _signal_rooms[room_id]
 

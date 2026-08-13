@@ -482,35 +482,40 @@ async function handleWsMessage(msg) {
             break;
         }
 
-        case 'signal':
-            if (typeof window.handleFederatedSignal === 'function')
-                window.handleFederatedSignal(msg);
+        case 'signal': {
+            // Сервер помечает конверт type="signal", а настоящий вид сигнала
+            // кладёт в signal_type — разворачиваем обратно перед обработкой.
+            const inner = msg.signal_type ? { ...msg, type: msg.signal_type } : msg;
+            if (typeof window.handleFederatedSignal === 'function') {
+                window.handleFederatedSignal(inner);
+            }
             break;
+        }
+
+        // Только приглашение и завершение: состав участников mesh ведётся по
+        // сигнальным group_join/group_leave, где участник опознаётся псевдонимом.
+        // Серверные participant_joined/left несут реальный user_id и, попав в тот
+        // же список, задваивали бы людей в сетке.
+        case 'group_call_invite':
+        case 'group_call_ended': {
+            const gc = await import('../group_call.js');
+            gc.handleGroupSignal(msg);
+            break;
+        }
 
         case 'message':
         case 'peer_message': {
-            // ── FIX: дедупликация — не рендерим если это наш ACK-ожидаемый
-            // client_msg_id, который уже есть в _pendingAcks (ещё не подтверждён).
-            // ACK придёт отдельно и разрешит промис. Само сообщение рендерим
-            // только когда сервер прислал его как broadcast (т.е. оно уже в БД).
-            //
-            // НО: если ACK уже обработан (_pendingAcks не содержит этот id),
-            // значит broadcast пришёл позже ACK или это чужое сообщение — рендерим.
-            //
-            // Итого: рендерим ВСЕГДА, но пропускаем если для этого client_msg_id
-            // ещё висит pending ACK (значит мы уже знаем что отправили, и
-            // рендер произойдёт когда ACK придёт и снимет ожидание... нет,
-            // без оптимистичного рендера нам нужен broadcast).
-            //
-            // Правильная логика: сервер теперь шлёт broadcast ВСЕМ включая
-            // отправителя. Отправитель получает и ACK и message. ACK — для
-            // подтверждения записи в БД. message — для рендера. Рендерим
-            // message всегда. Чтобы не было дубля — проверяем DOM.
-            if (msg.client_msg_id) {
-                const existing = document.querySelector(
-                    `[data-client-msg-id="${CSS.escape(msg.client_msg_id)}"]`
-                );
-                if (existing) break; // уже отрендерено (оптимистично или ранее)
+            // Одно и то же сообщение приходит и в history (из БД), и из BMP-ящика
+            // (конверт живёт там 2 часа) — рендерим только первое попадание.
+            // Серверный msg_id есть у обеих копий; client_msg_id ловит эхо своей
+            // отправки до присвоения серверного id.
+            if (msg.msg_id != null && document.querySelector(
+                `[data-msg-id="${CSS.escape(String(msg.msg_id))}"]`)) {
+                break;
+            }
+            if (msg.client_msg_id && document.querySelector(
+                `[data-client-msg-id="${CSS.escape(msg.client_msg_id)}"]`)) {
+                break;
             }
             await _decryptAndAppend(msg);
             // Update room's updated_at for sidebar sorting

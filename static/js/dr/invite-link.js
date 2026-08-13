@@ -8,6 +8,7 @@
 import { getRoomKey, setRoomKey, hybridEciesEncrypt, hybridEciesDecrypt } from '../crypto.js';
 import { mlkemKeygen } from './mlkem.js';
 import { api } from '../utils.js';
+import * as x25519 from './x25519-compat.js';
 
 const toHex = b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
 const b64url = s => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -36,9 +37,9 @@ export async function createInviteLink(roomId, inviteCode) {
     const roomKey = getRoomKey(roomId);
     if (!roomKey) return null;
 
-    const x = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
-    const invitePub = toHex(await crypto.subtle.exportKey('raw', x.publicKey));
-    const invitePrivJwk = JSON.stringify(await crypto.subtle.exportKey('jwk', x.privateKey));
+    const x = await x25519.generateKeyPair();
+    const invitePub = toHex(await x25519.exportPublicRaw(x.publicKey));
+    const invitePrivJwk = JSON.stringify(await x25519.exportPrivateJwk(x.privateKey));
     const kyber = mlkemKeygen();   // {publicKeyHex, secretKeyHex}
 
     const env = await hybridEciesEncrypt(roomKey, invitePub, kyber.publicKeyHex);

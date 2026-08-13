@@ -16,6 +16,7 @@
 import { api } from '../utils.js';
 import { storePrekeyPrivates, hasPrekeyPrivates, storePqspkPrivate, hasPqspkPrivate, storePqopkPrivates } from './prekey-store.js';
 import { loadOrCreateDeviceIdentity } from './device-identity.js';
+import * as x25519 from './x25519-compat.js';
 
 // Идентичность хранится ПЕР-АККАУНТ: слот `vortex_ed25519_identity_<userId>`.
 // Общий слот использовать нельзя — на общем устройстве он мог бы принадлежать
@@ -156,9 +157,9 @@ function _nextPqopkId(userId, count) {
 
 /** Генерирует X25519 пару. @returns {Promise<{pubHex, privJwk}>} */
 async function _genX25519() {
-    const pair = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
-    const raw = await crypto.subtle.exportKey('raw', pair.publicKey);
-    const privJwk = JSON.stringify(await crypto.subtle.exportKey('jwk', pair.privateKey));
+    const pair = await x25519.generateKeyPair();
+    const raw = await x25519.exportPublicRaw(pair.publicKey);
+    const privJwk = JSON.stringify(await x25519.exportPrivateJwk(pair.privateKey));
     return { pubHex: toHex(raw), privJwk };
 }
 

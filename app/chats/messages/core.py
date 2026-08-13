@@ -503,9 +503,19 @@ async def ws_chat(
 
 
 async def _handle_signal(room_id: int, user: User, data: dict, db: Session = None) -> None:
+    from app.security.sealed_sender import compute_sender_pseudo
+
     payload = {k: v for k, v in data.items() if k != "action"}
+    # Конверт помечается type="signal" для маршрутизации, поэтому исходный вид
+    # сигнала (offer/answer/ice/invite/group_*) переезжает в signal_type — иначе
+    # получатель не может его восстановить.
+    signal_type = data.get("type")
+    if signal_type:
+        payload["signal_type"] = signal_type
     payload["type"] = "signal"
-    payload["from"] = user.id
+    # Псевдоним, а не user.id: получатель вернёт это значение в поле "to", а
+    # реестр сигнального WS адресует именно по псевдонимам (ws_signal.py).
+    payload["from"] = compute_sender_pseudo(room_id, user.id)
     payload["username"] = user.username
 
     # BMP-only signal delivery (zero metadata leakage)

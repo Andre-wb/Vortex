@@ -15,6 +15,7 @@
 
 import { $, api, showAlert, openModal, closeModal } from './utils.js';
 import { getRoomKey, setRoomKey, eciesEncrypt, eciesDecrypt } from './crypto.js';
+import * as x25519 from './dr/x25519-compat.js';
 import { loadOrCreateDeviceIdentity, applyIssuedCert, certMessage } from './dr/device-identity.js';
 import { loadEd25519Identity, edSign, saveAccountLinkMaterial } from './dr/prekeys.js';
 
@@ -262,10 +263,8 @@ let _linkPollTimer = null;
 
 export async function requestDeviceLink() {
     // Generate ephemeral X25519 keypair for this link session
-    const keyPair = await crypto.subtle.generateKey(
-        { name: 'X25519' }, true, ['deriveBits']
-    );
-    const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+    const keyPair = await x25519.generateKeyPair();
+    const pubRaw = await x25519.exportPublicRaw(keyPair.publicKey);
     _linkEphemeralPriv = keyPair.privateKey;
 
     // M4b: тройка device-identity этого устройства — одобряющий подпишет её cert
@@ -365,14 +364,9 @@ async function _decryptLinkedKeys(encryptedHex) {
         const nonce = data.slice(32, 44);
         const ct = data.slice(44);
 
-        const senderPub = await crypto.subtle.importKey(
-            'raw', senderPubRaw, { name: 'X25519' }, false, []
-        );
+        const senderPub = await x25519.importPublicRaw(senderPubRaw);
 
-        const sharedBits = await crypto.subtle.deriveBits(
-            { name: 'X25519', public: senderPub },
-            _linkEphemeralPriv, 256
-        );
+        const sharedBits = await x25519.deriveBits(_linkEphemeralPriv, senderPub);
 
         const hkdfKey = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
         const encKey = await crypto.subtle.deriveKey(
@@ -421,19 +415,12 @@ export async function approveLinkRequest(code, req) {
     const plaintext = new TextEncoder().encode(JSON.stringify(bundle));
 
     // ECIES: generate ephemeral keypair, DH with new device pub, encrypt
-    const ephPair = await crypto.subtle.generateKey(
-        { name: 'X25519' }, true, ['deriveBits']
-    );
-    const ephPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', ephPair.publicKey));
+    const ephPair = await x25519.generateKeyPair();
+    const ephPubRaw = new Uint8Array(await x25519.exportPublicRaw(ephPair.publicKey));
 
-    const recipientPub = await crypto.subtle.importKey(
-        'raw', fromHex(req.new_device_pub), { name: 'X25519' }, false, []
-    );
+    const recipientPub = await x25519.importPublicHex(req.new_device_pub);
 
-    const sharedBits = await crypto.subtle.deriveBits(
-        { name: 'X25519', public: recipientPub },
-        ephPair.privateKey, 256
-    );
+    const sharedBits = await x25519.deriveBits(ephPair.privateKey, recipientPub);
 
     const hkdfKey = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
     const encKey = await crypto.subtle.deriveKey(
@@ -1100,9 +1087,9 @@ export async function registerDevicePubKey() {
         try { await api('POST', '/api/keys/device-pub-key', { device_pub_key: pubHex }); } catch {}
         return pubHex;
     }
-    const keyPair = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
-    const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
-    const privJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+    const keyPair = await x25519.generateKeyPair();
+    const pubRaw = await x25519.exportPublicRaw(keyPair.publicKey);
+    const privJwk = await x25519.exportPrivateJwk(keyPair.privateKey);
     pubHex = toHex(pubRaw);
     localStorage.setItem('vortex_device_pub', pubHex);
     localStorage.setItem('vortex_device_priv_jwk', JSON.stringify(privJwk));

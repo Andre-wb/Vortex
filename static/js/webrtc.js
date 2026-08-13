@@ -1071,6 +1071,15 @@ function _setQualityBadge(icon, color) {
     if (dot) dot.style.background = color;
 }
 
+/**
+ * Приём сигналов, доехавших не по выделенному /ws/signal/, а по чат-WS или BMP
+ * (резервный путь). Экспорт попадает в window через Object.assign в main.js —
+ * оттуда его и зовёт chat/websocket.js.
+ */
+export function handleFederatedSignal(msg) {
+    return handleSignal(msg);
+}
+
 // Обработка сигнальных сообщений
 async function handleSignal(msg) {
     if (msg.type && msg.type.startsWith('group_')) {

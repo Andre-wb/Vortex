@@ -6,6 +6,11 @@
 // X25519: Web Crypto не экспортирует/импортирует X25519 private как raw, но
 // умеет через JWK ({d,x}). Приватный скаляр сериализуем как d (raw hex),
 // импортируем, собирая {d,x} JWK из приватного+публичного hex.
+//
+// Все X25519-операции идут через x25519-compat.js: WebKit/iOS Safari не знает
+// алгоритм 'X25519' в WebCrypto, там подключается чистый JS-фолбэк.
+
+import * as x25519 from './x25519-compat.js';
 
 const subtle = () => globalThis.crypto.subtle;
 
@@ -33,16 +38,16 @@ export function concatBytes(...arrays) {
 
 // X25519
 
-/** Генерирует X25519 пару. Возвращает { priv: CryptoKey (extractable), pubHex }. */
+/** Генерирует X25519 пару. Возвращает { priv (extractable), pubHex }. */
 export async function generateX25519() {
-    const pair = await subtle().generateKey({ name: 'X25519' }, true, ['deriveBits']);
-    const pubRaw = await subtle().exportKey('raw', pair.publicKey);
+    const pair = await x25519.generateKeyPair();
+    const pubRaw = await x25519.exportPublicRaw(pair.publicKey);
     return { priv: pair.privateKey, pubHex: toHex(pubRaw) };
 }
 
-/** Импортирует X25519 публичный ключ из hex → CryptoKey. */
+/** Импортирует X25519 публичный ключ из hex. */
 export async function importX25519Pub(pubHex) {
-    return subtle().importKey('raw', fromHex(pubHex), { name: 'X25519' }, false, []);
+    return x25519.importPublicHex(pubHex);
 }
 
 /**
@@ -50,25 +55,18 @@ export async function importX25519Pub(pubHex) {
  * extractable=true, чтобы состояние можно было пересериализовать.
  */
 export async function importX25519Priv(privHex, pubHex) {
-    const jwk = {
-        kty: 'OKP', crv: 'X25519',
-        d: _b64urlFromBytes(fromHex(privHex)),
-        x: _b64urlFromBytes(fromHex(pubHex)),
-    };
-    return subtle().importKey('jwk', jwk, { name: 'X25519' }, true, ['deriveBits']);
+    return x25519.importPrivateHex(privHex, pubHex);
 }
 
-/** Экспортирует raw hex приватного скаляра из CryptoKey (через JWK.d). */
+/** Экспортирует raw hex приватного скаляра (через JWK.d). */
 export async function exportX25519PrivHex(privKey) {
-    const jwk = await subtle().exportKey('jwk', privKey);
+    const jwk = await x25519.exportPrivateJwk(privKey);
     return toHex(_bytesFromB64url(jwk.d));
 }
 
 /** X25519 Diffie-Hellman: DH(privKey, peerPubHex) → 32 байта. */
 export async function dh(privKey, peerPubHex) {
-    const peer = await importX25519Pub(peerPubHex);
-    const bits = await subtle().deriveBits({ name: 'X25519', public: peer }, privKey, 256);
-    return new Uint8Array(bits);
+    return x25519.deriveSharedHex(privKey, peerPubHex);
 }
 
 // KDF chains — точное соответствие double_ratchet.py
