@@ -1,21 +1,24 @@
-# `rust_utils/src/udp_broadcast/` — LAN Broadcast Extensions
+# `rust_utils/src/udp_broadcast/` — PyO3-мост UDP-обнаружения
 
-Advanced discovery modes on top of `udp_broadcast.rs` (flat file at `../`). The flat file handles the basic "I am a Vortex node" broadcast on UDP/4200 — this folder adds multicast, multi-subnet, and replay protection.
+Тонкий мост между Python и крейтом `vortex-net`. Вся доменная логика (формат
+конверта, stealth-конверт, адресные правила, реестр живучести) живёт в
+`vortex-net` и вектор-тестируется; здесь — только ввод-вывод и выставление
+функций в `vortex_chat`.
 
-## What's here
+## Что здесь
 
-- **Multicast** variant for networks where broadcast is filtered but multicast (e.g. `239.x.y.z`) is allowed.
-- **Multi-subnet** fan-out — send the same announce on every locally-connected interface, not just the default.
-- **Replay protection** — each announce carries a monotonic counter + short-lived signature; receivers reject duplicates or future-dated announces.
-- **Compact payload** — packs pubkey + endpoint + version flags into a single UDP datagram that fits within the default MTU.
+- `service.rs` — фоновый tokio-цикл: `run_sender` шлёт конверт на subnet- и
+  глобальный broadcast с интервалом из конфига, `run_receiver` принимает,
+  фильтрует свой IP/`127.*`, при stealth снимает XOR-конверт и заносит пира в
+  `vortex_net::registry::PeerStore`. Определение локального IP — `detect_local_ip`.
+- `mod.rs` — глобальное состояние сервиса, `start_discovery`, `get_peers`,
+  `discovery_own_ip`.
+- `api.rs` — чистые функции для паритет-тестов и шимов `app/transport/stealth.py`
+  (`udp_encode`, `udp_decode`, `udp_stealth_seal`/`_random`/`open`,
+  `udp_stealth_port`, `udp_subnet_broadcast`).
 
-## Why not in `udp_broadcast.rs`?
-
-The single-file version is <200 lines and covers 80% of setups. Anything beyond that (multicast config, multi-NIC policy, signed replay window) adds enough state to deserve its own `mod.rs` + helpers.
-
-## Tests
-
-End-to-end tests spin up a mock "network" via `tokio::net::UdpSocket` loopback and exercise announce + receive across both transports.
+Граница переноса — «сокет-цикл в Rust»: listener и sender целиком здесь, Python
+лишь опрашивает `get_peers` и тянет комнаты пиров по httpx.
 
 ---
 

@@ -94,23 +94,26 @@ class Message(Base):
         Формат для relay через WebSocket.
         Никаких расшифрованных данных — только метаданные + зашифрованный payload.
         """
-        return {
-            "msg_id": self.id,
-            "sender_pseudo": self.sender_pseudo,
-            "msg_type": self.msg_type.value,
-            "ciphertext": self.content_encrypted.hex() if self.content_encrypted else None,
-            "hash": self.content_hash.hex() if self.content_hash else None,
-            "enc_v": self.enc_version,
-            "file_name": self.file_name,
-            "file_size": self.file_size,
-            "reply_to_id": self.reply_to_id,
-            "thread_id": self.thread_id,
-            "thread_count": self.thread_count or 0,
-            "is_edited": self.is_edited,
-            "forwarded_from": self.forwarded_from,
-            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
-            "created_at": self.created_at.isoformat(),
-        }
+        from app.chats.messages._router import epoch_micros
+        from app.chats.messages.envelope_backend import message_stored
+
+        return message_stored(
+            msg_id=self.id,
+            msg_type=self.msg_type.value,
+            created_at_us=epoch_micros(self.created_at),
+            sender_pseudo=self.sender_pseudo,
+            content=bytes(self.content_encrypted) if self.content_encrypted else None,
+            digest=bytes(self.content_hash) if self.content_hash else None,
+            enc_v=self.enc_version,
+            file_name=self.file_name,
+            file_size=self.file_size,
+            reply_to_id=self.reply_to_id,
+            thread_id=self.thread_id,
+            thread_count=self.thread_count,
+            is_edited=self.is_edited,
+            forwarded_from=self.forwarded_from,
+            expires_at_us=None if self.expires_at is None else epoch_micros(self.expires_at),
+        )
 
 
 class FileTransfer(Base):
@@ -163,3 +166,16 @@ class MessageEditHistory(Base):
     # enc_v предыдущей версии сообщения; NULL — до-версионная запись
     enc_version = Column(Integer, nullable=True)
     edited_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class MessageDraft(Base):
+    """Черновик сообщения участника в комнате."""
+
+    __tablename__ = "message_drafts"
+    __table_args__ = (UniqueConstraint("user_id", "room_id"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    text = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)

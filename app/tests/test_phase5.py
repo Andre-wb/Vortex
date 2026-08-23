@@ -267,10 +267,7 @@ async def test_migration_hint_merges_solana_and_controller_peers():
     from app.config import Config
     from app.peer.controller_client import NodeSigningKey
     from app.peer.solana_registry import PeerAccount
-    from app.session.migration import _cursor_store
     from app.session.migration import router as session_router
-
-    _cursor_store.clear = getattr(_cursor_store, "clear", None)  # silence linters
 
     with tempfile.TemporaryDirectory() as d:
         d = Path(d)

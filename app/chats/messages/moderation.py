@@ -6,6 +6,7 @@ auto-delete timer, slow mode, mute toggle, pin message, chat export.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.chats.messages._router import router, utc_iso
 from app.database import get_db
 from app.models import User
-from app.models_rooms import Message, Room, RoomMember, RoomRole
+from app.models_rooms import Message, MessageDraft, Room, RoomMember, RoomRole
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 
@@ -215,12 +216,19 @@ async def get_pinned_messages(
     return {"room_id": room_id, "pinned": pinned}
 
 
-# In-memory draft storage (per user per room).
-_drafts: dict[tuple[int, int], str] = {}
+DRAFT_LIFETIME_DAYS = 30
 
 
 class _DraftRequest(BaseModel):
     text: str
+
+
+def forget_stale_drafts(db: Session) -> int:
+    """Удалить черновики, которых не касались дольше DRAFT_LIFETIME_DAYS."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=DRAFT_LIFETIME_DAYS)
+    removed = db.query(MessageDraft).filter(MessageDraft.updated_at < cutoff).delete(synchronize_session=False)
+    db.commit()
+    return removed
 
 
 @router.post("/api/rooms/{room_id}/draft")
@@ -231,7 +239,13 @@ async def save_draft(
     db: Session = Depends(get_db),
 ):
     """Сохраняет черновик сообщения."""
-    _drafts[(u.id, room_id)] = body.text
+    draft = db.query(MessageDraft).filter(MessageDraft.user_id == u.id, MessageDraft.room_id == room_id).first()
+    if draft:
+        draft.text = body.text
+        draft.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(MessageDraft(user_id=u.id, room_id=room_id, text=body.text))
+    db.commit()
     return {"ok": True, "room_id": room_id}
 
 
@@ -242,8 +256,8 @@ async def get_draft(
     db: Session = Depends(get_db),
 ):
     """Возвращает черновик сообщения."""
-    text = _drafts.get((u.id, room_id), "")
-    return {"room_id": room_id, "text": text}
+    draft = db.query(MessageDraft).filter(MessageDraft.user_id == u.id, MessageDraft.room_id == room_id).first()
+    return {"room_id": room_id, "text": draft.text if draft else ""}
 
 
 @router.delete("/api/rooms/{room_id}/draft")
@@ -253,7 +267,10 @@ async def clear_draft(
     db: Session = Depends(get_db),
 ):
     """Удаляет черновик сообщения."""
-    _drafts.pop((u.id, room_id), None)
+    db.query(MessageDraft).filter(MessageDraft.user_id == u.id, MessageDraft.room_id == room_id).delete(
+        synchronize_session=False
+    )
+    db.commit()
     return {"ok": True}
 
 

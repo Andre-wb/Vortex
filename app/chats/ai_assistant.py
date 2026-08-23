@@ -18,7 +18,6 @@ import contextlib
 import logging
 import pathlib
 import threading
-import time
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -30,6 +29,7 @@ from app.config import Config
 from app.database import get_db
 from app.models import User
 from app.models_rooms import Message, MessageType, RoomMember
+from app.security import ratelimit_backend as _ratelimit
 from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -54,22 +54,8 @@ _SYSTEM_PROMPT = (
     "Отвечай на языке пользователя."
 )
 
-# Rate limit: не более 20 запросов в минуту на пользователя
-
-_ai_rate: dict[int, list[float]] = {}
-_ai_rate_lock = threading.Lock()
-
-
 def _check_ai_rate(user_id: int) -> bool:
-    now = time.monotonic()
-    with _ai_rate_lock:
-        hits = _ai_rate.get(user_id, [])
-        hits = [t for t in hits if now - t < 60]
-        if len(hits) >= 20:
-            return False
-        hits.append(now)
-        _ai_rate[user_id] = hits
-    return True
+    return _ratelimit.assistant_allowed(user_id)
 
 
 async def _ollama_generate_stream(prompt: str, system: str = _SYSTEM_PROMPT):

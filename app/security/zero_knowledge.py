@@ -29,7 +29,6 @@ import hmac
 import logging
 import os
 import secrets
-import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -39,6 +38,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Session, relationship
 
 from app.base import Base
+from app.security import ratelimit_backend as _ratelimit
 
 logger = logging.getLogger(__name__)
 
@@ -331,41 +331,6 @@ class EncryptedMessageMeta(BaseModel):
 zk_router = APIRouter(prefix="/api/zk", tags=["zero-knowledge"])
 
 
-#
-# Lightweight in-process sliding-window rate limiter. Keyed by an arbitrary
-# string (e.g. "vault:<viewer_id>" or "notif:<sender_id>"). Defends against
-# profile-vault enumeration (F8) and notification-injection spam (F9) without
-# adding new infra/dependencies. Per-worker only — acceptable as defense in
-# depth; a distributed limiter would live in the WAF/middleware layer.
-_RATE_BUCKETS: dict[str, list[float]] = {}
-
-
-def _rate_limit(key: str, max_events: int, window_seconds: float) -> bool:
-    """Return True if the event is allowed, False if the limit is exceeded."""
-    now = time.monotonic()
-    cutoff = now - window_seconds
-    bucket = _RATE_BUCKETS.get(key)
-    if bucket is None:
-        bucket = []
-        _RATE_BUCKETS[key] = bucket
-    # Drop expired entries
-    i = 0
-    for ts in bucket:
-        if ts >= cutoff:
-            break
-        i += 1
-    if i:
-        del bucket[:i]
-    if len(bucket) >= max_events:
-        return False
-    bucket.append(now)
-    # Opportunistic cleanup to bound memory growth across many distinct keys
-    if len(_RATE_BUCKETS) > 50000:
-        for k in [k for k, v in _RATE_BUCKETS.items() if not v or v[-1] < cutoff]:
-            _RATE_BUCKETS.pop(k, None)
-    return True
-
-
 def _has_relationship(viewer_id: int, target_id: int, db: Session) -> bool:
     """
     True if viewer_id is allowed to see/notify target_id, via a *verifiable*
@@ -456,7 +421,7 @@ async def get_user_profile_vault(
     # relationship. Rate-limit to throttle enumeration of the user-id space, and
     # use a uniform 403 (instead of a distinguishable 404/empty body) so a caller
     # cannot probe which user_ids exist or have vaults.
-    if not _rate_limit(f"vault:{u.id}", max_events=30, window_seconds=60.0):
+    if not _ratelimit.vault_read_allowed(u.id):
         raise HTTPException(429, "Too many profile lookups, slow down")
 
     if user_id != u.id and not _has_relationship(u.id, user_id, db):
@@ -621,9 +586,9 @@ async def push_encrypted_notification(
     if not _has_relationship(u.id, body.recipient_id, db):
         raise HTTPException(403, "Not authorized to notify this recipient")
 
-    if not _rate_limit(f"notif:sender:{u.id}", max_events=60, window_seconds=60.0):
+    if not _ratelimit.notification_sender_allowed(u.id):
         raise HTTPException(429, "Too many notifications sent, slow down")
-    if not _rate_limit(f"notif:pair:{u.id}:{body.recipient_id}", max_events=20, window_seconds=60.0):
+    if not _ratelimit.notification_pair_allowed(u.id, body.recipient_id):
         raise HTTPException(429, "Too many notifications to this recipient, slow down")
 
     notif = EncryptedNotification(

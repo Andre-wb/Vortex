@@ -1,13 +1,11 @@
 """
 Translation endpoint — proxies requests to a LibreTranslate instance.
-Rate-limited to 50 translations per user per hour (in-memory).
+Rate-limited to 50 translations per user per hour (общий счёт на весь кластер).
 """
 
 from __future__ import annotations
 
 import logging
-import time
-from collections import defaultdict
 from typing import Optional
 
 import httpx
@@ -16,27 +14,16 @@ from pydantic import BaseModel
 
 from app.config import Config
 from app.models import User
+from app.security import ratelimit_backend as _ratelimit
 from app.security.auth_jwt import get_current_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/translate", tags=["translate"])
 
-_RATE_LIMIT = 50
-_RATE_WINDOW = 3600  # 1 hour
-
-_user_hits: dict[int, list[float]] = defaultdict(list)
-
-
 def _check_rate_limit(user_id: int) -> None:
-    now = time.time()
-    cutoff = now - _RATE_WINDOW
-    hits = _user_hits[user_id]
-    # Cleanup old entries
-    _user_hits[user_id] = [t for t in hits if t > cutoff]
-    if len(_user_hits[user_id]) >= _RATE_LIMIT:
+    if not _ratelimit.translation_allowed(user_id):
         raise HTTPException(429, "Translation rate limit exceeded (50/hour)")
-    _user_hits[user_id].append(now)
 
 
 class TranslateRequest(BaseModel):

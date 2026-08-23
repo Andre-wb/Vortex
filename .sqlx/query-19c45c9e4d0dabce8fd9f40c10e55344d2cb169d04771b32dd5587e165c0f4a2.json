@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO unified_push_subscriptions (user_id, endpoint, app_id, created_at, failures, active)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            ON CONFLICT (user_id, endpoint) DO UPDATE\n            SET app_id = EXCLUDED.app_id,\n                created_at = EXCLUDED.created_at,\n                failures = EXCLUDED.failures,\n                active = EXCLUDED.active\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Timestamp",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "19c45c9e4d0dabce8fd9f40c10e55344d2cb169d04771b32dd5587e165c0f4a2"
+}

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO onetime_prekeys (user_id, device_id, key_id, public_key, used, created_at)\n            SELECT $1, $2, added.key_id, added.public_key, false, $5\n            FROM UNNEST($3::int4[], $4::bytea[]) AS added(key_id, public_key)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4Array",
+        "ByteaArray",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "917dfaf5e623a5a30d5996494bf8fdf5f53f279c6620f615ecfb2bdfaa74598f"
+}

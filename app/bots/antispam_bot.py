@@ -17,7 +17,6 @@ import json
 import logging
 import re
 import secrets
-import time
 
 from sqlalchemy.orm import Session
 
@@ -30,6 +29,7 @@ from app.models_rooms import (
     RoomRole,
 )
 from app.peer.connection_manager import manager
+from app.security import ratelimit_backend as _ratelimit
 
 logger = logging.getLogger(__name__)
 
@@ -260,52 +260,10 @@ async def antispam_bot_message(room_id: int, text: str, db: Session) -> Message 
 
 # Enhanced spam detectors (repeat, links, caps)
 
-# "room:user" -> list of (timestamp, text_hash) for repeat detection
-_repeat_tracker: dict[str, list[tuple[float, str]]] = {}
-
-# "room:user" -> list of timestamps for link spam detection
-_link_tracker: dict[str, list[float]] = {}
-
-_REPEAT_WINDOW = 30  # seconds
-_REPEAT_THRESHOLD = 3  # same message N times
-_LINK_WINDOW = 60  # seconds
-_LINK_THRESHOLD = 3  # messages with URLs
-_CAPS_MIN_LENGTH = 20  # minimum message length for caps check
-_CAPS_RATIO = 0.8  # 80% uppercase
+_CAPS_MIN_LENGTH = 20
+_CAPS_RATIO = 0.8
 
 _URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
-
-_TRACKER_TTL = 300.0  # 5 minutes — evict stale entries
-_last_cleanup: float = 0.0
-
-
-def _cleanup_trackers() -> None:
-    """Remove tracker entries older than _TRACKER_TTL to prevent unbounded growth."""
-    global _last_cleanup
-    now = time.monotonic()
-    if now - _last_cleanup < 60.0:  # run at most once per minute
-        return
-    _last_cleanup = now
-
-    stale_keys: list[str] = []
-    for key, entries in _repeat_tracker.items():
-        fresh = [(t, h) for t, h in entries if now - t < _TRACKER_TTL]
-        if fresh:
-            _repeat_tracker[key] = fresh
-        else:
-            stale_keys.append(key)
-    for key in stale_keys:
-        del _repeat_tracker[key]
-
-    stale_keys.clear()
-    for key, timestamps in _link_tracker.items():
-        fresh = [t for t in timestamps if now - t < _TRACKER_TTL]
-        if fresh:
-            _link_tracker[key] = fresh
-        else:
-            stale_keys.append(key)
-    for key in stale_keys:
-        del _link_tracker[key]
 
 
 async def check_repeat_spam(
@@ -317,19 +275,10 @@ async def check_repeat_spam(
     """
     Check for repeated messages. Returns True if spam detected (message should be dropped).
     """
-    _cleanup_trackers()
-    key = f"{room_id}:{user.id}"
-    now = time.monotonic()
-    text_lower = plaintext.strip().lower()
-
-    entries = _repeat_tracker.get(key, [])
-    entries = [(t, h) for t, h in entries if now - t < _REPEAT_WINDOW]
-    entries.append((now, text_lower))
-    _repeat_tracker[key] = entries
-
-    same_count = sum(1 for _, h in entries if h == text_lower)
-    if same_count >= _REPEAT_THRESHOLD:
-        _repeat_tracker[key] = []
+    held, reason = _ratelimit.repeat_spam(room_id, user.id, plaintext)
+    if not held:
+        return False
+    if reason == "spam":
         await antispam_bot_message(
             room_id,
             f"\u26a0\ufe0f {user.display_name or user.username}: "
@@ -337,8 +286,7 @@ async def check_repeat_spam(
             f"Please stop sending identical messages.",
             db,
         )
-        return True
-    return False
+    return True
 
 
 async def check_link_spam(
@@ -357,16 +305,10 @@ async def check_link_spam(
     if not _URL_RE.search(plaintext):
         return False
 
-    key = f"{room_id}:{user.id}"
-    now = time.monotonic()
-
-    timestamps = _link_tracker.get(key, [])
-    timestamps = [t for t in timestamps if now - t < _LINK_WINDOW]
-    timestamps.append(now)
-    _link_tracker[key] = timestamps
-
-    if len(timestamps) >= _LINK_THRESHOLD:
-        _link_tracker[key] = []
+    held, reason = _ratelimit.link_spam(room_id, user.id)
+    if not held:
+        return False
+    if reason == "spam":
         await antispam_bot_message(
             room_id,
             f"\u26a0\ufe0f {user.display_name or user.username}: "
@@ -374,8 +316,7 @@ async def check_link_spam(
             f"Link sending is temporarily restricted.",
             db,
         )
-        return True
-    return False
+    return True
 
 
 async def check_caps_spam(

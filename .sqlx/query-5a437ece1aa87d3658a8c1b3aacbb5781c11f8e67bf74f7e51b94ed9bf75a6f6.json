@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, file_hash, filename, total_size, chunk_count, uploader_id, created_at\n            FROM distributed_files\n            ORDER BY id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "file_hash",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "filename",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "total_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "chunk_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "uploader_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "5a437ece1aa87d3658a8c1b3aacbb5781c11f8e67bf74f7e51b94ed9bf75a6f6"
+}

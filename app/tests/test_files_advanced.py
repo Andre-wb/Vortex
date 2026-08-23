@@ -605,3 +605,139 @@ class TestResumableUpload:
         # Try to complete without uploading any chunks
         complete_r = client.post(f"/api/files/upload-complete/{upload_id}", headers=h)
         assert complete_r.status_code in (400, 422)
+
+
+class TestResumableUploadRoundTrip:
+    """Полный протокол дозагрузки: init → chunk → status → complete → скачивание."""
+
+    CHUNK = 64 * 1024
+
+    def _init(self, client, headers, room_id, content, file_name="note.txt"):
+        r = client.post(
+            "/api/files/upload-init",
+            data={
+                "room_id": str(room_id),
+                "file_name": file_name,
+                "file_size": str(len(content)),
+                "file_hash": hashlib.sha256(content).hexdigest(),
+                "chunk_size": str(self.CHUNK),
+            },
+            headers=headers,
+        )
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def _put_chunk(self, client, headers, upload_id, index, piece):
+        return client.put(
+            f"/api/files/upload-chunk/{upload_id}",
+            data={
+                "chunk_index": str(index),
+                "chunk_hash": hashlib.sha256(piece).hexdigest(),
+            },
+            files={"data": ("chunk", piece, "application/octet-stream")},
+            headers=headers,
+        )
+
+    def test_a_file_sent_in_two_chunks_comes_back_whole(self, client):
+        h = _register_and_login(client)
+        room_id = _create_room(client, h)["id"]
+        content = (b"vortex resumable upload payload " * 4096)[: self.CHUNK + 1000]
+
+        told = self._init(client, h, room_id, content)
+        upload_id = told["upload_id"]
+        assert told["total_chunks"] == 2
+        assert told["chunk_size"] == self.CHUNK
+        assert told["received"] == []
+
+        pieces = [content[: self.CHUNK], content[self.CHUNK :]]
+        for index, piece in enumerate(pieces):
+            r = self._put_chunk(client, h, upload_id, index, piece)
+            assert r.status_code == 200, r.text
+            assert r.json()["chunk_index"] == index
+        assert r.json()["complete"] is True
+
+        status = client.get(f"/api/files/upload-status/{upload_id}", headers=h)
+        assert status.status_code == 200
+        told = status.json()
+        assert told["received"] == [0, 1]
+        assert told["missing"] == []
+        assert told["progress"] == 100.0
+        assert told["complete"] is True
+        assert told["file_name"] == "note.txt"
+        assert told["file_size"] == len(content)
+
+        done = client.post(f"/api/files/upload-complete/{upload_id}", headers=h)
+        assert done.status_code == 200, done.text
+        told = done.json()
+        assert told["ok"] is True
+        assert told["size_bytes"] == len(content)
+        assert told["file_hash"] == hashlib.sha256(content).hexdigest()
+
+        got = client.get(told["download_url"], headers=h)
+        assert got.status_code == 200
+        assert got.content == content
+
+        # Сессия закрыта — повторное завершение уже некуда адресовать.
+        assert client.get(f"/api/files/upload-status/{upload_id}", headers=h).status_code == 404
+
+    def test_the_same_chunk_twice_is_taken_once(self, client):
+        h = _register_and_login(client)
+        room_id = _create_room(client, h)["id"]
+        content = b"a" * (self.CHUNK + 10)
+
+        upload_id = self._init(client, h, room_id, content)["upload_id"]
+        piece = content[: self.CHUNK]
+        first = self._put_chunk(client, h, upload_id, 0, piece)
+        again = self._put_chunk(client, h, upload_id, 0, piece)
+        assert first.status_code == 200
+        assert again.status_code == 200
+        assert again.json()["already_received"] is True
+
+        status = client.get(f"/api/files/upload-status/{upload_id}", headers=h).json()
+        assert status["received"] == [0]
+        assert status["missing"] == [1]
+
+    def test_a_chunk_outside_the_plan_is_refused(self, client):
+        h = _register_and_login(client)
+        room_id = _create_room(client, h)["id"]
+        content = b"b" * 2048
+
+        upload_id = self._init(client, h, room_id, content)["upload_id"]
+        r = self._put_chunk(client, h, upload_id, 5, b"b" * 10)
+        assert r.status_code == 400
+
+    def test_a_chunk_whose_hash_does_not_match_is_refused(self, client):
+        h = _register_and_login(client)
+        room_id = _create_room(client, h)["id"]
+        content = b"c" * 2048
+
+        upload_id = self._init(client, h, room_id, content)["upload_id"]
+        r = client.put(
+            f"/api/files/upload-chunk/{upload_id}",
+            data={
+                "chunk_index": "0",
+                "chunk_hash": hashlib.sha256(b"something else").hexdigest(),
+            },
+            files={"data": ("chunk", content, "application/octet-stream")},
+            headers=h,
+        )
+        assert r.status_code == 400
+
+    def test_a_cancelled_upload_is_gone(self, client):
+        h = _register_and_login(client)
+        room_id = _create_room(client, h)["id"]
+        content = b"d" * 2048
+
+        upload_id = self._init(client, h, room_id, content)["upload_id"]
+        assert client.delete(f"/api/files/upload-cancel/{upload_id}", headers=h).status_code == 200
+        assert client.get(f"/api/files/upload-status/{upload_id}", headers=h).status_code == 404
+
+    def test_another_user_cannot_reach_the_session(self, client):
+        h = _register_and_login(client)
+        room_id = _create_room(client, h)["id"]
+        content = b"e" * 2048
+
+        upload_id = self._init(client, h, room_id, content)["upload_id"]
+        stranger = _register_and_login(client)
+        r = client.get(f"/api/files/upload-status/{upload_id}", headers=stranger)
+        assert r.status_code == 403

@@ -18,7 +18,7 @@ blake2 = "0.10"
 aes-gcm.workspace = true
 x25519-dalek.workspace = true
 vortex-transport = { path = "../vortex-transport" }
-ed25519-dalek = { version = "2", features = ["batch", "rand_core"] }
+ed25519-dalek.workspace = true
 rand_core = "0.6"
 rand.workspace = true
 hkdf.workspace = true
@@ -34,8 +34,17 @@ hex.workspace = true
 once_cell = "1.19"
 dashmap.workspace = true
 parking_lot.workspace = true
+vortex-auth = { path = "../vortex-auth" }
+vortex-core = { path = "../vortex-core" }
+vortex-delivery = { path = "../vortex-delivery" }
+vortex-resume = { path = "../vortex-resume" }
+vortex-live = { path = "../vortex-live" }
 vortex-bmp = { path = "../vortex-bmp" }
 vortex-redis = { path = "../vortex-redis" }
+vortex-net = { path = "../vortex-net" }
+vortex-proto = { path = "../vortex-proto" }
+vortex-ratelimit = { path = "../vortex-ratelimit" }
+vortex-storage = { path = "../vortex-storage" }
 rayon = "1.10"
 walkdir = "2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

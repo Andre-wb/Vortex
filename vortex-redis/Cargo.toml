@@ -11,9 +11,18 @@ name = "vortex_redis"
 path = "src/lib.rs"
 
 [dependencies]
+async-trait.workspace = true
 fred.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 log.workspace = true
 parking_lot.workspace = true
+vortex-auth = { path = "../vortex-auth" }
+vortex-core = { path = "../vortex-core" }
+vortex-delivery = { path = "../vortex-delivery" }
+vortex-live = { path = "../vortex-live" }
+vortex-net = { path = "../vortex-net" }
 vortex-bmp = { path = "../vortex-bmp" }
+vortex-ratelimit = { path = "../vortex-ratelimit" }
+vortex-resume = { path = "../vortex-resume" }
+vortex-routing = { path = "../vortex-routing" }
 vortex-transport = { path = "../vortex-transport" }

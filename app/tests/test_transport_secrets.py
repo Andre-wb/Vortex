@@ -183,13 +183,35 @@ class TestRotationGrace:
 
 class TestHardening:
     def test_rate_limited(self, client, logged_user, token_enabled, monkeypatch):
+        import secrets as _secrets
+
+        from app.security import ratelimit_backend as rl
         from app.transport import pluggable_routes as pr
 
         monkeypatch.setattr(Config, "TRANSPORT_SECRETS_RATE_LIMIT", 3)
-        monkeypatch.setattr(pr, "_secrets_rate", {})
+        monkeypatch.setattr(rl, "_IS_TESTING", False)
+        address = f"198.51.100.{_secrets.token_hex(6)}"
+        monkeypatch.setattr(pr, "raw_ip_for_ratelimit", lambda _request: address)
         codes = [client.get(URL, headers=_auth(logged_user)).status_code for _ in range(5)]
         assert codes[:3] == [200, 200, 200]
         assert codes[3:] == [429, 429]
+
+    def test_the_address_window_is_spent_before_the_account_window(
+        self, client, logged_user, token_enabled, monkeypatch
+    ):
+        """Исчерпанный адрес закрывает выдачу, не тратя бюджет учётной записи."""
+        from app.transport import pluggable_routes as pr
+
+        charged: list[int] = []
+        monkeypatch.setattr(pr._ratelimit, "secrets_address_allowed", lambda _address, _limit: False)
+        monkeypatch.setattr(
+            pr._ratelimit,
+            "secrets_account_allowed",
+            lambda user_id, _limit: charged.append(user_id) or True,
+        )
+
+        assert client.get(URL, headers=_auth(logged_user)).status_code == 429
+        assert charged == []
 
     def test_plain_http_rejected(self, monkeypatch):
         """Вне тестового режима пароли по открытому HTTP не отдаются."""
@@ -206,10 +228,7 @@ class TestHardening:
 
     def test_https_via_forwarded_proto(self, client, logged_user, token_enabled, monkeypatch):
         """За TLS-терминатором признаётся X-Forwarded-Proto."""
-        from app.transport import pluggable_routes as pr
-
         monkeypatch.setattr(Config, "TESTING", False)
-        monkeypatch.setattr(pr, "_secrets_rate", {})
         headers = _auth(logged_user)
         headers["X-Forwarded-Proto"] = "https"
         r = client.get(URL, headers=headers)

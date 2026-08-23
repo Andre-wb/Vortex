@@ -110,6 +110,7 @@ async def _bmp(room_id, payload):
 from app.security.auth_jwt import get_current_user, get_user_ws
 
 from app.chats.messages._router import router, utc_iso, parse_client_ts, check_double_extension, DANGEROUS_EXTS  # noqa: F401
+from app.chats.messages.envelope_backend import MESSAGE_LIMITS, message_frame_too_large
 
 import app.chats.messages.push  # noqa: F401  – /api/push/subscribe
 import app.chats.messages.moderation  # noqa: F401  – auto-delete, slow-mode, mute, pin, export
@@ -391,8 +392,8 @@ async def ws_chat(
 
         while True:
             raw = await websocket.receive_text()
-            if len(raw) > 65536:  # 64 KB max message
-                await websocket.send_json({"error": "Message too large"})
+            if len(raw) > MESSAGE_LIMITS["max_frame_text"]:
+                await websocket.send_json(message_frame_too_large())
                 continue
             data = json.loads(raw)
             action = data.get("action", "")

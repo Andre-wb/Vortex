@@ -25,6 +25,9 @@ if ROOT not in sys.path:
 # и снова оказались бы в одной базе.
 _DB_PATH_AUTO = "VORTEX_TEST_DB_AUTO"
 
+# То же самое для пространства ключей Redis.
+_REDIS_PREFIX_AUTO = "VORTEX_TEST_REDIS_PREFIX_AUTO"
+
 
 def _isolated_db_path() -> str:
     """Отдельный файл БД для каждого процесса pytest.
@@ -48,11 +51,29 @@ def _isolated_db_path() -> str:
     return path
 
 
+def _isolated_redis_prefix() -> str:
+    """Отдельное пространство ключей Redis для каждого процесса pytest.
+
+    База у каждого воркера своя (см. `_isolated_db_path`), поэтому счётчики
+    id начинаются с единицы в каждом из них: комната №1 есть у всех сразу.
+    Redis же один на всех, и любой стор с ключом по id из базы отвечал бы
+    одному воркеру состоянием другого — например, «в комнате №1 уже идёт
+    звонок». Свой префикс на процесс убирает пересечение; pid в нём заодно
+    разводит соседние прогоны, которые иначе накапливают состояние в одной
+    базе.
+    """
+    worker = os.environ.get("PYTEST_XDIST_WORKER") or "main"
+    return f"vortex-pytest:{worker}:{os.getpid()}"
+
+
 # Устанавливаем переменные окружения ДО импорта приложения
 os.environ.setdefault("TESTING", "true")
 if not os.environ.get("DB_PATH") or os.environ.get(_DB_PATH_AUTO):
     os.environ["DB_PATH"] = _isolated_db_path()
     os.environ[_DB_PATH_AUTO] = "1"
+if not os.environ.get("REDIS_CHANNEL_PREFIX") or os.environ.get(_REDIS_PREFIX_AUTO):
+    os.environ["REDIS_CHANNEL_PREFIX"] = _isolated_redis_prefix()
+    os.environ[_REDIS_PREFIX_AUTO] = "1"
 os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_1234")
 os.environ.setdefault("CSRF_SECRET", "test_csrf_secret_minimum_32_chars_1234567")
 os.environ.setdefault("NODE_INITIALIZED", "true")

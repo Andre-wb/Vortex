@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM message_drafts\n            WHERE updated_at < $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3e68668939daae776cf50d93fe83ee6d2ec953f88225903962f5d592ca77c2e4"
+}

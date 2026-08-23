@@ -5,6 +5,8 @@ Extracted from chat.py.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import time
 from typing import Optional
@@ -17,6 +19,7 @@ from app.chats.messages.core import ws_origin_ok  # shared CSWSH guard
 from app.database import get_db
 from app.models_rooms import RoomMember
 from app.peer.connection_manager import manager
+from app.security import ratelimit_backend as _ratelimit
 from app.security.auth_jwt import get_user_ws
 
 logger = logging.getLogger(__name__)
@@ -29,9 +32,16 @@ logger = logging.getLogger(__name__)
 # и каждый offer/answer уходит широковещательно (ломает mesh-звонки).
 _signal_rooms: dict[int, dict[str, WebSocket]] = {}
 
-# Per-user signal rate limiter (token bucket)
-_signal_rate: dict[int, list] = {}  # user_id -> [timestamp, count]
-SIGNAL_RATE_LIMIT = 100  # messages per second
+
+
+def _renew_group_call(room_id: int) -> None:
+    """Продлить запись группового звонка, пока жив mesh-сокет комнаты."""
+    from app.chats import live_backend as _live
+
+    with contextlib.suppress(_live.LiveUnavailableError):
+        call = _live.call_active(room_id)
+        if call:
+            _live.call_renew(call["call_id"])
 
 
 @router.websocket("/ws/signal/{room_id:int}")
@@ -100,24 +110,35 @@ async def ws_signal(
     _signal_rooms.setdefault(room_id, {})[_user_pseudo] = websocket
     logger.debug("Signal WS+ (sanitized)")
 
+    from app.chats import live_backend as _live
+
+    holds_group_call = websocket.query_params.get("gc") == "1"
+
+    pending = None
     try:
+        renew_at = time.monotonic() + _live.RENEWAL_SECONDS
+        pending = asyncio.ensure_future(websocket.receive_text())
         while True:
-            raw = await websocket.receive_text()
+            arrived, _waiting = await asyncio.wait(
+                {pending}, timeout=_live.RENEWAL_SECONDS
+            )
+            if holds_group_call and time.monotonic() >= renew_at:
+                _renew_group_call(room_id)
+                renew_at = time.monotonic() + _live.RENEWAL_SECONDS
+            if not arrived:
+                continue
+
+            raw = pending.result()
+            pending = asyncio.ensure_future(websocket.receive_text())
+
             try:
                 msg = _json.loads(raw)
             except Exception as e:
                 logger.debug("Signal WS: invalid JSON from user %s: %s", user.id, e)
                 continue
 
-            # Rate limit: drop messages if user exceeds SIGNAL_RATE_LIMIT/sec
-            now = time.monotonic()
-            bucket = _signal_rate.get(user.id)
-            if bucket and now - bucket[0] < 1.0:
-                bucket[1] += 1
-                if bucket[1] > SIGNAL_RATE_LIMIT:
-                    continue  # drop message silently
-            else:
-                _signal_rate[user.id] = [now, 1]
+            if not _ratelimit.signal_allowed(user.id):
+                continue
 
             msg["from"] = _user_pseudo
             msg["display_name"] = user.display_name or user.username
@@ -150,6 +171,9 @@ async def ws_signal(
     except WebSocketDisconnect:
         logger.debug("Signal WS disconnect user=%s room=%s", user.username, room_id)
     finally:
+        if pending is not None and not pending.done():
+            pending.cancel()
+
         room_dict = _signal_rooms.get(room_id, {})
         if room_dict.get(_user_pseudo) is websocket:
             room_dict.pop(_user_pseudo, None)

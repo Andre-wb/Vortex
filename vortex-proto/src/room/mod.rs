@@ -1,0 +1,21 @@
+pub mod antispam;
+pub mod avatar;
+pub mod description;
+pub mod limits;
+pub mod name;
+pub mod reactions;
+pub mod refusal;
+pub mod replication;
+pub mod seconds;
+pub mod settings;
+pub mod theme;
+pub mod view;
+
+pub use avatar::RoomAvatar;
+pub use description::RoomDescription;
+pub use name::RoomName;
+pub use refusal::RoomRefusal;
+pub use replication::ReplicationMode;
+pub use settings::RoomPatch;
+pub use theme::Theme;
+pub use view::RoomView;

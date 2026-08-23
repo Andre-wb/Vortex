@@ -12,6 +12,7 @@ path = "src/lib.rs"
 
 [dependencies]
 aes-gcm.workspace = true
+vortex-core = { path = "../vortex-core" }
 hex.workspace = true
 hkdf.workspace = true
 hmac.workspace = true

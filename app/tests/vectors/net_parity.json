@@ -1,0 +1,427 @@
+{
+  "decode": [
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a22616c696365222c22706f7274223a393030302c227075626b6579223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162227d"
+      },
+      "expected": {
+        "name": "alice",
+        "port": 9000,
+        "pubkey": "abababababababababababababababababababababababababababababababab"
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a22616c696365222c22706f7274223a393030307d"
+      },
+      "expected": {
+        "name": "alice",
+        "port": 9000,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a22d183d0b7d0b5d0bb2de58c97e4baac222c22706f7274223a3434337d"
+      },
+      "expected": {
+        "name": "узел-北京",
+        "port": 443,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a2278787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878222c22706f7274223a393030307d"
+      },
+      "expected": {
+        "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "port": 9000,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b22706f7274223a393030307d"
+      },
+      "expected": {
+        "name": "1.2.3.4",
+        "port": 9000,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8123,
+        "frame": "7b226e616d65223a22736f6c6f227d"
+      },
+      "expected": {
+        "name": "solo",
+        "port": 8123,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a226e222c22706f7274223a393030302c227075626b6579223a2261626364227d"
+      },
+      "expected": {
+        "name": "n",
+        "port": 9000,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a226e222c22706f7274223a393030302c227075626b6579223a227a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a227d"
+      },
+      "expected": {
+        "name": "n",
+        "port": 9000,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a226e222c22706f7274223a393030302c227075626b6579223a6e756c6c7d"
+      },
+      "expected": {
+        "name": "n",
+        "port": 9000,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a226e222c22706f7274223a2239303030227d"
+      },
+      "expected": {
+        "name": "n",
+        "port": 9000,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a226e222c22706f7274223a393030302e397d"
+      },
+      "expected": {
+        "name": "n",
+        "port": 9000,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a226e222c22706f7274223a307d"
+      },
+      "expected": null
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a226e222c22706f7274223a37303030307d"
+      },
+      "expected": null
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a226e222c22706f7274223a747275657d"
+      },
+      "expected": null
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a226e222c22706f7274223a6e756c6c7d"
+      },
+      "expected": null
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "7b226e616d65223a352c22706f7274223a393030307d"
+      },
+      "expected": {
+        "name": "1.2.3.4",
+        "port": 9000,
+        "pubkey": null
+      }
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "5b312c322c335d"
+      },
+      "expected": null
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": "6e6f74206a736f6e"
+      },
+      "expected": null
+    },
+    {
+      "args": {
+        "fallback_name": "1.2.3.4",
+        "fallback_port": 8000,
+        "frame": ""
+      },
+      "expected": null
+    }
+  ],
+  "encode": [
+    {
+      "args": {
+        "name": "alice",
+        "port": 9000,
+        "pubkey": "abababababababababababababababababababababababababababababababab"
+      },
+      "expected": {
+        "frame": "7b226e616d65223a22616c696365222c22706f7274223a393030302c227075626b6579223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162227d"
+      }
+    },
+    {
+      "args": {
+        "name": "alice",
+        "port": 9000,
+        "pubkey": null
+      },
+      "expected": {
+        "frame": "7b226e616d65223a22616c696365222c22706f7274223a393030307d"
+      }
+    },
+    {
+      "args": {
+        "name": "узел-北京",
+        "port": 443,
+        "pubkey": null
+      },
+      "expected": {
+        "frame": "7b226e616d65223a22d183d0b7d0b5d0bb2de58c97e4baac222c22706f7274223a3434337d"
+      }
+    },
+    {
+      "args": {
+        "name": "",
+        "port": 1,
+        "pubkey": null
+      },
+      "expected": {
+        "frame": "7b226e616d65223a22222c22706f7274223a317d"
+      }
+    },
+    {
+      "args": {
+        "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "port": 9000,
+        "pubkey": null
+      },
+      "expected": {
+        "frame": "7b226e616d65223a2278787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878222c22706f7274223a393030307d"
+      }
+    },
+    {
+      "args": {
+        "name": "host",
+        "port": 65535,
+        "pubkey": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "expected": {
+        "frame": "7b226e616d65223a22686f7374222c22706f7274223a36353533352c227075626b6579223a2266666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666227d"
+      }
+    },
+    {
+      "args": {
+        "name": "a\"b\\c/d",
+        "port": 8080,
+        "pubkey": null
+      },
+      "expected": {
+        "frame": "7b226e616d65223a22615c22625c5c632f64222c22706f7274223a383038307d"
+      }
+    }
+  ],
+  "stealth_open": [
+    {
+      "args": {
+        "data": "0102030405060708047a32c738f91e8b77fd50d87072fa2e3167b770cb1909ec8f0b03a8",
+        "network_key": "766f727465782d7368617265642d6e6574776f726b2d6b6579"
+      },
+      "expected": {
+        "opened": "7b226e616d65223a22616c696365222c22706f7274223a393030307d"
+      }
+    },
+    {
+      "args": {
+        "data": "1122334455",
+        "network_key": "766f727465782d7368617265642d6e6574776f726b2d6b6579"
+      },
+      "expected": null
+    },
+    {
+      "args": {
+        "data": "0000000000000000",
+        "network_key": "766f727465782d7368617265642d6e6574776f726b2d6b6579"
+      },
+      "expected": null
+    },
+    {
+      "args": {
+        "data": "000000000000000000",
+        "network_key": "766f727465782d7368617265642d6e6574776f726b2d6b6579"
+      },
+      "expected": {
+        "opened": "87"
+      }
+    },
+    {
+      "args": {
+        "data": "0102030405060708047a32c738f91e8b77fd50d87072fa2e3167b770cb1909ec8f0b03a8",
+        "network_key": "646966666572656e742d6b6579"
+      },
+      "expected": {
+        "opened": "25355b3b65e7c4302ae38a63113ad4ad502f99f35edc2a921ace20d6"
+      }
+    }
+  ],
+  "stealth_seal": [
+    {
+      "args": {
+        "network_key": "766f727465782d7368617265642d6e6574776f726b2d6b6579",
+        "nonce": "0102030405060708",
+        "payload": "626561636f6e"
+      },
+      "expected": {
+        "sealed": "01020304050607081d3d3dc53af2"
+      }
+    },
+    {
+      "args": {
+        "network_key": "766f727465782d7368617265642d6e6574776f726b2d6b6579",
+        "nonce": "ffffffffffffffff",
+        "payload": "7b226e616d65223a22616c696365222c22706f7274223a393030307d"
+      },
+      "expected": {
+        "sealed": "ffffffffffffffffaea5117235cd7e1b84ef39e8ff7e1eb193f77c73639ee28732068fb3"
+      }
+    },
+    {
+      "args": {
+        "network_key": "766f727465782d7368617265642d6e6574776f726b2d6b6579",
+        "nonce": "0000000000000000",
+        "payload": ""
+      },
+      "expected": {
+        "sealed": "0000000000000000"
+      }
+    },
+    {
+      "args": {
+        "network_key": "00",
+        "nonce": "1122334455667788",
+        "payload": "00ff8040"
+      },
+      "expected": {
+        "sealed": "11223344556677889063b7d8"
+      }
+    }
+  ],
+  "subnet_broadcast": [
+    {
+      "args": {
+        "ip": "192.168.1.20"
+      },
+      "expected": {
+        "broadcast": "192.168.1.255"
+      }
+    },
+    {
+      "args": {
+        "ip": "10.0.0.5"
+      },
+      "expected": {
+        "broadcast": "10.0.0.255"
+      }
+    },
+    {
+      "args": {
+        "ip": "127.0.0.1"
+      },
+      "expected": {
+        "broadcast": "127.0.0.255"
+      }
+    },
+    {
+      "args": {
+        "ip": ""
+      },
+      "expected": {
+        "broadcast": "255.255.255.255"
+      }
+    },
+    {
+      "args": {
+        "ip": "abc"
+      },
+      "expected": {
+        "broadcast": "255.255.255.255"
+      }
+    },
+    {
+      "args": {
+        "ip": "1.2.3"
+      },
+      "expected": {
+        "broadcast": "255.255.255.255"
+      }
+    },
+    {
+      "args": {
+        "ip": "1.2.3.4.5"
+      },
+      "expected": {
+        "broadcast": "255.255.255.255"
+      }
+    },
+    {
+      "args": {
+        "ip": "a.b.c.d"
+      },
+      "expected": {
+        "broadcast": "a.b.c.255"
+      }
+    }
+  ]
+}

@@ -48,8 +48,8 @@ import hashlib
 import hmac as _hmac
 import logging
 import os
-import threading
-import time
+
+from app.security import ratelimit_backend as _ratelimit
 
 _SECRET: bytes | None = None
 _audit_logger = logging.getLogger("vortex.sealed_sender.audit")
@@ -63,22 +63,9 @@ _audit_logger = logging.getLogger("vortex.sealed_sender.audit")
 #
 _RESOLVE_LIMIT = int(os.environ.get("SEALED_SENDER_RESOLVE_LIMIT", "100"))
 _RESOLVE_WINDOW = int(os.environ.get("SEALED_SENDER_RESOLVE_WINDOW", "60"))
-_resolve_counter: list[float] = []  # timestamps of recent resolve calls
-_resolve_lock = threading.Lock()
-
-
 def _check_resolve_rate() -> bool:
     """Return True if the call is within rate limit, False if exceeded."""
-    now = time.monotonic()
-    with _resolve_lock:
-        # Drop timestamps outside the window
-        cutoff = now - _RESOLVE_WINDOW
-        while _resolve_counter and _resolve_counter[0] < cutoff:
-            _resolve_counter.pop(0)
-        if len(_resolve_counter) >= _RESOLVE_LIMIT:
-            return False
-        _resolve_counter.append(now)
-    return True
+    return _ratelimit.pseudonym_resolve_allowed(_RESOLVE_LIMIT, _RESOLVE_WINDOW)
 
 
 def _get_secret() -> bytes:

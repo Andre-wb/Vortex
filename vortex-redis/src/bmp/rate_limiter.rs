@@ -6,8 +6,8 @@ use vortex_bmp::ports::rate_limiter::RateLimiter;
 use vortex_bmp::ratelimit::sliding_window::SlidingWindowLimiter;
 
 use crate::backbone::RedisBackbone;
-use crate::bmp::scripts;
 use crate::keys::KeySpace;
+use crate::sliding_window;
 
 const DOMAIN: &str = "bmp";
 const WINDOW_NAME: &str = "rate";
@@ -52,11 +52,11 @@ impl RateLimiter for RedisRateLimiter {
                 window.to_string().into(),
                 (limit as i64).into(),
             ];
-            async move { scripts::SLIDING_WINDOW.run::<i64>(&pool, keys, args).await }
+            async move { sliding_window::SCRIPT.run::<i64>(&pool, keys, args).await }
         });
 
         match verdict {
-            Ok(allowed) => allowed == 1,
+            Ok(allowed) => allowed == sliding_window::ALLOWED,
             Err(_) => self.fallback.allow(key, limit),
         }
     }

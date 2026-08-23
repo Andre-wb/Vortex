@@ -1,0 +1,1521 @@
+{
+  "wrap": [
+    {
+      "payload": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": true,
+      "client": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      }
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "aaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "accepted": true,
+      "client": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "aaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": true,
+      "client": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      }
+    },
+    {
+      "payload": {
+        "hybrid": true,
+        "x25519_ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "kyber_ciphertext": "3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": true,
+      "client": {
+        "hybrid": true,
+        "x25519_ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "kyber_ciphertext": "3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      }
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "kyber_ciphertext": "3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "hybrid": true,
+        "x25519_ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "hybrid": true,
+        "x25519_ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "kyber_ciphertext": "3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a  ",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "aaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "aaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": ""
+      },
+      "accepted": false,
+      "client": null
+    },
+    {
+      "payload": {
+        "ephemeral_pub": "",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      },
+      "accepted": false,
+      "client": null
+    }
+  ],
+  "wrap_stored": [
+    {
+      "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+      "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+      "kyber_ciphertext": null,
+      "client": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      }
+    },
+    {
+      "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+      "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+      "kyber_ciphertext": "",
+      "client": {
+        "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      }
+    },
+    {
+      "ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+      "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+      "kyber_ciphertext": "3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+      "client": {
+        "hybrid": true,
+        "x25519_ephemeral_pub": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "kyber_ciphertext": "3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "ciphertext": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "action": "message",
+      "frame": {
+        "action": "message",
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "msg_id": "c-1"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "c-1",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "enc_v": 2,
+        "client_ts": "2026-08-04T09:15:30.789Z"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": 1785834930789000,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": 2
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "client_ts": "2020-01-01T00:00:00Z"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "client_ts": "2026-08-04T12:15:30+03:00"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": 1785834930000000,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "  abababababababababababababababababababababababababababababab  ",
+        "msg_id": 7
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "7",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "reply_to_id": "12",
+        "reply_quote": "hi"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": 12,
+        "reply_quote": "hi",
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "reply_to_id": true
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "mentioned_usernames": [
+          "Alice",
+          "ab",
+          " bob ",
+          5
+        ]
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [
+          "alice",
+          "bob"
+        ],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "mentioned_usernames": [
+          "user00",
+          "user01",
+          "user02",
+          "user03",
+          "user04",
+          "user05",
+          "user06",
+          "user07",
+          "user08",
+          "user09",
+          "user10",
+          "user11",
+          "user12",
+          "user13",
+          "user14",
+          "user15",
+          "user16",
+          "user17",
+          "user18",
+          "user19",
+          "user20",
+          "user21",
+          "user22",
+          "user23",
+          "user24"
+        ]
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [
+          "user00",
+          "user01",
+          "user02",
+          "user03",
+          "user04",
+          "user05",
+          "user06",
+          "user07",
+          "user08",
+          "user09",
+          "user10",
+          "user11",
+          "user12",
+          "user13",
+          "user14",
+          "user15",
+          "user16",
+          "user17",
+          "user18",
+          "user19"
+        ],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "mentioned_usernames": "alice"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "enc_v": 256
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "enc_v": true
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "enc_v": "1"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "hash": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "untruthful",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "hash": "zz"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "untruthful",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": ""
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "ciphertext_required"
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "   "
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "ciphertext_required"
+      }
+    },
+    {
+      "action": "message",
+      "frame": {},
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "ciphertext_required"
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababab"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "ciphertext_short"
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "ciphertext_hex"
+      }
+    },
+    {
+      "action": "message",
+      "frame": {
+        "ciphertext": "ab abababababababababababababababababababababababababababababab"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "ciphertext_hex"
+      }
+    },
+    {
+      "action": "thread_reply",
+      "frame": {
+        "thread_id": 5,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "msg_id": "c-2"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "c-2",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null,
+        "thread_id": 5
+      }
+    },
+    {
+      "action": "thread_reply",
+      "frame": {
+        "thread_id": "5",
+        "ciphertext": "abababababababababababababababababababababababababababababab"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "client_msg_id": "",
+        "reply_to_id": null,
+        "reply_quote": null,
+        "mentions": [],
+        "client_ts_us": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null,
+        "thread_id": 5
+      }
+    },
+    {
+      "action": "thread_reply",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "thread_id_required"
+      }
+    },
+    {
+      "action": "thread_reply",
+      "frame": {
+        "thread_id": 5
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "ciphertext_required"
+      }
+    },
+    {
+      "action": "edit_message",
+      "frame": {
+        "msg_id": 9,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "enc_v": 1
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "msg_id": 9,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": 1
+      }
+    },
+    {
+      "action": "edit_message",
+      "frame": {
+        "ciphertext": "abababababababababababababababababababababababababababababab"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "message_id_required"
+      }
+    },
+    {
+      "action": "edit_message",
+      "frame": {
+        "msg_id": 9,
+        "ciphertext": "abcd"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "ciphertext_short"
+      }
+    },
+    {
+      "action": "edit_message",
+      "frame": {
+        "msg_id": "9",
+        "ciphertext": "abababababababababababababababababababababababababababababab"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "msg_id": 9,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "digest_claim": "absent",
+        "enc_v": null
+      }
+    },
+    {
+      "action": "delete_message",
+      "frame": {
+        "msg_id": 9
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": null,
+        "msg_id": 9
+      }
+    },
+    {
+      "action": "delete_message",
+      "frame": {
+        "msg_id": "abc"
+      },
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "message_id_required"
+      }
+    },
+    {
+      "action": "delete_message",
+      "frame": {},
+      "now_us": 1785834930000000,
+      "parsed": {
+        "refusal": "message_id_required"
+      }
+    }
+  ],
+  "client_stamps": [
+    {
+      "text": "2026-08-04T09:15:30.789Z",
+      "now_us": 1785834930000000,
+      "stamp_us": 1785834930789000
+    },
+    {
+      "text": "2026-08-04T09:15:30Z",
+      "now_us": 1785834930000000,
+      "stamp_us": 1785834930000000
+    },
+    {
+      "text": "2026-08-04T09:15:30",
+      "now_us": 1785834930000000,
+      "stamp_us": 1785834930000000
+    },
+    {
+      "text": "2026-08-04T12:15:30+03:00",
+      "now_us": 1785834930000000,
+      "stamp_us": 1785834930000000
+    },
+    {
+      "text": "2026-08-04T06:15:30-0300",
+      "now_us": 1785834930000000,
+      "stamp_us": 1785834930000000
+    },
+    {
+      "text": "2026-08-04T09:15Z",
+      "now_us": 1785834930000000,
+      "stamp_us": 1785834900000000
+    },
+    {
+      "text": "2026-08-04T09:15:30.123456789Z",
+      "now_us": 1785834930000000,
+      "stamp_us": 1785834930123456
+    },
+    {
+      "text": "2026-08-04 09:15:30Z",
+      "now_us": 1785834930000000,
+      "stamp_us": 1785834930000000
+    },
+    {
+      "text": "2026-08-04",
+      "now_us": 1785834930000000,
+      "stamp_us": null
+    },
+    {
+      "text": "2025-02-29T00:00:00Z",
+      "now_us": 1785834930000000,
+      "stamp_us": null
+    },
+    {
+      "text": "20260804T091530Z",
+      "now_us": 1785834930000000,
+      "stamp_us": null
+    },
+    {
+      "text": "2026-8-4T09:15:30Z",
+      "now_us": 1785834930000000,
+      "stamp_us": null
+    },
+    {
+      "text": "2026-08-04T25:15:30Z",
+      "now_us": 1785834930000000,
+      "stamp_us": null
+    },
+    {
+      "text": "2026-08-04T09:15:30+99:00",
+      "now_us": 1785834930000000,
+      "stamp_us": null
+    },
+    {
+      "text": "",
+      "now_us": 1785834930000000,
+      "stamp_us": null
+    },
+    {
+      "text": "not a date",
+      "now_us": 1785834930000000,
+      "stamp_us": null
+    }
+  ],
+  "wire_stamps": [
+    {
+      "microseconds": 0,
+      "wire": "1970-01-01T00:00:00Z",
+      "stored": "1970-01-01T00:00:00"
+    },
+    {
+      "microseconds": 1000000,
+      "wire": "1970-01-01T00:00:01Z",
+      "stored": "1970-01-01T00:00:01"
+    },
+    {
+      "microseconds": 1785834930000000,
+      "wire": "2026-08-04T09:15:30Z",
+      "stored": "2026-08-04T09:15:30"
+    },
+    {
+      "microseconds": 1785834930789012,
+      "wire": "2026-08-04T09:15:30Z",
+      "stored": "2026-08-04T09:15:30.789012"
+    },
+    {
+      "microseconds": 1709208000000000,
+      "wire": "2024-02-29T12:00:00Z",
+      "stored": "2024-02-29T12:00:00"
+    },
+    {
+      "microseconds": 2147483647000000,
+      "wire": "2038-01-19T03:14:07Z",
+      "stored": "2038-01-19T03:14:07"
+    }
+  ],
+  "relay": {
+    "ack": {
+      "input": [
+        "c-1",
+        42,
+        1785834930000000
+      ],
+      "payload": {
+        "type": "ack",
+        "msg_id": "c-1",
+        "server_id": 42,
+        "created_at": "2026-08-04T09:15:30Z"
+      }
+    },
+    "ack_duplicate": {
+      "input": [
+        "c-1"
+      ],
+      "payload": {
+        "type": "ack",
+        "msg_id": "c-1",
+        "duplicate": true
+      }
+    },
+    "sent": {
+      "input": {
+        "msg_id": 42,
+        "client_msg_id": "c-1",
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "created_at_us": 1785834930000000,
+        "sender_id": 3,
+        "sender_pseudo": "pseudo",
+        "sender": "alice",
+        "display_name": null,
+        "avatar_emoji": null,
+        "avatar_url": null,
+        "is_bot": false,
+        "tag": null,
+        "tag_color": null,
+        "reply_color": null,
+        "reply_icon": null,
+        "enc_v": 2,
+        "reply_to_id": 7,
+        "reply_quote": "hi",
+        "forwarded_from": null,
+        "expires_at_us": 1785834990000000
+      },
+      "payload": {
+        "type": "message",
+        "msg_id": 42,
+        "client_msg_id": "c-1",
+        "sender_id": 3,
+        "sender_pseudo": "pseudo",
+        "sender": "alice",
+        "display_name": "alice",
+        "avatar_emoji": null,
+        "avatar_url": null,
+        "is_bot": false,
+        "tag": null,
+        "tag_color": null,
+        "reply_color": null,
+        "reply_icon": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "hash": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "enc_v": 2,
+        "reply_to_id": 7,
+        "reply_quote": "hi",
+        "status": "sent",
+        "forwarded_from": null,
+        "expires_at": "2026-08-04T09:16:30Z",
+        "created_at": "2026-08-04T09:15:30Z"
+      }
+    },
+    "thread": {
+      "input": {
+        "msg_id": 43,
+        "client_msg_id": "c-2",
+        "thread_id": 42,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "digest_hex": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "created_at_us": 1785834930000000,
+        "sender_pseudo": "pseudo",
+        "sender": "bob",
+        "display_name": "Bob B.",
+        "avatar_emoji": "🙂",
+        "avatar_url": null,
+        "enc_v": null,
+        "reply_to_id": null,
+        "reply_quote": null
+      },
+      "payload": {
+        "type": "thread_message",
+        "msg_id": 43,
+        "client_msg_id": "c-2",
+        "sender_pseudo": "pseudo",
+        "sender": "bob",
+        "display_name": "Bob B.",
+        "avatar_emoji": "🙂",
+        "avatar_url": null,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "hash": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "enc_v": null,
+        "reply_to_id": null,
+        "reply_quote": null,
+        "thread_id": 42,
+        "status": "sent",
+        "created_at": "2026-08-04T09:15:30Z"
+      }
+    },
+    "edited": {
+      "input": [
+        9,
+        "abababababababababababababababababababababababababababababab",
+        1
+      ],
+      "payload": {
+        "type": "message_edited",
+        "msg_id": 9,
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "enc_v": 1,
+        "is_edited": true
+      }
+    },
+    "deleted": {
+      "input": [
+        9
+      ],
+      "payload": {
+        "type": "message_deleted",
+        "msg_id": 9
+      }
+    },
+    "thread_update": {
+      "input": [
+        42,
+        null
+      ],
+      "payload": {
+        "type": "thread_update",
+        "msg_id": 42,
+        "thread_count": 0
+      }
+    },
+    "stored": {
+      "input": {
+        "msg_id": 42,
+        "msg_type": "text",
+        "created_at_us": 1785834930789012,
+        "sender_pseudo": "pseudo",
+        "content": [
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171,
+          171
+        ],
+        "digest": [
+          41,
+          244,
+          248,
+          34,
+          134,
+          115,
+          122,
+          173,
+          243,
+          180,
+          40,
+          55,
+          132,
+          197,
+          118,
+          62,
+          73,
+          246,
+          182,
+          126,
+          71,
+          232,
+          218,
+          153,
+          210,
+          154,
+          33,
+          39,
+          149,
+          173,
+          184,
+          84
+        ],
+        "enc_v": 1,
+        "file_name": null,
+        "file_size": null,
+        "reply_to_id": null,
+        "thread_id": null,
+        "thread_count": null,
+        "is_edited": null,
+        "forwarded_from": null,
+        "expires_at_us": 1785834930000000
+      },
+      "payload": {
+        "msg_id": 42,
+        "sender_pseudo": "pseudo",
+        "msg_type": "text",
+        "ciphertext": "abababababababababababababababababababababababababababababab",
+        "hash": "29f4f82286737aadf3b4283784c5763e49f6b67e47e8da99d29a212795adb854",
+        "enc_v": 1,
+        "file_name": null,
+        "file_size": null,
+        "reply_to_id": null,
+        "thread_id": null,
+        "thread_count": 0,
+        "is_edited": false,
+        "forwarded_from": null,
+        "expires_at": "2026-08-04T09:15:30",
+        "created_at": "2026-08-04T09:15:30.789012"
+      }
+    },
+    "errors": {
+      "ciphertext_required": {
+        "type": "error",
+        "message": "Ciphertext is required",
+        "code": "ciphertext_required"
+      },
+      "ciphertext_short": {
+        "type": "error",
+        "message": "Ciphertext too short",
+        "code": "ciphertext_short"
+      },
+      "ciphertext_large": {
+        "type": "error",
+        "message": "Ciphertext too large",
+        "code": "ciphertext_large"
+      },
+      "ciphertext_hex": {
+        "type": "error",
+        "message": "Ciphertext is not valid hex",
+        "code": "ciphertext_hex"
+      },
+      "message_id_required": {
+        "type": "error",
+        "message": "Message id is required",
+        "code": "message_id_required"
+      },
+      "thread_id_required": {
+        "type": "error",
+        "message": "Thread id is required",
+        "code": "thread_id_required"
+      },
+      "frame_too_large": {
+        "type": "error",
+        "message": "Message too large",
+        "code": "frame_too_large"
+      }
+    }
+  },
+  "room": {
+    "settings": [
+      {
+        "patch": {
+          "name": "  General  "
+        },
+        "parsed": {
+          "refusal": null,
+          "name": "General"
+        }
+      },
+      {
+        "patch": {
+          "name": "   "
+        },
+        "parsed": {
+          "refusal": "Invalid room name"
+        }
+      },
+      {
+        "patch": {
+          "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        "parsed": {
+          "refusal": "Invalid room name"
+        }
+      },
+      {
+        "patch": {
+          "description": "  hi "
+        },
+        "parsed": {
+          "refusal": null,
+          "description": "hi"
+        }
+      },
+      {
+        "patch": {
+          "description": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "parsed": {
+          "refusal": "Invalid room description"
+        }
+      },
+      {
+        "patch": {
+          "avatar_emoji": "aaaaaaaaaaa"
+        },
+        "parsed": {
+          "refusal": "Invalid room avatar"
+        }
+      },
+      {
+        "patch": {
+          "auto_delete_seconds": 0
+        },
+        "parsed": {
+          "refusal": null,
+          "auto_delete_given": true,
+          "auto_delete_seconds": null
+        }
+      },
+      {
+        "patch": {
+          "auto_delete_seconds": 30
+        },
+        "parsed": {
+          "refusal": null,
+          "auto_delete_given": true,
+          "auto_delete_seconds": 30
+        }
+      },
+      {
+        "patch": {
+          "slow_mode_seconds": -5
+        },
+        "parsed": {
+          "refusal": null,
+          "slow_mode_seconds": 0
+        }
+      },
+      {
+        "patch": {
+          "antispam_config": "{\"threshold\":10,\"action\":\"mute\",\"block_repeats\":true,\"block_links\":false}"
+        },
+        "parsed": {
+          "refusal": null,
+          "antispam_config": "{\"threshold\":10,\"action\":\"mute\",\"block_repeats\":true,\"block_links\":false}",
+          "antispam_config_refused": false
+        }
+      },
+      {
+        "patch": {
+          "antispam_config": "{\"threshold\":7,\"action\":\"delete\",\"block_links\":1}"
+        },
+        "parsed": {
+          "refusal": null,
+          "antispam_config": "{\"block_links\":true}",
+          "antispam_config_refused": false
+        }
+      },
+      {
+        "patch": {
+          "antispam_config": "not json"
+        },
+        "parsed": {
+          "refusal": null,
+          "antispam_config": null,
+          "antispam_config_refused": true
+        }
+      },
+      {
+        "patch": {
+          "reactions_type": "off"
+        },
+        "parsed": {
+          "refusal": null,
+          "reactions_type": "off"
+        }
+      },
+      {
+        "patch": {
+          "reactions_type": "some"
+        },
+        "parsed": {
+          "refusal": "Invalid reactions_type"
+        }
+      },
+      {
+        "patch": {
+          "allowed_reactions": "👍,👎"
+        },
+        "parsed": {
+          "refusal": null,
+          "allowed_reactions": "👍,👎"
+        }
+      },
+      {
+        "patch": {
+          "allowed_reactions": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "parsed": {
+          "refusal": "Invalid allowed_reactions"
+        }
+      },
+      {
+        "patch": {},
+        "parsed": {
+          "refusal": null
+        }
+      }
+    ],
+    "themes": [
+      {
+        "theme": {
+          "wallpaper": "stars",
+          "accent": "#1a2b3c",
+          "dark_mode": true
+        },
+        "written": "{\"wallpaper\":\"stars\",\"accent\":\"#1a2b3c\",\"dark_mode\":true}",
+        "refusal": null
+      },
+      {
+        "theme": {
+          "wallpaper": "https://example.org/a.png"
+        },
+        "written": "{\"wallpaper\":\"https://example.org/a.png\"}",
+        "refusal": null
+      },
+      {
+        "theme": {
+          "dark_mode": false
+        },
+        "written": "{\"dark_mode\":false}",
+        "refusal": null
+      },
+      {
+        "theme": {},
+        "written": "{}",
+        "refusal": null
+      },
+      {
+        "theme": {
+          "wallpaper": "moon"
+        },
+        "written": null,
+        "refusal": "Invalid wallpaper: moon"
+      },
+      {
+        "theme": {
+          "wallpaper": "http://example.org/a.png"
+        },
+        "written": null,
+        "refusal": "Invalid wallpaper: http://example.org/a.png"
+      },
+      {
+        "theme": {
+          "accent": "red"
+        },
+        "written": null,
+        "refusal": "Invalid accent"
+      },
+      {
+        "theme": {
+          "accent": "#fff"
+        },
+        "written": null,
+        "refusal": "Invalid accent"
+      }
+    ],
+    "antispam": [
+      {
+        "payload": "{\"threshold\":5}",
+        "written": "{\"threshold\":5}"
+      },
+      {
+        "payload": "{}",
+        "written": "{}"
+      },
+      {
+        "payload": "[]",
+        "written": null
+      },
+      {
+        "payload": "5",
+        "written": null
+      },
+      {
+        "payload": "not json",
+        "written": null
+      },
+      {
+        "payload": "{\"block_repeats\":\"\"}",
+        "written": "{\"block_repeats\":false}"
+      }
+    ],
+    "names": [
+      {
+        "text": "  General  ",
+        "name": "General"
+      },
+      {
+        "text": "",
+        "name": null
+      },
+      {
+        "text": "   ",
+        "name": null
+      },
+      {
+        "text": "ёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёё",
+        "name": "ёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёёё"
+      },
+      {
+        "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": null
+      }
+    ],
+    "replication": [
+      {
+        "text": "none",
+        "mode": "none"
+      },
+      {
+        "text": "federated",
+        "mode": "federated"
+      },
+      {
+        "text": "None",
+        "mode": null
+      },
+      {
+        "text": "",
+        "mode": null
+      },
+      {
+        "text": "local",
+        "mode": null
+      }
+    ],
+    "avatars": [
+      {
+        "is_voice": true,
+        "avatar": "🔊"
+      },
+      {
+        "is_voice": false,
+        "avatar": "💬"
+      }
+    ],
+    "views": [
+      {
+        "row": {
+          "id": 7,
+          "name": "General",
+          "member_count": 3,
+          "online_count": 1,
+          "created_at_us": 1785834930789012,
+          "invite_code": "abcd1234",
+          "creator_id": 2
+        },
+        "view": {
+          "id": 7,
+          "name": "General",
+          "description": "",
+          "is_private": false,
+          "is_channel": false,
+          "is_voice": false,
+          "invite_code": "abcd1234",
+          "member_count": 3,
+          "online_count": 1,
+          "avatar_emoji": "💬",
+          "avatar_url": null,
+          "auto_delete_seconds": null,
+          "slow_mode_seconds": 0,
+          "antispam_enabled": true,
+          "antispam_config": "{}",
+          "creator_id": 2,
+          "created_at": "2026-08-04T09:15:30.789012",
+          "theme_json": null,
+          "discussion_enabled": false,
+          "reactions_type": "all",
+          "allowed_reactions": "",
+          "admin_signatures": false,
+          "copy_protection": false,
+          "silent_default": false,
+          "join_approval": false,
+          "hashtags_enabled": true,
+          "replication_mode": "none",
+          "is_dm": false
+        }
+      },
+      {
+        "row": {
+          "id": 7,
+          "name": "General",
+          "member_count": 3,
+          "online_count": 1,
+          "created_at_us": 1785834930789012,
+          "invite_code": "abcd1234",
+          "creator_id": 2,
+          "is_voice": true,
+          "voice_participants": [
+            {
+              "user_id": 1
+            }
+          ]
+        },
+        "view": {
+          "id": 7,
+          "name": "General",
+          "description": "",
+          "is_private": false,
+          "is_channel": false,
+          "is_voice": true,
+          "invite_code": "abcd1234",
+          "member_count": 3,
+          "online_count": 1,
+          "avatar_emoji": "💬",
+          "avatar_url": null,
+          "auto_delete_seconds": null,
+          "slow_mode_seconds": 0,
+          "antispam_enabled": true,
+          "antispam_config": "{}",
+          "creator_id": 2,
+          "created_at": "2026-08-04T09:15:30.789012",
+          "theme_json": null,
+          "discussion_enabled": false,
+          "reactions_type": "all",
+          "allowed_reactions": "",
+          "admin_signatures": false,
+          "copy_protection": false,
+          "silent_default": false,
+          "join_approval": false,
+          "hashtags_enabled": true,
+          "replication_mode": "none",
+          "is_dm": false,
+          "voice_participants": [
+            {
+              "user_id": 1
+            }
+          ],
+          "voice_participant_count": 1
+        }
+      }
+    ]
+  }
+}

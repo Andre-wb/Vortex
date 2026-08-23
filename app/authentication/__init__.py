@@ -17,12 +17,8 @@ import app.authentication.session
 import app.authentication.two_factor  # noqa: F401
 from app.authentication._helpers import (  # noqa: F401
     _DUMMY_HASH,
-    _auth_rate,
-    _Challenge,
-    _challenges,
-    _challenges_lock,
-    _check_auth_rate,
-    _cleanup_expired_challenges,
+    _allow_login_attempt,
+    _allow_registration_attempt,
     _set_auth_cookies,
     router,
 )

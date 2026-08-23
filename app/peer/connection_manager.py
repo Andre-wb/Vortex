@@ -13,12 +13,14 @@ import contextlib
 import json as _json
 import logging
 import time
-from collections import defaultdict, deque
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import WebSocket
+
+from app.peer import delivery_backend as _delivery
 
 logger = logging.getLogger(__name__)
 
@@ -61,57 +63,23 @@ class TokenBucket:
         return False
 
 
-# Глобальный кэш дедупликации сообщений
+async def _flush_to_socket(payloads: list[dict], ws: WebSocket) -> int:
+    """Отдать выбранную очередь в сокет. Возвращает число отправленных.
 
-
-class MessageDeduplicator:
+    Выборка уже разрушительна на стороне общего стора — она забирает очередь
+    целиком. Это то же поведение, что было у `deque`-очереди в памяти: обрыв
+    сокета на середине терял остаток. Сохранено намеренно, менять его —
+    отдельное решение.
     """
-    LRU-подобный кэш уже обработанных msg_id.
-
-    Хранит последние `max_size` идентификаторов.
-    При превышении лимита удаляет самые старые записи (FIFO).
-    TTL — дополнительная защита от устаревших повторов.
-    """
-
-    def __init__(self, max_size: int = 10_000, ttl_sec: float = 300.0):
-        self._max_size = max_size
-        self._ttl = ttl_sec
-        self._seen: dict[str, float] = {}  # msg_id → timestamp
-        self._order: deque[str] = deque()
-        self._lock = asyncio.Lock()
-
-    async def is_duplicate(self, msg_id: str) -> bool:
-        """
-        Возвращает True если msg_id уже обрабатывался, иначе регистрирует его и возвращает False.
-        """
-        async with self._lock:
-            now = time.monotonic()
-
-            # Проверяем TTL: чистим записи старше TTL
-            while self._order and (now - self._seen.get(self._order[0], now)) > self._ttl:
-                old = self._order.popleft()
-                self._seen.pop(old, None)
-
-            if msg_id in self._seen:
-                return True
-
-            # Добавляем
-            self._seen[msg_id] = now
-            self._order.append(msg_id)
-
-            # Обрезаем по размеру
-            while len(self._seen) > self._max_size:
-                old = self._order.popleft()
-                self._seen.pop(old, None)
-
-            return False
-
-    def seen_count(self) -> int:
-        return len(self._seen)
-
-
-# Глобальный экземпляр дедупликатора для всего приложения
-deduplicator = MessageDeduplicator(max_size=10_000, ttl_sec=300.0)
+    sent = 0
+    for payload in payloads:
+        try:
+            payload["_pending"] = True
+            await ws.send_json(payload)
+            sent += 1
+        except Exception:
+            break
+    return sent
 
 
 # ConnectedUser
@@ -135,135 +103,6 @@ class ConnectedUser:
     connected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     is_typing: bool = False
     rate_limiter: TokenBucket = field(default_factory=lambda: TokenBucket(capacity=30, rate=10))
-
-
-# Pending Delivery Queue — серверная очередь недоставленных сообщений
-
-
-class PendingDeliveryQueue:
-    """
-    In-memory очередь сообщений для офлайн-пользователей.
-
-    Когда broadcast не может доставить сообщение (пользователь не в комнате),
-    оно сохраняется здесь. При реконнекте — flush_pending() отдаёт накопленные.
-
-    Лимиты:
-    - max_per_user_room: 1000 сообщений на (user_id, room_id) — предотвращает OOM
-    - ttl_sec: 604800 (7 дней) — старые сообщения удаляются
-    """
-
-    def __init__(self, max_per_user_room: int = 1000, ttl_sec: float = 604800.0):
-        self._max = max_per_user_room
-        self._ttl = ttl_sec
-        # (room_id, user_id) → deque[(timestamp, payload)]
-        self._queues: dict[tuple[int, int], deque] = defaultdict(deque)
-        self._lock = asyncio.Lock()
-
-    async def enqueue(self, room_id: int, user_id: int, payload: dict) -> None:
-        """Добавить сообщение в очередь для офлайн-пользователя."""
-        async with self._lock:
-            key = (room_id, user_id)
-            q = self._queues[key]
-            q.append((time.monotonic(), payload))
-            # Обрезаем по лимиту — удаляем самые старые
-            while len(q) > self._max:
-                q.popleft()
-
-    async def flush_pending(self, room_id: int, user_id: int, ws: WebSocket) -> int:
-        """Отправить все накопленные сообщения пользователю. Возвращает количество."""
-        async with self._lock:
-            key = (room_id, user_id)
-            q = self._queues.pop(key, deque())
-
-        if not q:
-            return 0
-
-        now = time.monotonic()
-        sent = 0
-        for ts, payload in q:
-            # Пропускаем устаревшие (> TTL)
-            if now - ts > self._ttl:
-                continue
-            try:
-                payload["_pending"] = True  # маркер для клиента
-                await ws.send_json(payload)
-                sent += 1
-            except Exception:
-                break
-        return sent
-
-    async def cleanup(self) -> int:
-        """Удалить устаревшие записи. Вызывать периодически."""
-        async with self._lock:
-            now = time.monotonic()
-            removed = 0
-            empty_keys = []
-            for key, q in self._queues.items():
-                while q and (now - q[0][0]) > self._ttl:
-                    q.popleft()
-                    removed += 1
-                if not q:
-                    empty_keys.append(key)
-            for key in empty_keys:
-                del self._queues[key]
-            return removed
-
-    def stats(self) -> dict:
-        return {
-            "queues": len(self._queues),
-            "total_pending": sum(len(q) for q in self._queues.values()),
-        }
-
-
-# Глобальный экземпляр pending delivery queue
-pending_queue = PendingDeliveryQueue()
-
-
-class PendingNotificationQueue:
-    """
-    Очередь уведомлений для пользователей, у которых нет активного notification WS.
-    Flush-ится при подключении к /ws/notifications.
-    """
-
-    def __init__(self, max_per_user: int = 50, ttl_sec: float = 300.0):
-        self._max = max_per_user
-        self._ttl = ttl_sec
-        self._queues: dict[int, deque] = defaultdict(deque)
-        self._lock = asyncio.Lock()
-
-    async def enqueue(self, user_id: int, payload: dict) -> None:
-        async with self._lock:
-            q = self._queues[user_id]
-            q.append((time.monotonic(), payload))
-            while len(q) > self._max:
-                q.popleft()
-
-    async def flush(self, user_id: int, ws: WebSocket) -> int:
-        async with self._lock:
-            q = self._queues.pop(user_id, deque())
-        if not q:
-            return 0
-        now = time.monotonic()
-        sent = 0
-        for ts, payload in q:
-            if now - ts > self._ttl:
-                continue
-            try:
-                payload["_pending"] = True
-                await ws.send_json(payload)
-                sent += 1
-            except Exception:
-                break
-        return sent
-
-    def stats(self) -> dict:
-        return {
-            "queues": len(self._queues),
-            "total": sum(len(q) for q in self._queues.values()),
-        }
-
-
-pending_notifications = PendingNotificationQueue()
 
 
 # ConnectionManager
@@ -341,8 +180,8 @@ class ConnectionManager:
             self._ws_count_inc(user_id)
         logger.debug("WS+ connection (sanitized)")
 
-        # Flush pending messages accumulated while user was offline
-        flushed = await pending_queue.flush_pending(room_id, user_id, ws)
+        pending = await asyncio.to_thread(_delivery.room_collect, room_id, user_id)
+        flushed = await _flush_to_socket(pending, ws)
         if flushed > 0:
             logger.debug(f"Flushed {flushed} pending messages (sanitized)")
 
@@ -445,9 +284,8 @@ class ConnectionManager:
             # Enqueue pending for offline users (messages only)
             if member_ids and msg_type in ("message", "thread_message"):
                 online = set(self._rooms.get(room_id, {}).keys())
-                for uid in member_ids:
-                    if uid not in online and uid != exclude:
-                        await pending_queue.enqueue(room_id, uid, payload)
+                offline = [uid for uid in member_ids if uid not in online and uid != exclude]
+                await asyncio.to_thread(_delivery.room_deposit, room_id, offline, payload)
 
             # Edit/delete/reaction must also go via WS for instant UI update
             # (BMP polling has latency; these actions need immediate feedback)
@@ -486,18 +324,16 @@ class ConnectionManager:
 
         # Pending for offline users (system messages that need delivery)
         if member_ids and msg_type in ("message", "thread_message"):
-            for uid in member_ids:
-                if uid not in delivered_uids and uid != exclude:
-                    await pending_queue.enqueue(room_id, uid, payload)
+            undelivered = [uid for uid in member_ids if uid not in delivered_uids and uid != exclude]
+            await asyncio.to_thread(_delivery.room_deposit, room_id, undelivered, payload)
 
     async def enqueue_pending(self, room_id: int, payload: dict, member_ids: list[int] | None = None):
         """Enqueue message for offline delivery without WS broadcast (BMP-only mode)."""
         if not member_ids or payload.get("type") not in ("message", "thread_message"):
             return
         online = set(self._rooms.get(room_id, {}).keys())
-        for uid in member_ids:
-            if uid not in online:
-                await pending_queue.enqueue(room_id, uid, payload)
+        offline = [uid for uid in member_ids if uid not in online]
+        await asyncio.to_thread(_delivery.room_deposit, room_id, offline, payload)
 
     async def send_to_user(self, room_id: int, user_id: int, payload: dict) -> bool:
         conn = self._rooms.get(room_id, {}).get(user_id)
@@ -542,7 +378,7 @@ class ConnectionManager:
         """
         if not msg_id:
             return False
-        return await deduplicator.is_duplicate(msg_id)
+        return await asyncio.to_thread(_delivery.is_repeat, msg_id)
 
     async def connect_global(self, user_id: int, ws: WebSocket) -> None:
         """Подключает глобальный WS для уведомлений пользователя."""
@@ -560,8 +396,8 @@ class ConnectionManager:
             self._ws_count_inc(user_id)
         logger.debug("Global WS+ (sanitized)")
 
-        # Flush in-memory pending notifications
-        flushed = await pending_notifications.flush(user_id, ws)
+        pending = await asyncio.to_thread(_delivery.notification_collect, user_id)
+        flushed = await _flush_to_socket(pending, ws)
 
         # Flush DB-persistent pending notifications
         db_flushed = await self._flush_db_notifications(user_id, ws)
@@ -617,8 +453,7 @@ class ConnectionManager:
                 db.close()
         except Exception as e:
             logger.warning("Failed to persist notification (sanitized): %s", type(e).__name__)
-            # Fallback — in-memory queue
-            await pending_notifications.enqueue(user_id, payload)
+            await asyncio.to_thread(_delivery.notification_deposit, user_id, payload)
 
     @staticmethod
     async def _flush_db_notifications(user_id: int, ws: WebSocket) -> int:
@@ -738,10 +573,10 @@ class ConnectionManager:
     def dedup_stats(self) -> dict:
         """Возвращает статистику дедупликатора и pending queue для мониторинга."""
         return {
-            "seen_msg_ids": deduplicator.seen_count(),
+            "seen_msg_ids": _delivery.seen_count(),
             "rooms": len(self._rooms),
             "connections": self.total_connections(),
-            "pending_queue": pending_queue.stats(),
+            "pending_queue": _delivery.room_tally(),
         }
 
 

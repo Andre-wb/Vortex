@@ -5,8 +5,6 @@ from __future__ import annotations
 import contextlib
 import logging
 import secrets
-import threading
-import time
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request
@@ -14,17 +12,17 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.authentication._helpers import (
-    _AUTH_RATE_LOGIN,
-    _AUTH_RATE_REGISTER,
     _DUMMY_HASH,
     _IS_TESTING,
-    _check_auth_rate,
+    _allow_login_attempt,
+    _allow_registration_attempt,
     _set_auth_cookies,
     router,
 )
 from app.config import Config
 from app.database import get_db
 from app.models import LoginRequest, RegisterRequest, SeedLoginRequest, User
+from app.security import auth_state_backend as _auth_state
 from app.security.crypto import hash_password, verify_password
 from app.security.ip_privacy import raw_ip_for_ratelimit, sanitize_ip
 from app.security.security_validate import validate_password_with_context
@@ -40,35 +38,16 @@ logger = logging.getLogger(__name__)
 # verify-login then requires & consumes that marker. The client API stays
 # unchanged ({user_id, code} in, {requires_2fa, user_id} out).
 #
-# Storage mirrors the JWT revocation store in app/security/auth_jwt.py:
-#   - Redis (Config.REDIS_URL) when set → shared across workers, auto-expiring.
-#   - In-process dict fallback otherwise / when Redis is unreachable.
-_PW_MARKER_PREFIX = "2fa:pwok:"
-_PW_MARKER_TTL = 300  # seconds (~5 min) — long enough for the user to enter the code
-
-_pw_verified: dict[int, float] = {}  # user_id -> expiry epoch (in-memory fallback)
-_pw_verified_lock = threading.Lock()
-
-
-def _purge_expired_pw_markers(now_epoch: float) -> None:
-    for uid, exp in list(_pw_verified.items()):
-        if exp <= now_epoch:
-            _pw_verified.pop(uid, None)
+# Хранение и срок жизни маркера живут в Rust (`vortex-auth`), см.
+# app/security/auth_state_backend.py.
 
 
 def mark_password_verified(user_id: int) -> None:
     """Record that ``user_id`` just passed the password step and owes only 2FA."""
-    r = _get_2fa_redis()
-    if r is not None:
-        try:
-            r.setex(_PW_MARKER_PREFIX + str(user_id), _PW_MARKER_TTL, "1")
-            return
-        except Exception as e:
-            logger.warning("2FA pw-marker: Redis SETEX failed (%s) — using local store", e)
-    now = time.time()
-    with _pw_verified_lock:
-        _purge_expired_pw_markers(now)
-        _pw_verified[user_id] = now + _PW_MARKER_TTL
+    try:
+        _auth_state.arm_password_marker(int(user_id))
+    except RuntimeError as error:
+        raise HTTPException(503, "Second factor is temporarily unavailable") from error
 
 
 def has_password_verified(user_id: int) -> bool:
@@ -78,43 +57,15 @@ def has_password_verified(user_id: int) -> bool:
     the code (subject to the existing TOTP rate limit) without re-entering the
     password.
     """
-    r = _get_2fa_redis()
-    if r is not None:
-        try:
-            if r.exists(_PW_MARKER_PREFIX + str(user_id)):
-                return True
-            # Fall through to also check local store (marker may have been
-            # written while Redis was briefly down on this worker).
-        except Exception as e:
-            logger.warning("2FA pw-marker: Redis EXISTS failed (%s) — using local store", e)
-    now = time.time()
-    with _pw_verified_lock:
-        exp = _pw_verified.get(user_id)
-        if exp is None:
-            return False
-        if exp <= now:
-            _pw_verified.pop(user_id, None)
-            return False
-        return True
+    return _auth_state.password_marker_armed(int(user_id))
 
 
 def consume_password_verified(user_id: int) -> None:
     """Delete the password-verified marker (single-use) after a successful 2FA step."""
-    r = _get_2fa_redis()
-    if r is not None:
-        try:
-            r.delete(_PW_MARKER_PREFIX + str(user_id))
-        except Exception as e:
-            logger.warning("2FA pw-marker: Redis DELETE failed (%s) — clearing local store", e)
-    with _pw_verified_lock:
-        _pw_verified.pop(user_id, None)
-
-
-# Reuse the project's Redis client/init pattern from auth_jwt for the marker store.
-def _get_2fa_redis():
-    from app.security.auth_jwt import _get_redis
-
-    return _get_redis()
+    try:
+        _auth_state.burn_password_marker(int(user_id))
+    except RuntimeError as error:
+        raise HTTPException(503, "Second factor is temporarily unavailable") from error
 
 
 @router.post("/register", status_code=201)
@@ -122,7 +73,7 @@ async def register(body: RegisterRequest, request: Request, db: Session = Depend
     import asyncio
 
     ip = raw_ip_for_ratelimit(request)
-    if not _check_auth_rate(ip, _AUTH_RATE_REGISTER):
+    if not _allow_registration_attempt(ip):
         raise HTTPException(429, "Too many registration attempts. Please wait a minute.")
 
     reg_mode = "open" if _IS_TESTING else Config.REGISTRATION_MODE
@@ -234,7 +185,7 @@ async def register(body: RegisterRequest, request: Request, db: Session = Depend
 async def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Классический вход по паролю."""
     ip = raw_ip_for_ratelimit(request)
-    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+    if not _allow_login_attempt(ip):
         raise HTTPException(429, "Too many login attempts. Please wait a minute.")
 
     cred = body.phone_or_username.strip()
@@ -301,7 +252,7 @@ async def login(body: LoginRequest, request: Request, db: Session = Depends(get_
 async def login_with_seed(body: SeedLoginRequest, request: Request, db: Session = Depends(get_db)):
     """Вход по username + seed phrase (для анонимных аккаунтов без телефона)."""
     ip = raw_ip_for_ratelimit(request)
-    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+    if not _allow_login_attempt(ip):
         raise HTTPException(429, "Too many login attempts. Please wait a minute.")
 
     user = db.query(User).filter(User.username == body.username).first()

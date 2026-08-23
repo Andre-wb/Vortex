@@ -13,7 +13,8 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.chats.messages._router import utc_iso as _utc_iso
+from app.chats.messages._router import epoch_micros as _epoch_micros
+from app.chats.messages.envelope_backend import message_sent
 from app.models import User
 from app.models_rooms import (
     Message,
@@ -274,6 +275,7 @@ async def handle_forward(room_id: int, user: User, data: dict, db: Session) -> N
         msg_type=orig.msg_type,
         content_encrypted=orig.content_encrypted,
         content_hash=orig.content_hash,
+        enc_version=orig.enc_version,
         file_name=orig.file_name,
         file_size=orig.file_size,
         forwarded_from=fwd_from,
@@ -284,20 +286,22 @@ async def handle_forward(room_id: int, user: User, data: dict, db: Session) -> N
 
     await manager.broadcast_to_room(
         target_room_id,
-        {
-            "type": "message",
-            "msg_id": new_msg.id,
-            "sender_id": user.id,
-            "sender_pseudo": new_msg.sender_pseudo,
-            "sender": user.username,
-            "display_name": user.display_name or user.username,
-            "avatar_emoji": user.avatar_emoji,
-            "avatar_url": user.avatar_url,
-            "ciphertext": orig.content_encrypted.hex() if orig.content_encrypted else None,
-            "forwarded_from": fwd_from,
-            "status": "sent",
-            "created_at": _utc_iso(new_msg.created_at),
-        },
+        message_sent(
+            msg_id=new_msg.id,
+            client_msg_id="",
+            ciphertext=orig.content_encrypted.hex() if orig.content_encrypted else "",
+            digest_hex=orig.content_hash.hex() if orig.content_hash else "",
+            created_at_us=_epoch_micros(new_msg.created_at),
+            sender_id=user.id,
+            sender_pseudo=new_msg.sender_pseudo,
+            sender=user.username,
+            display_name=user.display_name,
+            avatar_emoji=user.avatar_emoji,
+            avatar_url=user.avatar_url,
+            is_bot=bool(user.is_bot),
+            enc_v=new_msg.enc_version,
+            forwarded_from=fwd_from,
+        ),
     )
 
     # Подтверждение отправителю

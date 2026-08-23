@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE unified_push_subscriptions\n            SET failures = $3, active = $4\n            WHERE user_id = $1 AND endpoint = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6703cee7d3895cc4c97793b00558a56434cb1a6a379691ca7fe57f6ef07fd760"
+}

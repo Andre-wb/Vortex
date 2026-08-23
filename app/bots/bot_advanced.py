@@ -5,7 +5,6 @@ webhooks, payment API, bot store, mini-app IDE, bot permissions/scopes.
 
 from __future__ import annotations
 
-import collections
 import json
 import logging
 import secrets
@@ -15,8 +14,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import Bot, User
+from app.chats.messages._router import utc_iso
+from app.database import SessionLocal, get_db
+from app.models import Bot, BotInlineResults, BotWebhook, User
+from app.models import BotScope as BotScopeGrant
 from app.models_rooms import Message, MessageType, RoomMember
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
@@ -122,19 +123,42 @@ def _get_bot(request: Request, db: Session = Depends(get_db)) -> Bot:
 
 # 1. Inline Bots (@mention in any chat)
 
-# In-memory: bot_id -> cached inline results (LRU-bounded to prevent leaks)
 _MAX_INLINE_BOTS = 4096
-_inline_handlers: collections.OrderedDict[int, list] = collections.OrderedDict()
+
+
+def _remember_inline(db: Session, bot_id: int, results: list[dict]) -> None:
+    """Сохранить ответ inline-бота, оставив в таблице последние _MAX_INLINE_BOTS."""
+    row = db.query(BotInlineResults).filter(BotInlineResults.bot_id == bot_id).first()
+    if row:
+        row.results = json.dumps(results)
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(BotInlineResults(bot_id=bot_id, results=json.dumps(results)))
+    db.flush()
+
+    stale = (
+        db.query(BotInlineResults.id)
+        .order_by(BotInlineResults.updated_at.desc(), BotInlineResults.id.desc())
+        .offset(_MAX_INLINE_BOTS)
+        .all()
+    )
+    if stale:
+        db.query(BotInlineResults).filter(BotInlineResults.id.in_([row.id for row in stale])).delete(
+            synchronize_session=False
+        )
+    db.commit()
+
+
+def _inline_results(db: Session, bot_id: int) -> list[dict]:
+    row = db.query(BotInlineResults).filter(BotInlineResults.bot_id == bot_id).first()
+    return json.loads(row.results or "[]") if row else []
 
 
 @router.post("/api/bot/inline/register")
 async def register_inline_handler(request: Request, db: Session = Depends(get_db)):
     """Register this bot as an inline bot (responds to @mentions in any chat)."""
     bot = _get_bot(request, db)
-    _inline_handlers[bot.id] = []
-    _inline_handlers.move_to_end(bot.id)
-    while len(_inline_handlers) > _MAX_INLINE_BOTS:
-        _inline_handlers.popitem(last=False)
+    _remember_inline(db, bot.id, [])
     return {"ok": True, "inline": True}
 
 
@@ -142,11 +166,7 @@ async def register_inline_handler(request: Request, db: Session = Depends(get_db
 async def answer_inline_query(body: InlineQueryResponse, request: Request, db: Session = Depends(get_db)):
     """Answer an inline query with results."""
     bot = _get_bot(request, db)
-    # Store results for clients to fetch
-    _inline_handlers[bot.id] = [r.model_dump() for r in body.results]
-    _inline_handlers.move_to_end(bot.id)
-    while len(_inline_handlers) > _MAX_INLINE_BOTS:
-        _inline_handlers.popitem(last=False)
+    _remember_inline(db, bot.id, [r.model_dump() for r in body.results])
     return {"ok": True, "results_count": len(body.results)}
 
 
@@ -163,8 +183,7 @@ async def query_inline_bot(
     bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_active.is_(True)).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
-    results = _inline_handlers.get(bot.id, [])
-    # Filter by query
+    results = _inline_results(db, bot.id)
     if q:
         q_lower = q.lower()
         results = [
@@ -256,9 +275,6 @@ async def handle_callback(request: Request, db: Session = Depends(get_db)):
 
 # 4. Slash Commands
 
-# In-memory: bot_id -> list of registered commands
-_slash_commands: dict[int, list[dict]] = {}
-
 
 @router.post("/api/bot/commands/register")
 async def register_slash_commands(request: Request, db: Session = Depends(get_db)):
@@ -266,9 +282,6 @@ async def register_slash_commands(request: Request, db: Session = Depends(get_db
     bot = _get_bot(request, db)
     body = await request.json()
     commands = body.get("commands", [])
-    _slash_commands[bot.id] = commands
-
-    # Also update commands in DB
     bot.commands = json.dumps(commands)
     db.commit()
 
@@ -281,8 +294,7 @@ async def get_bot_commands(bot_id: int, db: Session = Depends(get_db)):
     bot = db.query(Bot).filter(Bot.id == bot_id, Bot.is_active.is_(True)).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
-    commands = _slash_commands.get(bot.id) or json.loads(bot.commands or "[]")
-    return {"commands": commands}
+    return {"commands": json.loads(bot.commands or "[]")}
 
 
 @router.get("/api/rooms/{room_id}/commands")
@@ -301,7 +313,7 @@ async def get_room_commands(room_id: int, u: User = Depends(get_current_user), d
     for bm in bot_members:
         bot = db.query(Bot).filter(Bot.user_id == bm.user_id).first()
         if bot:
-            cmds = _slash_commands.get(bot.id) or json.loads(bot.commands or "[]")
+            cmds = json.loads(bot.commands or "[]")
             for cmd in cmds:
                 cmd["bot_name"] = bot.name
                 cmd["bot_id"] = bot.id
@@ -311,20 +323,36 @@ async def get_room_commands(room_id: int, u: User = Depends(get_current_user), d
 
 # 5. Webhook Delivery
 
-# In-memory: bot_id -> webhook config
-_webhooks: dict[int, dict] = {}
+
+def _webhook_dict(row: BotWebhook) -> dict:
+    return {
+        "url": row.url,
+        "secret": row.secret,
+        "events": json.loads(row.events or "[]"),
+        "created_at": utc_iso(row.created_at),
+    }
 
 
 @router.post("/api/bot/webhook/set")
 async def set_webhook(body: WebhookConfig, request: Request, db: Session = Depends(get_db)):
     """Set webhook URL for push delivery (instead of long-poll /updates)."""
     bot = _get_bot(request, db)
-    _webhooks[bot.id] = {
-        "url": body.url,
-        "secret": body.secret or secrets.token_hex(16),
-        "events": body.events,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
+    row = db.query(BotWebhook).filter(BotWebhook.bot_id == bot.id).first()
+    if row:
+        row.url = body.url
+        row.secret = body.secret or secrets.token_hex(16)
+        row.events = json.dumps(body.events)
+        row.created_at = datetime.now(timezone.utc)
+    else:
+        db.add(
+            BotWebhook(
+                bot_id=bot.id,
+                url=body.url,
+                secret=body.secret or secrets.token_hex(16),
+                events=json.dumps(body.events),
+            )
+        )
+    db.commit()
     return {"ok": True, "webhook_url": body.url}
 
 
@@ -332,7 +360,8 @@ async def set_webhook(body: WebhookConfig, request: Request, db: Session = Depen
 async def delete_webhook(request: Request, db: Session = Depends(get_db)):
     """Remove webhook, switch back to long-poll."""
     bot = _get_bot(request, db)
-    _webhooks.pop(bot.id, None)
+    db.query(BotWebhook).filter(BotWebhook.bot_id == bot.id).delete(synchronize_session=False)
+    db.commit()
     return {"ok": True}
 
 
@@ -340,13 +369,18 @@ async def delete_webhook(request: Request, db: Session = Depends(get_db)):
 async def get_webhook_info(request: Request, db: Session = Depends(get_db)):
     """Get current webhook configuration."""
     bot = _get_bot(request, db)
-    wh = _webhooks.get(bot.id)
-    return {"webhook": wh}
+    row = db.query(BotWebhook).filter(BotWebhook.bot_id == bot.id).first()
+    return {"webhook": _webhook_dict(row) if row else None}
 
 
 async def deliver_webhook(bot_id: int, event: str, payload: dict) -> bool:
     """Deliver event to bot via webhook (called from chat.py on new messages)."""
-    wh = _webhooks.get(bot_id)
+    db = SessionLocal()
+    try:
+        row = db.query(BotWebhook).filter(BotWebhook.bot_id == bot_id).first()
+        wh = _webhook_dict(row) if row else None
+    finally:
+        db.close()
     if not wh:
         return False
     if event not in wh.get("events", []):
@@ -515,6 +549,10 @@ async def bot_store(
     else:
         query = query.order_by(Bot.installs.desc())
     bots = query.limit(50).all()
+    inline_bots = {
+        row.bot_id
+        for row in db.query(BotInlineResults.bot_id).filter(BotInlineResults.bot_id.in_([b.id for b in bots])).all()
+    }
     return {
         "bots": [
             {
@@ -526,8 +564,8 @@ async def bot_store(
                 "rating": round(b.rating or 0, 1),
                 "avatar_url": b.avatar_url,
                 "is_public": True,
-                "has_inline": b.id in _inline_handlers,
-                "has_commands": bool(_slash_commands.get(b.id) or json.loads(b.commands or "[]")),
+                "has_inline": b.id in inline_bots,
+                "has_commands": bool(json.loads(b.commands or "[]")),
                 "has_mini_app": b.mini_app_enabled,
             }
             for b in bots
@@ -594,8 +632,7 @@ AVAILABLE_SCOPES = {
     "profile.read": "Read user profiles",
 }
 
-# In-memory: bot_id -> set of granted scopes
-_bot_scopes: dict[int, set[str]] = {}
+DEFAULT_SCOPES = ("messages.read", "messages.send")
 
 
 @router.get("/api/bots/scopes")
@@ -610,8 +647,8 @@ async def get_bot_scopes(bot_id: int, u: User = Depends(get_current_user), db: S
     bot = db.query(Bot).filter(Bot.id == bot_id).first()
     if not bot:
         raise HTTPException(404, "Bot not found")
-    scopes = _bot_scopes.get(bot.id, {"messages.read", "messages.send"})
-    return {"scopes": list(scopes)}
+    granted = [row.scope for row in db.query(BotScopeGrant).filter(BotScopeGrant.bot_id == bot.id).all()]
+    return {"scopes": granted or list(DEFAULT_SCOPES)}
 
 
 @router.put("/api/bots/{bot_id}/scopes")
@@ -626,5 +663,8 @@ async def set_bot_scopes(
     invalid = [s for s in body.scopes if s not in AVAILABLE_SCOPES]
     if invalid:
         raise HTTPException(400, f"Invalid scopes: {invalid}")
-    _bot_scopes[bot.id] = set(body.scopes)
+    db.query(BotScopeGrant).filter(BotScopeGrant.bot_id == bot.id).delete(synchronize_session=False)
+    for scope in dict.fromkeys(body.scopes):
+        db.add(BotScopeGrant(bot_id=bot.id, scope=scope))
+    db.commit()
     return {"ok": True, "scopes": body.scopes}

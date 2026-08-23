@@ -1,0 +1,130 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, user_id, device_id, identity_key, signed_prekey, signed_prekey_sig,\n                   signed_prekey_id, identity_key_ed, identity_key_sig, supports_v2,\n                   device_x3dh_pub, device_sign_pub, device_cert_sig, client_device_id,\n                   device_kyber_pub, device_kyber_sig, device_kyber_id, created_at, updated_at\n            FROM prekey_bundles\n            WHERE user_id = $1\n            ORDER BY device_id, id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "device_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "identity_key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "signed_prekey",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 5,
+        "name": "signed_prekey_sig",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "signed_prekey_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "identity_key_ed",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 8,
+        "name": "identity_key_sig",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 9,
+        "name": "supports_v2",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "device_x3dh_pub",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 11,
+        "name": "device_sign_pub",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 12,
+        "name": "device_cert_sig",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 13,
+        "name": "client_device_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 14,
+        "name": "device_kyber_pub",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 15,
+        "name": "device_kyber_sig",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 16,
+        "name": "device_kyber_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 18,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "42f3c97658cbc1b13ba379d427d1acfdd36b54c67697b2caf0971c8c89101cb6"
+}

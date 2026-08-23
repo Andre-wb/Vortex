@@ -7,12 +7,21 @@ on the same APIRouter that main.py includes.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter
 
+from app.chats.messages.envelope_backend import (
+    message_client_stamp,
+    message_enc_version,
+    message_wire_stamp,
+)
+
 router = APIRouter(tags=["chat"])
+
+EPOCH = datetime(1970, 1, 1)
 
 DANGEROUS_EXTS = frozenset(
     {
@@ -44,28 +53,33 @@ DANGEROUS_EXTS = frozenset(
 )
 
 
+def epoch_micros(dt: datetime) -> int:
+    """Микросекунды с эпохи для наивного UTC-времени (aware приводится к UTC)."""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    delta = dt - EPOCH
+    return delta.days * 86_400_000_000 + delta.seconds * 1_000_000 + delta.microseconds
+
+
+def from_epoch_micros(microseconds: int) -> datetime:
+    """Наивное UTC-время из микросекунд с эпохи."""
+    return EPOCH + timedelta(microseconds=microseconds)
+
+
 def utc_iso(dt: datetime | None) -> str | None:
     """Serialize datetime to ISO 8601 with Z suffix (UTC)."""
     if dt is None:
         return None
-    # All DB datetimes should be naive UTC (via datetime.utcnow defaults).
-    # If somehow aware, convert to UTC first.
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return message_wire_stamp(epoch_micros(dt))
 
 
 def parse_client_ts(raw: str | None) -> datetime | None:
     """Parse client-provided ISO timestamp; accept only if within ±5 min of server UTC."""
     if not raw or not isinstance(raw, str):
         return None
-    try:
-        ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        ts_naive = ts.replace(tzinfo=None)
-        diff = abs((datetime.now(timezone.utc).replace(tzinfo=None) - ts_naive).total_seconds())
-        return ts_naive if diff <= 300 else None
-    except (ValueError, TypeError):
-        return None
+    now = epoch_micros(datetime.now(timezone.utc))
+    stamp = message_client_stamp(raw, now)
+    return None if stamp is None else from_epoch_micros(stamp)
 
 
 def parse_enc_v(data: dict) -> int | None:
@@ -76,12 +90,11 @@ def parse_enc_v(data: dict) -> int | None:
     as-is: the server stores and relays ciphertext opaquely and must not reject
     formats it does not understand.
     """
-    v = data.get("enc_v")
-    if isinstance(v, bool):  # bool is an int subclass — never a version
+    try:
+        payload = json.dumps({"enc_v": data.get("enc_v")})
+    except (TypeError, ValueError):
         return None
-    if isinstance(v, int) and 0 <= v <= 255:
-        return v
-    return None
+    return message_enc_version(payload)
 
 
 def check_double_extension(filename: str) -> bool:

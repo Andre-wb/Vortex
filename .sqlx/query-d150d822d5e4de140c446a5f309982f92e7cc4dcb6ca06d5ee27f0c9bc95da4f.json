@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO distributed_chunks (file_id, chunk_hash, chunk_index, size, node_ip, node_port)\n                SELECT $1, placed.chunk_hash, placed.chunk_index, placed.size, placed.node_ip, placed.node_port\n                FROM UNNEST($2::varchar[], $3::int4[], $4::int4[], $5::varchar[], $6::int4[])\n                    AS placed(chunk_hash, chunk_index, size, node_ip, node_port)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "VarcharArray",
+        "Int4Array",
+        "Int4Array",
+        "VarcharArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d150d822d5e4de140c446a5f309982f92e7cc4dcb6ca06d5ee27f0c9bc95da4f"
+}

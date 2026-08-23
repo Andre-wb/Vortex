@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM message_drafts\n            WHERE user_id = $1 AND room_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "272bf5495edb6e0425d0f1059c054bb4edb1628e85b43e79c63f2d99763034de"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM distributed_chunks\n            WHERE file_id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f76f313c4581c7c9fd1ce6ea361dd4c77ccafa34ffd5dfc944b7a77d2d3334e3"
+}

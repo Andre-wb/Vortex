@@ -4,9 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import threading
-import time
-from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request, Response
@@ -14,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Config
 from app.models import User, UserDevice
+from app.security import auth_state_backend as _auth_state
 from app.security.auth_jwt import create_access_token, create_refresh_token
 from app.security.crypto import hash_password as _hp
 from app.security.ip_privacy import sanitize_ip
@@ -21,54 +19,27 @@ from app.security.ip_privacy import sanitize_ip
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/authentication", tags=["authentication"])
 
-_auth_rate: dict[str, list[float]] = {}
-_AUTH_RATE_WINDOW = 60
-_AUTH_RATE_LOGIN = 10
-_AUTH_RATE_REGISTER = 5
 _IS_TESTING = os.getenv("TESTING", "").lower() == "true"
 
 
-def _check_auth_rate(ip: str, limit: int) -> bool:
-    """Return True if request is within rate limit, False if exceeded."""
+def _allow_login_attempt(ip: str) -> bool:
+    """True, если попытка входа с этого адреса укладывается в общий предел."""
     if _IS_TESTING:
         return True
-    now = time.monotonic()
-    timestamps = _auth_rate.get(ip, [])
-    timestamps = [t for t in timestamps if now - t < _AUTH_RATE_WINDOW]
-    if len(timestamps) >= limit:
-        return False
-    timestamps.append(now)
-    _auth_rate[ip] = timestamps
-    return True
+    return _auth_state.entry_login_allowed(ip)
+
+
+def _allow_registration_attempt(ip: str) -> bool:
+    """True, если попытка регистрации с этого адреса укладывается в общий предел."""
+    if _IS_TESTING:
+        return True
+    return _auth_state.entry_register_allowed(ip)
 
 
 try:
     _DUMMY_HASH = _hp("__dummy_timing_password__")
 except Exception:
     _DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$dummyhashvalue"
-
-
-@dataclass
-class _Challenge:
-    """Одноразовый challenge для X25519 аутентификации."""
-
-    challenge: bytes
-    user_id: int
-    pubkey_hex: str
-    expires_at: float
-
-
-_challenges: dict[str, _Challenge] = {}
-_challenges_lock = threading.Lock()
-_CHALLENGE_TTL = 60
-
-
-def _cleanup_expired_challenges() -> None:
-    now = time.monotonic()
-    with _challenges_lock:
-        expired = [cid for cid, ch in _challenges.items() if now > ch.expires_at]
-        for cid in expired:
-            del _challenges[cid]
 
 
 def _parse_device_name(ua: str | None) -> tuple[str, str]:

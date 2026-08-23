@@ -60,67 +60,6 @@ def test_ipfs_publish_errors_on_empty_dir(tmp_path: Path):
         publish_to_ipfs(src_dir=tmp_path, api_url="http://127.0.0.1:5001")
 
 
-# SNS resolver
-
-
-def test_sns_domain_validation():
-    from app.peer.sns_resolver import is_sol_domain
-
-    assert is_sol_domain("vortexx.sol")
-    assert is_sol_domain("Vortexx.SOL")
-    assert is_sol_domain("sub.vortexx.sol")
-    assert not is_sol_domain("")
-    assert not is_sol_domain("vortexx.com")
-    assert not is_sol_domain(".sol")
-    assert not is_sol_domain("vortexx")
-
-
-@pytest.mark.asyncio
-async def test_sns_resolve_returns_url_and_txt_metadata():
-    from app.peer.sns_resolver import resolve
-
-    # Fake Bonfida responses: the client makes two GETs in parallel
-    def fake_get(url, *args, **kwargs):
-        surl = str(url)
-        if "/URL" in surl:
-            return _mock_response("GET", surl, json={"result": {"content": "vortexx.example"}})
-        if "/TXT" in surl:
-            return _mock_response(
-                "GET", surl, json={"result": {"content": "pubkey=ff11;mirrors=ipfs://bafy,http://x.onion"}}
-            )
-        return _mock_response("GET", surl, status=404)
-
-    with patch.object(httpx.AsyncClient, "get", side_effect=fake_get):
-        rec = await resolve("vortexx.sol")
-
-    assert rec.is_resolved
-    assert rec.url == "https://vortexx.example"  # normalised
-    assert rec.pubkey == "ff11"
-    assert rec.mirrors == ["ipfs://bafy", "http://x.onion"]
-
-
-@pytest.mark.asyncio
-async def test_sns_resolve_handles_network_failure_gracefully():
-    from app.peer.sns_resolver import resolve
-
-    def explode(*args, **kwargs):
-        raise httpx.ConnectError("no network")
-
-    with patch.object(httpx.AsyncClient, "get", side_effect=explode):
-        rec = await resolve("vortexx.sol")
-
-    assert not rec.is_resolved  # no URL returned, but no exception
-    assert rec.url is None
-
-
-@pytest.mark.asyncio
-async def test_sns_resolve_rejects_non_sol_domain():
-    from app.peer.sns_resolver import resolve
-
-    with pytest.raises(ValueError):
-        await resolve("vortexx.com")
-
-
 # Mirror health
 
 

@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json as _json
 import logging
-from datetime import datetime, timezone
-from enum import Enum
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.chats import live_backend as _live
 from app.chats.messages.core import ws_origin_ok  # shared CSWSH guard
 from app.database import get_db
 from app.models import User
@@ -23,160 +24,27 @@ router = APIRouter(prefix="/api/stream", tags=["stream"])
 ws_router = APIRouter(tags=["stream"])
 
 
-class StreamRole(str, Enum):
-    HOST = "host"
-    CO_HOST = "co_host"
-    SPEAKER = "speaker"
-    VIEWER = "viewer"
-
-
-class StreamParticipant:
-    __slots__ = (
-        "avatar_emoji",
-        "avatar_url",
-        "can_screen_share",
-        "can_speak",
-        "can_video",
-        "display_name",
-        "hand_raised",
-        "is_muted",
-        "is_screen_sharing",
-        "is_video_on",
-        "joined_at",
-        "role",
-        "user_id",
-        "username",
-    )
-
-    def __init__(self, user: User, role: StreamRole):
-        self.user_id = user.id
-        self.username = user.username
-        self.display_name = user.display_name or user.username
-        self.avatar_emoji = user.avatar_emoji or "\U0001f464"
-        self.avatar_url = user.avatar_url
-        self.role = role
-        # Permissions
-        self.can_speak = role in (StreamRole.HOST, StreamRole.CO_HOST, StreamRole.SPEAKER)
-        self.can_video = role in (StreamRole.HOST, StreamRole.CO_HOST, StreamRole.SPEAKER)
-        self.can_screen_share = role in (StreamRole.HOST, StreamRole.CO_HOST)
-        # State
-        self.is_muted = role == StreamRole.VIEWER
-        self.is_video_on = False
-        self.is_screen_sharing = False
-        self.hand_raised = False
-        self.joined_at = datetime.now(timezone.utc).isoformat()
-
-    def to_dict(self) -> dict:
-        return {
-            "user_id": self.user_id,
-            "username": self.username,
-            "display_name": self.display_name,
-            "avatar_emoji": self.avatar_emoji,
-            "avatar_url": self.avatar_url,
-            "role": self.role.value,
-            "can_speak": self.can_speak,
-            "can_video": self.can_video,
-            "can_screen_share": self.can_screen_share,
-            "is_muted": self.is_muted,
-            "is_video_on": self.is_video_on,
-            "is_screen_sharing": self.is_screen_sharing,
-            "hand_raised": self.hand_raised,
-            "joined_at": self.joined_at,
-        }
-
-
-class StreamState:
-    """In-memory state of an active stream."""
-
-    def __init__(
-        self,
-        room_id: int,
-        host: User,
-        title: str,
-        description: str,
-        allow_reactions: bool,
-        allow_donations: bool,
-        donation_card: str,
-        donation_message: str,
-        auto_accept_speakers: bool,
-    ):
-        self.room_id = room_id
-        self.host_id = host.id
-        self.title = title
-        self.description = description
-        self.allow_reactions = allow_reactions
-        self.allow_donations = allow_donations
-        self.donation_card = donation_card
-        self.donation_message = donation_message
-        self.auto_accept_speakers = auto_accept_speakers
-        self.started_at = datetime.now(timezone.utc).isoformat()
-        self.participants: dict[int, StreamParticipant] = {}
-        self.hand_queue: list[int] = []  # user_ids in order of raising hand
-        self.reaction_counts: dict[str, int] = {}  # emoji -> count
-        self.donations: list[dict] = []  # [{user_id, username, amount, message, timestamp}]
-        self.viewer_peak = 0
-
-        # Add host as first participant
-        host_p = StreamParticipant(host, StreamRole.HOST)
-        host_p.can_screen_share = True
-        self.participants[host.id] = host_p
-
-    def viewer_count(self) -> int:
-        return len(self.participants)
-
-    def to_dict(self) -> dict:
-        return {
-            "room_id": self.room_id,
-            "host_id": self.host_id,
-            "title": self.title,
-            "description": self.description,
-            "allow_reactions": self.allow_reactions,
-            "allow_donations": self.allow_donations,
-            "donation_card": self.donation_card or "",
-            "donation_message": self.donation_message or "",
-            "auto_accept_speakers": self.auto_accept_speakers,
-            "started_at": self.started_at,
-            "viewer_count": self.viewer_count(),
-            "viewer_peak": self.viewer_peak,
-            "participants": [p.to_dict() for p in self.participants.values()],
-            "hand_queue": self.hand_queue,
-            "reaction_counts": self.reaction_counts,
-        }
-
-
-_active_streams: dict[int, StreamState] = {}  # room_id -> StreamState
-_stream_ws: dict[int, dict[int, WebSocket]] = {}  # room_id -> {user_id -> WS}
-_scheduled_streams: dict[int, dict] = {}  # room_id -> { title, scheduled_at, host_id }
+# room_id -> {user_id -> WS}   (stream WS connections)
+_stream_ws: dict[int, dict[int, WebSocket]] = {}
 _schedule_checker_task = None  # asyncio background task
 
 
 async def _check_scheduled_streams():
     """Фоновая задача: проверяет запланированные стримы каждые 5 сек.
-    Когда время пришло — отправляет stream_auto_start хосту через global WS."""
-    import asyncio
 
+    Цикл крутится во всех воркерах, но само срабатывание захватывается одной
+    операцией общего стора, поэтому стрим стартует ровно один раз."""
     while True:
         try:
-            now = datetime.now(timezone.utc)
-            to_fire = []
-            for room_id, sched in list(_scheduled_streams.items()):
-                scheduled_at_str = sched.get("scheduled_at", "")
-                try:
-                    # Parse ISO datetime (may be naive — treat as UTC)
-                    sdt = datetime.fromisoformat(scheduled_at_str.replace("Z", "+00:00"))
-                    if sdt.tzinfo is None:
-                        sdt = sdt.replace(tzinfo=timezone.utc)
-                except Exception:  # noqa: S112
-                    continue
-                if now >= sdt and room_id not in _active_streams:
-                    to_fire.append((room_id, sched))
-
-            for room_id, sched in to_fire:
-                host_id = sched.get("host_id")
+            while True:
+                due = _live.schedule_claim_due()
+                if not due:
+                    break
+                host_id = due.get("host_id")
                 if not host_id:
-                    _scheduled_streams.pop(room_id, None)
                     continue
-                # Notify host via global WS to auto-start
+                if _live.stream_status(due["room_id"]):
+                    continue
                 from app.config import Config
 
                 if not Config.BMP_DELIVERY_ENABLED:
@@ -184,13 +52,11 @@ async def _check_scheduled_streams():
                         host_id,
                         {
                             "type": "stream_auto_start",
-                            "room_id": room_id,
-                            "title": sched.get("title", "Live"),
+                            "room_id": due["room_id"],
+                            "title": due.get("title", "Live"),
                         },
                     )
                 logger.debug("Stream auto-start scheduled (sanitized)")
-                # Remove schedule — host will call /start
-                _scheduled_streams.pop(room_id, None)
         except Exception as e:
             logger.warning("_check_scheduled_streams error: %s", e)
         await asyncio.sleep(5)
@@ -199,7 +65,6 @@ async def _check_scheduled_streams():
 def start_schedule_checker():
     """Запуск фоновой задачи проверки расписания. Вызывается из main.py startup."""
     global _schedule_checker_task
-    import asyncio
 
     if _schedule_checker_task is None or _schedule_checker_task.done():
         _schedule_checker_task = asyncio.create_task(_check_scheduled_streams())
@@ -295,7 +160,7 @@ async def _broadcast_stream(room_id: int, payload: dict, exclude: int | None = N
             _stream_ws.get(room_id, {}).pop(uid, None)
 
 
-async def _notify_room_stream_state(room_id: int, action: str, stream: StreamState | None = None):
+async def _notify_room_stream_state(room_id: int, action: str, stream: dict | None = None):
     """Notify room chat WS about stream state changes."""
     payload = {
         "type": "stream_update",
@@ -304,10 +169,10 @@ async def _notify_room_stream_state(room_id: int, action: str, stream: StreamSta
     }
     if stream:
         payload["stream"] = {
-            "title": stream.title,
-            "host_id": stream.host_id,
-            "viewer_count": stream.viewer_count(),
-            "started_at": stream.started_at,
+            "title": stream["title"],
+            "host_id": stream["host_id"],
+            "viewer_count": stream["viewer_count"],
+            "started_at": stream["started_at"],
         }
     await manager.broadcast_to_room(room_id, payload)
 
@@ -320,9 +185,26 @@ async def _notify_room_stream_state(room_id: int, action: str, stream: StreamSta
                 "room_id": room_id,
                 "action": action,
                 "is_live": action != "ended",
-                "viewer_count": stream.viewer_count() if stream else 0,
+                "viewer_count": stream["viewer_count"] if stream else 0,
             },
         )
+
+
+def _require_stream(room_id: int) -> dict:
+    stream = _live.stream_status(room_id)
+    if not stream:
+        raise HTTPException(404, "No active stream")
+    return stream
+
+
+def _viewer_count(room_id: int) -> int:
+    watching = _live.stream_status(room_id)
+    return watching["viewer_count"] if watching else 0
+
+
+def _renew_stream(room_id: int) -> None:
+    with contextlib.suppress(_live.LiveUnavailableError):
+        _live.stream_renew(room_id)
 
 
 @router.post("/{room_id}/schedule")
@@ -336,12 +218,11 @@ async def schedule_stream(
     _require_channel(room_id, db)
     _require_admin(room_id, u.id, db)
 
-    _scheduled_streams[room_id] = {
-        "title": body.title,
-        "scheduled_at": body.scheduled_at,
-        "host_id": u.id,
-        "host_name": u.display_name or u.username,
-    }
+    planned = _live.schedule_plan(
+        room_id, body.title, body.scheduled_at, u.id, u.display_name or u.username
+    )
+    if not planned:
+        raise HTTPException(400, "scheduled_at is not a moment the server can read")
 
     # Notify all room members via room WS + global notifications
     room = db.query(Room).filter(Room.id == room_id).first()
@@ -384,27 +265,27 @@ async def start_stream(
     _require_channel(room_id, db)
     _require_admin(room_id, u.id, db)
 
-    if room_id in _active_streams:
+    opened = _live.stream_open(
+        room_id,
+        u,
+        body.title,
+        body.description,
+        body.allow_reactions,
+        body.allow_donations,
+        body.donation_card,
+        body.donation_message,
+        body.auto_accept_speakers,
+    )
+    if opened["status"] == "already_live":
         raise HTTPException(409, "Stream already started in this channel")
 
-    stream = StreamState(
-        room_id=room_id,
-        host=u,
-        title=body.title or "Live",
-        description=body.description,
-        allow_reactions=body.allow_reactions,
-        allow_donations=body.allow_donations,
-        donation_card=body.donation_card,
-        donation_message=body.donation_message,
-        auto_accept_speakers=body.auto_accept_speakers,
-    )
-    _active_streams[room_id] = stream
-    _scheduled_streams.pop(room_id, None)
+    stream = opened["stream"]
+    _live.schedule_forget(room_id)
 
     logger.info("Stream started in room %s by %s", room_id, u.username)
     await _notify_room_stream_state(room_id, "started", stream)
 
-    return stream.to_dict()
+    return stream
 
 
 @router.post("/{room_id}/stop")
@@ -414,13 +295,11 @@ async def stop_stream(
     db: Session = Depends(get_db),
 ):
     """Остановка стрима. Только host или admin канала."""
-    stream = _active_streams.get(room_id)
-    if not stream:
-        raise HTTPException(404, "No active stream")
+    stream = _require_stream(room_id)
 
     # Host or channel admin can stop
     member = _require_member(room_id, u.id, db)
-    if u.id != stream.host_id and member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
+    if u.id != stream["host_id"] and member.role not in (RoomRole.OWNER, RoomRole.ADMIN):
         raise HTTPException(403, "Only host or admin can stop the stream")
 
     # Notify all viewers
@@ -428,11 +307,11 @@ async def stop_stream(
     await _notify_room_stream_state(room_id, "ended")
 
     # Cleanup
-    _active_streams.pop(room_id, None)
+    stopped = _live.stream_stop(room_id)
     _stream_ws.pop(room_id, None)
 
     logger.info("Stream stopped in room %s by %s", room_id, u.username)
-    return {"ok": True, "viewer_peak": stream.viewer_peak}
+    return {"ok": True, "viewer_peak": stopped["viewer_peak"]}
 
 
 @router.post("/{room_id}/join")
@@ -443,14 +322,7 @@ async def join_stream(
 ):
     """Присоединиться к стриму как зритель."""
     _require_member(room_id, u.id, db)
-    stream = _active_streams.get(room_id)
-    if not stream:
-        raise HTTPException(404, "No active stream")
 
-    if u.id in stream.participants:
-        return {"joined": True, "already_in": True, "stream": stream.to_dict()}
-
-    # Determine role
     member = (
         db.query(RoomMember)
         .filter(
@@ -459,28 +331,29 @@ async def join_stream(
         )
         .first()
     )
-    role = StreamRole.CO_HOST if member and member.role in (RoomRole.OWNER, RoomRole.ADMIN) else StreamRole.VIEWER
+    runs_the_room = bool(member and member.role in (RoomRole.OWNER, RoomRole.ADMIN))
 
-    p = StreamParticipant(u, role)
-    stream.participants[u.id] = p
+    seated = _live.stream_join(room_id, u, runs_the_room)
+    if seated["status"] == "missing":
+        raise HTTPException(404, "No active stream")
 
-    # Update peak
-    count = stream.viewer_count()
-    if count > stream.viewer_peak:
-        stream.viewer_peak = count
+    stream = seated["stream"]
+    if seated["already_in"]:
+        return {"joined": True, "already_in": True, "stream": stream}
 
+    joined = next(p for p in stream["participants"] if p["user_id"] == u.id)
     await _broadcast_stream(
         room_id,
         {
             "type": "stream_viewer_joined",
-            "participant": p.to_dict(),
-            "viewer_count": count,
+            "participant": joined,
+            "viewer_count": stream["viewer_count"],
         },
         exclude=u.id,
     )
 
-    logger.info("Stream join: %s -> room %s (role=%s)", u.username, room_id, role.value)
-    return {"joined": True, "already_in": False, "stream": stream.to_dict()}
+    logger.info("Stream join: %s -> room %s (role=%s)", u.username, room_id, joined["role"])
+    return {"joined": True, "already_in": False, "stream": stream}
 
 
 @router.post("/{room_id}/leave")
@@ -490,33 +363,27 @@ async def leave_stream(
     db: Session = Depends(get_db),
 ):
     """Покинуть стрим."""
-    stream = _active_streams.get(room_id)
-    if not stream:
+    left = _live.stream_leave(room_id, u.id)
+    if left["status"] == "missing":
         raise HTTPException(404, "No active stream")
-
-    removed = stream.participants.pop(u.id, None)
-    if not removed:
+    if left["status"] == "not_in":
         raise HTTPException(400, "You are not in the stream")
 
-    # Remove from hand queue
-    if u.id in stream.hand_queue:
-        stream.hand_queue.remove(u.id)
-
     # If host leaves, end stream
-    if u.id == stream.host_id:
+    if left["stream_ended"]:
         await _broadcast_stream(room_id, {"type": "stream_ended", "ended_by": u.username})
         await _notify_room_stream_state(room_id, "ended")
-        _active_streams.pop(room_id, None)
         _stream_ws.pop(room_id, None)
         return {"left": True, "stream_ended": True}
 
+    watching = _live.stream_status(room_id)
     await _broadcast_stream(
         room_id,
         {
             "type": "stream_viewer_left",
             "user_id": u.id,
             "username": u.username,
-            "viewer_count": stream.viewer_count(),
+            "viewer_count": watching["viewer_count"] if watching else 0,
         },
     )
 
@@ -534,13 +401,13 @@ async def stream_status(
     db: Session = Depends(get_db),
 ):
     """Статус стрима (есть ли активный)."""
-    stream = _active_streams.get(room_id)
+    stream = _live.stream_status(room_id)
     if not stream:
-        sched = _scheduled_streams.get(room_id)
+        sched = _live.schedule_find(room_id)
         if sched:
             return {"is_live": False, "scheduled": sched}
         return {"is_live": False}
-    return {"is_live": True, "stream": stream.to_dict()}
+    return {"is_live": True, "stream": stream}
 
 
 @router.post("/{room_id}/raise-hand")
@@ -550,46 +417,38 @@ async def raise_hand(
     db: Session = Depends(get_db),
 ):
     """Зритель поднимает руку (запрос на выступление)."""
-    stream = _active_streams.get(room_id)
-    if not stream:
+    raised = _live.stream_raise_hand(room_id, u.id)
+    if raised["status"] == "missing":
         raise HTTPException(404, "No active stream")
-
-    p = stream.participants.get(u.id)
-    if not p:
+    if raised["status"] == "not_in":
         raise HTTPException(400, "You are not in the stream")
-
-    if p.role in (StreamRole.HOST, StreamRole.CO_HOST):
+    if raised["status"] == "already_speaks":
         raise HTTPException(400, "You can already speak")
 
-    p.hand_raised = True
-    if u.id not in stream.hand_queue:
-        stream.hand_queue.append(u.id)
-
-    # Auto-accept if configured
-    if stream.auto_accept_speakers:
-        p.can_speak = True
-        p.can_video = True
-        p.role = StreamRole.SPEAKER
-        p.hand_raised = False
-        stream.hand_queue = [uid for uid in stream.hand_queue if uid != u.id]
+    if raised["status"] == "auto_accepted":
+        participant = raised["participant"]
         await _broadcast_stream(
             room_id,
             {
                 "type": "stream_permission_granted",
-                "participant": p.to_dict(),
+                "participant": participant,
             },
         )
-        return {"hand_raised": False, "auto_accepted": True, "role": p.role.value}
+        return {"hand_raised": False, "auto_accepted": True, "role": participant["role"]}
 
+    p = _live.stream_status(room_id)
+    standing = next(
+        (held for held in p["participants"] if held["user_id"] == u.id), None
+    ) if p else None
     await _broadcast_stream(
         room_id,
         {
             "type": "stream_hand_raised",
             "user_id": u.id,
             "username": u.username,
-            "display_name": p.display_name,
-            "avatar_emoji": p.avatar_emoji,
-            "avatar_url": p.avatar_url,
+            "display_name": standing["display_name"] if standing else u.username,
+            "avatar_emoji": standing["avatar_emoji"] if standing else u.avatar_emoji,
+            "avatar_url": standing["avatar_url"] if standing else u.avatar_url,
         },
     )
 
@@ -603,16 +462,11 @@ async def lower_hand(
     db: Session = Depends(get_db),
 ):
     """Зритель опускает руку."""
-    stream = _active_streams.get(room_id)
-    if not stream:
+    lowered = _live.stream_lower_hand(room_id, u.id)
+    if lowered["status"] == "missing":
         raise HTTPException(404)
-
-    p = stream.participants.get(u.id)
-    if not p:
+    if lowered["status"] == "not_in":
         raise HTTPException(400)
-
-    p.hand_raised = False
-    stream.hand_queue = [uid for uid in stream.hand_queue if uid != u.id]
 
     await _broadcast_stream(
         room_id,
@@ -633,68 +487,33 @@ async def grant_permission(
     db: Session = Depends(get_db),
 ):
     """Управление правами участника стрима (host/co_host)."""
-    stream = _active_streams.get(room_id)
-    if not stream:
+    granted = _live.stream_grant(
+        room_id,
+        u.id,
+        body.user_id,
+        body.role,
+        body.can_speak,
+        body.can_video,
+        body.can_screen_share,
+    )
+    if granted["status"] == "missing":
         raise HTTPException(404, "No active stream")
-
-    # Only host/co_host can manage permissions
-    actor = stream.participants.get(u.id)
-    if not actor or actor.role not in (StreamRole.HOST, StreamRole.CO_HOST):
+    if granted["status"] == "not_allowed":
         raise HTTPException(403, "Only host can manage permissions")
-
-    target = stream.participants.get(body.user_id)
-    if not target:
+    if granted["status"] == "no_such_participant":
         raise HTTPException(404, "Participant not found in stream")
 
-    # Can't change host permissions
-    if target.role == StreamRole.HOST and u.id != stream.host_id:
-        raise HTTPException(403, "Cannot change host permissions")
-
-    # Update role
-    if body.role:
-        new_role = StreamRole(body.role)
-        target.role = new_role
-        if new_role == StreamRole.SPEAKER:
-            target.can_speak = True
-            target.can_video = True
-        elif new_role == StreamRole.CO_HOST:
-            target.can_speak = True
-            target.can_video = True
-            target.can_screen_share = True
-        elif new_role == StreamRole.VIEWER:
-            target.can_speak = False
-            target.can_video = False
-            target.can_screen_share = False
-            target.is_muted = True
-            target.is_video_on = False
-
-    # Granular permissions
-    if body.can_speak is not None:
-        target.can_speak = body.can_speak
-        if not body.can_speak:
-            target.is_muted = True
-    if body.can_video is not None:
-        target.can_video = body.can_video
-        if not body.can_video:
-            target.is_video_on = False
-    if body.can_screen_share is not None:
-        target.can_screen_share = body.can_screen_share
-
-    # Clear hand if granted speaking
-    if target.can_speak and target.hand_raised:
-        target.hand_raised = False
-        stream.hand_queue = [uid for uid in stream.hand_queue if uid != body.user_id]
-
+    participant = granted["participant"]
     await _broadcast_stream(
         room_id,
         {
             "type": "stream_permission_granted",
-            "participant": target.to_dict(),
+            "participant": participant,
             "granted_by": u.username,
         },
     )
 
-    return {"ok": True, "participant": target.to_dict()}
+    return {"ok": True, "participant": participant}
 
 
 @router.post("/{room_id}/kick/{target_id}")
@@ -705,22 +524,15 @@ async def kick_from_stream(
     db: Session = Depends(get_db),
 ):
     """Выгнать участника из стрима."""
-    stream = _active_streams.get(room_id)
-    if not stream:
+    kicked = _live.stream_kick(room_id, u.id, target_id)
+    if kicked["status"] == "missing":
         raise HTTPException(404)
-
-    actor = stream.participants.get(u.id)
-    if not actor or actor.role not in (StreamRole.HOST, StreamRole.CO_HOST):
+    if kicked["status"] == "not_allowed":
         raise HTTPException(403, "Only host can kick participants")
-
-    if target_id == stream.host_id:
+    if kicked["status"] == "cannot_kick_host":
         raise HTTPException(403, "Cannot kick the host")
-
-    removed = stream.participants.pop(target_id, None)
-    if not removed:
+    if kicked["status"] == "no_such_participant":
         raise HTTPException(404, "Participant not found")
-
-    stream.hand_queue = [uid for uid in stream.hand_queue if uid != target_id]
 
     # Notify kicked user
     ws_room = _stream_ws.get(room_id, {})
@@ -729,13 +541,14 @@ async def kick_from_stream(
         with contextlib.suppress(Exception):
             await kicked_ws.send_text(_json.dumps({"type": "stream_kicked", "by": u.username}))
 
+    watching = _live.stream_status(room_id)
     await _broadcast_stream(
         room_id,
         {
             "type": "stream_viewer_left",
             "user_id": target_id,
             "kicked": True,
-            "viewer_count": stream.viewer_count(),
+            "viewer_count": watching["viewer_count"] if watching else 0,
         },
     )
 
@@ -750,20 +563,15 @@ async def send_reaction(
     db: Session = Depends(get_db),
 ):
     """Отправить реакцию на стрим."""
-    stream = _active_streams.get(room_id)
-    if not stream:
+    reacted = _live.stream_react(room_id, u.id, emoji)
+    if reacted["status"] == "missing":
         raise HTTPException(404)
-
-    if not stream.allow_reactions:
+    if reacted["status"] == "disabled":
         raise HTTPException(400, "Reactions are disabled for this stream")
-
-    if u.id not in stream.participants:
+    if reacted["status"] == "not_in":
         raise HTTPException(400, "You are not in the stream")
 
-    # Sanitize emoji (max 10 chars)
-    emoji = emoji[:10]
-    stream.reaction_counts[emoji] = stream.reaction_counts.get(emoji, 0) + 1
-
+    emoji = reacted["emoji"]
     await _broadcast_stream(
         room_id,
         {
@@ -785,33 +593,19 @@ async def send_donation(
     db: Session = Depends(get_db),
 ):
     """Отправить донат (сообщение отображается на стриме, оплата — внешняя)."""
-    stream = _active_streams.get(room_id)
-    if not stream:
+    donated = _live.stream_donate(room_id, u.id, body.amount, body.currency, body.message)
+    if donated["status"] == "missing":
         raise HTTPException(404)
-
-    if not stream.allow_donations:
+    if donated["status"] == "disabled":
         raise HTTPException(400, "Donations are disabled for this stream")
-
-    if u.id not in stream.participants:
+    if donated["status"] == "not_in":
         raise HTTPException(400, "You are not in the stream")
-
-    donation = {
-        "user_id": u.id,
-        "username": u.username,
-        "display_name": stream.participants[u.id].display_name,
-        "avatar_emoji": stream.participants[u.id].avatar_emoji,
-        "amount": body.amount,
-        "currency": body.currency,
-        "message": body.message,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    stream.donations.append(donation)
 
     await _broadcast_stream(
         room_id,
         {
             "type": "stream_donation",
-            **donation,
+            **donated["donation"],
         },
     )
 
@@ -826,38 +620,32 @@ async def update_stream_settings(
     db: Session = Depends(get_db),
 ):
     """Обновить настройки активного стрима."""
-    stream = _active_streams.get(room_id)
-    if not stream:
+    updated = _live.stream_update(
+        room_id,
+        u.id,
+        title=body.title,
+        description=body.description,
+        allow_reactions=body.allow_reactions,
+        allow_donations=body.allow_donations,
+        donation_card=body.donation_card,
+        donation_message=body.donation_message,
+        auto_accept_speakers=body.auto_accept_speakers,
+    )
+    if updated["status"] == "missing":
         raise HTTPException(404)
-
-    actor = stream.participants.get(u.id)
-    if not actor or actor.role not in (StreamRole.HOST, StreamRole.CO_HOST):
+    if updated["status"] == "not_allowed":
         raise HTTPException(403)
 
-    if body.title is not None:
-        stream.title = body.title
-    if body.description is not None:
-        stream.description = body.description
-    if body.allow_reactions is not None:
-        stream.allow_reactions = body.allow_reactions
-    if body.allow_donations is not None:
-        stream.allow_donations = body.allow_donations
-    if body.donation_card is not None:
-        stream.donation_card = body.donation_card
-    if body.donation_message is not None:
-        stream.donation_message = body.donation_message
-    if body.auto_accept_speakers is not None:
-        stream.auto_accept_speakers = body.auto_accept_speakers
-
+    stream = updated["stream"]
     await _broadcast_stream(
         room_id,
         {
             "type": "stream_settings_updated",
-            "stream": stream.to_dict(),
+            "stream": stream,
         },
     )
 
-    return stream.to_dict()
+    return stream
 
 
 @router.get("/{room_id}/hands")
@@ -867,15 +655,9 @@ async def get_hand_queue(
     db: Session = Depends(get_db),
 ):
     """Список поднятых рук."""
-    stream = _active_streams.get(room_id)
-    if not stream:
+    hands = _live.stream_hands(room_id)
+    if hands is None:
         raise HTTPException(404)
-
-    hands = []
-    for uid in stream.hand_queue:
-        p = stream.participants.get(uid)
-        if p and p.hand_raised:
-            hands.append(p.to_dict())
 
     return {"hands": hands}
 
@@ -935,7 +717,7 @@ async def ws_stream(
         await websocket.close(code=4401)
         return
 
-    stream = _active_streams.get(room_id)
+    stream = _live.stream_status(room_id)
     if not stream:
         await websocket.accept()
         await websocket.send_text(_json.dumps({"type": "stream_ended"}))
@@ -943,7 +725,8 @@ async def ws_stream(
         return
 
     # Must be a participant (joined via REST)
-    if user.id not in stream.participants:
+    seated = {held["user_id"]: held for held in stream["participants"]}
+    if user.id not in seated:
         await websocket.accept()
         await websocket.close(code=4403)
         return
@@ -952,16 +735,17 @@ async def ws_stream(
     _stream_ws.setdefault(room_id, {})[user.id] = websocket
     logger.info("Stream WS+ %s(%s) -> room %s", user.username, user.id, room_id)
 
+    pending = None
     try:
         # Send current participants list
-        peers = [p.to_dict() for uid, p in stream.participants.items() if uid != user.id]
+        peers = [held for uid, held in seated.items() if uid != user.id]
         await websocket.send_text(
             _json.dumps(
                 {
                     "type": "stream_peers",
                     "peers": peers,
-                    "my_role": stream.participants[user.id].role.value,
-                    "stream": stream.to_dict(),
+                    "my_role": seated[user.id]["role"],
+                    "stream": stream,
                 }
             )
         )
@@ -970,7 +754,7 @@ async def ws_stream(
         notify_msg = _json.dumps(
             {
                 "type": "stream_peer_joined",
-                **stream.participants[user.id].to_dict(),
+                **seated[user.id],
             }
         )
         for uid, ws in list(_stream_ws.get(room_id, {}).items()):
@@ -981,17 +765,27 @@ async def ws_stream(
                     _stream_ws.get(room_id, {}).pop(uid, None)
 
         # Message loop
+        renew_at = time.monotonic() + _live.RENEWAL_SECONDS
+        pending = asyncio.ensure_future(websocket.receive_text())
         while True:
-            raw = await websocket.receive_text()
+            arrived, _waiting = await asyncio.wait(
+                {pending}, timeout=_live.RENEWAL_SECONDS
+            )
+            if time.monotonic() >= renew_at:
+                _renew_stream(room_id)
+                renew_at = time.monotonic() + _live.RENEWAL_SECONDS
+            if not arrived:
+                continue
+
+            raw = pending.result()
+            pending = asyncio.ensure_future(websocket.receive_text())
+
             try:
                 msg = _json.loads(raw)
             except Exception:  # noqa: S112
                 continue
 
             msg_type = msg.get("type", "")
-            participant = stream.participants.get(user.id)
-            if not participant:
-                break
 
             if msg_type in ("stream_offer", "stream_answer", "stream_ice"):
                 # WebRTC signaling relay
@@ -1013,23 +807,28 @@ async def ws_stream(
                                 _stream_ws.get(room_id, {}).pop(uid, None)
 
             elif msg_type == "stream_mute":
-                if participant.can_speak or msg.get("is_muted", True):
-                    participant.is_muted = msg.get("is_muted", participant.is_muted)
-                if participant.can_video:
-                    participant.is_video_on = msg.get("is_video_on", participant.is_video_on)
+                amended = _live.stream_mute(
+                    room_id, user.id, msg.get("is_muted"), msg.get("is_video_on")
+                )
+                if amended["status"] != "ok":
+                    break
+                participant = amended["participant"]
                 await _broadcast_stream(
                     room_id,
                     {
                         "type": "stream_mute",
                         "user_id": user.id,
-                        "is_muted": participant.is_muted,
-                        "is_video_on": participant.is_video_on,
+                        "is_muted": participant["is_muted"],
+                        "is_video_on": participant["is_video_on"],
                     },
                     exclude=user.id,
                 )
 
             elif msg_type == "stream_screen_share":
-                if not participant.can_screen_share:
+                shared = _live.stream_share_screen(
+                    room_id, user.id, bool(msg.get("sharing", False))
+                )
+                if shared["status"] == "not_allowed":
                     await websocket.send_text(
                         _json.dumps(
                             {
@@ -1039,26 +838,26 @@ async def ws_stream(
                         )
                     )
                     continue
-                participant.is_screen_sharing = msg.get("sharing", False)
+                if shared["status"] != "ok":
+                    break
                 await _broadcast_stream(
                     room_id,
                     {
                         "type": "stream_screen_share",
                         "user_id": user.id,
-                        "sharing": participant.is_screen_sharing,
+                        "sharing": shared["participant"]["is_screen_sharing"],
                     },
                     exclude=user.id,
                 )
 
             elif msg_type == "stream_reaction":
-                if stream.allow_reactions:
-                    emoji = str(msg.get("emoji", "❤️"))[:10]
-                    stream.reaction_counts[emoji] = stream.reaction_counts.get(emoji, 0) + 1
+                reacted = _live.stream_react(room_id, user.id, str(msg.get("emoji", "❤️")))
+                if reacted["status"] == "ok":
                     await _broadcast_stream(
                         room_id,
                         {
                             "type": "stream_reaction",
-                            "emoji": emoji,
+                            "emoji": reacted["emoji"],
                             "user_id": user.id,
                             "username": user.username,
                         },
@@ -1074,8 +873,8 @@ async def ws_stream(
                             "type": "stream_chat",
                             "user_id": user.id,
                             "username": user.username,
-                            "display_name": participant.display_name,
-                            "avatar_emoji": participant.avatar_emoji,
+                            "display_name": seated[user.id]["display_name"],
+                            "avatar_emoji": seated[user.id]["avatar_emoji"],
                             "text": text,
                         },
                         exclude=user.id,
@@ -1086,6 +885,9 @@ async def ws_stream(
     except Exception as e:
         logger.warning("Stream WS error user=%s room=%s: %s", user.username, room_id, e)
     finally:
+        if pending is not None and not pending.done():
+            pending.cancel()
+
         ws_room = _stream_ws.get(room_id, {})
         ws_room.pop(user.id, None)
         if not ws_room and room_id in _stream_ws:
@@ -1094,24 +896,22 @@ async def ws_stream(
         logger.info("Stream WS- %s(%s) <- room %s", user.username, user.id, room_id)
 
         # Auto-leave on disconnect
-        stream = _active_streams.get(room_id)
-        if stream and user.id in stream.participants:
-            removed = stream.participants.pop(user.id, None)
-            stream.hand_queue = [uid for uid in stream.hand_queue if uid != user.id]
-
-            if user.id == stream.host_id:
+        left = {"status": "missing"}
+        with contextlib.suppress(_live.LiveUnavailableError):
+            left = _live.stream_leave(room_id, user.id)
+        if left["status"] == "ok":
+            if left["stream_ended"]:
                 # Host disconnected — end stream
                 await _broadcast_stream(room_id, {"type": "stream_ended", "ended_by": "disconnect"})
                 await _notify_room_stream_state(room_id, "ended")
-                _active_streams.pop(room_id, None)
                 _stream_ws.pop(room_id, None)
-            elif removed:
+            else:
                 await _broadcast_stream(
                     room_id,
                     {
                         "type": "stream_peer_left",
                         "user_id": user.id,
                         "username": user.username,
-                        "viewer_count": stream.viewer_count(),
+                        "viewer_count": _viewer_count(room_id),
                     },
                 )

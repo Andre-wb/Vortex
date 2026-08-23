@@ -1,0 +1,19 @@
+[package]
+name = "vortex-routing"
+version = "0.1.0"
+edition.workspace = true
+description = "Пер-роут решение Vortex — какой рантайм обслуживает роут"
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "vortex_routing"
+path = "src/lib.rs"
+
+[dependencies]
+async-trait = { workspace = true }
+log = { workspace = true }
+parking_lot = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

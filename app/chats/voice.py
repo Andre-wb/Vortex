@@ -2,12 +2,11 @@
 app/chats/voice.py -- Persistent voice channels backend (Discord-style).
 
 Voice channels are Room objects with is_voice=True. Users freely join/leave
-voice -- there is no "calling" concept. Voice state is in-memory only;
-a server restart empties all voice channels (expected behavior).
+voice -- there is no "calling" concept.
 
 Architecture:
-  - _voice_participants: dict[room_id, dict[user_id, participant_info]]
-    Tracks who is currently in each voice channel.
+  - Присутствие, сцена и отметка записи живут в общем сторе (`vortex-live`
+    через `app.chats.live_backend`) и видны всем воркерам.
   - REST endpoints for join/leave/mute/participants.
   - Enhanced signal WebSocket at /ws/voice-signal/{room_id} for mesh
     WebRTC signaling among voice channel participants.
@@ -17,15 +16,18 @@ Architecture:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json as _json
 import logging
-from datetime import datetime, timezone
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.chats import live_backend as _live
 from app.chats.messages.core import ws_origin_ok  # shared CSWSH guard
 from app.database import get_db
 from app.models import User
@@ -39,38 +41,18 @@ router = APIRouter(prefix="/api/voice", tags=["voice"])
 ws_router = APIRouter(tags=["voice"])
 
 
-# In-memory voice state
-
-# room_id -> {user_id -> {username, display_name, avatar_emoji, avatar_url,
-#                          joined_at, is_muted, is_video}}
-_voice_participants: dict[int, dict[int, dict]] = {}
-
 # room_id -> {user_id -> WebSocket}   (voice-signal WS connections)
 _voice_signal_rooms: dict[int, dict[int, WebSocket]] = {}
 
 
-def _make_participant(user: User, is_muted: bool = False, is_video: bool = False) -> dict:
-    """Build a participant dict from a User object."""
-    return {
-        "user_id": user.id,
-        "username": user.username,
-        "display_name": user.display_name or user.username,
-        "avatar_emoji": user.avatar_emoji or "\U0001f464",
-        "avatar_url": user.avatar_url,
-        "joined_at": datetime.now(timezone.utc).isoformat(),
-        "is_muted": is_muted,
-        "is_video": is_video,
-    }
-
-
 def get_voice_participants(room_id: int) -> list[dict]:
     """Return current voice participants for a room (used by _room_dict)."""
-    return list(_voice_participants.get(room_id, {}).values())
+    return _live.voice_participants(room_id)
 
 
 def get_voice_participant_count(room_id: int) -> int:
     """Return how many users are currently in a voice channel."""
-    return len(_voice_participants.get(room_id, {}))
+    return _live.voice_count(room_id)
 
 
 def _require_voice_room(room_id: int, db: Session) -> Room:
@@ -124,18 +106,19 @@ async def _broadcast_voice_update(
     # Clients learn about voice activity through BMP room polling
 
 
+def _renew_presence(room_id: int, user_id: int) -> None:
+    """Продлить присутствие. Отказ общего состояния сокет не роняет — запись
+    просто истечёт, и участник пропадёт из канала."""
+    with contextlib.suppress(_live.LiveUnavailableError):
+        _live.voice_renew(room_id, user_id)
+
+
 async def _remove_participant(room_id: int, user_id: int) -> Optional[dict]:
     """
     Remove a user from voice participants. Returns the removed participant
     dict, or None if user was not in the channel.
     """
-    room_participants = _voice_participants.get(room_id)
-    if not room_participants:
-        return None
-    removed = room_participants.pop(user_id, None)
-    if not room_participants:
-        _voice_participants.pop(room_id, None)
-    return removed
+    return _live.voice_leave(room_id, user_id)["participant"]
 
 
 # REST: Join voice channel
@@ -155,25 +138,22 @@ async def voice_join(
     _require_voice_room(room_id, db)
     _require_room_member(room_id, u.id, db)
 
-    # Already in voice? Return current state
-    if room_id in _voice_participants and u.id in _voice_participants[room_id]:
+    joined = _live.voice_join(room_id, u)
+    if joined["already_in"]:
         return {
             "joined": True,
             "already_in": True,
-            "participants": get_voice_participants(room_id),
+            "participants": joined["participants"],
         }
-
-    participant = _make_participant(u)
-    _voice_participants.setdefault(room_id, {})[u.id] = participant
 
     logger.info(f"Voice join: {u.username}({u.id}) -> room {room_id}")
 
-    await _broadcast_voice_update(room_id, "join", participant)
+    await _broadcast_voice_update(room_id, "join", joined["participant"])
 
     return {
         "joined": True,
         "already_in": False,
-        "participants": get_voice_participants(room_id),
+        "participants": joined["participants"],
     }
 
 
@@ -192,7 +172,8 @@ async def voice_leave(
     """
     _require_voice_room(room_id, db)
 
-    removed = await _remove_participant(room_id, u.id)
+    left = _live.voice_leave(room_id, u.id)
+    removed = left["participant"]
     if not removed:
         raise HTTPException(400, "Not currently in this voice channel")
 
@@ -213,7 +194,7 @@ async def voice_leave(
 
     return {
         "left": True,
-        "participants": get_voice_participants(room_id),
+        "participants": left["participants"],
     }
 
 
@@ -235,11 +216,6 @@ async def voice_participants(
 
 # REST: Mute / unmute / toggle video
 
-# In-memory: room_id -> list of recording chunks metadata
-_voice_recordings: dict[int, dict] = {}
-# In-memory: stage mode state
-_stage_speakers: dict[int, set[int]] = {}  # room_id -> set of speaker user_ids
-
 
 class VoiceMuteRequest(BaseModel):
     is_muted: Optional[bool] = None  # None = toggle
@@ -259,20 +235,9 @@ async def voice_mute(
     """
     _require_voice_room(room_id, db)
 
-    room_participants = _voice_participants.get(room_id, {})
-    participant = room_participants.get(u.id)
+    participant = _live.voice_mute(room_id, u.id, body.is_muted, body.is_video)
     if not participant:
         raise HTTPException(400, "Not currently in this voice channel")
-
-    # Update mute state
-    if body.is_muted is not None:
-        participant["is_muted"] = body.is_muted
-    else:
-        participant["is_muted"] = not participant["is_muted"]
-
-    # Update video state
-    if body.is_video is not None:
-        participant["is_video"] = body.is_video
 
     logger.info(
         f"Voice mute: {u.username}({u.id}) in room {room_id} "
@@ -363,14 +328,9 @@ async def start_recording(room_id: int, u: User = Depends(get_current_user), db:
     if member.role not in ("owner", "admin"):
         raise HTTPException(403, "Only admins can start recording")
 
-    if room_id in _voice_recordings:
+    started = _live.recording_start(room_id, u.id)
+    if started["already_started"]:
         return {"recording": True, "already_started": True}
-
-    _voice_recordings[room_id] = {
-        "started_by": u.id,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "participants": list(_voice_participants.get(room_id, {}).keys()),
-    }
 
     # Notify all participants that recording started
     await _broadcast_voice_update(
@@ -382,7 +342,7 @@ async def start_recording(room_id: int, u: User = Depends(get_current_user), db:
         },
     )
 
-    return {"recording": True, "started_at": _voice_recordings[room_id]["started_at"]}
+    return {"recording": True, "started_at": started["started_at"]}
 
 
 @router.post("/{room_id}/recording/stop")
@@ -390,8 +350,8 @@ async def stop_recording(room_id: int, u: User = Depends(get_current_user), db: 
     """Stop recording. Clients should upload their encrypted recording chunks."""
     _require_voice_room(room_id, db)
 
-    rec = _voice_recordings.pop(room_id, None)
-    if not rec:
+    stopped = _live.recording_stop(room_id)
+    if not stopped["stopped"]:
         raise HTTPException(400, "No active recording")
 
     await _broadcast_voice_update(
@@ -403,18 +363,13 @@ async def stop_recording(room_id: int, u: User = Depends(get_current_user), db: 
         },
     )
 
-    return {"recording": False, "duration_since_start": rec["started_at"]}
+    return {"recording": False, "duration_since_start": stopped["started_at"]}
 
 
 @router.get("/{room_id}/recording/status")
 async def recording_status(room_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Check if recording is active."""
-    rec = _voice_recordings.get(room_id)
-    return {
-        "recording": rec is not None,
-        "started_at": rec["started_at"] if rec else None,
-        "started_by": rec["started_by"] if rec else None,
-    }
+    return _live.recording_status(room_id)
 
 
 # Stage Mode (one-to-many: speakers + listeners)
@@ -432,25 +387,25 @@ async def enable_stage(room_id: int, u: User = Depends(get_current_user), db: Se
     if member.role not in ("owner", "admin"):
         raise HTTPException(403, "Only admins can enable stage mode")
 
-    _stage_speakers[room_id] = {u.id}  # Creator is first speaker
+    speakers = _live.stage_open(room_id, u.id)
 
     await _broadcast_voice_update(
         room_id,
         "stage_enabled",
         {
             "enabled_by": u.username,
-            "speakers": [u.id],
+            "speakers": speakers,
         },
     )
 
-    return {"stage_mode": True, "speakers": [u.id]}
+    return {"stage_mode": True, "speakers": speakers}
 
 
 @router.post("/{room_id}/stage/disable")
 async def disable_stage(room_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Disable stage mode — everyone can speak again."""
     _require_voice_room(room_id, db)
-    _stage_speakers.pop(room_id, None)
+    _live.stage_close(room_id)
 
     await _broadcast_voice_update(
         room_id,
@@ -471,11 +426,9 @@ async def add_speaker(room_id: int, target_id: int, u: User = Depends(get_curren
     if member.role not in ("owner", "admin"):
         raise HTTPException(403, "Only admins can add speakers")
 
-    speakers = _stage_speakers.get(room_id)
+    speakers = _live.stage_add(room_id, target_id)
     if speakers is None:
         raise HTTPException(400, "Stage mode not enabled")
-
-    speakers.add(target_id)
 
     await _broadcast_voice_update(
         room_id,
@@ -486,7 +439,7 @@ async def add_speaker(room_id: int, target_id: int, u: User = Depends(get_curren
         },
     )
 
-    return {"ok": True, "speakers": list(speakers)}
+    return {"ok": True, "speakers": speakers}
 
 
 @router.post("/{room_id}/stage/remove-speaker/{target_id}")
@@ -499,11 +452,9 @@ async def remove_speaker(
     if member.role not in ("owner", "admin"):
         raise HTTPException(403, "Only admins can remove speakers")
 
-    speakers = _stage_speakers.get(room_id)
+    speakers = _live.stage_remove(room_id, target_id)
     if speakers is None:
         raise HTTPException(400, "Stage mode not enabled")
-
-    speakers.discard(target_id)
 
     await _broadcast_voice_update(
         room_id,
@@ -514,7 +465,7 @@ async def remove_speaker(
         },
     )
 
-    return {"ok": True, "speakers": list(speakers)}
+    return {"ok": True, "speakers": speakers}
 
 
 @router.post("/{room_id}/stage/raise-hand")
@@ -522,8 +473,7 @@ async def raise_hand(room_id: int, u: User = Depends(get_current_user), db: Sess
     """Listener requests to become a speaker (raise hand)."""
     _require_voice_room(room_id, db)
 
-    speakers = _stage_speakers.get(room_id)
-    if speakers is None:
+    if not _live.stage_status(room_id, u.id)["stage_mode"]:
         raise HTTPException(400, "Stage mode not enabled")
 
     await _broadcast_voice_update(
@@ -542,12 +492,7 @@ async def raise_hand(room_id: int, u: User = Depends(get_current_user), db: Sess
 @router.get("/{room_id}/stage/status")
 async def stage_status(room_id: int, u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get current stage mode status."""
-    speakers = _stage_speakers.get(room_id)
-    return {
-        "stage_mode": speakers is not None,
-        "speakers": list(speakers) if speakers else [],
-        "is_speaker": u.id in speakers if speakers else True,
-    }
+    return _live.stage_status(room_id, u.id)
 
 
 # WebRTC Media Configuration (noise/echo/blur/PiP)
@@ -603,8 +548,8 @@ async def media_config(room_id: int, u: User = Depends(get_current_user), db: Se
             "low": {"video_bitrate": 200000, "audio_bitrate": 16000, "resolution": "320x180"},
             "audio_only": {"video_bitrate": 0, "audio_bitrate": 24000, "resolution": "none"},
         },
-        "stage_mode": _stage_speakers.get(room_id) is not None,
-        "recording": room_id in _voice_recordings,
+        "stage_mode": _live.stage_status(room_id, u.id)["stage_mode"],
+        "recording": _live.recording_status(room_id)["recording"],
     }
 
 
@@ -692,22 +637,23 @@ async def ws_voice_signal(
         return
 
     # Auto-join voice participants if not already joined
-    if room_id not in _voice_participants or user.id not in _voice_participants.get(room_id, {}):
-        participant = _make_participant(user)
-        _voice_participants.setdefault(room_id, {})[user.id] = participant
+    joined = _live.voice_join(room_id, user)
+    if not joined["already_in"]:
         logger.info(f"Voice auto-join on signal WS: {user.username}({user.id}) -> room {room_id}")
-        await _broadcast_voice_update(room_id, "join", participant)
+        await _broadcast_voice_update(room_id, "join", joined["participant"])
 
     await websocket.accept()
     _voice_signal_rooms.setdefault(room_id, {})[user.id] = websocket
     logger.info(f"Voice signal WS+ {user.username}({user.id}) -> room {room_id}")
 
+    pending = None
     try:
         # Send the list of already-connected signal peers to the new joiner
+        seated = {held["user_id"]: held for held in get_voice_participants(room_id)}
         existing_peers = []
         for uid, _ws in _voice_signal_rooms.get(room_id, {}).items():
             if uid != user.id:
-                p = _voice_participants.get(room_id, {}).get(uid)
+                p = seated.get(uid)
                 if p:
                     existing_peers.append(
                         {
@@ -739,8 +685,8 @@ async def ws_voice_signal(
                 "display_name": user.display_name or user.username,
                 "avatar_emoji": user.avatar_emoji or "\U0001f464",
                 "avatar_url": user.avatar_url,
-                "is_muted": _voice_participants.get(room_id, {}).get(user.id, {}).get("is_muted", False),
-                "is_video": _voice_participants.get(room_id, {}).get(user.id, {}).get("is_video", False),
+                "is_muted": joined["participant"]["is_muted"],
+                "is_video": joined["participant"]["is_video"],
             }
         )
         for uid, ws in list(_voice_signal_rooms.get(room_id, {}).items()):
@@ -752,8 +698,21 @@ async def ws_voice_signal(
                     _voice_signal_rooms.get(room_id, {}).pop(uid, None)
 
         # Main message loop: relay signaling messages between peers
+        renew_at = time.monotonic() + _live.RENEWAL_SECONDS
+        pending = asyncio.ensure_future(websocket.receive_text())
         while True:
-            raw = await websocket.receive_text()
+            arrived, _waiting = await asyncio.wait(
+                {pending}, timeout=_live.RENEWAL_SECONDS
+            )
+            if time.monotonic() >= renew_at:
+                _renew_presence(room_id, user.id)
+                renew_at = time.monotonic() + _live.RENEWAL_SECONDS
+            if not arrived:
+                continue
+
+            raw = pending.result()
+            pending = asyncio.ensure_future(websocket.receive_text())
+
             try:
                 msg = _json.loads(raw)
             except Exception as e:
@@ -786,6 +745,9 @@ async def ws_voice_signal(
     except Exception as e:
         logger.warning(f"Voice signal WS error user={user.username} room={room_id}: {e}")
     finally:
+        if pending is not None and not pending.done():
+            pending.cancel()
+
         # Clean up signal WS
         sig_rooms = _voice_signal_rooms.get(room_id, {})
         sig_rooms.pop(user.id, None)
@@ -795,7 +757,9 @@ async def ws_voice_signal(
         logger.info(f"Voice signal WS- {user.username}({user.id}) <- room {room_id}")
 
         # Auto-leave voice channel on signal WS disconnect
-        removed = await _remove_participant(room_id, user.id)
+        removed = None
+        with contextlib.suppress(_live.LiveUnavailableError):
+            removed = await _remove_participant(room_id, user.id)
         if removed:
             logger.info(f"Voice auto-leave on signal disconnect: {user.username}({user.id}) <- room {room_id}")
 

@@ -30,8 +30,6 @@ import logging
 import os
 import ssl
 import time
-from collections import defaultdict as _defaultdict
-from collections import deque as _deque
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -45,7 +43,9 @@ from app.config import Config
 from app.database import SessionLocal, get_db
 from app.models import User
 from app.models_rooms import PersistedFederatedRoom
+from app.peer import peer_registry_backend as _peers
 from app.peer.connection_manager import manager as ws_manager
+from app.security import ratelimit_backend as _ratelimit
 from app.security.auth_jwt import get_current_user
 from app.security.ssl_context import make_peer_ssl_context
 
@@ -174,7 +174,6 @@ class FederationRelayManager:
         self._tasks: dict[int, asyncio.Task] = {}
         self._outqueue: dict[int, asyncio.Queue] = {}
         self._lock = asyncio.Lock()
-        self._next_id = -1
 
     def _save_room_sync(self, info: FederatedRoomInfo) -> None:
         """Сохраняет/обновляет комнату в БД (синхронно, вызывается из async контекста через run_in_executor)."""
@@ -248,9 +247,7 @@ class FederationRelayManager:
                         local_user_ids=set(),  # пусто — пользователи переподключатся сами
                     )
                     self._rooms[row.virtual_id] = info
-                    # Синхронизируем _next_id чтобы не было коллизий
-                    if row.virtual_id <= self._next_id:
-                        self._next_id = row.virtual_id - 1
+                    _peers.reserve_virtual_room(row.virtual_id)
                     restored += 1
                 return restored
             finally:
@@ -281,8 +278,7 @@ class FederationRelayManager:
                     info.local_user_ids.add(user_id)
                     return info
 
-            vid = self._next_id
-            self._next_id -= 1
+            vid = _peers.next_virtual_room()
             info = FederatedRoomInfo(
                 virtual_id=vid,
                 peer_ip=peer_ip,
@@ -590,8 +586,6 @@ def _is_private_ip(ip: str) -> bool:
 
 _GUEST_PROOF_HEADER = "X-Federation-Proof"  # "<ts>:<hmac_hex>"
 _GUEST_PROOF_WINDOW = 300  # ±5 min clock skew
-_GUEST_RATE_PER_MIN = 30  # guest-login attempts per source IP
-_guest_hits: dict[str, _deque] = _defaultdict(_deque)
 
 
 def _guest_enabled() -> bool:
@@ -636,15 +630,7 @@ def _verify_guest_proof(proof: str | None) -> bool:
 
 
 def _guest_rate_ok(ip: str) -> bool:
-    now = time.monotonic()
-    dq = _guest_hits[ip]
-    cutoff = now - 60.0
-    while dq and dq[0] < cutoff:
-        dq.popleft()
-    if len(dq) >= _GUEST_RATE_PER_MIN:
-        return False
-    dq.append(now)
-    return True
+    return _ratelimit.guest_login_allowed(ip)
 
 
 def make_guest_proof(ts: int | None = None) -> str:

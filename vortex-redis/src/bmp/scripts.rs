@@ -106,19 +106,103 @@ return removed
 "#,
 );
 
-pub static SLIDING_WINDOW: LuaScript = LuaScript::new(
+pub static PUSH_HOLD: LuaScript = LuaScript::new(
+    r#"
+local token = ARGV[1]
+local endpoint = ARGV[2]
+local made_at = tonumber(ARGV[3])
+local depth = tonumber(ARGV[4])
+local life = tonumber(ARGV[5])
+local width = (#KEYS - 1) / 2
+local busy = KEYS[#KEYS]
+
+for index = 1, width do
+  local held = KEYS[index]
+  local place = KEYS[index + width]
+  redis.call('ZREM', held, token)
+  redis.call('HDEL', place, token)
+  if redis.call('ZCARD', held) < depth then
+    redis.call('ZADD', held, made_at, token)
+    redis.call('HSET', place, token, endpoint)
+    redis.call('EXPIRE', held, life)
+    redis.call('EXPIRE', place, life)
+    redis.call('SADD', busy, ARGV[index + 5])
+  end
+end
+return width
+"#,
+);
+
+pub static PUSH_FORGET: LuaScript = LuaScript::new(
+    r#"
+local token = ARGV[1]
+local width = (#KEYS - 1) / 2
+local busy = KEYS[#KEYS]
+local dropped = 0
+
+for index = 1, width do
+  local held = KEYS[index]
+  local place = KEYS[index + width]
+  dropped = dropped + redis.call('ZREM', held, token)
+  redis.call('HDEL', place, token)
+  if redis.call('ZCARD', held) == 0 then
+    redis.call('SREM', busy, ARGV[index + 1])
+  end
+end
+return dropped
+"#,
+);
+
+pub static PUSH_READ: LuaScript = LuaScript::new(
     r#"
 local now = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local limit = tonumber(ARGV[3])
+local lifetime = tonumber(ARGV[2])
 
-redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - window)
-if redis.call('ZCARD', KEYS[1]) >= limit then
-  return 0
+local stale = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', now - lifetime)
+if #stale > 0 then
+  redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - lifetime)
+  for index = 1, #stale do
+    redis.call('HDEL', KEYS[2], stale[index])
+  end
 end
-local sequence = redis.call('INCR', KEYS[2])
-redis.call('ZADD', KEYS[1], now, sequence)
-redis.call('EXPIRE', KEYS[1], math.ceil(window) + 1)
-return 1
+
+if redis.call('ZCARD', KEYS[1]) == 0 then
+  redis.call('SREM', KEYS[3], ARGV[3])
+end
+
+local held = redis.call('ZRANGE', KEYS[1], 0, -1, 'WITHSCORES')
+local told = {}
+for index = 1, #held, 2 do
+  local token = held[index]
+  local endpoint = redis.call('HGET', KEYS[2], token)
+  if endpoint then
+    told[#told + 1] = token
+    told[#told + 1] = endpoint
+    told[#told + 1] = held[index + 1]
+  end
+end
+return told
+"#,
+);
+
+pub static PUSH_TALLY: LuaScript = LuaScript::new(
+    r#"
+local width = #KEYS - 2
+local busy = KEYS[#KEYS - 1]
+local tokens = 0
+local counted = 0
+
+for index = 1, width do
+  local depth = redis.call('ZCARD', KEYS[index])
+  if depth > 0 then
+    tokens = tokens + depth
+    counted = counted + 1
+  else
+    redis.call('SREM', busy, ARGV[index])
+  end
+end
+
+local wakes = tonumber(redis.call('GET', KEYS[#KEYS])) or 0
+return {tokens, counted, wakes}
 "#,
 );

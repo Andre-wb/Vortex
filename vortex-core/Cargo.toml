@@ -1,0 +1,11 @@
+[package]
+name = "vortex-core"
+version = "0.1.0"
+edition.workspace = true
+description = "Общие листовые типы и функции Vortex: григорианский календарь, моменты времени, номер комнаты"
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "vortex_core"
+path = "src/lib.rs"

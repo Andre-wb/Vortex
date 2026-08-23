@@ -26,6 +26,7 @@ from app.database import get_db
 from app.models import User
 from app.models_rooms import Story, StoryKeyEnvelope
 from app.security.auth_jwt import get_current_user
+from app.security.wrapped_key_backend import wrapped_key_parse, wrapped_key_stored
 
 router = APIRouter(prefix="/api/stories", tags=["stories"])
 
@@ -62,18 +63,9 @@ def _story_dict(s: Story, u: User, envelope: StoryKeyEnvelope | None = None) -> 
         d["has_media"] = s.media_blob is not None
         d["has_music"] = s.music_blob is not None
         if envelope:
-            if envelope.kyber_ciphertext:
-                d["key_envelope"] = {
-                    "hybrid": True,
-                    "x25519_ephemeral_pub": envelope.ephemeral_pub,
-                    "kyber_ciphertext": envelope.kyber_ciphertext,
-                    "ciphertext": envelope.ciphertext,
-                }
-            else:
-                d["key_envelope"] = {
-                    "ephemeral_pub": envelope.ephemeral_pub,
-                    "ciphertext": envelope.ciphertext,
-                }
+            d["key_envelope"] = wrapped_key_stored(
+                envelope.ephemeral_pub, envelope.ciphertext, envelope.kyber_ciphertext
+            )
     else:
         # Legacy plaintext (backward compat)
         d["media_url"] = s.media_url
@@ -202,19 +194,15 @@ async def create_story(
 
     for env in envs:
         uid = env.get("user_id")
-        # Обе формы: гибрид (x25519_ephemeral_pub + kyber_ciphertext) или классика.
-        # X25519-эфемерный хранится в единой колонке ephemeral_pub.
-        kyber_ct = env.get("kyber_ciphertext")
-        eph = env.get("x25519_ephemeral_pub") if env.get("hybrid") else env.get("ephemeral_pub", "")
-        ct = env.get("ciphertext", "")
-        if uid and eph and ct:
+        wrapped = wrapped_key_parse(json.dumps(env)) if isinstance(env, dict) else None
+        if uid and wrapped is not None:
             db.add(
                 StoryKeyEnvelope(
                     story_id=story.id,
                     user_id=uid,
-                    ephemeral_pub=eph,
-                    ciphertext=ct,
-                    kyber_ciphertext=kyber_ct,
+                    ephemeral_pub=wrapped.ephemeral_pub,
+                    ciphertext=wrapped.ciphertext,
+                    kyber_ciphertext=wrapped.kyber_ciphertext,
                 )
             )
 

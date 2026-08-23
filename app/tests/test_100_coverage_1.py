@@ -9,7 +9,6 @@ Comprehensive coverage tests for:
 
 import asyncio
 import secrets
-import time
 
 import pytest
 from conftest import _unique_phone, login_user, make_user, random_str
@@ -98,15 +97,12 @@ class TestMainBackgroundTasks:
 
 
 class TestAuthRateLimiting:
-    """Covers lines 93-104 (_check_auth_rate) and 95-96 (testing bypass)."""
+    def test_the_limiter_is_off_while_testing(self):
+        from app.authentication import _allow_login_attempt, _allow_registration_attempt
 
-    def test_check_auth_rate_returns_true_in_testing(self):
-        """In TESTING mode, rate limiter always returns True (line 95-96)."""
-        from app.authentication import _check_auth_rate
-
-        assert _check_auth_rate("1.2.3.4", 1) is True
-        assert _check_auth_rate("1.2.3.4", 1) is True
-        assert _check_auth_rate("1.2.3.4", 1) is True
+        for _ in range(20):
+            assert _allow_login_attempt("1.2.3.4") is True
+            assert _allow_registration_attempt("1.2.3.4") is True
 
     def test_dummy_hash_exists(self):
         """Covers lines 107-111 (dummy hash creation)."""
@@ -116,48 +112,28 @@ class TestAuthRateLimiting:
         assert len(_DUMMY_HASH) > 10
 
 
-class TestAuthCleanupChallenges:
-    """Covers lines 132-138 (_cleanup_expired_challenges)."""
+class TestAuthChallengeStore:
+    """Челленджи входа живут в общем состоянии (vortex-auth), а не в памяти процесса."""
 
-    def test_cleanup_expired_challenges(self):
-        from app.authentication import (
-            _Challenge,
-            _challenges,
-            _challenges_lock,
-            _cleanup_expired_challenges,
-        )
+    def test_a_challenge_is_claimed_once(self):
+        from app.security import auth_state_backend
 
-        # Insert an expired challenge
-        with _challenges_lock:
-            _challenges["expired_test_1"] = _Challenge(
-                challenge=b"test",
-                user_id=999,
-                pubkey_hex="aa" * 32,
-                expires_at=time.monotonic() - 100,  # expired
-            )
-        _cleanup_expired_challenges()
-        with _challenges_lock:
-            assert "expired_test_1" not in _challenges
+        issued = auth_state_backend.login_issue(999, "aa" * 32)
+        claimed = auth_state_backend.login_claim(issued.challenge_id, "aa" * 32)
+        assert claimed.outcome == "taken"
+        assert claimed.user_id == 999
+        assert claimed.challenge == issued.challenge
 
-    def test_cleanup_keeps_valid_challenges(self):
-        from app.authentication import (
-            _Challenge,
-            _challenges,
-            _challenges_lock,
-            _cleanup_expired_challenges,
-        )
+        again = auth_state_backend.login_claim(issued.challenge_id, "aa" * 32)
+        assert again.outcome == "missing"
 
-        with _challenges_lock:
-            _challenges["valid_test_1"] = _Challenge(
-                challenge=b"test",
-                user_id=999,
-                pubkey_hex="bb" * 32,
-                expires_at=time.monotonic() + 1000,  # still valid
-            )
-        _cleanup_expired_challenges()
-        with _challenges_lock:
-            assert "valid_test_1" in _challenges
-            del _challenges["valid_test_1"]
+    def test_a_decoy_is_indistinguishable_from_a_challenge_that_never_existed(self):
+        from app.security import auth_state_backend
+
+        decoy = auth_state_backend.login_issue_decoy()
+        assert auth_state_backend.login_claim(decoy.challenge_id, "aa" * 32).outcome == "missing"
+        assert auth_state_backend.login_claim("0" * 32, "aa" * 32).outcome == "missing"
+        assert decoy.expires_in == auth_state_backend.login_issue(999, "aa" * 32).expires_in
 
 
 class TestAuthRegisterEdgeCases:
@@ -300,23 +276,18 @@ class TestAuthChallengeResponse:
         )
         assert resp.status_code == 401
 
-    def test_login_key_expired_challenge(self, client):
-        """Covers lines 419-420 (expired challenge)."""
-        from app.authentication import _Challenge, _challenges, _challenges_lock
+    def test_login_key_spent_challenge(self, client):
+        """Челлендж, уже потраченный другим запросом, второй раз не принимается."""
+        from app.security import auth_state_backend
 
-        cid = secrets.token_hex(16)
-        with _challenges_lock:
-            _challenges[cid] = _Challenge(
-                challenge=b"x" * 32,
-                user_id=1,
-                pubkey_hex="d" * 64,
-                expires_at=time.monotonic() - 10,  # expired
-            )
+        issued = auth_state_backend.login_issue(1, "d" * 64)
+        auth_state_backend.login_claim(issued.challenge_id, "d" * 64)
+
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
         resp = client.post(
             "/api/authentication/login-key",
             json={
-                "challenge_id": cid,
+                "challenge_id": issued.challenge_id,
                 "pubkey": "d" * 64,
                 "proof": "e" * 64,
             },
@@ -326,16 +297,10 @@ class TestAuthChallengeResponse:
 
     def test_login_key_wrong_pubkey(self, client):
         """Covers lines 421-422 (pubkey mismatch)."""
-        from app.authentication import _Challenge, _challenges, _challenges_lock
+        from app.security import auth_state_backend
 
-        cid = secrets.token_hex(16)
-        with _challenges_lock:
-            _challenges[cid] = _Challenge(
-                challenge=b"x" * 32,
-                user_id=1,
-                pubkey_hex="aa" * 32,
-                expires_at=time.monotonic() + 100,
-            )
+        issued = auth_state_backend.login_issue(1, "aa" * 32)
+        cid = issued.challenge_id
         csrf = client.get("/api/authentication/csrf-token").json().get("csrf_token", "")
         resp = client.post(
             "/api/authentication/login-key",

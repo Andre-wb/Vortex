@@ -346,6 +346,20 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.warning("Punishment cleanup error: %s", e)
 
+    async def _stale_draft_loop():
+        from app.chats.messages.moderation import forget_stale_drafts
+
+        while True:
+            await asyncio.sleep(3600)
+            try:
+                db = SessionLocal()
+                try:
+                    forget_stale_drafts(db)
+                finally:
+                    db.close()
+            except Exception as e:
+                logger.warning("Stale drafts cleanup error: %s", e)
+
     async def _metrics_update_loop():
         """Periodically update Prometheus gauges."""
         while _PROMETHEUS_AVAILABLE:
@@ -366,6 +380,7 @@ async def lifespan(app: FastAPI):
     _create_background_task(_expired_msg_loop(), "cleanup-expired-messages")
     _create_background_task(_expired_status_loop(), "cleanup-expired-statuses")
     _create_background_task(_punishment_cleanup_loop(), "cleanup-punishments")
+    _create_background_task(_stale_draft_loop(), "cleanup-stale-drafts")
     _create_background_task(_ws_cleanup_loop(), "cleanup-stale-ws")
 
     async def _rss_poll_loop():
@@ -384,13 +399,11 @@ async def lifespan(app: FastAPI):
 
     _create_background_task(_rss_poll_loop(), "rss-feed-poller")
 
-    from app.peer.connection_manager import pending_queue as _pq
-
     async def _pending_queue_cleanup():
         while True:
             await asyncio.sleep(600)
             try:
-                removed = await _pq.cleanup()
+                removed = await asyncio.to_thread(_delivery_backend.room_sweep)
                 if removed > 0:
                     logger.debug("Pending queue cleanup: removed %d expired entries", removed)
             except Exception as e:
@@ -503,8 +516,12 @@ async def lifespan(app: FastAPI):
         logger.debug("migration pusher start failed: %s", e)
 
     startup_duration = time.monotonic() - _startup_time
+    try:
+        _peer_count = len(registry.active())
+    except _peer_registry_backend.PeerRegistryUnavailableError:
+        _peer_count = -1
     logger.info(
-        "Vortex started in %.2fs (mode=%s, peers=%d)", startup_duration, Config.NETWORK_MODE, len(registry.active())
+        "Vortex started in %.2fs (mode=%s, peers=%d)", startup_duration, Config.NETWORK_MODE, _peer_count
     )
 
     yield
@@ -724,9 +741,67 @@ waf_config = {
     "max_content_length": 10 * 1024 * 1024,
     "captcha_secret": Config.CSRF_SECRET,
 }
+from app.chats import live_backend as _live_backend
+from app.peer import delivery_backend as _delivery_backend
+from app.peer import peer_registry_backend as _peer_registry_backend
+from app.push import push_registry_backend as _push_registry_backend
+from app.security import auth_state_backend as _auth_state_backend
+from app.security import ratelimit_backend as _ratelimit_backend
 from app.security.waf import backend as _waf_backend
+from app.session import resume_backend as _resume_backend
 
+_auth_state_backend.use_shared_state()
+_ratelimit_backend.use_shared_state()
+_live_backend.use_shared_state()
+_delivery_backend.use_shared_state()
+_resume_backend.use_shared_state()
+_push_registry_backend.use_shared_state()
+_peer_registry_backend.use_shared_state()
 _waf_backend.use_shared_state()
+
+
+@app.exception_handler(_peer_registry_backend.PeerRegistryUnavailableError)
+async def _peer_registry_unavailable(
+    request: Request, exc: _peer_registry_backend.PeerRegistryUnavailableError
+):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Peer registry state is temporarily unavailable"},
+    )
+
+
+@app.exception_handler(_push_registry_backend.PushRegistryUnavailableError)
+async def _push_registry_unavailable(
+    request: Request, exc: _push_registry_backend.PushRegistryUnavailableError
+):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Push proxy state is temporarily unavailable"},
+    )
+
+
+@app.exception_handler(_resume_backend.ResumeUnavailableError)
+async def _resume_unavailable(request: Request, exc: _resume_backend.ResumeUnavailableError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Resume state is temporarily unavailable"},
+    )
+
+
+@app.exception_handler(_live_backend.LiveUnavailableError)
+async def _live_unavailable(request: Request, exc: _live_backend.LiveUnavailableError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Live session state is temporarily unavailable"},
+    )
+
+
+@app.exception_handler(_delivery_backend.DeliveryUnavailableError)
+async def _delivery_unavailable(request: Request, exc: _delivery_backend.DeliveryUnavailableError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Message delivery state is temporarily unavailable"},
+    )
 waf_engine = init_waf_engine(waf_config)
 if _PROMETHEUS_AVAILABLE:
     register_waf_metrics(get_waf_engine)

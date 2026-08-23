@@ -1,0 +1,18 @@
+[package]
+name = "vortex-delivery"
+version = "0.1.0"
+edition.workspace = true
+description = "Состояние доставки сообщений Vortex — память о повторах и очереди для офлайн-получателей"
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "vortex_delivery"
+path = "src/lib.rs"
+
+[dependencies]
+parking_lot = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+vortex-auth = { path = "../vortex-auth" }
+vortex-core = { path = "../vortex-core" }

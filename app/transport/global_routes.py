@@ -7,33 +7,18 @@ These routes are available only when NETWORK_MODE=global.
 from __future__ import annotations
 
 import logging
-import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.config import Config
 from app.models import User
+from app.security import ratelimit_backend as _ratelimit
 from app.security.auth_jwt import get_current_user
 from app.transport.global_transport import global_transport
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/global", tags=["global"])
-
-_gossip_rate: dict[str, list] = {}  # ip -> [timestamp, count]
-GOSSIP_RATE_LIMIT = 10  # requests per minute
-
-
-def _check_gossip_rate(ip: str) -> bool:
-    """Return True if the request is within rate limits."""
-    now = time.monotonic()
-    bucket = _gossip_rate.get(ip)
-    if bucket and now - bucket[0] < 60.0:
-        bucket[1] += 1
-        return bucket[1] <= GOSSIP_RATE_LIMIT
-    _gossip_rate[ip] = [now, 1]
-    return True
-
 
 # Pydantic schemas
 
@@ -75,7 +60,7 @@ async def gossip(body: GossipRequest, request: Request):
     """
     # Per-IP rate limit
     client_ip = request.client.host if request.client else body.sender_ip
-    if not _check_gossip_rate(client_ip):
+    if not _ratelimit.gossip_allowed(client_ip):
         raise HTTPException(429, "Rate limit exceeded")
 
     # Validate sender_pubkey — must be 64-char hex or empty string
@@ -117,7 +102,7 @@ async def bootstrap(body: BootstrapRequest, request: Request):
     """
     # Per-IP rate limit
     client_ip = request.client.host if request.client else body.sender_ip
-    if not _check_gossip_rate(client_ip):
+    if not _ratelimit.gossip_allowed(client_ip):
         raise HTTPException(429, "Rate limit exceeded")
 
     # Validate sender_pubkey — must be 64-char hex or empty string

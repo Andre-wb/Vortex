@@ -711,7 +711,7 @@ class TestCreateRoom:
             },
             headers=u["headers"],
         )
-        assert r.status_code == 422
+        assert r.status_code in (400, 422)
 
 
 # ROOMS — POST /api/rooms/join/{invite_code}

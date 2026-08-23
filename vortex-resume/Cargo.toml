@@ -1,0 +1,16 @@
+[package]
+name = "vortex-resume"
+version = "0.1.0"
+edition.workspace = true
+description = "Состояние возобновления Vortex — сессии дозагрузки файла и курсоры переноса сеанса"
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "vortex_resume"
+path = "src/lib.rs"
+
+[dependencies]
+parking_lot = { workspace = true }
+vortex-auth = { path = "../vortex-auth" }
+vortex-core = { path = "../vortex-core" }

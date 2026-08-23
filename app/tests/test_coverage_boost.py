@@ -24,16 +24,16 @@ class TestBotAPI:
         r = client.get("/api/bots/my", headers=logged_user["headers"])
         assert r.status_code in (200, 404, 405)
 
-    def test_bot_marketplace(self, client):
-        r = client.get("/api/marketplace/bots")
+    def test_bot_marketplace(self, client, logged_user):
+        r = client.get("/api/marketplace/bots", headers=logged_user["headers"])
         assert r.status_code in (200, 404, 405, 422)
 
-    def test_bot_marketplace_search(self, client):
-        r = client.get("/api/marketplace/bots?q=test")
+    def test_bot_marketplace_search(self, client, logged_user):
+        r = client.get("/api/marketplace/bots?q=test", headers=logged_user["headers"])
         assert r.status_code in (200, 404, 405, 422)
 
-    def test_bot_marketplace_categories(self, client):
-        r = client.get("/api/marketplace/categories")
+    def test_bot_marketplace_categories(self, client, logged_user):
+        r = client.get("/api/marketplace/categories", headers=logged_user["headers"])
         assert r.status_code in (200, 404, 405)
 
     def test_bot_details(self, client, logged_user):

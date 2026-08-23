@@ -6,6 +6,17 @@ members = [
     "vortex-transport",
     "vortex-bmp",
     "vortex-redis",
+    "vortex-net",
+    "vortex-proto",
+    "vortex-core",
+    "vortex-storage",
+    "vortex-auth",
+    "vortex-ratelimit",
+    "vortex-live",
+    "vortex-delivery",
+    "vortex-resume",
+    "vortex-routing",
+    "vortex-server",
 ]
 exclude = ["src-tauri", "Gravitix", "solana_program"]
 
@@ -31,6 +42,7 @@ aes-gcm = "0.10"
 hkdf = "0.12"
 subtle = "2.6.1"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
+ed25519-dalek = { version = "2", features = ["batch", "rand_core"] }
 base64 = "0.22"
 dashmap = "5"
 parking_lot = "0.12"
@@ -45,6 +57,33 @@ fred = { version = "10", default-features = false, features = [
     "i-scripts",
     "i-server",
 ] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls-ring",
+    "postgres",
+    "macros",
+    "time",
+] }
+time = "0.3"
+async-trait = "0.1"
+axum = "0.8"
+hyper = "1"
+hyper-util = "0.1"
+http = "1"
+http-body-util = "0.1"
+tower = "0.5"
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls",
+    "stream",
+    "http2",
+] }
+prometheus = { version = "0.14", default-features = false }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+bytes = "1"
+futures-util = "0.3"
+tokio-util = { version = "0.7", features = ["io"] }
+tokio-tungstenite = "0.29"
 
 [profile.release]
 opt-level = 3

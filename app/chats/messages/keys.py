@@ -7,6 +7,7 @@ Extracted from chat.py for maintainability.
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -19,7 +20,7 @@ from app.models_rooms import (
     RoomMember,
 )
 from app.peer.connection_manager import manager
-from app.security.key_exchange import validate_ecies_payload
+from app.security.wrapped_key_backend import wrapped_key_parse
 
 logger = logging.getLogger(__name__)
 
@@ -174,32 +175,11 @@ async def notify_pending_key_requests(room_id: int, user_id: int, db: Session) -
 
 async def handle_key_response(room_id: int, user: User, data: dict, db: Session) -> None:
     for_user_id = data.get("for_user_id")
-    ciphertext = data.get("ciphertext", "")
     # \u041e\u0431\u0435 \u0444\u043e\u0440\u043c\u044b \u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0430: \u0433\u0438\u0431\u0440\u0438\u0434 (X25519+ML-KEM) \u0438\u043b\u0438 \u043a\u043b\u0430\u0441\u0441\u0438\u043a\u0430. X25519-\u044d\u0444\u0435\u043c\u0435\u0440\u043d\u044b\u0439
     # \u0445\u0440\u0430\u043d\u0438\u0442\u0441\u044f \u0432 \u0435\u0434\u0438\u043d\u043e\u0439 \u043a\u043e\u043b\u043e\u043d\u043a\u0435 ephemeral_pub \u043d\u0435\u0437\u0430\u0432\u0438\u0441\u0438\u043c\u043e \u043e\u0442 \u0444\u043e\u0440\u043c\u044b.
-    hybrid = bool(data.get("hybrid"))
-    if hybrid:
-        ephemeral_pub = data.get("x25519_ephemeral_pub", "")
-        kyber_ct = data.get("kyber_ciphertext", "")
-        val_payload = {
-            "hybrid": True,
-            "x25519_ephemeral_pub": ephemeral_pub,
-            "kyber_ciphertext": kyber_ct,
-            "ciphertext": ciphertext,
-        }
-        client_env = {
-            "hybrid": True,
-            "x25519_ephemeral_pub": ephemeral_pub,
-            "kyber_ciphertext": kyber_ct,
-            "ciphertext": ciphertext,
-        }
-    else:
-        ephemeral_pub = data.get("ephemeral_pub", "")
-        kyber_ct = None
-        val_payload = {"ephemeral_pub": ephemeral_pub, "ciphertext": ciphertext}
-        client_env = {"ephemeral_pub": ephemeral_pub, "ciphertext": ciphertext}
+    wrapped = wrapped_key_parse(json.dumps(data))
 
-    if not for_user_id or not validate_ecies_payload(val_payload):
+    if not for_user_id or wrapped is None:
         await manager.send_to_user(
             room_id,
             user.id,
@@ -236,18 +216,18 @@ async def handle_key_response(room_id: int, user: User, data: dict, db: Session)
     )
 
     if existing:
-        existing.ephemeral_pub = ephemeral_pub
-        existing.ciphertext = ciphertext
-        existing.kyber_ciphertext = kyber_ct
+        existing.ephemeral_pub = wrapped.ephemeral_pub
+        existing.ciphertext = wrapped.ciphertext
+        existing.kyber_ciphertext = wrapped.kyber_ciphertext
         existing.updated_at = datetime.now(timezone.utc)
     else:
         db.add(
             EncryptedRoomKey(
                 room_id=room_id,
                 user_id=for_user_id,
-                ephemeral_pub=ephemeral_pub,
-                ciphertext=ciphertext,
-                kyber_ciphertext=kyber_ct,
+                ephemeral_pub=wrapped.ephemeral_pub,
+                ciphertext=wrapped.ciphertext,
+                kyber_ciphertext=wrapped.kyber_ciphertext,
                 recipient_pub=target_user.x25519_public_key if target_user else None,
             )
         )
@@ -267,7 +247,7 @@ async def handle_key_response(room_id: int, user: User, data: dict, db: Session)
     key_payload = {
         "type": "room_key",
         "room_id": room_id,
-        **client_env,
+        **wrapped.client_dict(),
     }
 
     delivered = await manager.send_to_user(room_id, for_user_id, key_payload)

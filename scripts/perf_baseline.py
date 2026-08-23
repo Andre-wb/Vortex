@@ -56,6 +56,7 @@ class Baseline:
     url: str
     concurrency: int
     rss_mb: float
+    proxy: str = ""
     endpoints: list[EndpointResult] = field(default_factory=list)
 
 
@@ -92,7 +93,7 @@ def _server_rss_mb(pid: int | None) -> float:
         return 0.0
 
 
-def _hammer(url: str, path: str, requests: int, concurrency: int) -> EndpointResult:
+def _hammer(url: str, path: str, requests: int, concurrency: int, proxy: str = "") -> EndpointResult:
     latencies: list[float] = []
     errors = 0
 
@@ -106,7 +107,10 @@ def _hammer(url: str, path: str, requests: int, concurrency: int) -> EndpointRes
         return elapsed if response.status_code < 500 else None
 
     started = time.perf_counter()
-    with httpx.Client(base_url=url, timeout=10.0) as client, ThreadPoolExecutor(max_workers=concurrency) as pool:
+    client_args = {"base_url": url, "timeout": 10.0}
+    if proxy:
+        client_args["proxy"] = proxy
+    with httpx.Client(**client_args) as client, ThreadPoolExecutor(max_workers=concurrency) as pool:
         for result in pool.map(lambda _: one_request(client), range(requests)):
             if result is None:
                 errors += 1
@@ -127,13 +131,14 @@ def _hammer(url: str, path: str, requests: int, concurrency: int) -> EndpointRes
 
 def record(args: argparse.Namespace) -> int:
     endpoints = args.endpoint or list(DEFAULT_ENDPOINTS)
-    results = [_hammer(args.url, path, args.requests, args.concurrency) for path in endpoints]
+    results = [_hammer(args.url, path, args.requests, args.concurrency, args.proxy) for path in endpoints]
     baseline = Baseline(
         label=args.label,
         recorded_at=int(time.time()),
         url=args.url,
         concurrency=args.concurrency,
         rss_mb=round(_server_rss_mb(args.pid), 1),
+        proxy=args.proxy or "",
         endpoints=results,
     )
 
@@ -225,6 +230,7 @@ def build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--requests", type=int, default=500)
     rec.add_argument("--concurrency", type=int, default=16)
     rec.add_argument("--pid", type=int, help="pid сервера для замера RSS")
+    rec.add_argument("--proxy", default="", help="прокси для клиента, например socks5://127.0.0.1:2080")
     rec.add_argument("--label", default="unlabeled")
     rec.add_argument("--out")
     rec.set_defaults(func=record)

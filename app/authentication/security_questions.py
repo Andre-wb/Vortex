@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import Session
 
-from app.authentication._helpers import _AUTH_RATE_LOGIN, _check_auth_rate, router
+from app.authentication._helpers import _allow_login_attempt, router
 from app.base import Base
 from app.database import get_db
 from app.models import User
@@ -142,7 +142,7 @@ async def load_security_questions(
     other case (unknown user / no questions) gets opaque decoys. IP rate-limited.
     """
     ip = raw_ip_for_ratelimit(request)
-    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+    if not _allow_login_attempt(ip):
         raise HTTPException(429, "Too many attempts. Please wait a minute.")
 
     user = db.query(User).filter(User.username == body.username).first()
@@ -173,7 +173,7 @@ async def recover_with_security_questions(
     # IP rate limit + uniform, non-attributing failure so this endpoint
     # cannot be used to enumerate usernames or brute-force answers cheaply.
     ip = raw_ip_for_ratelimit(request)
-    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+    if not _allow_login_attempt(ip):
         raise HTTPException(429, "Too many attempts. Please wait a minute.")
 
     if len(body.answers) != 3:

@@ -1,0 +1,19 @@
+[package]
+name = "vortex-live"
+version = "0.1.0"
+edition.workspace = true
+description = "Состояние живых сессий Vortex — голосовые каналы, групповые звонки и трансляции"
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "vortex_live"
+path = "src/lib.rs"
+
+[dependencies]
+parking_lot = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+vortex-auth = { path = "../vortex-auth" }
+vortex-core = { path = "../vortex-core" }
+vortex-proto = { path = "../vortex-proto" }

@@ -18,6 +18,10 @@ pub struct RedisBackbone {
 
 impl RedisBackbone {
     pub fn connect(config: RedisConfig) -> Result<Arc<Self>> {
+        runtime::block_on(RedisBackbone::connect_async(config))
+    }
+
+    pub async fn connect_async(config: RedisConfig) -> Result<Arc<Self>> {
         if !config.is_configured() {
             return Err(BackboneError::Unconfigured);
         }
@@ -36,12 +40,13 @@ impl RedisBackbone {
             .build_pool(config.pool_size)
             .map_err(|err| BackboneError::Connect(err.to_string()))?;
 
-        runtime::block_on(async {
+        let opened = async {
             pool.init().await?;
             let _: () = pool.ping(None).await?;
             Ok::<(), Error>(())
-        })
-        .map_err(|err| BackboneError::Connect(err.to_string()))?;
+        }
+        .await;
+        opened.map_err(|err| BackboneError::Connect(err.to_string()))?;
 
         let availability = Availability::new(Duration::from_secs(config.recovery_secs.max(1)));
         Ok(Arc::new(RedisBackbone {
@@ -72,11 +77,19 @@ impl RedisBackbone {
         F: FnOnce(Pool) -> Fut,
         Fut: Future<Output = std::result::Result<T, Error>>,
     {
+        runtime::block_on(self.execute_async(what, operation))
+    }
+
+    pub async fn execute_async<T, F, Fut>(&self, what: &str, operation: F) -> Result<T>
+    where
+        F: FnOnce(Pool) -> Fut,
+        Fut: Future<Output = std::result::Result<T, Error>>,
+    {
         if self.availability.is_degraded() {
             return Err(BackboneError::Degraded);
         }
 
-        match runtime::block_on(operation(self.pool.clone())) {
+        match operation(self.pool.clone()).await {
             Ok(value) => {
                 self.availability.note_success();
                 Ok(value)

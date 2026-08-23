@@ -12,7 +12,9 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from app.database import get_db
 from app.models import User
 from app.security.auth_jwt import get_current_user
 from app.services.unified_push import up_manager
@@ -41,6 +43,7 @@ class UnifiedPushRequest(BaseModel):
 async def register_native_push(
     body: RegisterPushRequest,
     u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Register a native push token (FCM/APNs) or UnifiedPush endpoint.
@@ -49,7 +52,7 @@ async def register_native_push(
     For UnifiedPush: endpoint URL, no Google/Apple dependency.
     """
     if body.platform == "unified_push":
-        await up_manager.register(u.id, body.token)
+        await up_manager.register(db, u.id, body.token)
         return {"ok": True, "type": "unified_push"}
     elif body.platform in ("ios", "android"):
         # Native push token — store for later delivery
@@ -64,16 +67,17 @@ async def register_native_push(
 async def unregister_native_push(
     body: UnifiedPushRequest,
     u: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Unregister a push subscription."""
-    removed = await up_manager.unregister(u.id, body.endpoint)
+    removed = await up_manager.unregister(db, u.id, body.endpoint)
     return {"ok": True, "removed": removed}
 
 
 @router.get("/push/subscriptions")
-async def list_push_subscriptions(u: User = Depends(get_current_user)):
+async def list_push_subscriptions(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """List user's active push subscriptions."""
-    return {"subscriptions": up_manager.get_subscriptions(u.id)}
+    return {"subscriptions": up_manager.get_subscriptions(db, u.id)}
 
 
 @router.get("/capabilities")

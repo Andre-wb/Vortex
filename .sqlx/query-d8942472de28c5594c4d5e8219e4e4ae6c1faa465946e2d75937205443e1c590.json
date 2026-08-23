@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*) AS \"left!\"\n            FROM onetime_prekeys\n            WHERE user_id = $1 AND device_id IS NOT DISTINCT FROM $2 AND used = false\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "left!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d8942472de28c5594c4d5e8219e4e4ae6c1faa465946e2d75937205443e1c590"
+}

@@ -1,7 +1,7 @@
 use crate::dga::alphabet;
-use crate::time::civil::{Date, SECONDS_PER_DAY};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+use vortex_core::time::civil::{Date, SECONDS_PER_DAY};
 
 pub const DEFAULT_COUNT: usize = 5;
 

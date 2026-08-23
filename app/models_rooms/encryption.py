@@ -69,17 +69,9 @@ class EncryptedRoomKey(Base):
 
     def to_client_dict(self) -> dict:
         """Формат для отправки клиенту через WebSocket."""
-        if self.kyber_ciphertext:
-            return {
-                "hybrid": True,
-                "x25519_ephemeral_pub": self.ephemeral_pub,
-                "kyber_ciphertext": self.kyber_ciphertext,
-                "ciphertext": self.ciphertext,
-            }
-        return {
-            "ephemeral_pub": self.ephemeral_pub,
-            "ciphertext": self.ciphertext,
-        }
+        from app.security.wrapped_key_backend import wrapped_key_stored
+
+        return wrapped_key_stored(self.ephemeral_pub, self.ciphertext, self.kyber_ciphertext)
 
 
 class RoomInvite(Base):
@@ -133,14 +125,9 @@ class RoomInviteEscrow(Base):
 
     def to_client_dict(self) -> dict:
         """Форма конверта для клиента (гибрид/классика по наличию kyber_ciphertext)."""
-        if self.kyber_ciphertext:
-            return {
-                "hybrid": True,
-                "x25519_ephemeral_pub": self.ephemeral_pub,
-                "kyber_ciphertext": self.kyber_ciphertext,
-                "ciphertext": self.ciphertext,
-            }
-        return {"ephemeral_pub": self.ephemeral_pub, "ciphertext": self.ciphertext}
+        from app.security.wrapped_key_backend import wrapped_key_stored
+
+        return wrapped_key_stored(self.ephemeral_pub, self.ciphertext, self.kyber_ciphertext)
 
 
 class PendingKeyRequest(Base):

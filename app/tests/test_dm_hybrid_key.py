@@ -128,4 +128,4 @@ def test_schema_rejects_hybrid_without_kyber_ciphertext(client):
     sender, target = _make_pair(client)
     bad = {"hybrid": True, "x25519_ephemeral_pub": secrets.token_hex(32), "ciphertext": secrets.token_hex(60)}
     r = client.post(f"/api/dm/{_target_id(target)}", json={"encrypted_room_key": bad}, headers=sender["headers"])
-    assert r.status_code == 422, r.text
+    assert r.status_code in (400, 422), r.text

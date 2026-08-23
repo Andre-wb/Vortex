@@ -33,6 +33,7 @@ Target-side verification:
 
 from __future__ import annotations
 
+import logging
 import secrets
 import time
 
@@ -41,8 +42,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from app.peer.controller_client import NodeSigningKey
 from app.peer.controller_client import _canonical as _controller_canonical
+from app.security import auth_state_backend as _auth_state
 
-HANDOFF_TTL_SEC = 300  # 5 min window to consume the token
+logger = logging.getLogger(__name__)
+
+HANDOFF_TTL_SEC = _auth_state.handoff_token_seconds()
 HANDOFF_SKEW_SEC = 60  # accept small clock drift
 
 
@@ -88,17 +92,8 @@ class HandoffError(Exception):
     """Raised when a handoff token is malformed, expired, or unverifiable."""
 
 
-# Simple in-memory jti cache for anti-replay. Keeps each jti for 2x TTL so
-# both sides of a clock skew are covered.
-_JTI_SEEN: dict[str, float] = {}
-_JTI_TTL_SEC = HANDOFF_TTL_SEC * 2
-
-
-def _gc_jti(now: float) -> None:
-    cutoff = now - _JTI_TTL_SEC
-    for k, ts in list(_JTI_SEEN.items()):
-        if ts < cutoff:
-            del _JTI_SEEN[k]
+class HandoffUnavailableError(HandoffError):
+    """Raised when replay protection cannot be consulted, so nothing may be accepted."""
 
 
 def verify_handoff_token(
@@ -131,8 +126,7 @@ def verify_handoff_token(
     jti = payload.get("jti")
     if not jti:
         raise HandoffError("missing jti")
-    _gc_jti(now)
-    if jti in _JTI_SEEN:
+    if _replay_seen(str(jti)):
         raise HandoffError("replay detected")
 
     src_pubkey = payload.get("src_node_pubkey", "")
@@ -148,10 +142,37 @@ def verify_handoff_token(
         raise HandoffError(f"signature invalid: {e}") from e
 
     # Accept the jti (consume) only after everything else passed.
-    _JTI_SEEN[jti] = now
+    if not _replay_accept(str(jti)):
+        raise HandoffError("replay detected")
     return payload
 
 
+def _replay_seen(jti: str) -> bool:
+    try:
+        return bool(_auth_state.handoff_seen(jti))
+    except ValueError as e:
+        raise HandoffError(f"malformed jti: {e}") from None
+    except RuntimeError as e:
+        raise HandoffUnavailableError(f"replay protection unavailable: {e}") from None
+
+
+def _replay_accept(jti: str) -> bool:
+    try:
+        return bool(_auth_state.handoff_accept(jti))
+    except ValueError as e:
+        raise HandoffError(f"malformed jti: {e}") from None
+    except RuntimeError as e:
+        raise HandoffUnavailableError(f"replay protection unavailable: {e}") from None
+
+
 def _reset_replay_cache_for_tests() -> None:
-    """Test helper — clear the jti cache between test cases."""
-    _JTI_SEEN.clear()
+    """Test helper — clear the jti cache between test cases.
+
+    Общее состояние очистить нельзя: сбрасывается только память процесса. Если
+    узел работает через Redis, вызов ничего не делает и говорит об этом.
+    """
+    if not _auth_state.handoff_forget_all():
+        logger.warning(
+            "Сброс защиты от повтора пропущен: состояние в Redis (%s), а не в памяти процесса",
+            _auth_state.mode(),
+        )

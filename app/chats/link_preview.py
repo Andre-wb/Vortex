@@ -12,8 +12,7 @@ import ipaddress
 import logging
 import re
 import socket
-import time
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -22,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.models import User
+from app.security import ratelimit_backend as _ratelimit
 from app.security.auth_jwt import get_current_user
 
 # Separate reference so tests can patch this without affecting httpx globally
@@ -36,19 +36,10 @@ router = APIRouter(prefix="/api", tags=["link-preview"])
 # server-side requests. /api/link-preview is also re-included in the WAF
 # (EXCLUDED_PATHS removal, FIX F12-3) so the WAF per-IP cap applies on top.
 _RATE_LIMIT = 30
-_RATE_WINDOW = 60  # 30 previews / minute per identity
-
-_user_hits: dict[int, list[float]] = defaultdict(list)
-_ip_hits: dict[str, list[float]] = defaultdict(list)
 
 
-def _check_rate_limit(bucket: dict, key, label: str) -> None:
-    now = time.time()
-    cutoff = now - _RATE_WINDOW
-    bucket[key] = [t for t in bucket[key] if t > cutoff]
-    if len(bucket[key]) >= _RATE_LIMIT:
-        raise HTTPException(429, f"Link-preview rate limit exceeded ({_RATE_LIMIT}/min per {label})")
-    bucket[key].append(now)
+def _refuse(label: str) -> None:
+    raise HTTPException(429, f"Link-preview rate limit exceeded ({_RATE_LIMIT}/min per {label})")
 
 
 _CACHE_MAX = 500
@@ -245,9 +236,11 @@ async def link_preview(
 ):
     """Fetch Open Graph metadata for a URL."""
     # FIX F12(1): per-user AND per-IP throttle before any outbound work.
-    _check_rate_limit(_user_hits, u.id, "user")
+    if not _ratelimit.preview_account_allowed(u.id):
+        _refuse("user")
     client_ip = request.client.host if request.client else "unknown"
-    _check_rate_limit(_ip_hits, client_ip, "ip")
+    if not _ratelimit.preview_address_allowed(client_ip):
+        _refuse("ip")
 
     # Validate URL scheme
     if not url.startswith(("http://", "https://")):

@@ -8,8 +8,8 @@ Small services that don't belong to a single feature — they sit above the feat
 | ------------------- | ------------------------------------------------------------------------------------ |
 | `chat_service.py`   | The orchestrator for an inbound message — attachments, moderation, flood, push, federation fanout, analytics. Feature routers delegate here after persisting. |
 | `native_bridge.py`  | Contract the native iOS / Android clients target — uniform push-payload shape, unified keep-alive, transport-hint negotiation (plain HTTPS / BMP / Tor). |
-| `sealed_push.py`    | Sealed-sender variant of push. Recipient's native client decrypts and attributes inside the OS notification extension; the push service never sees sender or content. |
-| `unified_push.py`   | [UnifiedPush](https://unifiedpush.org/) delivery for Android users who don't have or want Google services. |
+| `sealed_push.py`    | VAPID keys for Web Push, read from the environment and reported in node status. Subscriptions live in `../push/web_push.py` and the `push_subscriptions` table. |
+| `unified_push.py`   | [UnifiedPush](https://unifiedpush.org/) delivery for Android users who don't have or want Google services. Subscriptions live in the `unified_push_subscriptions` table, so any worker can deliver. |
 | `webhooks.py`       | Outbound webhook delivery. Used by bots (`../bots/bot_advanced.py`) and by integrations that want to react to events (new message, new member, room created). HMAC-signed body, retry with exponential backoff, dead-letter after 24h. |
 
 ## Why this folder exists

@@ -28,8 +28,10 @@ from pydantic import BaseModel, Field
 
 from app.config import Config
 from app.peer.controller_client import NodeSigningKey
+from app.session import resume_backend as _resume
 from app.session.handoff_token import (
     HandoffError,
+    HandoffUnavailableError,
     issue_handoff_token,
     verify_handoff_token,
 )
@@ -39,7 +41,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/session", tags=["session"])
 
 
-# Per-user cursor (in-memory; a real deployment would back this with Redis)
+# Per-user cursor (общий стор, крейт vortex-resume)
 
 
 class SessionCursor(BaseModel):
@@ -49,24 +51,20 @@ class SessionCursor(BaseModel):
     updated_at: float = 0.0
 
 
-class _CursorStore:
-    """In-memory store keyed by user_pubkey. Thread-safe for single process."""
-
-    def __init__(self) -> None:
-        self._by_user: dict[str, SessionCursor] = {}
-
-    def set(self, cursor: SessionCursor) -> None:
-        cursor.updated_at = time.time()
-        self._by_user[cursor.user_pubkey] = cursor
-
-    def get(self, user_pubkey: str) -> Optional[SessionCursor]:
-        return self._by_user.get(user_pubkey)
-
-    def clear(self, user_pubkey: str) -> None:
-        self._by_user.pop(user_pubkey, None)
+def _save_cursor(user_pubkey: str, last_bmp_ts: float, rooms: list[int]) -> SessionCursor:
+    try:
+        return SessionCursor(**_resume.cursor_save(user_pubkey, last_bmp_ts, rooms))
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from None
 
 
-_cursor_store = _CursorStore()
+def _read_cursor(user_pubkey: str) -> Optional[SessionCursor]:
+    """Чтение курсора терпимо к негодному ключу: такого курсора просто нет."""
+    try:
+        told = _resume.cursor_find(user_pubkey)
+    except ValueError:
+        return None
+    return SessionCursor(**told) if told else None
 
 
 # Load / health signal
@@ -256,7 +254,7 @@ async def migration_hint(
     snap["pubkey"] = my_pub
 
     alternatives = await _collect_alternatives(my_pub)
-    cursor = _cursor_store.get(user_pubkey) if user_pubkey else None
+    cursor = _read_cursor(user_pubkey) if user_pubkey else None
     return MigrationHintResponse(node=snap, alternatives=alternatives, cursor=cursor)
 
 
@@ -357,18 +355,10 @@ async def handoff_init(body: HandoffInitRequest, request: Request) -> HandoffIni
     transferred as-is; it's the client's responsibility to match it to its own
     identity.
     """
-    if not body.user_pubkey or len(body.user_pubkey) > 128:
-        raise HTTPException(400, "user_pubkey required (max 128 chars)")
-
     signing_key = _require_signing_key(request)
 
     # Persist cursor so a later `/cursor` read picks up the same state.
-    cursor = SessionCursor(
-        user_pubkey=body.user_pubkey,
-        last_bmp_ts=float(body.last_bmp_ts or 0.0),
-        rooms=list(body.rooms or []),
-    )
-    _cursor_store.set(cursor)
+    _save_cursor(body.user_pubkey, float(body.last_bmp_ts or 0.0), list(body.rooms or []))
 
     token = issue_handoff_token(
         signing_key=signing_key,
@@ -408,17 +398,18 @@ async def handoff_accept(body: HandoffAcceptRequest, request: Request) -> Handof
 
     try:
         payload = verify_handoff_token(body.token, _resolver)
+    except HandoffUnavailableError as e:
+        raise HTTPException(503, f"handoff unavailable: {e}") from None
     except HandoffError as e:
         raise HTTPException(400, f"handoff rejected: {e}") from None
 
     user_pubkey = payload["user_pubkey"]
     cursor_data = payload.get("cursor", {}) or {}
-    cursor = SessionCursor(
-        user_pubkey=user_pubkey,
-        last_bmp_ts=float(cursor_data.get("last_bmp_ts", 0.0)),
-        rooms=list(cursor_data.get("rooms", [])),
+    cursor = _save_cursor(
+        user_pubkey,
+        float(cursor_data.get("last_bmp_ts", 0.0)),
+        list(cursor_data.get("rooms", [])),
     )
-    _cursor_store.set(cursor)
     logger.info(
         "handoff accepted: user=%s from src=%s rooms=%d",
         user_pubkey[:16],
@@ -435,15 +426,11 @@ async def handoff_accept(body: HandoffAcceptRequest, request: Request) -> Handof
 @router.post("/cursor", response_model=SessionCursor)
 async def set_cursor(body: CursorSetRequest) -> SessionCursor:
     """Client updates its resume cursor after each successful sync."""
-    if not body.user_pubkey or len(body.user_pubkey) > 128:
-        raise HTTPException(400, "user_pubkey required")
-    cursor = SessionCursor(
-        user_pubkey=body.user_pubkey,
-        last_bmp_ts=max(0.0, float(body.last_bmp_ts or 0.0)),
-        rooms=sorted(int(r) for r in body.rooms or []),
+    return _save_cursor(
+        body.user_pubkey,
+        float(body.last_bmp_ts or 0.0),
+        [int(room) for room in body.rooms or []],
     )
-    _cursor_store.set(cursor)
-    return cursor
 
 
 @router.get("/cursor", response_model=Optional[SessionCursor])
@@ -451,4 +438,4 @@ async def get_cursor(user_pubkey: str) -> Optional[SessionCursor]:
     """Return the last known cursor for a user (or null if unknown)."""
     if not user_pubkey:
         raise HTTPException(400, "user_pubkey required")
-    return _cursor_store.get(user_pubkey)
+    return _read_cursor(user_pubkey)

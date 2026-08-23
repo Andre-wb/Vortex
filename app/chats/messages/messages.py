@@ -6,7 +6,7 @@ Extracted from chat.py for maintainability.
 
 from __future__ import annotations
 
-import contextlib
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -15,15 +15,25 @@ from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
 from app.chats.messages._router import (
-    parse_client_ts as _parse_client_ts,
+    epoch_micros as _epoch_micros,
 )
 from app.chats.messages._router import (
-    parse_enc_v as _parse_enc_v,
+    from_epoch_micros as _from_epoch_micros,
 )
 from app.chats.messages._router import (
     utc_iso as _utc_iso,
 )
-from app.chats.messages.flood import _FLOOD_THRESHOLD
+from app.chats.messages.envelope_backend import (
+    MESSAGE_LIMITS,
+    message_ack,
+    message_ack_duplicate,
+    message_deleted,
+    message_edited,
+    message_read,
+    message_sent,
+    message_thread_sent,
+    message_thread_update,
+)
 from app.chats.messages.flood import check_flood as _check_flood
 from app.chats.messages.push import send_web_push as _send_web_push
 from app.federation.replication import maybe_replicate as _maybe_replicate
@@ -36,15 +46,18 @@ from app.models_rooms import (
     RoomRole,
 )
 from app.peer.connection_manager import manager
-from app.security.crypto import hash_message
 from app.security.sealed_sender import compute_sender_pseudo, resolve_pseudo, verify_sender_pseudo
 from app.transport.blind_mailbox import deposit_envelope
 
 logger = logging.getLogger(__name__)
 
-# upper bound on E2E ciphertext (hex string). Mirrors the 64 KB WS
-# frame cap in core.py — rejects oversized payloads before decode/store/broadcast.
-MAX_CIPHERTEXT_HEX_LEN = 65536  # 64 KB of hex chars
+MAX_CIPHERTEXT_HEX_LEN = MESSAGE_LIMITS["max_ciphertext_hex"]
+
+
+def _read_envelope(data: dict, action: str):
+    """Разбор входящего кадра Rust-ом: границы, hex, версия, метка, упоминания."""
+    now = _epoch_micros(datetime.now(timezone.utc))
+    return message_read(json.dumps(data), action, now)
 
 
 async def _bmp_deposit(room_id: int, payload: dict):
@@ -54,8 +67,6 @@ async def _bmp_deposit(room_id: int, payload: dict):
     if not Config.BMP_DELIVERY_ENABLED:
         return
     try:
-        import json
-
         await deposit_envelope(room_id, json.dumps(payload))
     except Exception as e:
         logger.debug("[BMP] Deposit failed for room %d: %s", room_id, e)
@@ -139,7 +150,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
 
             # Use configurable threshold from room settings
             _cfg = get_antispam_config(room_obj) if room_obj else {}
-            _threshold = _cfg.get("threshold", _FLOOD_THRESHOLD)
+            _threshold = _cfg.get("threshold", 0)
             if await _check_flood(room_id, user, db, threshold_override=_threshold):
                 return
 
@@ -206,58 +217,25 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
                     )
                     return
 
-    ciphertext_hex = data.get("ciphertext", "").strip()
-    client_msg_id = data.get("msg_id", "")  # идентификатор от клиента
-
-    if not ciphertext_hex:
+    parsed = _read_envelope(data, "message")
+    if parsed.refusal:
+        await manager.send_to_user(room_id, user.id, parsed.refusal.frame())
         return
 
-    if len(ciphertext_hex) < 48:
-        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext too short"})
-        return
-
-    # reject oversized ciphertext before decode/store/broadcast.
-    if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
-        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext too large"})
-        return
+    ciphertext_hex = parsed.ciphertext
+    client_msg_id = parsed.client_msg_id
 
     if client_msg_id:
         dedup_key = f"msg:{room_id}:{client_msg_id}"
         if await manager.is_duplicate_message(dedup_key):
             # Повторная отправка — шлём ACK без сохранения
-            await manager.send_to_user(
-                room_id,
-                user.id,
-                {
-                    "type": "ack",
-                    "msg_id": client_msg_id,
-                    "duplicate": True,
-                },
-            )
+            await manager.send_to_user(room_id, user.id, message_ack_duplicate(client_msg_id))
             return
 
-    try:
-        ciphertext_bytes = bytes.fromhex(ciphertext_hex)
-    except ValueError:
-        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext is not valid hex"})
-        return
+    ciphertext_bytes = bytes(parsed.content)
+    content_hash = bytes(parsed.digest)
 
-    content_hash = None
-    hash_hex = data.get("hash", "")
-    if hash_hex:
-        with contextlib.suppress(ValueError):
-            content_hash = bytes.fromhex(hash_hex)
-    if content_hash is None:
-        content_hash_result = hash_message(ciphertext_bytes)
-        if isinstance(content_hash_result, (bytes, bytearray)):
-            content_hash = bytes(content_hash_result)
-
-    reply_to_id = data.get("reply_to_id")
-    if reply_to_id is not None:
-        try:
-            reply_to_id = int(reply_to_id)
-        except (ValueError, TypeError):
-            reply_to_id = None
+    reply_to_id = parsed.reply_to_id
     if reply_to_id:
         reply_exists = (
             db.query(Message.id)
@@ -270,18 +248,14 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         if not reply_exists:
             reply_to_id = None
 
-    mentioned_usernames: list[str] = data.get("mentioned_usernames") or []
-    # Sanitize: keep only valid short strings
-    mentioned_usernames = [
-        u.lower().strip() for u in mentioned_usernames[:20] if isinstance(u, str) and 3 <= len(u) <= 30
-    ]
+    mentioned_usernames: list[str] = list(parsed.mentions)
 
     auto_expire = None
     if room_obj and room_obj.auto_delete_seconds and room_obj.auto_delete_seconds > 0:
         auto_expire = datetime.now(timezone.utc) + timedelta(seconds=room_obj.auto_delete_seconds)
 
-    client_created_at = _parse_client_ts(data.get("client_ts"))
-    enc_v = _parse_enc_v(data)
+    client_created_at = None if parsed.client_ts_us is None else _from_epoch_micros(parsed.client_ts_us)
+    enc_v = parsed.enc_v
 
     msg = Message(
         room_id=room_id,
@@ -319,12 +293,7 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
     await manager.send_to_user(
         room_id,
         user.id,
-        {
-            "type": "ack",
-            "msg_id": client_msg_id,
-            "server_id": msg.id,
-            "created_at": _utc_iso(msg.created_at),
-        },
+        message_ack(client_msg_id, msg.id, _epoch_micros(msg.created_at)),
     )
 
     # Fetch sender's tag in this room
@@ -337,31 +306,29 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
         .first()
     )
 
-    payload = {
-        "type": "message",
-        "msg_id": msg.id,
-        "client_msg_id": client_msg_id,
-        "sender_id": user.id,
-        "sender_pseudo": msg.sender_pseudo,
-        "sender": user.username,
-        "display_name": user.display_name or user.username,
-        "avatar_emoji": user.avatar_emoji,
-        "avatar_url": user.avatar_url,
-        "is_bot": bool(user.is_bot),
-        "tag": getattr(_sender_member, "tag", None) if _sender_member else None,
-        "tag_color": getattr(_sender_member, "tag_color", None) if _sender_member else None,
-        "reply_color": user.reply_color,
-        "reply_icon": user.reply_icon,
-        "ciphertext": ciphertext_hex,
-        "hash": hash_hex or (content_hash.hex() if content_hash else None),
-        "enc_v": enc_v,
-        "reply_to_id": reply_to_id,
-        "reply_quote": data.get("reply_quote"),
-        "status": "sent",
-        "forwarded_from": msg.forwarded_from,
-        "expires_at": _utc_iso(msg.expires_at),
-        "created_at": _utc_iso(msg.created_at),
-    }
+    payload = message_sent(
+        msg_id=msg.id,
+        client_msg_id=client_msg_id,
+        ciphertext=ciphertext_hex,
+        digest_hex=parsed.digest_hex,
+        created_at_us=_epoch_micros(msg.created_at),
+        sender_id=user.id,
+        sender_pseudo=msg.sender_pseudo,
+        sender=user.username,
+        display_name=user.display_name,
+        avatar_emoji=user.avatar_emoji,
+        avatar_url=user.avatar_url,
+        is_bot=bool(user.is_bot),
+        tag=getattr(_sender_member, "tag", None) if _sender_member else None,
+        tag_color=getattr(_sender_member, "tag_color", None) if _sender_member else None,
+        reply_color=user.reply_color,
+        reply_icon=user.reply_icon,
+        enc_v=enc_v,
+        reply_to_id=reply_to_id,
+        reply_quote=parsed.reply_quote,
+        forwarded_from=msg.forwarded_from,
+        expires_at_us=None if msg.expires_at is None else _epoch_micros(msg.expires_at),
+    )
     _room_member_ids = [
         rm.user_id
         for rm in db.query(RoomMember.user_id)
@@ -501,21 +468,14 @@ async def handle_e2e_message(room_id: int, user: User, data: dict, db: Session) 
 
 async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session) -> None:
     """Обработка ответа в треде: создаёт сообщение с thread_id и обновляет thread_count."""
-    thread_id = data.get("thread_id")
-    ciphertext_hex = data.get("ciphertext", "").strip()
-    client_msg_id = data.get("msg_id", "")
-
-    if not thread_id or not ciphertext_hex:
+    parsed = _read_envelope(data, "thread_reply")
+    if parsed.refusal:
+        await manager.send_to_user(room_id, user.id, parsed.refusal.frame())
         return
 
-    if len(ciphertext_hex) < 48:
-        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext too short"})
-        return
-
-    # reject oversized ciphertext before decode/store/broadcast.
-    if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
-        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext too large"})
-        return
+    thread_id = parsed.thread_id
+    ciphertext_hex = parsed.ciphertext
+    client_msg_id = parsed.client_msg_id
 
     if user.global_muted_until and user.global_muted_until > datetime.now(timezone.utc):
         remaining = user.global_muted_until - datetime.now(timezone.utc)
@@ -584,7 +544,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
                 )
                 return
             _cfg2 = _get_as_cfg2(_room_for_flood) if _room_for_flood else {}
-            _thr2 = _cfg2.get("threshold", _FLOOD_THRESHOLD)
+            _thr2 = _cfg2.get("threshold", 0)
             if await _check_flood(room_id, user, db, threshold_override=_thr2):
                 return
 
@@ -605,35 +565,14 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     if client_msg_id:
         dedup_key = f"msg:{room_id}:{client_msg_id}"
         if await manager.is_duplicate_message(dedup_key):
-            await manager.send_to_user(
-                room_id,
-                user.id,
-                {
-                    "type": "ack",
-                    "msg_id": client_msg_id,
-                    "duplicate": True,
-                },
-            )
+            await manager.send_to_user(room_id, user.id, message_ack_duplicate(client_msg_id))
             return
 
-    try:
-        ciphertext_bytes = bytes.fromhex(ciphertext_hex)
-    except ValueError:
-        await manager.send_to_user(room_id, user.id, {"type": "error", "message": "Ciphertext is not valid hex"})
-        return
+    ciphertext_bytes = bytes(parsed.content)
+    content_hash = bytes(parsed.digest)
 
-    content_hash = None
-    hash_hex = data.get("hash", "")
-    if hash_hex:
-        with contextlib.suppress(ValueError):
-            content_hash = bytes.fromhex(hash_hex)
-    if content_hash is None:
-        content_hash_result = hash_message(ciphertext_bytes)
-        if isinstance(content_hash_result, (bytes, bytearray)):
-            content_hash = bytes(content_hash_result)
-
-    reply_to_id = data.get("reply_to_id")
-    enc_v = _parse_enc_v(data)
+    reply_to_id = parsed.reply_to_id
+    enc_v = parsed.enc_v
 
     msg = Message(
         room_id=room_id,
@@ -670,12 +609,7 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     await manager.send_to_user(
         room_id,
         user.id,
-        {
-            "type": "ack",
-            "msg_id": client_msg_id,
-            "server_id": msg.id,
-            "created_at": _utc_iso(msg.created_at),
-        },
+        message_ack(client_msg_id, msg.id, _epoch_micros(msg.created_at)),
     )
 
     # Собираем member_ids для pending delivery
@@ -690,24 +624,22 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
     ]
 
     # Рассылаем сообщение в тред всем в комнате
-    payload = {
-        "type": "thread_message",
-        "msg_id": msg.id,
-        "client_msg_id": client_msg_id,
-        "sender_pseudo": msg.sender_pseudo,
-        "sender": user.username,
-        "display_name": user.display_name or user.username,
-        "avatar_emoji": user.avatar_emoji,
-        "avatar_url": user.avatar_url,
-        "ciphertext": ciphertext_hex,
-        "hash": hash_hex or (content_hash.hex() if content_hash else None),
-        "enc_v": enc_v,
-        "reply_to_id": reply_to_id,
-        "reply_quote": data.get("reply_quote"),
-        "thread_id": thread_id,
-        "status": "sent",
-        "created_at": _utc_iso(msg.created_at),
-    }
+    payload = message_thread_sent(
+        msg_id=msg.id,
+        client_msg_id=client_msg_id,
+        thread_id=thread_id,
+        ciphertext=ciphertext_hex,
+        digest_hex=parsed.digest_hex,
+        created_at_us=_epoch_micros(msg.created_at),
+        sender_pseudo=msg.sender_pseudo,
+        sender=user.username,
+        display_name=user.display_name,
+        avatar_emoji=user.avatar_emoji,
+        avatar_url=user.avatar_url,
+        enc_v=enc_v,
+        reply_to_id=reply_to_id,
+        reply_quote=parsed.reply_quote,
+    )
     # BMP-only delivery (WS broadcast removed)
     await _bmp_deposit(room_id, payload)
     await manager.enqueue_pending(room_id, payload, member_ids=_thread_member_ids)
@@ -722,34 +654,21 @@ async def handle_thread_reply(room_id: int, user: User, data: dict, db: Session)
         await _maybe_replicate(_room_obj2, payload, _sender_ts2)
 
     # Обновляем badge thread_count для всех
-    await manager.broadcast_to_room(
-        room_id,
-        {
-            "type": "thread_update",
-            "msg_id": thread_id,
-            "thread_count": root_msg.thread_count,
-        },
-    )
+    await manager.broadcast_to_room(room_id, message_thread_update(thread_id, root_msg.thread_count))
 
 
 # Edit message
 
 
 async def handle_edit_message(room_id: int, user: User, data: dict, db: Session) -> None:
-    msg_id = data.get("msg_id")
-    ciphertext_hex = data.get("ciphertext", "").strip()
-
-    if not msg_id or not ciphertext_hex or len(ciphertext_hex) < 48:
+    parsed = _read_envelope(data, "edit_message")
+    if parsed.refusal:
+        await manager.send_to_user(room_id, user.id, parsed.refusal.frame())
         return
 
-    # reject oversized ciphertext before decode/store/broadcast.
-    if len(ciphertext_hex) > MAX_CIPHERTEXT_HEX_LEN:
-        return
-
-    try:
-        ciphertext_bytes = bytes.fromhex(ciphertext_hex)
-    except ValueError:
-        return
+    msg_id = parsed.msg_id
+    ciphertext_hex = parsed.ciphertext
+    ciphertext_bytes = bytes(parsed.content)
 
     msg = (
         db.query(Message)
@@ -784,10 +703,9 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
         )
         db.add(history_entry)
 
-    enc_v = _parse_enc_v(data)
-    content_hash_result = hash_message(ciphertext_bytes)
+    enc_v = parsed.enc_v
     msg.content_encrypted = ciphertext_bytes
-    msg.content_hash = bytes(content_hash_result) if isinstance(content_hash_result, (bytes, bytearray)) else None
+    msg.content_hash = bytes(parsed.digest)
     msg.enc_version = enc_v
     msg.is_edited = True
     msg.edited_at = datetime.now(timezone.utc)
@@ -798,23 +716,19 @@ async def handle_edit_message(room_id: int, user: User, data: dict, db: Session)
         logger.error("Failed to edit message %s: %s", msg_id, e)
         return
 
-    _edit_payload = {
-        "type": "message_edited",
-        "msg_id": msg_id,
-        "ciphertext": ciphertext_hex,
-        "enc_v": enc_v,
-        "is_edited": True,
-    }
-    await manager.broadcast_to_room(room_id, _edit_payload)
+    await manager.broadcast_to_room(room_id, message_edited(msg_id, ciphertext_hex, enc_v))
 
 
 # Delete message
 
 
 async def handle_delete_message(room_id: int, user: User, data: dict, db: Session) -> None:
-    msg_id = data.get("msg_id")
-    if not msg_id:
+    parsed = _read_envelope(data, "delete_message")
+    if parsed.refusal:
+        await manager.send_to_user(room_id, user.id, parsed.refusal.frame())
         return
+
+    msg_id = parsed.msg_id
 
     msg = (
         db.query(Message)
@@ -852,5 +766,4 @@ async def handle_delete_message(room_id: int, user: User, data: dict, db: Sessio
         logger.error("Failed to delete message %s: %s", msg_id, e)
         return
 
-    _del_payload = {"type": "message_deleted", "msg_id": msg_id}
-    await manager.broadcast_to_room(room_id, _del_payload)
+    await manager.broadcast_to_room(room_id, message_deleted(msg_id))

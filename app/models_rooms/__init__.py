@@ -28,7 +28,13 @@ from app.models_rooms.encryption import (
 from app.models_rooms.enums import MessageType, RoomRole
 from app.models_rooms.federation import FederatedEnvelope, PersistedFederatedRoom, Story, StoryKeyEnvelope
 from app.models_rooms.feeds import ChannelFeed
-from app.models_rooms.messages import FileTransfer, Message, MessageEditHistory, MessageReaction
+from app.models_rooms.messages import (
+    FileTransfer,
+    Message,
+    MessageDraft,
+    MessageEditHistory,
+    MessageReaction,
+)
 from app.models_rooms.permissions import AutoModRule, Permission, PermissionFlags
 from app.models_rooms.public_keys import PublicRoomKey
 from app.models_rooms.rooms import JoinRequest, Room, RoomMember
@@ -54,6 +60,7 @@ __all__ = [
     "JoinRequest",
     # messages
     "Message",
+    "MessageDraft",
     "MessageEditHistory",
     "MessageReaction",
     "MessageType",

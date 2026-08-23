@@ -1,12 +1,12 @@
 """
-app/models/media.py — Модели файлов, звонков и push-подписок.
+app/models/media.py — Модели файлов, звонков, push-подписок и распределённого хранения.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.base import Base
@@ -75,3 +75,46 @@ class PushSubscription(Base):
     p256dh = Column(String(256), nullable=False)
     auth = Column(String(256), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class UnifiedPushSubscription(Base):
+    """Подписка UnifiedPush — эндпойнт распространителя без FCM и APNs."""
+
+    __tablename__ = "unified_push_subscriptions"
+    __table_args__ = (UniqueConstraint("user_id", "endpoint"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    endpoint = Column(String(512), nullable=False)
+    app_id = Column(String(120), nullable=False, default="org.vortex.messenger")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    failures = Column(Integer, nullable=False, default=0, server_default="0")
+    active = Column(Boolean, nullable=False, default=True, server_default="1")
+
+
+class DistributedFile(Base):
+    """Файл, разложенный по узлам сети: карта чанков этого узла."""
+
+    __tablename__ = "distributed_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_hash = Column(String(128), nullable=False, unique=True)
+    filename = Column(String(255), nullable=False)
+    total_size = Column(Integer, nullable=False, default=0)
+    chunk_count = Column(Integer, nullable=False, default=0)
+    uploader_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class DistributedChunk(Base):
+    """Один чанк распределённого файла и узел, на котором он лежит."""
+
+    __tablename__ = "distributed_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("distributed_files.id", ondelete="CASCADE"), nullable=False, index=True)
+    chunk_hash = Column(String(128), nullable=False)
+    chunk_index = Column(Integer, nullable=False)
+    size = Column(Integer, nullable=False, default=0)
+    node_ip = Column(String(45), nullable=False)
+    node_port = Column(Integer, nullable=False)

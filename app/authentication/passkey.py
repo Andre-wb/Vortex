@@ -6,9 +6,6 @@ import base64
 import json
 import logging
 import os
-import secrets
-import threading
-import time
 
 from fastapi import Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -16,21 +13,19 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.authentication._helpers import (
-    _AUTH_RATE_LOGIN,
-    _check_auth_rate,
+    _allow_login_attempt,
     _set_auth_cookies,
     router,
 )
 from app.database import get_db
 from app.models import User
+from app.security import auth_state_backend as _auth_state
 from app.security.auth_jwt import get_current_user
 from app.security.ip_privacy import raw_ip_for_ratelimit
 
 logger = logging.getLogger(__name__)
 
-
-_passkey_challenges: dict[str, tuple[bytes, float, int]] = {}
-_passkey_lock = threading.Lock()
+_PASSKEY_UNAVAILABLE = "Passkey sign-in is temporarily unavailable"
 
 
 def _b64url_encode(data: bytes) -> str:
@@ -60,7 +55,7 @@ async def passkey_register_options(
 ):
     """Шаг 1: PublicKeyCredentialCreationOptions для navigator.credentials.create()."""
     ip = raw_ip_for_ratelimit(request)
-    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+    if not _allow_login_attempt(ip):
         raise HTTPException(429, "Too many attempts")
 
     from webauthn import generate_registration_options, options_to_json
@@ -99,9 +94,10 @@ async def passkey_register_options(
         authenticator_selection=selection,
     )
 
-    session_id = secrets.token_hex(16)
-    with _passkey_lock:
-        _passkey_challenges[session_id] = (options.challenge, time.monotonic() + 300, u.id)
+    try:
+        session_id = _auth_state.passkey_open_registration(options.challenge, int(u.id))
+    except RuntimeError as error:
+        raise HTTPException(503, _PASSKEY_UNAVAILABLE) from error
 
     return {
         "session_id": session_id,
@@ -125,14 +121,18 @@ async def passkey_register_verify(
     from webauthn import verify_registration_response
     from webauthn.helpers.structs import RegistrationCredential
 
-    with _passkey_lock:
-        ch_data = _passkey_challenges.pop(body.session_id, None)
-    if not ch_data or time.monotonic() > ch_data[1]:
+    try:
+        claim = _auth_state.passkey_claim_registration(body.session_id, int(u.id))
+    except ValueError:
+        raise HTTPException(401, "Session expired") from None
+    except RuntimeError as error:
+        raise HTTPException(503, _PASSKEY_UNAVAILABLE) from error
+    if claim.outcome == "missing":
         raise HTTPException(401, "Session expired")
-    if ch_data[2] != u.id:
+    if not claim.taken:
         raise HTTPException(403, "Verification error")
 
-    challenge = ch_data[0]
+    challenge = claim.challenge
     rp_id = _get_rp_id(request)
     origin = _get_origin(request)
 
@@ -161,7 +161,7 @@ async def passkey_register_verify(
 async def passkey_login_options(request: Request):
     """Шаг 1 входа: PublicKeyCredentialRequestOptions."""
     ip = raw_ip_for_ratelimit(request)
-    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+    if not _allow_login_attempt(ip):
         raise HTTPException(429, "Too many attempts")
 
     from webauthn import generate_authentication_options, options_to_json
@@ -174,9 +174,10 @@ async def passkey_login_options(request: Request):
         user_verification=UserVerificationRequirement.PREFERRED,
     )
 
-    session_id = secrets.token_hex(16)
-    with _passkey_lock:
-        _passkey_challenges[session_id] = (options.challenge, time.monotonic() + 300, 0)
+    try:
+        session_id = _auth_state.passkey_open_login(options.challenge)
+    except RuntimeError as error:
+        raise HTTPException(503, _PASSKEY_UNAVAILABLE) from error
 
     return {
         "session_id": session_id,
@@ -201,15 +202,19 @@ async def passkey_login_verify(
     from webauthn.helpers.structs import AuthenticationCredential
 
     ip = raw_ip_for_ratelimit(request)
-    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+    if not _allow_login_attempt(ip):
         raise HTTPException(429, "Too many attempts")
 
-    with _passkey_lock:
-        ch_data = _passkey_challenges.pop(body.session_id, None)
-    if not ch_data or time.monotonic() > ch_data[1]:
+    try:
+        claim = _auth_state.passkey_claim_login(body.session_id)
+    except ValueError:
+        raise HTTPException(401, "Session expired") from None
+    except RuntimeError as error:
+        raise HTTPException(503, _PASSKEY_UNAVAILABLE) from error
+    if not claim.taken:
         raise HTTPException(401, "Session expired")
 
-    challenge = ch_data[0]
+    challenge = claim.challenge
     rp_id = _get_rp_id(request)
     origin = _get_origin(request)
 

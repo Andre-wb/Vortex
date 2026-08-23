@@ -11,7 +11,7 @@ import secrets as _secrets
 
 from fastapi import Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -23,12 +23,19 @@ from app.chats.rooms.helpers import (
     _room_dict,
     router,
 )
+from app.chats.rooms.settings_backend import (
+    ROOM_LIMITS,
+    room_avatar_given,
+    room_description_read,
+    room_name_read,
+    room_replication_mode,
+    room_settings_parse,
+)
 from app.database import get_db
 from app.models import User
 from app.models_rooms import EncryptedRoomKey, Message, Room, RoomMember, RoomRole
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
-from app.security.key_exchange import validate_ecies_payload
 from app.utilites.utils import generative_invite_code
 
 logger = logging.getLogger(__name__)
@@ -68,8 +75,16 @@ async def create_room(
     if not u.x25519_public_key:
         raise HTTPException(400, "X25519 public key required to create a room")
 
+    name = room_name_read(body.name)
+    if name is None:
+        raise HTTPException(400, "Invalid room name")
+    description = room_description_read(body.description)
+    if description is None:
+        raise HTTPException(400, "Invalid room description")
+
     # Validate ECIES payload (классика или post-quantum гибрид)
-    if not validate_ecies_payload(body.encrypted_room_key.ecies_dict()):
+    wrapped = body.encrypted_room_key.parsed()
+    if wrapped is None:
         raise HTTPException(400, "Invalid encrypted_room_key format")
 
     # Free-tier cap on rooms with >100-member capacity (the default
@@ -99,14 +114,14 @@ async def create_room(
 
     # Create room without room_key — server does not store key in plaintext
     room = Room(
-        name=body.name,
-        description=body.description,
+        name=name,
+        description=description,
         creator_id=u.id,
         is_private=body.is_private,
         is_voice=body.is_voice,
         invite_code=generative_invite_code(8),
-        max_members=200,
-        avatar_emoji="🔊" if body.is_voice else "💬",
+        max_members=ROOM_LIMITS["default_max_members"],
+        avatar_emoji=room_avatar_given(body.is_voice),
         # room_key intentionally absent
     )
     db.add(room)
@@ -120,9 +135,9 @@ async def create_room(
         EncryptedRoomKey(
             room_id=room.id,
             user_id=u.id,
-            ephemeral_pub=body.encrypted_room_key.eph_pub,
-            ciphertext=body.encrypted_room_key.ciphertext,
-            kyber_ciphertext=body.encrypted_room_key.kyber_ciphertext,
+            ephemeral_pub=wrapped.ephemeral_pub,
+            ciphertext=wrapped.ciphertext,
+            kyber_ciphertext=wrapped.kyber_ciphertext,
             recipient_pub=u.x25519_public_key,
         )
     )
@@ -291,12 +306,16 @@ async def update_room(
     if not r:
         raise HTTPException(404)
 
-    if body.name is not None:
-        r.name = body.name.strip()[:100]
-    if body.description is not None:
-        r.description = body.description.strip()[:500]
-    if body.avatar_emoji is not None:
-        r.avatar_emoji = body.avatar_emoji[:10]
+    settings = room_settings_parse(body.model_dump_json())
+    if settings.refusal:
+        raise HTTPException(400, settings.refusal)
+
+    if settings.name is not None:
+        r.name = settings.name
+    if settings.description is not None:
+        r.description = settings.description
+    if settings.avatar_emoji is not None:
+        r.avatar_emoji = settings.avatar_emoji
     if body.is_private is not None:
         prev_private = bool(r.is_private)
         r.is_private = body.is_private
@@ -323,10 +342,10 @@ async def update_room(
                 db=db,
                 rotated=False,
             )
-    if body.auto_delete_seconds is not None:
-        r.auto_delete_seconds = body.auto_delete_seconds if body.auto_delete_seconds > 0 else None
-    if body.slow_mode_seconds is not None:
-        r.slow_mode_seconds = max(0, body.slow_mode_seconds)
+    if settings.auto_delete_given:
+        r.auto_delete_seconds = settings.auto_delete_seconds
+    if settings.slow_mode_seconds is not None:
+        r.slow_mode_seconds = settings.slow_mode_seconds
     if body.antispam_enabled is not None:
         r.antispam_enabled = body.antispam_enabled
 
@@ -338,36 +357,19 @@ async def update_room(
         else:
             remove_antispam_bot_from_room(room_id, db)
 
-    if body.antispam_config is not None:
-        # Validate JSON
-        import json as _json
-
-        try:
-            parsed = _json.loads(body.antispam_config)
-            if not isinstance(parsed, dict):
-                raise ValueError
-            # Sanitize: only allow known keys with valid values
-            safe = {}
-            if "threshold" in parsed and parsed["threshold"] in (5, 10, 15):
-                safe["threshold"] = parsed["threshold"]
-            if "action" in parsed and parsed["action"] in ("warn", "mute", "kick", "ban"):
-                safe["action"] = parsed["action"]
-            if "block_repeats" in parsed:
-                safe["block_repeats"] = bool(parsed["block_repeats"])
-            if "block_links" in parsed:
-                safe["block_links"] = bool(parsed["block_links"])
-            r.antispam_config = _json.dumps(safe)
-        except (ValueError, _json.JSONDecodeError) as e:
-            logger.warning("Room %s: invalid antispam_config JSON, keeping previous: %s", room_id, e)
+    if settings.antispam_config is not None:
+        r.antispam_config = settings.antispam_config
+    elif settings.antispam_config_refused:
+        logger.warning("Room %s: invalid antispam_config JSON, keeping previous", room_id)
 
     if body.discussion_enabled is not None:
         r.discussion_enabled = body.discussion_enabled
 
     # Channel-specific fields
-    if body.reactions_type is not None:
-        r.reactions_type = body.reactions_type
-    if body.allowed_reactions is not None:
-        r.allowed_reactions = body.allowed_reactions[:500]
+    if settings.reactions_type is not None:
+        r.reactions_type = settings.reactions_type
+    if settings.allowed_reactions is not None:
+        r.allowed_reactions = settings.allowed_reactions
     if body.admin_signatures is not None:
         r.admin_signatures = body.admin_signatures
     if body.copy_protection is not None:
@@ -400,7 +402,7 @@ async def update_room(
 
 
 class ReplicationBody(BaseModel):
-    mode: str = Field(..., pattern=r"^(none|federated)$")
+    mode: str = ""
 
 
 @router.patch("/{room_id}/replication")
@@ -428,8 +430,12 @@ async def set_room_replication(
     if r.is_dm:
         raise HTTPException(400, "DMs cannot be replicated across nodes")
 
+    mode = room_replication_mode(body.mode)
+    if mode is None:
+        raise HTTPException(400, "Invalid replication mode")
+
     prev = getattr(r, "replication_mode", "none") or "none"
-    r.replication_mode = body.mode
+    r.replication_mode = mode
     db.commit()
     db.refresh(r)
 
@@ -437,7 +443,7 @@ async def set_room_replication(
         "Room %s replication_mode: %s -> %s (owner=%s)",
         room_id,
         prev,
-        body.mode,
+        mode,
         u.username,
     )
 
@@ -448,11 +454,11 @@ async def set_room_replication(
         {
             "type": "room_replication_changed",
             "room_id": room_id,
-            "replication_mode": body.mode,
+            "replication_mode": mode,
         },
     )
 
-    return {"room_id": room_id, "replication_mode": body.mode}
+    return {"room_id": room_id, "replication_mode": mode}
 
 
 @router.post("/{room_id}/avatar")

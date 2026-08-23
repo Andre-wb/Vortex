@@ -1,5 +1,5 @@
 """
-app/models/bot.py — Модели ботов и рецензий маркетплейса.
+app/models/bot.py — Модели ботов, рецензий маркетплейса и их серверных настроек.
 """
 
 from __future__ import annotations
@@ -72,3 +72,38 @@ class BotReview(Base):
     )
     text = Column(String(500), default="")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class BotWebhook(Base):
+    """Вебхук бота — куда доставлять события вместо long-poll."""
+
+    __tablename__ = "bot_webhooks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, unique=True)
+    url = Column(String(500), nullable=False)
+    secret = Column(String(64), nullable=False)
+    events = Column(Text, default="[]")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class BotScope(Base):
+    """Одно выданное боту право."""
+
+    __tablename__ = "bot_scopes"
+    __table_args__ = (UniqueConstraint("bot_id", "scope"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope = Column(String(40), nullable=False)
+
+
+class BotInlineResults(Base):
+    """Последний ответ бота на inline-запрос."""
+
+    __tablename__ = "bot_inline_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, unique=True)
+    results = Column(Text, default="[]")
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)

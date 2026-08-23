@@ -3,15 +3,23 @@ app/models/ — Доменные модели SQLAlchemy и Pydantic-схемы.
 
 Структура:
   user.py        — User, UserDevice, RefreshToken, UserStatus + схемы аутентификации
-  bot.py         — Bot, BotReview
+  bot.py         — Bot, BotReview, BotWebhook, BotScope, BotInlineResults
   moderation.py  — UserReport, UserStrike
-  media.py       — CallHistory, UploadQuota, PushSubscription
+  media.py       — CallHistory, UploadQuota, PushSubscription, UnifiedPushSubscription,
+                   DistributedFile, DistributedChunk
   contact.py     — Contact
 """
 
-from app.models.bot import Bot, BotReview
+from app.models.bot import Bot, BotInlineResults, BotReview, BotScope, BotWebhook
 from app.models.contact import Contact
-from app.models.media import CallHistory, PushSubscription, UploadQuota
+from app.models.media import (
+    CallHistory,
+    DistributedChunk,
+    DistributedFile,
+    PushSubscription,
+    UnifiedPushSubscription,
+    UploadQuota,
+)
 from app.models.moderation import UserReport, UserStrike
 from app.models.prekeys import OneTimeKyberPreKey, OneTimePreKey, PreKeyBundle
 from app.models.user import (
@@ -41,13 +49,18 @@ from app.models.user import (
 __all__ = [
     # bot
     "Bot",
+    "BotInlineResults",
     "BotReview",
+    "BotScope",
+    "BotWebhook",
     # media
     "CallHistory",
     # contact
     "Contact",
     "DeviceCrossSign",
     "DeviceLinkRequest",
+    "DistributedChunk",
+    "DistributedFile",
     "FederatedBackupShard",
     "KeyBackup",
     "KeyLoginRequest",
@@ -66,6 +79,7 @@ __all__ = [
     "SyncEvent",
     "TwoFALoginRequest",
     "TwoFAVerifyRequest",
+    "UnifiedPushSubscription",
     "UpdateProfileRequest",
     "UpdateRichStatusRequest",
     "UploadQuota",

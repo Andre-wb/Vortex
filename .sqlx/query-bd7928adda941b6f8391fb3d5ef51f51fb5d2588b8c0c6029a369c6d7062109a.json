@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO distributed_files (file_hash, filename, total_size, chunk_count, uploader_id, created_at)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            ON CONFLICT (file_hash) DO UPDATE\n            SET filename = EXCLUDED.filename,\n                total_size = EXCLUDED.total_size,\n                chunk_count = EXCLUDED.chunk_count,\n                uploader_id = EXCLUDED.uploader_id,\n                created_at = EXCLUDED.created_at\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Timestamp"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bd7928adda941b6f8391fb3d5ef51f51fb5d2588b8c0c6029a369c6d7062109a"
+}

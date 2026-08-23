@@ -1,18 +1,17 @@
 """
-app/peer/peer_models.py — PeerInfo dataclass, PeerRegistry class, registry singleton, _main_loop
+app/peer/peer_models.py — PeerInfo view, PeerRegistry facade, registry singleton, _main_loop
 """
 
 from __future__ import annotations
 
 import asyncio
-import ipaddress
+import json
 import logging
-import threading
-import time
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
+from typing import Any, Optional
 
 from app.config import Config
+from app.peer import peer_registry_backend as _peers
 
 logger = logging.getLogger(__name__)
 
@@ -20,29 +19,45 @@ logger = logging.getLogger(__name__)
 # PeerInfo
 
 
-@dataclass
+@dataclass(frozen=True)
 class PeerInfo:
     name: str
     ip: str
     port: int
-    node_pubkey_hex: Optional[str] = None
-    last_seen: float = field(default_factory=time.monotonic)
+    node_pubkey_hex: Optional[str]
+    age_sec: float
+    online: bool
+    encrypted: bool
+    shortened_pubkey: Optional[str]
+
+    @classmethod
+    def told(cls, told: dict[str, Any]) -> PeerInfo:
+        return cls(
+            name=told["name"],
+            ip=told["ip"],
+            port=told["port"],
+            node_pubkey_hex=told["pubkey"],
+            age_sec=told["age_sec"],
+            online=told["online"],
+            encrypted=told["encrypted"],
+            shortened_pubkey=told["shortened_pubkey"],
+        )
 
     def alive(self) -> bool:
-        return (time.monotonic() - self.last_seen) < Config.PEER_TIMEOUT_SEC
+        return self.online
 
     def has_encryption(self) -> bool:
-        return bool(self.node_pubkey_hex and len(self.node_pubkey_hex) == 64)
+        return self.encrypted
 
     def to_dict(self) -> dict:
         return {
             "name": self.name,
             "ip": self.ip,
             "port": self.port,
-            "age_sec": round(time.monotonic() - self.last_seen, 1),
-            "online": self.alive(),
-            "encrypted": self.has_encryption(),
-            "pubkey": self.node_pubkey_hex[:16] + "..." if self.node_pubkey_hex else None,
+            "age_sec": self.age_sec,
+            "online": self.online,
+            "encrypted": self.encrypted,
+            "pubkey": self.shortened_pubkey,
         }
 
     @property
@@ -55,81 +70,51 @@ class PeerInfo:
 
 
 class PeerRegistry:
-    def __init__(self):
-        self._peers: dict[str, PeerInfo] = {}
-        self._lock = threading.Lock()
-        self.own_ip: str = "127.0.0.1"
-        self._peer_rooms: dict[str, list] = {}
-        self._rooms_lock = threading.Lock()
+    """Фасад над общим реестром узлов. Состояния не держит."""
+
+    @property
+    def own_ip(self) -> str:
+        return _peers.own_address() or "127.0.0.1"
+
+    @own_ip.setter
+    def own_ip(self, address: str) -> None:
+        _peers.set_own_address(address)
 
     def update(self, ip: str, name: str, port: int, node_pubkey_hex: Optional[str] = None) -> bool:
         try:
-            ipaddress.ip_address(ip)
-        except ValueError:
-            logger.warning("PeerRegistry.update: invalid IP %r — ignored", ip)
+            return _peers.heard(ip, name, port, node_pubkey_hex)
+        except ValueError as refusal:
+            logger.warning("PeerRegistry.update: %s — узел пропущен", refusal)
             return False
-        if not (1 <= port <= 65535):
-            logger.warning("PeerRegistry.update: invalid port %d — ignored", port)
-            return False
-        with self._lock:
-            is_new = ip not in self._peers
-            if not is_new:
-                p = self._peers[ip]
-                p.name = name
-                p.port = port
-                p.last_seen = time.monotonic()
-                if node_pubkey_hex and len(node_pubkey_hex) == 64:
-                    p.node_pubkey_hex = node_pubkey_hex
-            else:
-                self._peers[ip] = PeerInfo(
-                    name=name,
-                    ip=ip,
-                    port=port,
-                    node_pubkey_hex=node_pubkey_hex,
-                )
-                logger.info(f"🔍 New peer: {name}@{ip}:{port} encrypted={bool(node_pubkey_hex)}")
-            return is_new
 
     def active(self) -> list[PeerInfo]:
-        with self._lock:
-            return [p for p in self._peers.values() if p.alive()]
+        return [PeerInfo.told(told) for told in _peers.alive()]
 
     def get(self, ip: str) -> Optional[PeerInfo]:
-        with self._lock:
-            return self._peers.get(ip)
+        try:
+            told = _peers.find(ip)
+        except ValueError:
+            return None
+        return PeerInfo.told(told) if told else None
 
     def cleanup(self) -> None:
-        with self._lock:
-            dead = [ip for ip, p in self._peers.items() if not p.alive()]
-            for ip in dead:
-                del self._peers[ip]
-            with self._rooms_lock:
-                for ip in dead:
-                    self._peer_rooms.pop(ip, None)
+        _peers.forget_dead()
 
     def set_peer_rooms(self, ip: str, rooms: list) -> None:
-        with self._rooms_lock:
-            self._peer_rooms[ip] = rooms
+        try:
+            _peers.set_rooms(ip, json.dumps(rooms))
+        except ValueError as refusal:
+            logger.warning("PeerRegistry.set_peer_rooms: %s — перечень пропущен", refusal)
 
     def get_all_peer_rooms(self) -> list[dict]:
         result = []
-        active_ips = {p.ip for p in self.active()}
-        with self._rooms_lock:
-            for ip, rooms in self._peer_rooms.items():
-                if ip not in active_ips:
-                    continue
-                peer = self.get(ip)
-                peer_name = peer.name if peer else ip
-                peer_port = peer.port if peer else getattr(Config, "PORT", 8000)
-                for room in rooms:
-                    result.append(
-                        {
-                            **room,
-                            "peer_ip": ip,
-                            "peer_name": peer_name,
-                            "peer_port": peer_port,
-                        }
-                    )
+        for ip, name, port, document in _peers.rooms_of_the_living():
+            try:
+                rooms = json.loads(document)
+            except json.JSONDecodeError:
+                continue
+            for room in rooms:
+                result.append({**room, "peer_ip": ip, "peer_name": name, "peer_port": port})
         return result
 
 

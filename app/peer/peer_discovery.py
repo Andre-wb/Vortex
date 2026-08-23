@@ -1,17 +1,15 @@
 """
-app/peer/peer_discovery.py — UDP discovery helpers & listeners/senders.
+app/peer/peer_discovery.py — точка входа UDP-обнаружения узлов.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
 import socket
 import threading
 import time
-from typing import Optional
 
 import httpx
 
@@ -19,53 +17,31 @@ import app.peer.peer_models as _models
 from app.config import Config
 from app.peer.peer_models import PeerInfo, registry
 from app.security.ssl_context import make_peer_ssl_context
+from app.transport.stealth import is_stealth
 
 logger = logging.getLogger(__name__)
 
 _peer_ssl_ctx = make_peer_ssl_context()
 
+ROOMS_FETCH_INTERVAL_SEC = 3
 
-# Helpers
+_BUILD_HINT = (
+    "Модуль vortex_chat не установлен. Соберите расширение:\n"
+    "    make rust-build\n"
+    "или вручную:\n"
+    "    maturin develop --release -m rust_utils/Cargo.toml"
+)
 
-
-def _local_ip() -> str:
-    for target in ("192.168.1.1", "10.0.0.1", "172.16.0.1", "8.8.8.8"):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.settimeout(0.05)
-                s.connect((target, 80))
-                ip = s.getsockname()[0]
-                if not ip.startswith("127."):
-                    return ip
-        except Exception as e:
-            logger.debug("Local IP probe via %s failed: %s", target, e)
-    try:
-        ip = socket.gethostbyname(socket.gethostname())
-        if not ip.startswith("127."):
-            return ip
-    except Exception as e:
-        logger.debug("Local IP via hostname failed: %s", e)
-    logger.warning("Could not detect local IP, falling back to 127.0.0.1")
-    return "127.0.0.1"
-
-
-def _subnet_broadcast(ip: str) -> str:
-    try:
-        parts = ip.split(".")
-        if len(parts) == 4:
-            return f"{parts[0]}.{parts[1]}.{parts[2]}.255"
-    except Exception as e:
-        logger.debug("Subnet broadcast calc failed for ip=%s: %s", ip, e)
-    return "255.255.255.255"
+try:
+    import vortex_chat as _vc
+except ImportError as exc:  # pragma: no cover - зависит от окружения сборки
+    raise ImportError(_BUILD_HINT) from exc
 
 
 def _get_node_keys():
     from app.security.crypto import load_or_create_node_keypair
 
     return load_or_create_node_keypair(Config.KEYS_DIR)
-
-
-# Room fetching
 
 
 async def _fetch_peer_rooms(peer: PeerInfo) -> None:
@@ -91,9 +67,6 @@ def _schedule_fetch_peer_rooms(peer: PeerInfo) -> None:
         logger.debug(f"_main_loop not ready, skip room fetch for {peer.ip}")
 
 
-# Discovery
-
-
 def start_discovery(device_name: str = "") -> None:
     try:
         _models._main_loop = asyncio.get_running_loop()
@@ -101,9 +74,7 @@ def start_discovery(device_name: str = "") -> None:
         _models._main_loop = asyncio.get_event_loop()
 
     name = device_name or socket.gethostname()
-    registry.own_ip = _local_ip()
 
-    # В глобальном режиме UDP discovery не нужен — используется gossip-протокол
     if Config.NETWORK_MODE == "global":
         logger.info("🌐 Global mode: UDP discovery отключён, используется gossip-протокол")
         return
@@ -115,125 +86,26 @@ def start_discovery(device_name: str = "") -> None:
         logger.warning(f"Не удалось получить X25519 ключ: {e}")
         node_pubkey_hex = None
 
-    try:
-        import vortex_chat as _vc
+    _vc.start_discovery(
+        name,
+        Config.PORT,
+        Config.UDP_PORT,
+        float(Config.UDP_INTERVAL_SEC),
+        float(Config.PEER_TIMEOUT_SEC),
+        node_pubkey_hex,
+        is_stealth(),
+        Config.VORTEX_NETWORK_KEY.encode(),
+    )
+    logger.info(f"🦀 Rust UDP discovery: «{name}» pubkey={'yes' if node_pubkey_hex else 'no'}")
 
-        _vc.start_discovery(name, Config.PORT)
-        logger.info(f"🦀 Rust UDP discovery: «{name}»")
-
-        def _sync_rust_peers():
-            while True:
-                with contextlib.suppress(Exception):
-                    for ip, port in _vc.get_peers():
-                        is_new = registry.update(ip, ip, port)
-                        if is_new:
-                            peer = registry.get(ip)
-                            if peer:
-                                _schedule_fetch_peer_rooms(peer)
-                        else:
-                            # Пир уже известен — всё равно обновляем его комнаты,
-                            # чтобы подхватывать новые комнаты созданные после discovery.
-                            peer = registry.get(ip)
-                            if peer:
-                                _schedule_fetch_peer_rooms(peer)
-                time.sleep(3)
-
-        threading.Thread(target=_sync_rust_peers, daemon=True, name="rust-peers-sync").start()
-        return
-    except (ImportError, AttributeError):
-        logger.info("Python UDP discovery fallback")
-
-    threading.Thread(target=_py_listener, daemon=True, name="udp-listen").start()
-    threading.Thread(target=_py_sender, args=(name, node_pubkey_hex), daemon=True, name="udp-send").start()
-    logger.info(f"🐍 Python UDP discovery: «{name}» pubkey={'yes' if node_pubkey_hex else 'no'}")
+    threading.Thread(target=_fetch_rooms_of_peers, daemon=True, name="peer-rooms-fetch").start()
 
 
-def _py_listener():
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.bind(("", Config.UDP_PORT))
-        sock.settimeout(2.0)
-    except OSError as e:
-        logger.error(f"UDP bind failed: {e}")
-        return
-
+def _fetch_rooms_of_peers() -> None:
+    """Опрашивает публичные комнаты соседей. Сам реестр ведёт Rust."""
     while True:
-        try:
-            data, addr = sock.recvfrom(1024)
-            src_ip = addr[0]
-            if src_ip == registry.own_ip or src_ip.startswith("127."):
-                continue
-
-            # Stealth mode: try to decrypt UDP broadcast
-            from app.transport.stealth import decrypt_udp_broadcast, is_stealth
-
-            if is_stealth():
-                decrypted = decrypt_udp_broadcast(data)
-                if decrypted:
-                    data = decrypted
-
-            info = json.loads(data.decode())
-            pubkey = info.get("pubkey")
-            if pubkey and len(pubkey) != 64:
-                pubkey = None
-            if pubkey:
-                try:
-                    bytes.fromhex(pubkey)
-                except ValueError:
-                    pubkey = None
-
-            is_new = registry.update(
-                src_ip,
-                str(info.get("name", src_ip))[:64],
-                int(info.get("port", Config.PORT)),
-                pubkey,
-            )
-
-            peer = registry.get(src_ip)
-            if peer:
-                if is_new:
-                    # Новый пир — сразу забираем его комнаты.
-                    _schedule_fetch_peer_rooms(peer)
-                else:
-                    # Известный пир прислал heartbeat — обновляем список его комнат,
-                    # чтобы новые комнаты появлялись у соседей без перезапуска.
-                    _schedule_fetch_peer_rooms(peer)
-
-        except TimeoutError:
+        with contextlib.suppress(Exception):
             registry.cleanup()
-        except Exception as e:
-            logger.warning(f"UDP listener error: {e}", exc_info=True)
-
-
-def _py_sender(name: str, node_pubkey_hex: Optional[str]):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-    while True:
-        try:
-            own_ip = _local_ip()
-            if own_ip != registry.own_ip and not own_ip.startswith("127."):
-                registry.own_ip = own_ip
-
-            payload_dict = {"name": name, "port": Config.PORT}
-            if node_pubkey_hex:
-                payload_dict["pubkey"] = node_pubkey_hex
-
-            payload = json.dumps(payload_dict).encode()
-
-            # Stealth mode: encrypt UDP broadcast
-            from app.transport.stealth import encrypt_udp_broadcast, get_stealth_udp_port, is_stealth
-
-            if is_stealth():
-                payload = encrypt_udp_broadcast(payload)
-            udp_port = get_stealth_udp_port() if is_stealth() else Config.UDP_PORT
-
-            bcast = _subnet_broadcast(own_ip)
-            sock.sendto(payload, (bcast, udp_port))
-            with contextlib.suppress(Exception):
-                sock.sendto(payload, ("255.255.255.255", udp_port))
-        except Exception as e:
-            logger.debug(f"UDP send: {e}")
-        time.sleep(Config.UDP_INTERVAL_SEC)
+            for peer in registry.active():
+                _schedule_fetch_peer_rooms(peer)
+        time.sleep(ROOMS_FETCH_INTERVAL_SEC)

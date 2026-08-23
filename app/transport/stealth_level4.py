@@ -42,7 +42,7 @@ import struct
 import time
 import zlib
 from collections.abc import Awaitable, Callable
-from typing import NamedTuple, Optional
+from typing import Optional
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -72,7 +72,6 @@ from app.transport.probe_backend import CensorshipDashboard as RustDashboard
 from app.transport.probe_backend import CensorshipProbe, LatencyMonitor, ServiceWorkerProfile
 from app.transport.reality_backend import RealityAuth
 from app.transport.shadowtls_backend import ShadowTls
-from app.transport.timeout_backend import HANDSHAKE_TIMEOUT_SECS, ReadDeadline
 from app.transport.trojan_backend import Trojan
 
 _sysrand = random.SystemRandom()
@@ -317,20 +316,6 @@ class VMessProtocol:
         }
 
 
-class ShadowTLSSwitch(NamedTuple):
-    """Результат переключения потока на данные Vortex.
-
-    session_id — идентификатор, выбранный клиентом; trailing — байты клиента,
-    пришедшие в том же сегменте, что и switch-запись; stream — защищённый поток
-    серверной стороны, ключи которого уже выведены из random донора и
-    session_id.
-    """
-
-    session_id: bytes
-    trailing: bytes
-    stream: object
-
-
 class ShadowTLS:
     """
     ShadowTLS v3: выполняет настоящий TLS handshake с whitelisted сервером
@@ -393,118 +378,6 @@ class ShadowTLS:
     def client_stream(self, server_random: bytes, session_id: bytes) -> object:
         """Защищённый поток клиентской стороны после переключения."""
         return self._guard.stream(server_random, session_id, False)
-
-    async def server_handshake_proxy(
-        self,
-        client_reader: asyncio.StreamReader,
-        client_writer: asyncio.StreamWriter,
-        timeout: float = HANDSHAKE_TIMEOUT_SECS,
-    ) -> Optional[ShadowTLSSwitch]:
-        """
-        Серверная сторона: прозрачно проксирует поток к донору, разбирая его по
-        TLS-записям, и ждёт switch-запись от клиента.
-
-        Обе стороны релеятся по целым TLS-записям, поэтому при переключении
-        отмена релея сервер→клиент приходит только на границе записи — клиент
-        никогда не получает обрезанную запись и его парсер кадров не
-        рассинхронён. Записи handshake форвардятся донору как есть, поэтому DPI
-        видит полный настоящий handshake; switch-запись наружу не уходит.
-
-        Клиентский контракт: switch-запись шлётся первой после того, как получен
-        ServerHello донора, отдельной записью; ответные NewSessionTicket до
-        этого момента клиент игнорирует. Паддинг до правдоподобного размера
-        Application Data добавляет `seal_switch`, а не клиент.
-
-        Возвращает ShadowTLSSwitch, либо None, если клиент закрылся или это не
-        наш клиент — тогда поток так и остаётся прозрачным проксёром к донору.
-        """
-        connection = self._guard.connection()
-        pending = bytearray()
-        loop = asyncio.get_running_loop()
-        deadline = ReadDeadline(loop.time(), timeout)
-
-        try:
-            while True:
-                chunk = await self._read_within(client_reader, deadline, loop)
-                if not chunk:
-                    return None
-                step = connection.feed_client(chunk)
-                pending += step.forward
-                switched = self._switched(connection, step)
-                if switched is not None:
-                    return switched
-                if connection.donor() is not None:
-                    break
-        except asyncio.TimeoutError:
-            logger.debug("ShadowTLS: клиент не прислал ClientHello за %.1f с", deadline.seconds)
-            return None
-
-        target_host, target_port = connection.donor()
-        remote_writer = None
-        to_client = None
-        try:
-            remote_reader, remote_writer = await asyncio.open_connection(target_host, target_port)
-            if pending:
-                remote_writer.write(bytes(pending))
-                await remote_writer.drain()
-            to_client = asyncio.create_task(self._pump_donor(connection, remote_reader, client_writer))
-
-            while True:
-                chunk = await self._read_within(client_reader, deadline, loop)
-                if not chunk:
-                    return None
-                step = connection.feed_client(chunk)
-                if step.forward:
-                    remote_writer.write(step.forward)
-                    await remote_writer.drain()
-                switched = self._switched(connection, step)
-                if switched is not None:
-                    return switched
-        except asyncio.TimeoutError:
-            logger.debug("ShadowTLS: рукопожатие не завершилось за %.1f с", deadline.seconds)
-            return None
-        except Exception as e:
-            logger.debug("ShadowTLS handshake error: %s", e)
-            return None
-        finally:
-            if to_client is not None and not to_client.done():
-                to_client.cancel()
-                await asyncio.gather(to_client, return_exceptions=True)
-            if remote_writer is not None and not remote_writer.is_closing():
-                remote_writer.close()
-
-    @staticmethod
-    async def _read_within(reader: asyncio.StreamReader, deadline, loop) -> bytes:
-        """Читает, пока у рукопожатия есть бюджет. Бюджет считает Rust."""
-        return await asyncio.wait_for(reader.read(8192), timeout=deadline.remaining(loop.time()))
-
-    @staticmethod
-    def _switched(connection, step) -> Optional[ShadowTLSSwitch]:
-        if step.session_id is None:
-            return None
-        logger.debug("ShadowTLS: switch record received, entering data mode")
-        return ShadowTLSSwitch(step.session_id, step.trailing, connection.stream(True))
-
-    async def _pump_donor(self, connection, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        """
-        Релеит поток донор→клиент целыми TLS-записями. Каждая запись пишется
-        одним write, поэтому отмена задачи (при switch) не оставляет клиенту
-        обрезанную запись — теряется максимум одна целая запись (например
-        NewSessionTicket), а не половина, что рассинхронило бы парсер кадров.
-        Попутно из ServerHello берётся random донора: к нему привязаны и маркер
-        переключения, и ключи потока данных.
-        """
-        try:
-            while True:
-                chunk = await reader.read(8192)
-                if not chunk:
-                    return
-                step = connection.feed_donor(chunk)
-                if step.forward:
-                    writer.write(step.forward)
-                    await writer.drain()
-        except (ConnectionError, asyncio.CancelledError):
-            pass
 
     def get_status(self) -> dict:
         return self._guard.status()
@@ -588,77 +461,6 @@ class RealityProtocol:
         получает только реальный dest-сайт.
         """
         return self._auth.is_reality_client(client_hello)
-
-    TLS_RECORD_MAX = 16384
-
-    async def _read_client_hello(self, reader: asyncio.StreamReader, timeout: float = HANDSHAKE_TIMEOUT_SECS) -> bytes:
-        """Читает первую TLS-запись целиком по её длине — без рассинхронизации
-        на фрагментированном ClientHello."""
-        try:
-            header = await asyncio.wait_for(reader.readexactly(5), timeout=timeout)
-        except (asyncio.IncompleteReadError, asyncio.TimeoutError, ConnectionError):
-            return b""
-        if header[0] != 0x16:
-            return header
-        rec_len = min(int.from_bytes(header[3:5], "big"), self.TLS_RECORD_MAX)
-        try:
-            body = await asyncio.wait_for(reader.readexactly(rec_len), timeout=timeout)
-        except asyncio.IncompleteReadError as e:
-            body = e.partial
-        except (asyncio.TimeoutError, ConnectionError):
-            body = b""
-        return header + body
-
-    async def handle_connection(
-        self, client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter
-    ) -> Optional[str]:
-        """
-        Обработка входящего соединения. Читает ClientHello целиком (по длине
-        TLS-записи), затем классифицирует. Наш клиент → short_id; чужой →
-        прозрачный TCP-релей к dest и None. Аутентификация — свежий ECDH к
-        ключу сервера, угадать short_id и получить зависшее соединение
-        активный пробинг не может: ему отдаётся реальный dest-сайт.
-        """
-        client_hello = await self._read_client_hello(client_reader)
-        if not client_hello:
-            return None
-
-        is_ours, short_id = self.is_reality_client(client_hello)
-        if is_ours:
-            logger.debug("Reality: authenticated client (sid=%s)", short_id)
-            return short_id
-
-        logger.debug("Reality: proxying to %s (not our client)", self._dest)
-        remote_w = None
-        try:
-            remote_r, remote_w = await asyncio.open_connection(self._dest, 443, ssl=False)
-            remote_w.write(client_hello)
-            await remote_w.drain()
-
-            async def _fwd(reader, writer):
-                try:
-                    while True:
-                        chunk = await reader.read(8192)
-                        if not chunk:
-                            break
-                        writer.write(chunk)
-                        await writer.drain()
-                except (ConnectionError, asyncio.CancelledError):
-                    pass
-
-            up = asyncio.create_task(_fwd(client_reader, remote_w))
-            down = asyncio.create_task(_fwd(remote_r, client_writer))
-            _, pending = await asyncio.wait({up, down}, return_when=asyncio.FIRST_COMPLETED)
-            for t in pending:
-                t.cancel()
-        except Exception as e:
-            logger.debug("Reality handle error: %s", e)
-        finally:
-            if remote_w is not None and not remote_w.is_closing():
-                remote_w.close()
-            if not client_writer.is_closing():
-                client_writer.close()
-        return None
 
     def get_client_config(self) -> dict:
         """Конфигурация для клиента."""

@@ -34,6 +34,7 @@ from app.base import Base
 from app.config import Config
 from app.database import SessionLocal, get_db
 from app.models import User
+from app.security import ratelimit_backend as _ratelimit
 from app.security.auth_jwt import get_current_user
 from app.security.ssl_context import make_peer_ssl_context
 from app.transport.gossip_security import (
@@ -68,8 +69,6 @@ MAX_FAIL_COUNT = 3
 TRUST_SCORE_PENALTY = 20
 MAX_PAYLOAD_SIZE = 1_048_576  # 1 MB
 MAX_JSON_DEPTH = 10
-RATE_LIMIT_REQUESTS = 100
-RATE_LIMIT_WINDOW = 60  # seconds
 
 TASK_TYPES = [
     "message_relay",
@@ -240,6 +239,9 @@ class GossipNodePayload(BaseModel):
     name: str = ""
     code_hash: str = ""
     version: str = ""
+    pow_challenge: str = ""
+    pow_nonce: str = ""
+    pow_timestamp: str = ""
 
 
 class ValidateTokenRequest(BaseModel):
@@ -426,33 +428,9 @@ class NodeSandbox:
         return parsed
 
     @staticmethod
-    def check_rate_limit(node_id: str, limit: int = RATE_LIMIT_REQUESTS) -> bool:
-        """Token bucket rate limiter per node.
-
-        Returns True if the request is allowed, False if rate-limited.
-        """
-        now = time.monotonic()
-        bucket = _rate_limit_buckets.get(node_id)
-
-        if bucket is None:
-            _rate_limit_buckets[node_id] = {"tokens": limit - 1, "last": now}
-            return True
-
-        elapsed = now - bucket["last"]
-        # Refill tokens based on elapsed time
-        refill = elapsed * (limit / RATE_LIMIT_WINDOW)
-        bucket["tokens"] = min(limit, bucket["tokens"] + refill)
-        bucket["last"] = now
-
-        if bucket["tokens"] >= 1:
-            bucket["tokens"] -= 1
-            return True
-
-        return False
-
-
-# In-memory rate limit buckets: {node_id: {"tokens": float, "last": float}}
-_rate_limit_buckets: dict[str, dict] = {}
+    def check_rate_limit(node_id: str) -> bool:
+        """Общий счёт обращений узла: True, если запрос укладывается в предел."""
+        return _ratelimit.node_allowed(node_id)
 
 
 # Code Hash Validation (blockchain-inspired)
@@ -1313,13 +1291,21 @@ async def gossip_node_joined(
     if not NodeSandbox.check_rate_limit(f"gossip:{client_ip}"):
         raise HTTPException(429, "Rate limit exceeded")
 
-    # Gossip security: rate limit + reputation + PoW
     if not _gossip_rate_limiter.is_allowed(client_ip):
         raise HTTPException(429, "Gossip cooldown active")
     if _reputation_manager.is_banned(client_ip):
         raise HTTPException(403, "Peer banned due to low reputation")
     if ProofOfWork.needs_pow(client_ip):
-        raise HTTPException(428, detail=ProofOfWork.issue_challenge(client_ip))
+        if not (body.pow_challenge and body.pow_nonce and body.pow_timestamp):
+            raise HTTPException(428, detail=ProofOfWork.issue_challenge(client_ip))
+        if not ProofOfWork.verify_solution(
+            client_ip,
+            body.pow_challenge,
+            body.pow_nonce,
+            body.pow_timestamp,
+        ):
+            _reputation_manager.record_failure(client_ip, penalty=0.1)
+            raise HTTPException(428, detail=ProofOfWork.issue_challenge(client_ip))
 
     try:
         normalized_url = NodeSandbox.validate_url(body.url)

@@ -14,36 +14,31 @@ Flow:
   5. Client decrypts payload locally
 
 No FCM/APNs required — works on de-Googled phones (GrapheneOS, CalyxOS, LineageOS).
+
+Подписки живут в таблице `unified_push_subscriptions`: доставить пуш должен
+любой воркер, а не только принявший регистрацию.
 """
 
 from __future__ import annotations
 
 import logging
-import time
-from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 import httpx
+from sqlalchemy.orm import Session
+
+from app.database import SessionLocal
+from app.models import UnifiedPushSubscription
 
 logger = logging.getLogger(__name__)
 
-# Shared pool for UP delivery
+MAX_FAILURES = 15
+
 _up_pool = httpx.AsyncClient(
     timeout=httpx.Timeout(10.0, connect=3.0),
     limits=httpx.Limits(max_keepalive_connections=5, max_connections=20),
     verify=True,
 )
-
-
-@dataclass
-class UPSubscription:
-    """UnifiedPush subscription for a user."""
-
-    user_id: int
-    endpoint: str  # UP distributor endpoint URL
-    app_id: str = "org.vortex.messenger"
-    created_at: float = field(default_factory=time.time)
-    failures: int = 0
-    active: bool = True
 
 
 class UnifiedPushManager:
@@ -58,76 +53,90 @@ class UnifiedPushManager:
       - Payload encrypted client-side (E2E)
     """
 
-    def __init__(self):
-        self._subs: dict[int, list[UPSubscription]] = {}  # user_id → subscriptions
-
-    async def register(self, user_id: int, endpoint: str, app_id: str = "org.vortex.messenger") -> UPSubscription:
+    async def register(
+        self,
+        db: Session,
+        user_id: int,
+        endpoint: str,
+        app_id: str = "org.vortex.messenger",
+    ) -> UnifiedPushSubscription:
         """Register a UnifiedPush endpoint for a user."""
-        # Validate endpoint URL
         if not endpoint.startswith(("https://", "http://localhost")):
             raise ValueError("UP endpoint must use HTTPS")
 
-        sub = UPSubscription(user_id=user_id, endpoint=endpoint, app_id=app_id)
-
-        if user_id not in self._subs:
-            self._subs[user_id] = []
-
-        # Replace existing subscription with same endpoint
-        self._subs[user_id] = [s for s in self._subs[user_id] if s.endpoint != endpoint]
-        self._subs[user_id].append(sub)
+        sub = self._find(db, user_id, endpoint)
+        if sub:
+            sub.app_id = app_id
+            sub.failures = 0
+            sub.active = True
+            sub.created_at = datetime.now(timezone.utc)
+        else:
+            sub = UnifiedPushSubscription(user_id=user_id, endpoint=endpoint, app_id=app_id)
+            db.add(sub)
+        db.commit()
+        db.refresh(sub)
 
         logger.info("UP subscription registered: user=%d endpoint=%s", user_id, endpoint[:50])
         return sub
 
-    async def unregister(self, user_id: int, endpoint: str) -> bool:
+    async def unregister(self, db: Session, user_id: int, endpoint: str) -> bool:
         """Remove a UnifiedPush subscription."""
-        subs = self._subs.get(user_id, [])
-        before = len(subs)
-        self._subs[user_id] = [s for s in subs if s.endpoint != endpoint]
-        return len(self._subs.get(user_id, [])) < before
+        removed = (
+            db.query(UnifiedPushSubscription)
+            .filter(
+                UnifiedPushSubscription.user_id == user_id,
+                UnifiedPushSubscription.endpoint == endpoint,
+            )
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        return bool(removed)
 
     async def send(self, user_id: int, encrypted_payload: bytes) -> bool:
         """
         Send encrypted push notification via UnifiedPush.
 
-        Payload is already encrypted by caller (sealed_push.py).
+        Payload is already encrypted by caller.
         We just POST raw bytes to the UP endpoint.
         """
-        subs = self._subs.get(user_id, [])
-        if not subs:
-            return False
+        db = SessionLocal()
+        try:
+            subs = self._of_user(db, user_id)
+            if not subs:
+                return False
 
-        delivered = False
-        for sub in subs:
-            if not sub.active:
-                continue
-            try:
-                r = await _up_pool.post(
-                    sub.endpoint,
-                    content=encrypted_payload,
-                    headers={
-                        "Content-Type": "application/octet-stream",
-                        "TTL": "86400",
-                    },
-                )
-                if r.status_code < 400:
-                    sub.failures = 0
-                    delivered = True
-                else:
+            delivered = False
+            for sub in subs:
+                if not sub.active:
+                    continue
+                try:
+                    r = await _up_pool.post(
+                        sub.endpoint,
+                        content=encrypted_payload,
+                        headers={
+                            "Content-Type": "application/octet-stream",
+                            "TTL": "86400",
+                        },
+                    )
+                    if r.status_code < 400:
+                        sub.failures = 0
+                        delivered = True
+                    else:
+                        sub.failures += 1
+                        logger.debug("UP delivery failed: HTTP %d endpoint=%s", r.status_code, sub.endpoint[:50])
+                except Exception as e:
                     sub.failures += 1
-                    logger.debug("UP delivery failed: HTTP %d endpoint=%s", r.status_code, sub.endpoint[:50])
-            except Exception as e:
-                sub.failures += 1
-                logger.debug("UP delivery error: %s endpoint=%s", str(e)[:100], sub.endpoint[:50])
+                    logger.debug("UP delivery error: %s endpoint=%s", str(e)[:100], sub.endpoint[:50])
 
-            # Disable after 15 consecutive failures
-            if sub.failures >= 15:
-                sub.active = False
-                logger.warning("UP subscription disabled (15 failures): user=%d", user_id)
+                if sub.failures >= MAX_FAILURES:
+                    sub.active = False
+                    logger.warning("UP subscription disabled (%d failures): user=%d", MAX_FAILURES, user_id)
+            db.commit()
+            return delivered
+        finally:
+            db.close()
 
-        return delivered
-
-    def get_subscriptions(self, user_id: int) -> list[dict]:
+    def get_subscriptions(self, db: Session, user_id: int) -> list[dict]:
         """List active UP subscriptions for a user."""
         return [
             {
@@ -136,18 +145,38 @@ class UnifiedPushManager:
                 "active": s.active,
                 "failures": s.failures,
             }
-            for s in self._subs.get(user_id, [])
+            for s in self._of_user(db, user_id)
         ]
 
-    def has_subscription(self, user_id: int) -> bool:
+    def has_subscription(self, db: Session, user_id: int) -> bool:
         """Check if user has any active UP subscription."""
-        return any(s.active for s in self._subs.get(user_id, []))
+        return any(s.active for s in self._of_user(db, user_id))
 
-    def stats(self) -> dict:
-        total = sum(len(v) for v in self._subs.values())
-        active = sum(1 for subs in self._subs.values() for s in subs if s.active)
-        return {"total": total, "active": active, "users": len(self._subs)}
+    def stats(self, db: Session) -> dict:
+        rows = db.query(UnifiedPushSubscription).all()
+        return {
+            "total": len(rows),
+            "active": sum(1 for row in rows if row.active),
+            "users": len({row.user_id for row in rows}),
+        }
+
+    def _find(self, db: Session, user_id: int, endpoint: str) -> UnifiedPushSubscription | None:
+        return (
+            db.query(UnifiedPushSubscription)
+            .filter(
+                UnifiedPushSubscription.user_id == user_id,
+                UnifiedPushSubscription.endpoint == endpoint,
+            )
+            .first()
+        )
+
+    def _of_user(self, db: Session, user_id: int) -> list[UnifiedPushSubscription]:
+        return (
+            db.query(UnifiedPushSubscription)
+            .filter(UnifiedPushSubscription.user_id == user_id)
+            .order_by(UnifiedPushSubscription.id)
+            .all()
+        )
 
 
-# Global instance
 up_manager = UnifiedPushManager()

@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT chunk_hash, chunk_index, size, node_ip, node_port\n            FROM distributed_chunks\n            WHERE file_id = $1\n            ORDER BY chunk_index, id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "chunk_hash",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "chunk_index",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "node_ip",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "node_port",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1ab945a8432c303bfdf079e8a4a87e03a6fb9c6d15f35c58b8f85e4f35019fa4"
+}

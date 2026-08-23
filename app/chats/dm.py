@@ -31,7 +31,6 @@ from app.models_rooms.blocks import BlockedUser  # enforce blocks on DM open
 from app.peer.connection_manager import manager
 from app.security.auth_jwt import get_current_user
 from app.security.ecies_schema import EciesKeyFields
-from app.security.key_exchange import validate_ecies_payload
 from app.utilites.utils import generative_invite_code
 
 logger = logging.getLogger(__name__)
@@ -206,31 +205,36 @@ async def create_or_get_dm(
     db.add(RoomMember(room_id=room.id, user_id=target_user_id, role=RoomRole.MEMBER))
 
     # Сохраняем зашифрованный ключ для создателя (если передан)
-    if body.encrypted_room_key and validate_ecies_payload(body.encrypted_room_key.ecies_dict()):
+    if body.encrypted_room_key:
+        wrapped = body.encrypted_room_key.parsed()
+        if wrapped is None:
+            raise HTTPException(400, "Invalid encrypted_room_key format")
         db.add(
             EncryptedRoomKey(
                 room_id=room.id,
                 user_id=u.id,
-                ephemeral_pub=body.encrypted_room_key.eph_pub,
-                ciphertext=body.encrypted_room_key.ciphertext,
-                kyber_ciphertext=body.encrypted_room_key.kyber_ciphertext,
+                ephemeral_pub=wrapped.ephemeral_pub,
+                ciphertext=wrapped.ciphertext,
+                kyber_ciphertext=wrapped.kyber_ciphertext,
                 recipient_pub=u.x25519_public_key,
             )
         )
 
     # Сохраняем зашифрованный ключ для получателя (если передан)
     if body.encrypted_key_for_target and target.x25519_public_key:
-        if validate_ecies_payload(body.encrypted_key_for_target.ecies_dict()):
-            db.add(
-                EncryptedRoomKey(
-                    room_id=room.id,
-                    user_id=target_user_id,
-                    ephemeral_pub=body.encrypted_key_for_target.eph_pub,
-                    ciphertext=body.encrypted_key_for_target.ciphertext,
-                    kyber_ciphertext=body.encrypted_key_for_target.kyber_ciphertext,
-                    recipient_pub=target.x25519_public_key,
-                )
+        wrapped_target = body.encrypted_key_for_target.parsed()
+        if wrapped_target is None:
+            raise HTTPException(400, "Invalid encrypted_key_for_target format")
+        db.add(
+            EncryptedRoomKey(
+                room_id=room.id,
+                user_id=target_user_id,
+                ephemeral_pub=wrapped_target.ephemeral_pub,
+                ciphertext=wrapped_target.ciphertext,
+                kyber_ciphertext=wrapped_target.kyber_ciphertext,
+                recipient_pub=target.x25519_public_key,
             )
+        )
     elif target.x25519_public_key:
         # Fallback: PendingKeyRequest если клиент не передал ключ для получателя
         db.add(
@@ -340,7 +344,8 @@ async def store_key_for_user(
     if existing:
         return {"ok": True, "message": "Key already exists"}
 
-    if not validate_ecies_payload(body.ecies_dict()):
+    wrapped = body.parsed()
+    if wrapped is None:
         raise HTTPException(400, "Invalid ECIES payload")
 
     target_user = db.query(User).filter(User.id == body.user_id).first()
@@ -348,9 +353,9 @@ async def store_key_for_user(
         EncryptedRoomKey(
             room_id=room_id,
             user_id=body.user_id,
-            ephemeral_pub=body.eph_pub,
-            ciphertext=body.ciphertext,
-            kyber_ciphertext=body.kyber_ciphertext,
+            ephemeral_pub=wrapped.ephemeral_pub,
+            ciphertext=wrapped.ciphertext,
+            kyber_ciphertext=wrapped.kyber_ciphertext,
             recipient_pub=target_user.x25519_public_key if target_user else None,
         )
     )

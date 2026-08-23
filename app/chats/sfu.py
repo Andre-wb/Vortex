@@ -27,6 +27,7 @@ import contextlib
 import logging
 import os
 import struct
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -600,13 +601,13 @@ async def sfu_join(
     if not _SFU_AVAILABLE:
         raise HTTPException(501, detail="SFU unavailable (aiortc not installed)")
 
-    from app.chats.group_calls import _active_group_calls
+    from app.chats import live_backend as _live
 
-    gc = _active_group_calls.get(call_id)
+    gc = _live.call_status(call_id)
     if not gc:
         raise HTTPException(404, detail="Call not found")
 
-    room = get_or_create_sfu_room(call_id, gc.room_id)
+    room = get_or_create_sfu_room(call_id, gc["room_id"])
     if room.participant_count >= SFU_MAX_PARTICIPANTS:
         raise HTTPException(409, detail="Call is full")
 
@@ -675,9 +676,29 @@ async def ws_sfu(
     room.set_ws(user.id, websocket)
     logger.debug("[SFU-WS] user %s connected, call %s", user.id, call_id)
 
+    from app.chats import live_backend as _live
+
+    def renew_call() -> None:
+        with contextlib.suppress(_live.LiveUnavailableError):
+            _live.call_renew(call_id)
+
+    pending = None
     try:
+        renew_at = time.monotonic() + _live.RENEWAL_SECONDS
+        pending = asyncio.ensure_future(websocket.receive_json())
         while True:
-            data = await websocket.receive_json()
+            arrived, _waiting = await asyncio.wait(
+                {pending}, timeout=_live.RENEWAL_SECONDS
+            )
+            if time.monotonic() >= renew_at:
+                renew_call()
+                renew_at = time.monotonic() + _live.RENEWAL_SECONDS
+            if not arrived:
+                continue
+
+            data = pending.result()
+            pending = asyncio.ensure_future(websocket.receive_json())
+
             msg_type = data.get("type")
 
             if msg_type == "sfu_answer":
@@ -700,6 +721,9 @@ async def ws_sfu(
     except Exception as e:
         logger.warning("[SFU-WS] error for %s: %s", user.id, e)
     finally:
+        if pending is not None and not pending.done():
+            pending.cancel()
+
         p = room.participants.get(user.id) if room else None
         if p:
             p.ws = None

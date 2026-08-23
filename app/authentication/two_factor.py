@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request
@@ -16,25 +15,9 @@ from app.authentication.password import (
 )
 from app.database import get_db
 from app.models import TwoFALoginRequest, TwoFAVerifyRequest, User
+from app.security import auth_state_backend as _auth_state
 from app.security.auth_jwt import get_current_user
 from app.security.ip_privacy import sanitize_ip
-
-_totp_attempts: dict[int, list] = {}  # user_id -> [timestamps]
-_TOTP_MAX_ATTEMPTS = 5
-_TOTP_WINDOW = 300  # 5 minutes
-
-
-def _check_totp_rate(user_id: int) -> bool:
-    """Return True if the user is allowed to attempt TOTP, False if rate-limited."""
-    now = time.monotonic()
-    attempts = _totp_attempts.get(user_id, [])
-    # Remove expired attempts
-    attempts = [t for t in attempts if now - t < _TOTP_WINDOW]
-    _totp_attempts[user_id] = attempts
-    if len(attempts) >= _TOTP_MAX_ATTEMPTS:
-        return False
-    attempts.append(now)
-    return True
 
 
 @router.post("/2fa/setup")
@@ -96,8 +79,7 @@ async def verify_2fa_login(body: TwoFALoginRequest, request: Request, db: Sessio
     if not has_password_verified(user.id):
         raise HTTPException(401, "Password verification required — log in first")
 
-    # Rate limit: max 5 attempts per 5 minutes per user
-    if not _check_totp_rate(user.id):
+    if not _auth_state.totp_attempt_allowed(int(user.id)):
         raise HTTPException(429, "Too many attempts, try again later")
 
     totp = pyotp.TOTP(user.totp_secret)

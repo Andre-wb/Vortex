@@ -1689,7 +1689,7 @@ class TestAntispamBot:
 
 
 class TestConnectionManager:
-    """TokenBucket, MessageDeduplicator, ConnectionManager"""
+    """TokenBucket, дедупликация, ConnectionManager"""
 
     def test_token_bucket_consume_success(self):
         from app.peer.connection_manager import TokenBucket
@@ -1714,23 +1714,15 @@ class TestConnectionManager:
         time.sleep(0.05)  # refill: 100 * 0.05 = 5 tokens (capped at 2)
         assert bucket.consume(1.0) is True
 
-    @pytest.mark.asyncio
-    async def test_deduplicator_is_duplicate(self):
-        from app.peer.connection_manager import MessageDeduplicator
+    def test_deduplicator_is_duplicate(self):
+        import secrets
 
-        dd = MessageDeduplicator(max_size=100, ttl_sec=60)
-        assert await dd.is_duplicate("msg_1") is False
-        assert await dd.is_duplicate("msg_1") is True
-        assert await dd.is_duplicate("msg_2") is False
+        from app.peer import delivery_backend as delivery
 
-    @pytest.mark.asyncio
-    async def test_deduplicator_max_size_eviction(self):
-        from app.peer.connection_manager import MessageDeduplicator
-
-        dd = MessageDeduplicator(max_size=5, ttl_sec=60)
-        for i in range(10):
-            await dd.is_duplicate(f"evict_{i}")
-        assert dd.seen_count() <= 5
+        tag = secrets.token_hex(8)
+        assert delivery.is_repeat(f"{tag}_1") is False
+        assert delivery.is_repeat(f"{tag}_1") is True
+        assert delivery.is_repeat(f"{tag}_2") is False
 
     def test_connection_manager_total_connections(self):
         from app.peer.connection_manager import ConnectionManager
@@ -1751,46 +1743,55 @@ class TestConnectionManager:
 # Peer Registry (app/peer/peer_registry.py)
 
 
+def _peer_view(**told):
+    from app.peer.peer_registry import PeerInfo
+
+    base = {
+        "name": "node",
+        "ip": "10.0.0.1",
+        "port": 9000,
+        "pubkey": None,
+        "shortened_pubkey": None,
+        "age_sec": 0.0,
+        "online": True,
+        "encrypted": False,
+    }
+    base.update(told)
+    return PeerInfo.told(base)
+
+
 class TestPeerRegistry:
     """PeerInfo, PeerRegistry, REST endpoints"""
 
     def test_peer_info_alive(self):
-        from app.peer.peer_registry import PeerInfo
-
-        p = PeerInfo(name="test", ip="10.0.0.1", port=9000)
-        assert p.alive() is True
+        assert _peer_view(online=True).alive() is True
 
     def test_peer_info_alive_expired(self):
-        from app.peer.peer_registry import PeerInfo
-
-        p = PeerInfo(name="test", ip="10.0.0.1", port=9000)
-        p.last_seen = time.monotonic() - 9999  # expired
-        assert p.alive() is False
+        assert _peer_view(online=False).alive() is False
 
     def test_peer_info_has_encryption(self):
-        from app.peer.peer_registry import PeerInfo
-
-        p_enc = PeerInfo(name="t", ip="10.0.0.1", port=9000, node_pubkey_hex=secrets.token_hex(32))
-        p_no = PeerInfo(name="t", ip="10.0.0.2", port=9000)
-        assert p_enc.has_encryption() is True
-        assert p_no.has_encryption() is False
+        assert _peer_view(encrypted=True).has_encryption() is True
+        assert _peer_view(encrypted=False).has_encryption() is False
 
     def test_peer_info_to_dict(self):
-        from app.peer.peer_registry import PeerInfo
-
-        p = PeerInfo(name="n", ip="10.0.0.1", port=9000, node_pubkey_hex=secrets.token_hex(32))
-        d = p.to_dict()
+        key = secrets.token_hex(32)
+        d = _peer_view(
+            name="n",
+            ip="10.0.0.1",
+            port=9000,
+            pubkey=key,
+            shortened_pubkey=key[:16] + "...",
+            encrypted=True,
+        ).to_dict()
         assert d["name"] == "n"
         assert d["ip"] == "10.0.0.1"
         assert d["port"] == 9000
         assert d["online"] is True
         assert d["encrypted"] is True
+        assert d["pubkey"] == key[:16] + "..."
 
     def test_peer_info_base_url(self):
-        from app.peer.peer_registry import PeerInfo
-
-        p = PeerInfo(name="n", ip="10.0.0.1", port=9000)
-        url = p.base_url
+        url = _peer_view(ip="10.0.0.1", port=9000).base_url
         assert "10.0.0.1" in url
         assert "9000" in url
 
@@ -1798,38 +1799,47 @@ class TestPeerRegistry:
         from app.peer.peer_registry import PeerRegistry
 
         reg = PeerRegistry()
-        is_new = reg.update("10.0.0.1", "peer1", 8000)
-        assert is_new is True
-        is_new2 = reg.update("10.0.0.1", "peer1", 8000)
-        assert is_new2 is False
+        assert reg.update("10.11.0.1", "peer1", 8000) is True
+        assert reg.update("10.11.0.1", "peer1", 8000) is False
+
+    def test_registry_refuses_an_address_that_is_not_one(self):
+        from app.peer.peer_registry import PeerRegistry
+
+        reg = PeerRegistry()
+        assert reg.update("example.com", "peer", 8000) is False
 
     def test_registry_active(self):
         from app.peer.peer_registry import PeerRegistry
 
         reg = PeerRegistry()
-        reg.update("10.0.0.1", "a", 8000)
-        active = reg.active()
-        assert len(active) == 1
+        reg.update("10.11.0.2", "a", 8000)
+        assert "10.11.0.2" in [p.ip for p in reg.active()]
 
     def test_registry_get(self):
         from app.peer.peer_registry import PeerRegistry
 
         reg = PeerRegistry()
-        reg.update("10.0.0.2", "b", 8001)
-        p = reg.get("10.0.0.2")
+        reg.update("10.11.0.3", "b", 8001)
+        p = reg.get("10.11.0.3")
         assert p is not None
         assert p.name == "b"
         assert reg.get("9.9.9.9") is None
 
     def test_registry_cleanup(self):
+        from app.config import Config
+        from app.peer import peer_registry_backend as backend
         from app.peer.peer_registry import PeerRegistry
 
         reg = PeerRegistry()
-        reg.update("10.0.0.3", "c", 8002)
-        # Force expire
-        reg._peers["10.0.0.3"].last_seen = time.monotonic() - 99999
-        reg.cleanup()
-        assert len(reg.active()) == 0
+        was = float(Config.PEER_TIMEOUT_SEC)
+        backend.set_timeout(0.01)
+        try:
+            reg.update("10.11.0.4", "c", 8002)
+            time.sleep(0.05)
+            reg.cleanup()
+            assert reg.get("10.11.0.4") is None
+        finally:
+            backend.set_timeout(was)
 
     def test_rest_peers(self, client):
         u = make_user(client)

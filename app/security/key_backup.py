@@ -24,8 +24,6 @@ import logging
 import os as _os
 import secrets
 import time as _time
-from collections import defaultdict as _defaultdict
-from collections import deque as _deque
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -45,6 +43,7 @@ from app.models.user import (
     SecretShare,
     SyncEvent,
 )
+from app.security import ratelimit_backend as _ratelimit
 from app.security.auth_jwt import get_current_user
 from app.security.crypto import hash_token, verify_token_hash
 from app.security.ssl_context import make_peer_ssl_context
@@ -86,10 +85,6 @@ _SHARD_PROOF_HEADER = "X-Federation-Proof"  # "<ts>:<hmac_hex>"
 _SHARD_PROOF_WINDOW = 300  # ±5 min clock skew
 _MAX_SHARDS_PER_OWNER = 64  # cap stored shards per owner
 _MAX_SHARD_BYTES = 64 * 1024  # reject oversized encrypted shard
-_STORE_RATE_PER_MIN = 120  # global store rate (per source IP)
-
-# In-memory sliding window for the global store rate limit: ip -> deque[ts]
-_store_hits: dict[str, _deque] = _defaultdict(_deque)
 
 
 def _shard_psk() -> bytes:
@@ -140,15 +135,7 @@ def make_shard_proof(challenge: str, ts: int | None = None) -> str:
 
 
 def _store_rate_ok(ip: str) -> bool:
-    now = _time.monotonic()
-    dq = _store_hits[ip]
-    cutoff = now - 60.0
-    while dq and dq[0] < cutoff:
-        dq.popleft()
-    if len(dq) >= _STORE_RATE_PER_MIN:
-        return False
-    dq.append(now)
-    return True
+    return _ratelimit.shard_store_allowed(ip)
 
 
 # Pydantic schemas

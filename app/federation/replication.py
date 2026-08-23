@@ -20,7 +20,6 @@ import hashlib
 import json
 import logging
 import time
-from collections import defaultdict, deque
 from typing import Optional
 
 import httpx
@@ -35,6 +34,7 @@ from app.database import get_db
 from app.models_rooms import FederatedEnvelope
 from app.peer.controller_client import NodeSigningKey, _canonical
 from app.peer.peer_models import registry
+from app.security import ratelimit_backend as _ratelimit
 from app.security.ip_privacy import raw_ip_for_ratelimit
 
 logger = logging.getLogger(__name__)
@@ -51,23 +51,11 @@ _LIST_LIMIT_MAX = 500
 # proves the caller controls `origin_pubkey` (it cannot forge someone else's
 # key), so we still need flood protection and an ownership proof on read.
 _MAX_PAYLOAD_BYTES = 64 * 1024  # reject oversized envelopes
-_POST_RATE_PER_MIN = 120  # per source IP
 _OWNERSHIP_TS_WINDOW = 300  # seconds of clock skew allowed on GET
-
-# In-memory sliding window: source_ip -> deque[monotonic timestamps]
-_post_hits: dict[str, deque] = defaultdict(deque)
 
 
 def _rate_ok(ip: str) -> bool:
-    now = time.monotonic()
-    dq = _post_hits[ip]
-    cutoff = now - 60.0
-    while dq and dq[0] < cutoff:
-        dq.popleft()
-    if len(dq) >= _POST_RATE_PER_MIN:
-        return False
-    dq.append(now)
-    return True
+    return _ratelimit.replication_allowed(ip)
 
 
 def _verify_pubkey_ownership(origin_pubkey_hex: str, ts: int, signature_hex: str) -> bool:

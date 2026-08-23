@@ -910,12 +910,12 @@ def test_deliver_webhook_no_webhook_configured(client):
     """deliver_webhook returns False when no webhook is set for that bot."""
     import asyncio
 
-    from app.bots.bot_advanced import _webhooks, deliver_webhook
+    from app.bots.bot_advanced import deliver_webhook
 
-    bot_id = 999888777  # fictitious, no webhook registered
-    _webhooks.pop(bot_id, None)
+    headers = _auth(client)
+    bot = _create_bot(client, headers)
     loop = asyncio.new_event_loop()
-    result = loop.run_until_complete(deliver_webhook(bot_id, "message", {"text": "hi"}))
+    result = loop.run_until_complete(deliver_webhook(bot["bot_id"], "message", {"text": "hi"}))
     loop.close()
     assert result is False
 
@@ -924,16 +924,17 @@ def test_deliver_webhook_event_not_in_events_list(client):
     """deliver_webhook returns False if the event is not subscribed."""
     import asyncio
 
-    from app.bots.bot_advanced import _webhooks, deliver_webhook
+    from app.bots.bot_advanced import deliver_webhook
 
-    bot_id = 999888776
-    _webhooks[bot_id] = {
-        "url": "https://example.com/hook",
-        "secret": "secret",
-        "events": ["reaction"],  # only reaction, not message
-    }
+    headers = _auth(client)
+    bot = _create_bot(client, headers)
+    r = client.post(
+        "/api/bot/webhook/set",
+        json={"url": "https://example.com/hook", "secret": "secret", "events": ["reaction"]},
+        headers=_bot_token_header(bot["api_token"]),
+    )
+    assert r.status_code == 200, r.text
     loop = asyncio.new_event_loop()
-    result = loop.run_until_complete(deliver_webhook(bot_id, "message", {"text": "hi"}))
+    result = loop.run_until_complete(deliver_webhook(bot["bot_id"], "message", {"text": "hi"}))
     loop.close()
-    _webhooks.pop(bot_id, None)
     assert result is False

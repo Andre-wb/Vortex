@@ -23,6 +23,7 @@ Privacy guarantees:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import hashlib
 import hmac
@@ -30,13 +31,13 @@ import ipaddress
 import logging
 import os
 import socket
-import time
-from collections import defaultdict
-from dataclasses import dataclass
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+
+from app.push import push_registry_backend as _registry
+from app.security import ratelimit_backend as _ratelimit
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,6 @@ router = APIRouter(prefix="/api/push-proxy", tags=["bmp-push-proxy"])
 
 
 CATEGORY_COUNT = 256  # Number of push categories (k-anonymity buckets)
-TOKEN_TTL = 7 * 86400  # Push tokens expire after 7 days
-MAX_TOKENS_PER_CATEGORY = 10000  # Prevent abuse
 
 # FIX F11(a): /wake is an INTERNAL trigger (mailbox server → proxy). It must not
 # be callable by arbitrary clients, or anyone could fan out push wakes for any
@@ -67,25 +66,18 @@ ALLOWED_PUSH_HOST_SUFFIXES = (
     "wns2-by3p.notify.windows.com",
 )
 
-# FIX F11(a,d): per-IP rate limits on register/wake (in-memory sliding window).
-_REGISTER_RATE_LIMIT = 60  # registrations / window per IP
-_WAKE_RATE_LIMIT = 600  # wake triggers / window per IP
-_RATE_WINDOW = 60  # seconds
-_register_hits: dict[str, list[float]] = defaultdict(list)
-_wake_hits: dict[str, list[float]] = defaultdict(list)
-
-
 def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def _rate_limit(bucket: dict, key: str, limit: int) -> None:
-    now = time.time()
-    cutoff = now - _RATE_WINDOW
-    bucket[key] = [t for t in bucket[key] if t > cutoff]
-    if len(bucket[key]) >= limit:
+def _allow_register(request: Request) -> None:
+    if not _ratelimit.push_register_allowed(_client_ip(request)):
         raise HTTPException(429, "Rate limit exceeded")
-    bucket[key].append(now)
+
+
+def _allow_wake(request: Request) -> None:
+    if not _ratelimit.push_wake_allowed(_client_ip(request)):
+        raise HTTPException(429, "Rate limit exceeded")
 
 
 def _endpoint_is_safe(endpoint: str) -> bool:
@@ -128,75 +120,21 @@ def _endpoint_is_safe(endpoint: str) -> bool:
     return True
 
 
-@dataclass
-class PushRegistration:
-    token: str
-    endpoint: str  # Web Push endpoint URL
-    registered_at: float
-
-
-class PushProxyStore:
+async def _wake_category(category: int) -> None:
     """
-    Maps category (0-255) -> list of push registrations.
-    Completely anonymous — no user IDs, no mailbox IDs.
+    Handle wake signal from mailbox server.
+    Send push notification to all tokens in this category.
     """
+    addressed = await asyncio.to_thread(_registry.wake, category)
+    if not addressed:
+        return
 
-    def __init__(self):
-        self._categories: dict[int, list[PushRegistration]] = defaultdict(list)
-        self._total_wakes = 0
+    # Send push to each token (fire-and-forget)
+    for endpoint, token in addressed:
+        with contextlib.suppress(Exception):
+            await _send_push(endpoint, token)
 
-    def register(self, categories: list[int], token: str, endpoint: str):
-        """Register push token for given categories."""
-        now = time.time()
-        reg = PushRegistration(token=token, endpoint=endpoint, registered_at=now)
-        for cat in categories:
-            cat = cat % CATEGORY_COUNT
-            # Dedup
-            self._categories[cat] = [r for r in self._categories[cat] if r.token != token]
-            if len(self._categories[cat]) < MAX_TOKENS_PER_CATEGORY:
-                self._categories[cat].append(reg)
-
-    def unregister(self, token: str):
-        """Remove push token from all categories."""
-        for cat in list(self._categories.keys()):
-            self._categories[cat] = [r for r in self._categories[cat] if r.token != token]
-
-    def get_tokens_for_category(self, category: int) -> list[PushRegistration]:
-        """Get all registrations for a category. Used by wake signal handler."""
-        now = time.time()
-        cat = category % CATEGORY_COUNT
-        # Remove expired
-        self._categories[cat] = [r for r in self._categories[cat] if now - r.registered_at < TOKEN_TTL]
-        return self._categories[cat]
-
-    async def wake(self, category: int):
-        """
-        Handle wake signal from mailbox server.
-        Send push notification to all tokens in this category.
-        """
-        self._total_wakes += 1
-        tokens = self.get_tokens_for_category(category)
-        if not tokens:
-            return
-
-        # Send push to each token (fire-and-forget)
-        for reg in tokens:
-            with contextlib.suppress(Exception):
-                await _send_push(reg.endpoint, reg.token)
-
-        logger.debug("[PushProxy] Wake category=%d → %d tokens", category, len(tokens))
-
-    def stats(self) -> dict:
-        total_tokens = sum(len(v) for v in self._categories.values())
-        active_cats = sum(1 for v in self._categories.values() if v)
-        return {
-            "total_tokens": total_tokens,
-            "active_categories": active_cats,
-            "total_wakes": self._total_wakes,
-        }
-
-
-push_proxy = PushProxyStore()
+    logger.debug("[PushProxy] Wake category=%d → %d tokens", category, len(addressed))
 
 
 async def _send_push(endpoint: str, token: str):
@@ -249,12 +187,15 @@ async def proxy_register(body: ProxyRegisterRequest, request: Request):
     Client computes categories = SHA256(mailbox_id) mod 256 for each room.
     """
     # FIX F11(d): per-IP rate limit to stop registration flooding.
-    _rate_limit(_register_hits, _client_ip(request), _REGISTER_RATE_LIMIT)
+    _allow_register(request)
     # FIX F11(b): reject endpoints that aren't real Web Push providers / resolve
     # internally, so a poisoned registration can never become an SSRF on wake.
     if not _endpoint_is_safe(body.endpoint):
         raise HTTPException(403, "Push endpoint not permitted")
-    push_proxy.register(body.categories, body.token, body.endpoint)
+    try:
+        await asyncio.to_thread(_registry.register, body.categories, body.token, body.endpoint)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from None
     return {"ok": True}
 
 
@@ -262,10 +203,11 @@ async def proxy_register(body: ProxyRegisterRequest, request: Request):
 async def proxy_unregister(body: dict, request: Request):
     """Unregister a push token."""
     # FIX F11(d): rate-limit alongside register (shares the register bucket).
-    _rate_limit(_register_hits, _client_ip(request), _REGISTER_RATE_LIMIT)
+    _allow_register(request)
     token = body.get("token", "")
     if token:
-        push_proxy.unregister(token)
+        with contextlib.suppress(ValueError):
+            await asyncio.to_thread(_registry.unregister, token)
     return {"ok": True}
 
 
@@ -301,15 +243,15 @@ async def proxy_wake(body: WakeRequest, request: Request):
     # FIX F11(a): authenticate as an internal trigger before doing any work.
     _authorize_wake(request)
     # FIX F11(d): per-IP rate limit on wake fan-out.
-    _rate_limit(_wake_hits, _client_ip(request), _WAKE_RATE_LIMIT)
-    await push_proxy.wake(body.category)
+    _allow_wake(request)
+    await _wake_category(body.category)
     return {"ok": True}
 
 
 @router.get("/stats")
 async def proxy_stats():
     """Push proxy statistics."""
-    return push_proxy.stats()
+    return await asyncio.to_thread(_registry.tally)
 
 
 def compute_category(mailbox_id: str) -> int:

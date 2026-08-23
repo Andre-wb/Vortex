@@ -1,7 +1,7 @@
 use crate::cookie::token;
 use crate::ports::random_source::RandomSource;
 use crate::random::sample::uniform;
-use crate::time::civil::Date;
+use vortex_core::time::civil::Date;
 
 pub const ANALYTICS_LOW: u64 = 100_000_000;
 pub const ANALYTICS_HIGH: u64 = 999_999_999;

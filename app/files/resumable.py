@@ -13,9 +13,10 @@ app/files/resumable.py — Протокол возобновляемой заг�
   - сопровождается SHA-256 хешем для контроля целостности
   - хранится во временной директории до финальной сборки
 
-Сессии хранятся в памяти (dict) + фоновая задача очистки протухших.
-Хранение в памяти обнуляется при рестарте — клиент должен обрабатывать этот случай
-через /upload-status или повторную инициализацию через /upload-init.
+Сессии живут в общем сторе (крейт vortex-resume, app/session/resume_backend.py)
+плюс фоновая задача очистки протухших. Куски файла лежат на файловой системе
+в TEMP_DIR/<upload_id>; путь выводится из upload_id, поэтому в сторе он не
+хранится.
 
 Подключение в main.py:
     from app.files.resumable import router as resumable_router, cleanup_sessions_loop
@@ -32,12 +33,8 @@ import contextlib
 import hashlib
 import logging
 import secrets
-import time
-from dataclasses import dataclass, field
+import shutil
 from pathlib import Path
-from typing import Optional
-
-from app.utilites.background import spawn
 
 try:
     import vortex_chat as _vc_rust
@@ -62,6 +59,7 @@ from app.security.secure_upload import (
     strip_all_metadata,
     validate_file_mime_type,
 )
+from app.session import resume_backend as _resume
 
 
 def _sha256_hex(data: bytes) -> str:
@@ -75,11 +73,7 @@ def _sha256_hex(data: bytes) -> str:
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["resumable-upload"])
 
-DEFAULT_CHUNK_SIZE = 1 * 1024 * 1024  # 1 МБ
-MIN_CHUNK_SIZE = 64 * 1024  # 64 КБ
-MAX_CHUNK_SIZE = 10 * 1024 * 1024  # 10 МБ
-MAX_CHUNKS = 10_240  # ≈ 10 ГБ при 1МБ-чанках
-SESSION_TTL = 24 * 3600  # TTL сессии (24 часа)
+DEFAULT_CHUNK_SIZE = _resume.upload_limits()["default_chunk_bytes"]
 TEMP_DIR = Config.UPLOAD_DIR / "_chunks"
 
 # web-shell / server-executable extensions, mirrors the direct path
@@ -106,127 +100,53 @@ WEBSHELL_EXTS = frozenset(
 )
 
 
-# Модель сессии загрузки
+# Доступ к сессиям загрузки
 
 
-@dataclass
-class UploadSession:
-    """
-    In-memory запись активной сессии возобновляемой загрузки.
-
-    Поля:
-        upload_id      — уникальный токен сессии (URL-safe, 32 символа).
-        room_id        — ID комнаты, в которую загружается файл.
-        user_id        — ID пользователя-загрузчика.
-        file_name      — оригинальное имя файла (от клиента).
-        file_size      — ожидаемый полный размер в байтах.
-        total_chunks   — ceil(file_size / chunk_size).
-        file_hash      — SHA-256 всего файла (hex, нижний регистр).
-        received       — множество индексов уже принятых чанков.
-        created_at     — монотонное время создания сессии (time.monotonic()).
-        chunk_dir      — временная папка для хранения чанков до сборки.
-    """
-
-    upload_id: str
-    room_id: int
-    user_id: int
-    file_name: str
-    file_size: int
-    total_chunks: int
-    file_hash: str
-    received: set[int] = field(default_factory=set)
-    created_at: float = field(default_factory=time.monotonic)
-    chunk_dir: Path = field(default=None)  # type: ignore
-
-    def is_expired(self) -> bool:
-        return (time.monotonic() - self.created_at) > SESSION_TTL
-
-    def is_complete(self) -> bool:
-        return len(self.received) >= self.total_chunks
-
-    def missing_chunks(self) -> list[int]:
-        return sorted(set(range(self.total_chunks)) - self.received)
-
-    def progress_pct(self) -> float:
-        if self.total_chunks == 0:
-            return 100.0
-        return round(len(self.received) / self.total_chunks * 100, 1)
+def _chunk_dir(upload_id: str) -> Path:
+    return TEMP_DIR / upload_id
 
 
-# Хранилище сессий (in-memory, потокобезопасное через asyncio.Lock)
+async def _discard_chunks(upload_id: str) -> None:
+    """Удаляет временную директорию чанков сессии."""
+    chunk_dir = _chunk_dir(upload_id)
+    try:
+        if chunk_dir.exists():
+            await asyncio.get_event_loop().run_in_executor(
+                None, lambda: shutil.rmtree(chunk_dir, ignore_errors=True)
+            )
+    except Exception as exc:
+        logger.warning(f"Chunk dir cleanup failed ({chunk_dir}): {exc}")
 
 
-class SessionStore:
-    """
-    Асинхронное хранилище сессий загрузки.
-
-    Все операции защищены asyncio.Lock. Протухшие сессии удаляются при
-    обращении и в фоновой задаче cleanup_sessions_loop().
-    """
-
-    def __init__(self) -> None:
-        self._sessions: dict[str, UploadSession] = {}
-        self._lock = asyncio.Lock()
-
-    async def create(self, **kwargs) -> UploadSession:
-        session = UploadSession(**kwargs)
-        async with self._lock:
-            self._sessions[session.upload_id] = session
-        return session
-
-    async def get(self, upload_id: str) -> Optional[UploadSession]:
-        async with self._lock:
-            session = self._sessions.get(upload_id)
-            if session is None:
-                return None
-            if session.is_expired():
-                # Удаляем без ожидания (внутри lock нельзя await нелиниейно)
-                self._sessions.pop(upload_id, None)
-                spawn(self._cleanup_dir(session.chunk_dir))
-                return None
-            return session
-
-    async def delete(self, upload_id: str) -> None:
-        async with self._lock:
-            session = self._sessions.pop(upload_id, None)
-        if session:
-            await self._cleanup_dir(session.chunk_dir)
-
-    @staticmethod
-    async def _cleanup_dir(chunk_dir: Optional[Path]) -> None:
-        """Удаляет временную директорию чанков."""
-        if not chunk_dir:
-            return
-        try:
-            import shutil
-
-            if chunk_dir.exists():
-                await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: shutil.rmtree(chunk_dir, ignore_errors=True)
-                )
-        except Exception as exc:
-            logger.warning(f"Chunk dir cleanup failed ({chunk_dir}): {exc}")
-
-    async def cleanup_expired(self) -> int:
-        """Удаляет все протухшие сессии. Возвращает количество удалённых."""
-        async with self._lock:
-            expired = [uid for uid, s in self._sessions.items() if s.is_expired()]
-            dirs_to_clean = []
-            for uid in expired:
-                s = self._sessions.pop(uid)
-                dirs_to_clean.append(s.chunk_dir)
-
-        for d in dirs_to_clean:
-            await self._cleanup_dir(d)
-
-        return len(expired)
-
-    def active_count(self) -> int:
-        return len(self._sessions)
+async def _forget(upload_id: str) -> None:
+    """Закрывает сессию и убирает её чанки."""
+    await asyncio.to_thread(_resume.upload_close, upload_id)
+    await _discard_chunks(upload_id)
 
 
-# Глобальный экземпляр хранилища
-_store = SessionStore()
+GONE = "Upload session not found or expired"
+GONE_START_OVER = "Upload session not found or expired. Start over."
+
+
+async def _live_session(upload_id: str, gone: str) -> dict:
+    """Возвращает живую сессию или бросает 404, попутно убирая чанки протухшей."""
+    try:
+        told = await asyncio.to_thread(_resume.upload_find, upload_id)
+    except ValueError:
+        raise HTTPException(404, gone) from None
+    if told["state"] == "expired":
+        await _discard_chunks(upload_id)
+    if told["state"] != "live":
+        raise HTTPException(404, gone)
+    return told
+
+
+async def _owned_session(upload_id: str, user_id: int, gone: str = GONE) -> dict:
+    told = await _live_session(upload_id, gone)
+    if told["user_id"] != user_id:
+        raise HTTPException(403, "No access to upload session")
+    return told
 
 
 # Вспомогательные функции
@@ -333,29 +253,29 @@ async def upload_init(
     # Валидация хеша
     file_hash = _validate_hex_hash(file_hash, "file_hash")
 
-    # Нормализация chunk_size
-    chunk_size = max(MIN_CHUNK_SIZE, min(chunk_size, MAX_CHUNK_SIZE))
-    total_chunks = (file_size + chunk_size - 1) // chunk_size
+    try:
+        chunk_size, total_chunks = _resume.upload_plan(file_size, chunk_size)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from None
 
-    if total_chunks > MAX_CHUNKS:
-        raise HTTPException(400, f"Too many chunks: {total_chunks} (maximum {MAX_CHUNKS}). Increase chunk_size.")
-
-    # Создаём временную директорию
-    TEMP_DIR.mkdir(parents=True, exist_ok=True)
     upload_id = secrets.token_urlsafe(24)
-    chunk_dir = TEMP_DIR / upload_id
-    chunk_dir.mkdir(parents=True, exist_ok=True)
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    _chunk_dir(upload_id).mkdir(parents=True, exist_ok=True)
 
-    await _store.create(
-        upload_id=upload_id,
-        room_id=room_id,
-        user_id=u.id,
-        file_name=file_name,
-        file_size=file_size,
-        total_chunks=total_chunks,
-        file_hash=file_hash,
-        chunk_dir=chunk_dir,
-    )
+    try:
+        await asyncio.to_thread(
+            _resume.upload_open,
+            upload_id,
+            room_id,
+            u.id,
+            file_name,
+            file_size,
+            total_chunks,
+            file_hash,
+        )
+    except ValueError as error:
+        await _discard_chunks(upload_id)
+        raise HTTPException(400, str(error)) from None
 
     logger.info(
         f"[UploadInit] user={u.username} room={room_id} "
@@ -392,22 +312,19 @@ async def upload_chunk(
     Операция идемпотентна: если чанк с таким индексом уже принят,
     сервер возвращает OK без повторной записи.
     """
-    session = await _store.get(upload_id)
-    if not session:
-        raise HTTPException(404, "Upload session not found or expired. Start over.")
-    if session.user_id != u.id:
-        raise HTTPException(403, "No access to upload session")
+    told = await _owned_session(upload_id, u.id, GONE_START_OVER)
+    total_chunks = told["total_chunks"]
 
-    if not (0 <= chunk_index < session.total_chunks):
-        raise HTTPException(400, f"Invalid chunk index: {chunk_index} (expected 0-{session.total_chunks - 1})")
+    if not (0 <= chunk_index < total_chunks):
+        raise HTTPException(400, f"Invalid chunk index: {chunk_index} (expected 0-{total_chunks - 1})")
 
     # Идемпотентность: чанк уже принят
-    if chunk_index in session.received:
+    if chunk_index in told["received"]:
         return {
             "ok": True,
             "chunk_index": chunk_index,
             "already_received": True,
-            "progress": session.progress_pct(),
+            "progress": told["progress"],
         }
 
     # Читаем данные
@@ -426,23 +343,26 @@ async def upload_chunk(
         )
 
     # Атомарная запись: сначала во временный файл, потом rename
-    chunk_path = session.chunk_dir / f"{chunk_index:06d}.chunk"
+    chunk_path = _chunk_dir(upload_id) / f"{chunk_index:06d}.chunk"
     tmp_path = chunk_path.with_suffix(".tmp")
     tmp_path.write_bytes(raw)
     tmp_path.rename(chunk_path)
 
-    session.received.add(chunk_index)
+    taken = await asyncio.to_thread(_resume.upload_receive, upload_id, chunk_index)
+    if taken["outcome"] in ("missing", "expired"):
+        await _discard_chunks(upload_id)
+        raise HTTPException(404, GONE_START_OVER)
 
     logger.debug(
-        f"[Chunk] {chunk_index}/{session.total_chunks - 1} upload={upload_id} progress={session.progress_pct()}%"
+        f"[Chunk] {chunk_index}/{total_chunks - 1} upload={upload_id} progress={taken['progress']}%"
     )
 
     return {
         "ok": True,
         "chunk_index": chunk_index,
-        "progress": session.progress_pct(),
-        "missing": len(session.missing_chunks()),
-        "complete": session.is_complete(),
+        "progress": taken["progress"],
+        "missing": len(taken["missing"]),
+        "complete": taken["complete"],
     }
 
 
@@ -460,21 +380,17 @@ async def upload_status(
     Клиент использует этот эндпоинт при возобновлении загрузки после
     разрыва соединения или перезагрузки страницы.
     """
-    session = await _store.get(upload_id)
-    if not session:
-        raise HTTPException(404, "Upload session not found or expired")
-    if session.user_id != u.id:
-        raise HTTPException(403, "No access to upload session")
+    told = await _owned_session(upload_id, u.id)
 
     return {
         "upload_id": upload_id,
-        "file_name": session.file_name,
-        "file_size": session.file_size,
-        "total_chunks": session.total_chunks,
-        "received": sorted(session.received),
-        "missing": session.missing_chunks(),
-        "progress": session.progress_pct(),
-        "complete": session.is_complete(),
+        "file_name": told["file_name"],
+        "file_size": told["file_size"],
+        "total_chunks": told["total_chunks"],
+        "received": told["received"],
+        "missing": told["missing"],
+        "progress": told["progress"],
+        "complete": told["complete"],
     }
 
 
@@ -499,13 +415,9 @@ async def upload_complete(
       6. Broadcast в WebSocket комнаты.
       7. Удалить сессию и временные файлы.
     """
-    session = await _store.get(upload_id)
-    if not session:
-        raise HTTPException(404, "Upload session not found or expired")
-    if session.user_id != u.id:
-        raise HTTPException(403, "No access to upload session")
+    told = await _owned_session(upload_id, u.id)
 
-    missing = session.missing_chunks()
+    missing = told["missing"]
     if missing:
         raise HTTPException(
             400,
@@ -517,8 +429,8 @@ async def upload_complete(
         )
 
     assembled = bytearray()
-    for idx in range(session.total_chunks):
-        chunk_path = session.chunk_dir / f"{idx:06d}.chunk"
+    for idx in range(told["total_chunks"]):
+        chunk_path = _chunk_dir(upload_id) / f"{idx:06d}.chunk"
         if not chunk_path.exists():
             # Это не должно произойти, но защищаемся
             raise HTTPException(500, f"Chunk {idx} missing on disk — retry upload")
@@ -528,19 +440,19 @@ async def upload_complete(
     del assembled
 
     actual_hash = _sha256_hex(content)
-    if actual_hash != session.file_hash:
-        await _store.delete(upload_id)
+    if actual_hash != told["file_hash"]:
+        await _forget(upload_id)
         raise HTTPException(
-            400, f"File hash mismatch. Expected: {session.file_hash[:16]}..., got: {actual_hash[:16]}..."
+            400, f"File hash mismatch. Expected: {told['file_hash'][:16]}..., got: {actual_hash[:16]}..."
         )
 
     if FileAnomalyDetector.detect_zip_bomb_indicators(content):
-        await _store.delete(upload_id)
+        await _forget(upload_id)
         raise HTTPException(400, "File appears to be an archive bomb")
 
-    mime_ok, mime_result = validate_file_mime_type(content, session.file_name)
+    mime_ok, mime_result = validate_file_mime_type(content, told["file_name"])
     if not mime_ok:
-        await _store.delete(upload_id)
+        await _forget(upload_id)
         raise HTTPException(415, mime_result or "Unsupported file type")
     mime_type = mime_result
 
@@ -554,28 +466,28 @@ async def upload_complete(
     if is_image and not _is_encrypted:
         img_ok, img_err = await FileAnomalyDetector.validate_image_content(content)
         if not img_ok:
-            await _store.delete(upload_id)
+            await _forget(upload_id)
             raise HTTPException(400, img_err or "Invalid image content")
 
     # strip ALL metadata before writing to disk, mirroring the direct
     # path (app/chats/messages/files.py:91). The chunked path previously stored
     # the assembled bytes verbatim, leaking EXIF/GPS (images), creation time and
     # device info (video/audio), and author/dates (PDF). The integrity check
-    # above already validated the *uploaded* bytes against session.file_hash;
+    # above already validated the *uploaded* bytes against the session digest;
     # the stored hash/size are recomputed from the stripped content below.
     content = strip_all_metadata(content, mime_type)
     stored_hash = _sha256_hex(content)
 
-    ext = Path(session.file_name).suffix.lower()
+    ext = Path(told["file_name"]).suffix.lower()
     safe_name = generate_secure_filename(ext)
     Config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     stored_path = Config.UPLOAD_DIR / safe_name
     stored_path.write_bytes(content)
 
     ft = FileTransfer(
-        room_id=session.room_id,
+        room_id=told["room_id"],
         uploader_id=u.id,
-        original_name=session.file_name,
+        original_name=told["file_name"],
         stored_name=safe_name,
         mime_type=mime_type,
         size_bytes=len(content),
@@ -587,16 +499,16 @@ async def upload_complete(
 
     download_url = f"/api/files/download/{ft.id}"
 
-    is_voice = session.file_name.startswith("voice_") and mime_type and mime_type.startswith("audio/")
+    is_voice = told["file_name"].startswith("voice_") and mime_type and mime_type.startswith("audio/")
     msg_type = MessageType.VOICE if is_voice else MessageType.IMAGE if is_image else MessageType.FILE
 
     placeholder_encrypted = b"\x00" * 12 + b"\x00" * 16
     msg = Message(
-        room_id=session.room_id,
+        room_id=told["room_id"],
         sender_id=u.id,
         msg_type=msg_type,
         content_encrypted=placeholder_encrypted,
-        file_name=session.file_name,
+        file_name=told["file_name"],
         file_size=len(content),
     )
     db.add(msg)
@@ -608,7 +520,7 @@ async def upload_complete(
         "sender": u.username,
         "display_name": u.display_name or u.username,
         "avatar_emoji": u.avatar_emoji,
-        "file_name": session.file_name,
+        "file_name": told["file_name"],
         "file_size": len(content),
         "mime_type": mime_type,
         "download_url": download_url,
@@ -616,14 +528,14 @@ async def upload_complete(
         "created_at": ft.created_at.isoformat(),
         "file_hash": stored_hash,  # hash of stored (stripped) bytes
     }
-    await manager.broadcast_to_room(session.room_id, broadcast_payload)
+    await manager.broadcast_to_room(told["room_id"], broadcast_payload)
 
     logger.info(
-        f"[UploadComplete] user={u.username} file={session.file_name!r} "
-        f"size={len(content)} room={session.room_id} upload_id={upload_id}"
+        f"[UploadComplete] user={u.username} file={told['file_name']!r} "
+        f"size={len(content)} room={told['room_id']} upload_id={upload_id}"
     )
 
-    await _store.delete(upload_id)
+    await _forget(upload_id)
 
     return {
         "ok": True,
@@ -647,13 +559,17 @@ async def upload_cancel(
     Отменяет сессию загрузки и удаляет временные файлы чанков.
     Безопасно вызывать даже если сессия уже завершена или истекла.
     """
-    session = await _store.get(upload_id)
-    if not session:
+    try:
+        told = await asyncio.to_thread(_resume.upload_find, upload_id)
+    except ValueError:
         return {"ok": True, "message": "Session not found (already completed or expired)"}
-    if session.user_id != u.id:
+    if told["state"] != "live":
+        await _discard_chunks(upload_id)
+        return {"ok": True, "message": "Session not found (already completed or expired)"}
+    if told["user_id"] != u.id:
         raise HTTPException(403, "No access to upload session")
 
-    await _store.delete(upload_id)
+    await _forget(upload_id)
     logger.info(f"[UploadCancel] user={u.username} upload_id={upload_id}")
     return {"ok": True}
 
@@ -672,8 +588,10 @@ async def cleanup_sessions_loop(interval_sec: int = 3600) -> None:
     while True:
         await asyncio.sleep(interval_sec)
         try:
-            n = await _store.cleanup_expired()
-            if n:
-                logger.info(f"[ResumableCleanup] Removed {n} expired sessions")
+            swept = await asyncio.to_thread(_resume.upload_sweep)
+            for upload_id in swept:
+                await _discard_chunks(upload_id)
+            if swept:
+                logger.info(f"[ResumableCleanup] Removed {len(swept)} expired sessions")
         except Exception as exc:
             logger.error(f"[ResumableCleanup] Cleanup error: {exc}")

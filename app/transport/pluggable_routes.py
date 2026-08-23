@@ -14,33 +14,13 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.models import User
+from app.security import ratelimit_backend as _ratelimit
 from app.security.auth_jwt import get_current_user
 from app.security.ip_privacy import raw_ip_for_ratelimit
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/transport", tags=["transport"])
-
-_secrets_rate: dict[str, list[float]] = {}
-_SECRETS_RATE_WINDOW = 3600
-_SECRETS_RATE_MAX_KEYS = 10000
-
-
-def _check_secrets_rate(key: str, limit: int) -> bool:
-    """True, если запрос укладывается в лимит; False — если исчерпан."""
-    now = time.monotonic()
-    if len(_secrets_rate) > _SECRETS_RATE_MAX_KEYS:
-        for k, hits in list(_secrets_rate.items()):
-            if not hits or now - hits[-1] >= _SECRETS_RATE_WINDOW:
-                _secrets_rate.pop(k, None)
-    hits = [t for t in _secrets_rate.get(key, []) if now - t < _SECRETS_RATE_WINDOW]
-    if len(hits) >= limit:
-        _secrets_rate[key] = hits
-        return False
-    hits.append(now)
-    _secrets_rate[key] = hits
-    return True
-
 
 def _is_secure_request(request: Request) -> bool:
     """Пароли уходят только по TLS; исключение — локальные вызовы и тесты."""
@@ -346,7 +326,9 @@ async def level4_secrets(request: Request, u: User = Depends(get_current_user)):
 
     ip = raw_ip_for_ratelimit(request)
     limit = Config.TRANSPORT_SECRETS_RATE_LIMIT
-    if not _check_secrets_rate(f"ip:{ip}", limit) or not _check_secrets_rate(f"user:{u.id}", limit):
+    if not _ratelimit.secrets_address_allowed(ip, limit) or not _ratelimit.secrets_account_allowed(
+        u.id, limit
+    ):
         raise HTTPException(429, "Too many requests")
 
     if not _is_secure_request(request):

@@ -5,70 +5,66 @@ import secrets
 from conftest import random_str
 
 
+def _peer_view(**told):
+    from app.peer.peer_registry import PeerInfo
+
+    base = {
+        "name": "node",
+        "ip": "10.0.0.1",
+        "port": 9000,
+        "pubkey": None,
+        "shortened_pubkey": None,
+        "age_sec": 0.0,
+        "online": True,
+        "encrypted": False,
+    }
+    base.update(told)
+    return PeerInfo.told(base)
+
+
 class TestPeerRegistry:
     """Peer registry unit tests."""
 
     def test_peer_info_creation(self):
-        from app.peer.peer_registry import PeerInfo
-
-        peer = PeerInfo(
-            name="test-node",
-            ip="192.168.1.100",
-            port=9000,
-            node_pubkey_hex=secrets.token_hex(32),
-        )
+        peer = _peer_view(name="test-node", ip="192.168.1.100", port=9000, online=True)
         assert peer.name == "test-node"
         assert peer.ip == "192.168.1.100"
         assert peer.port == 9000
         assert peer.alive() is True
 
     def test_peer_info_to_dict(self):
-        from app.peer.peer_registry import PeerInfo
-
-        peer = PeerInfo(name="node", ip="10.0.0.1", port=9000)
-        d = peer.to_dict()
+        d = _peer_view(name="node", ip="10.0.0.1", port=9000).to_dict()
         assert d["name"] == "node"
         assert d["ip"] == "10.0.0.1"
         assert d["port"] == 9000
 
     def test_peer_has_encryption(self):
-        from app.peer.peer_registry import PeerInfo
-
-        peer_no_key = PeerInfo(name="n", ip="1.1.1.1", port=9000)
-        assert peer_no_key.has_encryption() is False
-
-        peer_with_key = PeerInfo(
-            name="n",
-            ip="1.1.1.1",
-            port=9000,
-            node_pubkey_hex=secrets.token_hex(32),
-        )
-        assert peer_with_key.has_encryption() is True
+        assert _peer_view(encrypted=False).has_encryption() is False
+        assert _peer_view(encrypted=True).has_encryption() is True
 
     def test_registry_update(self):
         from app.peer.peer_registry import PeerRegistry
 
         reg = PeerRegistry()
-        is_new = reg.update("192.168.1.10", "node1", 9000)
-        assert is_new is True
-        is_new2 = reg.update("192.168.1.10", "node1", 9000)
-        assert is_new2 is False
+        assert reg.update("192.168.11.10", "node1", 9000) is True
+        assert reg.update("192.168.11.10", "node1", 9000) is False
 
     def test_registry_active(self):
         from app.peer.peer_registry import PeerRegistry
 
         reg = PeerRegistry()
-        reg.update("192.168.1.10", "node1", 9000)
-        reg.update("192.168.1.11", "node2", 9000)
-        active = reg.active()
-        assert len(active) == 2
+        reg.update("192.168.11.11", "node1", 9000)
+        reg.update("192.168.11.12", "node2", 9000)
+        named = [p.ip for p in reg.active()]
+        assert "192.168.11.11" in named
+        assert "192.168.11.12" in named
 
     def test_registry_get(self):
         from app.peer.peer_registry import PeerRegistry
 
         reg = PeerRegistry()
-        reg.update("10.0.0.1", "n1", 9000)
-        peer = reg.get("10.0.0.1")
+        reg.update("10.20.0.1", "n1", 9000)
+        peer = reg.get("10.20.0.1")
         assert peer is not None
         assert peer.name == "n1"
 
@@ -81,14 +77,20 @@ class TestPeerRegistry:
     def test_registry_cleanup(self):
         import time
 
+        from app.config import Config
+        from app.peer import peer_registry_backend as backend
         from app.peer.peer_registry import PeerRegistry
 
         reg = PeerRegistry()
-        reg.update("10.0.0.1", "old", 9000)
-        # Manually make peer old
-        reg._peers["10.0.0.1"].last_seen = time.monotonic() - 999
-        reg.cleanup()
-        assert len(reg.active()) == 0
+        was = float(Config.PEER_TIMEOUT_SEC)
+        backend.set_timeout(0.01)
+        try:
+            reg.update("10.20.0.2", "old", 9000)
+            time.sleep(0.05)
+            reg.cleanup()
+            assert reg.get("10.20.0.2") is None
+        finally:
+            backend.set_timeout(was)
 
 
 class TestPeerEndpoints:

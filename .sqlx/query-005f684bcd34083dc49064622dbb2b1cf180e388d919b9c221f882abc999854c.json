@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO bot_webhooks (bot_id, url, secret, events, created_at)\n            VALUES ($1, $2, $3, $4, $5)\n            ON CONFLICT (bot_id) DO UPDATE\n            SET url = EXCLUDED.url,\n                secret = EXCLUDED.secret,\n                events = EXCLUDED.events,\n                created_at = EXCLUDED.created_at\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "005f684bcd34083dc49064622dbb2b1cf180e388d919b9c221f882abc999854c"
+}

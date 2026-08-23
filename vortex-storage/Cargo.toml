@@ -1,0 +1,20 @@
+[package]
+name = "vortex-storage"
+version = "0.1.0"
+edition.workspace = true
+description = "Доступ Vortex к Postgres — репозитории поверх sqlx"
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "vortex_storage"
+path = "src/lib.rs"
+
+[dependencies]
+sqlx.workspace = true
+time.workspace = true
+async-trait.workspace = true
+vortex-proto = { path = "../vortex-proto" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

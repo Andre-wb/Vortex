@@ -3,7 +3,8 @@ app/chats/group_calls.py — Ad-hoc group calls with invite/accept/decline lifec
 
 Unlike voice channels (persistent, join-anytime), group calls are initiated
 by a user, ring for all room members, and end when everyone leaves or the
-initiator ends the call.  State is in-memory (like voice.py).
+initiator ends the call.  Запись о звонке живёт в общем сторе
+(`vortex-live` через `app.chats.live_backend`) и видна всем воркерам.
 """
 
 from __future__ import annotations
@@ -11,15 +12,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.chats import live_backend as _live
 from app.database import get_db
 from app.models import User
 from app.models_rooms import Room, RoomMember
@@ -30,109 +29,33 @@ from app.utilites.background import spawn
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/group-calls", tags=["group-calls"])
 
-
-@dataclass
-class GroupCallParticipant:
-    user_id: int
-    username: str
-    display_name: str
-    avatar_emoji: str
-    avatar_url: Optional[str]
-    state: str = "invited"  # invited | ringing | connecting | connected | left | declined
-    joined_at: Optional[datetime] = None
-    is_muted: bool = False
-    is_video: bool = False
-    is_screen_sharing: bool = False
-
-    def to_dict(self) -> dict:
-        return {
-            "user_id": self.user_id,
-            "username": self.username,
-            "display_name": self.display_name,
-            "avatar_emoji": self.avatar_emoji,
-            "avatar_url": self.avatar_url,
-            "state": self.state,
-            "joined_at": self.joined_at.isoformat() if self.joined_at else None,
-            "is_muted": self.is_muted,
-            "is_video": self.is_video,
-            "is_screen_sharing": self.is_screen_sharing,
-        }
+RING_TIMEOUT = 30  # seconds
 
 
-@dataclass
-class GroupCall:
-    call_id: str
-    room_id: int
-    initiator_id: int
-    call_type: str  # group_audio | group_video
-    state: str = "ringing"  # ringing | active | ended
-    topology: str = "mesh"  # mesh | sfu
-    participants: dict[int, GroupCallParticipant] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    started_at: Optional[datetime] = None
-    max_participants: int = 10
-
-    def to_dict(self) -> dict:
-        return {
-            "call_id": self.call_id,
-            "room_id": self.room_id,
-            "initiator_id": self.initiator_id,
-            "call_type": self.call_type,
-            "state": self.state,
-            "topology": self.topology,
-            "participant_count": sum(1 for p in self.participants.values() if p.state in ("connecting", "connected")),
-            "participants": [p.to_dict() for p in self.participants.values()],
-            "created_at": self.created_at.isoformat(),
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-        }
-
-    def connected_count(self) -> int:
-        return sum(1 for p in self.participants.values() if p.state in ("connecting", "connected"))
-
-
-_active_group_calls: dict[str, GroupCall] = {}
-_room_active_call: dict[int, str] = {}
-
-
-def _get_call(call_id: str) -> GroupCall:
-    call = _active_group_calls.get(call_id)
-    if not call or call.state == "ended":
+def _require_call(call: Optional[dict]) -> dict:
+    if not call:
         raise HTTPException(404, "Call not found or ended")
     return call
 
 
-def _end_call(call: GroupCall) -> None:
-    call.state = "ended"
-    _room_active_call.pop(call.room_id, None)
-    _active_group_calls.pop(call.call_id, None)
-
-
-RING_TIMEOUT = 30  # seconds
-
-
 async def _ring_timeout(call_id: str) -> None:
     await asyncio.sleep(RING_TIMEOUT)
-    call = _active_group_calls.get(call_id)
-    if call and call.state == "ringing":
-        logger.info("Group call %s timed out (no one joined)", call_id)
-        await _broadcast_call_event(call, "group_call_ended", {"reason": "timeout"})
-        _end_call(call)
+    with contextlib.suppress(_live.LiveUnavailableError):
+        rung = _live.call_ring_out(call_id)
+        if rung:
+            logger.info("Group call %s timed out (no one joined)", call_id)
+            await _broadcast_call_event(rung, "group_call_ended", {"reason": "timeout"})
 
 
-async def _broadcast_call_event(call: GroupCall, event_type: str, extra: dict | None = None) -> None:
-    payload = {"type": event_type, "call_id": call.call_id, "room_id": call.room_id}
+async def _broadcast_call_event(call: dict, event_type: str, extra: dict | None = None) -> None:
+    payload = {"type": event_type, "call_id": call["call_id"], "room_id": call["room_id"]}
     if extra:
         payload.update(extra)
-    await manager.broadcast_to_room(call.room_id, payload)
+    await manager.broadcast_to_room(call["room_id"], payload)
 
 
 class StartCallRequest(BaseModel):
     call_type: str = "group_audio"
-
-
-class MuteRequest(BaseModel):
-    is_muted: bool = False
-    is_video: bool = False
 
 
 @router.post("/{room_id}/start")
@@ -151,48 +74,29 @@ async def start_group_call(
     if not member:
         raise HTTPException(403, "You are not a room member")
 
-    if room_id in _room_active_call:
-        existing = _active_group_calls.get(_room_active_call[room_id])
-        if existing and existing.state != "ended":
-            return {"call_id": existing.call_id, "already_active": True}
-
-    call_id = str(uuid.uuid4())
-
-    # Determine topology: mesh (≤ threshold, E2E) or SFU (> threshold, scalable)
     members = db.query(RoomMember).filter(RoomMember.room_id == room_id).limit(500).all()
-    member_count = len(members)
-
-    from app.chats.sfu import SFU_MAX_PARTICIPANTS, SFU_THRESHOLD, is_sfu_available
-
-    use_sfu = is_sfu_available() and member_count > SFU_THRESHOLD
-    topology = "sfu" if use_sfu else "mesh"
-    max_p = SFU_MAX_PARTICIPANTS if use_sfu else 10
-
-    call = GroupCall(
-        call_id=call_id,
-        room_id=room_id,
-        initiator_id=u.id,
-        call_type=body.call_type,
-        topology=topology,
-        max_participants=max_p,
-    )
+    seated = []
     for m in members:
         member_user = db.get(User, m.user_id)
         if not member_user:
             continue
-        state = "connecting" if m.user_id == u.id else "invited"
-        call.participants[m.user_id] = GroupCallParticipant(
-            user_id=m.user_id,
-            username=member_user.username,
-            display_name=member_user.display_name or member_user.username,
-            avatar_emoji=member_user.avatar_emoji or "\U0001f464",
-            avatar_url=member_user.avatar_url,
-            state=state,
-            joined_at=datetime.now(timezone.utc) if state == "connecting" else None,
-        )
+        seated.append(_live.identity_of(member_user))
 
-    _active_group_calls[call_id] = call
-    _room_active_call[room_id] = call_id
+    from app.chats.sfu import SFU_MAX_PARTICIPANTS, SFU_THRESHOLD, is_sfu_available
+
+    started = _live.call_start(
+        room_id,
+        u.id,
+        body.call_type,
+        seated,
+        is_sfu_available(),
+        SFU_THRESHOLD,
+        SFU_MAX_PARTICIPANTS,
+    )
+    if started["already_active"]:
+        return {"call_id": started["call_id"], "already_active": True}
+
+    call = started["call"]
 
     # Broadcast invite to room
     await _broadcast_call_event(
@@ -210,9 +114,13 @@ async def start_group_call(
     )
 
     # Start ringing timeout
-    spawn(_ring_timeout(call_id))
+    spawn(_ring_timeout(call["call_id"]))
 
-    return {"call_id": call_id, "already_active": False, "topology": topology}
+    return {
+        "call_id": call["call_id"],
+        "already_active": False,
+        "topology": started["topology"],
+    }
 
 
 @router.post("/{call_id}/join")
@@ -221,23 +129,13 @@ async def join_group_call(
     u: User = Depends(get_current_user),
 ):
     """Принять приглашение и подключиться к групповому звонку."""
-    call = _get_call(call_id)
-
-    p = call.participants.get(u.id)
-    if not p:
+    joined = _live.call_join(call_id, u.id)
+    if joined["status"] == "missing":
+        raise HTTPException(404, "Call not found or ended")
+    if joined["status"] == "not_invited":
         raise HTTPException(403, "You are not invited to this call")
 
-    if p.state in ("connected", "connecting"):
-        return {"ok": True, "call": call.to_dict()}
-
-    p.state = "connecting"
-    p.joined_at = datetime.now(timezone.utc)
-
-    # If 2+ connected, call becomes active
-    if call.connected_count() >= 2 and call.state == "ringing":
-        call.state = "active"
-        call.started_at = datetime.now(timezone.utc)
-
+    call = joined["call"]
     await _broadcast_call_event(
         call,
         "group_call_participant_joined",
@@ -249,7 +147,7 @@ async def join_group_call(
         },
     )
 
-    return {"ok": True, "call": call.to_dict()}
+    return {"ok": True, "call": call}
 
 
 @router.post("/{call_id}/decline")
@@ -258,10 +156,8 @@ async def decline_group_call(
     u: User = Depends(get_current_user),
 ):
     """Отклонить приглашение на групповой звонок."""
-    call = _get_call(call_id)
-    p = call.participants.get(u.id)
-    if p:
-        p.state = "declined"
+    if _live.call_decline(call_id, u.id) == "missing":
+        raise HTTPException(404, "Call not found or ended")
     return {"ok": True}
 
 
@@ -271,11 +167,11 @@ async def leave_group_call(
     u: User = Depends(get_current_user),
 ):
     """Покинуть активный групповой звонок."""
-    call = _get_call(call_id)
-    p = call.participants.get(u.id)
-    if p:
-        p.state = "left"
+    left = _live.call_leave(call_id, u.id)
+    if left["status"] == "missing":
+        raise HTTPException(404, "Call not found or ended")
 
+    call = left["call"]
     await _broadcast_call_event(
         call,
         "group_call_participant_left",
@@ -284,10 +180,8 @@ async def leave_group_call(
         },
     )
 
-    # If no one connected, end the call (guard against double-end race)
-    if call.connected_count() == 0 and call.state != "ended":
+    if left["ended"]:
         await _broadcast_call_event(call, "group_call_ended", {"reason": "all_left"})
-        _end_call(call)
 
     return {"ok": True}
 
@@ -300,26 +194,19 @@ async def add_participant(
     db: Session = Depends(get_db),
 ):
     """Добавить участника в активный звонок (mid-call invite)."""
-    call = _get_call(call_id)
-
-    if u.id not in call.participants:
-        raise HTTPException(403, "You are not a participant in this call")
-
-    if user_id in call.participants and call.participants[user_id].state not in ("left", "declined"):
-        raise HTTPException(400, "User is already in the call")
-
     target_user = db.get(User, user_id)
     if not target_user:
         raise HTTPException(404, "User not found")
 
-    call.participants[user_id] = GroupCallParticipant(
-        user_id=user_id,
-        username=target_user.username,
-        display_name=target_user.display_name or target_user.username,
-        avatar_emoji=target_user.avatar_emoji or "\U0001f464",
-        avatar_url=target_user.avatar_url,
-        state="invited",
-    )
+    added = _live.call_add(call_id, u.id, target_user)
+    if added["status"] == "missing":
+        raise HTTPException(404, "Call not found or ended")
+    if added["status"] == "not_a_participant":
+        raise HTTPException(403, "You are not a participant in this call")
+    if added["status"] == "already_in":
+        raise HTTPException(400, "User is already in the call")
+
+    call = added["call"]
 
     # BMP mode: group call invite goes through BMP room deposit
     from app.config import Config
@@ -331,13 +218,13 @@ async def add_participant(
             from app.transport.blind_mailbox import deposit_envelope
 
             await deposit_envelope(
-                call.room_id,
+                call["room_id"],
                 json.dumps(
                     {
                         "type": "group_call_invite",
-                        "call_id": call.call_id,
-                        "room_id": call.room_id,
-                        "call_type": call.call_type,
+                        "call_id": call["call_id"],
+                        "room_id": call["room_id"],
+                        "call_type": call["call_type"],
                     }
                 ),
             )
@@ -347,9 +234,9 @@ async def add_participant(
                 user_id,
                 {
                     "type": "group_call_invite",
-                    "call_id": call.call_id,
-                    "room_id": call.room_id,
-                    "call_type": call.call_type,
+                    "call_id": call["call_id"],
+                    "room_id": call["room_id"],
+                    "call_type": call["call_type"],
                     "initiator": {
                         "user_id": u.id,
                         "username": u.username,
@@ -367,8 +254,7 @@ async def get_call_status(
     u: User = Depends(get_current_user),
 ):
     """Получить статус группового звонка и список участников."""
-    call = _get_call(call_id)
-    return call.to_dict()
+    return _require_call(_live.call_status(call_id))
 
 
 @router.post("/{call_id}/end")
@@ -377,12 +263,13 @@ async def end_group_call(
     u: User = Depends(get_current_user),
 ):
     """Завершить звонок для всех (инициатор или admin)."""
-    call = _get_call(call_id)
-    if u.id != call.initiator_id:
+    ended = _live.call_end(call_id, u.id)
+    if ended["status"] == "missing":
+        raise HTTPException(404, "Call not found or ended")
+    if ended["status"] == "not_initiator":
         raise HTTPException(403, "Only the initiator can end the call for everyone")
 
-    await _broadcast_call_event(call, "group_call_ended", {"reason": "ended_by_initiator"})
-    _end_call(call)
+    await _broadcast_call_event(ended["call"], "group_call_ended", {"reason": "ended_by_initiator"})
     return {"ok": True}
 
 
@@ -392,11 +279,7 @@ async def get_active_call(
     u: User = Depends(get_current_user),
 ):
     """Проверить, есть ли активный звонок в комнате."""
-    call_id = _room_active_call.get(room_id)
-    if not call_id:
+    call = _live.call_active(room_id)
+    if not call:
         return {"active": False}
-    call = _active_group_calls.get(call_id)
-    if not call or call.state == "ended":
-        _room_active_call.pop(room_id, None)
-        return {"active": False}
-    return {"active": True, "call": call.to_dict()}
+    return {"active": True, "call": call}

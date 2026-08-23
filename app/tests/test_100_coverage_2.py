@@ -286,11 +286,17 @@ class TestKeyExchangeErrors:
         assert validate_ecies_payload({"ephemeral_pub": "aa" * 32, "ciphertext": "bb" * 30}) is True
 
     def test_format_encrypted_key(self):
+        import pytest
+
         from app.security.key_exchange import format_encrypted_key
 
-        eph, ct = format_encrypted_key({"ephemeral_pub": "aabb", "ciphertext": "ccdd"})
-        assert eph == "aabb"
-        assert ct == "ccdd"
+        eph_hex, ct_hex = "aa" * 32, "bb" * 30
+        eph, ct = format_encrypted_key({"ephemeral_pub": eph_hex, "ciphertext": ct_hex})
+        assert eph == eph_hex
+        assert ct == ct_hex
+
+        with pytest.raises(ValueError):
+            format_encrypted_key({"ephemeral_pub": "aabb", "ciphertext": "ccdd"})
 
 
 # auth_jwt.py — lines 100-142 (get_current_user, get_user_ws)

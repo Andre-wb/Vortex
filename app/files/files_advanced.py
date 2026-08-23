@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.config import Config
 from app.database import get_db
-from app.models import User
+from app.models import DistributedChunk as DistributedChunkRow
+from app.models import DistributedFile, User
 from app.models_rooms import FileTransfer, RoomMember
 from app.security.auth_jwt import get_current_user
 
@@ -42,8 +43,28 @@ class DistributedFileInfo(BaseModel):
     chunks: list[DistributedChunk] = []
 
 
-# In-memory: file_hash -> {chunks: [{hash, index, size, nodes: [ip:port]}]}
-_distributed_index: dict[str, dict] = {}
+def _stored_at(moment: datetime | None) -> str:
+    return moment.isoformat() if moment else ""
+
+
+def _distributed_dict(record: DistributedFile, chunks: list[DistributedChunkRow]) -> dict:
+    return {
+        "filename": record.filename,
+        "total_size": record.total_size,
+        "chunk_count": record.chunk_count,
+        "chunks": [
+            {
+                "chunk_hash": chunk.chunk_hash,
+                "chunk_index": chunk.chunk_index,
+                "size": chunk.size,
+                "node_ip": chunk.node_ip,
+                "node_port": chunk.node_port,
+            }
+            for chunk in chunks
+        ],
+        "uploader_id": record.uploader_id,
+        "created_at": _stored_at(record.created_at),
+    }
 
 
 @router.post("/distributed/register")
@@ -55,41 +76,73 @@ async def register_distributed_file(
     Each chunk is stored on a different node. Client uploads chunks to
     individual nodes, then registers the file map here.
     """
-    _distributed_index[body.file_hash] = {
-        "filename": body.filename,
-        "total_size": body.total_size,
-        "chunk_count": body.chunk_count,
-        "chunks": [c.model_dump() for c in body.chunks],
-        "uploader_id": u.id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
+    record = db.query(DistributedFile).filter(DistributedFile.file_hash == body.file_hash).first()
+    if record:
+        record.filename = body.filename
+        record.total_size = body.total_size
+        record.chunk_count = body.chunk_count
+        record.uploader_id = u.id
+        record.created_at = datetime.now(timezone.utc)
+        db.query(DistributedChunkRow).filter(DistributedChunkRow.file_id == record.id).delete(synchronize_session=False)
+    else:
+        record = DistributedFile(
+            file_hash=body.file_hash,
+            filename=body.filename,
+            total_size=body.total_size,
+            chunk_count=body.chunk_count,
+            uploader_id=u.id,
+        )
+        db.add(record)
+        db.flush()
+
+    for chunk in body.chunks:
+        db.add(
+            DistributedChunkRow(
+                file_id=record.id,
+                chunk_hash=chunk.chunk_hash,
+                chunk_index=chunk.chunk_index,
+                size=chunk.size,
+                node_ip=chunk.node_ip,
+                node_port=chunk.node_port,
+            )
+        )
+    db.commit()
     return {"ok": True, "file_hash": body.file_hash}
 
 
 @router.get("/distributed/list")
-async def list_distributed_files(u: User = Depends(get_current_user)):
+async def list_distributed_files(u: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """List all distributed files on this node."""
-    files = []
-    for fhash, info in _distributed_index.items():
-        files.append(
+    records = db.query(DistributedFile).order_by(DistributedFile.id).all()
+    return {
+        "files": [
             {
-                "file_hash": fhash,
-                "filename": info["filename"],
-                "total_size": info["total_size"],
-                "chunk_count": info["chunk_count"],
-                "created_at": info["created_at"],
+                "file_hash": record.file_hash,
+                "filename": record.filename,
+                "total_size": record.total_size,
+                "chunk_count": record.chunk_count,
+                "created_at": _stored_at(record.created_at),
             }
-        )
-    return {"files": files}
+            for record in records
+        ]
+    }
 
 
 @router.get("/distributed/{file_hash}")
-async def get_distributed_file(file_hash: str, u: User = Depends(get_current_user)):
+async def get_distributed_file(
+    file_hash: str, u: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """Get chunk locations for a distributed file."""
-    info = _distributed_index.get(file_hash)
-    if not info:
+    record = db.query(DistributedFile).filter(DistributedFile.file_hash == file_hash).first()
+    if not record:
         raise HTTPException(404, "Distributed file not found")
-    return info
+    chunks = (
+        db.query(DistributedChunkRow)
+        .filter(DistributedChunkRow.file_id == record.id)
+        .order_by(DistributedChunkRow.chunk_index, DistributedChunkRow.id)
+        .all()
+    )
+    return _distributed_dict(record, chunks)
 
 
 # 2. Media Preview (in-browser preview without download)

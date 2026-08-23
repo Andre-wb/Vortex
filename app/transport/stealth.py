@@ -177,38 +177,16 @@ def decamouflage_payload(data: bytes) -> bytes:
 
 
 def encrypt_udp_broadcast(payload: bytes) -> bytes:
-    """
-    Encrypt UDP discovery payload so it looks like random noise.
+    import vortex_chat
 
-    Uses XOR with key derived from a shared network secret.
-    Not cryptographically strong (peers need the same key),
-    but prevents DPI from reading the JSON structure.
-    """
-    # Derive key from secret (all Vortex nodes on the network share this)
-    network_key = Config.VORTEX_NETWORK_KEY.encode()
-    key = hashlib.sha256(network_key).digest()
-
-    nonce = os.urandom(8)
-    encrypted = bytearray(len(payload))
-    for i, b in enumerate(payload):
-        encrypted[i] = b ^ key[(i + nonce[i % 8]) % 32]
-    return nonce + bytes(encrypted)
+    return bytes(vortex_chat.udp_stealth_seal_random(payload, Config.VORTEX_NETWORK_KEY.encode()))
 
 
 def decrypt_udp_broadcast(data: bytes) -> Optional[bytes]:
-    """Decrypt UDP discovery payload."""
-    if len(data) < 9:
-        return None
-    nonce = data[:8]
-    encrypted = data[8:]
+    import vortex_chat
 
-    network_key = Config.VORTEX_NETWORK_KEY.encode()
-    key = hashlib.sha256(network_key).digest()
-
-    decrypted = bytearray(len(encrypted))
-    for i, b in enumerate(encrypted):
-        decrypted[i] = b ^ key[(i + nonce[i % 8]) % 32]
-    return bytes(decrypted)
+    opened = vortex_chat.udp_stealth_open(data, Config.VORTEX_NETWORK_KEY.encode())
+    return bytes(opened) if opened is not None else None
 
 
 # 5. Port Randomization
@@ -227,9 +205,10 @@ def get_stealth_port() -> int:
 
 
 def get_stealth_udp_port() -> int:
-    """Random UDP port for stealth discovery."""
     if STEALTH_ENABLED:
-        return 49152 + secrets.randbelow(16384)  # ephemeral range
+        import vortex_chat
+
+        return vortex_chat.udp_stealth_port()
     return int(os.getenv("UDP_PORT", "4200"))
 
 

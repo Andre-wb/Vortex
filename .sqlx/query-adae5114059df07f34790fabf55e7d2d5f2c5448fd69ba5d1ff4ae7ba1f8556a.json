@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE prekey_bundles\n            SET identity_key = $3,\n                signed_prekey = $4,\n                signed_prekey_sig = $5,\n                signed_prekey_id = $6,\n                identity_key_ed = $7,\n                identity_key_sig = $8,\n                supports_v2 = $9,\n                device_x3dh_pub = $10,\n                device_sign_pub = $11,\n                device_cert_sig = $12,\n                client_device_id = $13,\n                device_kyber_pub = $14,\n                device_kyber_sig = $15,\n                device_kyber_id = $16,\n                updated_at = $17\n            WHERE id = (\n                SELECT id\n                FROM prekey_bundles\n                WHERE user_id = $1 AND device_id IS NOT DISTINCT FROM $2\n                ORDER BY id\n                LIMIT 1\n                FOR UPDATE\n            )\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Int4",
+        "Bytea",
+        "Bytea",
+        "Bool",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Varchar",
+        "Bytea",
+        "Bytea",
+        "Int4",
+        "Timestamp"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "adae5114059df07f34790fabf55e7d2d5f2c5448fd69ba5d1ff4ae7ba1f8556a"
+}

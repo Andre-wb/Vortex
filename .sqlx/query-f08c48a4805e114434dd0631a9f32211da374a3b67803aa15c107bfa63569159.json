@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO bot_scopes (bot_id, scope)\n                SELECT $1, granted.scope\n                FROM UNNEST($2::varchar[]) AS granted(scope)\n                ON CONFLICT (bot_id, scope) DO NOTHING\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "VarcharArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f08c48a4805e114434dd0631a9f32211da374a3b67803aa15c107bfa63569159"
+}

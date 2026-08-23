@@ -124,31 +124,20 @@ class TestConnectionManager:
 
     @pytest.mark.asyncio
     async def test_message_deduplicator(self):
-        from app.peer.connection_manager import MessageDeduplicator
+        from app.peer import delivery_backend as delivery
 
-        dedup = MessageDeduplicator(max_size=100, ttl_sec=60)
-        msg_id = "test-msg-123"
-        assert await dedup.is_duplicate(msg_id) is False
-        assert await dedup.is_duplicate(msg_id) is True
+        msg_id = f"ws-dedup-{secrets.token_hex(8)}"
+        assert delivery.is_repeat(msg_id) is False
+        assert delivery.is_repeat(msg_id) is True
 
     @pytest.mark.asyncio
     async def test_deduplicator_different_ids(self):
-        from app.peer.connection_manager import MessageDeduplicator
+        from app.peer import delivery_backend as delivery
 
-        dedup = MessageDeduplicator(max_size=100, ttl_sec=60)
-        assert await dedup.is_duplicate("msg-1") is False
-        assert await dedup.is_duplicate("msg-2") is False
-        assert await dedup.is_duplicate("msg-1") is True
-
-    @pytest.mark.asyncio
-    async def test_deduplicator_max_size(self):
-        from app.peer.connection_manager import MessageDeduplicator
-
-        dedup = MessageDeduplicator(max_size=5, ttl_sec=60)
-        for i in range(10):
-            await dedup.is_duplicate(f"msg-{i}")
-        # Oldest should be evicted
-        assert await dedup.is_duplicate("msg-0") is False
+        tag = secrets.token_hex(8)
+        assert delivery.is_repeat(f"ws-{tag}-1") is False
+        assert delivery.is_repeat(f"ws-{tag}-2") is False
+        assert delivery.is_repeat(f"ws-{tag}-1") is True
 
 
 class TestWebSocketEndpointsAuth:

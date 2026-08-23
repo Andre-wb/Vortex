@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE onetime_kyber_prekeys\n            SET used = true\n            WHERE id = (\n                SELECT id\n                FROM onetime_kyber_prekeys\n                WHERE user_id = $1 AND device_id IS NOT DISTINCT FROM $2 AND used = false\n                ORDER BY id\n                LIMIT 1\n                FOR UPDATE SKIP LOCKED\n            )\n            RETURNING key_id, public_key\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_key",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7188c58a1f05728f1e45b21c0ea5734e80e6889a4ad0b568c0ff6a427bd0007a"
+}

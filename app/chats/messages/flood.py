@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -16,21 +15,11 @@ from sqlalchemy.orm import Session
 from app.models import User
 from app.models_rooms import Room, RoomMember, RoomRole
 from app.peer.connection_manager import manager
+from app.security import ratelimit_backend as _ratelimit
 
 logger = logging.getLogger(__name__)
 
-# Constants
-_FLOOD_WINDOW = 10  # seconds
-_FLOOD_THRESHOLD = 15  # messages in window → auto-mute
 _FLOOD_MUTE_SECS = 5 * 60  # 5 minutes
-_FLOOD_BAN_STRIKES = 3  # mute this many times → auto-ban
-
-# "room:user" → list of timestamps (recent message times)
-_flood_tracker: dict[str, list[float]] = {}
-# "room:user" → cumulative mute count
-_flood_strikes: dict[str, int] = {}
-# Lock to protect concurrent access to _flood_tracker / _flood_strikes
-_flood_lock: asyncio.Lock = asyncio.Lock()
 
 
 # Flood checker
@@ -52,23 +41,11 @@ async def check_flood(room_id: int, user: User, db: Session, threshold_override:
     if member and member.role in (RoomRole.OWNER, RoomRole.ADMIN):
         return False
 
-    key = f"{room_id}:{user.id}"
-    now = time.monotonic()
-
-    async with _flood_lock:
-        # Prune old timestamps outside the window
-        timestamps = _flood_tracker.get(key, [])
-        timestamps = [t for t in timestamps if now - t < _FLOOD_WINDOW]
-        timestamps.append(now)
-        _flood_tracker[key] = timestamps
-
-        # Use configurable threshold from room settings
-        effective_threshold = threshold_override or _FLOOD_THRESHOLD
-        if len(timestamps) <= effective_threshold:
-            return False
-
-        strikes = _flood_strikes.get(key, 0) + 1
-        _flood_strikes[key] = strikes
+    flooding, strikes, earns_a_ban = await asyncio.to_thread(
+        _ratelimit.flood_check, room_id, user.id, threshold_override or 0
+    )
+    if not flooding:
+        return False
 
     member = (
         db.query(RoomMember)
@@ -87,7 +64,7 @@ async def check_flood(room_id: int, user: User, db: Session, threshold_override:
     action = cfg.get("action", "mute")
 
     # On repeated strikes, escalate regardless of configured action
-    if strikes >= _FLOOD_BAN_STRIKES:
+    if earns_a_ban:
         action = "ban"
 
     display = user.display_name or user.username
@@ -180,6 +157,5 @@ async def check_flood(room_id: int, user: User, db: Session, threshold_override:
         logger.warning(f"Flood auto-MUTE: user={user.username} room={room_id} strikes={strikes}")
 
     # Reset timestamps after penalty
-    async with _flood_lock:
-        _flood_tracker[key] = []
+    await asyncio.to_thread(_ratelimit.flood_forget, room_id, user.id)
     return True

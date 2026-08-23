@@ -46,7 +46,7 @@ Traditional push services terminate TLS and routinely retain metadata: "device X
 
 ## Related
 
-- `../services/sealed_push.py` — sealed-sender variant for DMs.
+- `../services/sealed_push.py` — VAPID keys for Web Push; the subscriptions themselves live in `web_push.py` and the `push_subscriptions` table.
 - `../services/unified_push.py` — [UnifiedPush](https://unifiedpush.org/) path for Android users who refuse FCM.
 - `../transport/blind_mailbox.py` — the core BMP transport used by the proxy.
 

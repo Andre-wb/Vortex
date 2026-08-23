@@ -6,7 +6,6 @@ import hashlib
 import hmac
 import logging
 import secrets
-import time
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request
@@ -14,60 +13,49 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.authentication._helpers import (
-    _AUTH_RATE_LOGIN,
-    _CHALLENGE_TTL,
-    _Challenge,
-    _challenges,
-    _challenges_lock,
-    _check_auth_rate,
-    _cleanup_expired_challenges,
+    _allow_login_attempt,
     _set_auth_cookies,
     router,
 )
 from app.config import Config
 from app.database import get_db
 from app.models import KeyLoginRequest, User
+from app.security import auth_state_backend as _auth_state
 from app.security.crypto import derive_x25519_session_key, load_or_create_node_keypair
 from app.security.ip_privacy import raw_ip_for_ratelimit
 
 logger = logging.getLogger(__name__)
 
+_LOGIN_UNAVAILABLE = "Key sign-in is temporarily unavailable"
+
 
 @router.get("/challenge")
 async def get_challenge(identifier: str, db: Session = Depends(get_db)):
     """Шаг 1 беспарольного X25519 входа — challenge + публичный ключ сервера."""
-    _cleanup_expired_challenges()
-
     user = (
         db.query(User).filter(User.phone == identifier).first()
         or db.query(User).filter(User.username == identifier.lower()).first()
     )
 
-    if not user or not user.x25519_public_key:
-        return {
-            "challenge_id": secrets.token_hex(16),
-            "challenge": secrets.token_hex(32),
-            "server_pubkey": "0" * 64,
-            "expires_in": _CHALLENGE_TTL,
-        }
-
     _, server_pub = load_or_create_node_keypair(Config.KEYS_DIR)
-    challenge_bytes = secrets.token_bytes(32)
-    challenge_id = secrets.token_hex(16)
 
-    with _challenges_lock:
-        _challenges[challenge_id] = _Challenge(
-            challenge=challenge_bytes,
-            user_id=user.id,
-            pubkey_hex=user.x25519_public_key,
-            expires_at=time.monotonic() + _CHALLENGE_TTL,
-        )
+    try:
+        issued = None
+        if user and user.x25519_public_key:
+            try:
+                issued = _auth_state.login_issue(int(user.id), user.x25519_public_key)
+            except ValueError:
+                logger.warning("Key-login: непригодный ключ у учётной записи %s", user.id)
+        if issued is None:
+            issued = _auth_state.login_issue_decoy()
+    except RuntimeError as error:
+        raise HTTPException(503, _LOGIN_UNAVAILABLE) from error
 
     return {
-        "challenge_id": challenge_id,
-        "challenge": challenge_bytes.hex(),
+        "challenge_id": issued.challenge_id,
+        "challenge": issued.challenge.hex(),
         "server_pubkey": server_pub.hex(),
-        "expires_in": _CHALLENGE_TTL,
+        "expires_in": issued.expires_in,
     }
 
 
@@ -75,17 +63,19 @@ async def get_challenge(identifier: str, db: Session = Depends(get_db)):
 async def login_with_key(body: KeyLoginRequest, request: Request, db: Session = Depends(get_db)):
     """Шаг 2 беспарольного X25519 входа — проверка HMAC proof."""
     ip = raw_ip_for_ratelimit(request)
-    if not _check_auth_rate(ip, _AUTH_RATE_LOGIN):
+    if not _allow_login_attempt(ip):
         raise HTTPException(429, "Too many login attempts. Please wait a minute.")
 
-    with _challenges_lock:
-        ch = _challenges.pop(body.challenge_id, None)
+    try:
+        claim = _auth_state.login_claim(body.challenge_id, body.pubkey)
+    except ValueError:
+        raise HTTPException(401, "Challenge not found or already used") from None
+    except RuntimeError as error:
+        raise HTTPException(503, _LOGIN_UNAVAILABLE) from error
 
-    if not ch:
+    if claim.outcome == "missing":
         raise HTTPException(401, "Challenge not found or already used")
-    if time.monotonic() > ch.expires_at:
-        raise HTTPException(401, "Challenge expired (60 seconds)")
-    if not secrets.compare_digest(ch.pubkey_hex, body.pubkey):
+    if not claim.taken:
         raise HTTPException(401, "Public key does not match the registered one")
 
     server_priv, _ = load_or_create_node_keypair(Config.KEYS_DIR)
@@ -99,12 +89,12 @@ async def login_with_key(body: KeyLoginRequest, request: Request, db: Session = 
         logger.warning(f"Key derivation failed: {e}")
         raise HTTPException(401, "Shared secret computation error") from None
 
-    expected_proof = hmac.new(shared, ch.challenge, hashlib.sha256).hexdigest()
+    expected_proof = hmac.new(shared, claim.challenge, hashlib.sha256).hexdigest()
 
     if not secrets.compare_digest(body.proof, expected_proof):
         raise HTTPException(401, "Invalid proof — possibly wrong private key")
 
-    user = db.query(User).filter(User.id == ch.user_id, User.is_active.is_(True)).first()
+    user = db.query(User).filter(User.id == claim.user_id, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(401, "User not found or deactivated")
 

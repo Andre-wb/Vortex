@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM bot_inline_results\n            WHERE id IN (\n                SELECT id\n                FROM bot_inline_results\n                ORDER BY updated_at DESC, id DESC\n                OFFSET $1\n            )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "25e191d2abe7f9ced9b5fc456b94f2441caabe2275cdc5c5ae177167cab9fd12"
+}

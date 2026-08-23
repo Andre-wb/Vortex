@@ -80,6 +80,7 @@ from app.security.crypto import (
     encrypt_message,
     generate_x25519_keypair,
 )
+from app.security.wrapped_key_backend import wrapped_key_parse
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +251,10 @@ def format_encrypted_key(enc_dict: dict) -> tuple[str, str]:
     Извлекает (ephemeral_pub_hex, ciphertext_hex) из словаря,
     возвращённого ecies_encrypt или переданного клиентом.
     """
-    return enc_dict["ephemeral_pub"], enc_dict["ciphertext"]
+    parsed = wrapped_key_parse(json.dumps(enc_dict))
+    if parsed is None:
+        raise ValueError("Not a usable ECIES payload")
+    return parsed.ephemeral_pub, parsed.ciphertext
 
 
 def hybrid_ecies_encrypt(plaintext: bytes, recipient_pub_hex: str, recipient_kyber_pub_hex: str | None = None) -> dict:
@@ -296,26 +300,6 @@ def hybrid_ecies_encrypt(plaintext: bytes, recipient_pub_hex: str, recipient_kyb
 def validate_ecies_payload(payload: dict) -> bool:
     """Проверяет что payload содержит корректные ECIES или hybrid ECIES поля."""
     try:
-        is_hybrid = payload.get("hybrid", False)
-        if is_hybrid:
-            # Hybrid payload: x25519_ephemeral_pub + kyber_ciphertext + ciphertext
-            ep = payload.get("x25519_ephemeral_pub", "")
-            kc = payload.get("kyber_ciphertext", "")
-            ct = payload.get("ciphertext", "")
-            if len(ep) != 64 or len(kc) < 100 or len(ct) < 24:
-                return False
-            bytes.fromhex(ep)
-            bytes.fromhex(kc)
-            bytes.fromhex(ct)
-            return True
-        else:
-            # Classical ECIES payload: ephemeral_pub + ciphertext
-            ep = payload.get("ephemeral_pub", "")
-            ct = payload.get("ciphertext", "")
-            if len(ep) != 64 or len(ct) < 24:  # минимум nonce(12)*2=24 hex chars
-                return False
-            bytes.fromhex(ep)
-            bytes.fromhex(ct)
-            return True
-    except Exception:
+        return wrapped_key_parse(json.dumps(payload)) is not None
+    except (TypeError, ValueError):
         return False
